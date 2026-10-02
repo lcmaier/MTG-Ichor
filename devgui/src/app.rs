@@ -3,12 +3,15 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use eframe::egui;
 
 use crate::bridge::GameSetup;
 use crate::session::Session;
-use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView, SeatButton, WindowState, ZoneView};
+use crate::view_model::{
+    Amount, BoardView, Input, Item, KEYS, Key, NumberField, PromptView, SeatButton, WindowState, ZoneView,
+};
 
 pub struct DevGui {
     session: Session,
@@ -24,6 +27,7 @@ impl DevGui {
 
 impl eframe::App for DevGui {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.session.tick(ui.ctx().input(|input| input.time));
         self.session.receive();
         let session = &self.session;
         let header = SessionHeader {
@@ -52,7 +56,11 @@ pub struct SessionHeader<'a> {
 
 /// The whole window; the inputs the player made this frame.
 pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> Vec<Input> {
-    let mut inputs = Vec::new();
+    let mut inputs = keys(ui.ctx());
+    if let Some(left) = state.settling_for() {
+        // The prompt's controls come back when the beat ends, mouse or no mouse.
+        ui.ctx().request_repaint_after(Duration::from_secs_f64(left));
+    }
     let board = state.board_view();
     egui::Panel::top("header").show(ui, |ui| {
         ui.horizontal(|ui| {
@@ -102,7 +110,7 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
                 ui.weak("Reload starts the scenario again.");
             }
         } else if let Some(prompt) = state.prompt_view() {
-            prompt_panel(ui, &prompt, &mut inputs);
+            ui.push_id(prompt.serial, |ui| prompt_panel(ui, &prompt, &mut inputs));
         } else {
             ui.weak(state.status());
         }
@@ -285,6 +293,48 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             }
         });
     }
+    ui.weak(KEYS);
+}
+
+/// The shortcut keys pressed this frame, taken out of egui's input so that a
+/// focused button does not act on them too; none while a field is typed into.
+fn keys(ctx: &egui::Context) -> Vec<Input> {
+    if ctx.egui_wants_keyboard_input() {
+        return Vec::new();
+    }
+    ctx.input_mut(|input| {
+        let mut keys = Vec::new();
+        input.events.retain(|event| match event {
+            egui::Event::Key { key, pressed: true, repeat, modifiers, .. } if modifiers.is_none() => match shortcut(*key) {
+                Some(key) => {
+                    keys.push(Input::Key { key, repeat: *repeat });
+                    false
+                }
+                None => true,
+            },
+            _ => true,
+        });
+        keys
+    })
+}
+
+fn shortcut(key: egui::Key) -> Option<Key> {
+    let digit = [
+        egui::Key::Num1, egui::Key::Num2, egui::Key::Num3, egui::Key::Num4, egui::Key::Num5,
+        egui::Key::Num6, egui::Key::Num7, egui::Key::Num8, egui::Key::Num9,
+    ]
+    .iter()
+    .position(|digit| *digit == key);
+    Some(match key {
+        _ if digit.is_some() => Key::Digit(digit.map_or(0, |at| at as u8 + 1)),
+        egui::Key::Enter => Key::Enter,
+        egui::Key::Space => Key::Space,
+        egui::Key::Escape => Key::Escape,
+        egui::Key::F2 => Key::F2,
+        egui::Key::F4 => Key::F4,
+        egui::Key::F6 => Key::F6,
+        _ => return None,
+    })
 }
 
 fn seat_button(ui: &mut egui::Ui, button: &SeatButton, inputs: &mut Vec<Input>) {

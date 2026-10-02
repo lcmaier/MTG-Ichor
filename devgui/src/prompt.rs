@@ -63,8 +63,9 @@ pub struct Prompt {
     pub question: String,
     /// `ChoiceKind::subject()`.
     pub subject: Option<ObjectId>,
-    /// A priority prompt, the one a yield answers.
-    pub at_priority: bool,
+    /// Where a priority prompt offers `Pass`, which it always does: a
+    /// priority prompt is the one a yield answers and Space passes at.
+    pub pass: Option<usize>,
     /// Why the seat is asked again, in `ui::display::rejection`'s words: the
     /// answer the engine rejected and the rule.
     pub rejected: Option<String>,
@@ -103,7 +104,7 @@ impl Prompt {
             kind: kind_name(&context.kind),
             question: question(game, &context.kind),
             subject: context.kind.subject(),
-            at_priority: matches!(context.kind, ChoiceKind::PriorityAction),
+            pass: options.iter().position(|option| matches!(option, ChoiceOption::Action(PriorityAction::Pass))),
             rejected: context.rejected.as_ref().map(|rejected| rejection(game, rejected)),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),

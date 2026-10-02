@@ -2,11 +2,13 @@
 //! prompt the test clicks anything the window would let a person click, until
 //! an answer completes: a half chosen and abandoned, a reset in the middle of
 //! an ordering, a bucket filled and emptied, a yield set or stopped, the
-//! clicks no fixed rule makes; and between prompts it turns full control on or
-//! off now and then, as the header's switch does. Every game must finish, the
-//! engine thread must not panic, the engine must accept every reply the view
-//! model builds, and every click the window offers must move the answer along
-//! or act on the seat.
+//! clicks no fixed rule makes, a shortcut key as often as its button; and
+//! between prompts it turns full control on or off now and then, as the
+//! header's switch does. The window's clock runs too: a click in the beat
+//! after each prompt arrives must do nothing, and nothing may show as live.
+//! Every game must finish, the engine thread must not panic, the engine must
+//! accept every reply the view model builds, and every click the window offers
+//! must move the answer along or act on the seat.
 
 #[path = "support/games.rs"]
 mod games;
@@ -15,7 +17,9 @@ use std::sync::Arc;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
 use devgui::prompt::{Primitive, Reply};
-use devgui::view_model::{Amount, BoardView, DoneButton, Input, Item, NumberField, SeatButton, WindowState};
+use devgui::view_model::{
+    Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
+};
 use games::{dealt, from_board, next};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -85,6 +89,7 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
     let engine = spawn_game(setup, Arc::new(|| {}));
     let mut rng = StdRng::seed_from_u64(seed);
     let mut state = WindowState::default();
+    let mut clock = 0.0;
     let mut last = String::from("no answer yet");
     for _ in 0..PROMPT_CAP {
         if rng.random_ratio(1, FULL_CONTROL_ONE_IN) {
@@ -103,10 +108,16 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
             ToWindow::Refused { message } => panic!("{game}: the scenario did not load: {message}"),
             ToWindow::Prompt { prompt, .. } => {
                 reached.primitives.push(prompt.primitive.clone());
-                reached.pass_only += usize::from(prompt.at_priority && prompt.options.len() == 1);
+                reached.pass_only += usize::from(prompt.pass.is_some() && prompt.options.len() == 1);
             }
         }
+        clock += 1.0;
+        state.tick(clock);
         state.receive(message);
+        // Item 201: the beat after a prompt arrives offers nothing and drops a click.
+        assert!(clickable(&state, &mut rng).is_empty(), "{game}: live in the beat at {:?}", state.prompt);
+        assert_eq!(state.clone().input(Input::OptionButton(0)), None, "{game}: a click in the beat");
+        state.tick(clock + 2.0 * SETTLE_SECONDS);
         let prompt = state.prompt.clone();
         let reply = click_until_answered(&mut state, &engine, &mut rng, reached)
             .unwrap_or_else(|| panic!("{game}: no answer in {CLICK_CAP} clicks to {prompt:?}"));
@@ -149,7 +160,8 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
 /// What `app::draw` lets a person click now, besides "Start over": each
 /// option's button or an allocation's live "−" and "+", the number's field,
 /// the confirm button while it is live, each live yield and "Stop yielding",
-/// and each board item marked clickable.
+/// each board item marked clickable, and the key for each live button that
+/// has one.
 fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     let Some(prompt) = state.prompt_view() else {
         return Vec::new();
@@ -172,6 +184,21 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     }
     let seat_buttons = prompt.yields.iter().chain(prompt.yielding.as_ref().map(|(_, stop)| stop));
     inputs.extend(seat_buttons.filter(|button| button.live).map(|SeatButton { input, .. }| *input));
+    let key = |key| Input::Key { key, repeat: false };
+    let mut keyed: Vec<Input> = inputs
+        .iter()
+        .filter_map(|input| match *input {
+            Input::OptionButton(i) if i < 9 => Some(key(Key::Digit(i as u8 + 1))),
+            Input::Done => Some(key(Key::Enter)),
+            _ => None,
+        })
+        .collect();
+    if let Some(pass) = state.prompt.as_ref().and_then(|prompt| prompt.pass)
+        && inputs.contains(&Input::OptionButton(pass))
+    {
+        keyed.push(key(Key::Space));
+    }
+    inputs.extend(keyed);
     if let Some(board) = state.board_view() {
         inputs.extend(items(&board).filter(|item| item.clickable).filter_map(|item| item.target).map(Input::Board));
     }

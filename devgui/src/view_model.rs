@@ -44,7 +44,32 @@ pub enum Input {
     StopYielding,
     /// Turn full control on or off, which `Session::input` carries to the seat.
     FullControl(bool),
+    /// A shortcut key went down: a held key's repeats arrive too, and answer
+    /// nothing.
+    Key { key: Key, repeat: bool },
 }
+
+/// A key the window reads, as the drawing reports it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Key {
+    /// `1` to `9`: that option's button.
+    Digit(u8),
+    Enter,
+    Space,
+    Escape,
+    F2,
+    F4,
+    F6,
+}
+
+/// What each key does, for the prompt's foot.
+pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until my next turn";
+
+/// How long after a prompt arrives its input is dropped (`codebase-state.md`
+/// item 201): egui's double-click window, so the second click of a double
+/// click, or a quick click aimed at the prompt before, cannot answer one the
+/// person has not seen.
+pub const SETTLE_SECONDS: f64 = 0.3;
 
 /// The answer being put together.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -210,6 +235,14 @@ pub struct WindowState {
     /// Full control is on: the seat is asked at every priority point, with
     /// its decorators and its yields off.
     pub full_control: bool,
+    /// The window's clock, in seconds, as egui keeps it; `None` in a test
+    /// that keeps none, where nothing settles.
+    pub now: Option<f64>,
+    /// When the open prompt arrived, by `now`.
+    pub prompt_at: Option<f64>,
+    /// Prompts received, which keys each prompt's widgets apart: focus on one
+    /// prompt's button cannot pass to the next prompt's.
+    pub prompts: u64,
 }
 
 impl WindowState {
@@ -218,6 +251,8 @@ impl WindowState {
             ToWindow::Prompt { snapshot, prompt, yielding } => {
                 self.log.extend(snapshot.log.iter().cloned());
                 self.yielding = yielding;
+                self.prompt_at = self.now;
+                self.prompts += 1;
                 self.selection = Some(Selection::start(&prompt));
                 self.prompt = Some(prompt);
                 self.board = Some(snapshot);
@@ -250,6 +285,11 @@ impl WindowState {
                 self.full_control = on;
                 return None;
             }
+            // Aimed at the prompt before: it arrived too recently to be read.
+            _ if self.settling_for().is_some() => return None,
+            // A shortcut acts on the press; a held key's repeat answers nothing.
+            Input::Key { repeat: true, .. } => return None,
+            Input::Key { key, .. } => return self.click_for(key).and_then(|click| self.input(click)),
             Input::StopYielding => return self.yielding.take().map(|_| Reply::StopYielding),
             Input::Yield(until) => self.yield_is_live(until).then_some(Reply::Yield(until))?,
             input => Reply::Answer(self.selection.as_mut()?.apply(self.prompt.as_ref()?, input)?),
@@ -259,11 +299,36 @@ impl WindowState {
         Some(reply)
     }
 
+    /// The click `key` stands for at the open prompt.
+    fn click_for(&self, key: Key) -> Option<Input> {
+        let prompt = self.prompt.as_ref()?;
+        match key {
+            Key::Digit(n) => Some(Input::OptionButton(usize::from(n).checked_sub(1)?)),
+            Key::Enter => Some(Input::Done),
+            Key::Space => prompt.pass.map(Input::OptionButton),
+            Key::Escape => Some(Input::Reset),
+            Key::F2 => Some(Input::Yield(Yield::UntilStackChanges)),
+            Key::F4 => Some(Input::Yield(Yield::UntilEndOfTurn)),
+            Key::F6 => Some(Input::Yield(Yield::UntilYourNextTurn)),
+        }
+    }
+
+    /// The window's clock, which the drawing reads from egui at each frame.
+    pub fn tick(&mut self, now: f64) {
+        self.now = Some(now);
+    }
+
+    /// How much longer the open prompt drops input, while it does.
+    pub fn settling_for(&self) -> Option<f64> {
+        let left = SETTLE_SECONDS - (self.now? - self.prompt_at?);
+        (left > 0.0).then_some(left)
+    }
+
     /// Whether `until` can be set at the open prompt: a priority prompt, with
     /// full control off, since it supersedes yields, and for the yield that
     /// waits on the stack, a stack to wait on.
     fn yield_is_live(&self, until: Yield) -> bool {
-        let at_priority = self.prompt.as_ref().is_some_and(|prompt| prompt.at_priority);
+        let at_priority = self.prompt.as_ref().is_some_and(|prompt| prompt.pass.is_some());
         let over_a_stack = self.board.as_ref().is_some_and(|board| !board.stack.is_empty());
         at_priority && !self.full_control && (until != Yield::UntilStackChanges || over_a_stack)
     }
@@ -301,13 +366,18 @@ impl WindowState {
 
     pub fn board_view(&self) -> Option<BoardView> {
         let board = self.board.as_ref()?;
-        Some(BoardView::new(board, &Marks::new(self.prompt.as_ref(), self.selection.as_ref())))
+        let mut marks = Marks::new(self.prompt.as_ref(), self.selection.as_ref());
+        if self.settling_for().is_some() {
+            marks.clickable.clear();
+        }
+        Some(BoardView::new(board, &marks))
     }
 
     pub fn prompt_view(&self) -> Option<PromptView> {
         let prompt = self.prompt.as_ref()?;
         let mut view = PromptView::new(prompt, self.selection.as_ref()?, self.board.as_ref());
-        if prompt.at_priority {
+        view.serial = self.prompts;
+        if prompt.pass.is_some() {
             view.yields = [Yield::UntilEndOfTurn, Yield::UntilStackChanges, Yield::UntilYourNextTurn]
                 .into_iter()
                 .map(|until| SeatButton {
@@ -321,7 +391,7 @@ impl WindowState {
             let stop = SeatButton { label: "Stop yielding".to_string(), input: Input::StopYielding, live: true };
             (format!("Passing {}", until_words(until)), stop)
         });
-        Some(view)
+        Some(if self.settling_for().is_some() { view.settling() } else { view })
     }
 }
 
@@ -633,6 +703,8 @@ pub struct PromptView {
     pub yields: Vec<SeatButton>,
     /// The yield the seat holds, in words, and the button that ends it.
     pub yielding: Option<(String, SeatButton)>,
+    /// `WindowState::prompts` when this prompt arrived.
+    pub serial: u64,
 }
 
 impl PromptView {
@@ -708,7 +780,26 @@ impl PromptView {
             can_reset,
             yields: Vec::new(),
             yielding: None,
+            serial: 0,
         }
+    }
+
+    /// Every control shown and none live: the beat after the prompt arrived.
+    fn settling(mut self) -> PromptView {
+        for option in &mut self.options {
+            option.live = false;
+            if let Some(amount) = &mut option.amount {
+                (amount.can_lower, amount.can_raise) = (false, false);
+            }
+        }
+        if let Some(done) = &mut self.done {
+            done.live = false;
+        }
+        self.can_reset = false;
+        for button in self.yields.iter_mut().chain(self.yielding.as_mut().map(|(_, stop)| stop)) {
+            button.live = false;
+        }
+        self
     }
 }
 
@@ -794,7 +885,7 @@ mod tests {
             kind: "Test".to_string(),
             question: String::new(),
             subject: None,
-            at_priority: false,
+            pass: None,
             rejected: None,
             primitive,
             options,
@@ -991,7 +1082,7 @@ mod tests {
 
     fn at_priority(b: &Board) -> WindowState {
         let options = vec![option("Pass", Vec::new()), option("Cast Lightning Bolt", vec![Object(b.bolt)])];
-        deciding(b, Prompt { at_priority: true, ..prompt(Primitive::PickN { min: 1, max: 1 }, options) })
+        deciding(b, Prompt { pass: Some(0), ..prompt(Primitive::PickN { min: 1, max: 1 }, options) })
     }
 
     /// A yield answers the priority prompt it is set at; the one that waits
@@ -1031,6 +1122,39 @@ mod tests {
         assert_eq!(state.input(stop.input), Some(Reply::StopYielding));
         assert!(state.prompt.is_some() && state.yielding.is_none());
         assert_eq!(state.input(Input::StopYielding), None, "nothing left to stop");
+    }
+
+    /// Item 201: a click in the moment after a prompt arrives was aimed at
+    /// the one before, so it is dropped, and the prompt shows nothing live
+    /// until the moment has passed. A held key's repeat never answers.
+    #[test]
+    fn input_in_the_beat_after_a_prompt_arrives_is_dropped() {
+        let b = board();
+        let mut state = WindowState::default();
+        state.tick(10.0);
+        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None });
+        state.tick(10.1);
+        assert_eq!(state.input(Input::OptionButton(0)), None, "the second click of a double click");
+        assert!(state.prompt_view().unwrap().options.iter().all(|option| !option.live));
+        state.tick(10.0 + 2.0 * SETTLE_SECONDS);
+        assert_eq!(state.input(Input::Key { key: Key::Digit(1), repeat: true }), None, "a held key");
+        assert_eq!(state.input(Input::Key { key: Key::Digit(2), repeat: false }), Some(Reply::Answer(Answer::Picks(vec![1]))));
+    }
+
+    /// A key is a click the prompt already offers: Space is the pass a
+    /// priority prompt offers, Enter the confirm button, F4 a yield.
+    #[test]
+    fn a_key_stands_for_a_click_the_prompt_offers() {
+        let b = board();
+        let state = at_priority(&b);
+        let pressed = |key| state.clone().input(Input::Key { key, repeat: false });
+        assert_eq!(pressed(Key::Space), Some(Reply::Answer(Answer::Picks(vec![0]))));
+        assert_eq!(pressed(Key::F4), Some(Reply::Yield(Yield::UntilEndOfTurn)));
+        assert_eq!(pressed(Key::Digit(9)), None, "no ninth option");
+        assert_eq!(pressed(Key::Enter), None, "a single pick has no confirm button");
+        let decline = deciding(&b, prompt(Primitive::PickN { min: 0, max: 1 }, unnamed(1)));
+        assert_eq!(decline.clone().input(Input::Key { key: Key::Enter, repeat: false }), Some(Reply::Answer(Answer::Picks(Vec::new()))));
+        assert_eq!(decline.clone().input(Input::Key { key: Key::Space, repeat: false }), None, "no pass outside priority");
     }
 
     #[test]

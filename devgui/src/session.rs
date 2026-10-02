@@ -30,6 +30,11 @@ impl Session {
         Session { setup, log_path, state: WindowState::default(), saved: None, engine, wake }
     }
 
+    /// The window's clock, which settles each new prompt (`WindowState::settling_for`).
+    pub fn tick(&mut self, now: f64) {
+        self.state.tick(now);
+    }
+
     /// Take every message the engine has sent since the last call.
     pub fn receive(&mut self) {
         while let Ok(message) = self.engine.from_engine.try_recv() {
@@ -47,7 +52,7 @@ impl Session {
                 (self.engine, self.log_path) = start_game(&self.setup, &self.wake);
                 let full_control = self.state.full_control;
                 self.engine.full_control.set(full_control);
-                self.state = WindowState { full_control, ..WindowState::default() };
+                self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
                 self.saved = None;
             }
             // From the window's thread, at any moment: the seat reads the
