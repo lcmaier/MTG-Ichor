@@ -10,12 +10,10 @@
 //
 // **The switch is the client's.** A window flips it from its own thread, and
 // `FullControl` reads it once per prompt, so a flip lands at the seat's next
-// prompt wherever the engine is. A replay needs to know where it landed. A
-// client that flips it between prompts records each answer the switch routes,
-// the decorators' too, at the top of the seat where they all pass — never at
-// the provider at the bottom, which a decorator's answer never reaches.
-// `cli_play` flips it only while the seat answers a prompt, so its input
-// stream is already that record.
+// prompt wherever the engine is. No replay needs to know where: the engine
+// logs every answer, whichever provider gave it, and the passes it makes
+// itself (`state::decision_log`), so a flip changes who answers and never
+// the log.
 //
 // **Full control supersedes a yield** (the owner, 2026-09-30): while it is on,
 // the seat's yields are cancelled, so turning it off again does not bring one
@@ -156,12 +154,10 @@ mod tests {
     use crate::ui::mana_window_stop::ManaWindowStop;
 
     fn covered_window() -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::ManaAbilityWindow {
-                spell_or_ability_id: new_object_id(),
-                remaining_cost: ManaCost::zero(),
-            },
-        }
+        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: new_object_id(),
+            remaining_cost: ManaCost::zero(),
+        })
     }
 
     fn a_source() -> Vec<ChoiceOption> {
@@ -208,7 +204,7 @@ mod tests {
     fn full_control_cancels_the_yields_it_supersedes() {
         use crate::ui::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
-        let priority = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let priority = ChoiceContext::new(ChoiceKind::PriorityAction);
         let options = vec![
             ChoiceOption::Action(PriorityAction::Pass),
             ChoiceOption::Action(PriorityAction::CastSpell(new_object_id())),

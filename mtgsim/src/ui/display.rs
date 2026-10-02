@@ -3,23 +3,27 @@
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::engine::combat::validation::CombatError;
 use crate::engine::layers::compute_characteristics;
+use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
-use crate::objects::card_data::{AbilityText, AbilityType};
+use crate::objects::card_data::{AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
 };
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaSymbol;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers: a Clone copying Grizzly
@@ -35,6 +39,7 @@ pub fn card_name(game: &GameState, id: ObjectId) -> String {
 /// and the dispatch audit may not do (`the_sink_changes_nothing_the_game_does`,
 /// `an_audited_game_counts_and_traces_what_an_unaudited_one_does`).
 pub fn printed_name(game: &GameState, id: ObjectId) -> String {
+    // AS PRINTED: the card's own name, for a record no rule reads.
     game.objects.get(&id)
         .map(|obj| obj.card_data.name.clone())
         .unwrap_or_else(|| "<unknown>".to_string())
@@ -147,6 +152,213 @@ fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
         shown.push(part);
     }
     shown.into_iter().map(|(text, _)| text.words).collect()
+}
+
+/// The card `id` as printed, before any effect touched it, one entry per
+/// face: its name and mana cost, type line, rules text and numbers, a line
+/// each. Beside what the object is now, it shows what an effect changed.
+pub fn printed_faces(game: &GameState, id: ObjectId) -> Vec<String> {
+    // AS PRINTED: the card itself, for a display no rule reads.
+    game.objects.get(&id).map(|obj| vec![printed_face(&obj.card_data)]).unwrap_or_default()
+}
+
+fn printed_face(card: &CardData) -> String {
+    let mut lines = vec![match &card.mana_cost {
+        Some(cost) => format!("{} {cost}", card.name),
+        None => card.name.clone(),
+    }];
+    lines.push(type_line(&card.supertypes, &card.types, &card.subtypes));
+    lines.extend(paragraphs(&card.rules_text).map(str::to_string));
+    match (card.power.zip(card.toughness), card.loyalty, card.defense) {
+        (Some((power, toughness)), _, _) => lines.push(format!("{power}/{toughness}")),
+        (None, Some(loyalty), _) => lines.push(format!("Loyalty {loyalty}")),
+        (None, None, Some(defense)) => lines.push(format!("Defense {defense}")),
+        (None, None, None) => {}
+    }
+    lines.join("\n")
+}
+
+/// `Legendary Creature — Elf Warrior`: a type line in printed order.
+pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &Subtypes) -> String {
+    let front: Vec<String> = in_printed_order(supertypes, types).iter().map(|word| word.text()).collect();
+    let subtypes: Vec<String> = subtypes.iter().map(Subtype::word).collect();
+    if subtypes.is_empty() { front.join(" ") } else { format!("{} — {}", front.join(" "), subtypes.join(" ")) }
+}
+
+/// A type line word by word against the object's copiable values (CR 707.2),
+/// which are what it prints unless it is a copy: [`type_line_now`].
+#[derive(Debug, Default, PartialEq)]
+pub struct TypeLine {
+    /// The supertypes, then the card types.
+    pub front: Vec<TypeWord>,
+    /// The words after the long dash (CR 205.3b).
+    pub subtypes: Vec<TypeWord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeWord {
+    pub text: String,
+    pub status: TypeWordStatus,
+}
+
+/// Where a word of [`TypeLine`] stands against the copiable values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TypeWordStatus {
+    Kept,
+    /// The copiable values have it and the object does not.
+    Lost,
+    /// An effect gave it.
+    Gained,
+}
+
+impl std::fmt::Display for TypeLine {
+    /// The line the object has now: the words it lost are left out.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let has = |words: &[TypeWord]| -> Vec<String> {
+            words.iter().filter(|w| w.status != TypeWordStatus::Lost).map(|w| w.text.clone()).collect()
+        };
+        let subtypes = has(&self.subtypes);
+        write!(f, "{}", has(&self.front).join(" "))?;
+        if !subtypes.is_empty() {
+            write!(f, " — {}", subtypes.join(" "))?;
+        }
+        Ok(())
+    }
+}
+
+/// The type line of `id` as it is now, as Arena shows one. A card type or
+/// supertype stands in Oracle's order, printed or given; a subtype an effect
+/// gave goes after the ones the copiable values have, in the order given; a
+/// word the object lost stays where it stood, marked lost. A word given and
+/// taken away is not there.
+pub fn type_line_now(game: &GameState, id: ObjectId) -> TypeLine {
+    match (copiable_values(game, id), compute_characteristics(game, id)) {
+        (Some(base), Some(now)) => type_line_against(&base, &now),
+        _ => TypeLine::default(),
+    }
+}
+
+/// [`type_line_now`] for a reader asking about many objects, a board's
+/// worth: the permanents' copiable values come from one pass of the board.
+pub struct TypeLines(IdMap<ObjectId, CopiableValues>);
+
+impl TypeLines {
+    pub fn new(game: &GameState) -> TypeLines {
+        TypeLines(copiable_values_on_battlefield(game))
+    }
+
+    /// `id`'s type line, `now` being its characteristics.
+    pub fn of(&self, game: &GameState, id: ObjectId, now: &EffectiveCharacteristics) -> TypeLine {
+        match self.0.get(&id) {
+            Some(base) => type_line_against(base, now),
+            None => copiable_values(game, id).map(|base| type_line_against(&base, now)).unwrap_or_default(),
+        }
+    }
+}
+
+fn type_line_against(base: &CopiableValues, now: &EffectiveCharacteristics) -> TypeLine {
+    let base_front = in_printed_order(&base.supertypes, &base.types);
+    let now_front = in_printed_order(&now.supertypes, &now.types);
+    let mut words: Vec<FrontWord> = base_front.iter().chain(&now_front).copied().collect();
+    words.sort_by_key(FrontWord::rank);
+    words.dedup();
+    let front = words
+        .iter()
+        .filter_map(|word| {
+            standing(base_front.contains(word), now_front.contains(word)).map(|status| TypeWord { text: word.text(), status })
+        })
+        .collect();
+
+    let mut subtypes: Vec<TypeWord> = base
+        .subtypes
+        .iter()
+        .map(|subtype| TypeWord {
+            text: subtype.word(),
+            status: if now.subtypes.contains(subtype) { TypeWordStatus::Kept } else { TypeWordStatus::Lost },
+        })
+        .collect();
+    subtypes.extend(
+        now.subtypes
+            .iter()
+            .filter(|subtype| !base.subtypes.contains(subtype))
+            .map(|subtype| TypeWord { text: subtype.word(), status: TypeWordStatus::Gained }),
+    );
+    if let Some(status) = standing(base.subtypes.has_every_creature_type(), now.subtypes.has_every_creature_type()) {
+        subtypes.push(TypeWord { text: "(every creature type)".to_string(), status });
+    }
+    TypeLine { front, subtypes }
+}
+
+/// A word's status from whether the copiable values have it and the object
+/// does: `None` for neither.
+fn standing(in_base: bool, in_now: bool) -> Option<TypeWordStatus> {
+    match (in_base, in_now) {
+        (true, true) => Some(TypeWordStatus::Kept),
+        (true, false) => Some(TypeWordStatus::Lost),
+        (false, true) => Some(TypeWordStatus::Gained),
+        (false, false) => None,
+    }
+}
+
+/// A word in front of a type line's dash.
+#[derive(Clone, Copy, PartialEq)]
+enum FrontWord {
+    Supertype(Supertype),
+    CardType(CardType),
+}
+
+impl FrontWord {
+    fn text(&self) -> String {
+        match self {
+            FrontWord::Supertype(supertype) => format!("{supertype:?}"),
+            FrontWord::CardType(card_type) => format!("{card_type:?}"),
+        }
+    }
+
+    /// Its place on a type line: supertypes before card types (CR 205.4a),
+    /// each in Oracle's order, which no card outside the Un-sets and playtest
+    /// cards breaks for any two it prints (a Scryfall census of every pair,
+    /// 2026-10-02); the CR gives none. Each word has its own place, so a
+    /// sort leaves one word where two lines had it.
+    fn rank(&self) -> u8 {
+        match self {
+            FrontWord::Supertype(supertype) => match supertype {
+                Supertype::Basic => 0,
+                Supertype::Legendary => 1,
+                Supertype::Ongoing => 2,
+                Supertype::Snow => 3,
+                Supertype::World => 4,
+            },
+            FrontWord::CardType(card_type) => match card_type {
+                CardType::Kindred => 5,
+                CardType::Enchantment => 6,
+                CardType::Artifact => 7,
+                CardType::Land => 8,
+                CardType::Creature => 9,
+                CardType::Planeswalker => 10,
+                CardType::Battle => 11,
+                CardType::Instant => 12,
+                CardType::Sorcery => 13,
+                // Each the one card type on its cards.
+                CardType::Conspiracy => 14,
+                CardType::Dungeon => 15,
+                CardType::Phenomenon => 16,
+                CardType::Plane => 17,
+                CardType::Scheme => 18,
+                CardType::Vanguard => 19,
+            },
+        }
+    }
+}
+
+fn in_printed_order(supertypes: &HashSet<Supertype>, types: &CardTypes) -> Vec<FrontWord> {
+    let mut words: Vec<FrontWord> = supertypes
+        .iter()
+        .map(|supertype| FrontWord::Supertype(*supertype))
+        .chain(types.iter().map(|card_type| FrontWord::CardType(*card_type)))
+        .collect();
+    words.sort_by_key(FrontWord::rank);
+    words
 }
 
 /// "Grizzly Bears (#12)", or "Grizzly Bears (Clone, #12)" for a copy: the
@@ -273,6 +485,46 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     }
 }
 
+/// Why a seat is being asked again: the answer the engine rejected, and the
+/// rule that rejected it.
+pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
+    match rejected {
+        Rejection::Reversed(action) => format!(
+            "{} could not be completed, so it was reversed and its payments canceled (CR 732.1)",
+            option_label(game, &ChoiceOption::Action(action.clone())),
+        ),
+        Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
+    }
+}
+
+/// The rule a combat declaration broke, one arm per error and no wildcard.
+fn combat_error(game: &GameState, error: &CombatError) -> String {
+    let n = |id: &ObjectId| named(game, *id);
+    match error {
+        CombatError::NotOnBattlefield(id) => format!("{} is not on the battlefield", n(id)),
+        CombatError::NotACreature(id) => format!("{} is not a creature", n(id)),
+        CombatError::NotControlledByPlayer(id, player) => {
+            format!("{} is not controlled by {}", n(id), player_name(*player))
+        }
+        CombatError::CreatureIsTapped(id) => format!("{} is tapped (CR 509.1a)", n(id)),
+        CombatError::CreatureHasSummoningSickness(id) => {
+            format!("{} has not been under its controller's control since their turn began (CR 302.6)", n(id))
+        }
+        CombatError::InvalidAttackTarget(id) => format!("{} can't attack that", n(id)),
+        CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => {
+            format!("{} is not attacking you, so {} can't block it (CR 509.1a)", n(attacker), n(blocker))
+        }
+        CombatError::TooManyBlocks(id, 1) => format!("{} can block only one attacker (CR 509.1a)", n(id)),
+        CombatError::TooManyBlocks(id, max) => format!("{} can block only {max} attackers", n(id)),
+        CombatError::HasDefender(id) => format!("{} has defender and can't attack (CR 702.3b)", n(id)),
+        CombatError::CantBlockFlyer(blocker, attacker) => {
+            format!("{} has flying, and {} has neither flying nor reach (CR 702.9b)", n(attacker), n(blocker))
+        }
+        // A restriction's own words, until RS-3 gives restrictions ids.
+        CombatError::ConstraintViolation(text) => text.clone(),
+    }
+}
+
 /// The text of the ability with this id on the object's effective list, which
 /// is where the activation's options came from.
 fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
@@ -392,6 +644,7 @@ pub fn step_name(step: StepType) -> &'static str {
 /// "Grizzly Bears (Clone, #12)" when `name` is not its card's, so a copy reads
 /// as what it is.
 pub fn object_label(game: &GameState, id: ObjectId, name: &str) -> String {
+    // AS PRINTED: the card's own name, beside the one it has now.
     match game.objects.get(&id).map(|obj| obj.card_data.name.as_str()) {
         Some(card) if card != name => format!("{name} ({card}, {id})"),
         _ => format!("{name} ({id})"),
@@ -405,6 +658,7 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
     let kept = announced.as_deref().and_then(|names| names.iter().find(|(named, _)| *named == id));
     match (kept, game.objects.get(&id)) {
         (Some((_, name)), _) => object_label(game, id, name),
+        // AS PRINTED: no name was kept, so the card's own.
         (None, Some(obj)) => format!("{} ({})", obj.card_data.name, id),
         (None, None) => format!("{}", id),
     }
@@ -661,6 +915,11 @@ mod tests {
 
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
+        assert_eq!(
+            printed_faces(&game, clone),
+            ["Clone {3}{U}\nCreature — Shapeshifter\nYou may have this creature enter as a copy of any creature on the battlefield.\n0/0"],
+            "as printed, it is still Clone"
+        );
     }
     #[test]
     fn the_log_names_a_copy_as_it_was_at_each_event() {
@@ -703,6 +962,106 @@ mod tests {
         has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
         has(format!("Tapped: Grizzly Bears (Test Creature, {shaped})"));
         has(format!("Untapped: Test Creature ({shaped})"));
+    }
+
+    #[test]
+    fn a_type_line_prints_in_printed_order() {
+        use crate::cards::{dual_lands, phase_rc_cards, phase_rg_cards, phase_tr2b_cards};
+        let line = |card: Arc<CardData>| type_line(&card.supertypes, &card.types, &card.subtypes);
+        assert_eq!(line(phase_rc_cards::containment_priest()), "Creature — Human Cleric");
+        assert_eq!(line(phase_rc_cards::dryad_arbor()), "Land Creature — Forest Dryad");
+        assert_eq!(line(phase_tr2b_cards::nykthos_paragon()), "Enchantment Creature — Human Soldier");
+        assert_eq!(line(phase_rg_cards::archelos_lagoon_mystic()), "Legendary Creature — Turtle Shaman");
+        assert_eq!(line(dual_lands::bayou()), "Land — Swamp Forest");
+    }
+
+    fn words(section: &[TypeWord]) -> Vec<(&str, TypeWordStatus)> {
+        section.iter().map(|word| (word.text.as_str(), word.status)).collect()
+    }
+
+    #[test]
+    fn blood_moon_leaves_bayous_land_types_in_place_as_lost_and_adds_mountain_last() {
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+        use TypeWordStatus::{Gained, Kept, Lost};
+
+        let mut game = setup_two_player_game();
+        let bayou = put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 0);
+        assert_eq!(type_line_now(&game, bayou).to_string(), "Land — Swamp Forest");
+        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
+
+        let line = type_line_now(&game, bayou);
+        assert_eq!(words(&line.front), [("Land", Kept)]);
+        assert_eq!(words(&line.subtypes), [("Swamp", Lost), ("Forest", Lost), ("Mountain", Gained)]);
+        assert_eq!(line.to_string(), "Land — Mountain");
+    }
+
+    #[test]
+    fn a_gained_type_takes_its_place_and_a_gained_subtype_goes_last() {
+        use crate::engine::layers::types::{EffectModification, Layer};
+        use crate::test_support::{put_on_battlefield, registered, setup_two_player_game};
+        use crate::types::card_types::CreatureType;
+        use TypeWordStatus::{Gained, Kept, Lost};
+
+        let mut game = setup_two_player_game();
+        let bear = CardDataBuilder::new("Test Bear")
+            .card_type(CardType::Creature)
+            .subtype(Subtype::Creature(CreatureType::Bear))
+            .power_toughness(2, 2)
+            .build();
+        let bear = put_on_battlefield(&mut game, bear, 0);
+        for modification in [
+            EffectModification::AddType(CardType::Artifact),
+            EffectModification::AddSupertype(Supertype::Legendary),
+            EffectModification::AddSubtype(Subtype::Creature(CreatureType::Elf)),
+            EffectModification::SetSubtypes(Subtypes::from([Subtype::Creature(CreatureType::Goblin)])),
+        ] {
+            let timestamp = game.allocate_timestamp();
+            game.continuous_effects.add(registered(bear, Layer::Layer4Type, timestamp, modification));
+        }
+
+        let line = type_line_now(&game, bear);
+        assert_eq!(words(&line.front), [("Legendary", Gained), ("Artifact", Gained), ("Creature", Kept)]);
+        assert_eq!(words(&line.subtypes), [("Bear", Lost), ("Goblin", Gained)], "the Elf came and went");
+        assert_eq!(line.to_string(), "Legendary Artifact Creature — Goblin");
+    }
+
+    #[test]
+    fn a_copy_reads_against_what_it_copied_and_every_creature_type_is_one_word() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::card_types::CreatureType;
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::phase_rd_cards::samite_healer(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        let line = type_line_now(&game, clone);
+        assert!(line.front.iter().chain(&line.subtypes).all(|word| word.status == TypeWordStatus::Kept), "{line:?}");
+        assert_eq!(line.to_string(), "Creature — Human Cleric", "its own Shapeshifter is no part of it");
+
+        let mut every = (*CardDataBuilder::new("Every-Type Fixture")
+            .card_type(CardType::Creature)
+            .subtype(Subtype::Creature(CreatureType::Shapeshifter))
+            .power_toughness(1, 1)
+            .build())
+        .clone();
+        every.subtypes.insert_every_creature_type();
+        let every = put_on_battlefield(&mut game, Arc::new(every), 0);
+        assert_eq!(type_line_now(&game, every).to_string(), "Creature — Shapeshifter (every creature type)");
+
+        // One pass of the board gives every object the line a pass for it alone would.
+        use crate::test_support::put_in_hand;
+        put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 1);
+        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
+        put_in_hand(&mut game, crate::cards::phase_rc_cards::dryad_arbor(), 1);
+        put_in_graveyard(&mut game, crate::cards::phase_rg_cards::archelos_lagoon_mystic(), 1);
+        let lines = TypeLines::new(&game);
+        for id in game.objects.keys() {
+            let now = compute_characteristics(&game, *id).unwrap();
+            assert_eq!(lines.of(&game, *id, &now), type_line_now(&game, *id), "{}", named(&game, *id));
+        }
     }
 
     #[test]
@@ -828,6 +1187,29 @@ mod tests {
         assert_eq!(
             question(&game, &ChoiceKind::AssignCombatDamage { attacker_id: clone }),
             format!("Assign Grizzly Bears (Clone, {clone})'s combat damage")
+        );
+    }
+
+    /// A re-ask says what it rejected by the board's names and the rule.
+    #[test]
+    fn a_rejection_names_the_answer_and_the_rule() {
+        use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let bears = put_in_hand(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let blocker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 1);
+        let attacker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        assert_eq!(
+            rejection(&game, &Rejection::Reversed(PriorityAction::CastSpell(bears))),
+            format!("Cast Grizzly Bears ({bears}) could not be completed, so it was reversed and its payments canceled (CR 732.1)")
+        );
+        let blocks = Rejection::IllegalBlocks {
+            blocks: vec![(blocker, attacker), (blocker, attacker)],
+            why: CombatError::TooManyBlocks(blocker, 1),
+        };
+        assert_eq!(
+            rejection(&game, &blocks),
+            format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
         );
     }
 }

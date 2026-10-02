@@ -47,7 +47,7 @@ fn main() {
         Arc::new(|| {}),
     );
     let message = engine.from_engine.recv_timeout(Duration::from_secs(60)).expect("the engine's first prompt");
-    let ToWindow::Prompt { snapshot, prompt } = message else {
+    let ToWindow::Prompt { snapshot, prompt, .. } = message else {
         panic!("the board's first message is not a prompt: {message:?}");
     };
     let objects = snapshot.players.iter().map(|p| p.hand.len() + p.library.len() + p.graveyard.len() + p.battlefield.len()).sum::<usize>();
@@ -61,11 +61,11 @@ fn main() {
     reading("  of which the board text", || Scenario::write(&game.state).to_string());
     reading("receive", || {
         let mut state = WindowState::default();
-        state.receive(ToWindow::Prompt { snapshot: snapshot.clone(), prompt: prompt.clone() });
+        state.receive(ToWindow::Prompt { snapshot: snapshot.clone(), prompt: prompt.clone(), yielding: None });
         state
     });
     let mut state = WindowState::default();
-    state.receive(ToWindow::Prompt { snapshot, prompt });
+    state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None });
     reading("views, every repaint", || (state.board_view(), state.prompt_view()));
 }
 

@@ -126,6 +126,7 @@ impl<'g> Writer<'g> {
             dispatch_audit: _,
             events: _,
             trace: _,
+            decision_log: _,        // an observer's, as the trace is
             rng: _,                 // private to `StdRng`: a written board's randomness is fresh
         } = self.state;
         let (turn, active) = (*turn_number, *active_player);
@@ -472,9 +473,11 @@ impl<'g> Writer<'g> {
         if let Some(attack) = attacking {
             match attack.target {
                 AttackTarget::Player(p) => words.push(CardWord::Attacking(Attacked::Player(p))),
-                AttackTarget::Planeswalker(target) | AttackTarget::Battle(target) => {
-                    references.push(CardWord::Attacking(Attacked::Permanent(self.named_card(&state.objects[&target]))));
-                }
+                AttackTarget::Planeswalker(target) | AttackTarget::Battle(target) => match state.objects.get(&target) {
+                    Some(attacked) => references.push(CardWord::Attacking(Attacked::Permanent(self.named_card(attacked)))),
+                    // CR 506.4c: it attacks nothing once that has gone.
+                    None => self.report(format!("{card} attacking a permanent that no longer exists")),
+                },
             }
             if attack.is_blocked && attack.blocked_by.is_empty() {
                 words.push(CardWord::Blocked);
@@ -489,13 +492,21 @@ impl<'g> Writer<'g> {
             if block.blocking.len() > 1 {
                 self.report(format!("{card} blocking more than one attacker"));
             }
-            references.extend(block.blocking.first().map(|a| CardWord::Blocking(self.named_card(&state.objects[a]))));
+            match block.blocking.first().map(|attacker| state.objects.get(attacker)) {
+                Some(Some(attacker)) => references.push(CardWord::Blocking(self.named_card(attacker))),
+                // CR 509.1g: still blocking, though what it blocked has gone.
+                Some(None) => self.report(format!("{card} blocking a creature that no longer exists")),
+                None => {}
+            }
         }
         if let Some(host) = attached_to {
             if state.object_timestamp(*host) > obj.timestamp {
                 self.report(format!("{card}, attached to a permanent stamped after it"));
             }
-            references.push(CardWord::AttachedTo(self.named_card(&state.objects[host])));
+            match state.objects.get(host) {
+                Some(host) => references.push(CardWord::AttachedTo(self.named_card(host))),
+                None => self.report(format!("{card}, attached to an object that no longer exists")),
+            }
         }
         if references.len() > 1 {
             self.report(format!("{card}'s second reference to another card on its line"));
@@ -576,10 +587,31 @@ fn tag_letters(mut n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::tag_letters;
+    use crate::scenario::Scenario;
+    use crate::test_support::{put_on_battlefield, set_attacking, set_blocking, setup_two_player_game, vanilla_creature};
 
     #[test]
     fn tags_run_past_z() {
         let tags: Vec<String> = [0, 25, 26, 27, 701, 702].into_iter().map(tag_letters).collect();
         assert_eq!(tags, ["a", "z", "aa", "ab", "zz", "aaa"]);
+    }
+
+    /// CR 509.1g: a creature stays blocking until combat ends, after the
+    /// attacker it blocked has gone. A token that died ceased to exist (CR
+    /// 704.5d), so there is no card to name, and the writer says so. The dev
+    /// GUI writes the board at every prompt, and under full control asks at
+    /// combat damage's priority points.
+    #[test]
+    fn a_blocker_whose_attacker_ceased_to_exist_is_reported() {
+        let mut game = setup_two_player_game();
+        let token = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+        let blocker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+        set_attacking(&mut game, token, 0);
+        set_blocking(&mut game, blocker, vec![token]);
+        game.battlefield.remove(&token);
+        game.remove_object(token);
+
+        let written = Scenario::write(&game);
+        assert!(written.unwritten.iter().any(|line| line.contains("blocking a creature that no longer exists")), "{:?}", written.unwritten);
     }
 }

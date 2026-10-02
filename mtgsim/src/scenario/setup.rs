@@ -107,7 +107,7 @@ impl DecisionProvider for SetupDriver<'_> {
 
     fn seat_mode(&self, player: PlayerId) -> SeatMode {
         if self.answers().playing() {
-            SeatMode { stops_at_every_priority_point: true, person: false }
+            SeatMode { stops_at_every_priority_point: true }
         } else {
             self.answers().inner.seat_mode(player)
         }

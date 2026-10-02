@@ -1007,14 +1007,16 @@ mod tests {
         );
     }
 
-    // --- CR 509.1c retry loop test (SPECIAL-8) ---
+    // --- CR 509.1a's re-ask (SPECIAL-8) ---
 
+    // COVERS: ATOM-509.1a-002
     #[test]
     fn test_declare_blockers_retries_on_invalid_proposal() {
         // Scenario: defender has one blocker, attacker has two creatures in
         // combat. DP first proposes blocker-blocks-both (duplicate — violates
-        // default 1-block-per-creature rule), then proposes a legal single
-        // block. Retry loop must accept the second proposal.
+        // CR 509.1a's one attacker per blocker), then proposes a legal single
+        // block. The re-ask names the rejected blocks and the rule, and
+        // accepts the second proposal.
         let mut game = GameState::new(2, 20);
         let att1 = place_creature(&mut game, 0);
         let att2 = place_creature(&mut game, 0);
@@ -1045,13 +1047,14 @@ mod tests {
             crate::ui::choice_types::ChoiceKind::DeclareBlockers,
             vec![0, 1],
         );
-        // Retry: pick just the pair where blocker blocks att1.
+        // Re-ask: pick just the pair where blocker blocks att1.
         scripted.expect_pick_n(
             crate::ui::choice_types::ChoiceKind::DeclareBlockers,
             vec![idx_att1],
         );
+        let seat = crate::test_support::RejectionRecorder::new(scripted);
 
-        game.process_declare_blockers(&scripted).unwrap();
+        game.process_declare_blockers(&seat).unwrap();
 
         // Blocker should be blocking att1 only.
         let binfo = game.battlefield.get(&blocker).unwrap().blocking.as_ref().unwrap();
@@ -1059,5 +1062,27 @@ mod tests {
         // att2 should not have been blocked.
         let att2_info = game.battlefield.get(&att2).unwrap().attacking.as_ref().unwrap();
         assert!(!att2_info.is_blocked);
+        let rejected = crate::ui::choice_types::Rejection::IllegalBlocks {
+            blocks: pairs.clone(),
+            why: CombatError::TooManyBlocks(blocker, 1),
+        };
+        assert_eq!(seat.rejected_at("DeclareBlockers"), [None, Some(rejected)]);
+    }
+
+    /// The hang guard: a seat that declares the same illegal blocks however
+    /// often it is told why ends the game with an error at the thousandth.
+    #[test]
+    fn a_seat_that_keeps_declaring_illegal_blocks_ends_the_game_with_an_error() {
+        let mut game = GameState::new(2, 20);
+        let att1 = place_creature(&mut game, 0);
+        let att2 = place_creature(&mut game, 0);
+        place_creature(&mut game, 1);
+        set_attacking(&mut game, att1, 1);
+        set_attacking(&mut game, att2, 1);
+
+        let every_pair = crate::test_support::RecordingDecisionProvider::picking_all();
+        let error = game.process_declare_blockers(&every_pair).unwrap_err();
+        assert!(error.contains("illegal blocks 1000 times"), "{error}");
+        assert_eq!(every_pair.prompts(), 1000);
     }
 }

@@ -1,9 +1,10 @@
 // Random DecisionProvider — makes random legal choices for fuzz testing.
 //
 // Implements the 4-primitive `DecisionProvider` trait by picking uniformly at
-// random among the options the engine presents. Holds one piece of interior-
+// random among the options the engine presents. Holds two pieces of interior-
 // mutable state: a per-mana-ability-window activation counter that caps
-// pathological filter-ability chains during fuzz (see `pick_n` below).
+// pathological filter-ability chains during fuzz, and the actions a priority
+// window has rejected, which it does not choose again (see `pick_n` below).
 //
 // Tap-before-cast sequencing is *not* RandomDP's concern — the engine runs
 // the 601.2g / 602.1b mana-ability-window loop inside `cast_spell` and
@@ -37,7 +38,7 @@ use crate::oracle::mana_helpers::available_mana_sources;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// What a mana window's options can do for the pips a cost still owes.
@@ -153,6 +154,13 @@ pub struct RandomDecisionProvider {
     /// Resets when a new window id is seen. See `pick_n` for the rationale.
     window: Cell<Option<(ObjectId, u32)>>,
 
+    /// The actions the engine rejected in the priority window this provider
+    /// is answering. The engine offers them again, since a person may take one
+    /// again (CR 732.2); not choosing them is this agent's policy, which is
+    /// what makes its re-picks end (`codebase-state.md` item 193). A window's
+    /// first prompt carries no rejection, which is where the list empties.
+    rejected_in_window: RefCell<Vec<PriorityAction>>,
+
     /// The one source of randomness for every decision this provider makes.
     ///
     /// Owned rather than pulled from `rand::rng()` per call: `ThreadRng` is
@@ -176,6 +184,7 @@ impl RandomDecisionProvider {
     pub fn new() -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
+            rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::from_os_rng()),
         }
     }
@@ -188,8 +197,23 @@ impl RandomDecisionProvider {
     pub fn seeded(seed: u64) -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
+            rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::seed_from_u64(seed)),
         }
+    }
+
+    /// The actions not to choose at this prompt: at a priority prompt, every
+    /// action its window has rejected, `context`'s included; none elsewhere.
+    fn actions_to_skip(&self, context: &ChoiceContext) -> Vec<PriorityAction> {
+        if !matches!(context.kind, ChoiceKind::PriorityAction) {
+            return Vec::new();
+        }
+        let mut rejected = self.rejected_in_window.borrow_mut();
+        match &context.rejected {
+            Some(Rejection::Reversed(action)) => rejected.push(action.clone()),
+            _ => rejected.clear(),
+        }
+        rejected.clone()
     }
 }
 
@@ -251,12 +275,11 @@ impl DecisionProvider for RandomDecisionProvider {
             rng.random_range(bounds.0..=bounds.1)
         };
 
-        // For `DeclareBlockers`, dedup on blocker-id so
-        // RandomDP converges to a legal set in one shot instead of thrashing
-        // the engine's CR 509.1c retry loop. Each blocker can block at most
-        // one attacker by default (no Menace-opposite / multi-block keywords
-        // yet). The engine's retry loop remains a safety net — this branch
-        // just accelerates convergence.
+        // For `DeclareBlockers`, dedup on blocker-id so RandomDP declares a
+        // legal set in one shot instead of being asked again: each blocker
+        // blocks one attacker (CR 509.1a) unless an effect lets it block more,
+        // and this policy never uses one. The engine's re-ask remains the net —
+        // this branch just spares it.
         if matches!(context.kind, ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
@@ -280,7 +303,13 @@ impl DecisionProvider for RandomDecisionProvider {
             return picked;
         }
 
-        let mut indices: Vec<usize> = (0..options.len()).collect();
+        // Filtered before the shuffle, whose draws depend on the length alone,
+        // so this agent draws what it drew when the engine filtered the list
+        // for it.
+        let skip = self.actions_to_skip(context);
+        let mut indices: Vec<usize> = (0..options.len())
+            .filter(|&i| !matches!(&options[i], ChoiceOption::Action(action) if skip.contains(action)))
+            .collect();
         indices.shuffle(&mut *rng);
         indices.truncate(count);
         indices.sort(); // stable ordering for determinism in tests
@@ -413,12 +442,10 @@ mod tests {
     }
 
     fn window(remaining: ManaCost) -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::ManaAbilityWindow {
-                spell_or_ability_id: crate::types::ids::new_object_id(),
-                remaining_cost: remaining,
-            },
-        }
+        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: crate::types::ids::new_object_id(),
+            remaining_cost: remaining,
+        })
     }
 
     /// A five-color land offers five abilities; with `{G}` still owed the
@@ -493,7 +520,7 @@ mod tests {
     fn test_random_dp_pick_n_empty() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         let result = dp.pick_n(&game, 0, &ctx, &[], (0, 0));
         assert!(result.is_empty());
     }
@@ -502,7 +529,7 @@ mod tests {
     fn test_random_dp_pick_n_selects_within_bounds() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         let options = vec![ChoiceOption::Action(PriorityAction::Pass); 3];
         let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
         assert!(!result.is_empty() && result.len() <= 2);
@@ -511,12 +538,69 @@ mod tests {
         }
     }
 
+    /// `[Pass, Cast, Cast, Cast]`, the casts of fresh ids.
+    fn priority_options() -> Vec<ChoiceOption> {
+        let mut options = vec![ChoiceOption::Action(PriorityAction::Pass)];
+        options.extend((0..3).map(|_| ChoiceOption::Action(PriorityAction::CastSpell(crate::types::ids::new_object_id()))));
+        options
+    }
+
+    fn action(option: &ChoiceOption) -> PriorityAction {
+        match option {
+            ChoiceOption::Action(action) => action.clone(),
+            other => panic!("{other:?} is no priority action"),
+        }
+    }
+
+    /// The window asking again, having reversed `rejected`.
+    fn re_ask(rejected: &ChoiceOption) -> ChoiceContext {
+        ChoiceContext { kind: ChoiceKind::PriorityAction, rejected: Some(Rejection::Reversed(action(rejected))) }
+    }
+
+    /// Item 193: the agent skips what its window rejected, which the engine no
+    /// longer does for it, and draws what it drew when the engine did. One
+    /// agent is offered the whole list and told a cast was rejected; its twin,
+    /// at the same seed, is offered the list without that cast.
+    #[test]
+    fn a_rejected_action_is_skipped_and_the_draw_is_the_filtered_lists() {
+        let game = setup_basic_game();
+        let first = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let options = priority_options();
+        let filtered: Vec<ChoiceOption> =
+            options.iter().enumerate().filter(|(i, _)| *i != 2).map(|(_, option)| option.clone()).collect();
+        for seed in 0..64 {
+            let (told, twin) = (RandomDecisionProvider::seeded(seed), RandomDecisionProvider::seeded(seed));
+            assert_eq!(told.pick_n(&game, 0, &first, &options, (1, 1)), twin.pick_n(&game, 0, &first, &options, (1, 1)));
+            let picked = told.pick_n(&game, 0, &re_ask(&options[2]), &options, (1, 1));
+            let twin_picked = twin.pick_n(&game, 0, &first, &filtered, (1, 1));
+            assert_ne!(picked, [2], "seed {seed}: the rejected cast was chosen again");
+            assert_eq!(action(&options[picked[0]]), action(&filtered[twin_picked[0]]), "seed {seed}");
+        }
+    }
+
+    /// A window's rejections add up, and a prompt that rejects nothing starts
+    /// a new window, where every action may be chosen again.
+    #[test]
+    fn a_windows_rejections_add_up_and_a_new_window_forgets_them() {
+        let game = setup_basic_game();
+        let first = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let options = priority_options();
+        let dp = RandomDecisionProvider::seeded(7);
+        dp.pick_n(&game, 0, &first, &options, (1, 1));
+        dp.pick_n(&game, 0, &re_ask(&options[1]), &options, (1, 1));
+        dp.pick_n(&game, 0, &re_ask(&options[2]), &options, (1, 1));
+        assert_eq!(dp.pick_n(&game, 0, &re_ask(&options[3]), &options, (1, 1)), [0], "every cast was rejected");
+
+        let picks: Vec<usize> = (0..64).map(|_| dp.pick_n(&game, 0, &first, &options, (1, 1))[0]).collect();
+        assert!(picks.iter().any(|&pick| pick != 0), "a new window offers the casts again: {picks:?}");
+    }
+
     #[test]
     fn test_random_dp_pick_number_in_range() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
         let spell_id = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext { kind: ChoiceKind::ChooseXValue { spell_id, x_count: 1 } };
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1 });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
     }
@@ -527,7 +611,7 @@ mod tests {
         let game = setup_basic_game();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext { kind: ChoiceKind::AssignCombatDamage { attacker_id: id_a } };
+        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id: id_a });
         let buckets = vec![ChoiceOption::Object(id_a), ChoiceOption::Object(id_b)];
         let mins = vec![0, 0];
         let result = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);

@@ -42,9 +42,9 @@ sites with silently wrong behavior, so assume a new query needs a wrapper.
 by id and `put_on_stack.rs::activate_ability` must all index the *effective* list; migrating one alone
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
-**Two exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast-zone and
-play-from-hand legality, before the object is a permanent) and `register_static_effects`
-(circular inside `place_on_battlefield`). → `layers-architecture.md`; `codebase-state.md`.
+**Three exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast and play legality
+before the object is a permanent), `register_static_effects` (circular inside `place_on_battlefield`)
+and `// AS PRINTED:` (the card shown as printed; no rule reads it). → `layers-architecture.md`; `codebase-state.md`.
 
 ## Registry membership is not effect existence
 

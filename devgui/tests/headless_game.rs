@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
 use devgui::session::Session;
-use devgui::view_model::Input;
+use devgui::view_model::{Input, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
-use devgui::prompt::{Answer, Primitive};
+use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next};
 use window_by_rule::play_by_rule;
 
@@ -35,8 +35,11 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert_eq!(lines[..2], ["seed 7", "pool Performance"]);
     assert!(lines[2].starts_with("deck 0 ") && lines[3].starts_with("deck 1 "));
     assert!(lines[4].starts_with("answer 1 [turn 1, "), "each answer says when: {}", lines[4]);
-    let asked = lines.iter().filter(|l| l.starts_with("answer ")).count();
-    assert_eq!(asked, answered, "every answer the window gave is in the log");
+    let answers: Vec<&&str> = lines.iter().filter(|l| l.starts_with("answer ")).collect();
+    let seat_0 = answers.iter().filter(|l| l.contains("] player 0 ")).count();
+    assert!(seat_0 > answered, "seat 0's lines hold the window's answers, its decorators' and the engine's passes");
+    assert!(answers.iter().any(|l| l.contains("] player 1 ")), "and the other seat's answers");
+    assert!(answers.iter().any(|l| l.ends_with(" forced")), "a question with one legal answer is marked");
     assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
 }
 
@@ -59,7 +62,7 @@ fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
     let engine = spawn_game(dealt(7, None), Arc::new(|| {}));
     match next(&engine) {
         ToWindow::Prompt { prompt, .. } if matches!(prompt.primitive, Primitive::PickN { .. }) => {
-            engine.answers.send(Answer::Picks(vec![99])).unwrap();
+            engine.answers.send(Reply::Answer(Answer::Picks(vec![99]))).unwrap();
         }
         other => panic!("expected a pick as the first prompt, got {other:?}"),
     }
@@ -67,6 +70,31 @@ fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
         ToWindow::Panicked { message } => assert!(message.contains("DP returned index 99"), "{message}"),
         other => panic!("expected the validator's panic, got {other:?}"),
     }
+}
+
+/// CR 509.1a's re-ask, end to end: the window declares its one Wall of Stone
+/// blocking both Bears, the engine asks again and says why, and a legal
+/// declaration goes through.
+#[test]
+fn an_illegal_block_is_asked_again_with_the_rule_it_broke() {
+    let engine = spawn_game(from_board("reask.scenario", None), Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let rejected = |state: &WindowState| state.prompt.as_ref().and_then(|prompt| prompt.rejected.clone());
+    assert_eq!(state.prompt.as_ref().map(|prompt| prompt.kind.as_str()), Some("DeclareBlockers"));
+    assert_eq!(rejected(&state), None, "a first ask rejects nothing");
+    state.input(Input::OptionButton(0));
+    state.input(Input::OptionButton(1));
+    engine.answers.send(state.input(Input::Done).expect("both blocks declared")).unwrap();
+
+    state.receive(next(&engine));
+    let why = rejected(&state).expect("the re-ask says why");
+    assert!(why.starts_with("Those blocks are illegal: Wall of Stone ("), "{why}");
+    assert!(why.ends_with(") can block only one attacker (CR 509.1a)"), "{why}");
+    state.input(Input::OptionButton(0));
+    engine.answers.send(state.input(Input::Done).expect("one block declared")).unwrap();
+    let message = next(&engine);
+    assert!(!matches!(message, ToWindow::Panicked { .. } | ToWindow::Finished { .. }), "{message:?}");
 }
 
 /// A game from a scenario: the log opens with the file, its seed and its
@@ -86,7 +114,8 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let text_lines = board.lines().count();
     assert_eq!(lines[3..3 + text_lines], board.lines().collect::<Vec<_>>()[..]);
     assert_eq!(lines[3 + text_lines], "end scenario text");
-    assert_eq!(lines.iter().filter(|l| l.starts_with("answer ")).count(), answered);
+    let seat_0 = lines.iter().filter(|l| l.starts_with("answer ") && l.contains("] player 0 ")).count();
+    assert!(seat_0 > answered, "every answer the window gave is among seat 0's lines");
 }
 
 /// A file the loader refuses reaches the window as its line and its fix.

@@ -22,13 +22,12 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::oracle::mana_helpers::available_mana_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature};
-use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
+use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use std::collections::HashSet;
 use std::sync::Arc;
 
 fn pt(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i32>) {
@@ -125,14 +124,14 @@ fn test_urborg_and_blood_moon_in_both_orders() {
 
         assert_eq!(
             get_effective_subtypes(&game, dual),
-            HashSet::from([Subtype::Land(LandType::Mountain)]),
+            Subtypes::from([Subtype::Land(LandType::Mountain)]),
             "{order}: the dual is a Mountain and nothing else"
         );
         assert_eq!(taps_for(&game, 0, dual), vec![ManaType::Red], "{order}: the dual taps for {{R}} only");
 
         assert_eq!(
             get_effective_subtypes(&game, forest),
-            HashSet::from([Subtype::Land(LandType::Forest)]),
+            Subtypes::from([Subtype::Land(LandType::Forest)]),
             "{order}: a basic Forest is a Forest, never a Forest Swamp"
         );
         assert_eq!(taps_for(&game, 0, forest), vec![ManaType::Green]);
@@ -191,13 +190,13 @@ fn test_purifier_clause_and_blood_moon_in_both_orders() {
         assert!(get_effective_supertypes(&game, mine).contains(&Supertype::Basic), "{order}: basic");
         assert_eq!(
             get_effective_subtypes(&game, mine),
-            HashSet::from([Subtype::Land(LandType::Forest), Subtype::Land(LandType::Island)]),
+            Subtypes::from([Subtype::Land(LandType::Forest), Subtype::Land(LandType::Island)]),
             "{order}: my dual keeps its land types"
         );
         assert_eq!(taps_for(&game, 0, mine), vec![ManaType::Blue, ManaType::Green], "{order}: and its abilities");
 
         // ...and still applies to the opponent's.
-        assert_eq!(get_effective_subtypes(&game, theirs), HashSet::from([Subtype::Land(LandType::Mountain)]));
+        assert_eq!(get_effective_subtypes(&game, theirs), Subtypes::from([Subtype::Land(LandType::Mountain)]));
         assert_eq!(taps_for(&game, 1, theirs), vec![ManaType::Red], "{order}");
         assert!(!get_effective_supertypes(&game, theirs).contains(&Supertype::Basic));
     }
@@ -405,7 +404,7 @@ fn elves_are_goblins() -> Arc<CardData> {
     type_changer(
         "Elves Are Goblins",
         CardType::Enchantment,
-        TypeChange { set_subtypes: Some(HashSet::from([Subtype::Creature(CreatureType::Goblin)])), ..no_change() },
+        TypeChange { set_subtypes: Some(Subtypes::from([Subtype::Creature(CreatureType::Goblin)])), ..no_change() },
         ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf)),
     )
 }
@@ -414,7 +413,7 @@ fn goblins_are_elves() -> Arc<CardData> {
     type_changer(
         "Goblins Are Elves",
         CardType::Enchantment,
-        TypeChange { set_subtypes: Some(HashSet::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
+        TypeChange { set_subtypes: Some(Subtypes::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
         ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Goblin)),
     )
 }
@@ -422,8 +421,8 @@ fn goblins_are_elves() -> Arc<CardData> {
 // COVERS: ATOM-613.8b-001
 #[test]
 fn test_a_dependency_loop_applies_in_timestamp_order() {
-    let elf = |game: &GameState, id| get_effective_subtypes(game, id) == HashSet::from([Subtype::Creature(CreatureType::Elf)]);
-    let goblin = |game: &GameState, id| get_effective_subtypes(game, id) == HashSet::from([Subtype::Creature(CreatureType::Goblin)]);
+    let elf = |game: &GameState, id| get_effective_subtypes(game, id) == Subtypes::from([Subtype::Creature(CreatureType::Elf)]);
+    let goblin = |game: &GameState, id| get_effective_subtypes(game, id) == Subtypes::from([Subtype::Creature(CreatureType::Goblin)]);
 
     // "Elves are Goblins" first: the Elf becomes a Goblin, then every Goblin
     // — both of them — becomes an Elf.
@@ -502,7 +501,7 @@ fn test_dependencies_are_re_evaluated_after_each_application() {
     assert!(is_creature(&game, idol), "A, then B (C now depends on it), then C");
     assert_eq!(
         get_effective_subtypes(&game, idol),
-        HashSet::from([Subtype::Creature(CreatureType::Elf), Subtype::Creature(CreatureType::Goblin)])
+        Subtypes::from([Subtype::Creature(CreatureType::Elf), Subtype::Creature(CreatureType::Goblin)])
     );
 }
 
@@ -525,7 +524,7 @@ fn test_a_cda_and_a_non_cda_in_one_layer_are_independent() {
     // "This creature is an Elf" as a CDA (CR 604.3a: subtypes qualify).
     let mut is_an_elf = static_ability(Effect::Atom(
         Primitive::ChangeType(
-            TypeChange { set_subtypes: Some(HashSet::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
+            TypeChange { set_subtypes: Some(Subtypes::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
             Duration::WhileSourceOnBattlefield,
         ),
         EffectRecipient::ThisObject,
@@ -545,7 +544,7 @@ fn test_a_cda_and_a_non_cda_in_one_layer_are_independent() {
     let checks = game.diagnostics.dependency_checks();
     assert_eq!(
         get_effective_subtypes(&game, creature),
-        HashSet::from([Subtype::Creature(CreatureType::Elf), Subtype::Creature(CreatureType::Goblin)]),
+        Subtypes::from([Subtype::Creature(CreatureType::Elf), Subtype::Creature(CreatureType::Goblin)]),
         "the CDA made it an Elf before the row asked which creatures are Elves"
     );
     assert_eq!(game.diagnostics.dependency_checks(), checks, "clause (c) settled the pair with no hypothetical");
@@ -655,7 +654,7 @@ fn test_urborg_never_applies_beside_blood_moon_ashaya_and_opalescence() {
         assert_eq!(pt(&game, bears), (Some(2), Some(2)));
 
         // The basic Forest: a Forest, not a Swamp, not a Mountain.
-        assert_eq!(get_effective_subtypes(&game, forest), HashSet::from([Subtype::Land(LandType::Forest)]), "{order}");
+        assert_eq!(get_effective_subtypes(&game, forest), Subtypes::from([Subtype::Land(LandType::Forest)]), "{order}");
         assert_eq!(taps_for(&game, 0, forest), vec![ManaType::Green]);
     }
 }

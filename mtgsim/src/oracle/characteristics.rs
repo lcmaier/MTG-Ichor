@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardType, CardTypes, Subtype, Supertype};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
@@ -178,7 +178,7 @@ pub fn get_effective_types(game: &GameState, id: ObjectId) -> CardTypes {
 
 /// Get the effective subtypes of a game object after applying Layer 4 effects.
 /// Routes through the layer system — accounts for type-changing effects.
-pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> HashSet<Subtype> {
+pub fn get_effective_subtypes(game: &GameState, id: ObjectId) -> Subtypes {
     compute_characteristics(game, id)
         .map(|chars| chars.subtypes.clone())
         .unwrap_or_default()

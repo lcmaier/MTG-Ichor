@@ -8,7 +8,10 @@
 use std::sync::Arc;
 
 use mtgsim::cards::alpha;
-use mtgsim::test_support::test_ctx;
+use mtgsim::events::event::GameEvent;
+use mtgsim::state::game_state::{GameState, Phase};
+use mtgsim::test_support::{put_on_battlefield, set_attacking, setup_two_player_game, test_ctx, vanilla_creature};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::cards::creatures;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::registry::CardRegistry;
@@ -127,12 +130,8 @@ fn test_unblocked_attacker_deals_damage() {
     assert_eq!(game.state.phase.step, Some(StepType::DeclareBlockers));
     game.state.process_declare_blockers(&scripted).unwrap();
 
-    // Advance to FirstStrikeDamage (no-op in Phase 3)
-    game.state.advance_turn(&test_ctx()).unwrap();
-    assert_eq!(game.state.phase.step, Some(StepType::FirstStrikeDamage));
-    game.state.process_combat_damage(&scripted, true).unwrap();
-
-    // Advance to CombatDamage
+    // Advance to CombatDamage: no first striker, so combat has one combat
+    // damage step (CR 510.4)
     game.state.advance_turn(&test_ctx()).unwrap();
     assert_eq!(game.state.phase.step, Some(StepType::CombatDamage));
     game.state.process_combat_damage(&scripted, false).unwrap();
@@ -424,7 +423,7 @@ fn test_combat_damage_kills_player() {
     // game there: nobody is asked to pass, though both seats stop at every
     // priority point.
     let after_loss = ScriptedDecisionProvider::new()
-        .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
+        .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
     game.state.run_priority_loop(&after_loss).unwrap();
     assert!(game.state.player_lost[1]);
 
@@ -466,10 +465,7 @@ fn test_combat_state_cleared_after_combat() {
     // DeclareBlockers
     game.state.advance_turn(&test_ctx()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
-    // FirstStrikeDamage
-    game.state.advance_turn(&test_ctx()).unwrap();
-    game.state.process_combat_damage(&scripted, true).unwrap();
-    // CombatDamage
+    // CombatDamage, the one combat damage step (CR 510.4)
     game.state.advance_turn(&test_ctx()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
     // EndCombat
@@ -656,4 +652,45 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     // Elemental has only 3 damage (bolt) on 5 toughness → survives
     assert!(game.state.battlefield.contains_key(&elemental));
     assert_eq!(game.state.battlefield.get(&elemental).unwrap().damage_marked, 3);
+}
+
+
+// ---------------------------------------------------------------------------
+// CR 510.4: the first-strike damage step exists only with a first striker
+// ---------------------------------------------------------------------------
+
+/// Player 0's 2/2 attacking with `keywords`, after blockers are declared:
+/// the steps that begin as the turn moves on, up to the next one.
+fn steps_after_blocks(keywords: &[KeywordFlag]) -> Vec<StepType> {
+    let mut game: GameState = setup_two_player_game();
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, keywords), 0);
+    set_attacking(&mut game, attacker, 1);
+    game.attacks_declared = true;
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareBlockers) });
+    let before = game.recorded_events().len();
+    game.advance_turn(&test_ctx()).unwrap();
+    game.recorded_events()
+        .records_from(before)
+        .iter()
+        .filter_map(|record| match &record.event {
+            GameEvent::StepBegin { step, .. } => Some(*step),
+            _ => None,
+        })
+        .collect()
+}
+
+/// With no attacking or blocking creature that has first strike or double
+/// strike, combat has one combat damage step: the first-strike step does not
+/// begin, so it announces nothing and grants no priority.
+// COVERS: ATOM-510.4-002
+#[test]
+fn combat_without_a_first_striker_has_one_combat_damage_step() {
+    assert_eq!(steps_after_blocks(&[]), [StepType::CombatDamage]);
+}
+
+/// The control: a first striker in combat, and the first-strike step begins.
+// COVERS-PARTIAL: ATOM-506.1-002
+#[test]
+fn a_first_striker_in_combat_brings_the_first_strike_damage_step() {
+    assert_eq!(steps_after_blocks(&[KeywordFlag::FirstStrike]), [StepType::FirstStrikeDamage]);
 }

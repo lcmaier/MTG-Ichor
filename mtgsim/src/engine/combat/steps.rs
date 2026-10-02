@@ -10,12 +10,14 @@ use crate::engine::combat::validation::{
 };
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::has_keyword;
+use crate::engine::priority::REJECTION_LIMIT;
 use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
+use crate::ui::choice_types::Rejection;
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -108,7 +110,7 @@ impl GameState {
             // pair it can't legally pick regardless of strategy. Per-blocker
             // uniqueness (CR 509.1) is *set-level* and is not pre-filterable
             // on individual pairs — it's enforced by `validate_blockers` and
-            // the retry loop below.
+            // the re-ask below.
             let blocker_ids = legal_blockers(self, defender);
             let attackers_in_combat: Vec<ObjectId> = self.battlefield_ordered()
                 .into_iter()
@@ -120,33 +122,30 @@ impl GameState {
                 .filter(|&(bid, aid)| can_block(self, defender, bid, aid).is_ok())
                 .collect();
 
-            // CR 509.1c: "If, among other things, this set of blockers isn't
-            // legal, the defending player must choose a different set."
-            // Bounded retry loop (budget = 10). On validation failure we
-            // re-prompt the DP with the same pre-filtered pair list; on
-            // budget exhaustion we surface the final error (rare — indicates
-            // a DP that can't converge). Same pattern as `run_priority_round`'s
-            // retry.
-            const BLOCKER_RETRY_BUDGET: u32 = 10;
-            let mut retries: u32 = 0;
+            // A declaration that breaks CR 509.1a–c is illegal, so it is
+            // reversed (CR 732.1) and the defending player declares again,
+            // offered the same pairs and told which blocks were rejected and
+            // why. Only `REJECTION_LIMIT` bounds the re-asks, as in
+            // `run_priority_round`.
+            let mut rejected: Option<Rejection> = None;
+            let mut rejections: usize = 0;
             let proposed = loop {
                 let candidate = ask_choose_blockers(
-                    decisions, self, defender, &legal_block_pairs,
+                    decisions, self, defender, &legal_block_pairs, rejected.take(),
                 );
                 match validate_blockers(
                     self, defender, &candidate, &BlockConstraints::none(),
                 ) {
                     Ok(()) => break candidate,
-                    Err(e) => {
-                        if retries >= BLOCKER_RETRY_BUDGET {
-                            eprintln!(
-                                "WARN: blocker retry budget ({}) exhausted for player {} — \
-                                 last error: {}. Legal pairs: {}.",
-                                BLOCKER_RETRY_BUDGET, defender, e, legal_block_pairs.len()
-                            );
-                            return Err(format!("Invalid blockers: {}", e));
+                    Err(why) => {
+                        rejections += 1;
+                        if rejections == REJECTION_LIMIT {
+                            return Err(format!(
+                                "Invalid blockers: player {defender} declared illegal blocks {REJECTION_LIMIT} times, \
+                                 the last: {why}"
+                            ));
                         }
-                        retries = retries.saturating_add(1);
+                        rejected = Some(Rejection::IllegalBlocks { blocks: candidate, why });
                     }
                 }
             };
@@ -184,38 +183,37 @@ impl GameState {
         Ok(())
     }
 
+    /// CR 510.4: whether an attacking or blocking creature has first strike or
+    /// double strike, which is what gives combat a first-strike damage step.
+    pub(crate) fn a_combatant_strikes_first(&self) -> bool {
+        // Ordered, not `battlefield.values()`: the *answer* is order-independent,
+        // but every `has_keyword` is a layer walk and `state/diagnostics.rs`
+        // records those as a fixture, so a short circuit over a `HashMap` that
+        // stops after a different number of walks in every process is a fixture
+        // that wobbles.
+        self.battlefield_ids_ordered().into_iter().any(|id| {
+            let in_combat = self
+                .battlefield
+                .get(&id)
+                .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
+            in_combat
+                && (has_keyword(self, id, KeywordFlag::FirstStrike)
+                    || has_keyword(self, id, KeywordFlag::DoubleStrike))
+        })
+    }
+
     /// Combat damage turn-based action (rule 510).
     ///
-    /// `first_strike_only`: if true, only first/double strike creatures deal damage.
-    /// If no creature in combat has first strike or double strike, the first-strike
-    /// step is skipped entirely (returns Ok immediately).
+    /// `first_strike_only`: if true, only first/double strike creatures deal
+    /// damage, and with none in combat nothing is dealt: a turn never begins
+    /// that step then (`begin_step`), but a test may call this directly.
     pub fn process_combat_damage(
         &mut self,
         decisions: &dyn DecisionProvider,
         first_strike_only: bool,
     ) -> Result<(), String> {
-        if first_strike_only {
-            // Check if any creature in combat has first strike or double strike.
-            //
-            // Ordered, not `battlefield.values()`: the *answer* is order-independent,
-            // but every `has_keyword` is a layer walk and `state/diagnostics.rs`
-            // records those as a fixture, so a short circuit over a `HashMap` that
-            // stops after a different number of walks in every process is a fixture
-            // that wobbles.
-            let any_first_strike = self.battlefield_ids_ordered().into_iter().any(|id| {
-                let in_combat = self
-                    .battlefield
-                    .get(&id)
-                    .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
-                in_combat
-                    && (has_keyword(self, id, KeywordFlag::FirstStrike)
-                        || has_keyword(self, id, KeywordFlag::DoubleStrike))
-            });
-
-            if !any_first_strike {
-                // No first/double strike creatures → skip this step entirely
-                return Ok(());
-            }
+        if first_strike_only && !self.a_combatant_strikes_first() {
+            return Ok(());
         }
 
         let active = self.active_player;

@@ -252,6 +252,13 @@ impl GameState {
         {
             return Ok(false);
         }
+        // CR 510.4 — combat has a first-strike damage step only when an
+        // attacking or blocking creature has first strike or double strike as
+        // combat damage begins; otherwise its one combat damage step is the
+        // next. Checked the same way: there is no step for anything to see.
+        if step == StepType::FirstStrikeDamage && !self.a_combatant_strikes_first() {
+            return Ok(false);
+        }
         // CR 103.8a — the starting player skips the draw step of their first
         // turn, the same way: to skip a step "is to proceed past it as though it
         // didn't exist" (CR 500.11). A CR 614.10 skip of the next draw step waits

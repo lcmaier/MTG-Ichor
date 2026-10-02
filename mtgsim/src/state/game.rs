@@ -150,10 +150,10 @@ impl Game {
     /// game at that prompt.
     ///
     /// **Round starts only, and not the cleanup step's.** `run_priority_round`
-    /// begins every round at the active player and its `blacklist` is a loop
-    /// local, so a clone taken anywhere else in a round resumes as a different
-    /// round; CR 514.3a's re-loop lives in this method's own cleanup branch and
-    /// is not re-enterable at all. Item 140 owns both.
+    /// begins every round at the active player, and a re-ask's rejection lives
+    /// only until the next ask, so a clone taken anywhere else in a round
+    /// resumes as a different round; CR 514.3a's re-loop lives in this method's
+    /// own cleanup branch and is not re-enterable at all. Item 140 owns both.
     pub fn resume_turn_at_priority(
         &mut self,
         decisions: &dyn DecisionProvider,
@@ -632,7 +632,7 @@ mod tests {
         // now stop at every priority point.
         game.state.players[1].add_counters(crate::types::effects::CounterType::Poison, 10);
         let after_loss = ScriptedDecisionProvider::new()
-            .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
         game.run_turn(&after_loss).unwrap();
         assert!(game.is_over());
         assert_eq!(game.result(), Some(GameResult::Winner(0)));

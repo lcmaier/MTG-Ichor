@@ -18,7 +18,7 @@
 //!
 //! And the question the row was scheduled to answer (A4h): a priority
 //! re-ask. The `priority_rejected` record sits between the `decision` that
-//! offered the action and the `decision` that no longer does.
+//! offered the action and the `decision` that names it as rejected.
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
@@ -333,15 +333,17 @@ impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
     }
 
     fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
+        SeatMode { stops_at_every_priority_point: true }
     }
 }
 
 /// Play seeded random games until the engine rejects an action a priority
 /// prompt offered; every rejection has to sit between the `decision` that
-/// offered it and a `decision` for the same player that does not.
+/// offered it and a `decision` for the same player that says it was rejected
+/// (`codebase-state.md` item 193). Whether the re-ask offers it again is the
+/// board's to say, not the record's: a reversed cast leaves its lands tapped.
 ///
-/// Rejections are what the retry loop exists for — the candidate list is an
+/// Rejections are what the re-ask exists for — the candidate list is an
 /// overapproximation by contract — so a handful of seeds reach one. The
 /// property is asserted for every rejection found, and the test fails if the
 /// sweep found none, because then it proved nothing.
@@ -388,7 +390,8 @@ fn a_re_ask_is_explained_by_the_rejection_between_two_decisions() {
             let after = lines[i + 1..].iter().find(|l| is_priority_prompt(l)).expect("a re-ask after");
             let quoted = format!("\"{action}\"");
             assert!(before.contains(&quoted), "seed {seed}: offered list lacks {action}: {before}");
-            assert!(!after.contains(&quoted), "seed {seed}: re-ask still offers {action}: {after}");
+            let named = format!(r#""rejected":"Reversed({action})""#);
+            assert!(after.contains(&named), "seed {seed}: the re-ask does not name {action}: {after}");
         }
     }
     assert!(rejections > 0, "no seed reached a rejected priority action, so nothing was checked");

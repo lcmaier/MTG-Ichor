@@ -19,12 +19,15 @@
 //! `rng`.
 //!
 //! **What "resumable" means here.** `run_priority_round` begins every round at
-//! the active player, and `consecutive_passes` and the retry `blacklist` are
-//! loop locals — so a prompt is resumable exactly when `priority_player` is the
-//! active player, which the state does carry. That is the round start and the
-//! active player's own re-asks after a rejected action; the other seats'
-//! prompts and CR 514.3a's cleanup re-loop are item 140's, and this test gains
-//! them when it lands.
+//! the active player, and `consecutive_passes` is a loop local — so a prompt is
+//! resumable exactly when `priority_player` is the active player, which the
+//! state does carry. That is the round start and the active player's own
+//! re-asks after a rejected action. A re-ask's rejection is the loop's too, and
+//! a branch resumes without it: the options are the board's either way (item
+//! 193), so only an agent that reads the rejection can answer differently, and
+//! the random one does only where the board offers the reversed action again.
+//! The other seats' prompts and CR 514.3a's cleanup re-loop are item 140's, and
+//! this test gains them when it lands.
 //!
 //! **The re-asks are why this test could not be green before A4h.** Two things
 //! made the offered list a function of the game's history rather than of its
@@ -224,7 +227,7 @@ impl DecisionProvider for ForkRecorder {
     }
 
     fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
+        SeatMode { stops_at_every_priority_point: true }
     }
 }
 

@@ -526,15 +526,14 @@ somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
 of this project's refactors are re-spellings: the behaviour is already right
 and the change is where a reader would look for it.
 
-**person** / **agent** — who plays a seat, as far as the engine's own conduct
-depends on it: `SeatMode`'s `person`, which a provider reports and every
-decorator forwards. An *agent* is a program (the random provider, a harness's
-policy, a test's script) and the default: a priority window drops its rejected
-action until the window closes and charges it to a retry budget, so its
-re-picks terminate. A *person* may cancel an action and choose it again
-(`codebase-state.md` item 192), and is the seat full control and auto-yield
-are for. Not *player*, the CR's word for whoever plays.
-→ `ui::decision::SeatMode`.
+**person** / **agent** — who plays a seat, which the engine does not ask:
+since `codebase-state.md` item 193 it offers both the same list and tells
+both what it rejected (`ChoiceContext::rejected`). An *agent* is a program
+(the random provider, a harness's policy, a test's script), and not choosing
+a rejected action again is its own policy. A *person* plays through a client,
+may take a canceled action again (CR 732.2), and is the seat full control
+and auto-yield are for. Not *player*, the CR's word for whoever plays.
+→ `ui::choice_types::Rejection`, `ui::random`.
 
 **yield** — a person's standing pass, Arena's word and not the CR's: until
 the turn ends, until the stack changes, or until their own next turn. Set at a

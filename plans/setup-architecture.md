@@ -175,10 +175,8 @@ game (seed, pool, and the decks the log already records) or a scenario (its
 text, embedded so the save outlives edits to the file). Replaying builds the
 start and answers from the log; undo (the tools PR) is the replay without the last
 answer. So a save is "scenario + log", and a dealt game is the other kind of
-start. An exact replay needs the start, every answer in order, the same engine,
-and until item 193 lands the same seat modes (the priority window's blacklist
-filters the offered list by who sits at the seat, so the same index means a
-different action).
+start. An exact replay needs the start, every answer in order and the same
+engine; since item 193 no seat's mode changes what it is offered.
 
 **Two snapshots of a regular game follow.** The save is exact at any prompt,
 because it replays. The board written as a scenario (§4.3) is editable, exact
@@ -658,12 +656,15 @@ engine with the same values, so no fixture row moves. The dev GUI's dealt start
 converges on it in the tools PR, where the save pins the streams. Converging now
 would redraw the review pictures, which seed 33's stream picks, for nothing.
 
-**What a replay needs.** Once the log records every seat's answers (the tools PR's
-decision, recommended there), a replay needs no agent stream. The streams
-matter only for playing on past the log's end, and a replay stops depending on
-the agent's policy. **What can still break it:** item 193's blacklist, which
-playable removes before the tools PR, and a sweep that leaks map order, which
-`CLAUDE.md`'s three runs under three `MTGSIM_HASH_SEED`s catch. `fuzz_games
+**What a replay needs.** The log records every seat's answers since A6g's
+playable PR, written by the engine with the passes it makes itself
+(`state::decision_log`), so a replay that has every seat stop at every priority
+point needs no agent stream (`tests/phase_a6g_integration_test.rs` replays a
+game from its log). The streams matter only for playing on past the log's end,
+and a replay does not depend on the agent's policy. **What can still break it:**
+a sweep that leaks map order, which `CLAUDE.md`'s three runs under three
+`MTGSIM_HASH_SEED`s catch; item 193's blacklist, the other, left the engine
+with playable. `fuzz_games
 --scenario` (§8) puts a scenario-started game under that check.
 
 ---
@@ -689,8 +690,8 @@ the file changes.
 choose the opponent's responses too, the window plays every seat (~60–90
 lines: a prompt names its player, and "(you)" follows the seat being asked).
 With no script for a seat during play (§5.3), that is how a tester explores
-both sides of an interaction from one board. Playable's PR builds the seat's
-controls and is its natural home.
+both sides of an interaction from one board. Playable's PR built the seat's
+controls and kept the window at seat 0 (2026-10-02).
 
 **Savestates** (the owner's suggestion, placed in the tools PR by the owner,
 2026-10-01) are positions the tester sets during play and moves between, like a
@@ -718,12 +719,13 @@ fn holy_strength_under_humility() {
 }
 ```
 
-What the tools PR owes it, decided there: a log that records every seat (today it
-records seat 0's, and the agent's replay only from its seed); a run that stops
-at the log's end, since a `DecisionProvider` cannot answer "stop", which is
-also what replaces the setup driver's refusal in play, a panic until then
-(§5.3); and a `ChoiceKind` built from a logged name (`SelectRecipients` carries
-fields the scripted provider ignores).
+What the tools PR owes it, decided there: a run that stops at the log's end,
+since a `DecisionProvider` cannot answer "stop", which is also what replaces
+the setup driver's refusal in play, a panic until then (§5.3); and a
+`ChoiceKind` built from a logged name (`SelectRecipients` carries fields the
+scripted provider ignores). The log records every seat since playable, the
+engine's passes among its lines marked forced, so a script of it either stops
+at every priority point or skips those lines.
 
 ---
 

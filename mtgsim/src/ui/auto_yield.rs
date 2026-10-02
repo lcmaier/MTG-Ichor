@@ -10,8 +10,10 @@
 // under full control a seat's prompts never reach this decorator.
 //
 // **A yield is set at a priority prompt the person answers, and that answer
-// is a pass.** The provider at the bottom of the seat holds a `Yields` handle
-// and sets it there, so the answer that set it is the record a replay needs.
+// is a pass**, measured from the board it is set on. The provider at the
+// bottom of the seat holds a `Yields` handle and sets it there. The decision
+// log records that pass, and each the yield makes after it, as any other
+// (`state::decision_log`).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -84,11 +86,17 @@ impl Yields {
         }
         holds
     }
+
+    /// The yield that holds for `player`'s prompt now, for a client to show;
+    /// one that has ended is cleared, as [`Self::holds`] clears it.
+    pub fn holding(&self, game: &GameState, player: PlayerId) -> Option<Yield> {
+        if self.holds(game, player) { self.0.borrow().as_ref().map(|held| held.until) } else { None }
+    }
 }
 
 /// Where a priority prompt offers `Pass`, which it always does
 /// (`engine::priority`).
-pub(crate) fn pass_index(options: &[ChoiceOption]) -> usize {
+pub fn pass_index(options: &[ChoiceOption]) -> usize {
     options
         .iter()
         .position(|o| matches!(o, ChoiceOption::Action(PriorityAction::Pass)))
@@ -170,7 +178,7 @@ mod tests {
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
 
-    const PRIORITY: ChoiceContext = ChoiceContext { kind: ChoiceKind::PriorityAction };
+    const PRIORITY: ChoiceContext = ChoiceContext::new(ChoiceKind::PriorityAction);
 
     /// `[Pass, Cast]`: the seat has something to do, so a pass is a choice.
     fn pass_or_cast() -> Vec<ChoiceOption> {
@@ -251,7 +259,7 @@ mod tests {
         let person = ScriptedDecisionProvider::new();
         person.expect_pick_n(ChoiceKind::DeclareBlockers, vec![]);
         let seat = AutoYield::new(person, yields);
-        let blockers = ChoiceContext { kind: ChoiceKind::DeclareBlockers };
+        let blockers = ChoiceContext::new(ChoiceKind::DeclareBlockers);
 
         assert!(seat.pick_n(&game, 1, &blockers, &[ChoiceOption::Object(new_object_id())], (0, 1)).is_empty());
     }

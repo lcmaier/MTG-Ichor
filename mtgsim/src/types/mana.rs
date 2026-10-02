@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use super::colors::Color;
-use crate::types::card_types::{CardType, CardTypes, CreatureType, Subtype};
+use crate::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes};
 use crate::types::ids::ObjectId;
 
 /// Types of mana that can exist in a mana pool
@@ -393,13 +393,13 @@ pub enum SpendPurpose<'a> {
     /// Casting a spell. Provides the spell's characteristics for restriction checks.
     CastSpell {
         card_types: &'a CardTypes,
-        subtypes: &'a HashSet<Subtype>,
+        subtypes: &'a Subtypes,
         name: &'a str,
     },
     /// Activating an ability on a permanent.
     ActivateAbility {
         source_card_types: &'a CardTypes,
-        source_subtypes: &'a HashSet<Subtype>,
+        source_subtypes: &'a Subtypes,
     },
     /// Paying a special action cost (e.g., morph). No restrictions typically apply.
     SpecialAction,
@@ -1120,8 +1120,8 @@ mod tests {
             s.insert(CardType::Creature);
             s
         });
-        static SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static SUBTYPES: LazyLock<Subtypes> = LazyLock::new(|| {
+            let mut s = Subtypes::new();
             s.insert(Subtype::Creature(CreatureType::Bear));
             s
         });
@@ -1141,7 +1141,7 @@ mod tests {
             s.insert(CardType::Instant);
             s
         });
-        static SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(HashSet::new);
+        static SUBTYPES: LazyLock<Subtypes> = LazyLock::new(Subtypes::new);
         SpendContext {
             purpose: SpendPurpose::CastSpell {
                 card_types: &TYPES,
@@ -1470,7 +1470,7 @@ mod tests {
             s.insert(CardType::Artifact);
             s
         });
-        static ART_SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(HashSet::new);
+        static ART_SUBTYPES: LazyLock<Subtypes> = LazyLock::new(Subtypes::new);
         let ability_ctx = SpendContext {
             purpose: SpendPurpose::ActivateAbility {
                 source_card_types: &ART_TYPES,
@@ -1501,8 +1501,8 @@ mod tests {
             s.insert(CardType::Creature);
             s
         });
-        static ELF_SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static ELF_SUBTYPES: LazyLock<Subtypes> = LazyLock::new(|| {
+            let mut s = Subtypes::new();
             s.insert(Subtype::Creature(CreatureType::Elf));
             s
         });
@@ -1539,18 +1539,16 @@ mod tests {
         let mut pool = ManaPool::new();
         pool.add_special(atom);
 
-        // Changeling creature: has ALL creature types including Elf
+        // Changeling Outcast: printed a Shapeshifter, and every creature type
+        // (CR 702.73a), Elf among them though nothing lists it.
         static CHANGELING_TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
             let mut s = CardTypes::new();
             s.insert(CardType::Creature);
             s
         });
-        static CHANGELING_SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
-            // Changeling has every creature type — include Elf among others
-            s.insert(Subtype::Creature(CreatureType::Elf));
-            s.insert(Subtype::Creature(CreatureType::Bear));
-            s.insert(Subtype::Creature(CreatureType::Shapeshifter));
+        static CHANGELING_SUBTYPES: LazyLock<Subtypes> = LazyLock::new(|| {
+            let mut s = Subtypes::from([Subtype::Creature(CreatureType::Shapeshifter)]);
+            s.insert_every_creature_type();
             s
         });
         let changeling_ctx = SpendContext {

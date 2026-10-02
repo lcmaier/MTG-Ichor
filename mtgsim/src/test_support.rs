@@ -448,7 +448,87 @@ impl DecisionProvider for StackWatcher {
     }
 
     fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
+        SeatMode { stops_at_every_priority_point: true }
+    }
+}
+
+/// Hands every prompt to `inner` and records, prompt by prompt, its kind's
+/// variant and what the engine said it rejected (`ChoiceContext::rejected`):
+/// what a test reads to see that a re-ask names the answer it would not take.
+/// All four primitives record, since a re-ask may come through any of them.
+pub struct RejectionRecorder<D> {
+    inner: D,
+    seen: std::cell::RefCell<Vec<(String, Option<crate::ui::choice_types::Rejection>)>>,
+}
+
+impl<D: DecisionProvider> RejectionRecorder<D> {
+    pub fn new(inner: D) -> Self {
+        RejectionRecorder { inner, seen: std::cell::RefCell::new(Vec::new()) }
+    }
+
+    /// What each prompt whose kind's `Debug` starts with `kind` rejected, in
+    /// the order they were asked: `None` where it rejected nothing.
+    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::choice_types::Rejection>> {
+        self.seen.borrow().iter().filter(|(seen, _)| seen.starts_with(kind)).map(|(_, rejected)| rejected.clone()).collect()
+    }
+
+    fn record(&self, context: &crate::ui::choice_types::ChoiceContext) {
+        self.seen.borrow_mut().push((format!("{:?}", context.kind), context.rejected.clone()));
+    }
+}
+
+impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &crate::ui::choice_types::ChoiceContext,
+        options: &[crate::ui::choice_types::ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.record(context);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &crate::ui::choice_types::ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        self.record(context);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &crate::ui::choice_types::ChoiceContext,
+        total: u64,
+        buckets: &[crate::ui::choice_types::ChoiceOption],
+        mins: &[u64],
+        maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.record(context);
+        self.inner.allocate(game, player, context, total, buckets, mins, maxs)
+    }
+
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &crate::ui::choice_types::ChoiceContext,
+        items: &[crate::ui::choice_types::ChoiceOption],
+    ) -> Vec<usize> {
+        self.record(context);
+        self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
     }
 }
 

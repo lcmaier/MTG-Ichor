@@ -10,4 +10,5 @@ pub mod restrictions;
 pub mod diagnostics;
 pub mod layer_memo;
 pub mod trace;
+pub mod decision_log;
 pub mod history;

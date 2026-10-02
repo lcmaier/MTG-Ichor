@@ -26,7 +26,7 @@
 //! stand in for, and never registered.
 
 use std::cell::RefCell;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
@@ -51,7 +51,7 @@ use mtgsim::test_support::{
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_game,
     setup_two_player_game, static_ability, test_ctx,
 };
-use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Supertype};
+use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes, Supertype};
 use mtgsim::types::effects::{
     AmountExpr, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
@@ -318,7 +318,7 @@ fn a_creature_entering_under_master_biomancer_stays_a_mutant_after_it_leaves() {
 fn a_later_layer_4_effect_applies_over_the_mutant_and_an_earlier_one_under_it() {
     let slivers = |game: &mut GameState, source: ObjectId| {
         let timestamp = game.allocate_timestamp();
-        let set = EffectModification::SetSubtypes(HashSet::from([Subtype::Creature(CreatureType::Sliver)]));
+        let set = EffectModification::SetSubtypes(Subtypes::from([Subtype::Creature(CreatureType::Sliver)]));
         game.continuous_effects.add(ContinuousEffect {
             affected_objects: ObjectSet::battlefield_filter(creatures()),
             ..registered(source, Layer::Layer4Type, timestamp, set)

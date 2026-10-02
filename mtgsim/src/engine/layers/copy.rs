@@ -10,16 +10,16 @@
 //! replacement, a token, a stack copy — captures here and differs only in what
 //! carries the result.
 
-use crate::engine::layers::board::frame_at_ceiling;
+use crate::engine::layers::board::{compute_board_to, frame_at_ceiling};
 use crate::engine::layers::cda::{self, CdaCharacteristic};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardTypes, Subtype, Supertype};
+use crate::types::card_types::{CardTypes, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Characteristic, CharacteristicEdit, CopyException};
-use crate::types::ids::ObjectId;
+use crate::types::ids::{IdMap, ObjectId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 
@@ -73,7 +73,7 @@ pub struct CopiableValues {
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
     pub types: CardTypes,
-    pub subtypes: HashSet<Subtype>,
+    pub subtypes: Subtypes,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,
     /// CR 707.2a — a copy acquires abilities because they derive from rules
@@ -290,4 +290,16 @@ pub fn copiable_values(game: &GameState, id: ObjectId) -> Option<CopiableValues>
     game.diagnostics.record_layer_walk();
     let frame = frame_at_ceiling(game, id, END_OF_LAYER_1)?;
     Some(CopiableValues::from_frame(frame))
+}
+
+/// [`copiable_values`] for every permanent at once, from one pass of the
+/// board, where asking it of each permanent passes the board each time.
+pub fn copiable_values_on_battlefield(game: &GameState) -> IdMap<ObjectId, CopiableValues> {
+    game.diagnostics.record_layer_walk();
+    compute_board_to(game, None, None, END_OF_LAYER_1)
+        .into_frames()
+        .into_iter()
+        .filter(|(id, _)| game.battlefield.contains_key(id))
+        .map(|(id, frame)| (id, CopiableValues::from_frame(frame)))
+        .collect()
 }

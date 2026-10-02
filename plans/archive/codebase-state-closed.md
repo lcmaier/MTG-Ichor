@@ -3175,3 +3175,62 @@ Closed as sized, with every other option's label beside it (the owner, at the PR
      kind in `ui::display` that both clients read, the CLI adding its index
      hint. **Slotted:** A6g's ability-names PR, which makes `ui::display`'s
      wording public.
+
+### Item 193 — closed 2026-10-02 by A6g's playable PR
+
+Closed as the owner called it at A6j's review, the design settled at the playable PR's review (decisions a and b). The reason rides on `ChoiceContext` as `rejected: Option<Rejection>`, about the asking rather than the question, so the 52 first asks build theirs with `ChoiceContext::new` and no scripted test changed. It is typed and coarse: `Rejection::Reversed(PriorityAction)` names CR 732.1's reversal and `Rejection::IllegalBlocks { blocks, why: CombatError }` the rule a declaration broke, never the engine's error text, which stays in the trace's `priority_rejected`; `ui::display::rejection` words it for a client, and the CLI and the dev GUI print it under the question. Only the last rejection rides: the random agent keeps its window's itself, cleared at a priority prompt that rejects nothing, and filters them out before it shuffles, so it draws what the engine's filter gave it (a twin-agent test; the close-out read gameplay unchanged). The hang guard is one constant for both loops, `engine::priority::REJECTION_LIMIT`: the thousandth rejected answer to one question ends the game with an error. The budgets it replaced were 3× the window's first list for priority, then a forced pass, and 10 for blocks, which bound a person. A tree without the filter failed one test, A6j's agent test, rewritten; `trace_sink_test`'s re-ask test asserted the filter's property and passed without it, because on its boards a reversed cast leaves its lands tapped and the enumeration drops the cast itself, and now asserts that the re-ask names the action. The mana window's own `failed` set (`run_mana_ability_window`) is the same shape and stays: only an engine inconsistency fills it, never a choice, and it printed nothing in 1,200 fuzz games.
+
+*Original entry:*
+
+193. **A priority window's blacklist is a bot's policy living in the engine,
+     and a replay pays for it.** Within one window `run_priority_round` stops
+     offering an action that failed, so the random agent's re-picks of a
+     rewound cast terminate. That filters the offered list by state off
+     `GameState`, and since item 192 by who sits at the seat
+     (`SeatMode::person`), so the same answers, which are positions in that
+     list, replay as a different game under a different seat. **The owner's
+     call at review, the clean option:** the engine stops filtering. The
+     re-asked prompt carries what was rejected and why, which is the surface
+     `roadmap-v2.md` A6g's playable PR owes a person anyway ("a reason on a
+     re-asked prompt"); the random agent skips what it was told failed, since
+     a bot's policy lives on the bot's seat (`backlog.md` §2.22, rule 2);
+     `person` leaves `SeatMode`; and the engine keeps only a hang guard set
+     where no person reaches it. The prompt then depends on the board alone,
+     which also takes the blacklist out of item 140's loop locals.
+
+     **Reachability (2026-09-30):** reachable — not wrong; a replay hazard.
+     No replay exists yet, and the dev GUI's decision log replays today only
+     as a person's seat.
+
+     **Sized:** ~80–150 lines. Where the rejection rides is the design
+     question: on `ChoiceKind::PriorityAction` it touches every scripted
+     priority expectation, on `ChoiceContext` its 57 literal sites in 7
+     files. The random agent filters before it shuffles, so its draws should
+     not change (A/B predicted `IDENTICAL`, to be read); the budget becomes
+     the hang guard; a few tests script a re-ask. **Slotted:** with A6g's
+     playable PR, which designs the re-ask's reason for a person, and before
+     its tools PR, the first replay.
+
+### Item 201 — closed 2026-10-02 by A6g's playable PR
+
+Closed with the playable PR's keyboard shortcuts, by its decision c: hold input for a beat. `WindowState` keeps the window's clock, which the drawing reads from egui each frame, and for `SETTLE_SECONDS` (0.3, egui's double-click window) after a prompt arrives it drops any input that could answer and shows nothing live, the drawing asking for one repaint as the beat ends. A shortcut acts on the press, so a held key's repeat answers nothing, and each prompt's widgets take an id from the prompt's number, so keyboard focus on one prompt's button dies with it. The other two options read at review: dropping a double click's second half, which needs no clock but lets two quick single clicks through, and waiting for the pointer to move, which makes a person wiggle the mouse to pass twice where Pass sits still. The beat's test fails with its rule taken out: the second click answers the new prompt. A test with no clock keeps none, so nothing settles there; the random clicks keep one and check every prompt's beat.
+
+*Original entry:*
+
+201. **A click or a key can answer a prompt the person never saw.** egui
+     reads a click against the frame that reads it, so when a prompt
+     replaces another under the pointer, the second click of a double
+     click lands on the new one; a held key's repeat will do the same once
+     the window has keyboard shortcuts; and keyboard focus may pass to the
+     next prompt's button by its position, which the review did not trace
+     (`engineering-practices.md` §10.1, question 8; finding 14).
+
+     **Reachability (2026-10-01):** reachable — a double click on a button
+     whose answer brings the next prompt inside egui's 0.3 s double-click
+     window, which the random agent's quick turns make easy.
+
+     **Sized:** a design first: what the window does with input in the
+     moment after its prompt changes (drop a double click's second half,
+     hold input for a beat, or wait for the pointer to move); then ~20–40
+     lines in `view_model` and a test. **Slotted:** A6g's playable PR,
+     whose keyboard shortcuts make it acute.

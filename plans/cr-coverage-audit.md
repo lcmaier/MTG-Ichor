@@ -526,6 +526,12 @@ is derivable; where each name was read is not, and the gate needs the names.
   Lifelink's gain adds no field: each batch sums its own members' damage per
   source and proposes the gains before it closes (CR 702.15e; #186's review
   round 2).
+- **Added by A6g's playable PR (2026-10-02)**, asked §2's question as it
+  landed: `decision_log`, the writer a client attaches to be handed every
+  answer the game gets and the passes the engine makes itself
+  (`state::decision_log`). An observer's handle, as `trace` is: it holds no
+  fact about the game, nothing branches on it and a clone has none, so there
+  is nothing in it for the CR to require.
 
 ---
 

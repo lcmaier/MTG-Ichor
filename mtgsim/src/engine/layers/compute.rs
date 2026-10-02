@@ -1827,7 +1827,6 @@ mod tests {
     #[test]
     fn test_set_subtypes_replaces_all() {
         use crate::types::card_types::{LandType, Subtype};
-        use std::collections::HashSet;
 
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Steam Vents")
@@ -1840,8 +1839,7 @@ mod tests {
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // SetSubtypes to just Forest
-        let mut forest_set = HashSet::new();
-        forest_set.insert(Subtype::Land(LandType::Forest));
+        let forest_set = crate::types::card_types::Subtypes::from([Subtype::Land(LandType::Forest)]);
         let effect = registered(
             id,
             Layer::Layer4Type,
@@ -1854,7 +1852,7 @@ mod tests {
         assert!(chars.subtypes.contains(&Subtype::Land(LandType::Forest)));
         assert!(!chars.subtypes.contains(&Subtype::Land(LandType::Island)));
         assert!(!chars.subtypes.contains(&Subtype::Land(LandType::Mountain)));
-        assert_eq!(chars.subtypes.len(), 1);
+        assert_eq!(chars.subtypes.iter().count(), 1);
     }
 
     #[test]
@@ -1881,8 +1879,11 @@ mod tests {
 
         let chars = compute_characteristics(&game, id).unwrap();
         assert!(chars.subtypes.contains(&Subtype::Land(LandType::Mountain)));
-        assert!(chars.subtypes.contains(&Subtype::Land(LandType::Swamp)));
-        assert_eq!(chars.subtypes.len(), 2);
+        assert_eq!(
+            chars.subtypes.iter().cloned().collect::<Vec<_>>(),
+            [Subtype::Land(LandType::Mountain), Subtype::Land(LandType::Swamp)],
+            "the printed one, then the one added"
+        );
     }
 
     #[test]

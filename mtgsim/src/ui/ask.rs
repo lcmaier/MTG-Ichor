@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
+use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
@@ -40,7 +41,7 @@ use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// CR 102.2 — the one allocation a forced split admits, or `None` when the
@@ -139,17 +140,19 @@ fn validate_pick_n(
         r.field_usizes("answer", indices);
         r
     });
-    check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
+    let decision = check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Picks(indices), forced: !decision });
 }
 
-/// [`validate_pick_n`]'s checks, without the record.
+/// [`validate_pick_n`]'s checks, without the record; whether the prompt had
+/// a second legal answer.
 fn check_pick_n(
     indices: &[usize],
     options_len: usize,
     bounds: (usize, usize),
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert!(
         indices.len() >= bounds.0 && indices.len() <= bounds.1,
         "ask_{}: DP returned {} selections, expected {}-{}",
@@ -184,9 +187,11 @@ fn check_pick_n(
     // count is fixed and that count admits one combination — take none, or
     // take every option — so a lone candidate offered as "take it or not" is a
     // decision and a forced list is not, whichever way the caller spelled it.
-    if !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len)) {
+    let decision = !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len));
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate pick_number response: value in range.
@@ -210,17 +215,19 @@ fn validate_pick_number(
         r.field_u64("answer", value);
         r
     });
-    check_pick_number(value, min, max, context_desc, &game.diagnostics);
+    let decision = check_pick_number(value, min, max, context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Number(value), forced: !decision });
 }
 
-/// [`validate_pick_number`]'s checks, without the record.
+/// [`validate_pick_number`]'s checks, without the record; whether the prompt
+/// had a second legal answer.
 fn check_pick_number(
     value: u64,
     min: u64,
     max: u64,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert!(
         value >= min && value <= max,
         "ask_{}: DP returned {} but range is [{}, {}]",
@@ -231,9 +238,11 @@ fn check_pick_number(
     );
 
     // Item 138's decision count: one number to name is no decision.
-    if max > min {
+    let decision = max > min;
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate allocate response: length matches buckets, sum equals total,
@@ -260,7 +269,7 @@ fn validate_allocation(
         r.field_u64s("answer", alloc);
         r
     });
-    check_allocation(
+    let decision = check_allocation(
         alloc,
         buckets.len(),
         total,
@@ -269,9 +278,11 @@ fn validate_allocation(
         context_desc,
         &game.diagnostics,
     );
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Allocation(alloc), forced: !decision });
 }
 
-/// [`validate_allocation`]'s checks, without the record.
+/// [`validate_allocation`]'s checks, without the record; whether the prompt
+/// had a second legal answer.
 fn check_allocation(
     alloc: &[u64],
     buckets_len: usize,
@@ -280,7 +291,7 @@ fn check_allocation(
     per_bucket_maxs: Option<&[u64]>,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert_eq!(
         alloc.len(),
         buckets_len,
@@ -340,9 +351,11 @@ fn check_allocation(
 
     // Item 138's decision count, off the same predicate the callers skip on —
     // a prompt that reached here at all had two or more legal allocations.
-    if forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none() {
+    let decision = forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none();
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate choose_ordering response: valid permutation of 0..items_len.
@@ -363,16 +376,18 @@ fn validate_ordering(
         r.field_usizes("answer", order);
         r
     });
-    check_ordering(order, items.len(), context_desc, &game.diagnostics);
+    let decision = check_ordering(order, items.len(), context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Order(order), forced: !decision });
 }
 
-/// [`validate_ordering`]'s checks, without the record.
+/// [`validate_ordering`]'s checks, without the record; whether the prompt had
+/// a second legal answer.
 fn check_ordering(
     order: &[usize],
     items_len: usize,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert_eq!(
         order.len(),
         items_len,
@@ -401,9 +416,11 @@ fn check_ordering(
     }
 
     // Item 138's decision count: one item has one order.
-    if items_len >= 2 {
+    let decision = items_len >= 2;
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 // ===========================================================================
@@ -412,21 +429,21 @@ fn check_ordering(
 
 /// Choose what to do when the player has priority.
 ///
-/// The engine enumerates all legal actions and passes them as options.
+/// The engine enumerates all legal actions and passes them as options, with
+/// the action it just reversed when this is the same window asking again.
 /// Returns the chosen `PriorityAction`.
 pub fn ask_choose_priority_action(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legal_actions: &[PriorityAction],
+    rejected: Option<Rejection>,
 ) -> PriorityAction {
     let options: Vec<ChoiceOption> = legal_actions
         .iter()
         .map(|a| ChoiceOption::Action(a.clone()))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::PriorityAction,
-    };
+    let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_priority_action", game, player, &ctx);
     // Item 138's split of the count above. `Pass` is always offered
@@ -458,9 +475,7 @@ pub fn ask_choose_attackers(
         .iter()
         .map(|(id, t)| ChoiceOption::AttackerTarget(*id, t.clone()))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::DeclareAttackers,
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_attackers", game, player, &ctx);
     indices.iter().map(|&i| (legal[i].0, legal[i].1.clone())).collect()
@@ -473,6 +488,7 @@ pub fn ask_choose_blockers(
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, ObjectId)],
+    rejected: Option<Rejection>,
 ) -> Vec<(ObjectId, ObjectId)> {
     if legal.is_empty() {
         return Vec::new();
@@ -481,9 +497,7 @@ pub fn ask_choose_blockers(
         .iter()
         .map(|(blocker, attacker)| ChoiceOption::BlockerAttacker(*blocker, *attacker))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::DeclareBlockers,
-    };
+    let ctx = ChoiceContext { kind: ChoiceKind::DeclareBlockers, rejected };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_blockers", game, player, &ctx);
     indices.iter().map(|&i| legal[i]).collect()
@@ -505,9 +519,7 @@ pub fn ask_choose_attacker_damage_assignment(
         .iter()
         .map(|id| ChoiceOption::Object(*id))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::AssignCombatDamage { attacker_id },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
     let mins = vec![0u64; buckets.len()];
     let alloc = forced_allocation(power, &mins, None).unwrap_or_else(|| {
         let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
@@ -555,12 +567,10 @@ pub fn ask_choose_trample_damage_assignment(
     let mut mins: Vec<u64> = per_blocker_mins.to_vec();
     mins.push(0); // defending target has no minimum
 
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::AssignTrampleDamage {
-            attacker_id,
-            defending_target,
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::AssignTrampleDamage {
+        attacker_id,
+        defending_target,
+    });
     let alloc = forced_allocation(power, &mins, per_bucket_maxs).unwrap_or_else(|| {
         let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
         validate_allocation(&alloc, &buckets, power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", game, player, &ctx);
@@ -595,9 +605,7 @@ pub fn ask_choose_x_value(
     spell_id: ObjectId,
     x_count: u64,
 ) -> u64 {
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseXValue { spell_id, x_count },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count });
     let value = dp.pick_number(game, player, &ctx, 0, u64::MAX);
     // Contract check: value must be in [0, u64::MAX] — tautological for u64, but
     // keeps the validate_* pattern wired in so fuzz harness exercises it. Affordability
@@ -623,9 +631,7 @@ pub fn ask_choose_alternative_cost(
     for cost in available.iter() {
         options.push(ChoiceOption::AlternativeCost(cost.clone()));
     }
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAlternativeCost { spell_id },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAlternativeCost { spell_id });
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_alternative_cost", game, player, &ctx);
     let chosen = index[0];
@@ -652,9 +658,7 @@ pub fn ask_choose_additional_costs(
         .iter()
         .map(|cost| ChoiceOption::AdditionalCost(cost.clone()))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAdditionalCosts { spell_id },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAdditionalCosts { spell_id });
     let indices = dp.pick_n(game, player, &ctx, &options, (0, available.len()));
     validate_pick_n(
         &indices,
@@ -703,12 +707,10 @@ pub fn ask_select_recipients(
             ResolvedTarget::Player(id) => ChoiceOption::Player(*id),
         })
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::SelectRecipients {
-            recipient: recipient.clone(),
-            spell_id,
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::SelectRecipients {
+        recipient: recipient.clone(),
+        spell_id,
+    });
     let indices = dp.pick_n(game, player, &ctx, &options, (min_selections, max_selections));
     validate_pick_n(
         &indices,
@@ -751,12 +753,10 @@ pub fn ask_activate_mana_ability(
             ChoiceOption::Action(PriorityAction::ActivateAbility(*perm_id, *ab_id))
         })
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ManaAbilityWindow {
-            spell_or_ability_id,
-            remaining_cost: remaining_cost.clone(),
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+        spell_or_ability_id,
+        remaining_cost: remaining_cost.clone(),
+    });
     // (0, 1): 0 = decline / stop, 1 = activate one ability
     let indices = dp.pick_n(game, player, &ctx, &options, (0, 1));
     validate_pick_n(&indices, &options, (0, 1), "activate_mana_ability", game, player, &ctx);
@@ -781,9 +781,7 @@ pub fn ask_order_cost_reductions(
 ) -> Vec<usize> {
     debug_assert!(sources.len() >= 2, "CR 601.2f: one reduction has no order to choose");
     let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::OrderCostReductions { spell_id },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::OrderCostReductions { spell_id });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_cost_reductions", game, player, &ctx);
     order
@@ -805,9 +803,7 @@ pub fn ask_order_triggers(
 ) -> Vec<usize> {
     debug_assert!(sources.len() >= 2, "CR 603.3b: one trigger has no order to choose");
     let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::OrderTriggers { player, tier },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::OrderTriggers { player, tier });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_triggers", game, player, &ctx);
     order
@@ -861,12 +857,10 @@ pub fn ask_choose_generic_mana_allocation(
         .iter()
         .map(|(mt, _)| ChoiceOption::ManaType(*mt))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::GenericManaAllocation {
-            spell_or_ability_id,
-            mana_cost: mana_cost.clone(),
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::GenericManaAllocation {
+        spell_or_ability_id,
+        mana_cost: mana_cost.clone(),
+    });
     let mins = vec![0u64; buckets.len()];
     let maxs: Vec<u64> = available_types
         .iter()
@@ -926,9 +920,7 @@ pub fn ask_commander_to_command_zone(
     commander: ObjectId,
 ) -> bool {
     let options = vec![ChoiceOption::Object(commander)];
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::CommanderToCommandZoneSba { commander },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::CommanderToCommandZoneSba { commander });
     let picked = dp.pick_n(game, owner, &ctx, &options, (0, 1));
     validate_pick_n(&picked, &options, (0, 1), "commander_to_command_zone", game, owner, &ctx);
     !picked.is_empty()
@@ -971,7 +963,7 @@ pub fn ask_discard(
         return hand.to_vec();
     }
     let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::Discard { source } };
+    let ctx = ChoiceContext::new(ChoiceKind::Discard { source });
     let mut picked = dp.pick_n(game, player, &ctx, &options, (count, count));
     validate_pick_n(&picked, &options, (count, count), "discard", game, player, &ctx);
     picked.sort();
@@ -1018,7 +1010,7 @@ pub fn ask_scry(
     let options: Vec<ChoiceOption> =
         looked_at.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let bounds = (0, looked_at.len());
-    let ctx = ChoiceContext { kind: ChoiceKind::Scry { source, n } };
+    let ctx = ChoiceContext::new(ChoiceKind::Scry { source, n });
     let to_bottom = dp.pick_n(game, player, &ctx, &options, bounds);
     validate_pick_n(&to_bottom, &options, bounds, "scry", game, player, &ctx);
 
@@ -1048,7 +1040,7 @@ fn order_scry_group(
         return group;
     }
     let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::ScryOrder { source, bottom } };
+    let ctx = ChoiceContext::new(ChoiceKind::ScryOrder { source, bottom });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "scry_order", game, player, &ctx);
     order.into_iter().map(|i| group[i]).collect()
@@ -1088,9 +1080,7 @@ pub fn ask_choose_replacement(
         sources.len(),
     );
     let options: Vec<ChoiceOption> = sources.iter().map(|s| ChoiceOption::Object(*s)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseReplacementEffect { affected_object },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseReplacementEffect { affected_object });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_replacement", game, chooser, &ctx);
     index[0]
@@ -1123,9 +1113,7 @@ pub fn ask_allocate_next_damage(
     let maxs: Vec<u64> = buckets.iter().map(|(_, amount)| *amount).collect();
     let mins = vec![0; buckets.len()];
     let total = remaining.min(maxs.iter().sum());
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::AllocateNextDamage { source, remaining },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::AllocateNextDamage { source, remaining });
     forced_allocation(total, &mins, Some(&maxs)).unwrap_or_else(|| {
         let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
         validate_allocation(&alloc, &options, total, &mins, Some(&maxs), "allocate_next_damage", game, chooser, &ctx);
@@ -1148,12 +1136,10 @@ pub fn ask_apply_optional_replacement(
 ) -> bool {
     game.diagnostics.record_replacement_prompt();
     let options = vec![ChoiceOption::Object(candidate.source)];
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ApplyOptionalReplacement {
-            affected_object,
-            source: candidate.source,
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ApplyOptionalReplacement {
+        affected_object,
+        source: candidate.source,
+    });
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
     validate_pick_n(&picked, &options, (0, 1), "apply_optional_replacement", game, chooser, &ctx);
     !picked.is_empty()
@@ -1170,7 +1156,7 @@ pub fn ask_apply_optional_effect(
     source: ObjectId,
 ) -> bool {
     let options = vec![ChoiceOption::Object(source)];
-    let ctx = ChoiceContext { kind: ChoiceKind::ApplyOptionalEffect { source } };
+    let ctx = ChoiceContext::new(ChoiceKind::ApplyOptionalEffect { source });
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
     validate_pick_n(&picked, &options, (0, 1), "apply_optional_effect", game, chooser, &ctx);
     !picked.is_empty()
@@ -1197,9 +1183,7 @@ pub fn ask_choose_entering_controller(
         candidates.len(),
     );
     let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseEnteringController { object },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringController { object });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_entering_controller", game, chooser, &ctx);
     candidates[index[0]]
@@ -1245,9 +1229,7 @@ pub fn ask_choose_auxiliary_zone_change(
     );
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to });
     let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
     validate_pick_n(&indices, &options, (0, max), "choose_auxiliary_zone_change", game, chooser, &ctx);
     // Sorted, so the batch is built in candidate order however the provider
@@ -1300,9 +1282,7 @@ fn pick_copy_source(
 ) -> Option<ObjectId> {
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseCopySource { source },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseCopySource { source });
     let index = dp.pick_n(game, chooser, &ctx, &options, bounds);
     validate_pick_n(&index, &options, bounds, "choose_copy_source", game, chooser, &ctx);
     index.first().map(|&i| candidates[i])
@@ -1332,9 +1312,7 @@ pub fn ask_choose_damage_source(
     );
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseDamageSource { source },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseDamageSource { source });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_damage_source", game, chooser, &ctx);
     candidates[index[0]]
@@ -1366,9 +1344,7 @@ pub fn ask_choose_sacrifice_for_cost(
     );
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count });
     let picks = dp.pick_n(game, player, &ctx, &options, (n, n));
     validate_pick_n(&picks, &options, (n, n), "choose_sacrifice_for_cost", game, player, &ctx);
     picks.into_iter().map(|i| candidates[i]).collect()
@@ -1390,11 +1366,9 @@ pub fn ask_choose_legend_to_keep(
         .iter()
         .map(|id| ChoiceOption::Object(*id))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::LegendRule {
-            legend_name: legend_name.to_string(),
-        },
-    };
+    let ctx = ChoiceContext::new(ChoiceKind::LegendRule {
+        legend_name: legend_name.to_string(),
+    });
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_legend_to_keep", game, player, &ctx);
     legendaries[index[0]]
@@ -1426,7 +1400,7 @@ mod tests {
             PriorityAction::Pass,
             PriorityAction::PlayLand(crate::types::ids::new_object_id()),
         ];
-        let result = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let result = ask_choose_priority_action(&dp, &game, 0, &actions, None);
         assert!(matches!(result, PriorityAction::PlayLand(_)));
     }
 
@@ -1660,7 +1634,7 @@ mod tests {
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![5]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     #[test]
@@ -1670,7 +1644,7 @@ mod tests {
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0, 1]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     #[test]
@@ -1697,7 +1671,7 @@ mod tests {
         dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
         // Engine asks for PriorityAction but we expected DeclareAttackers
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     // --- ScriptedDP unconsumed expectations ---
@@ -1711,7 +1685,7 @@ mod tests {
         // Only consume one
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
         // dp drops here with 1 remaining expectation → panic
     }
 
@@ -1723,7 +1697,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     // --- DispatchDecisionProvider routing ---
@@ -1751,11 +1725,11 @@ mod tests {
         ];
 
         // Player 0 chooses index 0 → Pass
-        let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions);
+        let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions, None);
         assert!(matches!(result0, PriorityAction::Pass));
 
         // Player 1 chooses index 1 → PlayLand
-        let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions);
+        let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions, None);
         assert!(matches!(result1, PriorityAction::PlayLand(_)));
     }
 
@@ -1768,9 +1742,7 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::DeclareAttackers,
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
         let options = vec![
             ChoiceOption::Object(crate::types::ids::new_object_id()),
             ChoiceOption::Object(crate::types::ids::new_object_id()),
@@ -1803,9 +1775,7 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::PriorityAction,
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         let options = vec![
             ChoiceOption::Action(PriorityAction::Pass),
             ChoiceOption::Action(PriorityAction::Pass),
@@ -1826,9 +1796,7 @@ mod tests {
         let game = test_game_state(); // 2 players, 20 life, no permanents
         let spell_id = crate::types::ids::new_object_id();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::ChooseXValue { spell_id, x_count: 1 },
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1 });
 
         // No mana in pool, no lands on battlefield → reasonable max is 0
         // So the result should be min (0)
@@ -1846,11 +1814,9 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::AssignCombatDamage {
-                attacker_id: crate::types::ids::new_object_id(),
-            },
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage {
+            attacker_id: crate::types::ids::new_object_id(),
+        });
         let buckets = vec![
             ChoiceOption::Object(crate::types::ids::new_object_id()),
             ChoiceOption::Object(crate::types::ids::new_object_id()),
@@ -1871,12 +1837,10 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::AssignTrampleDamage {
-                attacker_id: crate::types::ids::new_object_id(),
-                defending_target: crate::events::event::DamageTarget::Player(1),
-            },
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::AssignTrampleDamage {
+            attacker_id: crate::types::ids::new_object_id(),
+            defending_target: crate::events::event::DamageTarget::Player(1),
+        });
         let buckets = vec![
             ChoiceOption::Object(crate::types::ids::new_object_id()),
             ChoiceOption::Player(1),
@@ -2024,7 +1988,7 @@ mod tests {
             let options: Vec<ChoiceOption> = (0..n)
                 .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
                 .collect();
-            let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+            let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
             let result = dp.pick_n(&game, 0, &ctx, &options, (lo, hi));
 
             // Contract: length within bounds, indices in range, no duplicates
@@ -2052,7 +2016,7 @@ mod tests {
 
         // Use a non-X ChoiceKind so pick_number uses the general branch (not
         // the X-value self-limiting branch which clamps to game state).
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
 
         for _ in 0..200 {
             let min: u64 = seeded.random_range(0..=50);
@@ -2095,11 +2059,9 @@ mod tests {
             let buckets: Vec<ChoiceOption> = (0..n)
                 .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
                 .collect();
-            let ctx = ChoiceContext {
-                kind: ChoiceKind::AssignCombatDamage {
-                    attacker_id: crate::types::ids::new_object_id(),
-                },
-            };
+            let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage {
+                attacker_id: crate::types::ids::new_object_id(),
+            });
             let alloc = dp.allocate(&game, 0, &ctx, total, &buckets, &mins, Some(&maxs));
 
             assert_eq!(alloc.len(), n, "alloc len mismatch");
@@ -2123,7 +2085,7 @@ mod tests {
         let game = test_game_state();
         let mut seeded = StdRng::seed_from_u64(0xFACE_B00C);
 
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
 
         for _ in 0..200 {
             let n: usize = seeded.random_range(0..=10);
@@ -2148,9 +2110,7 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::PriorityAction, // placeholder kind
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction); // placeholder kind
         let items = vec![
             ChoiceOption::Object(crate::types::ids::new_object_id()),
             ChoiceOption::Object(crate::types::ids::new_object_id()),

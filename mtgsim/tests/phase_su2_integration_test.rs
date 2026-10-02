@@ -83,7 +83,7 @@ const SECTION_5_3: &str = include_str!("../scenarios/bolt-into-giant-growth.scen
 #[test]
 fn each_verb_builds_the_stack_its_lines_describe() {
     let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), SECTION_5_3);
-    let stops = SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() };
+    let stops = SeatMode { stops_at_every_priority_point: true };
     let seats = ScriptedDecisionProvider::new().with_seat_mode(stops);
     let driver = SetupDriver::new(setup, &seats);
     for _ in 0..3 {

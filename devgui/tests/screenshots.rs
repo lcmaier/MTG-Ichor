@@ -15,8 +15,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use devgui::app::{SessionHeader, draw};
-use devgui::bridge::{GameSetup, ToWindow, spawn_game};
-use devgui::prompt::Answer;
+use devgui::bridge::{EngineHandle, GameSetup, ToWindow, spawn_game};
+use devgui::prompt::{Answer, Reply};
 use devgui::view_model::{Input, WindowState};
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
 use games::{from_board, next};
@@ -65,6 +65,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("logs/bolt-into-giant-growth-seed-0.log"));
     results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
+    results.add(picture(&blocks_rejected(), &header("reask.scenario"), None, "blocks_rejected"));
     let (state, board) = &first["priority"];
     results.add(picture(state, &header(board), Some(Ok("saved logs/main-seed-0-turn-3.scenario")), "board_saved"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -88,7 +89,7 @@ fn panicked() -> WindowState {
     let engine = spawn_game(from_board("main.scenario", None), Arc::new(|| {}));
     let mut state = WindowState::default();
     state.receive(next(&engine));
-    engine.answers.send(Answer::Picks(vec![99])).unwrap();
+    engine.answers.send(Reply::Answer(Answer::Picks(vec![99]))).unwrap();
     state.receive(next(&engine));
     state
 }
@@ -101,7 +102,31 @@ fn setup_stack(sample: &str) -> WindowState {
     let mut state = WindowState::default();
     state.receive(next(&engine));
     assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
+    finish(engine);
     state
+}
+
+/// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking
+/// both Bears, and is asked again, told why.
+fn blocks_rejected() -> WindowState {
+    let engine = spawn_game(from_board("reask.scenario", None), Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    state.input(Input::OptionButton(0));
+    state.input(Input::OptionButton(1));
+    engine.answers.send(state.input(Input::Done).expect("both blocks declared")).unwrap();
+    state.receive(next(&engine));
+    assert!(state.prompt.as_ref().is_some_and(|prompt| prompt.rejected.is_some()), "the re-ask says why");
+    finish(engine);
+    state
+}
+
+/// Close a game waiting on the window and let its thread end, so none is
+/// still unwinding when the test process exits.
+fn finish(engine: EngineHandle) {
+    let EngineHandle { answers, thread, .. } = engine;
+    drop(answers);
+    thread.join().expect("a superseded game's thread ends without panicking");
 }
 
 /// What the window shows when the file does not load.

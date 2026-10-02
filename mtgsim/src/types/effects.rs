@@ -1248,8 +1248,9 @@ pub struct TypeChange {
     pub set_types: Option<crate::types::card_types::CardTypes>,
     pub add_subtypes: Vec<crate::types::card_types::Subtype>,
     pub remove_subtypes: Vec<crate::types::card_types::Subtype>,
-    /// If Some, replaces all subtypes with this set (ignores add_subtypes/remove_subtypes).
-    pub set_subtypes: Option<std::collections::HashSet<crate::types::card_types::Subtype>>,
+    /// If Some, sets the subtypes as CR 205.1a does, replacing those from each
+    /// set it names (ignores add_subtypes/remove_subtypes).
+    pub set_subtypes: Option<crate::types::card_types::Subtypes>,
     pub add_supertypes: Vec<crate::types::card_types::Supertype>,
     pub remove_supertypes: Vec<crate::types::card_types::Supertype>,
     /// If Some, replaces all supertypes with this set (ignores add_supertypes/remove_supertypes).

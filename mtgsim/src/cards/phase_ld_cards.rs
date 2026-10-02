@@ -1,8 +1,7 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
-use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
@@ -237,8 +236,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
 /// Nonbasic lands are Mountains.
 /// (Static ability: filter = lands without Basic supertype, SetSubtypes({Mountain}))
 pub fn blood_moon() -> Arc<CardData> {
-    let mut mountain_set = HashSet::new();
-    mountain_set.insert(Subtype::Land(LandType::Mountain));
+    let mountain_set = Subtypes::from([Subtype::Land(LandType::Mountain)]);
 
     // Filter: Land AND NOT Basic
     let nonbasic_land_filter = ObjectFilter::And(
@@ -548,8 +546,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
 /// end of Layer 3, where the strip has not run. Get that wrong and this card
 /// overflows the stack.
 pub fn self_stripping_land() -> Arc<CardData> {
-    let mut mountain_set = HashSet::new();
-    mountain_set.insert(Subtype::Land(LandType::Mountain));
+    let mountain_set = Subtypes::from([Subtype::Land(LandType::Mountain)]);
 
     let nonbasic_land_filter = ObjectFilter::And(
         Box::new(ObjectFilter::ByType(CardType::Land)),

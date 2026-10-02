@@ -6,9 +6,10 @@
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
-use mtgsim::ui::display::{option_label, question};
+use mtgsim::ui::display::{option_label, question, rejection};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,6 +18,18 @@ pub enum Answer {
     Number(u64),
     Allocation(Vec<u64>),
     Order(Vec<usize>),
+}
+
+/// What the window sends the engine's thread.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Reply {
+    /// The answer to the open prompt.
+    Answer(Answer),
+    /// Pass at the open priority prompt, and keep passing until the yield
+    /// ends (`mtgsim::ui::auto_yield`). The seat sets it; the log has the pass.
+    Yield(Yield),
+    /// End the seat's yield. The open prompt stays open.
+    StopYielding,
 }
 
 /// Which of the four `DecisionProvider` methods asked, with its bounds.
@@ -50,6 +63,12 @@ pub struct Prompt {
     pub question: String,
     /// `ChoiceKind::subject()`.
     pub subject: Option<ObjectId>,
+    /// Where a priority prompt offers `Pass`, which it always does: a
+    /// priority prompt is the one a yield answers and Space passes at.
+    pub pass: Option<usize>,
+    /// Why the seat is asked again, in `ui::display::rejection`'s words: the
+    /// answer the engine rejected and the rule.
+    pub rejected: Option<String>,
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
@@ -85,6 +104,8 @@ impl Prompt {
             kind: kind_name(&context.kind),
             question: question(game, &context.kind),
             subject: context.kind.subject(),
+            pass: options.iter().position(|option| matches!(option, ChoiceOption::Action(PriorityAction::Pass))),
+            rejected: context.rejected.as_ref().map(|rejected| rejection(game, rejected)),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
         }
@@ -92,7 +113,7 @@ impl Prompt {
 }
 
 /// `AssignCombatDamage { attacker_id: #7 }` → `AssignCombatDamage`.
-fn kind_name(kind: &ChoiceKind) -> String {
+pub(crate) fn kind_name(kind: &ChoiceKind) -> String {
     let debug = format!("{kind:?}");
     debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default().to_string()
 }

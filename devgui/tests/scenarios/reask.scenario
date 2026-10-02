@@ -1,0 +1,14 @@
+# Player 1's two Grizzly Bears attack seat 0, whose Wall of Stone can block
+# one of them: declared blocking both, the blocks are illegal (CR 509.1a),
+# and the window is asked again, told why.
+turn 4
+active 1
+step declare attackers
+
+player 1 this turn: attackers declared 1
+library 0: Plains | x8
+library 1: Plains | x8
+
+battlefield: Wall of Stone | controller 0
+battlefield: Grizzly Bears | controller 1, tapped, attacking player 0
+battlefield: Grizzly Bears | controller 1, tapped, attacking player 0

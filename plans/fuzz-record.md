@@ -37,6 +37,141 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-02 for the playable PR's second review round** (subtypes
+in printed order with every creature type one mark, `Subtypes`; the type
+line against the copiable values, `ui::display::type_line_now`; a cost still
+owed in its printed order; `codebase-state.md` items 205 and 206 filed). No
+pool change and no game moved, so the §3 tables stand as the first-strike
+block below recorded them. `close_out.py`: **fix** `ec38a02` against
+**order** `a54e1b7`, the subtypes alone, and **final** `1665105`, the round's
+last commit.
+
+**Predictions, before any arm ran** (PR #211's body): every gameplay and
+cost row `IDENTICAL` for both arms on both pools at two seats and four;
+instructions per decision within ±0.3 for each, more likely down for order.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| each counter file outside `=== Timing ===`, final vs fix, performance / stress | byte-identical / byte-identical | byte-identical / byte-identical |
+| gameplay rows, order vs fix, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, both arms, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, order vs fix, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6533 M → 0.6275 M, **−3.95%** |
+| instructions / decision, final vs fix, the same board | | 0.6533 M → 0.6256 M, **−4.24%** |
+
+**One prediction missed, in the engine's favor: −3.95% where ±0.3 was
+predicted.** Hashing subtypes was about 4.7% of the program. A per-function
+callgrind diff of the two arms, exclusive instructions over the 20 games:
+SipHash 196 M → 75 M, hashing a `Subtype` 109 M → 0 and the hash sets' own
+operations, lookups, clones and inserts, 154 M → 0, against 57 M for the
+new scans and set methods and 23 M more allocation; the program fell 324.5 M
+of 8,206 M. The prediction priced the scan and not the SipHash it replaced.
+The type line and the payment order read −3.97% together, so 0.02 points;
+the one-pass commit's further 0.27 is codegen, since no game calls it.
+
+**Re-read after the third round** (`3451716`: a gained card type in Oracle's
+order, `Eq` dropped from `Subtypes`, item 207 filed): every counter file
+byte-identical to fix's again, and instructions per decision −4.06%, the
+0.18 points from final's −4.24% codegen, since no game calls the display.
+
+**Re-recorded 2026-10-02 for the first-strike step** (CR 510.4: a combat has
+a first-strike combat damage step only when an attacking or blocking creature
+has first strike or double strike, where every combat with an attacker had
+one; the owner found it in the dev GUI while reviewing PR #211). No pool
+change, but **the stress pool's two-seat gameplay rows are a new baseline**.
+`close_out.py`: **playable** `467fce6`, the PR's head before the review,
+against **fix** `ec38a02`.
+
+**No prediction went in the PR body before the arms ran**, which §3.1 asks
+for; the fix came mid-review. The expectation when they started: games move
+where a player could act in the removed step, and every cost row falls.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, fix vs playable, performance / stress | differ: Wins by seat, Total damage / differ: Wins by seat, Avg turns, Spells cast, Damage events, Total damage, Life changes, Mana productions, Replacement prompts, Decisions, Priority decisions | differ: Avg turns, Spells cast, Lands played, Combat w/ atk, Creatures died, Damage events, Total damage, Life changes, Replacement prompts, Decisions, Priority decisions, Triggers placed, Trigger matches / differ: Wins by seat, Wins by effect, Avg turns, Max turns, Spells cast, Lands played, Combat w/ atk, Creatures died, Damage events, Total damage, Life changes, Turns after a departure, Mana productions, Replacement prompts, Decisions, Priority decisions, Trigger matches |
+| `Memo hits`, playable → fix, performance / stress | 70,550 → 68,888 / 81,996 → 78,709 | 182,976 → 179,796 / 240,042 → 233,653 |
+| `Replacement gathers`, playable → fix, performance / stress | 1215 → 1204 / 1172 → 1153 | 2254 → 2243 / 2412 → 2381 |
+| audit, performance / stress, dispatches agreed: playable; fix | 189,225 / 193,277; 187,097 / 189,589 | 350,537 / 388,612; 347,496 / 383,208 |
+| instructions / decision, fix vs playable, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6629 M → 0.6535 M, **−1.43%** |
+
+Where nobody could act in the step, it was work and nothing else: its
+`BeginStep` proposal, with a replacement gather and a restriction query, its
+dispatch, and a priority round the engine passed through without asking.
+That is the cost rows' move, and why the 50 two-seat `performance` games below
+read the gameplay rows they read before the fix. Where a player could act
+there, with an instant or an ability, the agent was asked and drew from its
+stream; without the step the stream moves, and the game with it. The `stress`
+pool holds more of those cards, so more of its rows moved.
+
+**The −1.43% is not a budget reading**: the counters differ, and the fall is
+work removed. The PR's reading stays playable's +0.16% at identical counters,
+below. What the fix adds is one ordered pass over the battlefield per combat
+with an attacker, and a second when a first striker is in it.
+
+**§3 fixture rows, fix, two seats, 50 games / seed 12345.** A new baseline for
+`stress` and for the bold rows; `performance`'s gameplay rows read as before.
+Item 194's block below holds the last one, and playable reproduced its
+gameplay rows to the digit first, its bold rows at most a walk and thirteen
+frames from it.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.9 | 30.4 |
+| Spells cast | 22.9 | 22.2 |
+| Lands played | 17.3 | 17.4 |
+| Combat w/ atk | 10.6 | 9.7 |
+| Creatures died | 7.2 | 5.9 |
+| Damage events | 22.2 | 20.8 |
+| Total damage | 61.5 | 54.3 |
+| Life changes | 15.7 | 17.0 |
+| **Layer walks** | **374** | **471** |
+| **Board walks** | **237** | **293** |
+| **Memo hits** | **57,678** | **84,837** |
+| **Layer frames** | **4,292** | **6,168** |
+| **Frames/walk** | **11.47** | **13.10** |
+| **Dependency checks** | **14** | **50** |
+| **Replacement gathers** | **1070** | **1197** |
+| **Restriction queries** | **1072** | **1200** |
+| Mana productions | 87 | 130 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.42 | 2.12 |
+| Max batch depth | 5 | 5 |
+| Decisions | 232 | 360 |
+| Priority decisions | 87 | 140 |
+| Triggers placed | 1.3 | 2.1 |
+| Windows past gate | 29.1 | 54.6 |
+| Candidate visits | 37.5 | 97.2 |
+| Trigger matches | 2.7 | 3.3 |
+
+**Measured 2026-10-02 for A6g's playable PR** (a re-ask names what the
+engine rejected and the engine stops filtering, `codebase-state.md` item 193,
+archived; the engine writes the decision log; in the dev GUI, which
+`fuzz_games` does not run, full control, auto-yield, the card as printed and
+keyboard shortcuts). No pool change. `close_out.py`: **main** `07d9187`
+(#210's merge) against **playable** `467fce6`, the branch's head.
+
+**Predictions, before any arm ran** (the PR's design review): every gameplay
+row `IDENTICAL`, since the random agent filters what its window rejected
+before it shuffles and a shuffle's draws depend on the length alone; the
+decision counters may rise, where a re-ask still offers the reversed action
+and the agent is asked where the engine took `Pass`; instructions per
+decision within ±0.3.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, playable vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: Decisions |
+| audit, playable, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, playable vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6620 M → 0.6630 M, **+0.16%** |
+
+Every prediction held. The row that moved is the one predicted to: Decisions,
+648 to 649 a game at four seats on the stress pool, with every other counter
+row beside it identical, so the games are the same games. Where a re-ask's
+list still holds the reversed action, the agent is now asked, a prompt with
+two legal answers that counts, and skips it with no draw, where the engine
+used to take the `Pass` its filtered list held alone. `close_out.py` counts
+Decisions as a gameplay row, which is why this PR has a block.
+
 **Measured 2026-10-02 for A6g's ability names** (each ability's own rules
 text and the paragraph of its card it prints as, `AbilityDef::rules_text`; a
 spell's abilities one per paragraph, read through `card_data::spell_effect`;

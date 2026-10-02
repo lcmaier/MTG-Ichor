@@ -1336,7 +1336,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
                 set_types: Some([CardType::Artifact].into_iter().collect()),
                 add_subtypes: Vec::new(),
                 remove_subtypes: Vec::new(),
-                set_subtypes: Some(std::collections::HashSet::new()),
+                set_subtypes: Some(mtgsim::types::card_types::Subtypes::new()),
                 add_supertypes: Vec::new(),
                 remove_supertypes: Vec::new(),
                 set_supertypes: None,
