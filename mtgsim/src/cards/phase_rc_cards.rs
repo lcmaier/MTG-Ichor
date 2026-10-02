@@ -137,7 +137,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
         .card_type(CardType::Land)
         .subtype(Subtype::Land(LandType::Plains))
         .subtype(Subtype::Land(LandType::Island))
-        .rules_text("This land enters tapped.")
+        .rules_text("({T}: Add {W} or {U}.)\nThis land enters tapped.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -496,6 +496,7 @@ pub fn dryad_arbor() -> Arc<CardData> {
         .color(Color::Green)
         .color_indicator(vec![Color::Green])
         .power_toughness(1, 1)
+        .rules_text("(This land isn't a spell, it's affected by summoning sickness, and it has \"{T}: Add {G}.\")")
         .mana_ability_single(ManaType::Green)
         .build()
 }

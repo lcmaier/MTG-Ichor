@@ -26,6 +26,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
+        .rules_text("Lightning Bolt deals 3 damage to any target.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -49,6 +50,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .rules_text("Target player draws three cards.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -72,6 +74,7 @@ pub fn counterspell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Blue)
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 0))
+        .rules_text("Counter target spell.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -95,6 +98,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .rules_text("Untap target permanent.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -118,6 +122,7 @@ pub fn giant_growth() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .rules_text("Target creature gets +3/+3 until end of turn.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -145,6 +150,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 3))
+        .rules_text("Destroy target land.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

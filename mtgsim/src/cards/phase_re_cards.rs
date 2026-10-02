@@ -925,7 +925,7 @@ pub fn rhox_faithmender() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Monk))
         .power_toughness(1, 5)
         .keyword_flag(KeywordFlag::Lifelink)
-        .rules_text("Lifelink\nIf you would gain life, you gain twice that much life instead.")
+        .rules_text("Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nIf you would gain life, you gain twice that much life instead.")
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::GainLife,

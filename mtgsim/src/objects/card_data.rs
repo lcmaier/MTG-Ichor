@@ -306,19 +306,6 @@ impl CardDataBuilder {
                 EffectRecipient::Implicit,
             ),
         });
-
-        if self.data.rules_text.is_empty() {
-            let mana_symbol = match mana_type {
-                ManaType::White => "{W}",
-                ManaType::Blue => "{U}",
-                ManaType::Black => "{B}",
-                ManaType::Red => "{R}",
-                ManaType::Green => "{G}",
-                ManaType::Colorless => "{C}",
-            };
-            self.data.rules_text = format!("{{T}}: Add {}.", mana_symbol);
-        }
-
         self
     }
 
@@ -404,7 +391,6 @@ mod tests {
         assert!(forest.mana_cost.is_none());
         assert_eq!(forest.abilities.len(), 1);
         assert_eq!(forest.abilities[0].ability_type, AbilityType::Mana);
-        assert_eq!(forest.rules_text, "{T}: Add {G}.");
     }
 
     #[test]

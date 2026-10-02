@@ -153,10 +153,7 @@ pub fn trinisphere() -> Arc<CardData> {
     CardDataBuilder::new("Trinisphere")
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
-        .rules_text(
-            "As long as this artifact is untapped, each spell that would cost less than \
-             three mana to cast costs three mana to cast.",
-        )
+        .rules_text("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast. (Additional mana in the cost may be paid with any color of mana or colorless mana. For example, a spell that would cost {1}{B} to cast costs {2}{B} to cast instead.)")
         .ability(
             CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
                 .into_ability_while(Condition::SourceUntapped),

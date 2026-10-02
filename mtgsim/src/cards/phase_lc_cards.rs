@@ -22,6 +22,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .color(Color::Blue)
         .card_type(CardType::Instant)
+        .rules_text("Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -55,6 +56,7 @@ pub fn moonlace() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .color(Color::Blue)
         .card_type(CardType::Instant)
+        .rules_text("Target spell or permanent becomes colorless.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -87,6 +89,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .color(Color::Red)
         .card_type(CardType::Instant)
+        .rules_text("Target creature becomes red and gains haste until end of turn. (It can attack and {T} this turn.)\nDraw a card.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

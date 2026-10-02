@@ -97,11 +97,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Angel))
         .power_toughness(5, 5)
         .keyword_flag(KeywordFlag::Flying)
-        .rules_text(
-            "Flying\n\
-             Spells and abilities your opponents control can't cause you to \
-             sacrifice permanents.",
-        )
+        .rules_text("Flying, hexproof\nSpells and abilities your opponents control can't cause you to sacrifice permanents.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

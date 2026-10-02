@@ -248,6 +248,7 @@ pub fn blood_moon() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
         .card_type(CardType::Enchantment)
+        .rules_text("Nonbasic lands are Mountains.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -430,7 +431,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 4))
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
-        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
+        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value. (Equipment that's a creature can't equip a creature.)")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

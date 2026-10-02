@@ -94,11 +94,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(3, 4)
         .keyword_flag(KeywordFlag::Lifelink)
-        .rules_text(
-            "Lifelink\n\
-             If a nontoken creature an opponent controls would die, instead exile that \
-             card and create a 2/2 black Zombie creature token.",
-        )
+        .rules_text("Lifelink\nIf a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.\n{2}{B}, Sacrifice another Vampire or Zombie: Put two +1/+1 counters on Kalitas.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -202,9 +198,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .rules_text(
-            "If a card or token would be put into a graveyard from anywhere, exile it instead.",
-        )
+        .rules_text("When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -279,9 +273,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))
         .color(Color::Black)
         .card_type(CardType::Enchantment)
-        .rules_text(
-            "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
-        )
+        .rules_text("If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

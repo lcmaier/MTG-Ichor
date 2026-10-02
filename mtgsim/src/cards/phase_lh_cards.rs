@@ -216,7 +216,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(ManaCost::build(&[], 1))
-        .rules_text("Equipped creature has flying.\nEquip {1}")
+        .rules_text("Equipped creature has flying.\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,

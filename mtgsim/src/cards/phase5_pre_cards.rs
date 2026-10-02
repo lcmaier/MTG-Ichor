@@ -29,6 +29,7 @@ pub fn nights_whisper() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 1))
         .color(Color::Black)
         .card_type(CardType::Sorcery)
+        .rules_text("You draw two cards and lose 2 life.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -58,6 +59,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 1))
         .color(Color::Black)
         .card_type(CardType::Instant)
+        .rules_text("Destroy target nonblack creature.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -84,6 +86,7 @@ pub fn angels_mercy() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
         .color(Color::White)
         .card_type(CardType::Instant)
+        .rules_text("You gain 7 life.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -104,6 +107,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Enchantment)
+        .rules_text("Creatures you control get +1/+1.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -231,6 +235,7 @@ pub fn dark_ritual() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Instant)
+        .rules_text("Add {B}{B}{B}.")
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

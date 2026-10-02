@@ -84,5 +84,6 @@ pub fn darksteel_myr() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 3))
         .power_toughness(0, 1)
         .keyword_flag(KeywordFlag::Indestructible)
+        .rules_text("Indestructible (Damage and effects that say \"destroy\" don't destroy this creature. If its toughness is 0 or less, it still dies.)")
         .build()
 }
