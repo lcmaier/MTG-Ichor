@@ -35,7 +35,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::prompt::{Answer, Prompt, Reply, kind_name};
+use crate::prompt::{Answer, Prompt, Reply};
 use crate::snapshot::Snapshot;
 
 const DECK_SIZE: usize = 60;
@@ -375,7 +375,7 @@ impl DecisionLog {
     fn answer(&mut self, game: &GameState, decision: &LoggedDecision) {
         self.answers += 1;
         let when = format!("turn {}, {}", game.turn_number, format_phase(game));
-        let (player, kind, answer) = (decision.player, kind_name(decision.kind), decision.answer);
+        let (player, kind, answer) = (decision.player, decision.kind.as_str(), decision.answer);
         let forced = if decision.forced { " forced" } else { "" };
         let line = format!("answer {} [{when}] player {player} {kind} {answer:?}{forced}", self.answers);
         self.line(&line);
