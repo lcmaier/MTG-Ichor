@@ -3,15 +3,19 @@
 //!
 //! Read in this order: `bridge`, the thread and the seats that ask the window;
 //! `snapshot` and `prompt`, the owned data that crosses the channel;
-//! `view_model`, what the window shows and what a click means; `session`, one
-//! game and what Reload and Save do to it; `launch`, the command line read
-//! into the game to start; then `app`, the egui drawing over them, which
-//! decides nothing.
+//! `view_model`, what the window shows and what a click means; `editor`, the
+//! board editor beside the game, with `search`, its list of names; `boards`,
+//! where a board and its games' records live; `session`, one game and one
+//! board, and what Play, Reload and Save do to them; `launch`, the command
+//! line read into how the window starts; then `app`, the egui drawing over
+//! them, which decides nothing.
 
 pub mod bridge;
 pub mod snapshot;
 pub mod prompt;
 pub mod view_model;
+pub mod search;
+pub mod editor;
 pub mod session;
 pub mod launch;
 pub mod app;

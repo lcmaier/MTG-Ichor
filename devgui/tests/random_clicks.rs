@@ -9,6 +9,10 @@
 //! Every game must finish, the engine thread must not panic, the engine must
 //! accept every reply the view model builds, and every click the window offers
 //! must move the answer along or act on the seat.
+//!
+//! The board editor's clicks are random too, with no game: every click it
+//! offers must change the board or what is selected, the board must always
+//! be its own text read back, and Undo must walk back to the board opened.
 
 #[path = "support/games.rs"]
 mod games;
@@ -17,11 +21,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
+use devgui::editor::{EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
 use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
     Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
 };
 use games::{dealt, from_board, next};
+use mtgsim::cards::registry::CardRegistry;
+use mtgsim::scenario::Scenario;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -232,4 +239,112 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
 fn items(board: &BoardView) -> impl Iterator<Item = &Item> {
     let seats = board.seats.iter().flat_map(|seat| std::iter::once(&seat.player).chain(seat.zones.iter().flat_map(|zone| &zone.items)));
     seats.chain(&board.stack).chain(&board.pending_triggers).chain(&board.exile).chain(&board.command)
+}
+
+/// Clicks on one board in the editor before Undo walks it back.
+const EDITOR_CLICKS: usize = 200;
+
+/// What a person types into the search, now and then.
+const QUERIES: [&str; 6] = ["", "bear", "of", "forest", "thalia", "x"];
+
+/// From an empty board and from the samples (a Commander table, a board
+/// with every word, setup actions), anything the editor offers, clicked at
+/// random (`setup-architecture.md` §8).
+#[test]
+fn random_clicks_build_boards_in_the_editor() {
+    let samples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios");
+    let mut boards = vec![String::new()];
+    for name in ["template", "four-seats-commander", "holy-strength", "bolt-into-giant-growth"] {
+        boards.push(std::fs::read_to_string(samples.join(format!("{name}.scenario"))).unwrap());
+    }
+    let mut reached = EditorReached::default();
+    for (b, text) in boards.iter().enumerate() {
+        for seed in SEEDS {
+            edit_at_random(text, 10 * b as u64 + seed, &mut reached);
+        }
+    }
+    let EditorReached { named, refused, accepted, undone } = reached;
+    assert!(named > 0 && refused > 0 && accepted > 0 && undone > 0, "named {named}, refused {refused}, accepted {accepted}, undone {undone}");
+}
+
+/// What the editor's clicks reached: a card named by a click on it, boards
+/// the loader refused and accepted, and Undo taken along the way.
+#[derive(Default)]
+struct EditorReached {
+    named: usize,
+    refused: usize,
+    accepted: usize,
+    undone: usize,
+}
+
+fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
+    let mut editor = Editor::open(text, Source::Empty, CardRegistry::default_registry()).unwrap();
+    let opened = editor.board().clone();
+    let mut rng = StdRng::seed_from_u64(seed);
+    for click in 0..EDITOR_CLICKS {
+        let groups = editor_clicks(&editor.view(), &mut rng);
+        let group = &groups[rng.random_range(0..groups.len())];
+        let input = group[rng.random_range(0..group.len())].clone();
+        let state = |e: &Editor| (e.board().clone(), e.editing, e.picking, e.chosen, e.search().query().to_string());
+        let before = state(&editor);
+        reached.named += usize::from(editor.picking.is_some() && matches!(input, EditorInput::Card(_)));
+        reached.undone += usize::from(input == EditorInput::Undo);
+        editor.input(input.clone());
+        assert_ne!(state(&editor), before, "seed {seed}, click {click}: {input:?} changed nothing in\n{}", editor.text());
+        let read = Scenario::parse(&editor.board().to_string()).unwrap();
+        assert_eq!(&read, editor.board(), "seed {seed}, click {click}: the board is not its text read back");
+        reached.refused += usize::from(editor.refusal().is_some());
+        reached.accepted += usize::from(editor.refusal().is_none());
+    }
+    while editor.view().undo.live {
+        editor.input(EditorInput::Undo);
+    }
+    assert_eq!(editor.board(), &opened, "seed {seed}: Undo did not walk back to the board opened");
+}
+
+/// What `app::draw` lets a person click in the editor, besides Play and
+/// Save, which are the session's, in groups so the long list of names does
+/// not crowd out the board: the game's facts, the seats, the cards, the card
+/// being edited, the lines shown as text, the search, and Undo.
+fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
+    let live = |buttons: &mut dyn Iterator<Item = &EditButton>| -> Vec<EditorInput> {
+        buttons.filter(|button| button.live).map(|button| button.input.clone()).collect()
+    };
+    let mut facts = live(&mut view.active.iter().chain(&view.steps));
+    facts.extend(view.facts.iter().flat_map(|stepper| stepped(stepper, rng)));
+    facts.push(EditorInput::Seed(view.seed.wrapping_add(rng.random_range(1..100))));
+    let mut seats = Vec::new();
+    let mut cards = Vec::new();
+    for seat in &view.seats {
+        seats.extend(stepped(&seat.life, rng));
+        seats.extend(seat.words.iter().map(|word| word.remove.clone()));
+        for zone in &seat.zones {
+            seats.extend(live(&mut std::iter::once(&zone.put).chain(&zone.shuffled)));
+            cards.extend(zone.cards.iter().filter(|card| card.live).map(|card| card.input.clone()));
+        }
+    }
+    let mut card = Vec::new();
+    for row in view.card.iter().flat_map(|card| &card.rows) {
+        card.extend(live(&mut row.buttons.iter()));
+        card.extend(row.steppers.iter().flat_map(|stepper| stepped(stepper, rng)));
+    }
+    let texts = view.texts.iter().map(|text| text.remove.clone()).collect();
+    let mut search = live(&mut view.search.results.iter());
+    let queries: Vec<&str> = QUERIES.into_iter().filter(|query| *query != view.search.query).collect();
+    search.push(EditorInput::Search(queries[rng.random_range(0..queries.len())].to_string()));
+    let undo = live(&mut std::iter::once(&view.undo));
+    [facts, seats, cards, card, texts, search, undo].into_iter().filter(|group| !group.is_empty()).collect()
+}
+
+/// A stepper's live "−" and "+", and a number typed near its own.
+fn stepped(stepper: &Stepper, rng: &mut StdRng) -> Vec<EditorInput> {
+    let mut inputs: Vec<EditorInput> = stepper.lower.iter().chain(&stepper.raise).cloned().collect();
+    if let Some(Typed { field, value, min, max }) = stepper.typed {
+        let near = value.clamp(min, max);
+        let typed = rng.random_range(near.saturating_sub(20).max(min)..=near.saturating_add(20).min(max));
+        if typed != value {
+            inputs.push(EditorInput::Number(field, typed));
+        }
+    }
+    inputs
 }
