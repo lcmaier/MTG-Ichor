@@ -353,34 +353,49 @@ fn edit_the_scenario_reads_the_file_again_or_returns_to_the_board_play_started()
 }
 
 /// The PR's click script: a four-seat Commander board built in the editor
-/// from an empty one and played. Two seats share a commander's name, so
-/// each takes a tag.
+/// from an empty one, and played to its first question. Player 2's Isamaru
+/// attacks Player 3, whose Wall of Stone can block it; Player 0's commander
+/// shares Isamaru's name, so each takes a tag.
 #[test]
 fn a_four_seat_commander_board_built_in_the_editor_plays() {
     let (mut session, ..) = session_with("devgui-session-commander", "", |_| Start::Edit(None));
-    click(&mut session, EditorInput::Number(BoardNumber::Players, 4));
-    click(&mut session, EditorInput::Number(BoardNumber::StartingLife, 40));
-    for (seat, commander) in [(0, "Isamaru, Hound of Konda"), (1, "Thalia, Guardian of Thraben"), (2, "Isamaru, Hound of Konda"), (3, "Grizzly Bears")] {
-        for (name, zone) in [(commander, Zone::Command), ("Plains", Zone::Library), ("Plains", Zone::Hand)] {
-            click(&mut session, EditorInput::Search(name.to_string()));
-            let named = (0..).find(|&i| session.editor.search().name(i) == Some(name)).unwrap();
-            click(&mut session, EditorInput::Choose(named));
-            click(&mut session, EditorInput::Put(seat, zone));
-            let put = session.editor.editing.unwrap();
-            match zone {
-                Zone::Command => click(&mut session, EditorInput::Flag(put, Flag::Commander, true)),
-                Zone::Library => click(&mut session, EditorInput::Number(BoardNumber::Copies(put), 10)),
-                _ => {}
-            }
-        }
+    for fact in [(BoardNumber::Players, 4), (BoardNumber::StartingLife, 40), (BoardNumber::Turn, 6)] {
+        click(&mut session, EditorInput::Number(fact.0, fact.1));
     }
-    assert!(session.editor.text().contains("command: Isamaru, Hound of Konda [b] | owner 2, commander\n"), "{}", session.editor.text());
+    click(&mut session, EditorInput::Active(2));
+    let steps = session.editor.view().steps;
+    let attackers = steps.into_iter().find(|step| step.label == "declare attackers").unwrap();
+    click(&mut session, attackers.input);
+    let put = |session: &mut Session, name: &str, seat, zone| {
+        click(session, EditorInput::Search(name.to_string()));
+        let named = (0..).find(|&i| session.editor.search().name(i) == Some(name)).unwrap();
+        click(session, EditorInput::Choose(named));
+        click(session, EditorInput::Put(seat, zone));
+        session.editor.editing.unwrap()
+    };
+    let isamaru = "Isamaru, Hound of Konda";
+    for (seat, commander) in [(0, isamaru), (1, "Thalia, Guardian of Thraben")] {
+        let card = put(&mut session, commander, seat, Zone::Command);
+        click(&mut session, EditorInput::Flag(card, Flag::Commander, true));
+    }
+    let attacker = put(&mut session, isamaru, 2, Zone::Battlefield);
+    for edit in [EditorInput::Flag(attacker, Flag::Commander, true), EditorInput::Flag(attacker, Flag::Tapped, true), EditorInput::AttackPlayer(attacker, 3)] {
+        click(&mut session, edit);
+    }
+    put(&mut session, "Wall of Stone", 3, Zone::Battlefield);
+    for seat in 0..4 {
+        put(&mut session, "Plains", seat, Zone::Library);
+    }
+    let text = session.editor.text().to_string();
+    assert!(text.contains("command: Isamaru, Hound of Konda [a] | owner 0, commander\n"), "{text}");
+    assert!(text.contains("battlefield: Isamaru, Hound of Konda [b] | controller 2, commander, tapped, attacking player 3\n"), "{text}");
     assert!(session.editor.refusal().is_none(), "{:?}", session.editor.refusal());
     click(&mut session, EditorInput::Play);
     first_prompt(&mut session);
+    let prompt = session.state.prompt.as_ref().unwrap();
+    assert_eq!((prompt.player, prompt.kind.as_str()), (3, "DeclareBlockers"));
     let board = session.state.board.as_ref().unwrap();
     assert_eq!(board.players.iter().map(|player| player.life).collect::<Vec<_>>(), [40; 4]);
-    assert_eq!(board.command.len(), 4);
 }
 
 fn click(session: &mut Session, input: EditorInput) {
