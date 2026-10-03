@@ -1032,12 +1032,14 @@ mod tests {
     /// the second, so neither holds the other's names.
     #[test]
     fn the_names_in_development_are_listed_apart_and_sorted() {
-        let mut registry = CardRegistry::new();
-        registry.register("Forest", basic_lands::forest);
-        registry.register_in_development("Zebra Bear", basic_lands::forest);
-        registry.register_in_development("Ape Bear", basic_lands::forest);
-        assert_eq!(registry.names_in_development(), ["Ape Bear", "Zebra Bear"]);
-        assert_eq!(registry.card_names(), ["Forest"]);
+        // Not named `registry`: `check_state_of_play.py` counts that name's
+        // `register` calls as the cards registered.
+        let mut lists = CardRegistry::new();
+        lists.register("Forest", basic_lands::forest);
+        lists.register_in_development("Zebra Bear", basic_lands::forest);
+        lists.register_in_development("Ape Bear", basic_lands::forest);
+        assert_eq!(lists.names_in_development(), ["Ape Bear", "Zebra Bear"]);
+        assert_eq!(lists.card_names(), ["Forest"]);
     }
 
     #[test]
