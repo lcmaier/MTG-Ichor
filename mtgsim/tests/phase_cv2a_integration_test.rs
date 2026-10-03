@@ -63,7 +63,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -109,7 +109,7 @@ impl Drop for ById {
 impl DecisionProvider for ById {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         player: PlayerId,
         ctx: &ChoiceContext,
         options: &[ChoiceOption],
@@ -130,9 +130,12 @@ impl DecisionProvider for ById {
             .pop_front()
             .unwrap_or_else(|| panic!("unscripted prompt: {:?} to player {player}", ctx.kind));
         assert_eq!((who, expected), (player, kind), "the wrong prompt, or the wrong player asked");
-        ids.iter()
-            .map(|id| offered.iter().position(|o| o == id).unwrap_or_else(|| panic!("{id} not offered: {offered:?}")))
-            .collect()
+        let mut picked = Vec::new();
+        for id in ids {
+            let found = position_of(options, game, &ChoiceOption::Object(id).as_logged(game), &picked);
+            picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
+        }
+        picked
     }
 
     fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {

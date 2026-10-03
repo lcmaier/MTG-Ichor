@@ -65,7 +65,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -124,7 +124,7 @@ impl Drop for Scripted {
 impl DecisionProvider for Scripted {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         player: PlayerId,
         ctx: &ChoiceContext,
         options: &[ChoiceOption],
@@ -147,10 +147,14 @@ impl DecisionProvider for Scripted {
         assert_eq!((who, expected), (player, kind), "the wrong prompt, or the wrong player asked");
         match pick {
             Pick::Index(index) => vec![index],
-            Pick::Ids(ids) => ids
-                .iter()
-                .map(|id| offered.iter().position(|o| o == id).unwrap_or_else(|| panic!("{id} not offered: {offered:?}")))
-                .collect(),
+            Pick::Ids(ids) => {
+                let mut picked = Vec::new();
+                for id in ids {
+                    let found = position_of(options, game, &ChoiceOption::Object(id).as_logged(game), &picked);
+                    picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
+                }
+                picked
+            }
         }
     }
 

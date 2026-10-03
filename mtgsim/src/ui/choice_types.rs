@@ -5,10 +5,12 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, EffectRecipient};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::state::game_state::GameState;
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
+use super::display::{additional_cost_label, alternative_cost_label, color_name, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -450,4 +452,169 @@ pub enum ChoiceOption {
     CounterType(CounterType),
     /// A mana type (for generic allocation)
     ManaType(ManaType),
+}
+
+impl ChoiceOption {
+    /// The option as a decision log writes it: what it is, never where it sat
+    /// in the list, so that a build listing the options in another order still
+    /// finds it (`setup-architecture.md` §7.2, decision 6). An object is its
+    /// printed name and id, read off the card and never through the layers,
+    /// since the log is an observer and a layer read counts a walk; a cost is
+    /// its keyword and mana as CR 702.33a prints one. A change to these words
+    /// is a change to the log's format.
+    pub fn as_logged(&self, game: &GameState) -> String {
+        let object = |id: &ObjectId| format!("{} ({id})", printed_name(game, *id));
+        match self {
+            ChoiceOption::Object(id) => object(id),
+            ChoiceOption::Player(player) => format!("player {player}"),
+            ChoiceOption::Action(PriorityAction::Pass) => "pass".to_string(),
+            ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("cast {}", object(id)),
+            ChoiceOption::Action(PriorityAction::PlayLand(id)) => format!("play {}", object(id)),
+            ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
+                format!("activate {} ability {ability}", object(id))
+            }
+            ChoiceOption::AttackerTarget(attacker, target) => {
+                let attacked = match target {
+                    AttackTarget::Player(player) => format!("player {player}"),
+                    AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => object(id),
+                };
+                format!("{} attacks {attacked}", object(attacker))
+            }
+            ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", object(blocker), object(attacker)),
+            ChoiceOption::NormalCost => "mana cost".to_string(),
+            ChoiceOption::AlternativeCost(cost) => format!("alternative {}", alternative_cost_label(cost)),
+            ChoiceOption::AdditionalCost(cost) => format!("additional {}", additional_cost_label(cost)),
+            ChoiceOption::Number(number) => format!("number {number}"),
+            ChoiceOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),
+            ChoiceOption::CounterType(counter) => format!("counter {}", counter.name()),
+            ChoiceOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
+        }
+    }
+}
+
+/// How an answer names one option among others whose words are the same:
+/// `(2 of 3)` after them, counted in the list's order. Two such options are
+/// one choice to a reader of the log, and only a position tells them apart.
+const OF_EQUALS: &str = " of ";
+
+/// `options[index]` as an answer names it: [`ChoiceOption::as_logged`], with
+/// its place among the options whose words are the same when there are any.
+pub fn logged_choice(options: &[ChoiceOption], game: &GameState, index: usize) -> String {
+    let logged = options[index].as_logged(game);
+    let equals: Vec<usize> = (0..options.len()).filter(|&i| options[i].as_logged(game) == logged).collect();
+    match equals.iter().position(|&i| i == index) {
+        Some(place) if equals.len() > 1 => format!("{logged} ({}{OF_EQUALS}{})", place + 1, equals.len()),
+        _ => logged,
+    }
+}
+
+/// Where the option an answer names sits in `options`: the one matcher a
+/// replayed answer, a scenario's setup line and a test's script find an
+/// option by (`setup-architecture.md` §7.2, decision 6), by what it is and
+/// never by where it sat. Positions in `taken` are passed over, so an answer
+/// naming two options with the same words takes two of them.
+pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, taken: &[usize]) -> Option<usize> {
+    let (words, place) = match chosen.rsplit_once(" (").and_then(|(words, rest)| Some((words, rest.strip_suffix(')')?))) {
+        Some((words, rest)) => match rest.split_once(OF_EQUALS).and_then(|(place, _)| place.parse::<usize>().ok()) {
+            Some(place) => (words, Some(place)),
+            None => (chosen, None),
+        },
+        None => (chosen, None),
+    };
+    let mut equals = (0..options.len()).filter(|&i| options[i].as_logged(game) == words);
+    match place {
+        Some(place) => equals.nth(place.checked_sub(1)?).filter(|i| !taken.contains(i)),
+        None => equals.find(|i| !taken.contains(i)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cards::registry::CardRegistry;
+    use crate::engine::priority::PriorityResult;
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+    use crate::types::costs::Cost;
+    use crate::ui::decision::ScriptedDecisionProvider;
+
+    fn card(name: &str) -> std::sync::Arc<crate::objects::card_data::CardData> {
+        CardRegistry::default_registry().create(name).unwrap()
+    }
+
+    /// The log's words for each shape of option, pinned: a change here is a
+    /// change to the log's format.
+    #[test]
+    fn an_option_is_logged_by_what_it_is() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 1);
+        let land = put_on_battlefield(&mut game, card("Forest"), 0);
+        let bolt = put_in_hand(&mut game, card("Lightning Bolt"), 0);
+        let forest = put_in_hand(&mut game, card("Forest"), 0);
+        let mana = game.objects[&land].card_data.abilities[0].id;
+        let red = vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 1))];
+        let logged = |option: ChoiceOption| option.as_logged(&game);
+
+        assert_eq!(logged(ChoiceOption::Object(bears)), format!("Grizzly Bears ({bears})"));
+        assert_eq!(logged(ChoiceOption::Player(1)), "player 1");
+        assert_eq!(logged(ChoiceOption::Action(PriorityAction::Pass)), "pass");
+        assert_eq!(logged(ChoiceOption::Action(PriorityAction::CastSpell(bolt))), format!("cast Lightning Bolt ({bolt})"));
+        assert_eq!(logged(ChoiceOption::Action(PriorityAction::PlayLand(forest))), format!("play Forest ({forest})"));
+        assert_eq!(
+            logged(ChoiceOption::Action(PriorityAction::ActivateAbility(land, mana))),
+            format!("activate Forest ({land}) ability {mana}")
+        );
+        assert_eq!(
+            logged(ChoiceOption::AttackerTarget(bears, AttackTarget::Player(1))),
+            format!("Grizzly Bears ({bears}) attacks player 1")
+        );
+        assert_eq!(
+            logged(ChoiceOption::BlockerAttacker(wall, bears)),
+            format!("Wall of Stone ({wall}) blocks Grizzly Bears ({bears})")
+        );
+        assert_eq!(logged(ChoiceOption::NormalCost), "mana cost");
+        assert_eq!(logged(ChoiceOption::AlternativeCost(AlternativeCost::Flashback(red.clone()))), "alternative Flashback {1}{R}");
+        assert_eq!(logged(ChoiceOption::AdditionalCost(AdditionalCost::Kicker(red))), "additional Kicker {1}{R}");
+        assert_eq!(logged(ChoiceOption::Number(3)), "number 3");
+        assert_eq!(logged(ChoiceOption::Color(Color::Red)), "color red");
+        assert_eq!(logged(ChoiceOption::CounterType(CounterType::PlusOnePlusOne)), "counter +1/+1");
+        assert_eq!(logged(ChoiceOption::ManaType(ManaType::Green)), "mana {G}");
+    }
+
+    /// An answer names what it chose, so a list in another order, or a
+    /// longer one, still finds it; and of two options with the same words, it
+    /// says which.
+    #[test]
+    fn an_answer_is_found_wherever_another_build_lists_it() {
+        let mut game = setup_two_player_game();
+        let bolt = put_in_hand(&mut game, card("Lightning Bolt"), 0);
+        let forest = put_in_hand(&mut game, card("Forest"), 0);
+        let (pass, cast, play) = (
+            ChoiceOption::Action(PriorityAction::Pass),
+            ChoiceOption::Action(PriorityAction::CastSpell(bolt)),
+            ChoiceOption::Action(PriorityAction::PlayLand(forest)),
+        );
+        let written = [pass.clone(), cast.clone()];
+        let chosen = logged_choice(&written, &game, 1);
+        let reordered = [play, cast, pass];
+        assert_eq!(position_of(&reordered, &game, &chosen, &[]), Some(1));
+        assert_eq!(position_of(&reordered, &game, &chosen, &[1]), None, "a taken option is passed over");
+        assert_eq!(position_of(&reordered[..1], &game, &chosen, &[]), None, "not offered");
+
+        let twins = [ChoiceOption::Number(2), ChoiceOption::Number(2)];
+        assert_eq!(logged_choice(&twins, &game, 1), "number 2 (2 of 2)");
+        assert_eq!(position_of(&twins, &game, &logged_choice(&twins, &game, 1), &[]), Some(1));
+        assert_eq!(position_of(&twins, &game, "number 2", &[0]), Some(1));
+    }
+
+    /// A test's script can name the option it picks instead of its position.
+    #[test]
+    fn a_script_picks_an_option_by_what_it_is() {
+        let mut game = setup_two_player_game();
+        let forest = put_in_hand(&mut game, card("Forest"), 0);
+        let seats = ScriptedDecisionProvider::new();
+        seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(forest))]);
+        assert_eq!(game.run_priority_round(&seats), Ok(PriorityResult::ActionTaken));
+        assert!(game.battlefield.contains_key(&forest), "the Forest was played");
+    }
 }

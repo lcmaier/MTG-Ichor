@@ -6,7 +6,7 @@ use crate::oracle::characteristics::get_effective_toughness;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -300,6 +300,9 @@ pub struct ScriptedExpectation {
 #[derive(Debug)]
 pub enum ScriptedResponse {
     PickN(Vec<usize>),
+    /// The options to pick, by what each is: found in whatever order the
+    /// engine lists them, through the matcher a replay uses.
+    Choose(Vec<ChoiceOption>),
     Number(u64),
     Allocation(Vec<u64>),
     Ordering(Vec<usize>),
@@ -361,6 +364,16 @@ impl ScriptedDecisionProvider {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::PickN(indices),
+        });
+    }
+
+    /// Enqueue a pick_n expectation that names the options to pick rather
+    /// than their positions, so an engine change that lists them in another
+    /// order breaks nothing (`codebase-state.md` item 209).
+    pub fn expect_choice(&self, kind: ChoiceKind, chosen: Vec<ChoiceOption>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Choose(chosen),
         });
     }
 
@@ -449,14 +462,28 @@ impl Drop for ScriptedDecisionProvider {
 impl DecisionProvider for ScriptedDecisionProvider {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
-        _options: &[ChoiceOption],
+        options: &[ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         match self.pop_and_validate(&context.kind, "pick_n") {
             ScriptedResponse::PickN(indices) => indices,
+            ScriptedResponse::Choose(chosen) => {
+                let mut picked = Vec::new();
+                for option in &chosen {
+                    match position_of(options, game, &option.as_logged(game), &picked) {
+                        Some(index) => picked.push(index),
+                        None => panic!(
+                            "ScriptedDecisionProvider: {} is not offered: {:?}",
+                            option.as_logged(game),
+                            options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
+                        ),
+                    }
+                }
+                picked
+            }
             other => panic!(
                 "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
                 other
