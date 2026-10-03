@@ -237,6 +237,7 @@ pub struct Editor {
     pub editing: Option<usize>,
     /// The reference the card being edited waits to name.
     pub picking: Option<Reference>,
+    /// The name chosen in the search, by its place in the list searched.
     pub chosen: Option<usize>,
     search: NameSearch,
     /// How many of the names searched are registered; the rest are in
@@ -360,6 +361,7 @@ impl Editor {
         }
     }
 
+    /// Undo: the board before the last edit.
     fn step_back(&mut self) {
         let Some(board) = self.undo.pop() else { return };
         self.board = board;
@@ -897,10 +899,10 @@ impl Draft {
     /// Drop each reference that named `card` among `among`'s and names
     /// nothing now that `card` is not one of them.
     fn drop_references(&mut self, card: &NamedCard, among: Among) {
-        let names_one = |reference: &NamedCard| self.board.cards.iter().any(|line| is_among(&line.value, among) && names(reference, &line.value.card));
+        let still_names = |reference: &NamedCard| self.board.cards.iter().any(|line| is_among(&line.value, among) && names(reference, &line.value.card));
         let gone: Vec<At> = references(&self.board)
             .into_iter()
-            .filter(|(_, kind, reference)| *kind == among && names(reference, card) && !names_one(reference))
+            .filter(|(_, kind, reference)| *kind == among && names(reference, card) && !still_names(reference))
             .map(|(at, ..)| at)
             .collect();
         // From the last, so each place still holds what it named.
@@ -1105,7 +1107,7 @@ impl Editor {
             seed: board.seed,
             active: (0..board.players).map(|p| button(format!("Player {p}"), EditorInput::Active(p), p == board.active)).collect(),
             steps: turn_positions().map(|step| button(position_word(step), EditorInput::Step(step), step == board.step)).collect(),
-            seats: order.into_iter().map(|seat| self.seat(seat, &refused)).collect(),
+            seats: order.into_iter().map(|seat| self.seat_edit(seat, &refused)).collect(),
             texts: texts.chain(actions).collect(),
             card: self.editing.and_then(|i| self.card_edit(i)),
             refusal: self.refusal.as_ref().map(|refusal| refusal.message.clone()),
@@ -1115,7 +1117,7 @@ impl Editor {
             save: action("Save", EditorInput::Save, true),
             search: SearchView {
                 query: self.search.query(),
-                results: self.search.matches().iter().map(|&i| self.result(i)).collect(),
+                results: self.search.matches().iter().map(|&i| self.search_result(i)).collect(),
                 chosen: self.chosen.and_then(|i| self.search.name(i)),
             },
         }
@@ -1131,13 +1133,13 @@ impl Editor {
         }
     }
 
-    fn result(&self, i: usize) -> EditButton {
+    fn search_result(&self, i: usize) -> EditButton {
         let name = self.search.name(i).unwrap_or_default();
         let label = if i < self.registered { name.to_string() } else { format!("{name} (in development)") };
         EditButton { label, input: EditorInput::Choose(i), live: self.chosen != Some(i), on: self.chosen == Some(i) }
     }
 
-    fn seat(&self, seat: PlayerId, refused: &dyn Fn(usize) -> bool) -> SeatEdit {
+    fn seat_edit(&self, seat: PlayerId, refused: &dyn Fn(usize) -> bool) -> SeatEdit {
         let board = &self.board;
         // The loader reads a player's life words in order, so the last stands.
         let life = board.player_words.iter().rev().find_map(|word| match word.value {
@@ -1159,11 +1161,11 @@ impl Editor {
             words: words
                 .map(|(i, word)| TextLine { text: word.value.to_string(), remove: EditorInput::RemoveText(TextItem::PlayerWord(i)), refused: refused(word.line) })
                 .collect(),
-            zones: Zone::ALL.into_iter().map(|zone| self.zone(seat, zone, refused)).collect(),
+            zones: Zone::ALL.into_iter().map(|zone| self.zone_edit(seat, zone, refused)).collect(),
         }
     }
 
-    fn zone(&self, seat: PlayerId, zone: Zone, refused: &dyn Fn(usize) -> bool) -> ZoneEdit {
+    fn zone_edit(&self, seat: PlayerId, zone: Zone, refused: &dyn Fn(usize) -> bool) -> ZoneEdit {
         let board = &self.board;
         let here: Vec<usize> = (0..board.cards.len()).filter(|&i| listed_at(board, i) == Some((seat, zone))).collect();
         let count: u32 = here.iter().map(|&i| board.cards[i].value.copies).sum();
