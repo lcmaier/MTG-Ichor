@@ -9100,3 +9100,24 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      and CI. **Slotted:** decided with the workspace no earlier than Phase
      8's breadth (`roadmap-v2.md` §C), and by v1's release at the latest
      (§E), the owner at #216's review (2026-10-03).
+
+### Found by SU-4's design review (2026-10-03)
+
+209. **Scripted test answers are positions in the option list.**
+     `ScriptedDecisionProvider` answers by index: 299 scripted answers in 54
+     files (`expect_pick_n` 262, `expect_allocation` 27, `expect_ordering`
+     10), each pinned to the order the engine lists that prompt's options
+     in. An engine change that reorders a prompt's options breaks every test
+     scripted at it, and each is mended by renumbering. SU-4 gives the
+     scripted provider an answer by what was chosen, `expect_choice`, on the
+     one matcher of `setup-architecture.md` §7.2's decision 6, and new tests
+     use it.
+
+     **Reachability (2026-10-03):** reachable — not wrong in any game: a
+     test's script, which fails loudly when it breaks.
+
+     **Sized:** ~300 sites, each read to name the option its position meant,
+     so not a sweep by script: `vec![1]` becomes the cast of a named card.
+     About 600 changed lines, a PR of its own. **Slotted:** beside C0, the
+     test cleanup before Phase 8's breadth (`roadmap-v2.md` §C), as a PR of
+     its own (the owner, 2026-10-03, at #216's review).

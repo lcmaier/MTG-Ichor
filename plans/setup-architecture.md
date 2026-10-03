@@ -1007,10 +1007,10 @@ the window is written by hand, from the log the window keeps. The
 
 #### Decision 6 — the records at scale, for v1
 
-> **Status:** proposed at SU-4's design (2026-10-03). Its first question was
-> decided at #216's review the same day; the four after it are the dev GUI's
-> answers and the options Phase 10 starts from. It settles decision 4's "At
-> scale, for v1".
+> **Status:** decided at #216's review (the owner, 2026-10-03): its first
+> question as D, and the four after it as proposed, the dev GUI's answers and
+> the options Phase 10 starts from. It settles decision 4's "At scale, for
+> v1".
 
 **The problem.** Three writers will keep records of play, at three scales.
 The dev GUI keeps a few a session, to replay and to attach to a bug report.
@@ -1102,7 +1102,7 @@ reaches the engine.
 | Performance at Commander scale | 274 KB a game, and +16–52% of its CPU here | the same bytes, and a file created per worker rather than per game | nothing for a seeded game; +2–3% in memory for another |
 | Upkeep | at the harness's rate, about 7.5 MB a second a core | a splitter, ~15 lines in the engine when a batch is first written | the run's seeds, table and commit kept, which the harness needs to replay anything |
 
-**Proposed: A for the dev GUI, which has it, and for v1's GUI; C for the
+**Decided: A for the dev GUI, which has it, and for v1's GUI; C for the
 harness, with B for what it keeps if that is many.** What SU-4 builds for all
 three: the engine formats each line into its writer's sink and opens no file;
 a record begins with its format line, so records can sit back to back and be
@@ -1119,7 +1119,7 @@ diff of the game. The splitter waits for its first writer.
 | Performance | a few lines read a file at each browse; nothing while playing | a write a game | a write a game, and a dependency |
 | Upkeep | none, since nothing is kept in step | a second record of each game, kept in step with the files by hand, which a deleted or half-written file leaves wrong (`engineering-practices.md` §2c) | a schema, and a migration at each change to it |
 
-**Proposed: A for the dev GUI**, which loads by path (`--load`) and is browsed
+**Decided: A for the dev GUI**, which loads by path (`--load`) and is browsed
 with the system's file browser. v1's GUI starts from A and moves to C if a
 player's history wants search. The harness's index is its run's report,
 written once at the run's end, naming the records it kept and why.
@@ -1132,7 +1132,7 @@ written once at the run's end, naming the records it kept and why.
 | Size | a log is 61–274 KB a game, and its save as much again or more, with its branches | bounded | bounded |
 | Upkeep | none | deletes the save a bug report needed | a mark to set, and a rule that reads it |
 
-**Proposed: A for the dev GUI.** v1's GUI gets a setting, its design's; a
+**Decided: A for the dev GUI.** v1's GUI gets a setting, its design's; a
 harness run's folder goes with the run.
 
 **So the dev GUI, the first consumer, takes**: D's header and answers, its
@@ -1796,8 +1796,11 @@ of code and 590–880 of tests:
 - answers recorded by what was chosen (decision 6's D, the owner at #216's
   review): an option's identity written and compared by one matcher, which
   the replay, the setup driver and `ById` use, and a forced line skipped or
-  answered where one build asks it and the other does not, ~230–360 with
-  tests.
+  answered where one build asks it and the other does not, and the scripted
+  provider's answer by identity for new tests, ~260–410 with tests. The 299
+  scripted answers already written move onto it in a PR of their own beside
+  C0, the test cleanup before Phase 8's breadth (`codebase-state.md` item
+  209, the owner at #216's review).
 
 The last three phases ran 1.5–2.1 times their sizing on code (SU-1 ~1.9,
 SU-2 ~2.0, SU-3 1.5–2.1; the archive's tables), each from what its sizing left
@@ -1812,14 +1815,14 @@ window's.
 |---|---|---|---|
 | `ChoiceKind::as_str`, replacing the eight readers of `Debug` text | `ui::choice_types`; `scenario::setup`, `test_support`, devgui `prompt.rs`, four test files | 40–60 | 15–25 |
 | The text: a record's header (the format, the engine), a start (a dealt game's seed, its `GameConfig` destructured with no `..`, and its decks by name; or a scenario's path, seed and text), an answer line and the outcome; written and read, each refusal naming its line; a start built into a game | `state::decision_log` | 330–470 | 120–180 |
-| An option's identity, what was chosen: written, and compared by one matcher, which the replay, the setup driver and `ById` use | `ui::choice_types`, `scenario::setup` | 130–200 | 70–110 |
+| An option's identity, what was chosen: written, and compared by one matcher, which the replay, the setup driver and `ById` use; the scripted provider's answer by identity, `expect_choice`, which new tests use | `ui::choice_types`, `scenario::setup`, `ui::decision` | 150–230 | 80–130 |
 | The replay: each line's player, kind, turn and step checked, its choice found by identity among the options this build offers and its fit through `ui::ask`'s predicates, which the validators then assert; a forced line skipped or answered where one build asks it and the other does not; the seats after the last line, or a stop naming where it diverged; a superseded replay stopped | `ui::replay`, `ui::ask` | 200–290 | 170–260 |
 | The stop: why a run ended, the catcher over any run, a stopped game refused at each of the six entries; the setup driver's refusal as a stop, which `fuzz_games` reports as the game's error | `ui::decision`, `state::game`, `scenario::setup`, `bin/fuzz_games` | 100–145 | 60–100 |
 | No layer audit while replaying within a session (§7.1) | `engine::layers::compute`, `state::diagnostics` | 15–25 | 15–25 |
 | The dev GUI on the engine's text and the stop: its log written in the engine's words, and a refused setup line shown as a refusal rather than an engine panic | devgui `bridge.rs` | 35–50 | — |
-| **SU-4** | | **850–1,240** | **450–700** |
+| **SU-4** | | **870–1,270** | **460–720** |
 
-At the last phases' rate SU-4's code is 1,280–2,600, so 1,730–3,300 in all.
+At the last phases' rate SU-4's code is 1,310–2,670, so 1,770–3,390 in all.
 Its upper half crosses 2,500, so the build measures at each commit, code and
 tests apart, and stops to report when it crosses. An option's identity and
 its matcher are the seam that would move into a PR of their own, ahead of the
@@ -1871,8 +1874,8 @@ before and after (`engineering-practices.md` §10.4).
 
 | | **A. One PR, as first planned** | **B. Two: SU-4 the engine's, SU-5 the window's** | **C. Three: B with SU-5 split again, the savestates and their menu last** |
 |---|---|---|---|
-| Size, code and tests | 2,270–3,360; at the last phases' rate 3,030–5,800 | SU-4 1,300–1,940, SU-5 970–1,420; at that rate to 3,300 and 2,500 | SU-4 as B; SU-5 ~750–1,100 and a third ~220–320 |
-| Review | the engine's ~1,300–1,900 lines in one PR with the dev GUI's ~1,000–1,400 | a PR that is the engine's, but for ~40 lines the window needs to keep working, read closely; then a dev GUI PR read by its click script and pictures | as B, and a third small window PR |
+| Size, code and tests | 2,300–3,410; at the last phases' rate 3,070–5,890 | SU-4 1,330–1,990, SU-5 970–1,420; at that rate to 3,390 and 2,500 | SU-4 as B; SU-5 ~750–1,100 and a third ~220–320 |
+| Review | the engine's ~1,300–2,000 lines in one PR with the dev GUI's ~1,000–1,400 | a PR that is the engine's, but for ~40 lines the window needs to keep working, read closely; then a dev GUI PR read by its click script and pictures | as B, and a third small window PR |
 | What lands first | everything at once | the replay, with every dev GUI log readable by it, before any button | as B; undo and the save before the savestates |
 | Risk | past the band, by a lot at the last phases' rate | the engine's text is designed before its second reader, the save's journal, exists: SU-4's reader reads a line and a start apart from a whole record, which the journal's reader uses, and SU-5 may still find a gap to fix in the engine (`engineering-practices.md` §4: a split moves risk, it does not remove it) | as B |
 
