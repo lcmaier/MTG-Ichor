@@ -70,7 +70,7 @@ fn parse_header(scenario: &mut Scenario, stated: &mut Vec<&'static str>, content
 
 /// Every position a turn passes through, in CR 500.1's order: a main phase,
 /// or a phase's step.
-pub(super) fn turn_positions() -> impl Iterator<Item = Phase> {
+pub fn turn_positions() -> impl Iterator<Item = Phase> {
     TurnPlan::natural().phases.into_iter().flat_map(|planned| {
         let phase_type = planned.phase_type;
         let mut steps = Vec::new();
@@ -93,7 +93,7 @@ pub(super) fn in_combat_from(position: Phase, from: StepType) -> bool {
 }
 
 /// A position as `step` spells it: `format_phase`'s name, lower case.
-pub(super) fn position_word(position: Phase) -> String {
+pub fn position_word(position: Phase) -> String {
     match position.step {
         Some(step) => step_name(step),
         None => phase_name(position.phase_type),
@@ -505,7 +505,7 @@ impl std::fmt::Display for CardLine {
             words.push(format!("x{}", self.copies));
         }
         let (references, plain): (Vec<&CardWord>, Vec<&CardWord>) = self.words.iter().partition(|word| word.names_a_card());
-        words.extend(plain.into_iter().chain(references).map(card_word_text));
+        words.extend(plain.into_iter().chain(references).map(CardWord::to_string));
         if !words.is_empty() {
             write!(f, " | {}", words.join(", "))?;
         }
@@ -513,26 +513,37 @@ impl std::fmt::Display for CardLine {
     }
 }
 
-fn card_word_text(word: &CardWord) -> String {
-    let ability = |n: &Option<usize>| n.map(|n| format!("ability {n} ")).unwrap_or_default();
-    match word {
-        CardWord::Owner(p) => format!("owner {p}"),
-        CardWord::Controller(p) => format!("controller {p}"),
-        CardWord::Commander => "commander".to_string(),
-        CardWord::Tapped => "tapped".to_string(),
-        CardWord::Arrived(Arrival::ThisTurn) => "arrived this turn".to_string(),
-        CardWord::Arrived(Arrival::Turn(n)) => format!("arrived turn {n}"),
-        CardWord::Counter(kind, n) => format!("{} {n}", kind.name()),
-        CardWord::Damage(n) => format!("damage {n}"),
-        CardWord::DealtFirstStrikeDamage => "dealt first-strike damage".to_string(),
-        CardWord::Blocked => "blocked".to_string(),
-        CardWord::AttachedTo(card) => format!("attached to {card}"),
-        CardWord::Attacking(Attacked::Player(p)) => format!("attacking player {p}"),
-        CardWord::Attacking(Attacked::Permanent(card)) => format!("attacking {card}"),
-        CardWord::Blocking(card) => format!("blocking {card}"),
-        CardWord::Triggered { ability: n } => format!("{}triggered", ability(n)),
-        CardWord::Resolved { ability: n, times } => format!("{}resolved {times}", ability(n)),
-        CardWord::TookOnceEachTurnAction { ability: n } => format!("{}took its once-each-turn action", ability(n)),
+impl std::fmt::Display for CardWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ability = |n: &Option<usize>| n.map(|n| format!("ability {n} ")).unwrap_or_default();
+        match self {
+            CardWord::Owner(p) => write!(f, "owner {p}"),
+            CardWord::Controller(p) => write!(f, "controller {p}"),
+            CardWord::Commander => f.write_str("commander"),
+            CardWord::Tapped => f.write_str("tapped"),
+            CardWord::Arrived(Arrival::ThisTurn) => f.write_str("arrived this turn"),
+            CardWord::Arrived(Arrival::Turn(n)) => write!(f, "arrived turn {n}"),
+            CardWord::Counter(kind, n) => write!(f, "{} {n}", kind.name()),
+            CardWord::Damage(n) => write!(f, "damage {n}"),
+            CardWord::DealtFirstStrikeDamage => f.write_str("dealt first-strike damage"),
+            CardWord::Blocked => f.write_str("blocked"),
+            CardWord::AttachedTo(card) => write!(f, "attached to {card}"),
+            CardWord::Attacking(Attacked::Player(p)) => write!(f, "attacking player {p}"),
+            CardWord::Attacking(Attacked::Permanent(card)) => write!(f, "attacking {card}"),
+            CardWord::Blocking(card) => write!(f, "blocking {card}"),
+            CardWord::Triggered { ability: n } => write!(f, "{}triggered", ability(n)),
+            CardWord::Resolved { ability: n, times } => write!(f, "{}resolved {times}", ability(n)),
+            CardWord::TookOnceEachTurnAction { ability: n } => write!(f, "{}took its once-each-turn action", ability(n)),
+        }
+    }
+}
+
+impl std::fmt::Display for PlayerWord {
+    /// The word on a line of its own, as a file would say it alone:
+    /// `player 1: poison 2`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (head, word, _) = player_word_text(self);
+        write!(f, "{head}: {word}")
     }
 }
 
@@ -720,6 +731,19 @@ mod tests {
             words: vec![CardWord::AttachedTo(host), CardWord::Controller(0)],
         };
         assert_eq!(line.to_string(), "battlefield: Holy Strength | controller 0, attached to Grizzly Bears");
+    }
+
+    /// A word alone is spelled as its line spells it: the board editor shows
+    /// a card's words on its button, and a player's on a line of its own.
+    #[test]
+    fn a_word_alone_reads_as_its_line_spells_it() {
+        let bears = NamedCard { name: "Grizzly Bears".to_string(), tag: Some("b".to_string()) };
+        let words: Vec<String> = [CardWord::Counter(CounterType::PlusOnePlusOne, 2), CardWord::Blocking(bears.clone())].iter().map(CardWord::to_string).collect();
+        assert_eq!(words, ["+1/+1 2", "blocking Grizzly Bears [b]"]);
+        let history = PlayerWord::History { player: 1, span: HistorySpan::ThisTurn, fact: TurnFact::AttackersDeclared, count: 1 };
+        assert_eq!(history.to_string(), "player 1 this turn: attackers declared 1");
+        let damage = PlayerWord::CommanderDamage { player: 0, damage: 7, from: bears };
+        assert_eq!(Scenario::parse(&damage.to_string()).unwrap().player_words[0].value, damage);
     }
 
     #[test]

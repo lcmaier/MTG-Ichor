@@ -22,4 +22,5 @@ pub use board::{
 pub use build::BuiltScenario;
 pub use error::{ScenarioError, ScenarioErrorKind};
 pub use setup::{SetupActions, SetupDriver};
-pub use write::WrittenBoard;
+pub use text::{position_word, turn_positions};
+pub use write::{tag_letters, WrittenBoard};

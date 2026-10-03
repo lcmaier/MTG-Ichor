@@ -526,6 +526,14 @@ impl CardRegistry {
         self.in_development.get(name).map(|factory| factory())
     }
 
+    /// The cards in development, alphabetically: the names a scenario can use
+    /// besides [`Self::card_names`], which never lists them.
+    pub fn names_in_development(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = self.in_development.keys().map(|s| s.as_str()).collect();
+        names.sort_unstable();
+        names
+    }
+
     /// Get all registered card names, alphabetically.
     ///
     /// Sorted, not raw `HashMap` key order: `fuzz_games` builds its decks by
@@ -1019,6 +1027,18 @@ impl Default for CardRegistry {
 mod tests {
     use super::*;
     use crate::types::card_types::CardType;
+
+    /// The board editor's search lists both lists, and only scenarios read
+    /// the second, so neither holds the other's names.
+    #[test]
+    fn the_names_in_development_are_listed_apart_and_sorted() {
+        let mut registry = CardRegistry::new();
+        registry.register("Forest", basic_lands::forest);
+        registry.register_in_development("Zebra Bear", basic_lands::forest);
+        registry.register_in_development("Ape Bear", basic_lands::forest);
+        assert_eq!(registry.names_in_development(), ["Ape Bear", "Zebra Bear"]);
+        assert_eq!(registry.card_names(), ["Forest"]);
+    }
 
     #[test]
     fn test_default_registry_has_basic_lands() {
