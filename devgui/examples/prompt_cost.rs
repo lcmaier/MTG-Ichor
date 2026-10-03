@@ -11,7 +11,10 @@
 //!   "Save board as scenario";
 //! - **receive**: `WindowState::receive`, the window's work as a prompt arrives;
 //! - **views**: `board_view` and `prompt_view`, which `app::draw` builds again
-//!   at every repaint.
+//!   at every repaint;
+//! - **the editor** on the same board: its view, built again at every repaint
+//!   in the editor, and one edit at a click, which writes the board, reads it
+//!   back and has the loader check it (`setup-architecture.md` §7b).
 //!
 //! A number to read beside a change, not a gate (`engineering-practices.md`
 //! §10.4): the time is the machine's, and the allocations are the code's.
@@ -26,6 +29,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Pool, ToWindow, spawn_game};
+use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
 use mtgsim::cards::registry::CardRegistry;
@@ -67,6 +71,15 @@ fn main() {
     let mut state = WindowState::default();
     state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None });
     reading("views, every repaint", || (state.board_view(), state.prompt_view()));
+
+    let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));
+    let opened = &editor;
+    reading("editor view, every repaint", || opened.view());
+    let mut life = 0;
+    reading("an edit, at a click", || {
+        life = 1 - life;
+        editor.input(EditorInput::Number(BoardNumber::Life(0), 10 + life));
+    });
 }
 
 /// Runs `work` [`RUNS`] times and prints its median and slowest tenth, with

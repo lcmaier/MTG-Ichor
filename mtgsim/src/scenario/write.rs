@@ -571,7 +571,7 @@ impl<'g> Writer<'g> {
 
 /// The `n`th tag, from 0: `a` to `z`, then `aa`, `ab`, … — so a board with
 /// more than 26 permanents of one name still tells each apart.
-fn tag_letters(mut n: usize) -> String {
+pub fn tag_letters(mut n: usize) -> String {
     let mut letters = Vec::new();
     loop {
         letters.push(b'a' + (n % 26) as u8);

@@ -1,6 +1,7 @@
-//! The command line, read into the game the window starts with.
+//! The command line, read into how the window starts.
 //!
-//! `cargo run -- [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]`
+//! `cargo run -- [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]`,
+//! or `cargo run -- --edit [FILE]` for the board editor.
 //!
 //! The seed defaults to the scenario's own, or else to the clock. The header
 //! shows it and the decision log records it, so any game can be played again.
@@ -9,25 +10,41 @@ use std::path::PathBuf;
 
 use mtgsim::scenario::Scenario;
 
+use crate::boards::Folders;
 use crate::bridge::{GameSetup, Pool};
 
-pub const USAGE: &str = "usage: devgui [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]";
+pub const USAGE: &str =
+    "usage: devgui [--seed N] [--pool performance|stress] [--players N] [--scenario FILE], or devgui --edit [FILE]";
 
 /// What the window starts with.
 #[derive(Clone, Debug)]
-pub struct Launch {
-    pub setup: GameSetup,
-    /// The seed and the start, for the header.
-    pub setup_line: String,
+pub enum Start {
+    /// A game, dealt or from a scenario's file.
+    Game(GameSetup),
+    /// The board editor, on a file's board or an empty one.
+    Edit(Option<PathBuf>),
 }
 
-/// `args`, the words after the program's name, read into a [`Launch`];
+/// The game's seed and start, as the header says them.
+pub fn start_line(setup: &GameSetup) -> String {
+    match &setup.scenario {
+        Some(path) => format!("scenario {} · seed {}", path.display(), setup.seed),
+        None if setup.players == 2 => format!("seed {} · {:?} pool", setup.seed, setup.pool),
+        None => format!("seed {} · {:?} pool · {} players", setup.seed, setup.pool, setup.players),
+    }
+}
+
+/// `args`, the words after the program's name, read into a [`Start`];
 /// `clock` seeds a dealt game given no `--seed`. An `Err` says what to
 /// change, for the terminal.
-pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, String> {
-    let (mut seed, mut pool, mut players, mut scenario) = (None, None, None, None);
-    let mut words = args.iter();
+pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Start, String> {
+    let (mut seed, mut pool, mut players, mut scenario, mut edit) = (None, None, None, None, None);
+    let mut words = args.iter().peekable();
     while let Some(flag) = words.next() {
+        if flag == "--edit" {
+            edit = Some(words.next_if(|word| !word.starts_with("--")).map(PathBuf::from));
+            continue;
+        }
         let mut value = || words.next().ok_or_else(|| format!("{flag} needs a value"));
         match flag.as_str() {
             "--seed" => {
@@ -51,6 +68,12 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
             other => return Err(format!("{other} is not a flag the dev GUI takes")),
         }
     }
+    if let Some(file) = edit {
+        if seed.is_some() || pool.is_some() || players.is_some() || scenario.is_some() {
+            return Err("--edit opens a board in the editor, whose own seed and seats it shows; it takes no other flag".to_string());
+        }
+        return Ok(Start::Edit(file));
+    }
     if scenario.is_some() && pool.is_some() {
         return Err("--pool picks a dealt game's cards, and a scenario names its own".to_string());
     }
@@ -67,16 +90,8 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
         }
         (None, None) => clock(),
     };
-    let (log_name, start) = match &scenario {
-        Some(path) => {
-            let stem = path.file_stem().map_or("scenario".into(), |s| s.to_string_lossy());
-            (format!("{stem}-seed-{seed}.log"), format!("scenario {} · seed {seed}", path.display()))
-        }
-        None if players == 2 => (format!("seed-{seed}.log"), format!("seed {seed} · {pool:?} pool")),
-        None => (format!("seed-{seed}-players-{players}.log"), format!("seed {seed} · {pool:?} pool · {players} players")),
-    };
-    let log_path = Some(PathBuf::from("logs").join(log_name));
-    Ok(Launch { setup: GameSetup { seed, pool, players, log_path, scenario }, setup_line: start })
+    let setup = GameSetup { seed, pool, players, log_path: None, scenario };
+    Ok(Start::Game(GameSetup { log_path: Some(Folders::default().game_log(&setup)), ..setup }))
 }
 
 #[cfg(test)]
@@ -87,19 +102,22 @@ mod tests {
         line.split_whitespace().map(str::to_string).collect()
     }
 
-    fn launched(line: &str) -> Launch {
-        read(&words(line), || 41).unwrap_or_else(|problem| panic!("{line}: {problem}"))
+    fn launched(line: &str) -> GameSetup {
+        match read(&words(line), || 41) {
+            Ok(Start::Game(setup)) => setup,
+            other => panic!("{line}: {other:?}"),
+        }
     }
 
     #[test]
     fn a_dealt_game_takes_its_seed_from_the_flag_or_else_the_clock() {
         let clocked = launched("");
-        assert_eq!((clocked.setup.seed, clocked.setup.pool), (41, Pool::Performance));
-        assert_eq!(clocked.setup_line, "seed 41 · Performance pool");
-        assert_eq!(clocked.setup.log_path, Some(PathBuf::from("logs").join("seed-41.log")));
+        assert_eq!((clocked.seed, clocked.pool), (41, Pool::Performance));
+        assert_eq!(start_line(&clocked), "seed 41 · Performance pool");
+        assert_eq!(clocked.log_path, Some(PathBuf::from("logs").join("seed-41.log")));
         let seeded = launched("--pool stress --seed 7");
-        assert_eq!((seeded.setup.seed, seeded.setup.pool, seeded.setup.scenario), (7, Pool::Stress, None));
-        assert_eq!(seeded.setup.players, 2, "two seats unless asked");
+        assert_eq!((seeded.seed, seeded.pool, seeded.scenario), (7, Pool::Stress, None));
+        assert_eq!(seeded.players, 2, "two seats unless asked");
     }
 
     /// `fuzz_games --players N` deals N decks from the seed, and so does the
@@ -107,19 +125,31 @@ mod tests {
     #[test]
     fn a_dealt_game_takes_its_seats_from_the_flag() {
         let four = launched("--players 4 --seed 7");
-        assert_eq!(four.setup.players, 4);
-        assert_eq!(four.setup_line, "seed 7 · Performance pool · 4 players");
-        assert_eq!(four.setup.log_path, Some(PathBuf::from("logs").join("seed-7-players-4.log")));
+        assert_eq!(four.players, 4);
+        assert_eq!(start_line(&four), "seed 7 · Performance pool · 4 players");
+        assert_eq!(four.log_path, Some(PathBuf::from("logs").join("seed-7-players-4.log")));
     }
 
+    /// A scenario's games are recorded in its board's folder
+    /// (`setup-architecture.md` §7b, decision 3).
     #[test]
     fn a_scenario_plays_at_its_own_seed_unless_the_flag_says_otherwise() {
         let path = std::env::temp_dir().join("devgui-launch-seed.scenario");
         std::fs::write(&path, "seed 5\nturn 2\n").unwrap();
         let own = launched(&format!("--scenario {}", path.display()));
-        assert_eq!((own.setup.seed, own.setup.scenario.as_ref()), (5, Some(&path)));
-        assert_eq!(own.setup.log_path, Some(PathBuf::from("logs").join("devgui-launch-seed-seed-5.log")));
-        assert_eq!(launched(&format!("--seed 9 --scenario {}", path.display())).setup.seed, 9);
+        assert_eq!((own.seed, own.scenario.as_ref()), (5, Some(&path)));
+        assert_eq!(own.log_path, Some(PathBuf::from("boards").join("devgui-launch-seed").join("seed-5.log")));
+        assert_eq!(launched(&format!("--seed 9 --scenario {}", path.display())).seed, 9);
+    }
+
+    #[test]
+    fn the_editor_opens_a_file_or_an_empty_board() {
+        let edit = |line: &str| match read(&words(line), || 41) {
+            Ok(Start::Edit(file)) => file,
+            other => panic!("{line}: {other:?}"),
+        };
+        assert_eq!(edit("--edit"), None);
+        assert_eq!(edit("--edit board.scenario"), Some(PathBuf::from("board.scenario")));
     }
 
     #[test]
@@ -133,5 +163,6 @@ mod tests {
         assert_eq!(refused("--players 1"), "--players takes the number of seats, 2 or more, not 1");
         assert_eq!(refused("--players four"), "--players takes the number of seats, 2 or more, not four");
         assert_eq!(refused("--players 4 --scenario board.scenario"), "--players deals a game's seats, and a scenario states its own");
+        assert!(refused("--edit --seed 3").starts_with("--edit opens a board in the editor"));
     }
 }

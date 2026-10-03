@@ -1,5 +1,6 @@
-//! The egui drawing: lays out what `view_model` built and hands each click to
-//! the `Session`. It decides nothing, so it is reviewed by running it.
+//! The egui drawing: lays out what `view_model` and `editor` built and hands
+//! each click to the `Session`. It decides nothing, so it is reviewed by
+//! running it.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -7,22 +8,22 @@ use std::time::Duration;
 
 use eframe::egui;
 
-use crate::bridge::GameSetup;
+use crate::boards::{Folders, ListedFile};
+use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed};
+use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, Input, Item, KEYS, Key, NumberField, PromptView, SeatButton, TypeLineView, TypeWordView, WindowState,
-    ZoneView,
+    Amount, BoardView, Input, Item, KEYS, Key, Mode, NumberField, PromptView, SeatButton, TypeLineView, TypeWordView,
+    WindowState, ZoneView,
 };
 
 pub struct DevGui {
     session: Session,
-    /// The seed and the start.
-    setup_line: String,
 }
 
 impl DevGui {
-    pub fn new(setup: GameSetup, setup_line: String, wake: Arc<dyn Fn() + Send + Sync>) -> DevGui {
-        DevGui { session: Session::start(setup, wake), setup_line }
+    pub fn new(start: Start, wake: Arc<dyn Fn() + Send + Sync>) -> DevGui {
+        DevGui { session: Session::start(start, Folders::default(), wake) }
     }
 }
 
@@ -32,12 +33,16 @@ impl eframe::App for DevGui {
         self.session.receive();
         let session = &self.session;
         let header = SessionHeader {
-            line: &self.setup_line,
+            mode: session.mode,
+            line: &session.start_line,
             log: session.log_path.as_deref(),
-            reloadable: session.setup.scenario.is_some(),
-            saved: session.saved.as_ref().map(|saved| saved.as_ref().map(String::as_str).map_err(String::as_str)),
+            playing: session.setup.is_some(),
+            reloadable: session.setup.as_ref().is_some_and(|setup| setup.scenario.is_some()),
+            message: session.message.as_ref().map(|message| message.as_ref().map(String::as_str).map_err(String::as_str)),
+            files: &session.files,
         };
-        for input in draw(ui, &session.state, &header) {
+        let editor = (session.mode == Mode::Edit).then(|| session.editor.view());
+        for input in draw(ui, &session.state, &header, editor.as_ref()) {
             self.session.input(input);
         }
     }
@@ -45,49 +50,54 @@ impl eframe::App for DevGui {
 
 /// What the header says of the session, beside the board.
 pub struct SessionHeader<'a> {
-    /// The seed and the start.
+    pub mode: Mode,
+    /// The game's seed and start.
     pub line: &'a str,
-    /// This game's decision log.
+    /// The game's decision log.
     pub log: Option<&'a Path>,
+    /// A game has started.
+    pub playing: bool,
     /// A scenario's game, which Reload builds again from its file.
     pub reloadable: bool,
-    /// The last save: where it went, or why it could not.
-    pub saved: Option<Result<&'a str, &'a str>>,
+    /// The last save or open: where it went, or why it could not.
+    pub message: Option<Result<&'a str, &'a str>>,
+    /// The boards and scenarios the header's list opens.
+    pub files: &'a [ListedFile],
 }
 
-/// The whole window; the inputs the player made this frame.
-pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> Vec<Input> {
-    let mut inputs = keys(ui.ctx());
+/// The whole window, the game's or the editor's; the inputs the player made
+/// this frame.
+pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader, editor: Option<&EditorView>) -> Vec<Input> {
+    // A shortcut answers the game's prompt, so the editor takes none.
+    let mut inputs = if editor.is_none() { keys(ui.ctx()) } else { Vec::new() };
     if let Some(left) = state.settling_for() {
         // The prompt's controls come back when the beat ends, mouse or no mouse.
         ui.ctx().request_repaint_after(Duration::from_secs_f64(left));
     }
-    let board = state.board_view();
+    let board = editor.is_none().then(|| state.board_view()).flatten();
     egui::Panel::top("header").show(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.strong(state.status());
-            if let Some(board) = &board {
-                ui.separator();
-                ui.label(&board.header);
+        ui.horizontal_wrapped(|ui| {
+            for (mode, label) in [(Mode::Play, "Play"), (Mode::Edit, "Edit")] {
+                if ui.selectable_label(header.mode == mode, label).clicked() && header.mode != mode {
+                    inputs.push(Input::Mode(mode));
+                }
             }
             ui.separator();
-            match header.log {
-                Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
-                None => ui.weak(header.line),
-            };
-            let mut full_control = state.full_control;
-            if ui.checkbox(&mut full_control, "Full control").changed() {
-                inputs.push(Input::FullControl(full_control));
+            match editor {
+                Some(view) => editor_header(ui, view, &mut inputs),
+                None => game_header(ui, state, board.as_ref(), header, &mut inputs),
             }
-            if header.reloadable && ui.button("Reload").clicked() {
-                inputs.push(Input::Reload);
-            }
-            if state.board.is_some() && ui.button("Save board as scenario").clicked() {
-                inputs.push(Input::SaveBoard);
-            }
-            match header.saved {
-                Some(Ok(saved)) => {
-                    ui.weak(saved);
+            ui.menu_button("Open…", |ui| {
+                for (i, file) in header.files.iter().enumerate() {
+                    if ui.button(&file.label).clicked() {
+                        inputs.push(Input::Editor(EditorInput::Open(i)));
+                        ui.close();
+                    }
+                }
+            });
+            match header.message {
+                Some(Ok(done)) => {
+                    ui.weak(done);
                 }
                 Some(Err(failed)) => {
                     ui.colored_label(ui.visuals().error_fg_color, failed);
@@ -96,11 +106,54 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
             }
         });
     });
+    match editor {
+        Some(view) => editor_panels(ui, view, &mut inputs),
+        None => game_panels(ui, state, board.as_ref(), header, &mut inputs),
+    }
+    inputs
+}
+
+fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>, header: &SessionHeader, inputs: &mut Vec<Input>) {
+    if !header.playing {
+        ui.weak("No game yet: the editor's Play starts its board.");
+        return;
+    }
+    ui.strong(state.status());
+    if let Some(board) = board {
+        ui.separator();
+        ui.label(&board.header);
+    }
+    ui.separator();
+    match header.log {
+        Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
+        None => ui.weak(header.line),
+    };
+    let mut full_control = state.full_control;
+    if ui.checkbox(&mut full_control, "Full control").changed() {
+        inputs.push(Input::FullControl(full_control));
+    }
+    if header.reloadable && ui.button("Reload").clicked() {
+        inputs.push(Input::Reload);
+    }
+    if state.board.is_some() {
+        if ui.button("Save board as scenario").clicked() {
+            inputs.push(Input::SaveBoard);
+        }
+        if ui.button("Edit this board").clicked() {
+            inputs.push(Input::EditThisBoard);
+        }
+    }
+    if header.reloadable && ui.button("Edit the scenario").clicked() {
+        inputs.push(Input::EditTheScenario);
+    }
+}
+
+fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>, header: &SessionHeader, inputs: &mut Vec<Input>) {
     egui::Panel::bottom("prompt").show(ui, |ui| {
         if let Some(message) = &state.refused {
             ui.colored_label(ui.visuals().error_fg_color, "The scenario did not load:");
             ui.monospace(message);
-            ui.weak("Fix the file, then click Reload.");
+            ui.weak("Fix the file, then click Reload; or Edit the scenario.");
         } else if let Some(message) = &state.panic {
             ui.colored_label(ui.visuals().error_fg_color, "The engine thread panicked:");
             ui.monospace(message);
@@ -111,14 +164,14 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
                 ui.weak("Reload starts the scenario again.");
             }
         } else if let Some(prompt) = state.prompt_view() {
-            ui.push_id(prompt.serial, |ui| prompt_panel(ui, &prompt, &mut inputs));
-        } else {
+            ui.push_id(prompt.serial, |ui| prompt_panel(ui, &prompt, inputs));
+        } else if header.playing {
             ui.weak(state.status());
         }
     });
     egui::Panel::right("side").default_size(380.0).show(ui, |ui| {
-        if let Some(board) = &board {
-            side_panel(ui, board, &mut inputs);
+        if let Some(board) = board {
+            side_panel(ui, board, inputs);
         }
         ui.separator();
         ui.strong("Log");
@@ -131,24 +184,263 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
         });
     });
     egui::CentralPanel::default().show(ui, |ui| {
-        let Some(board) = &board else {
-            ui.weak(state.no_board());
+        let Some(board) = board else {
+            ui.weak(if header.playing { state.no_board() } else { "No game yet." });
             return;
         };
         egui::ScrollArea::vertical().show(ui, |ui| {
             for seat in &board.seats {
                 // A collapsing header's id is its label, and every seat has a "Creatures".
                 ui.push_id(seat.player.target, |ui| {
-                    item(ui, &seat.player, &mut inputs);
+                    item(ui, &seat.player, inputs);
                     for zone in &seat.zones {
-                        zone_view(ui, zone, &mut inputs);
+                        zone_view(ui, zone, inputs);
                     }
                 });
                 ui.separator();
             }
         });
     });
-    inputs
+}
+
+fn editor_header(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
+    ui.weak(&view.source);
+    for button in [&view.undo, &view.play, &view.save] {
+        edit_button(ui, button, inputs);
+    }
+    if ui.button("Copy as text").clicked() {
+        ui.ctx().copy_text(view.text.to_string());
+    }
+    if let Some(why) = view.unsaid {
+        ui.colored_label(ui.visuals().warn_fg_color, why);
+    }
+}
+
+/// The board editor: the names to search on the right, the loader's verdict
+/// and the card being edited below, and the board between them.
+fn editor_panels(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
+    egui::Panel::right("search").default_size(300.0).show(ui, |ui| search_panel(ui, &view.search, inputs));
+    egui::Panel::bottom("card").default_size(330.0).show(ui, |ui| {
+        match &view.refusal {
+            Some(refusal) => {
+                ui.colored_label(ui.visuals().error_fg_color, "The loader refuses this board:");
+                ui.monospace(refusal);
+                ui.weak("What it names is outlined. Play waits for a board the loader accepts; Save keeps this one.");
+            }
+            None => {
+                ui.weak("The loader accepts this board.");
+            }
+        }
+        ui.separator();
+        match &view.card {
+            Some(card) => card_panel(ui, card, inputs),
+            None => {
+                ui.weak("Click a card to edit its words. Choose a name in the search, and a zone's + puts it there.");
+            }
+        }
+    });
+    egui::CentralPanel::default().show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("board").show(ui, |ui| {
+            if !view.comments.is_empty() {
+                egui::CollapsingHeader::new("The file's comments, kept on every save").id_salt("comments").show(ui, |ui| {
+                    for line in view.comments {
+                        ui.monospace(line);
+                    }
+                });
+            }
+            facts(ui, view, inputs);
+            ui.separator();
+            for seat in &view.seats {
+                ui.push_id(("seat", seat.seat), |ui| seat_edit(ui, seat, inputs));
+                ui.separator();
+            }
+            if !view.texts.is_empty() {
+                ui.strong("Shown as text: kept on every save, changed in the file");
+                for text in &view.texts {
+                    text_line(ui, text, inputs);
+                }
+            }
+        });
+    });
+}
+
+fn facts(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
+    ui.horizontal_wrapped(|ui| {
+        for stepper in &view.facts {
+            stepper_ui(ui, stepper, inputs);
+            ui.separator();
+        }
+        ui.label("Seed");
+        let mut seed = view.seed;
+        ui.push_id("seed", |ui| ui.add(egui::DragValue::new(&mut seed)));
+        if seed != view.seed {
+            inputs.push(Input::Editor(EditorInput::Seed(seed)));
+        }
+    });
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Active");
+        for button in &view.active {
+            edit_button(ui, button, inputs);
+        }
+        ui.separator();
+        ui.label("Step");
+        let current = view.steps.iter().find(|step| step.on).map_or("", |step| step.label.as_str());
+        egui::ComboBox::from_id_salt("step").width(170.0).selected_text(current).show_ui(ui, |ui| {
+            for step in &view.steps {
+                if ui.selectable_label(step.on, &step.label).clicked() && step.live {
+                    inputs.push(Input::Editor(step.input.clone()));
+                }
+            }
+        });
+    });
+}
+
+fn seat_edit(ui: &mut egui::Ui, seat: &SeatEdit, inputs: &mut Vec<Input>) {
+    ui.horizontal_wrapped(|ui| {
+        ui.strong(&seat.title);
+        stepper_ui(ui, &seat.life, inputs);
+        for word in &seat.words {
+            text_line(ui, word, inputs);
+        }
+    });
+    for zone in &seat.zones {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(&zone.title);
+            edit_button(ui, &zone.put, inputs);
+            if let Some(shuffled) = &zone.shuffled {
+                edit_button(ui, shuffled, inputs);
+            }
+            for card in &zone.cards {
+                card_button(ui, card, inputs);
+            }
+        });
+    }
+}
+
+/// A card's line: outlined when the loader's refusal names it, filled while
+/// it is edited.
+fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
+    let text = if card.detail.is_empty() { card.title.clone() } else { format!("{}\n{}", card.title, card.detail) };
+    let visuals = ui.visuals();
+    let stroke = if card.refused {
+        egui::Stroke::new(2.5, visuals.error_fg_color)
+    } else if card.live {
+        egui::Stroke::new(1.5, visuals.selection.stroke.color)
+    } else {
+        egui::Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
+    };
+    let sense = if card.live { egui::Sense::click() } else { egui::Sense::hover() };
+    if ui.add(egui::Button::new(text).selected(card.edited).stroke(stroke).sense(sense)).clicked() && card.live {
+        inputs.push(Input::Editor(card.input.clone()));
+    }
+}
+
+fn card_panel(ui: &mut egui::Ui, card: &CardEdit, inputs: &mut Vec<Input>) {
+    ui.monospace(&card.text);
+    egui::ScrollArea::vertical().id_salt("card").show(ui, |ui| {
+        for row in &card.rows {
+            ui.horizontal_wrapped(|ui| {
+                if !row.label.is_empty() {
+                    ui.strong(row.label);
+                }
+                if let Some(note) = &row.note {
+                    ui.label(note);
+                }
+                for button in &row.buttons {
+                    edit_button(ui, button, inputs);
+                }
+                if let [stepper] = row.steppers.as_slice() {
+                    stepper_ui(ui, stepper, inputs);
+                }
+            });
+            // The counter kinds: a grid, so each stays whole.
+            if row.steppers.len() > 1 {
+                egui::Grid::new(row.label).show(ui, |ui| {
+                    for (i, stepper) in row.steppers.iter().enumerate() {
+                        ui.horizontal(|ui| stepper_ui(ui, stepper, inputs));
+                        if i % 6 == 5 {
+                            ui.end_row();
+                        }
+                    }
+                });
+            }
+        }
+    });
+}
+
+fn search_panel(ui: &mut egui::Ui, search: &SearchView, inputs: &mut Vec<Input>) {
+    ui.strong("Search");
+    let mut query = search.query.to_string();
+    ui.add(egui::TextEdit::singleline(&mut query).id_salt("search").hint_text("part of a card's name"));
+    if query != search.query {
+        inputs.push(Input::Editor(EditorInput::Search(query)));
+    }
+    match search.chosen {
+        Some(name) => ui.label(format!("{name}: a zone's + puts it there")),
+        None => ui.weak("Choose a name; a zone's + puts it there."),
+    };
+    // One button a row, as `show_rows` counts them; a long name truncated.
+    let row_height = ui.spacing().interact_size.y;
+    egui::ScrollArea::vertical().id_salt("results").show_rows(ui, row_height, search.results.len(), |ui, rows| {
+        for result in &search.results[rows] {
+            if ui.add(egui::Button::selectable(result.on, result.label.as_str()).truncate()).clicked() && result.live {
+                inputs.push(Input::Editor(result.input.clone()));
+            }
+        }
+    });
+}
+
+/// A word or line shown as its text, with the button that removes it.
+fn text_line(ui: &mut egui::Ui, text: &TextLine, inputs: &mut Vec<Input>) {
+    ui.horizontal(|ui| {
+        if text.refused {
+            ui.colored_label(ui.visuals().error_fg_color, &text.text);
+        } else {
+            ui.monospace(&text.text);
+        }
+        if ui.small_button("×").on_hover_text("Remove").clicked() {
+            inputs.push(Input::Editor(text.remove.clone()));
+        }
+    });
+}
+
+/// A number between "−" and "+", and a field to type it into when it has one.
+fn stepper_ui(ui: &mut egui::Ui, stepper: &Stepper, inputs: &mut Vec<Input>) {
+    if !stepper.label.is_empty() {
+        ui.label(&stepper.label);
+    }
+    if ui.add_enabled(stepper.lower.is_some(), egui::Button::new("−")).clicked()
+        && let Some(input) = &stepper.lower
+    {
+        inputs.push(Input::Editor(input.clone()));
+    }
+    match stepper.typed {
+        Some(Typed { field, value, min, max }) => {
+            let mut typed = value;
+            // Kept as the board says it, even out of the field's range.
+            ui.push_id(field, |ui| ui.add(egui::DragValue::new(&mut typed).range(min..=max).clamp_existing_to_range(false)));
+            if typed != value {
+                inputs.push(Input::Editor(EditorInput::Number(field, typed)));
+            }
+        }
+        None => {
+            ui.strong(&stepper.value);
+        }
+    }
+    if ui.add_enabled(stepper.raise.is_some(), egui::Button::new("+")).clicked()
+        && let Some(input) = &stepper.raise
+    {
+        inputs.push(Input::Editor(input.clone()));
+    }
+}
+
+/// A button whose click sends its input while that changes something; a
+/// current choice shows selected.
+fn edit_button(ui: &mut egui::Ui, button: &EditButton, inputs: &mut Vec<Input>) {
+    let clicked = ui.add_enabled(button.live || button.on, egui::Button::new(&button.label).selected(button.on)).clicked();
+    if clicked && button.live {
+        inputs.push(Input::Editor(button.input.clone()));
+    }
 }
 
 /// The stack, empty or not, then each other shared zone that holds anything.
@@ -368,6 +660,6 @@ fn shortcut(key: egui::Key) -> Option<Key> {
 
 fn seat_button(ui: &mut egui::Ui, button: &SeatButton, inputs: &mut Vec<Input>) {
     if ui.add_enabled(button.live, egui::Button::new(&button.label)).clicked() {
-        inputs.push(button.input);
+        inputs.push(button.input.clone());
     }
 }

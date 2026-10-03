@@ -15,12 +15,21 @@ use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
 
 use crate::bridge::{Outcome, ToWindow};
+use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
-/// Something the player did.
+/// What the window shows: the game, or the board editor beside it
+/// (`setup-architecture.md` §7b, decision 1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Play,
+    Edit,
+}
+
+/// Something the player did.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Input {
     /// Clicked option `i`'s button.
     OptionButton(usize),
@@ -49,6 +58,14 @@ pub enum Input {
     /// A shortcut key went down: a held key's repeats arrive too, and answer
     /// nothing.
     Key { key: Key, repeat: bool },
+    /// Show the game or the editor.
+    Mode(Mode),
+    /// Open the board the game is at in the editor.
+    EditThisBoard,
+    /// Open the board the game began from in the editor.
+    EditTheScenario,
+    /// A click in the editor, or one of its buttons the session acts on.
+    Editor(EditorInput),
 }
 
 /// A key the window reads, as the drawing reports it.
@@ -281,8 +298,10 @@ impl WindowState {
     /// next message.
     pub fn input(&mut self, input: Input) -> Option<Reply> {
         let reply = match input {
-            // The window's own controls, which `Session::input` acts on.
-            Input::Reload | Input::SaveBoard => return None,
+            // The window's own controls, and the editor's, which `Session::input` acts on.
+            Input::Reload | Input::SaveBoard | Input::Mode(_) | Input::EditThisBoard | Input::EditTheScenario | Input::Editor(_) => {
+                return None;
+            }
             Input::FullControl(on) => {
                 self.full_control = on;
                 return None;

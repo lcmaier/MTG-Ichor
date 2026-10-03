@@ -37,6 +37,30 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-03 for SU-3** (the board editor; `setup-architecture.md`
+§8's ✅ section). Its engine changes are a listing of the cards in
+development, the grammar's spellings made public, and a card line written
+straight into its formatter; no game reads any of them. No pool change and
+no game moved, so the §3 tables stand as the first-strike block below
+recorded them. `close_out.py`: **main** `7832f22` (#214's merge) against
+**engine** `3fd36b0`, the last commit touching `mtgsim/`.
+
+**Predictions, before any arm ran** (`setup-architecture.md` §8, at the
+design): every gameplay and cost row `IDENTICAL` on both pools at two seats
+and four; instructions per decision within ±0.3, for code the compiler
+places differently.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| each counter file outside `=== Timing ===`, engine vs `main`, performance / stress | byte-identical / byte-identical | byte-identical / byte-identical |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6271 M → 0.6280 M, **+0.14%** |
+
+Every prediction held. No pooled game runs a line of SU-3: the writer whose
+formatter changed runs only in the dev GUI and under `--scenario`'s round
+trip, so the +0.14% is where the compiler placed code.
+
 **Measured 2026-10-02 for the playable PR's second review round** (subtypes
 in printed order with every creature type one mark, `Subtypes`; the type
 line against the copiable values, `ui::display::type_line_now`; a cost still
