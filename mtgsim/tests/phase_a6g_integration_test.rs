@@ -129,6 +129,8 @@ fn a_game_replayed_from_its_log_is_the_same_game() {
 
         let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the record's start builds");
         replayed.game_mut().state.record_events();
+        // Replayed by the build that played it, the audits checked once.
+        replayed.game().state.pause_layer_audit();
         let replay = Replay::of(log);
         play(&mut replayed, &replay);
 

@@ -105,7 +105,10 @@ impl<'a> Replay<'a> {
         loop {
             let Some(line) = self.lines.get(self.next.get()) else {
                 return match self.seats {
-                    Some(seats) => Next::Seats(seats),
+                    Some(seats) => {
+                        game.resume_layer_audit();
+                        Next::Seats(seats)
+                    }
                     None => Stop::LogSpent { answered: self.lines.len() }.raise(),
                 };
             };
@@ -259,5 +262,29 @@ impl DecisionProvider for Replay<'_> {
             Some(seats) if self.remaining() == 0 => seats.seat_mode(player),
             Some(_) | None => SeatMode { stops_at_every_priority_point: true },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cards::registry::CardRegistry;
+    use crate::engine::priority::PriorityResult;
+    use crate::test_support::{put_in_hand, setup_two_player_game};
+    use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+
+    /// The audits paused for a replay's lines come back on as it hands the
+    /// game to the seats, whose answers nothing has checked.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_audits_resume_as_the_seats_take_over() {
+        let mut game = setup_two_player_game();
+        let forest = put_in_hand(&mut game, CardRegistry::default_registry().create("Forest").unwrap(), 0);
+        let seats = ScriptedDecisionProvider::new();
+        seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(forest))]);
+        game.pause_layer_audit();
+        let replay = Replay::new(Vec::new()).then(&seats);
+        assert_eq!(game.run_priority_round(&replay), Ok(PriorityResult::ActionTaken));
+        assert!(game.layer_memo.audited());
     }
 }

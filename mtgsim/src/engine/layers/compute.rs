@@ -96,7 +96,9 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     if let Some(frame) = game.layer_memo.get(id, epoch) {
         game.diagnostics.record_memo_hit();
         #[cfg(debug_assertions)]
-        audit_memo_hit(game, id, &frame);
+        if game.layer_memo.audited() {
+            audit_memo_hit(game, id, &frame);
+        }
         return Some(frame);
     }
     // Counted before the store is probed, so a query for an object that does
@@ -115,7 +117,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
             let notes: &[RowNote] = notes.as_deref().unwrap_or(&[]);
             let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), notes)?);
             #[cfg(debug_assertions)]
-            if is_left_out {
+            if is_left_out && game.layer_memo.audited() {
                 audit_left_out(game, id, &frame);
             }
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));

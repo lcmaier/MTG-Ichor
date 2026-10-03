@@ -1054,6 +1054,23 @@ impl GameState {
         }
     }
 
+    /// Skip the layer memo's debug audits until [`Self::resume_layer_audit`]:
+    /// for a replay within a session, whose answers this build audited when
+    /// it first played them (`setup-architecture.md` §7.1). A load, whose
+    /// lines another build may have played, keeps them on. Nothing in a
+    /// release build, which has no audits.
+    pub fn pause_layer_audit(&self) {
+        #[cfg(debug_assertions)]
+        self.layer_memo.pause_audit(true);
+    }
+
+    /// The audits back on, as a replay turns them when it hands the game to
+    /// the seats.
+    pub fn resume_layer_audit(&self) {
+        #[cfg(debug_assertions)]
+        self.layer_memo.pause_audit(false);
+    }
+
     /// The refusal every run entry gives a game a provider stopped
     /// (`Game::until_stopped`).
     pub(crate) fn refuse_if_stopped(&self) -> Result<(), String> {
