@@ -519,7 +519,7 @@ fn two_devour_tokens_created_together_are_each_asked_and_never_offered_each_othe
 
     let devourers = tokens(&game);
     assert_eq!(devourers.len(), 2, "neither token was offered as the other's meal");
-    assert!(dp.kinds().iter().any(|k| k.starts_with("ChooseAuxiliaryZoneChange")), "{:?}", dp.kinds());
+    assert!(dp.kinds().iter().any(|k| k == "ChooseAuxiliaryZoneChange"), "{:?}", dp.kinds());
     assert!(!game.battlefield.contains_key(&bear_a) && !game.battlefield.contains_key(&bear_b));
     let counters_on: Vec<u32> =
         devourers.iter().map(|id| counters(&game, *id, CounterType::PlusOnePlusOne)).collect();
@@ -795,7 +795,7 @@ fn a_legendary_token_created_twice_meets_the_legend_rule() {
     game.check_state_based_actions(&dp).unwrap();
 
     assert_eq!(tokens(&game).len(), 1, "CR 704.5j");
-    assert!(dp.kinds().iter().any(|k| k.starts_with("LegendRule")), "{:?}", dp.kinds());
+    assert!(dp.kinds().iter().any(|k| k == "LegendRule"), "{:?}", dp.kinds());
 }
 
 /// A noncreature token has no power or toughness (CR 208.3), and Root Maze's

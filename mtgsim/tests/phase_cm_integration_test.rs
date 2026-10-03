@@ -238,7 +238,7 @@ fn test_reductions_floor_the_component_at_zero_and_a_zero_spell_is_free() {
     assert_eq!(game.players[0].mana_pool.total(), 0);
     // Three reductions is "multiple", so the caster was asked to order them.
     assert!(
-        dp.kinds().iter().any(|k| k.starts_with("OrderCostReductions")),
+        dp.kinds().iter().any(|k| k == "OrderCostReductions"),
         "CR 601.2f's order was the caster's to choose: {:?}",
         dp.kinds()
     );
@@ -323,7 +323,7 @@ fn test_two_reductions_are_ordered_by_the_caster_and_every_order_agrees() {
     put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
     let dp = RecordingDecisionProvider::picking(0);
     cast_from_pool(&mut game, 0, phase_cm_cards::crimson_lesson(), &[(ManaType::Red, 2)], &dp).unwrap();
-    assert!(!dp.kinds().iter().any(|k| k.starts_with("OrderCostReductions")), "{:?}", dp.kinds());
+    assert!(!dp.kinds().iter().any(|k| k == "OrderCostReductions"), "{:?}", dp.kinds());
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ fn test_the_total_is_locked_before_the_mana_window_opens() {
     assert!(game.battlefield.get(&sphere).unwrap().tapped, "tapped for mana in the window");
     assert_eq!(game.players[0].mana_pool.total(), 0, "three paid, the locked total");
     assert!(
-        dp.kinds().iter().any(|k| k.starts_with("ManaAbilityWindow")),
+        dp.kinds().iter().any(|k| k == "ManaAbilityWindow"),
         "the window is where the sphere was tapped: {:?}",
         dp.kinds()
     );
@@ -739,7 +739,7 @@ fn test_a_mandatory_additional_cost_is_not_offered() {
     cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
         .expect("castable");
     assert!(
-        !dp.kinds().iter().any(|k| k.starts_with("ChooseAdditionalCosts")),
+        !dp.kinds().iter().any(|k| k == "ChooseAdditionalCosts"),
         "a mandatory cost was offered as a choice: {:?}", dp.kinds(),
     );
 }
@@ -1079,7 +1079,7 @@ fn test_two_familiars_reduce_cumulatively() {
     )
     .unwrap();
     assert!(
-        dp.kinds().iter().any(|k| k.starts_with("OrderCostReductions")),
+        dp.kinds().iter().any(|k| k == "OrderCostReductions"),
         "two reductions is a choice: {:?}", dp.kinds(),
     );
 }
@@ -1144,7 +1144,7 @@ fn test_no_player_gets_priority_inside_a_cast() {
         .expect("castable");
 
     assert!(
-        !dp.kinds().iter().any(|k| k.starts_with("PriorityAction")),
+        !dp.kinds().iter().any(|k| k == "PriorityAction"),
         "a cast is not interruptible: {:?}", dp.kinds(),
     );
 }
@@ -1270,7 +1270,7 @@ fn free_trinket() -> Arc<CardData> {
 
 /// How many CR 601.2g windows this cast opened.
 fn windows_opened(dp: &RecordingDecisionProvider) -> usize {
-    dp.kinds().iter().filter(|k| k.starts_with("ManaAbilityWindow")).count()
+    dp.kinds().iter().filter(|k| *k == "ManaAbilityWindow").count()
 }
 
 /// The control for the two below: a cost with a mana payment in it *does*

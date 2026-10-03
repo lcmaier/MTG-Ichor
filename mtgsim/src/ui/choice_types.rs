@@ -350,6 +350,41 @@ impl ChoiceKind {
         }
     }
 
+    /// The variant's name alone, `SelectRecipients` and not its fields: how
+    /// the decision log, the trace and a setup line's refusal spell a kind,
+    /// and what a replay compares (`setup-architecture.md` §7.2). Not `name`,
+    /// which is a card's (CR 201).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ChoiceKind::PriorityAction => "PriorityAction",
+            ChoiceKind::DeclareAttackers => "DeclareAttackers",
+            ChoiceKind::DeclareBlockers => "DeclareBlockers",
+            ChoiceKind::AssignCombatDamage { .. } => "AssignCombatDamage",
+            ChoiceKind::AssignTrampleDamage { .. } => "AssignTrampleDamage",
+            ChoiceKind::ChooseXValue { .. } => "ChooseXValue",
+            ChoiceKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
+            ChoiceKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
+            ChoiceKind::SelectRecipients { .. } => "SelectRecipients",
+            ChoiceKind::GenericManaAllocation { .. } => "GenericManaAllocation",
+            ChoiceKind::OrderCostReductions { .. } => "OrderCostReductions",
+            ChoiceKind::ManaAbilityWindow { .. } => "ManaAbilityWindow",
+            ChoiceKind::ChooseSacrificeForCost { .. } => "ChooseSacrificeForCost",
+            ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
+            ChoiceKind::ApplyOptionalReplacement { .. } => "ApplyOptionalReplacement",
+            ChoiceKind::ApplyOptionalEffect { .. } => "ApplyOptionalEffect",
+            ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
+            ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
+            ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
+            ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
+            ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
+            ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",
+            ChoiceKind::Discard { .. } => "Discard",
+            ChoiceKind::Scry { .. } => "Scry",
+            ChoiceKind::ScryOrder { .. } => "ScryOrder",
+            ChoiceKind::LegendRule { .. } => "LegendRule",
+            ChoiceKind::OrderTriggers { .. } => "OrderTriggers",
+        }
+    }
 }
 
 /// The question, and the seat's last answer to it when the engine rejected

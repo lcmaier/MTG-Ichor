@@ -23,7 +23,7 @@ use crate::state::trace::{render_debug, Record};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerTier};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
 use crate::ui::decision::PriorityAction;
 
 /// `batch` — the proposals as they entered `execute_batch_inner`, and the
@@ -148,45 +148,12 @@ pub(crate) fn decision(
     let mut r = Record::new("decision");
     r.field_u64("player", player as u64);
     r.field_str("prompt", prompt);
-    r.field_str("choice", choice_kind_name(&ctx.kind));
+    r.field_str("choice", ctx.kind.as_str());
     r.field_opt_u64("subject", ctx.kind.subject().map(|o| o.raw()));
     r.field_opt_str("rejected", ctx.rejected.as_ref().map(render_debug).as_deref());
     let rendered: Vec<String> = options.iter().map(render_option).collect();
     r.field_strs("options", &rendered);
     r
-}
-
-/// The variant's name alone — `SelectRecipients`, not its fields.
-fn choice_kind_name(kind: &ChoiceKind) -> &'static str {
-    match kind {
-        ChoiceKind::PriorityAction => "PriorityAction",
-        ChoiceKind::DeclareAttackers => "DeclareAttackers",
-        ChoiceKind::DeclareBlockers => "DeclareBlockers",
-        ChoiceKind::AssignCombatDamage { .. } => "AssignCombatDamage",
-        ChoiceKind::AssignTrampleDamage { .. } => "AssignTrampleDamage",
-        ChoiceKind::ChooseXValue { .. } => "ChooseXValue",
-        ChoiceKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
-        ChoiceKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
-        ChoiceKind::SelectRecipients { .. } => "SelectRecipients",
-        ChoiceKind::GenericManaAllocation { .. } => "GenericManaAllocation",
-        ChoiceKind::OrderCostReductions { .. } => "OrderCostReductions",
-        ChoiceKind::ManaAbilityWindow { .. } => "ManaAbilityWindow",
-        ChoiceKind::ChooseSacrificeForCost { .. } => "ChooseSacrificeForCost",
-        ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
-        ChoiceKind::ApplyOptionalReplacement { .. } => "ApplyOptionalReplacement",
-        ChoiceKind::ApplyOptionalEffect { .. } => "ApplyOptionalEffect",
-        ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
-        ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
-        ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
-        ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
-        ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",
-        ChoiceKind::Discard { .. } => "Discard",
-        ChoiceKind::Scry { .. } => "Scry",
-        ChoiceKind::ScryOrder { .. } => "ScryOrder",
-        ChoiceKind::LegendRule { .. } => "LegendRule",
-        ChoiceKind::OrderTriggers { .. } => "OrderTriggers",
-    }
 }
 
 /// `trigger` — one matcher decision (`codebase-state.md` "Before Triggered

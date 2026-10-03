@@ -485,7 +485,7 @@ fn test_sutured_ghoul_cannot_exile_itself_as_it_enters() {
          and no optional-replacement prompt, because 'any number' includes none"
     );
     assert!(
-        dp.kinds()[0].starts_with("ChooseAuxiliaryZoneChange"),
+        dp.kinds()[0] == "ChooseAuxiliaryZoneChange",
         "and it was the auxiliary choice, not something else: {:?}",
         dp.kinds()
     );

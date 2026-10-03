@@ -203,12 +203,10 @@ impl LineAnswers<'_> {
     }
 
     fn refuse_question(&self, player: PlayerId, kind: &ChoiceKind) -> ! {
-        // `SelectRecipients { … }` is asked as `SelectRecipients`.
-        let debug = format!("{kind:?}");
-        let question = debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default();
         self.refuse(format!(
-            "player {player} is asked {question}, which no line answers: a trigger's question, a replacement's, a \"may\", or a cost \
-             a line has no word for"
+            "player {player} is asked {}, which no line answers: a trigger's question, a replacement's, a \"may\", or a cost \
+             a line has no word for",
+            kind.as_str()
         ))
     }
 

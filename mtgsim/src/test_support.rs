@@ -277,12 +277,8 @@ impl RecordingDecisionProvider {
         self
     }
 
-    /// The `ChoiceKind`s seen so far, `Debug`-formatted, in prompt order.
-    ///
-    /// A `String` rather than the `ChoiceKind` itself because `ChoiceKind` is
-    /// not `PartialEq` (it carries `EffectRecipient`, which carries filters) and
-    /// making it so for a test helper would be the tail wagging the dog.
-    /// `starts_with("ChooseCopySource")` is the idiom.
+    /// The kinds seen so far, each as `ChoiceKind::as_str` spells it, in
+    /// prompt order.
     pub fn kinds(&self) -> Vec<String> {
         self.seen.borrow().clone()
     }
@@ -302,7 +298,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         options: &[crate::ui::choice_types::ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
-        self.seen.borrow_mut().push(format!("{:?}", ctx.kind));
+        self.seen.borrow_mut().push(ctx.kind.as_str().to_string());
         if self.all {
             return (0..options.len().min(_bounds.1)).collect();
         }
@@ -356,7 +352,7 @@ impl DecisionProvider for RecordingDecisionProvider {
     ) -> Vec<usize> {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
-        self.seen.borrow_mut().push(format!("{:?}", _ctx.kind));
+        self.seen.borrow_mut().push(_ctx.kind.as_str().to_string());
         (0..items.len()).collect()
     }
 
@@ -466,14 +462,15 @@ impl<D: DecisionProvider> RejectionRecorder<D> {
         RejectionRecorder { inner, seen: std::cell::RefCell::new(Vec::new()) }
     }
 
-    /// What each prompt whose kind's `Debug` starts with `kind` rejected, in
-    /// the order they were asked: `None` where it rejected nothing.
+    /// What each prompt of kind `kind`, as `ChoiceKind::as_str` spells it,
+    /// rejected, in the order they were asked: `None` where it rejected
+    /// nothing.
     pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::choice_types::Rejection>> {
-        self.seen.borrow().iter().filter(|(seen, _)| seen.starts_with(kind)).map(|(_, rejected)| rejected.clone()).collect()
+        self.seen.borrow().iter().filter(|(seen, _)| seen == kind).map(|(_, rejected)| rejected.clone()).collect()
     }
 
     fn record(&self, context: &crate::ui::choice_types::ChoiceContext) {
-        self.seen.borrow_mut().push((format!("{:?}", context.kind), context.rejected.clone()));
+        self.seen.borrow_mut().push((context.kind.as_str().to_string(), context.rejected.clone()));
     }
 }
 

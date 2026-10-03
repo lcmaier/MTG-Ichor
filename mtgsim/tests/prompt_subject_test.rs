@@ -23,6 +23,7 @@ use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
+use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
@@ -40,15 +41,9 @@ const SUBJECT_LESS: &[(&str, &str)] = &[
     ("LegendRule", "CR 704.5j"),
     // `affected_object: None` — the event is about the choosing player.
     ("ChooseReplacementEffect", "CR 616.1"),
+    // Several triggers' sources at once, as `DeclareAttackers` has attackers.
+    ("OrderTriggers", "CR 603.3b"),
 ];
-
-/// The variant's name, off `Debug` — `ChoiceKind` is not `PartialEq` (its
-/// `SelectRecipients` carries filters), and reading the rendering is the idiom
-/// `test_support::RecordingDecisionProvider` documents.
-fn variant_name(kind: &ChoiceKind) -> String {
-    let debug = format!("{kind:?}");
-    debug.split([' ', '{', '(']).next().unwrap_or("").to_string()
-}
 
 /// One prompt as the engine raised it: what `subject()` said, and whether the
 /// game was in its cleanup step — the one place a `Discard` may have no
@@ -61,7 +56,7 @@ struct Raised {
 
 impl Raised {
     fn of(kind: &ChoiceKind, at_cleanup: bool) -> Self {
-        Raised { variant: variant_name(kind), subject: kind.subject(), at_cleanup }
+        Raised { variant: kind.as_str().to_string(), subject: kind.subject(), at_cleanup }
     }
 
     /// What every prompt must satisfy, whichever way it was built.
@@ -246,15 +241,20 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::Scry { source: Some(id), n: 2 },
         ChoiceKind::ScryOrder { source: Some(id), bottom: true },
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+        ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
     ];
     let mut names = BTreeSet::new();
     for kind in &kinds {
         Raised::of(kind, false).check();
-        names.insert(variant_name(kind));
+        // `as_str` is a match the compiler holds to the variants, and its
+        // strings are checked here against each variant's own name.
+        let debug = format!("{kind:?}");
+        assert_eq!(debug.split([' ', '{', '(']).next(), Some(kind.as_str()), "{debug}");
+        names.insert(kind.as_str());
     }
     assert_eq!(
         names.len(),
-        26,
+        27,
         "one fixture per variant; a variant was added without one: {names:?}"
     );
 }

@@ -911,7 +911,7 @@ mod tests {
         let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
-        assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
+        assert!(dp.kinds()[0] == "ChooseCopySource", "{:?}", dp.kinds());
 
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");

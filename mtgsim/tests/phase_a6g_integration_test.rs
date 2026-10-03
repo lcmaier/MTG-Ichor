@@ -62,11 +62,6 @@ enum Answer {
     Order(Vec<usize>),
 }
 
-fn variant(kind: &impl std::fmt::Debug) -> String {
-    let debug = format!("{kind:?}");
-    debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default().to_string()
-}
-
 impl From<&LoggedDecision<'_>> for Line {
     fn from(decision: &LoggedDecision) -> Line {
         let answer = match decision.answer {
@@ -75,7 +70,7 @@ impl From<&LoggedDecision<'_>> for Line {
             LoggedAnswer::Allocation(amounts) => Answer::Allocation(amounts.to_vec()),
             LoggedAnswer::Order(order) => Answer::Order(order.to_vec()),
         };
-        Line { player: decision.player, kind: variant(decision.kind), answer, forced: decision.forced }
+        Line { player: decision.player, kind: decision.kind.as_str().to_string(), answer, forced: decision.forced }
     }
 }
 
@@ -139,7 +134,7 @@ struct Replay {
 impl Replay {
     fn next(&self, player: PlayerId, context: &ChoiceContext) -> Answer {
         let line = self.lines.lock().unwrap().pop_front().expect("a prompt the log does not have");
-        assert_eq!((line.player, line.kind.as_str()), (player, variant(&context.kind).as_str()), "the replay asked another question");
+        assert_eq!((line.player, line.kind.as_str()), (player, context.kind.as_str()), "the replay asked another question");
         line.answer
     }
 }
