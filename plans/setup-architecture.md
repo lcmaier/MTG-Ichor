@@ -624,9 +624,9 @@ The engine side is N-seat from the start: each seat's zones, one battlefield
 with controllers, attack targets naming a player, a planeswalker or a battle
 (CR 508.1b), blockers controlled by the attacked player (509.1a), players who
 have left (800.4a), commander designation and damage. The GUI loads two-seat
-scenarios, since four seats in the GUI are out of A6g's scope and the bridge
-builds two providers; §7b's decision 4 puts lifting that to the owner. Tests
-and `fuzz_games` load any count.
+scenarios, since the bridge builds two providers, until the seats PR, which
+lifts that with four seats in it (§7b's decision 4, the owner, 2026-10-03).
+Tests and `fuzz_games` load any count.
 
 ---
 
@@ -708,16 +708,16 @@ tester explores both sides of an interaction from one board. What it takes:
   `WINDOW_SEAT`'s seven uses (the bridge and the view model) go;
 - the tests that play the window's part, the random clicks and the rule the
   review pictures are drawn by, answer for every seat, so the pictures redraw;
-- **past two seats**, the owner's call: `--players N` for a dealt game and a
-  scenario's own count, where today the bridge deals two decks and refuses a
-  scenario that is not two-seat (`build_scenario_game`), though
+- **past two seats**, the owner's call, taken at SU-3's design: `--players N`
+  for a dealt game and a scenario's own count, where today the bridge deals
+  two decks and refuses a scenario that is not two-seat
+  (`build_scenario_game`), though
   `mtgsim/scenarios/four-seats-commander.scenario` already loads in the
-  engine. Four seats in the dev GUI are out of A6g's scope today
-  (`roadmap-v2.md` A6g's row, §5.4).
+  engine.
 
 Sized ~200–300 lines with tests at two seats, and ~+100–150 past two. It
-comes before the tools; whether it rides in SU-3 or ahead of it is SU-3's
-design's to settle: §7b's decision 4, re-sized in §8.
+comes before the tools, as a PR of its own ahead of SU-3 with four seats in it
+(§7b's decision 4, the owner, 2026-10-03), re-sized in §8.
 
 **Savestates** (the owner's suggestion, placed in the tools PR by the owner,
 2026-10-01) are positions the tester sets during play and moves between, like a
@@ -1031,15 +1031,18 @@ in the editor (SU-3, §7b).
 
 ## 7b. The board editor (SU-3)
 
-> **Status:** design, 2026-10-03, open for the owner's review; nothing built.
-> It grows §7a's item 5. Decisions 1–5 are open. The rest is settled by §7a
-> and `engineering-practices.md` §10, or is this design's own and reviewed
-> with it.
+> **Status:** design, 2026-10-03, in review; nothing built. It grows §7a's
+> item 5. At the first review round (2026-10-03) the owner decided 1 and 4:
+> one window, and the seats PR ahead of SU-3 with four seats in it.
+> Decisions 2, 3 and 5 are open. The rest is settled by §7a and
+> `engineering-practices.md` §10, or is this design's own and reviewed with it.
 
 **Where it sits.** Nowhere on the event path: before the first event, on the
 start's side of `Scenario::build`, beside the parser and the writer. It is a
 third way *into* the one `Scenario` value, and adds no way to build a board
-from it.
+from it. Nothing in this section runs in a game: the editor, the seats change
+and decision 5's lever are the dev GUI's, and the engine gains only a listing
+and some spellings made public, so no path a game runs changes (§8's A/B).
 
 ```
 a file ── parse ─┐                           ┌─ Display ─▶ a file, or the clipboard
@@ -1060,7 +1063,10 @@ an empty board ──┘    │    └─ undo: the boards before it
 - `CardRegistry::card_names()` lists the 181 registered cards, sorted. A card
   in development (`IN_DEVELOPMENT`, `registry.rs:479`, empty today) can be
   created by name, and nothing lists it.
-- `CounterType::ALL` and `CounterType::name` are public. A card word's text
+- The counter kinds a permanent can carry are the engine's own (`CounterType`:
+  +1/+1, −1/−1, loyalty, the keyword counters such as flying). They are listed
+  by `CounterType::ALL` and spelled by `CounterType::name`, both public, and
+  the editor's counter control reads them. A card word's text
   (`card_word_text`), the step words (`turn_positions`, `position_word`) and
   the tag spelling (`tag_letters`) are private to the scenario module.
 - The dev GUI: 2,737 lines in `src` and 682 in `tests`; `--scenario`, Reload
@@ -1142,19 +1148,35 @@ and the command zone are listed under each seat as the cards it owns there,
 written `owner p`, which the loader requires. So each "+" names a seat, and
 an owner other than the controller is a word on the card.
 
-**Leaving the battlefield takes a permanent's words with it.** A card moved
-to another zone loses the words only a permanent has: controller, tapped,
-arrival, counters, damage, attachment and combat. A card removed, or moved off
-the battlefield, also takes every word on another line that names it, such as
-an Aura's "attached to". That leaves the Aura attached to nothing, which §4.1
-builds and the game's first check corrects (CR 704.5m). Undo brings all of it
-back.
+**Moving a card in the editor takes the words that no longer fit.** These
+are the person's clicks on the board being edited; no file changes until
+Save. Say Grizzly Bears is on player 0's battlefield, tapped and attacking,
+with Holy Strength attached to it, and the person moves the Bears to player
+0's hand. A card in a hand is not tapped and attacks nothing, so the Bears'
+line loses the words only a permanent has (controller, tapped, arrival,
+counters, damage, attachment, combat) and becomes `hand 0: Grizzly Bears`.
+Holy Strength's `attached to Grizzly Bears` goes too, since it would name a
+permanent that is no longer there, and removing the Bears does the same. That
+leaves Holy Strength attached to nothing, which §4.1 builds and the game's
+first check puts into the graveyard (CR 704.5m), as play would. Undo brings
+all of it back.
 
 **Search** filters every name a scenario can use by a case-insensitive
 substring: the registered cards, then the cards in development, marked as
 such. Those need a listing, `CardRegistry::names_in_development()`, a few
 lines. `card_names` stays as it is, since `random_deck` and the fuzz pools draw
 from it.
+
+**Naming a card in play searches another list** (the owner's question at
+review). Pithing Needle's controller chooses a card name, and Petrified
+Hamlet's a land card name. CR 201.4 allows the name of any card in the Oracle
+reference, about 27,000 names, most of them not registered, and 201.4a filters
+them by characteristics. That choice has no shape in `DecisionProvider` yet
+(`backlog.md` §2.4, unowned), and its list is not the registry. What it shares
+with the editor is the client's half: a box that narrows a long list of names
+as the person types. So the editor's search is a view-model piece over any
+list of names, which the window's prompt for that choice can take when §2.4
+lands. In both cases the list is the engine's.
 
 **A card shows its line**: its name and tag, then its words as the file spells
 them (`tapped · +1/+1 2 · attacking player 1`), so `card_word_text` becomes
@@ -1169,8 +1191,9 @@ prompt.
   the step (`turn_positions` and `position_word`, made public), and each
   player's life;
 - each seat's zones: battlefield, hand, library, graveyard, and what it owns
-  in exile and the command zone. Each card is a chip, and a zone's "+" puts
-  the name chosen in the search there;
+  in exile and the command zone. Each card is a button showing its line, as
+  the play view draws a card, and a click on it opens its words below. A
+  zone's "+" puts the name chosen in the search there;
 - the card being edited, its words as controls:
   - a seat chooser for controller and owner;
   - toggles for tapped, commander, blocked and dealt first-strike damage;
@@ -1190,7 +1213,7 @@ same thing from the same facts?
 | The value, `parse`, `Display`, `build`, the refusal | the engine, `scenario` | as built in SU-1 and SU-2 |
 | The names a scenario can use | the engine, `CardRegistry` | every client searches the same names |
 | A card word's text, the step words, the tag spelling | the engine, `scenario` | the grammar's spellings: the editor shows what the file will say |
-| The search's filter, undo, the tagging and ordering rules, the chips | the dev GUI | one client's way of editing a value; none of it reaches a game |
+| The search's filter, undo, the tagging and ordering rules, the card buttons | the dev GUI | one client's way of editing a value; none of it reaches a game |
 
 ### 7b.2 The decisions
 
@@ -1205,24 +1228,42 @@ sets how many steps each turn of that loop takes.
 |---|---|---|
 | Shape | Edit beside Play, a switch in the header. "Play this board" starts the edited board as Reload starts a file, from the editor's text, which the log records as it records a file's. Switching back to Edit returns to the board as it was, undo and all. At any prompt, "Edit this board" opens the board the game is at through `Scenario::write`, which the snapshot already carries, with the writer's report shown | `devgui --edit FILE` opens a window that only edits, and Save writes the file. A second window, `devgui --scenario FILE`, plays it, and Reload picks up each save. A board reached in play comes back through "Save board as scenario" and `--edit` |
 | Code | `Session` keeps an `Editor` beside its game, and a mode; `GameSetup` starts from text beside a file. About 80 lines more than B | a second `eframe::App`, chosen at launch, ~40 lines; the session is unchanged |
-| Performance | the game waits at its prompt while the person edits, its thread blocked on `recv`, as it is now between clicks | the same |
+| Performance | the dev GUI's alone, since nothing here runs in a game: the game waits at its prompt while the person edits, its thread blocked on `recv`, as it is now between clicks | the same |
 | Upkeep | one header gains a switch; the two views share the item and zone drawing | two windows kept in step by hand: each turn of the loop is Save, switch windows, Reload |
 
-**Recommendation: A.** Each way round the loop is one click, and "Edit this
-board" is the written board the window already has.
+**Decided: A** (the owner, 2026-10-03). Each way round the loop is one click,
+and "Edit this board" is the written board the window already has. To be
+looked at again once built, if one window proves too busy to read.
 
 #### Decision 2 — what the first editor edits
 
-**The problem.** A word the editor can click is a control and its tests. Some
-words are a toggle, some a number, some a card picked on the board, and setup
-actions are a list of lines, each with its own answers. Either way the editor
-keeps every word it has no control for, since it edits the value: such a word
-is shown as its text and written back on save.
+**The problem.** A scenario file can say 31 kinds of thing, §5.1's words. The
+question is which of them the first editor gives a control (a toggle, a
+number, a click on a card) and which it leaves to typing in the file. Each
+control is code and tests, and some are lists: a setup action is a seat, a
+card and its targets in order.
+
+**By example.** Take a board like §4's: Holy Strength on an attacking Grizzly
+Bears, with Wall of Stone blocking. Both options build all of it by clicking:
+- the turn and the step;
+- Grizzly Bears on player 0's battlefield, set tapped and attacking player 1;
+- Holy Strength there too, attached by a click on the Bears;
+- Wall of Stone on player 1's side, blocking by a click on the Bears;
+- a Lightning Bolt in player 0's hand.
+
+Now add two things: "player 0 has cast a spell this turn" (a history count,
+row 13) and "a Lightning Bolt on the stack targeting the Wall" (a setup
+action, rows 31–32: `then: player 0 casts Lightning Bolt | targeting Wall of
+Stone`). Under A those two lines are typed into the saved file, which then
+opens in the editor again. The editor shows them as text, keeps them on every
+save and can remove them, but has no control to change them. Under B the
+editor has a spells-cast count on each player, and a list of setup actions,
+each built from a seat, a card in its hand and targets clicked in order.
 
 | | **A. The board's own words** | **B. Every word** |
 |---|---|---|
 | §5.1's rows clicked | 21: the game's facts (1–5), life (8), the zones and their lines (15–17, 19, 20), `commander` (18), and a permanent's words (21–24, 26–30): controller and owner, tapped, arrival, counters, damage, attachment, combat, dealt first-strike damage | 31: A's, and player counters (9), lands played (10), left the game (11), commander damage (12), history (13), `this turn:` (14), `counters:` lines (25), and setup actions with their targets and ability (31, 32, 34) |
-| The rest | 10 rows shown as their text: under the player, on the card's chip, or listed under the board (`counters:` and `this turn:` lines, setup actions), each removable. Edited in the file, which then opens again | none |
+| The rest | 10 rows shown as their text: under the player, on the card's button, or listed under the board (`counters:` and `this turn:` lines, setup actions), each removable. Edited in the file, which then opens again | none |
 | Code and tests | ~1,500–2,150 (§8) | ~2,100–3,050. The ten rows add ~600–900, setup actions the most (~250): a list of lines, each a seat, a verb, a card from that seat's hand or board, an ability, and targets clicked in order |
 | Upkeep | a word a later PR adds (§5.2's growth contract) is kept and shown as text until a board needs a control for it | each word a later PR adds owes a control and its test in that PR |
 
@@ -1243,11 +1284,36 @@ board, a board saved from a game. `Display` writes the board and none of its
 comments, so a file saved over loses its comments. The template is mostly
 comments.
 
+**It is one corner of a wider question**: §7.2 decision 4's "At scale, for
+v1", where each of the dev GUI's files goes (the owner, at review). The dev
+GUI writes two kinds of file, told apart by who reads them:
+- **Records of play.** A decision log per game start (`logs/seed-41.log`,
+  `-2` for a Reload), and a save beside each from SU-4. They are written as a
+  game is played, and a replay reads them. There is one per game, and v1's GUI
+  and the AI harness will write them by the thousand. The folders, headers, batching,
+  index and pruning that §7.2 leaves to SU-4's design are all about these.
+- **Boards.** A board saved from a game ("Save board as scenario", written to
+  `logs/<stem>-turn-T.scenario` today), and from SU-3 a board built in the
+  editor. A person keeps, edits and loads them. There are few, and the good
+  ones are committed as samples (`mtgsim/scenarios/`) or review boards
+  (`devgui/tests/scenarios/`). Neither v1 writer §7.2 names writes boards:
+  v1's GUI keeps a player's games, and the harness, like `fuzz_games
+  --scenario` today, reads boards and writes none.
+
+**So the first part: boards get a folder of their own**, `boards/` beside
+`logs/`, which both saves write to and which git ignores. Today a board saved
+into `logs/` shows in `git status`, since only `*.log` is ignored there. Then
+`logs/` holds only records of play: SU-4 lays them out for v1 without boards
+among them, and pruning old records never takes a board. About 10 lines, and
+"Save board as scenario" moves with it.
+
+**The second part: how Save writes inside it.**
+
 | | **A. A new file every time** | **B. Its own file** | **C. A name typed in the window** |
 |---|---|---|---|
-| Shape | Save writes the first unused `logs/<stem>-edited-N.scenario` beside the decision logs, as "Save board as scenario" writes `logs/<stem>-turn-T.scenario`. The header shows the path. Nothing is overwritten | Save writes back to the file the board was opened from, keeping its leading comment block. A new board's first Save writes as A does, and from then on that file is its own | a name and a folder (`logs/`, `mtgsim/scenarios/`, `devgui/tests/scenarios/`), typed in the header |
+| Shape | Save writes the first unused `boards/<stem>-N.scenario`, where the stem names where the board came from; nothing is overwritten | a board opened from `boards/` saves back to its file, keeping its leading comment block. Any other board (a new one, one from a game, a committed sample or test board) saves first to a new file in `boards/`, as A does, and that file is then its own | a name and a folder (`boards/`, `mtgsim/scenarios/`, `devgui/tests/scenarios/`), typed in the header |
 | Code | ~15 lines, `saved_board_path`'s rule | ~35 | ~60 |
-| Risk | none to a file; saves pile up in `logs/`, where only `*.log` is ignored today, so a saved board shows in `git status` (true of "Save board as scenario" already; one `.gitignore` line) | a sample or a test board saved over keeps only its leading comment block, which `git diff` shows; the editor's undo is not the file's | a typo writes a new file |
+| Risk | a board worked on over an afternoon leaves a file per save | a comment written into a board's body by hand is lost at its next save | a committed file overwritten, comments and all, by a mistyped name |
 
 **Common to every option:**
 - **Copy as text** puts the board's text on the clipboard (egui's
@@ -1257,14 +1323,15 @@ comments.
   any prompt. In a scenario game, "Edit the scenario" opens the editor's own
   board if Play started it, or else the file, read again with its setup
   actions. And a list in the header names the `.scenario` files under
-  `mtgsim/scenarios/`, `devgui/tests/scenarios/` and `logs/`, ~40 lines. §7
+  `boards/`, `mtgsim/scenarios/` and `devgui/tests/scenarios/`, ~40 lines. §7
   deferred that list until there were more than a handful of files, and there
-  are eleven besides `logs/`.
+  are eleven committed ones.
 
-**Recommendation: A, with Copy as text and the list.** Play needs no file,
-since decision 1's A starts from the editor's text, so a save is only for
-keeping. One rule then holds for both saves, and nothing is overwritten. A
-board that becomes a sample is moved into `mtgsim/scenarios/` once, by hand.
+**Recommendation: `boards/`, and B inside it**, with Copy as text and the
+list. Play needs no file, since decision 1 starts it from the editor's text, so
+a save is only for keeping. Working on one board then writes one file, and
+the editor never writes a committed file, so a board becomes a sample by a
+copy that its PR reviews.
 
 #### Decision 4 — the window playing every seat, and past two seats
 
@@ -1277,17 +1344,28 @@ loader takes, but the bridge refuses one that is not two-seat
 SU-3 up, could be built and not played. A6g's row lists four seats out of
 scope.
 
-**What the change is.** Every seat gets the window's stack of decorators and a
-yield of its own; full control stays one switch. The prompt names the seat it
-asks, and `WINDOW_SEAT` goes. The tests that play the window's part answer for
-every seat, and the review pictures are drawn again. Past two seats it adds:
+**What the change is**, at any seat count:
+- every seat gets the window's stack of decorators and a yield of its own, and
+  full control stays one switch;
+- the prompt names the seat it asks, and `WINDOW_SEAT` goes;
+- **the words that assumed one seat name it** (the owner, at review). "Pass
+  until my next turn" becomes "Pass until Player 2's next turn", for the seat
+  being asked, and so do the header's "Your decision" and "you win" and the
+  board's "(you)". Each seat's yield already measures from that seat
+  (`Yields::holding` takes the player), so only the words change;
+- **where each seat is drawn**: the board stacks the seats one above another,
+  and today the window's own seat is the bottom one, beside the prompt. That
+  order stays at every prompt and the seat being asked is marked, rather than
+  the asked seat moving to the bottom, which would reshuffle the board at
+  every pass of priority. This is a layout choice, so it is the client's
+  (§10);
+- the tests that play the window's part answer for every seat, and the review
+  pictures are drawn again.
+
+Past two seats it adds:
 - `--players N` for a dealt game, dealt as `fuzz_games --players N` deals, so a
   four-seat fuzz game's printed seed deals its decks;
 - a scenario's own seat count, with the refusal at `bridge.rs:204` gone;
-- seats drawn in a fixed order, seat 0 last as today, with the seat being
-  asked named in the prompt and marked on the board. A board that reordered
-  at every prompt would lose the person's place at each pass. This is a
-  drawing choice, so it is the client's (§10);
 - tests at four seats: a dealt four-seat game and
   `four-seats-commander.scenario`, each played by rule to its end. Each is
   timed in debug, and runs in release only if it is slow, as
@@ -1299,20 +1377,48 @@ every seat, and the review pictures are drawn again. Past two seats it adds:
 | What lands first | four-seat boards written by hand play at once, and the editor's Play plays any board it builds | everything at SU-3's merge | the editor's four-seat boards cannot be played until the later PR |
 | Review | a small GUI PR: the pictures and a click script | the largest GUI PR yet, reviewed by its pictures | two small PRs |
 
-**Recommendation: A**, as the seats PR: A6g tooling like playable, with no SU
-code, since it is the dev GUI's and not CR 103's. Decision 5's lever rides in
-it.
+**Decided: A** (the owner, 2026-10-03), as the seats PR: A6g tooling like
+playable, with no SU code, since it is the dev GUI's and not CR 103's. It
+comes next, before SU-3's build. Decision 5's lever would ride in it.
 
 #### Decision 5 — the engine at opt-level 1 in the dev GUI's debug build
 
-**The problem.** A debug window is what cards are tested in, since the layer
-memo's audit runs there and found an engine bug (§10.3). It is slow: about 98%
-of a debug engine call is the audit (§7.1), and the snapshot costs 125 ms a
-prompt on a large board (§10.4). The seats change makes the window answer every
-seat, so the tests that play its part ask more of it. §7.1's lever is two lines
-in `devgui/Cargo.toml`, `[profile.dev.package.mtgsim] opt-level = 1`, and its
-table measured every engine call about 8× faster with the audit on, and an
-engine rebuild 2.4 → 3.4 s.
+**The problem, from the start.** Rust builds a program two ways:
+- `cargo run` and `cargo test` make a **debug** build: quick to compile, slow
+  to run, and carrying the checks only a debug build has (code under
+  `#[cfg(debug_assertions)]`);
+- `cargo run --release` makes a **release** build: slow to compile, fast to
+  run, with those checks off.
+
+Most of the speed difference is the optimization level, `opt-level`: 0 in
+debug, where the compiler translates the code as written, and 3 in release.
+
+**The check that matters here is the layer memo's audit.** An object's
+characteristics through the layers (CR 613: its types, power and toughness,
+abilities and controller after every continuous effect) take a walk over the
+effects to work out, and the engine asks for them constantly, at every rule
+check and every prompt. So the engine keeps each object's last answer, the
+layer memo, and serves it again until something a walk reads changes. Each
+such change bumps an epoch number, which retires every kept answer. A write
+that forgets the bump would leave an old answer in use, a wrong power or
+controller, and nothing would say so. So at every answer the memo serves, a
+debug build also walks the layers afresh, and panics if the two differ
+(`compute::audit_memo_hit`). That caught a real bug in §10.3's random clicks:
+a player's loss bumped nothing. It is why cards are tested in a debug window,
+and it is also why that window is slow. Each served answer costs a full walk
+anyway, which is about 98% of a debug engine call (§7.1) and 125 ms a prompt
+on a large board (§10.4). A release build has no audit.
+
+**The lever** is two lines in `devgui/Cargo.toml`:
+`[profile.dev.package.mtgsim] opt-level = 1`. When the dev GUI is built in
+debug, the engine crate is compiled with light optimization, and everything
+else stays as debug has it: the audit and every other debug assertion, debug
+info, the overflow checks. Only the engine runs faster: §7.1 measured every
+engine call about 8× faster with the audit on, and an engine rebuild 2.4 →
+3.4 s. It applies only to builds of the dev GUI. The engine's own `cargo
+test`, in `mtgsim/`, reads its own manifest and is unchanged. **Why now:** the
+seats PR makes the window answer every seat, so the dev GUI's tests, which
+play whole games through the window, do more work.
 
 **Measured today**: the dev GUI's CI test step, `cargo test --locked --lib
 --test headless_game --test random_clicks`, each arm in a target directory of
@@ -1327,11 +1433,11 @@ A cold build is no slower, since eframe's dependencies are most of it. CI's
 devgui job ran 71 s at #211's merge (the build 14 s, the tests 27 s), beside the
 check job's 133 s.
 
-| | **A. In the first window PR** | **B. Not now** |
+| | **A. In the seats PR** | **B. Not now** |
 |---|---|---|
-| Shape | the two lines, with their reason, in the seats PR, or in SU-3 if decision 4 puts the seats there | — |
+| Shape | the two lines, with their reason | — |
 | Performance | a debug window's engine calls ~8× faster with the audit on; the dev GUI's tests ~4× faster, which pays for answering every seat; an engine rebuild ~1 s slower | the seats PR's tests at opt-level 0: the step, ~17 s here today, grows with the prompts every seat adds, the four-seat games most |
-| Upkeep | debug info and the audit stay; `cargo test` in `mtgsim/` is unchanged; `main.rs`'s advice (debug to test cards, release for a large board) is read again | — |
+| Upkeep | the audit stays; a debugger may show some of the engine's values as optimized away; `cargo test` in `mtgsim/` is unchanged; `main.rs`'s advice (debug to test cards, release for a large board) is read again | — |
 
 **Recommendation: A.** `prompt_cost` is read before and after in the debug
 build: its §10.4 reading is release, which the lever does not touch. The CI
@@ -1366,7 +1472,7 @@ devgui code like that part, and its refusals are the loader's.
 |---|---|---|---|
 | The names in development listed; `CardWord`'s `Display`; the step words and the tag spelling public | `cards::registry`, `scenario::text`, `scenario::write` | 25–40 | 15–25 |
 | The editor: the board, undo, the renumbering, the check and its mark; each input; tags, order, attaching, leaving the battlefield; the search | devgui `editor.rs` | 400–550 | 260–380 |
-| The editor's view: the facts, the seats and zones, the chips, the card's controls, the words shown as text, the search's results | devgui `editor.rs` | 250–330 | 100–150 |
+| The editor's view: the facts, the seats and zones, the card buttons, the card's controls, the words shown as text, the search's results | devgui `editor.rs` | 250–330 | 100–150 |
 | Session and launch: the switch, Play from text, "Edit this board", "Edit the scenario", Save, Copy as text, the list, `--edit` | devgui `session.rs`, `bridge.rs`, `launch.rs` | 110–170 | 80–140 |
 | The drawing | devgui `app.rs` | 220–320 | two pictures, 30–50 |
 | **SU-3** | | **1,005–1,410** | **485–745** |
@@ -1381,7 +1487,8 @@ selection, and that undo walks back to the start.
 `this turn:` ~90–130, `counters:` lines ~60–90, setup actions ~210–310: ~600–900
 in all, so ~2,100–3,050 for SU-3.
 
-**The seats PR** (§7's "Seats", decision 4), with decision 5's lever:
+**The seats PR** (§7's "Seats", decision 4), with decision 5's lever if it is
+taken:
 
 | Seats PR piece | Where | Code | Tests |
 |---|---|---|---|
@@ -1411,9 +1518,10 @@ exported test it was split from is dropped (§7.2, decision 5).
 needs the editor, and nothing in the editor needs the tools, and the editor
 first makes the boards the tools are tried on quicker to build, a four-seat
 Commander board above all. The seats change (§7, the window playing every
-seat) comes before both, in SU-3 or ahead of it as SU-3's design settles. SU-4
-adds its buttons beside the editor's mode, which this sizing does not count,
-so SU-4 re-sizes once SU-3 lands.
+seat) comes before both, as a PR of its own, the seats PR, with four seats in
+it (§7b's decision 4, the owner, 2026-10-03). SU-4 adds its buttons beside the
+editor's mode, which this sizing does not count, so SU-4 re-sizes once SU-3
+lands.
 
 **Keeping this design true while SU-3 lands.** §7.1–§7.3 name today's dev
 GUI: the bridge's log writer, `GuiSeat`, the seat's stack of decorators,
@@ -1553,7 +1661,8 @@ the save, `SU-*`).
 
 ## 11. Out of scope
 
-Hidden information (B4; the dev GUI shows every card); four seats in the GUI;
+Hidden information (B4; the dev GUI shows every card); four seats in the GUI
+(the seats PR, §7b's decision 4);
 save, undo and savestates (A6g's tools PR, SU-4); item 193 (playable); the
 stack and resolved effects as written state (§2), which SU-2's setup actions
 play instead; a script for a seat during play (§5.3, dropped at review); the
