@@ -5,9 +5,9 @@
 //! reads the command line; this starts the window over it.
 //!
 //! A debug build checks every layer-memo hit against a fresh walk, which is
-//! what to test cards under and costs a prompt about 125 ms on a large board;
-//! `cargo run --release` costs it a fraction of a millisecond
-//! (`engineering-practices.md` §10.4).
+//! what to test cards under and costs a prompt about 30 ms on a large board,
+//! with the engine lightly optimized (`Cargo.toml`); `cargo run --release`
+//! costs it a fraction of a millisecond (`engineering-practices.md` §10.4).
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

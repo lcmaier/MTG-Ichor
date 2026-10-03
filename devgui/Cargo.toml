@@ -21,3 +21,11 @@ rand = "0.9"
 mtgsim = { path = "../mtgsim", features = ["test-support"] }
 # Draws the window offscreen for the pictures in `tests/snapshots/`.
 egui_kittest = { version = "0.36.2", features = ["wgpu", "snapshot"] }
+
+# The engine lightly optimized in a debug build, where cards are tested: its
+# debug checks, the layer memo's audit among them, stay on, and it runs about
+# 8× faster, for about a second more per engine rebuild
+# (`setup-architecture.md` §7b, decision 5). `cargo test` in `mtgsim/` reads
+# that crate's own manifest, so it is unchanged.
+[profile.dev.package.mtgsim]
+opt-level = 1

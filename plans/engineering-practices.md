@@ -1935,3 +1935,21 @@ times its release cost, because the layer memo's audit walks the board again
 at every memo hit and the snapshot hits the memo several times a permanent.
 That audit is what found the engine bug in §10.3, so the window runs in debug
 to test cards and in release for a large board, which `main.rs`'s usage says.
+
+**Since the seats PR the dev GUI's debug build compiles the engine at
+opt-level 1**, its debug checks still on (`setup-architecture.md` §7b,
+decision 5). Read in debug on the same board, 2026-10-03, on the owner's
+machine:
+
+| debug | median before | median after | allocations, both |
+|---|---|---|---|
+| snapshot, memo warm | 121.7 ms | 29.5 ms | 203,801 |
+| snapshot, memo cold | 122.3 ms | 29.6 ms | 203,989 |
+| of which the board text | 0.70 ms | 0.16 ms | 838 |
+| receive | 27 µs | 26 µs | 387 |
+| views, every repaint | 88 µs | 87 µs | 713 |
+
+The snapshot is about 4× faster, and the window's own code, still at
+opt-level 0, is unchanged. The debug checks are still most of a debug
+snapshot's cost: it allocates 59 MB where release allocates 0.27 MB, the same
+code but for them. The dev GUI audit at the end of A6g's row weighs that.
