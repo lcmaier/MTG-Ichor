@@ -6,10 +6,13 @@
 > **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
 > before SU-1, built CR 103.8's derivation (§1), SU-1 the loader, the writer
 > and the dev GUI's start, and SU-2 setup actions (§8, both landed
-> 2026-10-01). SU-3, the board editor, is designed in §7b (2026-10-03) and
-> not built. A6g's tools (undo, the save and
+> 2026-10-01). SU-3, the board editor, is designed in §7b and landed
+> 2026-10-03. A6g's tools (undo, the save and
 > savestates) are designed in §7.1–§7.3, decided over two review rounds on
-> #212 (2026-10-03), and built as **SU-4** after SU-3 (§8).
+> #212 (2026-10-03). Their design delta, after SU-3 (2026-10-03): §7.1's tree
+> read again, §7.2's decision 6 (the records at scale, for v1), and §8's
+> re-size, which builds them as two PRs (the owner, 2026-10-03): **SU-4** (the
+> replay, the engine's) and **SU-5** (the tools, the window's).
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -75,7 +78,10 @@ code shape, cost and upkeep.
    save) as bookmarks in the log (the owner, 2026-10-01). The tools' decisions
    are §7.2's, settled 2026-10-03: a run stops by a typed unwind, an undo
    returns to the window's last prompt, the dev GUI seats no agent, the save is
-   a journal beside the log, and the exported test is dropped.
+   a journal beside the log, and the exported test is dropped. The records at
+   scale are decision 6, from SU-4's design: the engine owns a record's text,
+   each answer recorded by what was chosen so that a later build replays it
+   until the game diverges, and each writer owns its files.
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
    before the tester takes over, which is how a deep stack is built; they
    resolve nothing, so a resolved effect is their stack and the seats' passes
@@ -736,7 +742,8 @@ build.
 ### 7.1 The tools: where they sit, and what the tree has
 
 > **Status:** design, 2026-10-02, decided over two review rounds on #212
-> (2026-10-03). The build, SU-4, comes after SU-3 (§8).
+> (2026-10-03). Its tree read again at SU-4's design (2026-10-03), against
+> `fb1767a`, #215's merge. The build, SU-4 and SU-5, comes after SU-3 (§8).
 
 **Where it sits.** On the decision boundary's far side, beside the decision
 log. Since playable (#211) the engine writes every answer to the log, whoever
@@ -753,41 +760,85 @@ a start ── build ──▶ Game ── run ── each prompt ──▶ the 
  a scenario)        every answer ──▶ the engine's log ──▶ the session's save
 ```
 
-**What the tree has** (read 2026-10-02):
-- The line, `answer N [turn T, step] player P Kind Answer[ forced]`, is written
-  by the dev GUI (`DecisionLog`, `bridge.rs`) from the engine's
-  `LoggedDecision`, so its text is a client's. The answer is `Picks`, `Number`,
-  `Allocation` or `Order`. A dealt start is `seed`, `pool` and a `deck` line a
-  seat; a scenario's is `scenario <path>`, `seed` and the file's text between
-  `begin scenario text` and `end scenario text`.
-- A replay exists only as a test (`phase_a6g_integration_test.rs`). It answers
-  every line, with every seat stopping at every priority point, and asserts
-  the same event log.
-- A kind's name is read off its `Debug` text in three places: the dev GUI's
-  `kind_name`, the setup driver's `refuse_question` and that test's `variant`.
-- `ScriptedDecisionProvider` matches a kind by its variant alone and ignores
-  the player. `ChoiceKind` has 27 variants.
-- No profile sets `panic = "abort"`. The engine's one `Drop` is the scripted
-  provider's queue check, which skips while unwinding. A provider's panic is
-  already how a run ends early: `fuzz_games` catches one per game, SU-2's
-  tests catch the setup driver's, and the dev GUI unwinds a superseded game
-  with `WindowGone`.
+**What the tree has** (read 2026-10-03 at `fb1767a`; first read 2026-10-02):
+- **The log's text is the dev GUI's.** `DecisionLog` (`devgui/src/bridge.rs:336`)
+  writes it from the engine's `LoggedDecision`: the answer line at `:375`,
+  `answer N [turn T, <phase> — <step>] player P <Kind> <Answer>[ forced]`, whose
+  answer is `LoggedAnswer`'s `Debug` text (`Picks([0])`, `Number(2)`,
+  `Allocation(…)`, `Order(…)`); a dealt start, `seed`, `pool` by its `Debug`
+  and a `deck` line a seat; a scenario's at `:360–368`, `scenario <path>`,
+  `seed` and the file's text between `begin scenario text` and `end scenario
+  text`; and `outcome` by `Debug`. The engine's `state::decision_log` (120
+  lines) holds `LoggedAnswer`, `LoggedDecision` and `DecisionLogHandle`, and no
+  text. No line names the format or the engine, a dealt start records no
+  `GameConfig`, and nothing reads a log back.
+- **A kind's name is read off its `Debug` text in eight places**, not the three
+  this section first counted. Six split the name off: the dev GUI's
+  `kind_name` (`devgui/src/prompt.rs:132`), `SetupDriver::refuse_question`
+  (`scenario/setup.rs:205`), and four test helpers, `variant`
+  (`tests/phase_a6g_integration_test.rs:65`) and `variant_name`
+  (`phase_cv2a_integration_test.rs:109`, `phase_cv2b_integration_test.rs:124`,
+  `prompt_subject_test.rs:48`). Two in `test_support.rs` keep the whole text
+  and match its start: `RecordingDecisionProvider::kinds`, whose 27 uses in 8
+  files compare with `starts_with`, and `RejectionRecorder::rejected_at`. A
+  prefix is looser than a name, since `Scry` begins `ScryOrder`, though no
+  test matches `Scry` today. `ChoiceKind::as_str` replaces all eight: not
+  `name`, which the CR uses for a card's name (CR 201) and for choosing one
+  (201.4), the owner at #216's review.
+  `ChoiceKind` still has 27 variants.
+- **The replay exists only as a test**,
+  `a_game_replayed_from_its_log_is_the_same_game`
+  (`tests/phase_a6g_integration_test.rs:180`). It answers every line from a log
+  kept in memory, with every seat stopping at every priority point, and
+  asserts the same event log.
+- **A recorded answer is a position in the option list**, wherever one is
+  recorded: the dev GUI's log, and 299 scripted test answers in 54 files
+  (`expect_pick_n` 262, `expect_allocation` 27, `expect_ordering` 10). Two
+  places already find an answer by what it is, each with a matcher of its
+  own: the setup driver finds a line's action and targets among the options
+  by id (`scenario/setup.rs:234`, `:287`), and `phase_cv2a_integration_test.rs`'s
+  `ById` picks objects by id.
+- **An answer that does not fit is an engine panic.** `ui::ask`'s four
+  `check_*` functions assert it (`ui/ask.rs:149`, `:224`, `:286`, `:385`), so a
+  replay that hands a prompt the wrong answer ends as a validator's panic, not
+  as a line that disagrees.
+- `ScriptedDecisionProvider` matches a kind by its discriminant
+  (`ui/decision.rs:404`) and ignores the player. Its `Drop` (`:435`), which
+  skips while unwinding, is still the engine's only one. No `Cargo.toml` sets
+  `panic = "abort"`.
+- **A run ends early under `catch_unwind` in three places**: `fuzz_games`, once
+  a game (`src/bin/fuzz_games.rs:927`); the dev GUI's engine thread
+  (`devgui/src/bridge.rs:110`), which takes `WindowGone` as a superseded game's
+  end; and SU-2's refusal test (`tests/phase_su2_integration_test.rs:49`),
+  which catches the setup driver's `panic!` (`scenario/setup.rs:200`). Met in
+  play, the dev GUI shows that refusal as "The engine thread panicked".
+- **The memo audit** is `compute::audit_memo_hit`
+  (`engine/layers/compute.rs:193`), with `audit_left_out` (`:219`) beside it
+  for a card the pass leaves out, both compiled on `debug_assertions`.
+- **The commit a record would name** is `state::trace::COMMIT`
+  (`state/trace.rs:54`), which `mtgsim/stamp_commit.rs` stamps at build: twelve
+  hex digits, `-dirty` after them when the tree has uncommitted edits,
+  `unknown` without git.
+- **The dev GUI's debug build runs the engine at opt-level 1** since the seats
+  PR (§7b's decision 5), so the costs below are read again under it.
+- **`codebase-state.md` item 200 is the tools'.** The dev GUI settles a
+  scenario's seed at launch, so Reload ignores an edited `seed` line, and a log
+  it cannot open shows as an engine panic. Slotted to the tools PR at ~30–50
+  lines, and not in §8's first sizing.
 
 **Measured** (a throwaway probe, 2026-10-02: eight dealt games on the
 performance pool, two seeded random agents, each played to its end and then
 replayed from its log). A game ran 18–40 turns and 465–884 lines, of which
 141–284 were not forced. A whole game replays in 3–6 ms in release and in
-0.7–2.9 s in debug, where the layer memo's audit is most of the cost. Every
-rebuild below (an undo, a move to a savestate, a load) replays from the
-start, so late in a long game a debug window waits up to about 3 s, and a
-release window does not wait.
+0.7–2.9 s in debug at opt-level 0, where the layer memo's audit is most of
+the cost.
 
 **What a debug window can do about it** (the owner's question at review,
 2026-10-03; measured the same day, the probe's games and the owner's machine):
 
 | Build | Replay, a line | Whole game | Engine rebuilt after a change |
 |---|---|---|---|
-| debug as today: opt-level 0, the memo audit on | 2,527 µs | ~1.8 s | 2.4 s; the dev GUI's whole rebuild 6.7 s |
+| debug before the seats PR: opt-level 0, the memo audit on | 2,527 µs | ~1.8 s | 2.4 s; the dev GUI's whole rebuild 6.7 s |
 | debug, the audit off | 58 µs | ~40 ms | 2.4 s |
 | debug, the engine at opt-level 1, the audit on | 312 µs | ~0.2 s | 3.4 s |
 | debug, the engine at opt-level 2, the audit on | 279 µs | ~0.2 s | 13.5 s |
@@ -802,20 +853,50 @@ build and its audit:
   engine call in the window about 8× faster with the audit still on, for about
   a second more per engine rebuild and a first build of ~23 s instead of ~14.
   It leaves `cargo test` in `mtgsim/` as it is. Opt-level 2 is no faster here,
-  and its rebuild is four times as slow. Proposed for the next window PR,
-  SU-3 or the seats change ahead of it, with `engineering-practices.md` §10.4's
-  `prompt_cost` read before and after: §7b's decision 5.
-- **No audit while replaying**: the answers a replay gives were audited when
-  they were first played. A debug-only switch the replay turns off until the
-  hand-over, ~20 lines in SU-4, 44× on a debug replay.
+  and its rebuild is four times as slow. **Built by the seats PR** (§7b's
+  decision 5), with `engineering-practices.md` §10.4's `prompt_cost` read
+  before and after.
+- **No audit while replaying within a session.** An undo or a move to a
+  savestate replays answers this window played earlier in the same process,
+  so in the same build, and in a debug build with the audit on. The audit is
+  off for that replay and back on at the hand-over: a debug-only switch,
+  ~15–25 lines, about 170× on a Commander board's replay (below). **A load
+  keeps the audit on**, since its lines may have been played by another
+  build: decision 6's fix-and-reload loop, where the engine was changed after
+  the save was written, makes that the usual case, and those lines are then
+  replayed under the changed engine for the first time. A load in debug pays
+  the audit once, up to ~5–7 s on a Commander board. (Corrected at SU-4's
+  design: the first draft switched the audit off for every replay, on the
+  premise that every replayed answer had been audited when first played,
+  which holds within a session and not across one.)
+
+**Read again at SU-4's design** (a throwaway probe, 2026-10-03, the owner's
+machine: `fuzz_games`' dealing and its bot stack, ten games a board from seed
+12345 on the performance pool, each played to its end and replayed from its
+log with every seat stopped at every priority point). Every rebuild in §7.3
+replays from the start, so a whole game's replay is what a late one waits:
+
+| Build | Two seats, 60 cards: 820 lines a game | Four seats, 100 cards, 40 life: 2,766 lines | A line |
+|---|---:|---:|---:|
+| release | 6.5 ms | 21.8 ms | 8 µs |
+| the dev GUI's debug engine with the debug checks off | 9.9 ms | 32.2 ms | 12 µs |
+| the dev GUI's debug engine as built: opt-level 1, the checks on | 1.04 s | 5.42 s | 1.3–2.0 ms |
+
+A replay costs what the game it replays cost, within 5%. A line's cost in
+debug rises with the board, since the audit walks the board again at each
+memo hit: the first three of those seeds, shorter games, read 0.19 s a game
+at two seats, the 2026-10-02 probe's 0.2 s above, and 7.3 s at four, where
+opt-level 0 read 0.97 s and 34.9 s. So late in a Commander game a debug
+window waits about 5–7 s for a rebuild with the audit on and about 30 ms with
+it off, and a release window about 20 ms.
 
 Release stays what `engineering-practices.md` §10.4 says it is for, a large
 board: it rebuilds the dev GUI in 15.4 s after an engine change against
 debug's 6.7, and it runs without the audit, which found the engine bug in
 `engineering-practices.md` §10.3. Checkpoints, a clone kept at each round
 start and replayed from, would cut a late undo to a turn's replay, at
-~100–200 lines and item 140's entry point; with both levers, they are not
-needed.
+~100–200 lines and item 140's entry point; with both levers an undo late in a
+Commander game waits ~30 ms in debug, so they are not needed.
 
 ### 7.2 The decisions
 
@@ -832,7 +913,7 @@ supersedes should end at its next answer rather than play on to its last line
 
 | | **A. A typed unwind** | **B. A stop through the boundary** |
 |---|---|---|
-| Code | a `Stop` value naming why (the log spent, a line that disagrees, a setup line refused, a replay superseded), raised with `std::panic::resume_unwind`; one engine function, `Game::run_until_stopped`, catches that payload and no other; the setup driver's `refuse` raises it instead of `panic!`; ~80–110 lines | every `DecisionProvider` method returns `Result<_, Stop>`, every `ask_*` call site passes it up, and `run`'s `Result<_, String>` gains a typed error; 33 provider impls (engine, tests, dev GUI) and 33 `ask_*` call sites in 15 files, ~300–600 lines changed |
+| Code | a `Stop` value naming why (the log spent, a line that disagrees, a setup line refused, a replay superseded), raised with `std::panic::resume_unwind`; one engine function catches that payload and no other, and takes the run it wraps as a closure, since a game is entered six ways (`Game::setup`, `run`, `run_turn`, `resume`, `resume_turn_at_priority`, and `GameState::run_priority_round`) and each caller has its own: `game.until_stopped(\|game\| game.resume(&driver))`; the setup driver's `refuse` raises it instead of `panic!`; ~80–110 lines | every `DecisionProvider` method returns `Result<_, Stop>`, every `ask_*` call site passes it up, and `run`'s `Result<_, String>` gains a typed error; 33 provider impls (engine, tests, dev GUI) and 33 `ask_*` call sites in 15 files, ~300–600 lines changed |
 | Performance | nothing on a game's path; a stop is one unwind | one branch per answer |
 | Upkeep | control flow by unwinding, as the tree already ends a run early; it relies on `panic = "unwind"` and on no engine `Drop` writing `GameState`, both true today. Work in flight at the prompt is dropped, so a stopped game is read and never continued: the run methods refuse one | the stop is in the types and nothing unwinds; every provider written from now on handles it |
 
@@ -907,25 +988,10 @@ prompt is open, as "stop yielding" is today; and a superseded game's writer
 is shut before the next one starts, since a game still running toward its
 next prompt would otherwise append to the new line. Loading is §7.3's.
 
-**At scale, for v1** (the owner, 2026-10-03): open, and settled in SU-4's
-design before its build, with v1's readers in view. The dev GUI writes a
-session's files into `logs/` where it runs, named for the start and the seed
-(`seed-41.log`, a Reload's `-2`). v1 adds two writers at another scale: v1's
-GUI keeping a player's games to replay (`backlog.md` §2.38), and the AI
-harness keeping the records of games run by the thousand in parallel (Phase
-10). What SU-4's design settles for them:
-- **the folders**: where each writer's files go, such as a per-user data
-  folder for v1's GUI and a folder per run for the harness, and how a file is
-  named so that a person finds one game among thousands;
-- **what a file says about what wrote it**: a header naming the format's
-  version and the engine's commit, which the build already stamps for the
-  trace sink, so a save from another engine is refused for that reason rather
-  than replayed into a disagreement;
-- **a file per game or a batch per worker**, and whether a harness game whose
-  seats are seeded agents needs its log at all, since its seeds replay it: the
-  log might be kept only for a game someone opens, such as a failure or a
-  sample;
-- **an index** for browsing many saves, and whether old ones are pruned.
+**At scale, for v1** (the owner, 2026-10-03), left open here to be settled in
+SU-4's design before its build, is decision 6: the folders, what a record
+says about what wrote it, a file per game or a batch, an index, and pruning,
+for the dev GUI, v1's GUI and the AI harness.
 
 #### Decision 5 — the exported test: dropped
 
@@ -937,20 +1003,162 @@ for what it buys, and a generator with a bug writes wrong tests, which are
 worse than none, with nothing placed to catch them. A regression test found in
 the window is written by hand, from the log the window keeps. The
 `ChoiceKind` built from a logged name, which §7 owed the export, goes with it;
-`ChoiceKind::name` stays, since the replay compares names.
+`ChoiceKind::as_str` stays, since the replay compares kinds by it.
+
+#### Decision 6 — the records at scale, for v1
+
+> **Status:** decided at #216's review (the owner, 2026-10-03): its first
+> question as D, and the four after it as proposed, the dev GUI's answers and
+> the options Phase 10 starts from. It settles decision 4's "At scale, for
+> v1".
+
+**The problem.** Three writers will keep records of play, at three scales.
+The dev GUI keeps a few a session, to replay and to attach to a bug report.
+v1's GUI keeps a player's games to replay (`backlog.md` §2.38), hundreds over
+months. The AI harness plays games by the thousand a minute and opens few of
+them (Phase 10, `roadmap-v2.md` §E). Each record is a start and every answer,
+in the engine's text (§7.3's table), and the engine's replay is what reads one
+back. Where the bytes go, how a record is found again and when it is thrown
+away are each writer's, as layout is a client's (`engineering-practices.md`
+§10). So this decision draws one line: what the engine's text carries so that
+every writer can do its part, which SU-4 builds, and the writers' own choices,
+of which SU-5 builds the dev GUI's and Phase 10's design starts the other two
+from the options below.
+
+**Measured** (a throwaway probe, 2026-10-03, the owner's machine, release:
+`fuzz_games`' dealing and its bot stack, twenty games a board from seed 12345
+on the performance pool, each line formatted as the dev GUI writes it today):
+
+| | Two seats, 60 cards | Four seats, 100 cards, 40 life |
+|---|---:|---:|
+| lines a game | 766 (379–1,602) | 3,349 (1,968–5,805) |
+| of which forced | 69% | 81% |
+| bytes a game | 61 KB (at most 130) | 274 KB (at most 473) |
+| a game's CPU with no log | 6.1–6.4 ms | 35.9–36.7 ms |
+| the lines formatted into memory | +4–5% (0.3–0.4 µs a line) | +2–3% (0.2–0.4 µs a line) |
+| written to a file flushed a line at a time, as the dev GUI writes | +104–112% | +51–52% |
+| written to a file through a buffer | +67–72% | +16–17% |
+
+Creating an empty file costs 0.4–1.7 ms. The rest of a file's cost is the
+operating system's, here Windows, so a harness reads its own on its hosts. At
+about 28 Commander games a second a core, a harness that kept every record
+would write about 7.5 MB a second a core.
+
+**1. What a record says, and how another engine reads it.** A record can be
+replayed by an engine built after it: the dev GUI's fix-and-reload loop (play
+to a bug, save, fix the engine, load the save to watch the fix) does that on
+purpose, and v1's GUI would after a release. How that engine reads a record
+turns on how an answer is recorded. A position in the option list is exact
+within one build and wrong across two without saying so: a build that lists
+the options in another order makes option 1 Play Forest where it was Cast
+Lightning Bolt, with the same player, kind, turn and step, so no check on
+those sees it.
+
+| | **A. As today** | **B. A header; another engine refused** | **C. A header; another engine replayed by position** | **D. A header; each answer recorded by what was chosen** |
+|---|---|---|---|---|
+| Shape | a record begins with its start, and an answer is a position | `decision log 1`, then `engine <commit>` from `state::trace::COMMIT`; a reader refuses a format it does not know, and a commit not its own | B's header; another commit is replayed, and the first line whose question disagrees names both commits | B's header; each answer is recorded as what was chosen, not where it sat: the card by its id and its printed name, as a scenario names it, the player, the action, the attack or block, the cost by its keyword and text, the number, color, counter or mana type. The replay finds that option in whatever list this build offers |
+| Across builds | misread, silently | refused, which ends the fix-and-reload loop at its last step; and a commit proves less than it seems, since `-dirty` keeps one name across uncommitted edits | replayed, but a reordered list plays another game with no stop | replayed while the game is the same, through a reordered or longer list, and stopped at the first answer whose question or choice the engine no longer offers |
+| Code | none | ~25–40 lines | B's | B's, and an option's identity written and compared by one matcher, ~130–200 with the replay's use of it |
+| Upkeep | — | the format's number goes up when an older reader could not read the new text, which a pinned text shows in review | B's | B's; a new `ChoiceOption` variant does not compile until its identity is written, since the writer matches exhaustively |
+
+**Decided: D** (the owner, 2026-10-03, at #216's review). Replay is exact
+within a build and best effort across builds, where a fixed rule changes the
+game anyway, and nothing is refused. Within a build each identity is found at
+its own position, so undo, savestates and the tests replay exactly. Across
+builds:
+- a question with one legal answer (a forced line) is skipped when this build
+  does not ask it, and answered when it asks one the record lacks, so an
+  engine elision such as A6j's does not end older records;
+- at the first answer whose question or choice the engine no longer offers,
+  the replay stops (decision 1) and says where: "diverged at answer 341: it
+  chose #12 Lightning Bolt, which is not offered". The window plays on from
+  that board, and a test fails there;
+- randomness follows the start's seed, so a build that draws it differently
+  shuffles differently from there, which shows as a divergence at the first
+  choice no longer possible; accepted (the owner);
+- the engine line informs, in a bug report and in a divergence's message.
+
+The writer reads an object's printed name and no characteristics, as the log
+reads nothing through the layers (`state::decision_log`). The format line
+names no crate, so item 208's rename strands no record. The matcher is the one
+the setup driver and `ById` each keep a copy of (§7.1), and SU-4 moves both
+onto it.
+
+**2. Where each writer's files go.** The engine names no path. It formats
+lines into the sink its writer gives it, so how a record is stored never
+reaches the engine.
+
+| Writer | Where | A record's name | Built by |
+|---|---|---|---|
+| the dev GUI | a scenario's games in its board's folder, `boards/<board>/`, and a dealt game's in `logs/` (§7b's decision 3); each save beside its log, as `<log>.save` | the seed, `-players-P` past two seats, `-2` on for a Reload. A load plays on in a new pair named as a Reload's, beside the loaded one, which it never writes | SU-3, and the save SU-5 |
+| v1's GUI | the platform's per-user data folder (`%APPDATA%`, `~/Library/Application Support`, `$XDG_DATA_HOME`), which Tauri, the stack `backlog.md` §2.38 recommends, names. The other options: a folder the player picks, or one beside the program, which an installed program cannot write | the date and time the game began, and its table | Phase 10 |
+| the harness | a folder per run, holding the run's configuration, the engine's commit among it, and the records the run kept. The other option: one folder for every run, each record's name carrying its run's | the game's number and seed | Phase 10 |
+
+**3. A file per game, a batch per worker, or no file.**
+
+| | **A. A file per game** | **B. A batch per worker** | **C. Kept on demand** |
+|---|---|---|---|
+| Shape | the dev GUI's: a file a game, flushed a line at a time, so a game that panics leaves its whole record | records back to back in one file per worker thread, which a reader splits at each record's format line | a game a seed replays writes nothing: its seed, its table and the engine's commit replay it, and one worth opening, such as a failure or a sample, is played again with the log attached, as `fuzz_games` is today (`--trace-game`, `--dump-events`). A game whose seats a seed cannot replay, such as a learned policy whose weights move or a remote agent, formats its lines into memory and writes them only if the game is kept |
+| Performance at Commander scale | 274 KB a game, and +16–52% of its CPU here | the same bytes, and a file created per worker rather than per game | nothing for a seeded game; +2–3% in memory for another |
+| Upkeep | at the harness's rate, about 7.5 MB a second a core | a splitter, ~15 lines in the engine when a batch is first written | the run's seeds, table and commit kept, which the harness needs to replay anything |
+
+**Decided: A for the dev GUI, which has it, and for v1's GUI; C for the
+harness, with B for what it keeps if that is many.** What SU-4 builds for all
+three: the engine formats each line into its writer's sink and opens no file;
+a record begins with its format line, so records can sit back to back and be
+split again; and the text is a function of the game alone, with no clock in
+it, so two records of one game are the same bytes but for the engine line and
+the path a scenario was read from, and a diff of two engines' records is a
+diff of the game. The splitter waits for its first writer.
+
+**4. An index for browsing many records.**
+
+| | **A. None: names and headers** | **B. An index file per folder** | **C. A database** |
+|---|---|---|---|
+| Shape | a browser lists the folder, and for more than a name reads a record's first lines (format, engine, start) and its last (the outcome) | a row a record (the file, start, seed, seats, turns, outcome), appended at each game's end | a table a record, in SQLite or the like |
+| Performance | a few lines read a file at each browse; nothing while playing | a write a game | a write a game, and a dependency |
+| Upkeep | none, since nothing is kept in step | a second record of each game, kept in step with the files by hand, which a deleted or half-written file leaves wrong (`engineering-practices.md` §2c) | a schema, and a migration at each change to it |
+
+**Decided: A for the dev GUI**, which loads by path (`--load`) and is browsed
+with the system's file browser. v1's GUI starts from A and moves to C if a
+player's history wants search. The harness's index is its run's report,
+written once at the run's end, naming the records it kept and why.
+
+**5. Pruning.**
+
+| | **A. None** | **B. By age or count** | **C. All but the marked** |
+|---|---|---|---|
+| Shape | the folders are git-ignored, and a person deletes what they no longer want | at start, records past a count or an age are deleted | as B, sparing a record with a savestate or a mark to keep it |
+| Size | a log is 61–274 KB a game, and its save as much again or more, with its branches | bounded | bounded |
+| Upkeep | none | deletes the save a bug report needed | a mark to set, and a rule that reads it |
+
+**Decided: A for the dev GUI.** v1's GUI gets a setting, its design's; a
+harness run's folder goes with the run.
+
+**So the dev GUI, the first consumer, takes**: D's header and answers, its
+folders as SU-3 built them, a file a game, no index and no pruning. v1's GUI
+and the harness choose at Phase 10's design, from these options, and
+`backlog.md` §2.38 and `roadmap-v2.md` §E point here.
 
 ### 7.3 What the window shows, and where each surface lives
 
 **Loading.** The dev GUI writes a save beside every game's log, so `devgui
 --load FILE` takes a save; a plain log loads as a save with one line of play
 and no record of where the window was asked. The window replays the line the
-save ended on, saying "replaying N answers" while it does, and then asks the
-next question. The header gains Undo; Savestate, which marks the open prompt
-and names it for its turn and step; and a menu of the savestates and the ends
-of the lines an undo or a move left, each replayed on a click. A savestate is
-written out as a scenario by moving to it and clicking "Save board as
-scenario". Reload is unchanged: a scenario read again is a new start, so a new
-save.
+save ended on, saying how many of its answers it has replayed while it does,
+and then asks the next question; a load in debug keeps the audit on (§7.1),
+so on a Commander board that takes seconds. Play goes on in a new log and save
+beside the loaded pair, named as a Reload's are, and the loaded files are
+never written (decision 6). The game's header gains **Undo answer**, named
+apart from the editor's own Undo, which SU-3 put in the editor's header;
+Savestate, which marks the open prompt and names it for its turn and step;
+and a menu of the savestates and the line most recently left, a "back to where
+I was", each replayed on a click. The save keeps every line, and the menu
+lists only those, so lines played and abandoned do not crowd it (the owner,
+at #216's review). They sit beside Reload, after the Play | Edit switch. A
+savestate is written out as a scenario by moving to it and clicking
+"Save board as scenario". Reload is unchanged: a scenario read again is a new
+start, so a new save.
 
 **Where undo stops** (the owner's question at review, 2026-10-03):
 - **At the window's first prompt** there is nothing to undo, and the button is
@@ -973,8 +1181,9 @@ second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
 |---|---|---|
-| `ChoiceKind::name` | the engine, `ui::choice_types` | the log, the prompt and the setup driver's refusal say one name |
-| A line's text and a start's, written and read | the engine, `state::decision_log` | every client's log and save say the same words, and one parser reads them |
+| `ChoiceKind::as_str` | the engine, `ui::choice_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
+| An option's identity, and the one matcher that finds it in a list | the engine, `ui::choice_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
+| A record's header, a start's text and a line's, written and read | the engine, `state::decision_log` | every client's log and save say the same words and what wrote them, and one parser reads them (decision 6) |
 | The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
 | The stop | the engine, `ui::decision` and `Game` | it crosses the boundary |
 | The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
@@ -1508,27 +1717,31 @@ SU-4's switch that skips the audit while replaying (§7.1).
 
 ### 7b.3 What SU-3 and the seats PR changed that §7.1–§7.3 name
 
-Each PR body lists these under "for SU-4" (§8). As built:
-- **a folder per board** (decision 3, `boards::Folders`): a scenario game's
-  log goes into its board's folder, `boards/<stem>/seed-N.log`, a
-  `--scenario` launch's too, and a dealt game's stays in `logs/`, so SU-4's
-  save beside each log is in one or the other, and its `--load` and menu
-  read both. Play starts from the board's file as Reload does, so SU-4 meets
-  no new kind of start, and §7.3's "a scenario read again is a new start"
-  holds for each Play;
+Each PR body lists these under "for SU-4" (§8). As built, read again at SU-4's
+design against `fb1767a`:
+- **a folder per board** (decision 3, `boards::Folders::game_log`): a
+  scenario game's log is `boards/<stem>/seed-N.log`, a `--scenario` launch's
+  too, and a dealt game's is `logs/seed-N.log`, or `seed-N-players-P.log`
+  past two seats; a Reload takes the next free `-2`, `-3` beside it
+  (`session::own_log`). So the save beside each log is in one folder or the
+  other, and `--load` reads both. Play starts from the board's file as Reload
+  does, so the tools meet no new kind of start, and §7.3's "a scenario read
+  again is a new start" holds for each Play;
 - **a `GuiSeat` and a stack of decorators per seat** (the seats PR, #214),
   `WINDOW_SEAT` gone, the prompt naming its seat: §7.2's decision 2 ("the
   window's last prompt, whichever seat it was for") is built against these;
-- **the session**: a game is optional, `Session::setup` and its engine
-  `None` until one starts, as under `--edit`; the header's `message` replaces
-  `saved`; and `Input` is no longer `Copy`, since the search's text rides in
-  it;
-- **the header's controls**: Play | Edit, "Edit this board", "Edit the
-  scenario" and the Open… list in both modes, and in the editor its own
-  Undo, Play, Save and Copy as text. SU-4's Undo, Savestate and menu sit in
-  the game's header beside them, and its Undo is not the editor's;
-- **`--edit [FILE]`** beside `--scenario FILE` and SU-4's `--load FILE`, with
-  `launch::read` returning a `Start`.
+- **the session**: a game is optional, `Session::setup` and its engine `None`
+  until one starts, as under `--edit`; `launch::read` returns a `Start`, a
+  game or the editor, which `--load` joins as a third; the header's `message`
+  replaces `saved`; and `Input` is no longer `Copy`, since the search's text
+  rides in it;
+- **the header's controls**: the Play | Edit switch, then the mode's own, and
+  Open… in both. The game's: its status, the log's path, Full control,
+  Reload, "Save board as scenario", "Edit this board" and "Edit the scenario".
+  The editor's: its own Undo, Play, Save and Copy as text. The tools' Undo
+  answer, Savestate and menu sit in the game's header beside Reload, and the
+  game's Undo reads as its own (§7.3);
+- **`--edit [FILE]`** beside `--scenario FILE` and the tools' `--load FILE`.
 
 ---
 
@@ -1544,54 +1757,140 @@ sizing, nearly all of it in the dev GUI, which may run looser than the engine
 (the owner, 2026-10-03; §8's ✅ section).
 
 **The tools (§7.1–§7.3), sized 2026-10-02 with doc comments and messages
-counted, revised over the review rounds of 2026-10-03.** One PR, **SU-4**: the
-replay, undo, the save and savestates, whose consumer is the window. The
-exported test it was split from is dropped (§7.2, decision 5).
+counted, revised over the review rounds of 2026-10-03, and re-sized at SU-4's
+design after SU-3 (2026-10-03).** The replay, undo, the save and savestates,
+whose consumer is the window. The exported test they were split from is
+dropped (§7.2, decision 5).
 
-**The order** (the owner, 2026-10-03): SU-3, then SU-4. Nothing in the tools
-needs the editor, and nothing in the editor needs the tools, and the editor
-first makes the boards the tools are tried on quicker to build, a four-seat
-Commander board above all. The seats change (§7, the window playing every
-seat) comes before both, as a PR of its own, the seats PR, with four seats in
-it (§7b's decision 4, the owner, 2026-10-03). SU-4 adds its buttons beside the
-editor's mode, which this sizing does not count, so SU-4 re-sizes once SU-3
-lands.
+**The order** (the owner, 2026-10-03): SU-3, then the tools. Nothing in the
+tools needs the editor, and nothing in the editor needs the tools, and the
+editor first makes the boards the tools are tried on quicker to build, a
+four-seat Commander board above all. The seats change (§7, the window playing
+every seat) came before both, as a PR of its own, the seats PR, with four
+seats in it (§7b's decision 4, the owner, 2026-10-03).
 
-**Keeping this design true now SU-3 has landed.** §7.1–§7.3 name the dev
-GUI as it stood at their design: the bridge's log writer, `GuiSeat`, the
-seat's stack of decorators, Reload. SU-3 and the seats PR moved some of it
-(§7b.3 lists what, and #215's body under "for SU-4"), so SU-4's first step
-re-reads §7.1's "What the tree has" against the tree and re-sizes before any
-code. The decisions themselves (the typed unwind,
-undo to the window's last prompt, no agent, the save a journal) rest on the
-decision boundary and the engine's log, which SU-3 does not touch.
+**Kept true after SU-3.** §7.1–§7.3 named the dev GUI as it stood at their
+design. SU-3 and the seats PR moved some of it, which §7b.3 lists as built,
+and §7.1's "What the tree has" was read again against `fb1767a` before this
+re-size. The decisions themselves (the typed unwind, undo to the window's last
+prompt, no agent, the save a journal) rest on the decision boundary and the
+engine's log, which SU-3 did not touch.
 
-| SU-4 piece | Where | Code | Tests |
+**What the re-size found**, against the first sizing's one PR of 1,085–1,585
+of code and 590–880 of tests:
+- eight readers of `Debug` text to replace, not three (§7.1);
+- the header and a dealt start's `GameConfig` (decision 6), ~40–60 more in the
+  text;
+- the answer's fit checked through `ui::ask`'s own predicates, which assert
+  today, so the replay and the validators share one check and keep no second
+  copy (~30–50 in `ui::ask`);
+- the stop's catcher over six entries, and its two consumers outside the
+  engine, `fuzz_games`' scenario path and the dev GUI's refused setup line,
+  ~25–35;
+- item 200 (§7.1), ~30–50, and the tools' controls beside the editor's switch,
+  ~10–20, in the window;
+- the dev GUI's log written in the engine's text, which the first sizing
+  counted in the bridge's row, moved to the engine's half with the refused
+  setup line's display (~35–50), so the text has its writer in the PR that
+  makes it and the window shows a stopped setup line as it did a panic;
+- answers recorded by what was chosen (decision 6's D, the owner at #216's
+  review): an option's identity written and compared by one matcher, which
+  the replay, the setup driver and `ById` use, and a forced line skipped or
+  answered where one build asks it and the other does not, and the scripted
+  provider's answer by identity for new tests, ~260–410 with tests. The 299
+  scripted answers already written move onto it in a PR of their own beside
+  C0, the test cleanup before Phase 8's breadth (`codebase-state.md` item
+  209, the owner at #216's review).
+
+The last three phases ran 1.5–2.1 times their sizing on code (SU-1 ~1.9,
+SU-2 ~2.0, SU-3 1.5–2.1; the archive's tables), each from what its sizing left
+out, so each total below carries that range beside the count.
+
+**Decided: two PRs, split along the engine's line** (the owner, 2026-10-03,
+at #216's review). The owner reads engine changes closely and the dev GUI
+loosely, so the engine's half goes up as a PR of its own, ahead of the
+window's.
+
+| SU-4, the replay: the engine's half | Where | Code | Tests |
 |---|---|---|---|
-| `ChoiceKind::name`, replacing the three copies | `ui::choice_types` | 40–60 | 15–25 |
-| A line's and a start's text, written and read; a start built | `state::decision_log` | 250–350 | 90–140 |
-| The replay: each line's player, kind, turn and step checked, and the answer's fit; then the seats, or a stop; a superseded replay stopped | a provider in `ui` | 130–190 | 140–200 |
-| The stop, the run that catches it, a stopped game refused; the setup driver's refusal as a stop | `ui::decision`, `state::game`, `scenario::setup` | 90–130 | 60–90 |
-| No memo audit while replaying (§7.1) | `engine::layers`, `state::diagnostics` | 15–25 | 15–25 |
-| The save: its journal, the tree, undo's place, the savestates and the ends of lines left | devgui `save.rs` | 220–320 | 150–220 |
-| The bridge: a start from a save, the log's and the save's writers, the window's prompts, the savestate reply, a superseded writer shut | devgui `bridge.rs` | 130–200 | — |
-| Session, launch and view model: Undo, Savestate, the menu, `--load`, the replaying status | devgui | 170–250 | 120–180 |
-| The drawing | devgui `app.rs` | 40–60 | the pictures |
-| **SU-4** | | **1,085–1,585** | **590–880** |
+| `ChoiceKind::as_str`, replacing the eight readers of `Debug` text | `ui::choice_types`; `scenario::setup`, `test_support`, devgui `prompt.rs`, four test files | 40–60 | 15–25 |
+| The text: a record's header (the format, the engine), a start (a dealt game's seed, its `GameConfig` destructured with no `..`, and its decks by name; or a scenario's path, seed and text), an answer line and the outcome; written and read, each refusal naming its line; a start built into a game | `state::decision_log` | 330–470 | 120–180 |
+| An option's identity, what was chosen: written, and compared by one matcher, which the replay, the setup driver and `ById` use; the scripted provider's answer by identity, `expect_choice`, which new tests use | `ui::choice_types`, `scenario::setup`, `ui::decision` | 150–230 | 80–130 |
+| The replay: each line's player, kind, turn and step checked, its choice found by identity among the options this build offers and its fit through `ui::ask`'s predicates, which the validators then assert; a forced line skipped or answered where one build asks it and the other does not; the seats after the last line, or a stop naming where it diverged; a superseded replay stopped | `ui::replay`, `ui::ask` | 200–290 | 170–260 |
+| The stop: why a run ended, the catcher over any run, a stopped game refused at each of the six entries; the setup driver's refusal as a stop, which `fuzz_games` reports as the game's error | `ui::decision`, `state::game`, `scenario::setup`, `bin/fuzz_games` | 100–145 | 60–100 |
+| No layer audit while replaying within a session (§7.1) | `engine::layers::compute`, `state::diagnostics` | 15–25 | 15–25 |
+| The dev GUI on the engine's text and the stop: its log written in the engine's words, and a refused setup line shown as a refusal rather than an engine panic | devgui `bridge.rs` | 35–50 | — |
+| **SU-4** | | **870–1,270** | **460–720** |
 
-SU-4's tests are the proofs the tools owe: a dealt game and a scenario game
-replay to one event log; undo gives the board a game played to that answer gives,
-through `Scenario::write`; a savestate and a branch survive a save and a load;
-the stop on its own; a cast from hand with exact mana under `ManaWindowStop`,
-replayed. **At ~1,700–2,450 it sits at the band's top**, so the build measures
-at each commit, and if it crosses 2,500 it stops and reports, the savestate
-menu being what would move to a PR of its own.
+At the last phases' rate SU-4's code is 1,310–2,670, so 1,770–3,390 in all.
+Its upper half crosses 2,500, so the build measures at each commit, code and
+tests apart, and stops to report when it crosses. An option's identity and
+its matcher are the seam that would move into a PR of their own, ahead of the
+replay, since they have consumers without it. **Its consumers**, each a test or a
+client of what it builds (`engineering-practices.md` §4: every PR in a split
+carries one):
+- the replay test at `phase_a6g_integration_test.rs:180` moves onto the
+  engine's replay, over the engine's text written and read back, at two seats
+  and four;
+- the setup driver and `phase_cv2a`'s `ById` find an answer through the one
+  matcher, where each keeps a copy of its own today;
+- SU-2's refusal test (`phase_su2_integration_test.rs:49`) catches a stop
+  where it catches a panic today;
+- `fuzz_games --scenario` reports a refused line as the game's error, where its
+  `catch_unwind` counts a panic today;
+- the dev GUI writes its log in the engine's text, so every game the window
+  plays from SU-4 on is a record SU-5's `--load` reads, and it shows a refused
+  setup line as the refusal it is.
 
-**A/B, predicted before any arm runs.** SU-4 does not change what a fuzz game
-runs: `fuzz_games` attaches no log, uses no replay, and meets the stop only on
-a scenario's refused line. So every gameplay and cost row is predicted
-`IDENTICAL` on both pools at two seats and four, and instructions per decision
-within ±0.3%, for code the compiler places differently.
+Its tests beside them: a reordered option list replaying to the same game,
+and a choice no longer offered stopping at its line; a scenario game with
+setup actions replayed; a cast
+from hand with exact mana under `ManaWindowStop`, replayed; each disagreement
+(the player, the kind, the turn or step, an answer that does not fit) stopping
+at its line; the stop's four reasons, and a panic that is not a stop passing
+through; a stopped game refused; the audit's switch; the text's refusals and
+a pinned text. Each replay plays a game capped at a few turns, as the a6g
+test's eight are, timed in debug: `cargo test` runs the engine at opt-level 0
+with the audit on, where a whole Commander game replays in ~35 s (§7.1).
+
+| SU-5, the tools: the window's half | Where | Code | Tests |
+|---|---|---|---|
+| The save: its journal (the engine's lines, the window's prompts, savestates, moves back), the tree, undo's place, the savestates and the line last left, written and read | devgui `save.rs` | 250–350 | 150–220 |
+| The bridge: a start from a save, the save's writer on the engine thread, the window's prompts marked, the savestate reply, a superseded game's writers shut, a rebuild's replayed lines buffered and flushed at the hand-over | devgui `bridge.rs` | 150–220 | — |
+| Session, launch and view model: Undo answer, Savestate, the menu, `--load`, the replaying count, a load playing on in a new pair | devgui `session.rs`, `launch.rs`, `view_model.rs` | 190–280 | 130–190 |
+| Item 200: a scenario's own seed kept until its file is read; a log that cannot be opened refused in the window | devgui `launch.rs`, `session.rs`, `bridge.rs` | 30–50 | 20–30 |
+| The drawing: the three controls beside Reload, the menu, the count | devgui `app.rs` | 50–80 | the pictures |
+| **SU-5** | | **670–980** | **300–440** |
+
+At the last phases' rate SU-5's code is 1,000–2,060, so 1,300–2,500 in all,
+the dev GUI's, which may run over, reported per commit (the owner,
+2026-10-03). Its tests are the rest of the proofs the tools owe: undo gives
+the board a game played to that answer gives, through `Scenario::write`; a
+savestate and a branch survive a save and a load; three presses of Undo
+during a replay wait for one replay; item 200's two fixes. Each plays a short
+board and is timed, as #214's and #215's were, and the dev GUI's CI step is
+read against its ~24 s. The view model changes, so `prompt_cost` is read
+before and after (`engineering-practices.md` §10.4).
+
+| | **A. One PR, as first planned** | **B. Two: SU-4 the engine's, SU-5 the window's** | **C. Three: B with SU-5 split again, the savestates and their menu last** |
+|---|---|---|---|
+| Size, code and tests | 2,300–3,410; at the last phases' rate 3,070–5,890 | SU-4 1,330–1,990, SU-5 970–1,420; at that rate to 3,390 and 2,500 | SU-4 as B; SU-5 ~750–1,100 and a third ~220–320 |
+| Review | the engine's ~1,300–2,000 lines in one PR with the dev GUI's ~1,000–1,400 | a PR that is the engine's, but for ~40 lines the window needs to keep working, read closely; then a dev GUI PR read by its click script and pictures | as B, and a third small window PR |
+| What lands first | everything at once | the replay, with every dev GUI log readable by it, before any button | as B; undo and the save before the savestates |
+| Risk | past the band, by a lot at the last phases' rate | the engine's text is designed before its second reader, the save's journal, exists: SU-4's reader reads a line and a start apart from a whole record, which the journal's reader uses, and SU-5 may still find a gap to fix in the engine (`engineering-practices.md` §4: a split moves risk, it does not remove it) | as B |
+
+**Decided: B.** Named for what each delivers: **SU-4, the replay** (the
+engine's text, the replay and the stop) and **SU-5, the tools** (undo, the save
+and savestates), the next code rather than a letter.
+
+**A/B, predicted before any arm runs.** SU-4 changes nothing a fuzz game's
+outcome depends on: `fuzz_games` attaches no log, uses no replay, and meets
+the stop only on a scenario's refused line, and `ui::ask`'s validators assert
+the predicates they assert today, from one function each. So every gameplay
+and cost row is predicted `IDENTICAL` on both pools at two seats and four,
+and instructions per decision within ±0.3%, for code the compiler places
+differently. SU-5 is planned to touch no engine file; if it does, its A/B
+runs as SU-4's.
 
 ### SU-3 — the board editor — ✅ landed 2026-10-03
 
@@ -1735,7 +2034,7 @@ the save, `SU-*`).
 
 Hidden information (B4; the dev GUI shows every card); four seats in the GUI
 (the seats PR, §7b's decision 4);
-save, undo and savestates (A6g's tools PR, SU-4); item 193 (playable); the
+save, undo and savestates (A6g's tools, SU-4 and SU-5); item 193 (playable); the
 stack and resolved effects as written state (§2), which SU-2's setup actions
 play instead; a script for a seat during play (§5.3, dropped at review); the
 board editor (SU-3, §7b); CR 103.5's mulligans and CR 103.6's opening-hand
