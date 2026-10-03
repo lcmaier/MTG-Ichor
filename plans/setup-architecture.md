@@ -6,10 +6,9 @@
 > **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
 > before SU-1, built CR 103.8's derivation (§1), SU-1 the loader, the writer
 > and the dev GUI's start, and SU-2 setup actions (§8, both landed
-> 2026-10-01); SU-3 is not built. A6g's tools (undo, the save, savestates and
-> the exported test) are designed in §7.1–§7.3 for review (2026-10-02), to be
-> built as **SU-4** and **SU-5**; their order against SU-3 and a seats PR is
-> §8's.
+> 2026-10-01); SU-3 is not built. A6g's tools (undo, the save and
+> savestates) are designed in §7.1–§7.3, decided over two review rounds on
+> #212 (2026-10-03), and built as **SU-4** after SU-3 (§8).
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -71,10 +70,11 @@ code shape, cost and upkeep.
 6. **The GUI** (§7) takes `--scenario <file>`, has Reload and "Save board as
    scenario", and shows a load error in the window. The decision log embeds the
    scenario, so the log is a save. **Savestates**, positions the tester sets
-   and moves between, go in A6g's tools PR (the one that builds undo, the save
-   and the export) as bookmarks in the log (the owner, 2026-10-01). The tools'
-   five open decisions are §7.2's: how a run stops, what an undo removes, the
-   agents under replay, where the save's branches live, and the exported test.
+   and moves between, go in A6g's tools PR (the one that builds undo and the
+   save) as bookmarks in the log (the owner, 2026-10-01). The tools' decisions
+   are §7.2's, settled 2026-10-03: a run stops by a typed unwind, an undo
+   returns to the window's last prompt, the dev GUI seats no agent, the save is
+   a journal beside the log, and the exported test is dropped.
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
    before the tester takes over, which is how a deep stack is built; they
    resolve nothing, so a resolved effect is their stack and the seats' passes
@@ -624,8 +624,8 @@ with controllers, attack targets naming a player, a planeswalker or a battle
 (CR 508.1b), blockers controlled by the attacked player (509.1a), players who
 have left (800.4a), commander designation and damage. The GUI loads two-seat
 scenarios, since four seats in the GUI are out of A6g's scope and the bridge
-builds two providers; §7's seats PR proposes lifting that, for the owner to
-decide. Tests and `fuzz_games` load any count.
+builds two providers; §7's "Seats" puts lifting that to the owner, in SU-3's
+design. Tests and `fuzz_games` load any count.
 
 ---
 
@@ -694,28 +694,29 @@ the file changes.
 
 **Seats.** The window plays seat 0, and the random agent plays the others.
 Playable's PR built the seat's controls and kept the window at seat 0
-(2026-10-02). **The window should be able to play any set of seats, every
-seat included** (the owner, 2026-10-03, at the tools' review): reaching a
-situation on a big Commander board takes specific choices from each seat, and
-an agent's random ones get in the way. With no script for a seat during play
-(§5.3), it is also how a tester explores both sides of an interaction from one
-board. Proposed as its own PR, **the seats PR**, ahead of SU-3 and the tools,
-since both lean on it: a board built in the editor is played from every seat,
-and an undo goes back to the window's last prompt whichever seat it was for
-(§7.2, decision 2). What it takes:
-- each seat is the window's or an agent's, chosen at launch (`--window 0,1` or
-  `--window all`), each window seat with its own stack of decorators and its
-  own yield; full control stays one switch;
+(2026-10-02). **The window is to play every seat, and the agent leaves the dev
+GUI** (the owner, 2026-10-03, over the tools' two review rounds): reaching a
+situation on a big Commander board takes specific choices from each seat, an
+agent's random ones get in the way, and the dev GUI is for building cards and
+debugging, not for play against an opponent. `fuzz_games` keeps the agent.
+With no script for a seat during play (§5.3), playing every seat is also how a
+tester explores both sides of an interaction from one board. What it takes:
+- every seat gets the window's stack of decorators and its own yield; full
+  control stays one switch;
 - a prompt names the seat it asks, which `Prompt` does not carry today, and
-  "(you)" marks every seat the window plays;
-- **past two seats**: `--players N` for a dealt game and a scenario's own
-  count, where today the bridge dispatches to two providers, deals two decks
-  and refuses a scenario that is not two-seat (`build_scenario_game`). Four
-  seats in the dev GUI are out of A6g's scope (`roadmap-v2.md` A6g's row,
-  §5.4), so this half is the owner's call.
+  `WINDOW_SEAT`'s seven uses (the bridge and the view model) go;
+- the tests that play the window's part, the random clicks and the rule the
+  review pictures are drawn by, answer for every seat, so the pictures redraw;
+- **past two seats**, the owner's call: `--players N` for a dealt game and a
+  scenario's own count, where today the bridge deals two decks and refuses a
+  scenario that is not two-seat (`build_scenario_game`), though
+  `mtgsim/scenarios/four-seats-commander.scenario` already loads in the
+  engine. Four seats in the dev GUI are out of A6g's scope today
+  (`roadmap-v2.md` A6g's row, §5.4).
 
-Sized ~200–300 lines with tests at two seats, and ~+100–150 past two: a
-four-seat review board and its picture, and random clicks on it.
+Sized ~200–300 lines with tests at two seats, and ~+100–150 past two. It
+comes before the tools; whether it rides in SU-3 or ahead of it is SU-3's
+design's to settle.
 
 **Savestates** (the owner's suggestion, placed in the tools PR by the owner,
 2026-10-01) are positions the tester sets during play and moves between, like a
@@ -725,14 +726,13 @@ and moving to one replays the start and the log up to it, exactly, at any
 prompt. A cloned `GameState` would resume only at a round's start (item 140).
 Playing on from an earlier bookmark starts a branch, and the save keeps every
 branch. A savestate can also be written out as a scenario, with the writer's
-report. §7.1–§7.3 design them with undo, the save and the export, and §8 sizes
-the build.
+report. §7.1–§7.3 design them with undo and the save, and §8 sizes the
+build.
 
 ### 7.1 The tools: where they sit, and what the tree has
 
-> **Status:** design, 2026-10-02, revised at the first review round
-> (2026-10-03), for the owner's review before any code. The recommendations
-> below are proposals until then.
+> **Status:** design, 2026-10-02, decided over two review rounds on #212
+> (2026-10-03). The build, SU-4, comes after SU-3 (§8).
 
 **Where it sits.** On the decision boundary's far side, beside the decision
 log. Since playable (#211) the engine writes every answer to the log, whoever
@@ -798,9 +798,9 @@ build and its audit:
   engine call in the window about 8× faster with the audit still on, for about
   a second more per engine rebuild and a first build of ~23 s instead of ~14.
   It leaves `cargo test` in `mtgsim/` as it is. Opt-level 2 is no faster here,
-  and its rebuild is four times as slow. Proposed for the seats PR, the next
-  window PR, with `engineering-practices.md` §10.4's `prompt_cost` read before
-  and after.
+  and its rebuild is four times as slow. Proposed for the next window PR,
+  SU-3 or the seats change ahead of it, with `engineering-practices.md` §10.4's
+  `prompt_cost` read before and after.
 - **No audit while replaying**: the answers a replay gives were audited when
   they were first played. A debug-only switch the replay turns off until the
   hand-over, ~20 lines in SU-4, 44× on a debug replay.
@@ -819,9 +819,8 @@ needed.
 
 **The problem.** A `DecisionProvider` must return an answer and cannot say
 "stop". The window does not need to: a replay that reaches its last line hands
-the next prompt to the seats. Four things do. An exported test must end where
-its script ends and then read the board. The setup driver's refusal (§5.3) is
-a panic today, which the window shows as an engine bug. A replay that
+the next prompt to the seats. Three things do. The setup driver's refusal
+(§5.3) is a panic today, which the window shows as an engine bug. A replay that
 disagrees with its log (another question at a line, or an answer the prompt
 cannot take) must say which line. And a replay that an undo or a move
 supersedes should end at its next answer rather than play on to its last line
@@ -833,11 +832,11 @@ supersedes should end at its next answer rather than play on to its last line
 | Performance | nothing on a game's path; a stop is one unwind | one branch per answer |
 | Upkeep | control flow by unwinding, as the tree already ends a run early; it relies on `panic = "unwind"` and on no engine `Drop` writing `GameState`, both true today. Work in flight at the prompt is dropped, so a stopped game is read and never continued: the run methods refuse one | the stop is in the types and nothing unwinds; every provider written from now on handles it |
 
-**Recommendation: A.** A stop leaves the state as it was at the prompt, which
-is what the window shows there and what `Scenario::write` writes. Continuing
-it would play a game missing what the unwound frames held (a batch's decided
-members, a cast's remaining steps), which is why the run methods refuse a
-stopped game rather than trusting every caller.
+**Decided: A** (the owner, 2026-10-03). A stop leaves the state as it was at
+the prompt, which is what the window shows there and what `Scenario::write`
+writes. Continuing it would play a game missing what the unwound frames held
+(a batch's decided members, a cast's remaining steps), which is why the run
+methods refuse a stopped game rather than trusting every caller.
 
 #### Decision 2 — what one undo removes
 
@@ -855,47 +854,32 @@ person is answered again at once.
 | Code | drop one line | the session records where each window prompt fell (the log's length when it was asked, one number a prompt), and undo goes back to the last | from the log alone |
 | After a reload | the same | the record is in the save (decision 4) | the same |
 
-**Recommendation: B.** Where the window was asked is the session's record, not
-the game's: `engineering-practices.md` §10's rule keeps who answered out of
-the log, so it goes in the save beside the savestates. "The window" is every
-seat the person plays (the seats PR, §7): undo goes back to the window's last
-prompt whichever seat it was for, so a person playing every seat steps back
-through the whole table's choices a prompt at a time. A yield ends at an undo,
+**Decided: B** (the owner, 2026-10-03). Where the window was asked is the
+session's record, not the game's: `engineering-practices.md` §10's rule keeps
+who answered out of the log, so it goes in the save beside the savestates.
+The window plays every seat (§7's "Seats"), so undo goes back to the last
+prompt whichever seat it was for, and steps back through the whole table's
+choices a prompt at a time. A yield ends at an undo,
 since it was set at a prompt the undo removes; full control is the window's
 and stays, as Reload keeps it. Where undo stops, at a scenario's first prompt,
 after a load and during a replay, is §7.3's.
 
-#### Decision 3 — the other seats under replay
+#### Decision 3 — the other seats under replay: closed, no agent in the dev GUI
 
-**Where it arises.** Only at a table that mixes the window and an agent, and
-only when play goes on past a replay, after an undo, a move or a load. It
-does not arise when the window plays every seat, since nothing is an agent's.
-Nor does it arise in v1's GUI replaying a finished game, or in an AI harness
-replaying a recorded one: both answer every line from the log and nothing
-plays on, and a search forks a clone rather than replaying (item 140).
+**Closed at the second review round (the owner, 2026-10-03): the dev GUI
+seats no agent, at least for v1.** "The devgui is for building cards and
+debugging issues, not for normal play", so the window plays every seat (§7's
+"Seats"), and the question this decision asked never arises: what an agent's
+random stream should be after a replay hands over to it.
 
-**The problem.** The log answers every seat. A replay that answers the agent's
-lines from it never asks the agent, so at the hand-over the agent's random
-stream is where a fresh one starts, not where the original's stood, and an
-undo followed by the same click plays a different game from the one the person
-saw. The agent's other state hardly matters there: `RandomDecisionProvider`'s
-list of rejected actions empties at its next priority prompt that carries no
-rejection, and its mana-window tracker only caps activations, at 32, for the
-spell or ability being paid for.
-
-| | **A. Answer from the log; the agent restarts** | **B. Ask the agent again, and check it against the log** | **C. Answer from the log; key the agent's randomness by the log's length** |
-|---|---|---|---|
-| At the hand-over | the agent's stream at its start: the same game for the same save and place, not the original's continuation | exactly the original's | the original's, from any window prompt, which is where undo and savestates land |
-| Code | the A6g test's replay, moved into the engine | the replay asks the agents' seats and compares. It must know which seats were agents, which the log does not say (`engineering-practices.md` §10); run the setup driver above itself, so the agent is not asked the driver's lines; and follow the engine's own writes to know which line it is at. ~+80 lines over A | the agent reseeds before each question from its seed and the number of lines the log holds, which the client counts: `RandomDecisionProvider::reseed`, ~10 lines, and a wrapper beside it, ~40 |
-| Performance | none | the agent's choices again at each rebuild, small beside the engine's | one `StdRng` seeded per agent question, ~100 ns |
-| Upkeep | none | a save stops loading when the agent's policy changes, which every PR touching `ui::random` does; a free determinism check at each rebuild | `fuzz_games`' agent is untouched. The dev GUI's agent draws differently from today's, so games against it change; the review pictures redraw anyway for the new buttons |
-
-**Recommendation: A** (revised at review, 2026-10-03, from C, once every seat
-became playable by the window). Exact play after an undo is now the person
-playing every seat, so a mixed table needs only an agent that plays the same
-way for the same save and place, not one that repeats the original's
-continuation. A gives that for nothing and leaves the dev GUI's agent as it
-is. C stays the road if a mixed table ever needs the original continuation.
+The options it weighed, for the record: answer the agent's lines from the log
+and restart the agent at the hand-over; ask the agent again and check it
+against the log; or answer from the log and key the agent's randomness by the
+log's length, so that it continues as the original did. Nor does the question
+arise in v1's GUI replaying a finished game, or in an AI harness replaying a
+recorded one: both answer every line from the log and nothing plays on, and a
+search forks a clone rather than replaying (item 140). The keyed agent is the
+road if a later client ever seats an agent that plays on past a replay.
 
 #### Decision 4 — where savestates and branches live, and loading a save
 
@@ -909,90 +893,47 @@ which is the session's record and not the game's.
 |---|---|---|---|
 | Shape | the log becomes a journal: the engine's answer lines, with the session's lines between them for a window prompt, a savestate and a move back; reading it applies the moves to rebuild the tree | the log stays the engine's record of the line of play the window is on, written again by each rebuild's replay. The save, `<log>.save`, is the session's journal: the start, every answer as the engine wrote it, and the session's own lines | a folder for each session: each branch a whole log, the start and every answer from it, and an index of the savestates, the window prompts and which branch left which |
 | Writing | appended and flushed a line at a time, as the log is today, so a crash loses nothing | the same, into the save | each branch's log as today; the index written again at each change |
-| Reading | one parser; every reader of the game's record (the export, a bug report) applies the moves first | a log is one line of play and replays alone, as now; the save's reader rebuilds the tree | every log replays alone; the index is a save file under another name |
+| Reading | one parser; every reader of the game's record (a bug report, a test written from it) applies the moves first | a log is one line of play and replays alone, as now; the save's reader rebuilds the tree | every log replays alone; the index is a save file under another name |
 | `engineering-practices.md` §10 | who answered (the window's prompts) sits in the log | the log is untouched | the log is untouched |
 
-**Recommendation: B, the save a journal.** The engine's thread appends to it,
-since that thread sees every line in order and knows when it asks the window;
-a savestate is a reply the window sends while a prompt is open, as "stop
-yielding" is today; and a superseded game's writer is shut before the next one
-starts, since a game still running toward its next prompt would otherwise
-append to the new line. Loading is §7.3's.
+**Decided: B, the save a journal** (the owner, 2026-10-03). The engine's
+thread appends to it, since that thread sees every line in order and knows
+when it asks the window; a savestate is a reply the window sends while a
+prompt is open, as "stop yielding" is today; and a superseded game's writer
+is shut before the next one starts, since a game still running toward its
+next prompt would otherwise append to the new line. Loading is §7.3's.
 
-#### Decision 5 — the exported test
+**At scale, for v1** (the owner, 2026-10-03): open, and settled in SU-4's
+design before its build, with v1's readers in view. The dev GUI writes a
+session's files into `logs/` where it runs, named for the start and the seed
+(`seed-41.log`, a Reload's `-2`). v1 adds two writers at another scale: v1's
+GUI keeping a player's games to replay (`backlog.md` §2.38), and the AI
+harness keeping the records of games run by the thousand in parallel (Phase
+10). What SU-4's design settles for them:
+- **the folders**: where each writer's files go, such as a per-user data
+  folder for v1's GUI and a folder per run for the harness, and how a file is
+  named so that a person finds one game among thousands;
+- **what a file says about what wrote it**: a header naming the format's
+  version and the engine's commit, which the build already stamps for the
+  trace sink, so a save from another engine is refused for that reason rather
+  than replayed into a disagreement;
+- **a file per game or a batch per worker**, and whether a harness game whose
+  seats are seeded agents needs its log at all, since its seeds replay it: the
+  log might be kept only for a game someone opens, such as a failure or a
+  sample;
+- **an index** for browsing many saves, and whether old ones are pruned.
 
-**What the export is.** A button in the dev GUI that turns the game on screen
-into a test in the engine's suite, so a bug found by clicking becomes a
-regression test without anyone writing its script by hand. The test builds
-the game's start again, gives the engine every answer the game got, every
-seat's, in the order it got them, and then checks the result. `roadmap-v2.md`
-A6g lists it with the tools, and §7 sketched its shape.
+#### Decision 5 — the exported test: dropped
 
-An example. A tester loads a board with Humility, attacks with a creature
-wearing Holy Strength, blocks with Wall of Stone, and sees the wrong damage
-dealt. They click Export, and the dev GUI writes
-`mtgsim/tests/regressions/holy_strength_under_humility.rs`:
-
-```rust
-#[test]
-fn holy_strength_under_humility() {
-    let script = ScriptedDecisionProvider::new().stopping_when_spent();
-    // answer 4 · turn 3, Combat — Declare Blockers · player 1: Wall of Stone blocks Grizzly Bears [a]
-    script.expect_pick_n(ChoiceKind::named("DeclareBlockers"), vec![1]);
-    // … a line per chosen answer, every seat's
-    // The harness's helper: build the start, play it as it begins, and check
-    // that the script ran out rather than anything else stopping it.
-    let game = played_until_spent(include_str!("regressions/holy-strength.start"), &script);
-    assert_eq!(Scenario::write(&game.state).to_string(), include_str!("regressions/holy-strength.board"));
-}
-```
-
-The developer fixes the engine, changes the expected board from the wrong
-result the export saw to the right one, and commits the test, which fails on
-the old engine and passes on the new.
-
-**What is being decided** is three details of that generated file.
-
-- **Where it goes, and so how it compiles.** Every file directly in
-  `mtgsim/tests/` is its own test program, which cargo builds and links on
-  every `cargo test`, a few seconds apiece on this machine. (a) One harness
-  file, `mtgsim/tests/regressions.rs`, with each export a module in
-  `tests/regressions/` beside its fixtures: one program however many exports
-  accumulate, and the export adds the module's line to the harness. (b) A file
-  each in `mtgsim/tests/`: no harness line, and one more program to link with
-  each export. (c) Into `logs/` beside the save, for the developer to move
-  into the tree by hand.
-- **What it checks at the end.** The generated check compares the game at the
-  end with what the export saw, and the developer then edits it to the right
-  result. (a) The board, as `Scenario::write` writes it: about as long as the
-  board, it changes only when the board does, and it cannot see what the
-  writer only counts, such as which spells are on the stack or a resolution's
-  effects. (b) The event log, every event of the game: it sees everything,
-  runs to thousands of lines, and any change to how an event is worded breaks
-  every export. (c) Nothing beyond the answers: the test fails only when the
-  engine asks different questions.
-- **The forced lines.** About seven log lines in ten are passes the engine
-  made itself, where passing was the only legal answer. (a) Leave them out:
-  the script's seats do not ask to stop at those points, so the engine passes
-  for them as it did, the script is about a third as long (the probe: 141–284
-  of 465–884 lines), and an engine change that adds or removes such a point
-  does not break the test. (b) Keep them, with the seats stopping at every
-  priority point: stricter, and three times as long.
-
-**Recommendation: (a) the harness, (a) the written board, and (a) the forced
-lines left out.** Each `expect_*` line carries a comment naming its answer:
-the number, the turn and step, the player, and the picks in `ui::display`'s
-words, which the export gets by replaying the line once. The start is the
-log's own text in a fixture, read by the engine's parser, so a dealt start
-and a scenario read one way. §7's owed `ChoiceKind` from a name is
-`ChoiceKind::named`, the inverse of a new `ChoiceKind::name` (an exhaustive
-match that replaces the three copies), building placeholder fields the
-scripted provider ignores, with a test that round-trips every variant.
-
-**Not recommended, for the record: the log as the fixture.** The save's line
-of play as a file and a five-line test replaying it with the window's replay:
-about 150 lines less, and one replay path rather than two. It loses the
-inline, labeled script a reviewer reads as a transcript of the game.
+**Dropped at the second review round (the owner, 2026-10-03).** The export
+was a button that wrote the game on screen out as a Rust test: its start, an
+`expect_*` line per answer and a check on the result, the shape §7 sketched
+and `roadmap-v2.md` A6g listed with the tools. It had too many moving parts
+for what it buys, and a generator with a bug writes wrong tests, which are
+worse than none, with nothing placed to catch them. A regression test found in
+the window is written by hand, from the log the window keeps. The
+`ChoiceKind` built from a logged name, which §7 owed the export, goes with it;
+`ChoiceKind::name` stays, since the replay compares names.
 
 ### 7.3 What the window shows, and where each surface lives
 
@@ -1028,11 +969,10 @@ second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
 |---|---|---|
-| `ChoiceKind::name` | the engine, `ui::choice_types` | the log, the prompt, the setup driver's refusal and the export say one name |
+| `ChoiceKind::name` | the engine, `ui::choice_types` | the log, the prompt and the setup driver's refusal say one name |
 | A line's text and a start's, written and read | the engine, `state::decision_log` | every client's log and save say the same words, and one parser reads them |
 | The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
 | The stop | the engine, `ui::decision` and `Game` | it crosses the boundary |
-| Which seats the window plays | the dev GUI's launch and bridge | who answers is one client's choice, never the game's |
 | The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
 | The replaying status, the buttons, the menu | the dev GUI's drawing | how it looks |
 
@@ -1098,19 +1038,26 @@ archive's tables say where), so re-size before the build, counting doc
 comments and refusal messages as neither sizing did.
 
 **The tools (§7.1–§7.3), sized 2026-10-02 with doc comments and messages
-counted, revised at review 2026-10-03.** Whole, they come to ~2,300–3,300
-lines of code and tests, past the band, so they are two PRs, each with its
-consumer: **SU-4**, the replay, undo, the save and savestates, whose consumer
-is the window; and **SU-5**, the exported test, whose consumer is a committed
-export.
+counted, revised over the review rounds of 2026-10-03.** One PR, **SU-4**: the
+replay, undo, the save and savestates, whose consumer is the window. The
+exported test it was split from is dropped (§7.2, decision 5).
 
-**The order, proposed at review (2026-10-03) and the owner's call:** the seats
-PR (§7), then SU-3, then SU-4 and SU-5. Nothing in the tools needs the editor,
-and nothing in the editor needs the tools. The editor first makes the boards
-the tools are tried on quicker to build, a four-seat Commander board above
-all, and the seats PR goes ahead of both because each is played from every
-seat. SU-4 then adds its buttons beside the editor's mode, which this sizing
-does not count.
+**The order** (the owner, 2026-10-03): SU-3, then SU-4. Nothing in the tools
+needs the editor, and nothing in the editor needs the tools, and the editor
+first makes the boards the tools are tried on quicker to build, a four-seat
+Commander board above all. The seats change (§7, the window playing every
+seat) comes before both, in SU-3 or ahead of it as SU-3's design settles. SU-4
+adds its buttons beside the editor's mode, which this sizing does not count,
+so SU-4 re-sizes once SU-3 lands.
+
+**Keeping this design true while SU-3 lands.** §7.1–§7.3 name today's dev
+GUI: the bridge's log writer, `GuiSeat`, the seat's stack of decorators,
+Reload. SU-3 and the seats change move some of it, so SU-3's PR body lists,
+under "for SU-4", every change it makes to something these sections name,
+and SU-4's first step re-reads §7.1's "What the tree has" against the tree
+and re-sizes before any code. The decisions themselves (the typed unwind,
+undo to the window's last prompt, no agent, the save a journal) rest on the
+decision boundary and the engine's log, which SU-3 does not touch.
 
 | SU-4 piece | Where | Code | Tests |
 |---|---|---|---|
@@ -1131,15 +1078,9 @@ through `Scenario::write`; a savestate and a branch survive a save and a load;
 the stop on its own; a cast from hand with exact mana under `ManaWindowStop`,
 replayed. **At ~1,700–2,450 it sits at the band's top**, so the build measures
 at each commit, and if it crosses 2,500 it stops and reports, the savestate
-menu being what would move to SU-5.
+menu being what would move to a PR of its own.
 
-**SU-5**, the export: `ChoiceKind::named` (~50 and ~35 of tests),
-`ScriptedDecisionProvider::stopping_when_spent` (~20 and ~20), the export with
-its labeling replay and the harness line (~200–300 and ~60–100), the window's
-button (~30–50), and one committed export with a copy whose changed answer
-fails (~180–300 of tests): ~600–850 in all.
-
-**A/B, predicted before any arm runs.** Neither PR changes what a fuzz game
+**A/B, predicted before any arm runs.** SU-4 does not change what a fuzz game
 runs: `fuzz_games` attaches no log, uses no replay, and meets the stop only on
 a scenario's refused line. So every gameplay and cost row is predicted
 `IDENTICAL` on both pools at two seats and four, and instructions per decision
@@ -1248,7 +1189,7 @@ the save, `SU-*`).
 ## 11. Out of scope
 
 Hidden information (B4; the dev GUI shows every card); four seats in the GUI;
-save, undo, savestates and export (A6g's tools PR); item 193 (playable); the
+save, undo and savestates (A6g's tools PR, SU-4); item 193 (playable); the
 stack and resolved effects as written state (§2), which SU-2's setup actions
 play instead; a script for a seat during play (§5.3, dropped at review); the
 board editor (SU-3, §7a); CR 103.5's mulligans and CR 103.6's opening-hand
