@@ -1,9 +1,10 @@
-//! The engine's worker thread, and the seat that asks the window.
+//! The engine's worker thread, and the seats that ask the window.
 //!
-//! `Game::run` calls the seat and waits for its answer, so the game gets a
-//! thread of its own and the window never waits on the engine. At each decision
-//! the seat builds a [`Snapshot`] and a [`Prompt`] on this thread, sends them,
-//! wakes the window, and blocks until the answer comes back.
+//! The window plays every seat (`setup-architecture.md` §7's "Seats").
+//! `Game::run` calls a seat and waits for its answer, so the game gets a
+//! thread of its own and the window never waits on the engine. At each
+//! decision the seat builds a [`Snapshot`] and a [`Prompt`] on this thread,
+//! sends them, wakes the window, and blocks until the answer comes back.
 
 use std::any::Any;
 use std::cell::Cell;
@@ -31,15 +32,11 @@ use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
 use mtgsim::ui::display::format_phase;
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
 use crate::prompt::{Answer, Prompt, Reply, kind_name};
 use crate::snapshot::Snapshot;
-
-/// The seat the window plays.
-pub const WINDOW_SEAT: PlayerId = 0;
 
 const DECK_SIZE: usize = 60;
 
@@ -57,6 +54,9 @@ pub enum Pool {
 pub struct GameSetup {
     pub seed: u64,
     pub pool: Pool,
+    /// A dealt game's seats, dealt as `fuzz_games --players` deals them; a
+    /// scenario states its own.
+    pub players: usize,
     /// Where the decision log goes; `None` keeps none.
     pub log_path: Option<PathBuf>,
     /// A board to start from instead of dealt decks, read again at each
@@ -68,7 +68,8 @@ pub struct GameSetup {
 /// What the engine thread tells the window.
 #[derive(Debug)]
 pub enum ToWindow {
-    /// Seat 0 has a decision to make, and holds this yield while it does.
+    /// The seat `prompt` names has a decision to make, and holds this yield
+    /// while it does.
     Prompt { snapshot: Snapshot, prompt: Prompt, yielding: Option<Yield> },
     /// `Game::run` returned.
     Finished { snapshot: Snapshot, outcome: Outcome },
@@ -87,8 +88,8 @@ pub enum Outcome {
 }
 
 /// The window's ends of the two channels, the engine thread, and full
-/// control's switch above the window's seat, which the window flips from its
-/// own thread and the seat reads at its next prompt (`mtgsim::ui::full_control`).
+/// control's switch above every seat, which the window flips from its own
+/// thread and a seat reads at its next prompt (`mtgsim::ui::full_control`).
 pub struct EngineHandle {
     pub from_engine: Receiver<ToWindow>,
     pub answers: Sender<Reply>,
@@ -127,11 +128,11 @@ fn play(
     full_control: FullControlSwitch,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    let (mut game, setup_actions, log, agent_seed) = match &setup.scenario {
+    let (mut game, setup_actions, log) = match &setup.scenario {
         Some(path) => match build_scenario_game(setup, path) {
             Ok((BuiltScenario { game, setup: actions }, text)) => {
                 let log = DecisionLog::open(setup, &GameStart::Scenario { path, text: &text });
-                (game, actions, log, RandomStreams::from_seed(setup.seed).agents)
+                (game, actions, log)
             }
             Err(message) => {
                 let _ = to_window.send(ToWindow::Refused { message });
@@ -144,42 +145,49 @@ fn play(
                 Pool::Performance => CardRegistry::performance_pool(),
                 Pool::Stress => CardRegistry::default_registry(),
             };
-            // `fuzz_games`' three streams from one seed: the decks off the seed
-            // itself, the shuffle and the bot off `RandomStreams`, so a fuzz
-            // game's printed seed deals the same game here.
-            let streams = RandomStreams::from_seed(setup.seed);
+            // `fuzz_games`' streams from one seed: the decks off the seed
+            // itself and the shuffle off `RandomStreams`, so a fuzz game's
+            // printed seed deals the same game here.
             let mut deck_rng = StdRng::seed_from_u64(setup.seed);
             let decks: Vec<Vec<Arc<CardData>>> =
-                (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
+                (0..setup.players).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
             let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
-            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
-            game.reseed(streams.game);
-            (game, SetupActions::default(), log, streams.agents)
+            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks or more always make a game");
+            game.reseed(RandomStreams::from_seed(setup.seed).game);
+            (game, SetupActions::default(), log)
         }
     };
     // The engine writes the log, every seat's answers and its own passes, so
-    // the record is the game's whatever answered at seat 0.
+    // the record is the game's whatever answered at each seat.
     let log = Arc::new(Mutex::new(log));
     let writer = Arc::clone(&log);
     game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
     game.state.record_events();
 
     let events_logged = Rc::new(Cell::new(0));
-    let yields = Yields::default();
-    let seat = GuiSeat {
-        to_window: to_window.clone(),
-        from_window: Rc::new(from_window),
-        wake: Arc::clone(wake),
-        events_logged: Rc::clone(&events_logged),
-        yields: yields.clone(),
-    };
-    // `cli_play`'s stacks: CR 601.2g's window closes once the cost is paid,
-    // and a yield passes for the person, all of it off under full control.
-    let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(seat.clone())), yields.clone());
-    let dp = DispatchDecisionProvider::new(vec![
-        Box::new(FullControl::new(decorated, seat, full_control).superseding(yields)),
-        Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(agent_seed))),
-    ]);
+    let from_window = Rc::new(from_window);
+    // Every seat the window's, each with `cli_play`'s stack and a yield of
+    // its own: CR 601.2g's window closes once the cost is paid, and a yield
+    // passes for the person, all of it off under full control's one switch.
+    let seats: Vec<Box<dyn DecisionProvider>> = game
+        .state
+        .players
+        .iter()
+        .map(|_| {
+            let yields = Yields::default();
+            let seat = GuiSeat {
+                to_window: to_window.clone(),
+                from_window: Rc::clone(&from_window),
+                wake: Arc::clone(wake),
+                events_logged: Rc::clone(&events_logged),
+                yields: yields.clone(),
+            };
+            let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(seat.clone())), yields.clone());
+            let routed = FullControl::new(decorated, seat, full_control.clone()).superseding(yields);
+            Box::new(routed) as Box<dyn DecisionProvider>
+        })
+        .collect();
+    let dp = DispatchDecisionProvider::new(seats);
     // A scenario's setup actions play first, every seat's, so the window's
     // first prompt comes once they have built their stack.
     let played = match setup.scenario {
@@ -201,17 +209,15 @@ fn play(
 fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(BuiltScenario, String), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
-    if scenario.players != 2 {
-        return Err(format!("the dev GUI plays two seats, and this scenario has {}", scenario.players));
-    }
     let built = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
     Ok((built, text))
 }
 
-/// Seat 0: every question that reaches it goes to the window. One with a
-/// single legal answer never does unless full control is on: the engine
-/// answers it before asking. Two values share one channel, the provider at
-/// the bottom of the decorated stack and full control's raw one.
+/// A seat the window plays: every question that reaches it goes to the
+/// window, over the channel every seat shares. One with a single legal answer
+/// never does unless full control is on: the engine answers it before asking.
+/// Each seat is two values, the provider at the bottom of its decorated stack
+/// and full control's raw one, which share its yield.
 #[derive(Clone)]
 struct GuiSeat {
     to_window: Sender<ToWindow>,
@@ -219,7 +225,8 @@ struct GuiSeat {
     wake: Arc<dyn Fn() + Send + Sync>,
     /// Shared with `play`, whose final board picks the log up from here.
     events_logged: Rc<Cell<usize>>,
-    /// The yield the window sets, which `AutoYield` reads.
+    /// This seat's yield, which the window sets and this seat's `AutoYield`
+    /// reads.
     yields: Yields,
 }
 
@@ -227,10 +234,10 @@ impl GuiSeat {
     /// Send `prompt` and wait for the window's reply: an answer, or at a
     /// priority prompt a yield. "Stop yielding" is carried out here, and the
     /// prompt stays open.
-    fn ask(&self, game: &GameState, player: PlayerId, prompt: Prompt) -> Reply {
+    fn ask(&self, game: &GameState, prompt: Prompt) -> Reply {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
-        let yielding = self.yields.holding(game, player);
+        let yielding = self.yields.holding(game, prompt.player);
         if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
@@ -244,8 +251,8 @@ impl GuiSeat {
         }
     }
 
-    fn answer(&self, game: &GameState, player: PlayerId, prompt: Prompt) -> Answer {
-        match self.ask(game, player, prompt) {
+    fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
+        match self.ask(game, prompt) {
             Reply::Answer(answer) => answer,
             other => panic!("{other:?} answered a prompt that is not a priority prompt"),
         }
@@ -261,7 +268,7 @@ impl DecisionProvider for GuiSeat {
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        match self.ask(game, player, Prompt::pick_n(game, context, options, bounds)) {
+        match self.ask(game, Prompt::pick_n(game, player, context, options, bounds)) {
             Reply::Answer(Answer::Picks(picks)) => picks,
             // A yield answers the priority prompt it is set at with a pass;
             // the window offers a stack yield only over a stack, the one the
@@ -276,7 +283,7 @@ impl DecisionProvider for GuiSeat {
     }
 
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        match self.answer(game, player, Prompt::number(game, context, min, max)) {
+        match self.answer(game, Prompt::number(game, player, context, min, max)) {
             Answer::Number(number) => number,
             other => panic!("a pick_number was answered with {other:?}"),
         }
@@ -292,15 +299,15 @@ impl DecisionProvider for GuiSeat {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        let prompt = Prompt::allocate(game, context, total, buckets, per_bucket_mins, per_bucket_maxs);
-        match self.answer(game, player, prompt) {
+        let prompt = Prompt::allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs);
+        match self.answer(game, prompt) {
             Answer::Allocation(amounts) => amounts,
             other => panic!("an allocate was answered with {other:?}"),
         }
     }
 
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        match self.answer(game, player, Prompt::order(game, context, items)) {
+        match self.answer(game, Prompt::order(game, player, context, items)) {
             Answer::Order(order) => order,
             other => panic!("a choose_ordering was answered with {other:?}"),
         }

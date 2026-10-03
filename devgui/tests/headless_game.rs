@@ -6,55 +6,105 @@ mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
+use std::collections::BTreeSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use std::time::{Duration, Instant};
 
-use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, ToWindow, spawn_game};
 use devgui::session::Session;
 use devgui::view_model::{Input, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next};
-use window_by_rule::play_by_rule;
+use window_by_rule::{inputs_by_rule, play_by_rule};
 
+/// Seed 6's game, played by rule at both seats, ends in 33 turns. Seed 7's,
+/// this test's until the window played every seat, ran 94 turns, 14 s in
+/// debug: the rule spends its mana on activated abilities before creatures.
 #[test]
 fn a_whole_game_finishes_with_a_thread_playing_the_window() {
-    let log = std::env::temp_dir().join("devgui-headless-seed-7.log");
+    let log = std::env::temp_dir().join("devgui-headless-seed-6.log");
     let window = std::thread::spawn({
         let log = log.clone();
-        move || play_by_rule(dealt(7, Some(log)), |_| {})
+        move || {
+            let mut asked = Vec::new();
+            let played = play_by_rule(dealt(6, Some(log)), |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
+            (played, asked)
+        }
     });
-    let (outcome, answered) = window.join().expect("the window's thread panicked");
+    let ((outcome, answered), asked) = window.join().expect("the window's thread panicked");
     assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
-    assert!(answered > 20, "a game of Magic asks seat 0 more than {answered} questions");
+    assert!(answered > 20, "a game of Magic asks more than {answered} questions");
+    assert!(asked.contains(&0) && asked.contains(&1), "the window plays every seat");
 
     let log = std::fs::read_to_string(&log).expect("the decision log");
     let lines: Vec<&str> = log.lines().collect();
-    assert_eq!(lines[..2], ["seed 7", "pool Performance"]);
+    assert_eq!(lines[..2], ["seed 6", "pool Performance"]);
     assert!(lines[2].starts_with("deck 0 ") && lines[3].starts_with("deck 1 "));
     assert!(lines[4].starts_with("answer 1 [turn 1, "), "each answer says when: {}", lines[4]);
     let answers: Vec<&&str> = lines.iter().filter(|l| l.starts_with("answer ")).collect();
-    let seat_0 = answers.iter().filter(|l| l.contains("] player 0 ")).count();
-    assert!(seat_0 > answered, "seat 0's lines hold the window's answers, its decorators' and the engine's passes");
-    assert!(answers.iter().any(|l| l.contains("] player 1 ")), "and the other seat's answers");
+    assert!(answers.len() > answered, "the log holds the window's answers, its decorators' and the engine's passes");
+    assert!(answers.iter().any(|l| l.contains("] player 0 ")) && answers.iter().any(|l| l.contains("] player 1 ")), "for each seat");
     assert!(answers.iter().any(|l| l.ends_with(" forced")), "a question with one legal answer is marked");
     assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
 }
 
 /// CR 103.8a: seat 0 plays first in a two-player game and skips its first draw
-/// step, so the window's first prompt, in turn 1's main phase, shows the seven
-/// cards it kept.
+/// step, so the window's first prompt, seat 0's in turn 1's main phase, shows
+/// the seven cards it kept.
 #[test]
 fn the_window_starts_holding_seven_since_its_first_draw_is_skipped() {
     let engine = spawn_game(dealt(7, None), Arc::new(|| {}));
-    let ToWindow::Prompt { snapshot, .. } = next(&engine) else {
+    let ToWindow::Prompt { snapshot, prompt, .. } = next(&engine) else {
         panic!("expected a prompt first");
     };
+    assert_eq!(prompt.player, 0);
     assert_eq!((snapshot.turn, snapshot.active_player, snapshot.phase.as_str()), (1, 0, "Precombat Main"));
     assert_eq!(snapshot.players[0].hand.len(), 7);
     assert_eq!(snapshot.players[0].library.len(), 53);
+}
+
+/// Four seats dealt as `fuzz_games --players 4` deals them. In a game of
+/// more than two nobody skips the first draw (CR 103.8c), so the first prompt
+/// shows seat 0 holding eight. Played by rule until the window has been asked
+/// at every seat, not to the end: by rule, four seats play a long game.
+#[test]
+fn a_four_seat_game_deals_four_hands_and_asks_the_window_at_every_seat() {
+    let engine = spawn_game(GameSetup { players: 4, ..dealt(6, None) }, Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let board = state.board.as_ref().expect("a board at the first prompt");
+    let held: Vec<(usize, usize)> = board.players.iter().map(|p| (p.hand.len(), p.library.len())).collect();
+    assert_eq!(held, [(8, 52), (7, 53), (7, 53), (7, 53)]);
+    let mut asked = BTreeSet::new();
+    while let Some(prompt) = &state.prompt {
+        asked.insert(prompt.player);
+        if asked.len() == 4 {
+            break;
+        }
+        let reply = inputs_by_rule(&state).into_iter().find_map(|input| state.input(input)).expect("the rule answers");
+        engine.answers.send(reply).expect("the engine hung up with a prompt open");
+        state.receive(next(&engine));
+    }
+    assert_eq!(asked, BTreeSet::from([0, 1, 2, 3]), "{:?}", state.status());
+    let EngineHandle { answers, thread, .. } = engine;
+    drop(answers);
+    thread.join().expect("a game whose window has gone ends without panicking");
+}
+
+/// The four-seat Commander sample, played by rule to its end. Player 1 has
+/// left the game (CR 800.4a), so the window is never asked at that seat.
+#[test]
+fn the_four_seat_sample_plays_to_its_end_and_never_asks_the_seat_that_left() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/four-seats-commander.scenario");
+    let mut asked = BTreeSet::new();
+    let setup = GameSetup { scenario: Some(path), ..dealt(0, None) };
+    let (outcome, _) = play_by_rule(setup, |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
+    assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
+    assert_eq!(asked, BTreeSet::from([0, 2, 3]));
 }
 
 #[test]
@@ -114,8 +164,8 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let text_lines = board.lines().count();
     assert_eq!(lines[3..3 + text_lines], board.lines().collect::<Vec<_>>()[..]);
     assert_eq!(lines[3 + text_lines], "end scenario text");
-    let seat_0 = lines.iter().filter(|l| l.starts_with("answer ") && l.contains("] player 0 ")).count();
-    assert!(seat_0 > answered, "every answer the window gave is among seat 0's lines");
+    let answers = lines.iter().filter(|l| l.starts_with("answer ")).count();
+    assert!(answers > answered, "every answer the window gave is in the log, beside the engine's own passes");
 }
 
 /// A file the loader refuses reaches the window as its line and its fix.

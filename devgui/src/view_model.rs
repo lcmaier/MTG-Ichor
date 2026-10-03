@@ -11,9 +11,10 @@
 
 use std::sync::Arc;
 
+use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
 
-use crate::bridge::{Outcome, ToWindow, WINDOW_SEAT};
+use crate::bridge::{Outcome, ToWindow};
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
@@ -64,7 +65,7 @@ pub enum Key {
 }
 
 /// What each key does, for the prompt's foot.
-pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until my next turn";
+pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until this player's next turn";
 
 /// How long after a prompt arrives its input is dropped (`codebase-state.md`
 /// item 201): egui's double-click window, so the second click of a double
@@ -342,13 +343,12 @@ impl WindowState {
             "The engine panicked".to_string()
         } else if let Some(outcome) = &self.outcome {
             match outcome {
-                Outcome::Won(player) if *player == WINDOW_SEAT => "Game over: you win".to_string(),
                 Outcome::Won(player) => format!("Game over: Player {player} wins"),
                 Outcome::Draw => "Game over: a draw".to_string(),
                 Outcome::Error(error) => format!("The engine returned an error: {error}"),
             }
-        } else if self.prompt.is_some() {
-            "Your decision".to_string()
+        } else if let Some(prompt) = &self.prompt {
+            format!("Player {} to decide", prompt.player)
         } else {
             "The engine is playing".to_string()
         }
@@ -382,7 +382,7 @@ impl WindowState {
             view.yields = [Yield::UntilEndOfTurn, Yield::UntilStackChanges, Yield::UntilYourNextTurn]
                 .into_iter()
                 .map(|until| SeatButton {
-                    label: format!("Pass {}", until_words(until)),
+                    label: format!("Pass {}", until_words(until, prompt.player)),
                     input: Input::Yield(until),
                     live: self.yield_is_live(until),
                 })
@@ -390,18 +390,19 @@ impl WindowState {
         }
         view.yielding = self.yielding.map(|until| {
             let stop = SeatButton { label: "Stop yielding".to_string(), input: Input::StopYielding, live: true };
-            (format!("Passing {}", until_words(until)), stop)
+            (format!("Passing {}", until_words(until, prompt.player)), stop)
         });
         Some(if self.settling_for().is_some() { view.settling() } else { view })
     }
 }
 
-/// How long a yield passes for, in the person's words.
-fn until_words(until: Yield) -> &'static str {
+/// How long a yield passes for, in the person's words: a seat's yield passes
+/// for that seat, so the next turn it waits for is `player`'s.
+fn until_words(until: Yield, player: PlayerId) -> String {
     match until {
-        Yield::UntilEndOfTurn => "until end of turn",
-        Yield::UntilStackChanges => "until the stack changes",
-        Yield::UntilYourNextTurn => "until my next turn",
+        Yield::UntilEndOfTurn => "until end of turn".to_string(),
+        Yield::UntilStackChanges => "until the stack changes".to_string(),
+        Yield::UntilYourNextTurn => format!("until Player {player}'s next turn"),
     }
 }
 
@@ -447,7 +448,8 @@ pub struct SeatView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardView {
     pub header: String,
-    /// Opponents first and the window's seat last, nearest the prompt.
+    /// Seat 0 last, nearest the prompt, and the others above it in seat
+    /// order, whichever seat is asked.
     pub seats: Vec<SeatView>,
     /// Top first.
     pub stack: Vec<Item>,
@@ -457,12 +459,13 @@ pub struct BoardView {
 }
 
 /// Which board things a click would move the answer along, which the answer
-/// has chosen, and which the prompt is about.
+/// has chosen, which the prompt is about, and which player it asks.
 #[derive(Default)]
 struct Marks {
     clickable: Vec<BoardRef>,
     chosen: Vec<BoardRef>,
     subject: Option<BoardRef>,
+    asked: Option<PlayerId>,
 }
 
 impl Marks {
@@ -489,7 +492,7 @@ impl Marks {
             Selection::Order(order) => order.iter().filter_map(first).collect(),
             Selection::Allocation(_) | Selection::Number(_) => Vec::new(),
         };
-        Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object) }
+        Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object), asked: Some(prompt.player) }
     }
 
     fn item(&self, target: BoardRef, title: String, detail: String, tapped: bool) -> Item {
@@ -552,7 +555,7 @@ impl Marks {
     }
 
     fn player(&self, player: &PlayerView) -> Item {
-        let you = if player.id == WINDOW_SEAT { " (you)" } else { "" };
+        let asked = if self.asked == Some(player.id) { " (to decide)" } else { "" };
         let mut detail = vec![format!("{} life", player.life)];
         if !player.mana_pool.is_empty() {
             let pool: Vec<String> = player.mana_pool.iter().map(|(symbol, n)| symbol.repeat(*n as usize)).collect();
@@ -562,14 +565,16 @@ impl Marks {
         if player.lost {
             detail.push("lost".to_string());
         }
-        self.item(BoardRef::Player(player.id), format!("Player {}{you}", player.id), detail.join(" · "), false)
+        self.item(BoardRef::Player(player.id), format!("Player {}{asked}", player.id), detail.join(" · "), false)
     }
 }
 
 impl BoardView {
     fn new(board: &Snapshot, marks: &Marks) -> BoardView {
-        let mut seats: Vec<&PlayerView> = board.players.iter().filter(|p| p.id != WINDOW_SEAT).collect();
-        seats.extend(board.players.iter().filter(|p| p.id == WINDOW_SEAT));
+        // One order at every prompt, so the board does not reshuffle as the
+        // asked seat changes at each pass of priority.
+        let mut seats: Vec<&PlayerView> = board.players.iter().skip(1).collect();
+        seats.extend(board.players.first());
         BoardView {
             header: format!("Turn {} · Player {}'s turn · {}", board.turn, board.active_player, board.phase),
             seats: seats.into_iter().map(|player| seat(player, marks)).collect(),
@@ -694,6 +699,7 @@ pub struct DoneButton {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PromptView {
+    /// The question, after the player it asks: `Player 1: Declare blockers`.
     pub question: String,
     /// Why the seat is asked again, when it is.
     pub rejected: Option<String>,
@@ -777,7 +783,7 @@ impl PromptView {
         let has_reset = !matches!(prompt.primitive, Primitive::PickN { max: 1, .. } | Primitive::Number { .. });
         let can_reset = has_reset && live(Input::Reset);
         PromptView {
-            question: prompt.question.clone(),
+            question: format!("Player {}: {}", prompt.player, prompt.question),
             rejected: prompt.rejected.clone(),
             rule,
             options,
@@ -888,6 +894,7 @@ mod tests {
 
     fn prompt(primitive: Primitive, options: Vec<OptionView>) -> Prompt {
         Prompt {
+            player: 0,
             kind: "Test".to_string(),
             question: String::new(),
             subject: None,
@@ -940,7 +947,7 @@ mod tests {
         let b = board();
         let view = WindowState { board: Some(b.snapshot.clone()), ..WindowState::default() }.board_view().unwrap();
         let mine = view.seats.last().unwrap();
-        assert_eq!(mine.player.target, Some(Player(WINDOW_SEAT)), "the window's seat is drawn last");
+        assert_eq!(mine.player.target, Some(Player(0)), "seat 0 is drawn last, nearest the prompt");
         let names: Vec<&str> = mine.zones.iter().map(|zone| zone.name.as_str()).collect();
         assert_eq!(names, ["Creatures", "Lands", "Other permanents", "Hand (1)", "Graveyard (0)", "Library (0)"]);
         let keys: Vec<&str> = mine.zones.iter().map(|zone| zone.key).collect();
@@ -1144,7 +1151,7 @@ mod tests {
         let view = state.prompt_view().unwrap();
         assert!(view.yields.is_empty());
         let (words, stop) = view.yielding.unwrap();
-        assert_eq!(words, "Passing until my next turn");
+        assert_eq!(words, "Passing until Player 0's next turn");
         assert_eq!(state.input(stop.input), Some(Reply::StopYielding));
         assert!(state.prompt.is_some() && state.yielding.is_none());
         assert_eq!(state.input(Input::StopYielding), None, "nothing left to stop");
@@ -1194,5 +1201,32 @@ mod tests {
         assert_eq!(state.input(Input::OptionButton(0)), None);
         let before_any_board = WindowState { panic: Some("early".to_string()), ..WindowState::default() };
         assert_eq!(before_any_board.no_board(), "No board: the engine panicked before its first prompt.");
+    }
+
+    /// The window plays every seat (`setup-architecture.md` §7's "Seats"):
+    /// a prompt says whose it is, the board marks that seat and keeps one
+    /// order, and a yield names the turn it waits for by its seat.
+    #[test]
+    fn a_prompt_names_the_seat_it_asks_and_the_board_keeps_its_order() {
+        let b = board();
+        let options = vec![option("Pass", Vec::new()), option("Cast Lightning Bolt", vec![Object(b.bolt)])];
+        let asking = |player| {
+            let question = "You have priority".to_string();
+            let priority = prompt(Primitive::PickN { min: 1, max: 1 }, options.clone());
+            deciding(&b, Prompt { player, pass: Some(0), question, ..priority })
+        };
+        let theirs = asking(1);
+        assert_eq!(theirs.status(), "Player 1 to decide");
+        let view = theirs.prompt_view().unwrap();
+        assert_eq!(view.question, "Player 1: You have priority");
+        let next_turn = view.yields.iter().find(|button| button.input == Input::Yield(Yield::UntilYourNextTurn)).unwrap();
+        assert_eq!(next_turn.label, "Pass until Player 1's next turn", "a seat's yield waits for that seat's turn");
+        for (asked, state) in [(0, asking(0)), (1, theirs)] {
+            let titles: Vec<String> = state.board_view().unwrap().seats.iter().map(|seat| seat.player.title.clone()).collect();
+            let named = |p: PlayerId| if p == asked { format!("Player {p} (to decide)") } else { format!("Player {p}") };
+            assert_eq!(titles, [named(1), named(0)], "one order whichever seat is asked");
+        }
+        let won = WindowState { outcome: Some(Outcome::Won(0)), ..WindowState::default() };
+        assert_eq!(won.status(), "Game over: Player 0 wins");
     }
 }

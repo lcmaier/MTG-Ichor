@@ -13,6 +13,7 @@
 #[path = "support/games.rs"]
 mod games;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
@@ -41,6 +42,13 @@ const RESET_ONE_IN: u32 = 20;
 /// How often full control is switched between two prompts.
 const FULL_CONTROL_ONE_IN: u32 = 25;
 
+/// How often a click is a yield, where the prompt offers one: as often as
+/// "Start over". The window plays every seat, and a yield as likely as any
+/// other click had both seats passing at most priority prompts, so a game
+/// ran on to the end of the libraries: 112 turns and 40 s for one stress
+/// game in debug.
+const YIELD_ONE_IN: u32 = 20;
+
 /// What the games reached, beside the primitives.
 #[derive(Default)]
 struct Reached {
@@ -68,7 +76,8 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
 
 /// The review boards reach what a dealt game reaches only now and then: a
 /// blocker with two attackers to choose between, damage to divide, and
-/// blocks declared illegally and asked for again.
+/// blocks declared illegally and asked for again. The four-seat sample has
+/// three seats the window plays and one that has left the game.
 #[test]
 fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
@@ -76,6 +85,10 @@ fn random_clicks_finish_games_from_the_review_boards() {
         for seed in SEEDS {
             play_at_random(from_board(board, None), seed, &mut reached);
         }
+    }
+    let four_seats = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/four-seats-commander.scenario");
+    for seed in SEEDS {
+        play_at_random(GameSetup { scenario: Some(four_seats.clone()), ..dealt(0, None) }, seed, &mut reached);
     }
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
 }
@@ -133,8 +146,11 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
 fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mut StdRng, reached: &mut Reached) -> Option<Reply> {
     for _ in 0..CLICK_CAP {
         let can_reset = state.prompt_view().is_some_and(|prompt| prompt.can_reset);
+        let yields = live_yields(state);
         let input = if can_reset && rng.random_ratio(1, RESET_ONE_IN) {
             Input::Reset
+        } else if !yields.is_empty() && rng.random_ratio(1, YIELD_ONE_IN) {
+            yields[rng.random_range(0..yields.len())]
         } else {
             let offered = clickable(state, rng);
             assert!(!offered.is_empty(), "the window offers nothing to click at {:?}", state.prompt);
@@ -157,11 +173,19 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
     None
 }
 
-/// What `app::draw` lets a person click now, besides "Start over": each
-/// option's button or an allocation's live "−" and "+", the number's field,
-/// the confirm button while it is live, each live yield and "Stop yielding",
-/// each board item marked clickable, and the key for each live button that
-/// has one.
+/// The yields the prompt offers now, each one live.
+fn live_yields(state: &WindowState) -> Vec<Input> {
+    let Some(prompt) = state.prompt_view() else {
+        return Vec::new();
+    };
+    prompt.yields.iter().filter(|button| button.live).map(|SeatButton { input, .. }| *input).collect()
+}
+
+/// What `app::draw` lets a person click now, besides "Start over" and the
+/// yields: each option's button or an allocation's live "−" and "+", the
+/// number's field, the confirm button while it is live, "Stop yielding", each
+/// board item marked clickable, and the key for each live button that has
+/// one.
 fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     let Some(prompt) = state.prompt_view() else {
         return Vec::new();
@@ -182,8 +206,8 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     if let Some(DoneButton { live: true, .. }) = prompt.done {
         inputs.push(Input::Done);
     }
-    let seat_buttons = prompt.yields.iter().chain(prompt.yielding.as_ref().map(|(_, stop)| stop));
-    inputs.extend(seat_buttons.filter(|button| button.live).map(|SeatButton { input, .. }| *input));
+    let stop = prompt.yielding.as_ref().map(|(_, stop)| stop).filter(|button| button.live);
+    inputs.extend(stop.map(|SeatButton { input, .. }| *input));
     let key = |key| Input::Key { key, repeat: false };
     let mut keyed: Vec<Input> = inputs
         .iter()

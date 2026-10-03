@@ -8,7 +8,7 @@ use devgui::bridge::{EngineHandle, GameSetup, Pool, ToWindow};
 
 /// A dealt game at `seed` from the performance pool.
 pub fn dealt(seed: u64, log_path: Option<PathBuf>) -> GameSetup {
-    GameSetup { seed, pool: Pool::Performance, log_path, scenario: None }
+    GameSetup { seed, pool: Pool::Performance, players: 2, log_path, scenario: None }
 }
 
 /// A game from the review board `name` under `tests/scenarios/`.

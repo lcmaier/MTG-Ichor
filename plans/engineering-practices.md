@@ -1874,14 +1874,15 @@ scenario's seed (finding 3 of that PR's table).
 
 ### 10.3 Random clicks
 
-`devgui/tests/random_clicks.rs` plays whole games with the window's part
+`devgui/tests/random_clicks.rs` plays whole games with every seat's part
 taken by seeded random clicks, through `WindowState::input`. At each prompt
 it clicks anything the window would let a person click (a live button, a
 board item marked clickable, "Start over" one click in twenty) until an
 answer completes: the half chosen and abandoned, the ordering reset midway,
 the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
-pool and three seeds on each review board, eighteen games in about 15 s of
-the debug build CI runs, read locally. Each game must finish, the engine's thread must not panic,
+pool, and three seeds on each review board and on the four-seat sample:
+twenty-one games in about 23 s of the debug build CI runs, read locally with
+the engine at opt-level 1 (§10.4). Each game must finish, the engine's thread must not panic,
 the engine must accept every answer the view model builds, and every click
 the window offers must change the answer or complete it: the view model asks
 one probe, `Selection::is_live`, which runs the click on a copy. The games
@@ -1902,6 +1903,12 @@ and offer nothing in its beat. A fourth review board, `reask.scenario`,
 declares blocks illegally. Its second find came from full control's extra
 prompts: `Scenario::write`, which the snapshot calls, indexed a blocker's
 attacker after the attacker, a token, had ceased to exist.
+
+**Since the seats PR** the window plays every seat, and so do the clicks. A
+yield is one click in twenty, as "Start over" is. A yield as likely as any
+other click had both seats passing at most priority prompts, so a game ran
+on to the end of the libraries: one stress game ran 112 turns, 2,892 prompts
+and 40 s in debug.
 
 ### 10.4 What one prompt costs the window
 
@@ -1935,3 +1942,21 @@ times its release cost, because the layer memo's audit walks the board again
 at every memo hit and the snapshot hits the memo several times a permanent.
 That audit is what found the engine bug in §10.3, so the window runs in debug
 to test cards and in release for a large board, which `main.rs`'s usage says.
+
+**Since the seats PR the dev GUI's debug build compiles the engine at
+opt-level 1**, its debug checks still on (`setup-architecture.md` §7b,
+decision 5). Read in debug on the same board, 2026-10-03, on the owner's
+machine:
+
+| debug | median before | median after | allocations, both |
+|---|---|---|---|
+| snapshot, memo warm | 121.7 ms | 29.5 ms | 203,801 |
+| snapshot, memo cold | 122.3 ms | 29.6 ms | 203,989 |
+| of which the board text | 0.70 ms | 0.16 ms | 838 |
+| receive | 27 µs | 26 µs | 387 |
+| views, every repaint | 88 µs | 87 µs | 713 |
+
+The snapshot is about 4× faster, and the window's own code, still at
+opt-level 0, is unchanged. The debug checks are still most of a debug
+snapshot's cost: it allocates 59 MB where release allocates 0.27 MB, the same
+code but for them. The dev GUI audit at the end of A6g's row weighs that.

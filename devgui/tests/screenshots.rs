@@ -49,8 +49,14 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
         window_by_rule::play_by_rule(from_board(board, None), |state| {
             let Some(prompt) = &state.prompt else { return };
             let Some((_, name)) = PICTURES.iter().find(|(kind, _)| *kind == prompt.kind) else { return };
-            // A priority prompt with a spell or two in reach.
-            let worth_it = prompt.kind != "PriorityAction" || prompt.options.len() >= 3;
+            // A priority prompt with a spell or two in reach, and blocks with
+            // two blockers to choose between: with every seat the window's, a
+            // lone block's yes or no comes first.
+            let worth_it = match prompt.kind.as_str() {
+                "PriorityAction" => prompt.options.len() >= 3,
+                "DeclareBlockers" => prompt.options.len() >= 2,
+                _ => true,
+            };
             if worth_it && !first.contains_key(name) {
                 first.insert(name, (clicked_once(state), board));
             }

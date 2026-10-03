@@ -43,7 +43,7 @@ fn main() {
     game.state.record_events();
 
     let engine = spawn_game(
-        GameSetup { seed: scenario.seed, pool: Pool::Stress, log_path: None, scenario: Some(board.clone()) },
+        GameSetup { seed: scenario.seed, pool: Pool::Stress, players: scenario.players, log_path: None, scenario: Some(board.clone()) },
         Arc::new(|| {}),
     );
     let message = engine.from_engine.recv_timeout(Duration::from_secs(60)).expect("the engine's first prompt");

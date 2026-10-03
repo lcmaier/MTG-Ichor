@@ -31,6 +31,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Sized and built:** the row's ~400–600 lines of code with ~150–300 of tests, items 193 (~80–150) and 201 (~20–40) beside it; built at 2,252 changed lines of code and tests, 1,697 of them in source files with their unit tests and 555 in the test directories, `ChoiceContext`'s 52-literal sweep among them: about twice the code estimate, as SU-1 and SU-2 ran.
 
+### The seats, ✅ 2026-10-03 (PR #214)
+
+**Built:** every seat the window's, each with `cli_play`'s stack (`FullControl` over `AutoYield` over `AutoPayer` over `ManaWindowStop` over a `GuiSeat`) and a yield of its own, full control one switch, and the random agent gone from the dev GUI; a `Prompt` naming the player it asks, so `WINDOW_SEAT` went; the words that assumed one seat naming it ("Player 1 to decide", "Player 1: You have priority", "Pass until Player 1's next turn", "(to decide)" on the board, "Player 0 wins"); the seats drawn in one order at every prompt; `--players N`, dealt as `fuzz_games --players N` deals, and a scenario played at its own seat count; the engine at opt-level 1 in the dev GUI's debug build. Tests: a dealt four-seat game's opening hands (CR 103.8c) with every seat asked; `four-seats-commander.scenario` played by rule to its end without asking the seat that left (CR 800.4a), and under random clicks; a yield one click in twenty in the random clicks; the headless whole game on seed 6; the blockers picture asking for two options.
+
+**Decided:** at SU-3's design (#213, `setup-architecture.md` §7b): decision 4, a PR of its own ahead of SU-3 with four seats in it, and decision 5, the opt-level lever in it, with the audit's share of a debug window's cost logged for the dev GUI audit (the owner, 2026-10-03). At that design's review the owner asked that a yield name its seat.
+
+**Sized and built:** ~200–320 lines with tests (`setup-architecture.md` §8); built at +146 lines of code and +150 of tests against `main`, the docs beside.
+
+**Measured** (the owner's machine, debug): the snapshot on the large board 121.7 → 29.5 ms with the lever (`engineering-practices.md` §10.4); the dev GUI's CI test step 16.5–17.9 s on `main`, 4.0–4.7 s with the lever alone, and about 25 s with every seat the window's, 23.4 s of it the random clicks. The window now builds a snapshot at every seat's prompts, where the agent answered seat 1's for nothing.
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*
