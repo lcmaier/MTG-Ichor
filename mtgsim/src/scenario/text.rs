@@ -500,14 +500,15 @@ impl std::fmt::Display for CardLine {
             LineKind::ThisTurn => f.write_str("this turn")?,
         }
         write!(f, ": {}", self.card)?;
-        let mut words: Vec<String> = Vec::new();
+        let mut separator = " | ";
         if self.copies > 1 {
-            words.push(format!("x{}", self.copies));
+            write!(f, "{separator}x{}", self.copies)?;
+            separator = ", ";
         }
         let (references, plain): (Vec<&CardWord>, Vec<&CardWord>) = self.words.iter().partition(|word| word.names_a_card());
-        words.extend(plain.into_iter().chain(references).map(CardWord::to_string));
-        if !words.is_empty() {
-            write!(f, " | {}", words.join(", "))?;
+        for word in plain.into_iter().chain(references) {
+            write!(f, "{separator}{word}")?;
+            separator = ", ";
         }
         Ok(())
     }
