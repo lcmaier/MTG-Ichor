@@ -1035,10 +1035,10 @@ in the editor (SU-3, §7b).
 > item 5. The owner decided 1 and 4 at the first review round (2026-10-03):
 > one window, and the seats PR ahead of SU-3 with four seats in it. At the
 > second, 2 and 3: the board's own words, the rest to follow as advanced
-> settings, and a `boards/` folder. A folder per board inside it, the owner's
-> direction, is designed in decision 3 for the owner to confirm. Decision 5
-> is open. The rest is settled by §7a and `engineering-practices.md` §10, or
-> is this design's own and reviewed with it.
+> settings, and a `boards/` folder with a folder per board, the owner's
+> direction. At the third, 5: the engine at opt-level 1 in the dev GUI's
+> debug build, in the seats PR. The rest is settled by §7a and
+> `engineering-practices.md` §10, or is this design's own and reviewed with it.
 
 **Where it sits.** Nowhere on the event path: before the first event, on the
 start's side of `Scenario::build`, beside the parser and the writer. It is a
@@ -1338,8 +1338,8 @@ writes a committed file, so a board becomes a sample by a copy that its PR
 reviews.
 
 **A folder per board** (the owner's direction at the second round, designed
-here for the owner to confirm). Each board gets a folder in `boards/`, named
-for the board, holding the board and the record of every game played from it:
+here). Each board gets a folder in `boards/`, named for the board, holding the
+board and the record of every game played from it:
 
 ```
 devgui/
@@ -1425,7 +1425,7 @@ Past two seats it adds:
 
 **Decided: A** (the owner, 2026-10-03), as the seats PR: A6g tooling like
 playable, with no SU code, since it is the dev GUI's and not CR 103's. It
-comes next, before SU-3's build. Decision 5's lever would ride in it.
+comes next, before SU-3's build. Decision 5's lever rides in it.
 
 #### Decision 5 — the engine at opt-level 1 in the dev GUI's debug build
 
@@ -1490,9 +1490,17 @@ check job's 133 s.
 | Performance | a debug window's engine calls ~8× faster with the audit on; the dev GUI's tests ~4× faster, which pays for answering every seat; an engine rebuild ~1 s slower | the seats PR's tests at opt-level 0: the step, ~17 s here today, grows with the prompts every seat adds, the four-seat games most |
 | Upkeep | the audit stays; a debugger may show some of the engine's values as optimized away; `cargo test` in `mtgsim/` is unchanged; `main.rs`'s advice (debug to test cards, release for a large board) is read again | — |
 
-**Recommendation: A.** `prompt_cost` is read before and after in the debug
-build: its §10.4 reading is release, which the lever does not touch. The CI
-step's time is quoted from the PR's run.
+**Decided: A** (the owner, 2026-10-03), in the seats PR. `prompt_cost` is
+read before and after in the debug build, since its §10.4 reading is release,
+which the lever does not touch, and the CI step's time is quoted from the PR's
+run.
+
+**Logged for the dev GUI audit** (the owner, the same day). The lever makes
+the engine faster, but most of a debug window's cost is still the layer memo's
+audit, about 98% of a debug engine call (§7.1). So the audit that ends A6g's
+row looks at what the audit costs the window, and what the window can do about
+it without losing what the audit catches. One answer is already designed:
+SU-4's switch that skips the audit while replaying (§7.1).
 
 ### 7b.3 What SU-3 and the seats PR change that §7.1–§7.3 name
 
@@ -1542,8 +1550,7 @@ in all, so ~2,100–3,100 for SU-3. Decided A, these rows are the editor's
 advanced settings, slotted on A6g's row after the "why" panel (§7b.2,
 decision 2).
 
-**The seats PR** (§7's "Seats", decision 4), with decision 5's lever if it is
-taken:
+**The seats PR** (§7's "Seats", decision 4), with decision 5's lever:
 
 | Seats PR piece | Where | Code | Tests |
 |---|---|---|---|
