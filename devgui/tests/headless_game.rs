@@ -6,18 +6,20 @@ mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
+use std::collections::BTreeSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use std::time::{Duration, Instant};
 
-use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, ToWindow, spawn_game};
 use devgui::session::Session;
 use devgui::view_model::{Input, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next};
-use window_by_rule::play_by_rule;
+use window_by_rule::{inputs_by_rule, play_by_rule};
 
 /// Seed 6's game, played by rule at both seats, ends in 33 turns. Seed 7's,
 /// this test's until the window played every seat, ran 94 turns, 14 s in
@@ -63,6 +65,46 @@ fn the_window_starts_holding_seven_since_its_first_draw_is_skipped() {
     assert_eq!((snapshot.turn, snapshot.active_player, snapshot.phase.as_str()), (1, 0, "Precombat Main"));
     assert_eq!(snapshot.players[0].hand.len(), 7);
     assert_eq!(snapshot.players[0].library.len(), 53);
+}
+
+/// Four seats dealt as `fuzz_games --players 4` deals them. In a game of
+/// more than two nobody skips the first draw (CR 103.8c), so the first prompt
+/// shows seat 0 holding eight. Played by rule until the window has been asked
+/// at every seat, not to the end: by rule, four seats play a long game.
+#[test]
+fn a_four_seat_game_deals_four_hands_and_asks_the_window_at_every_seat() {
+    let engine = spawn_game(GameSetup { players: 4, ..dealt(6, None) }, Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let board = state.board.as_ref().expect("a board at the first prompt");
+    let held: Vec<(usize, usize)> = board.players.iter().map(|p| (p.hand.len(), p.library.len())).collect();
+    assert_eq!(held, [(8, 52), (7, 53), (7, 53), (7, 53)]);
+    let mut asked = BTreeSet::new();
+    while let Some(prompt) = &state.prompt {
+        asked.insert(prompt.player);
+        if asked.len() == 4 {
+            break;
+        }
+        let reply = inputs_by_rule(&state).into_iter().find_map(|input| state.input(input)).expect("the rule answers");
+        engine.answers.send(reply).expect("the engine hung up with a prompt open");
+        state.receive(next(&engine));
+    }
+    assert_eq!(asked, BTreeSet::from([0, 1, 2, 3]), "{:?}", state.status());
+    let EngineHandle { answers, thread, .. } = engine;
+    drop(answers);
+    thread.join().expect("a game whose window has gone ends without panicking");
+}
+
+/// The four-seat Commander sample, played by rule to its end. Player 1 has
+/// left the game (CR 800.4a), so the window is never asked at that seat.
+#[test]
+fn the_four_seat_sample_plays_to_its_end_and_never_asks_the_seat_that_left() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/four-seats-commander.scenario");
+    let mut asked = BTreeSet::new();
+    let setup = GameSetup { scenario: Some(path), ..dealt(0, None) };
+    let (outcome, _) = play_by_rule(setup, |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
+    assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
+    assert_eq!(asked, BTreeSet::from([0, 2, 3]));
 }
 
 #[test]

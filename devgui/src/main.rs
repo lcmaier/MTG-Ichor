@@ -1,7 +1,8 @@
-//! `cargo run -- [--seed N] [--pool performance|stress] [--scenario FILE]`
+//! `cargo run -- [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]`
 //!
-//! Plays every seat, a prompt naming the seat it asks. With `--scenario`, the
-//! game starts from the file's board, and Reload builds it again from the
+//! Plays every seat, a prompt naming the seat it asks: a dealt game of two
+//! seats, or of `--players`. With `--scenario`, the game starts from the
+//! file's board, at its own seat count, and Reload builds it again from the
 //! file. `launch` reads the command line; this starts the window over it.
 //!
 //! A debug build checks every layer-memo hit against a fresh walk, which is

@@ -1,6 +1,6 @@
 //! The command line, read into the game the window starts with.
 //!
-//! `cargo run -- [--seed N] [--pool performance|stress] [--scenario FILE]`
+//! `cargo run -- [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]`
 //!
 //! The seed defaults to the scenario's own, or else to the clock. The header
 //! shows it and the decision log records it, so any game can be played again.
@@ -11,7 +11,7 @@ use mtgsim::scenario::Scenario;
 
 use crate::bridge::{GameSetup, Pool};
 
-pub const USAGE: &str = "usage: devgui [--seed N] [--pool performance|stress] [--scenario FILE]";
+pub const USAGE: &str = "usage: devgui [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]";
 
 /// What the window starts with.
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ pub struct Launch {
 /// `clock` seeds a dealt game given no `--seed`. An `Err` says what to
 /// change, for the terminal.
 pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, String> {
-    let (mut seed, mut pool, mut scenario) = (None, None, None);
+    let (mut seed, mut pool, mut players, mut scenario) = (None, None, None, None);
     let mut words = args.iter();
     while let Some(flag) = words.next() {
         let mut value = || words.next().ok_or_else(|| format!("{flag} needs a value"));
@@ -41,6 +41,12 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
                     other => return Err(format!("--pool is performance or stress, not {other}")),
                 });
             }
+            "--players" => {
+                let text = value()?;
+                players = Some(text.parse::<usize>().ok().filter(|n| *n >= 2).ok_or_else(|| {
+                    format!("--players takes the number of seats, 2 or more, not {text}")
+                })?);
+            }
             "--scenario" => scenario = Some(PathBuf::from(value()?)),
             other => return Err(format!("{other} is not a flag the dev GUI takes")),
         }
@@ -48,7 +54,11 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
     if scenario.is_some() && pool.is_some() {
         return Err("--pool picks a dealt game's cards, and a scenario names its own".to_string());
     }
+    if scenario.is_some() && players.is_some() {
+        return Err("--players deals a game's seats, and a scenario states its own".to_string());
+    }
     let pool = pool.unwrap_or(Pool::Performance);
+    let players = players.unwrap_or(2);
     let seed = match (seed, &scenario) {
         (Some(seed), _) => seed,
         // A file that does not parse shows its refusal in the window instead.
@@ -62,10 +72,11 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
             let stem = path.file_stem().map_or("scenario".into(), |s| s.to_string_lossy());
             (format!("{stem}-seed-{seed}.log"), format!("scenario {} · seed {seed}", path.display()))
         }
-        None => (format!("seed-{seed}.log"), format!("seed {seed} · {pool:?} pool")),
+        None if players == 2 => (format!("seed-{seed}.log"), format!("seed {seed} · {pool:?} pool")),
+        None => (format!("seed-{seed}-players-{players}.log"), format!("seed {seed} · {pool:?} pool · {players} players")),
     };
     let log_path = Some(PathBuf::from("logs").join(log_name));
-    Ok(Launch { setup: GameSetup { seed, pool, log_path, scenario }, setup_line: start })
+    Ok(Launch { setup: GameSetup { seed, pool, players, log_path, scenario }, setup_line: start })
 }
 
 #[cfg(test)]
@@ -88,6 +99,17 @@ mod tests {
         assert_eq!(clocked.setup.log_path, Some(PathBuf::from("logs").join("seed-41.log")));
         let seeded = launched("--pool stress --seed 7");
         assert_eq!((seeded.setup.seed, seeded.setup.pool, seeded.setup.scenario), (7, Pool::Stress, None));
+        assert_eq!(seeded.setup.players, 2, "two seats unless asked");
+    }
+
+    /// `fuzz_games --players N` deals N decks from the seed, and so does the
+    /// window, so a fuzz game's printed seed deals that table here.
+    #[test]
+    fn a_dealt_game_takes_its_seats_from_the_flag() {
+        let four = launched("--players 4 --seed 7");
+        assert_eq!(four.setup.players, 4);
+        assert_eq!(four.setup_line, "seed 7 · Performance pool · 4 players");
+        assert_eq!(four.setup.log_path, Some(PathBuf::from("logs").join("seed-7-players-4.log")));
     }
 
     #[test]
@@ -108,5 +130,8 @@ mod tests {
         assert_eq!(refused("--pool weird"), "--pool is performance or stress, not weird");
         assert_eq!(refused("--seeds 7"), "--seeds is not a flag the dev GUI takes");
         assert_eq!(refused("--pool stress --scenario board.scenario"), "--pool picks a dealt game's cards, and a scenario names its own");
+        assert_eq!(refused("--players 1"), "--players takes the number of seats, 2 or more, not 1");
+        assert_eq!(refused("--players four"), "--players takes the number of seats, 2 or more, not four");
+        assert_eq!(refused("--players 4 --scenario board.scenario"), "--players deals a game's seats, and a scenario states its own");
     }
 }

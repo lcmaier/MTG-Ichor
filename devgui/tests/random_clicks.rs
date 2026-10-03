@@ -13,6 +13,7 @@
 #[path = "support/games.rs"]
 mod games;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
@@ -75,7 +76,8 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
 
 /// The review boards reach what a dealt game reaches only now and then: a
 /// blocker with two attackers to choose between, damage to divide, and
-/// blocks declared illegally and asked for again.
+/// blocks declared illegally and asked for again. The four-seat sample has
+/// three seats the window plays and one that has left the game.
 #[test]
 fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
@@ -83,6 +85,10 @@ fn random_clicks_finish_games_from_the_review_boards() {
         for seed in SEEDS {
             play_at_random(from_board(board, None), seed, &mut reached);
         }
+    }
+    let four_seats = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/four-seats-commander.scenario");
+    for seed in SEEDS {
+        play_at_random(GameSetup { scenario: Some(four_seats.clone()), ..dealt(0, None) }, seed, &mut reached);
     }
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
 }

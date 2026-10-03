@@ -54,6 +54,9 @@ pub enum Pool {
 pub struct GameSetup {
     pub seed: u64,
     pub pool: Pool,
+    /// A dealt game's seats, dealt as `fuzz_games --players` deals them; a
+    /// scenario states its own.
+    pub players: usize,
     /// Where the decision log goes; `None` keeps none.
     pub log_path: Option<PathBuf>,
     /// A board to start from instead of dealt decks, read again at each
@@ -147,9 +150,9 @@ fn play(
             // printed seed deals the same game here.
             let mut deck_rng = StdRng::seed_from_u64(setup.seed);
             let decks: Vec<Vec<Arc<CardData>>> =
-                (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
+                (0..setup.players).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
             let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
-            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
+            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks or more always make a game");
             game.reseed(RandomStreams::from_seed(setup.seed).game);
             (game, SetupActions::default(), log)
         }
@@ -206,9 +209,6 @@ fn play(
 fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(BuiltScenario, String), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
-    if scenario.players != 2 {
-        return Err(format!("the dev GUI plays two seats, and this scenario has {}", scenario.players));
-    }
     let built = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
     Ok((built, text))
 }
