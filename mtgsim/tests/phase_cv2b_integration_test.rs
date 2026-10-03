@@ -65,7 +65,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -121,20 +121,16 @@ impl Drop for Scripted {
     }
 }
 
-fn variant_name(kind: &ChoiceKind) -> String {
-    format!("{kind:?}").split([' ', '{', '(']).next().unwrap_or("").to_string()
-}
-
 impl DecisionProvider for Scripted {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         player: PlayerId,
         ctx: &ChoiceContext,
         options: &[ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
-        let kind = variant_name(&ctx.kind);
+        let kind = ctx.kind.as_str();
         let offered: Vec<ObjectId> = options
             .iter()
             .filter_map(|o| match o {
@@ -142,19 +138,23 @@ impl DecisionProvider for Scripted {
                 _ => None,
             })
             .collect();
-        self.asked.borrow_mut().push((player, kind.clone(), offered.clone()));
+        self.asked.borrow_mut().push((player, kind.to_string(), offered.clone()));
         let (who, expected, pick) = self
             .script
             .borrow_mut()
             .pop_front()
             .unwrap_or_else(|| panic!("unscripted prompt: {:?} to player {player}", ctx.kind));
-        assert_eq!((who, expected), (player, kind.as_str()), "the wrong prompt, or the wrong player asked");
+        assert_eq!((who, expected), (player, kind), "the wrong prompt, or the wrong player asked");
         match pick {
             Pick::Index(index) => vec![index],
-            Pick::Ids(ids) => ids
-                .iter()
-                .map(|id| offered.iter().position(|o| o == id).unwrap_or_else(|| panic!("{id} not offered: {offered:?}")))
-                .collect(),
+            Pick::Ids(ids) => {
+                let mut picked = Vec::new();
+                for id in ids {
+                    let found = position_of(options, game, &ChoiceOption::Object(id).as_logged(game), &picked);
+                    picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
+                }
+                picked
+            }
         }
     }
 

@@ -532,6 +532,12 @@ is derivable; where each name was read is not, and the gate needs the names.
   (`state::decision_log`). An observer's handle, as `trace` is: it holds no
   fact about the game, nothing branches on it and a clone has none, so there
   is nothing in it for the CR to require.
+- **Added by SU-4, the replay (2026-10-03)**, asked §2's question as it
+  landed: `stopped`, set when a provider stops a run of the game
+  (`Game::until_stopped`) and read by every run entry, which refuses to
+  continue it. A fact about the run and not the game: the board is the
+  prompt's, no rule reads it, and there is nothing in it for the CR to
+  require.
 
 ---
 

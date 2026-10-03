@@ -7,7 +7,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{option_label, question, rejection};
 
@@ -117,7 +117,7 @@ impl Prompt {
     ) -> Prompt {
         Prompt {
             player,
-            kind: kind_name(&context.kind),
+            kind: context.kind.as_str().to_string(),
             question: question(game, &context.kind),
             subject: context.kind.subject(),
             pass: options.iter().position(|option| matches!(option, ChoiceOption::Action(PriorityAction::Pass))),
@@ -126,12 +126,6 @@ impl Prompt {
             options: options.iter().map(|option| option_view(game, option)).collect(),
         }
     }
-}
-
-/// `AssignCombatDamage { attacker_id: #7 }` → `AssignCombatDamage`.
-pub(crate) fn kind_name(kind: &ChoiceKind) -> String {
-    let debug = format!("{kind:?}");
-    debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default().to_string()
 }
 
 /// The board things an option names, in the order `OptionView::refs` keeps.
@@ -182,11 +176,5 @@ mod tests {
         assert_eq!(attack.refs, [BoardRef::Object(attacker), BoardRef::Player(1)], "{}", attack.label);
         let block = option_view(&game, &ChoiceOption::BlockerAttacker(blocker, attacker));
         assert_eq!(block.refs, [BoardRef::Object(blocker), BoardRef::Object(attacker)], "{}", block.label);
-    }
-
-    #[test]
-    fn a_kind_is_named_by_its_variant() {
-        assert_eq!(kind_name(&ChoiceKind::DeclareBlockers), "DeclareBlockers");
-        assert_eq!(kind_name(&ChoiceKind::Discard { source: None }), "Discard");
     }
 }

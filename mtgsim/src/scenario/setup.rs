@@ -10,8 +10,8 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::ManaCost;
 use crate::ui::auto_payer::AutoPayer;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode};
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
+use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode, Stop};
 use crate::ui::mana_window_stop::ManaWindowStop;
 use crate::ui::random::{mana_window_preference, WindowPreference};
 
@@ -56,9 +56,8 @@ pub(super) struct ResolvedSetupAction {
 /// costs paid from the untapped lands, `AutoPayer` over `ManaWindowStop` as a
 /// seat stacks them. Anything else is refused, naming the line: an action
 /// the engine does not offer when its seat holds priority, one it rewinds
-/// once picked, and a question no line answers. A `DecisionProvider` cannot
-/// stop a game, so a refusal in play is a panic, which the tools PR's "stop"
-/// answer replaces.
+/// once picked, and a question no line answers. A refusal in play raises a
+/// [`Stop`], which `Game::until_stopped` returns naming the line.
 pub struct SetupDriver<'a> {
     lines: AutoPayer<ManaWindowStop<LineAnswers<'a>>>,
 }
@@ -199,16 +198,14 @@ impl LineAnswers<'_> {
 
     fn refuse(&self, why: impl std::fmt::Display) -> ! {
         let line = self.line();
-        panic!("line {}, `{}`: {why}", line.line, line.written)
+        Stop::SetupRefused { line: line.line, written: line.written.to_string(), why: why.to_string() }.raise()
     }
 
     fn refuse_question(&self, player: PlayerId, kind: &ChoiceKind) -> ! {
-        // `SelectRecipients { … }` is asked as `SelectRecipients`.
-        let debug = format!("{kind:?}");
-        let question = debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default();
         self.refuse(format!(
-            "player {player} is asked {question}, which no line answers: a trigger's question, a replacement's, a \"may\", or a cost \
-             a line has no word for"
+            "player {player} is asked {}, which no line answers: a trigger's question, a replacement's, a \"may\", or a cost \
+             a line has no word for",
+            kind.as_str()
         ))
     }
 
@@ -231,7 +228,7 @@ impl LineAnswers<'_> {
             return self.inner.pick_n(game, player, context, options, bounds);
         }
         let line = self.line();
-        let offered = |wanted: &PriorityAction| options.iter().position(|option| matches!(option, ChoiceOption::Action(action) if action == wanted));
+        let offered = |wanted: &PriorityAction| position_of(options, game, &ChoiceOption::Action(wanted.clone()).as_logged(game), &[]);
         if player != line.written.seat {
             // The seat holding priority passes until the line's seat holds it.
             return match offered(&PriorityAction::Pass) {
@@ -278,18 +275,17 @@ impl LineAnswers<'_> {
 
     /// One CR 601.2c choice: the line's targets not yet taken, in the line's
     /// order, as many of those the choice offers as it takes.
-    fn targets(&self, player: PlayerId, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn targets(&self, game: &GameState, player: PlayerId, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
         let mut picks: Vec<usize> = Vec::new();
         for (target, taken) in self.line().targets.iter().zip(self.taken.borrow_mut().iter_mut()) {
             if picks.len() == bounds.1 {
                 break;
             }
-            let index = options.iter().position(|option| match (option, target) {
-                (ChoiceOption::Object(id), ResolvedTarget::Object(wanted)) => id == wanted,
-                (ChoiceOption::Player(id), ResolvedTarget::Player(wanted)) => id == wanted,
-                _ => false,
-            });
-            if let Some(index) = index.filter(|index| !*taken && !picks.contains(index)) {
+            let wanted = match target {
+                ResolvedTarget::Object(id) => ChoiceOption::Object(*id),
+                ResolvedTarget::Player(target) => ChoiceOption::Player(*target),
+            };
+            if let Some(index) = position_of(options, game, &wanted.as_logged(game), &picks).filter(|_| !*taken) {
                 picks.push(index);
                 *taken = true;
             }
@@ -338,7 +334,7 @@ impl DecisionProvider for LineAnswers<'_> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
         match line_answer(&context.kind) {
             LineAnswer::Action => self.priority(game, player, context, options, bounds),
-            LineAnswer::Targets(spell) if self.asks_for_the_line(game, spell) => self.targets(player, options, bounds),
+            LineAnswer::Targets(spell) if self.asks_for_the_line(game, spell) => self.targets(game, player, options, bounds),
             LineAnswer::Window(subject, remaining) if self.asks_for_the_line(game, subject) => self.tap(game, player, remaining, options),
             _ => self.refuse_question(player, &context.kind),
         }

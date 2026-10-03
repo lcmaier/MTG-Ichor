@@ -106,7 +106,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::{Scenario, SetupActions, SetupDriver};
-use mtgsim::state::game::{Game, RandomStreams};
+use mtgsim::state::game::{Game, Halt, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
@@ -962,10 +962,14 @@ fn run_one_game(
         let dp = &*dp;
         if start.is_none() {
             game.setup(dp).expect("Failed to setup game");
-        } else if let Err(e) = game.resume_turn_at_priority(&SetupDriver::new(setup, dp)) {
+        } else if let Err(halt) = game.until_stopped(|game| game.resume_turn_at_priority(&SetupDriver::new(setup, dp))) {
             finish_trace(&game);
             let log = if keep_event_log { Some(game.event_log_snapshot()) } else { None };
-            return Err((format!("Resume error: {e}"), log));
+            let why = match halt {
+                Halt::Error(e) => format!("Resume error: {e}"),
+                Halt::Stopped(stop) => format!("Setup refused: {stop}"),
+            };
+            return Err((why, log));
         }
 
         let mut turns = 0u32;

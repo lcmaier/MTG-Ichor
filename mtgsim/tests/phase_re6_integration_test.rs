@@ -604,11 +604,11 @@ fn a_departed_active_players_turn_continues_without_them() {
     assert_eq!(g.result(), None);
     assert_eq!(cards_drawn(&g.state, 0), drawn_before, "no draw step for a player who has left");
     assert!(
-        !dp.kinds().iter().any(|k| k.starts_with("DeclareAttackers")),
+        !dp.kinds().iter().any(|k| k == "DeclareAttackers"),
         "nobody declares attackers in a turn with no active player"
     );
     assert!(
-        !dp.kinds().iter().any(|k| k.starts_with("DiscardToHandSize")),
+        !dp.kinds().iter().any(|k| k == "Discard"),
         "no cleanup discard is asked of a player who has left"
     );
     assert!(g.state.players[0].hand.is_empty(), "CR 800.4a took the hand with them");

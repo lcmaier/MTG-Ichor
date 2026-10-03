@@ -10,6 +10,120 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-4 — the replay — ✅ landed 2026-10-03
+
+*Evicted 2026-10-03 from `plans/setup-architecture.md` §8, where the heading and a stub remain; SU-5's sizing stays there.*
+
+### The build as sized (2026-10-03, at #216)
+
+| SU-4, the replay: the engine's half | Where | Code | Tests |
+|---|---|---|---|
+| `ChoiceKind::as_str`, replacing the eight readers of `Debug` text | `ui::choice_types`; `scenario::setup`, `test_support`, devgui `prompt.rs`, four test files | 40–60 | 15–25 |
+| The text: a record's header (the format, the engine), a start (a dealt game's seed, its `GameConfig` destructured with no `..`, and its decks by name; or a scenario's path, seed and text), an answer line and the outcome; written and read, each refusal naming its line; a start built into a game | `state::decision_log` | 330–470 | 120–180 |
+| An option's identity, what was chosen: written, and compared by one matcher, which the replay, the setup driver and `ById` use; the scripted provider's answer by identity, `expect_choice`, which new tests use | `ui::choice_types`, `scenario::setup`, `ui::decision` | 150–230 | 80–130 |
+| The replay: each line's player, kind, turn and step checked, its choice found by identity among the options this build offers and its fit through `ui::ask`'s predicates, which the validators then assert; a forced line skipped or answered where one build asks it and the other does not; the seats after the last line, or a stop naming where it diverged; a superseded replay stopped | `ui::replay`, `ui::ask` | 200–290 | 170–260 |
+| The stop: why a run ended, the catcher over any run, a stopped game refused at each of the six entries; the setup driver's refusal as a stop, which `fuzz_games` reports as the game's error | `ui::decision`, `state::game`, `scenario::setup`, `bin/fuzz_games` | 100–145 | 60–100 |
+| No layer audit while replaying within a session (§7.1) | `engine::layers::compute`, `state::diagnostics` | 15–25 | 15–25 |
+| The dev GUI on the engine's text and the stop: its log written in the engine's words, and a refused setup line shown as a refusal rather than an engine panic | devgui `bridge.rs` | 35–50 | — |
+| **SU-4** | | **870–1,270** | **460–720** |
+
+At the last phases' rate SU-4's code is 1,310–2,670, so 1,770–3,390 in all.
+Its upper half crosses 2,500, so the build measures at each commit, code and
+tests apart, and stops to report when it crosses. An option's identity and
+its matcher are the seam that would move into a PR of their own, ahead of the
+replay, since they have consumers without it. **Its consumers**, each a test or a
+client of what it builds (`engineering-practices.md` §4: every PR in a split
+carries one):
+- the replay test at `phase_a6g_integration_test.rs:180` moves onto the
+  engine's replay, over the engine's text written and read back, at two seats
+  and four;
+- the setup driver and `phase_cv2a`'s `ById` find an answer through the one
+  matcher, where each keeps a copy of its own today;
+- SU-2's refusal test (`phase_su2_integration_test.rs:49`) catches a stop
+  where it catches a panic today;
+- `fuzz_games --scenario` reports a refused line as the game's error, where its
+  `catch_unwind` counts a panic today;
+- the dev GUI writes its log in the engine's text, so every game the window
+  plays from SU-4 on is a record SU-5's `--load` reads, and it shows a refused
+  setup line as the refusal it is.
+
+Its tests beside them: a reordered option list replaying to the same game,
+and a choice no longer offered stopping at its line; a scenario game with
+setup actions replayed; a cast
+from hand with exact mana under `ManaWindowStop`, replayed; each disagreement
+(the player, the kind, the turn or step, an answer that does not fit) stopping
+at its line; the stop's four reasons, and a panic that is not a stop passing
+through; a stopped game refused; the audit's switch; the text's refusals and
+a pinned text. Each replay plays a game capped at a few turns, as the a6g
+test's eight are, timed in debug: `cargo test` runs the engine at opt-level 0
+with the audit on, where a whole Commander game replays in ~35 s (§7.1).
+
+**A/B, predicted before any arm runs.** SU-4 changes nothing a fuzz game's
+outcome depends on: `fuzz_games` attaches no log, uses no replay, and meets
+the stop only on a scenario's refused line, and `ui::ask`'s validators assert
+the predicates they assert today, from one function each. So every gameplay
+and cost row is predicted `IDENTICAL` on both pools at two seats and four,
+and instructions per decision within ±0.3%, for code the compiler places
+differently.
+
+### Sized against built
+
+Lines added, `mtgsim/` and `devgui/` with a `src` file's `#[cfg(test)]`
+module counted as tests, read off #216's tip (`c3425c9`): each row its
+commits' additions, so a line two commits touched counts in both, and the
+totals the whole diff's.
+
+| Part | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---:|---:|---:|---:|
+| `ChoiceKind::as_str` and the eight readers it replaced | 40–60 | 44 | 15–25 | 46 |
+| An option as what it is, the one matcher, `expect_choice` | 150–230 | 120 | 80–130 | 108 |
+| The text: the format, the engine, the start written, read and built, the answer lines, the outcome | 330–470 | 575 | 120–180 | 142 |
+| The replay, with `ui::ask`'s checks as predicates | 200–290 | 390 | 170–260 | 245 |
+| The stop, and the setup driver's refusal as one | 100–145 | 106 | 60–100 | 122 |
+| The audits paused within a session | 15–25 | 40 | 15–25 | 41 |
+| The dev GUI's log in the engine's text, its start built through `BuiltStart` | 35–50 | 55 | — | 21 |
+| **SU-4** | **870–1,270** | **1,322** | **460–720** | **718** |
+
+The engine's own code is +1,259 against 835–1,220, its tests +680; the dev
+GUI +101 with its bridge 39 lines shorter net. What the sizing left out: the
+text's module doc, 24 lines of which moved from the old file into `mod.rs`
+and count as added; the reader's refusals, which say what was expected where;
+the predicates' error text, which keeps the validators' messages word for
+word; `GameConfig` destructured and read a line a field. The text row ran
+1.2–1.7 times its sizing and the replay row 1.3–2.0 with the predicates in it;
+the rest came in near or under their rows.
+
+### What the build changed in the design
+
+1. **`as_str` moved, not added.** The trace sink kept an exhaustive match of
+   the names (`trace_records::choice_kind_name`); `ChoiceKind::as_str` is that
+   match moved onto the kind, so the trace, the log and a refusal spell a kind
+   one way.
+2. **Exact names exposed stale tests.** `"ChooseReplacement"` matched only as
+   a prefix of `ChooseReplacementEffect`; `"DiscardToHandSize"` named a kind
+   RE-8 renamed `Discard`, so `phase_re6`'s "no cleanup discard is asked"
+   could not fail; `prompt_subject_test`'s list of every variant held 26 of
+   27, its count hard-coded, with `OrderTriggers` missing from its list of
+   kinds asked without a subject. All three fixed in the first commit.
+3. **A scenario's replay runs no setup driver.** Its record holds the answers
+   the driver gave, so `BuiltStart::replay` answers them from the log with the
+   rest, and `BuiltStart::play` runs the driver. A record that ends inside its
+   setup actions, as one refused there does, replays to its last line, and
+   SU-5's load decides what a person sees then.
+4. **A start is read within a record.** §8's risk said the reader would read a
+   start apart from a record. It reads a line apart (`AnswerLine::read`) and a
+   start only within `decision_log::read`, so SU-5's journal hands the reader
+   its engine lines and reads its own.
+5. **The audits' pause is the caller's.** The replay resumes the audits at the
+   hand-over; a run that stops leaves them as its caller set them, since a
+   stopped game is read and never continued.
+6. **The dev GUI builds its start through the engine.** The bridge's own
+   dealing and scenario build went with its log text: it makes a `GameStart`,
+   builds it and plays it through `BuiltStart`, so the start a record names is
+   the one the window played.
+7. **`ReplayControl`** carries the lines answered and the supersede flag
+   across threads, for SU-5's replaying count and an undo during a replay.
+
 #### SU-3 — the board editor — ✅ landed 2026-10-03
 
 *Evicted 2026-10-03 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with the seats PR's sizing, which was made beside it.*

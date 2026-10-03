@@ -8,7 +8,7 @@ use crate::state::game_state::{GameResult, GameState, PhaseType, StepType};
 use crate::types::zones::Zone;
 use crate::engine::actions::GameAction;
 use crate::ui::ask::ask_discard;
-use crate::ui::decision::DecisionProvider;
+use crate::ui::decision::{DecisionProvider, Stop};
 
 /// A decklist: ordered list of card definitions that make up a player's deck.
 pub type Decklist = Vec<Arc<CardData>>;
@@ -89,11 +89,31 @@ impl Game {
         self.state.reseed_from_entropy();
     }
 
+    /// `run` on this game, ended early by a [`Stop`] a provider raised inside
+    /// it; any other panic passes through. A stopped game is the board at the
+    /// prompt it stopped at, which reads and writes as that prompt showed it,
+    /// and is never continued: the frames unwound held work in flight (a
+    /// batch's decided members, a cast's remaining steps), so every run entry
+    /// refuses it (`setup-architecture.md` §7.2, decision 1).
+    pub fn until_stopped<T>(&mut self, run: impl FnOnce(&mut Game) -> Result<T, String>) -> Result<T, Halt> {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self))) {
+            Ok(ran) => ran.map_err(Halt::Error),
+            Err(payload) => match payload.downcast::<Stop>() {
+                Ok(stop) => {
+                    self.state.stopped = true;
+                    Err(Halt::Stopped(*stop))
+                }
+                Err(other) => std::panic::resume_unwind(other),
+            },
+        }
+    }
+
     /// Perform game setup: shuffle libraries and draw opening hands.
     ///
     /// Mulligan handling is stubbed — players always keep their first hand
     /// (CR 103.5; `backlog.md` §2.32).
     pub fn setup(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
+        self.state.refuse_if_stopped()?;
         for player_id in 0..self.state.num_players() {
             self.state.shuffle_library(player_id);
         }
@@ -180,6 +200,7 @@ impl Game {
         starting_turn: u32,
         mut resuming: bool,
     ) -> Result<(), String> {
+        self.state.refuse_if_stopped()?;
         loop {
             if self.is_over() {
                 return Ok(());
@@ -392,6 +413,15 @@ impl Game {
         Ok(())
     }
 
+}
+
+/// How a run [`Game::until_stopped`] watched ended without finishing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Halt {
+    /// The run's own error, as it returns one.
+    Error(String),
+    /// A provider stopped it.
+    Stopped(Stop),
 }
 
 /// CR 103.8a and 103.8c — whether the starting player skips the draw step of

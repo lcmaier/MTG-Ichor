@@ -173,7 +173,7 @@ fn test_cytoshape_target_becomes_a_copy_of_the_chosen_creature() {
         "exactly one prompt, and it is the CR 707.4 choice: {:?}",
         dp.kinds()
     );
-    assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
+    assert!(dp.kinds()[0] == "ChooseCopySource", "{:?}", dp.kinds());
 }
 
 // RULING: Cytoshape #3 - "If the creature copies a creature that's copying a

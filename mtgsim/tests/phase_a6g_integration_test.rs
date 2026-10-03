@@ -1,14 +1,13 @@
 //! A6g's playable PR, the engine's half: the decision log is written by the
 //! engine, so it is the record of the game and not of how its seats were set
-//! up (`state::decision_log`).
+//! up (`state::decision_log`). Since SU-4 the record is the engine's text, and
+//! the engine's replay plays it again.
 
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::state::decision_log::{LoggedAnswer, LoggedDecision};
-use mtgsim::state::game::Game;
+use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, GameStart};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
@@ -17,66 +16,49 @@ use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode}
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::ui::replay::Replay;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
 const TURNS: u32 = 8;
 
-/// A dealt game at `seed`, recording its events and logging its decisions
-/// into the returned list.
-fn dealt(seed: u64) -> (Game, Arc<Mutex<Vec<Line>>>) {
-    let registry = CardRegistry::performance_pool();
+/// The start of a game dealt at `seed` to `players` seats, as `fuzz_games`
+/// deals one.
+fn dealt(seed: u64, players: usize) -> GameStart {
+    let pool = CardRegistry::performance_pool();
     let mut deck_rng = StdRng::seed_from_u64(seed);
-    let decks = (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, 60)).collect();
-    let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks make a game");
-    game.reseed(seed);
+    let decks = (0..players)
+        .map(|_| random_deck(&pool, &mut deck_rng, &[], 1, 60).iter().map(|card| card.name.clone()).collect())
+        .collect();
+    GameStart::Dealt { seed, config: GameConfig::unrestricted(), decks }
+}
+
+/// `start` built, recording its events and writing its record into the
+/// returned text.
+fn recorded(start: &GameStart) -> (BuiltStart, Arc<Mutex<String>>) {
+    let mut built = start.build(&CardRegistry::default_registry()).expect("a dealt start builds");
+    let text = Arc::new(Mutex::new(decision_log::opening(start).iter().map(|line| format!("{line}\n")).collect::<String>()));
+    let (writer, answers) = (Arc::clone(&text), Arc::new(Mutex::new(0)));
+    let game = built.game_mut();
     game.state.record_events();
-    let lines = Arc::new(Mutex::new(Vec::new()));
-    let log = Arc::clone(&lines);
-    game.state.log_decisions(move |_, decision| log.lock().unwrap().push(Line::from(decision)));
-    (game, lines)
+    game.state.log_decisions(move |game, decision| {
+        let mut number = answers.lock().unwrap();
+        *number += 1;
+        writer.lock().unwrap().push_str(&format!("{}\n", AnswerLine::of(game, *number, decision)));
+    });
+    (built, text)
 }
 
-fn play(game: &mut Game, dp: &dyn DecisionProvider) {
-    game.setup(dp).expect("setup");
-    while !game.is_over() && game.state.turn_number <= TURNS {
-        game.run_turn(dp).expect("turn");
-    }
-}
-
-/// A logged decision, owned. The kind by its variant's name, which is all a
-/// replay's check needs.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Line {
-    player: PlayerId,
-    kind: String,
-    answer: Answer,
-    forced: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum Answer {
-    Picks(Vec<usize>),
-    Number(u64),
-    Allocation(Vec<u64>),
-    Order(Vec<usize>),
-}
-
-fn variant(kind: &impl std::fmt::Debug) -> String {
-    let debug = format!("{kind:?}");
-    debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default().to_string()
-}
-
-impl From<&LoggedDecision<'_>> for Line {
-    fn from(decision: &LoggedDecision) -> Line {
-        let answer = match decision.answer {
-            LoggedAnswer::Picks(picks) => Answer::Picks(picks.to_vec()),
-            LoggedAnswer::Number(number) => Answer::Number(number),
-            LoggedAnswer::Allocation(amounts) => Answer::Allocation(amounts.to_vec()),
-            LoggedAnswer::Order(order) => Answer::Order(order.to_vec()),
-        };
-        Line { player: decision.player, kind: variant(decision.kind), answer, forced: decision.forced }
-    }
+/// Its first `TURNS` turns, the opening hands before them.
+fn play(built: &mut BuiltStart, dp: &dyn DecisionProvider) {
+    let ran = built.game_mut().until_stopped(|game| {
+        game.setup(dp)?;
+        while !game.is_over() && game.state.turn_number <= TURNS {
+            game.run_turn(dp)?;
+        }
+        Ok(())
+    });
+    ran.expect("the turns play");
 }
 
 /// Passes at every priority prompt and takes the least anything else allows,
@@ -108,89 +90,51 @@ impl DecisionProvider for Passer {
 /// The owner's rule at the design review: the log is the same whatever
 /// answered. Seat 0 passes everything, once letting the engine take each
 /// `Pass`-only priority point and once stopping for each as full control does,
-/// and both games write the same lines, the engine's passes among them.
+/// and both games write the same record, the engine's passes among it.
 #[test]
 fn a_seat_that_stops_at_every_priority_point_writes_the_log_the_engine_does() {
-    let logs: Vec<Vec<Line>> = [false, true]
+    let logs: Vec<String> = [false, true]
         .into_iter()
         .map(|stops| {
-            let (mut game, lines) = dealt(11);
+            let (mut built, text) = recorded(&dealt(11, 2));
             let dp = DispatchDecisionProvider::new(vec![
                 Box::new(Passer { stops }),
                 Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(11))),
             ]);
-            play(&mut game, &dp);
-            lines.lock().unwrap().clone()
+            play(&mut built, &dp);
+            text.lock().unwrap().clone()
         })
         .collect();
     assert_eq!(logs[0], logs[1]);
-    let forced = |line: &&Line| line.forced && line.player == 0 && line.kind == "PriorityAction";
-    assert!(logs[0].iter().filter(forced).count() > 10, "seat 0's passes where it could do nothing else are logged");
-    assert!(logs[0].iter().any(|line| !line.forced), "and the choices beside them");
+    let answers = decision_log::read(&logs[0]).expect("the record reads").answers;
+    let forced = |line: &&AnswerLine| line.forced && line.player == 0 && line.kind == "PriorityAction";
+    assert!(answers.iter().filter(forced).count() > 10, "seat 0's passes where it could do nothing else are logged");
+    assert!(answers.iter().any(|line| !line.forced), "and the choices beside them");
 }
 
-/// Answers every prompt with the next logged line, checking it asks the
-/// logged question, and stops at every priority point so the engine's own
-/// passes are asked too.
-struct Replay {
-    lines: Mutex<VecDeque<Line>>,
-}
-
-impl Replay {
-    fn next(&self, player: PlayerId, context: &ChoiceContext) -> Answer {
-        let line = self.lines.lock().unwrap().pop_front().expect("a prompt the log does not have");
-        assert_eq!((line.player, line.kind.as_str()), (player, variant(&context.kind).as_str()), "the replay asked another question");
-        line.answer
-    }
-}
-
-impl DecisionProvider for Replay {
-    fn pick_n(&self, _: &GameState, player: PlayerId, context: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
-        match self.next(player, context) {
-            Answer::Picks(picks) => picks,
-            other => panic!("a pick_n logged as {other:?}"),
-        }
-    }
-    fn pick_number(&self, _: &GameState, player: PlayerId, context: &ChoiceContext, _: u64, _: u64) -> u64 {
-        match self.next(player, context) {
-            Answer::Number(number) => number,
-            other => panic!("a pick_number logged as {other:?}"),
-        }
-    }
-    fn allocate(&self, _: &GameState, player: PlayerId, context: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
-        match self.next(player, context) {
-            Answer::Allocation(amounts) => amounts,
-            other => panic!("an allocate logged as {other:?}"),
-        }
-    }
-    fn choose_ordering(&self, _: &GameState, player: PlayerId, context: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
-        match self.next(player, context) {
-            Answer::Order(order) => order,
-            other => panic!("a choose_ordering logged as {other:?}"),
-        }
-    }
-    fn seat_mode(&self, _: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true }
-    }
-}
-
-/// The log is complete: two random seats play a game, and its log, answering
-/// every seat's every question in order, plays the same game again.
+/// The record is complete: random seats play a game, and its text, read back
+/// and replayed by `ui::replay`, plays the same game again, at two seats and
+/// four.
 #[test]
 fn a_game_replayed_from_its_log_is_the_same_game() {
-    let (mut original, lines) = dealt(23);
-    let agents = DispatchDecisionProvider::new(vec![
-        Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(23))),
-        Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(24))),
-    ]);
-    play(&mut original, &agents);
-    let logged = lines.lock().unwrap().clone();
+    for players in [2, 4] {
+        let start = dealt(23, players);
+        let (mut original, text) = recorded(&start);
+        let agents = (0..players as u64)
+            .map(|seat| Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(23 + seat))) as Box<dyn DecisionProvider>)
+            .collect();
+        play(&mut original, &DispatchDecisionProvider::new(agents));
+        let log = decision_log::read(&text.lock().unwrap()).expect("the record reads");
+        assert!(log.answers.iter().any(|line| line.kind != "PriorityAction"), "the game asked more than priority");
 
-    let (mut replayed, _) = dealt(23);
-    let replay = Replay { lines: Mutex::new(logged.iter().cloned().collect()) };
-    play(&mut replayed, &replay);
+        let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the record's start builds");
+        replayed.game_mut().state.record_events();
+        // Replayed by the build that played it, the audits checked once.
+        replayed.game().state.pause_layer_audit();
+        let replay = Replay::of(log);
+        play(&mut replayed, &replay);
 
-    assert!(replay.lines.lock().unwrap().is_empty(), "every logged answer was asked for");
-    assert_eq!(format_event_log(&replayed.state), format_event_log(&original.state));
-    assert!(logged.iter().any(|line| line.kind != "PriorityAction"), "the game asked more than priority: {}", logged.len());
+        assert_eq!(replay.remaining(), 0, "every answer the record holds was asked for");
+        assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state), "{players} seats");
+    }
 }

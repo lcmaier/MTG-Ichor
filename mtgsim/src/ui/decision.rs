@@ -6,7 +6,7 @@ use crate::oracle::characteristics::get_effective_toughness;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -20,6 +20,43 @@ pub struct SeatMode {
     /// the engine's (`backlog.md` §2.22, rule 1). A person in full control
     /// stops there, and so does a test that watches every grant.
     pub stops_at_every_priority_point: bool,
+}
+
+/// Why a run ended before its game did (`setup-architecture.md` §7.2,
+/// decision 1). A provider must return an answer and cannot say "stop", so it
+/// raises one of these from inside the prompt, and [`crate::state::game::Game::until_stopped`]
+/// is the one place that catches it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stop {
+    /// A replay with no seat to hand over to answered its last line.
+    LogSpent { answered: usize },
+    /// A replayed answer is not what the engine asks: `line` is its number in
+    /// the log, and `why` says what differs.
+    Diverged { line: usize, why: String },
+    /// A scenario's setup line cannot be played: its line in the file, the
+    /// line as written, and what to change.
+    SetupRefused { line: usize, written: String, why: String },
+    /// A newer replay superseded this one, which stopped at its next answer.
+    Superseded,
+}
+
+impl Stop {
+    /// End the run here. `resume_unwind` skips the panic hook, so a stop
+    /// prints nothing on its way out.
+    pub fn raise(self) -> ! {
+        std::panic::resume_unwind(Box::new(self))
+    }
+}
+
+impl std::fmt::Display for Stop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stop::LogSpent { answered } => write!(f, "the log's {answered} answers are spent, and no seat plays on"),
+            Stop::Diverged { line, why } => write!(f, "the log diverges at answer {line}: {why}"),
+            Stop::SetupRefused { line, written, why } => write!(f, "line {line}, `{written}`: {why}"),
+            Stop::Superseded => write!(f, "a newer replay superseded this one"),
+        }
+    }
 }
 
 /// What a player chooses to do when they have priority.
@@ -300,6 +337,9 @@ pub struct ScriptedExpectation {
 #[derive(Debug)]
 pub enum ScriptedResponse {
     PickN(Vec<usize>),
+    /// The options to pick, by what each is: found in whatever order the
+    /// engine lists them, through the matcher a replay uses.
+    Choose(Vec<ChoiceOption>),
     Number(u64),
     Allocation(Vec<u64>),
     Ordering(Vec<usize>),
@@ -361,6 +401,16 @@ impl ScriptedDecisionProvider {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::PickN(indices),
+        });
+    }
+
+    /// Enqueue a pick_n expectation that names the options to pick rather
+    /// than their positions, so an engine change that lists them in another
+    /// order breaks nothing (`codebase-state.md` item 209).
+    pub fn expect_choice(&self, kind: ChoiceKind, chosen: Vec<ChoiceOption>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Choose(chosen),
         });
     }
 
@@ -449,14 +499,28 @@ impl Drop for ScriptedDecisionProvider {
 impl DecisionProvider for ScriptedDecisionProvider {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
-        _options: &[ChoiceOption],
+        options: &[ChoiceOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         match self.pop_and_validate(&context.kind, "pick_n") {
             ScriptedResponse::PickN(indices) => indices,
+            ScriptedResponse::Choose(chosen) => {
+                let mut picked = Vec::new();
+                for option in &chosen {
+                    match position_of(options, game, &option.as_logged(game), &picked) {
+                        Some(index) => picked.push(index),
+                        None => panic!(
+                            "ScriptedDecisionProvider: {} is not offered: {:?}",
+                            option.as_logged(game),
+                            options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
+                        ),
+                    }
+                }
+                picked
+            }
             other => panic!(
                 "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
                 other
