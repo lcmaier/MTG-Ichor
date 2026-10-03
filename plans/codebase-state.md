@@ -9064,8 +9064,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 208. **The engine crate is named `mtgsim`, and the project MTG-Ichor.** The
      owner's question at #215's merge: whether the crate takes the project's
-     name before outside contributors first read it. What a rename touches,
-     counted at `fb1767a`:
+     name. What a rename touches, counted at `fb1767a`:
      - **the crate**: 1,597 `mtgsim::` uses in 87 Rust files, 1,487 of them
        in 74 engine test files, 49 in the engine's two binaries and a doc
        test, and 61 in ten dev GUI files; both `Cargo.toml` files (the
@@ -9098,8 +9097,6 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `mtgsim::` and on the manifests' and the gate's names, the lockfiles
      regenerated: about 1,600 changed lines and no logic. The directory adds
      ~120 lines of scripts, CI and docs, and a workspace ~20–40 of manifests
-     and CI. **Slotted:** before the call for UI contributors goes out (the
-     owner's plan since SU-3's merge), decided with the workspace at A6g's
-     last entry, the dev GUI audit (`roadmap-v2.md` A6g), which reads the
-     crates as a contributor first meets them. The call has no route row of
-     its own.
+     and CI. **Slotted:** decided with the workspace no earlier than Phase
+     8's breadth (`roadmap-v2.md` §C), and by v1's release at the latest
+     (§E), the owner at #216's review (2026-10-03).

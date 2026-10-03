@@ -11,8 +11,8 @@
 > savestates) are designed in §7.1–§7.3, decided over two review rounds on
 > #212 (2026-10-03). Their design delta, after SU-3 (2026-10-03): §7.1's tree
 > read again, §7.2's decision 6 (the records at scale, for v1), and §8's
-> re-size, which proposes building them as two PRs, **SU-4** (the replay, the
-> engine's) and **SU-5** (the tools, the window's).
+> re-size, which builds them as two PRs (the owner, 2026-10-03): **SU-4** (the
+> replay, the engine's) and **SU-5** (the tools, the window's).
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -1757,9 +1757,10 @@ The last three phases ran 1.5–2.1 times their sizing on code (SU-1 ~1.9,
 SU-2 ~2.0, SU-3 1.5–2.1; the archive's tables), each from what its sizing left
 out, so each total below carries that range beside the count.
 
-**Proposed: two PRs, split along the engine's line.** The owner reads engine
-changes closely and the dev GUI loosely (2026-10-03), so the engine's half
-goes up as a PR of its own, ahead of the window's.
+**Decided: two PRs, split along the engine's line** (the owner, 2026-10-03,
+at #216's review). The owner reads engine changes closely and the dev GUI
+loosely, so the engine's half goes up as a PR of its own, ahead of the
+window's.
 
 | SU-4, the replay: the engine's half | Where | Code | Tests |
 |---|---|---|---|
@@ -1822,7 +1823,7 @@ before and after (`engineering-practices.md` §10.4).
 | What lands first | everything at once | the replay, with every dev GUI log readable by it, before any button | as B; undo and the save before the savestates |
 | Risk | past the band, by a lot at the last phases' rate | the engine's text is designed before its second reader, the save's journal, exists: SU-4's reader reads a line and a start apart from a whole record, which the journal's reader uses, and SU-5 may still find a gap to fix in the engine (`engineering-practices.md` §4: a split moves risk, it does not remove it) | as B |
 
-**Proposed: B.** Named for what each delivers: **SU-4, the replay** (the
+**Decided: B.** Named for what each delivers: **SU-4, the replay** (the
 engine's text, the replay and the stop) and **SU-5, the tools** (undo, the save
 and savestates), the next code rather than a letter.
 
