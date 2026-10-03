@@ -39,6 +39,7 @@ impl GameState {
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<PriorityResult, String> {
+        self.refuse_if_stopped()?;
         // --- Rule 117.5: SBAs before granting priority ---
         self.perform_sba_and_triggers(decisions)?;
 

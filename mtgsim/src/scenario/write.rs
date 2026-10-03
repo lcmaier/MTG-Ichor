@@ -127,6 +127,7 @@ impl<'g> Writer<'g> {
             events: _,
             trace: _,
             decision_log: _,        // an observer's, as the trace is
+            stopped: _,             // the run's: a stopped game writes as its prompt showed it
             rng: _,                 // private to `StdRng`: a written board's randomness is fresh
         } = self.state;
         let (turn, active) = (*turn_number, *active_player);

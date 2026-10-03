@@ -6,12 +6,12 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::scenario::{BuiltScenario, Scenario, ScenarioError, ScenarioErrorKind, SetupDriver};
-use mtgsim::state::game::RandomStreams;
+use mtgsim::state::game::{Halt, RandomStreams};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode};
+use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -41,18 +41,21 @@ fn played(text: &str) -> GameState {
     played_with(&CardRegistry::default_registry(), text)
 }
 
-/// The refusal a line meets in play: the driver's panic, which names it.
+/// The refusal a line meets in play: the driver's stop, which names it.
 fn refused_in_play(text: &str) -> String {
     let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), text);
     let seats = ScriptedDecisionProvider::new();
     let driver = SetupDriver::new(setup, &seats);
-    let refusal = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let played = game.until_stopped(|game| {
         for _ in 0..4 {
             let _ = game.state.run_priority_round(&driver);
         }
-    }))
-    .expect_err(text);
-    refusal.downcast_ref::<String>().cloned().unwrap_or_default()
+        Ok(())
+    });
+    match played {
+        Err(Halt::Stopped(stop @ Stop::SetupRefused { .. })) => stop.to_string(),
+        other => panic!("{text}: no refusal, {other:?}"),
+    }
 }
 
 /// The object named `name` in `zone`, the only one there.

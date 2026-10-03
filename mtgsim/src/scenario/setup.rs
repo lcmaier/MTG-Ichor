@@ -11,7 +11,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::ManaCost;
 use crate::ui::auto_payer::AutoPayer;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
-use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode};
+use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode, Stop};
 use crate::ui::mana_window_stop::ManaWindowStop;
 use crate::ui::random::{mana_window_preference, WindowPreference};
 
@@ -56,9 +56,8 @@ pub(super) struct ResolvedSetupAction {
 /// costs paid from the untapped lands, `AutoPayer` over `ManaWindowStop` as a
 /// seat stacks them. Anything else is refused, naming the line: an action
 /// the engine does not offer when its seat holds priority, one it rewinds
-/// once picked, and a question no line answers. A `DecisionProvider` cannot
-/// stop a game, so a refusal in play is a panic, which the tools PR's "stop"
-/// answer replaces.
+/// once picked, and a question no line answers. A refusal in play raises a
+/// [`Stop`], which `Game::until_stopped` returns naming the line.
 pub struct SetupDriver<'a> {
     lines: AutoPayer<ManaWindowStop<LineAnswers<'a>>>,
 }
@@ -199,7 +198,7 @@ impl LineAnswers<'_> {
 
     fn refuse(&self, why: impl std::fmt::Display) -> ! {
         let line = self.line();
-        panic!("line {}, `{}`: {why}", line.line, line.written)
+        Stop::SetupRefused { line: line.line, written: line.written.to_string(), why: why.to_string() }.raise()
     }
 
     fn refuse_question(&self, player: PlayerId, kind: &ChoiceKind) -> ! {

@@ -656,6 +656,10 @@ pub struct GameState {
     /// in every clone.
     pub(crate) decision_log: crate::state::decision_log::DecisionLogHandle,
 
+    /// A provider stopped a run of this game (`Game::until_stopped`): the
+    /// board is the prompt's, and every run entry refuses to continue it.
+    pub(crate) stopped: bool,
+
     // --- Randomness ---
     /// The game's one source of randomness: shuffles now, coin flips and
     /// "at random" choices later (CR 705).
@@ -919,6 +923,7 @@ impl GameState {
             events: EventWindow::new(),
             trace: None,
             decision_log: crate::state::decision_log::DecisionLogHandle::NONE,
+            stopped: false,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
     }
@@ -1046,6 +1051,15 @@ impl GameState {
         match self.last_turn_began.get(player) {
             Some(0) | None => None,
             Some(turn) => Some(*turn),
+        }
+    }
+
+    /// The refusal every run entry gives a game a provider stopped
+    /// (`Game::until_stopped`).
+    pub(crate) fn refuse_if_stopped(&self) -> Result<(), String> {
+        match self.stopped {
+            true => Err("the game stopped at a prompt, and a stopped game is read, never continued".to_string()),
+            false => Ok(()),
         }
     }
 

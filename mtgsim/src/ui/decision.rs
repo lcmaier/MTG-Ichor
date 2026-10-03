@@ -22,6 +22,43 @@ pub struct SeatMode {
     pub stops_at_every_priority_point: bool,
 }
 
+/// Why a run ended before its game did (`setup-architecture.md` §7.2,
+/// decision 1). A provider must return an answer and cannot say "stop", so it
+/// raises one of these from inside the prompt, and [`crate::state::game::Game::until_stopped`]
+/// is the one place that catches it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Stop {
+    /// A replay with no seat to hand over to answered its last line.
+    LogSpent { answered: usize },
+    /// A replayed answer is not what the engine asks: `line` is its number in
+    /// the log, and `why` says what differs.
+    Diverged { line: usize, why: String },
+    /// A scenario's setup line cannot be played: its line in the file, the
+    /// line as written, and what to change.
+    SetupRefused { line: usize, written: String, why: String },
+    /// A newer replay superseded this one, which stopped at its next answer.
+    Superseded,
+}
+
+impl Stop {
+    /// End the run here. `resume_unwind` skips the panic hook, so a stop
+    /// prints nothing on its way out.
+    pub fn raise(self) -> ! {
+        std::panic::resume_unwind(Box::new(self))
+    }
+}
+
+impl std::fmt::Display for Stop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stop::LogSpent { answered } => write!(f, "the log's {answered} answers are spent, and no seat plays on"),
+            Stop::Diverged { line, why } => write!(f, "the log diverges at answer {line}: {why}"),
+            Stop::SetupRefused { line, written, why } => write!(f, "line {line}, `{written}`: {why}"),
+            Stop::Superseded => write!(f, "a newer replay superseded this one"),
+        }
+    }
+}
+
 /// What a player chooses to do when they have priority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PriorityAction {
