@@ -51,6 +51,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision +0.14% (`fuzz-record.md`); on the large board the editor's view 19 µs a repaint and an edit 142 µs a click in release, 104 µs and 278 µs in debug; the dev GUI's CI test step about 24 s, as before.
 
+### The replay (SU-4), ✅ 2026-10-03 (PR #217)
+
+**Built:** the tools' engine half (`setup-architecture.md` §7.1–§7.3, §8). The decision log's text in the engine: a record opens with its format and the engine's commit, then its start, written, read and built into a game, then an answer a line naming what it chose rather than where the option sat, then its outcome. A replay answers from it, exact within a build and following the game across builds, a question with one legal answer skipped or supplied where two builds differ, and stops at a line it cannot follow, saying why. The stop, a typed unwind one function catches, and the setup driver's refusal raised as one. `ChoiceKind::as_str`, and an option logged by what it is with one matcher for replays, setup lines and tests' scripts. The memo's debug audits paused for a replay within a session. The dev GUI writes the engine's text and plays its start through the engine.
+
+**Decided:** at the design delta (#216, the owner, 2026-10-03): two PRs along the engine's line; decision 6, the records at scale, with each answer recorded by what was chosen so that a later build replays a record until the game diverges, and nothing refused; `as_str` over `name`, which is a card's in the CR; the savestate menu's shape for SU-5; item 208, the engine crate's name, between Phase 8 and the v1 release; the sweep of the tests' scripted answers beside C0 (item 209).
+
+**Sized and built:** ~1,330–1,990 lines with tests (`setup-architecture.md` §8); built at +1,259 lines of code and +680 of tests in the engine and +101 in the dev GUI, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-4").
+
+**Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision −0.39%, from code placement (`fuzz-record.md`); the a6g replay test 0.28 s in debug with its replay's audits paused; the dev GUI's CI test step 22.8 s.
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*

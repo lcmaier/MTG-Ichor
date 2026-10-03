@@ -37,6 +37,32 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-03 for SU-4** (the replay; `setup-architecture.md` §8's ✅
+section). Its engine changes put nothing new on a fuzz game's path:
+`fuzz_games` attaches no log and uses no replay, and meets the stop only on a
+scenario's refused line. No pool change, so the §3 tables stand as the
+first-strike block below recorded them. `close_out.py`: **main** `fb1767a`
+(#215's merge) against **engine** `b9bf556`, the last commit touching
+`mtgsim/`.
+
+**Predictions, before any arm ran** (`setup-architecture.md` §8, at #216):
+every gameplay and cost row `IDENTICAL` on both pools at two seats and four;
+instructions per decision within ±0.3%, for code the compiler places
+differently.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6280 M → 0.6256 M, **−0.39%** |
+
+The gameplay and cost predictions held. Instructions read 0.09 points past
+the band predicted, on the cheap side, and not from the one change that does
+less work: the validators' duplicate check no longer fills a `HashSet` per
+`pick_n`, and a probe arm restoring it (`981fe25`, discarded) read 0.6258 M →
+0.6260 M, +0.03%. So it is where the compiler places the shorter validators,
+as SU-2's +0.28% was (that block).
+
 **Measured 2026-10-03 for SU-3** (the board editor; `setup-architecture.md`
 §8's ✅ section). Its engine changes are a listing of the cards in
 development, the grammar's spellings made public, and a card line written
