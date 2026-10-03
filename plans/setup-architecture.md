@@ -1617,8 +1617,8 @@ random clicks found two clicks it offered that changed nothing (a move past
 identical lines, a second copy of a tagged card), now not offered; a name
 holding `#` reads back as another board with no parse error, so the read-back
 compares the text written again; turning `commander` off drops the
-commander damage that named only it. It landed at +2,162 code and +604 tests
-against ~1,015–1,430 and ~495–765 sized, all but +75 of it in the dev GUI.
+commander damage that named only it. It landed at +2,164 code and +606 tests
+against ~1,015–1,430 and ~495–765 sized, all but +77 of it in the dev GUI.
 
 **Measured** (`fuzz-record.md`, the SU-3 block). Every counter file is
 byte-identical to `main`'s on both pools at two seats and four, as

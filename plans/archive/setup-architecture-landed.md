@@ -73,11 +73,11 @@ module counted as tests, read off `main` (`7832f22`).
 
 | Part | Code, sized | Code, built | Tests, sized | Tests, built |
 |---|---:|---:|---:|---:|
-| The names in development, the spellings public, a card line written straight into its formatter | 25–40 | 50 | 15–25 | 25 |
-| The editor: its model and its view (`editor.rs`), and the search (`search.rs`) | 650–880 | 1,377 | 360–530 | 328 |
+| The names in development, the spellings public, a card line written straight into its formatter | 25–40 | 50 | 15–25 | 27 |
+| The editor: its model and its view (`editor.rs`), and the search (`search.rs`) | 650–880 | 1,379 | 360–530 | 328 |
 | Session and launch: the switch, Play, "Edit this board", "Edit the scenario", Save, the list, `--edit`, the folders (`boards.rs`) | 120–190 | 376 | 90–160 | 210 |
 | The drawing (`app.rs`), and `prompt_cost`'s editor readings | 220–320 | 359 | 30–50 | 41 |
-| **SU-3, against `main`** | **1,015–1,430** | **2,162** | **495–765** | **604** |
+| **SU-3, against `main`** | **1,015–1,430** | **2,164** | **495–765** | **606** |
 
 The editor's random clicks (`tests/random_clicks.rs`) are its tests' 120,
 in the second row. What the sizing left out: a type for each kind of

@@ -47,7 +47,7 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Decided:** at the design (#213, the owner, 2026-10-03): one window; the board's own words, the rest to follow as the editor's advanced settings; `boards/` with a folder per board, the editor never writing a committed file. At the build, that the dev GUI may run over its sizing (the owner, 2026-10-03).
 
-**Sized and built:** ~1,500–2,200 lines with tests (`setup-architecture.md` §8); built at +2,162 lines of code and +604 of tests against `main`, all but +75 of them in the dev GUI, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-3").
+**Sized and built:** ~1,500–2,200 lines with tests (`setup-architecture.md` §8); built at +2,164 lines of code and +606 of tests against `main`, all but +77 of them in the dev GUI, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-3").
 
 **Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision +0.14% (`fuzz-record.md`); on the large board the editor's view 19 µs a repaint and an edit 142 µs a click in release, 104 µs and 278 µs in debug; the dev GUI's CI test step about 24 s, as before.
 
