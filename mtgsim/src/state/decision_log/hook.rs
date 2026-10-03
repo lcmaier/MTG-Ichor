@@ -1,34 +1,13 @@
-//! The decision log: every answer a game's choices get, in the order it gets
-//! them, written by the engine so that the record is the game's and not a
-//! seat's (A6g's playable PR, the owner's call at its design review,
-//! 2026-10-02).
-//!
-//! A seat's provider sees only the prompts that reach it, and that depends on
-//! how the seat is set up: auto-yield and auto-pay answer some prompts above
-//! it, and full control makes the engine ask at a priority point where passing
-//! is all the player can do, where it otherwise passes itself. So the log is
-//! written at the two places every answer passes: the four `ui::ask`
-//! validators, whoever answered, and the priority loop's own pass. A pass is
-//! one line whoever made it, and the same game writes the same log whatever
-//! its seats were set to. A replay that has every seat stop at every priority
-//! point is asked each line's question in turn.
-//!
-//! **An observer, never a participant**, as the trace sink is: writing a line
-//! draws from no rng, asks no provider and changes no control flow, and a
-//! writer reads the turn and the step and never characteristics, since a read
-//! through the layers counts a walk. Off by default: a game nobody logs pays
-//! one branch on an `Option` per answer.
-//!
-//! **A fork logs nothing.** `GameState` derives `Clone` and a search forks it
-//! at every decision; a log is one line of play, so a clone has none until it
-//! is given its own.
+//! The hook a client attaches: every decision the game makes, handed to
+//! the client's writer as it is made (`super`'s doc says where it is
+//! called and why it observes and never participates).
 
 use std::fmt;
 use std::sync::Arc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::ChoiceKind;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Copy, Debug)]
@@ -44,6 +23,11 @@ pub enum LoggedAnswer<'a> {
 pub struct LoggedDecision<'a> {
     pub player: PlayerId,
     pub kind: &'a ChoiceKind,
+    /// What the question offered: a `pick_n`'s options, an `allocate`'s
+    /// buckets, a `choose_ordering`'s items, and none for a `pick_number`.
+    /// The log writes an answer as what it chose among them, never where
+    /// (`ChoiceOption::as_logged`).
+    pub options: &'a [ChoiceOption],
     pub answer: LoggedAnswer<'a>,
     /// The question had one legal answer: a priority point where the player
     /// could only pass, whether the engine passed or the seat stopped for it.
@@ -110,7 +94,8 @@ mod tests {
         let written = Arc::new(Mutex::new(0));
         let count = Arc::clone(&written);
         game.log_decisions(move |_, _| *count.lock().unwrap() += 1);
-        let pass = LoggedDecision { player: 0, kind: &ChoiceKind::PriorityAction, answer: LoggedAnswer::Picks(&[0]), forced: true };
+        let options = [ChoiceOption::Action(crate::ui::decision::PriorityAction::Pass)];
+        let pass = LoggedDecision { player: 0, kind: &ChoiceKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
 
         game.clone().log_decision(pass);
         assert_eq!(*written.lock().unwrap(), 0, "the fork wrote to the game's log");

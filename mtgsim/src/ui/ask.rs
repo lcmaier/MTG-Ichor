@@ -141,7 +141,7 @@ fn validate_pick_n(
         r
     });
     let decision = check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
-    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Picks(indices), forced: !decision });
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, options, answer: LoggedAnswer::Picks(indices), forced: !decision });
 }
 
 /// [`validate_pick_n`]'s checks, without the record; whether the prompt had
@@ -217,7 +217,7 @@ fn validate_pick_number(
         r
     });
     let decision = check_pick_number(value, min, max, context_desc, &game.diagnostics);
-    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Number(value), forced: !decision });
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, options: &[], answer: LoggedAnswer::Number(value), forced: !decision });
 }
 
 /// [`validate_pick_number`]'s checks, without the record; whether the prompt
@@ -288,7 +288,7 @@ fn validate_allocation(
         context_desc,
         &game.diagnostics,
     );
-    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Allocation(alloc), forced: !decision });
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, options: buckets, answer: LoggedAnswer::Allocation(alloc), forced: !decision });
 }
 
 /// [`validate_allocation`]'s checks, without the record; whether the prompt
@@ -378,7 +378,7 @@ fn validate_ordering(
         r
     });
     let decision = check_ordering(order, items.len(), context_desc, &game.diagnostics);
-    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Order(order), forced: !decision });
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, options: items, answer: LoggedAnswer::Order(order), forced: !decision });
 }
 
 /// [`validate_ordering`]'s checks, without the record; whether the prompt had

@@ -4,7 +4,7 @@ use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
-use crate::ui::choice_types::{ChoiceKind, Rejection};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// How many answers to one question the engine rejects before it ends the
@@ -111,6 +111,7 @@ impl GameState {
                     self.log_decision(LoggedDecision {
                         player: current_priority,
                         kind: &ChoiceKind::PriorityAction,
+                        options: &[ChoiceOption::Action(PriorityAction::Pass)],
                         answer: LoggedAnswer::Picks(&[0]),
                         forced: true,
                     });
