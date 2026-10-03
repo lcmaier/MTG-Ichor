@@ -693,10 +693,11 @@ a relaunch. The decision log of a scenario game starts with `scenario <path>`,
 `seed N` and the scenario's text verbatim, so the log is a save (§2) even after
 the file changes.
 
-**Seats.** The window plays seat 0, and the random agent plays the others.
-Playable's PR built the seat's controls and kept the window at seat 0
-(2026-10-02). **The window is to play every seat, and the agent leaves the dev
-GUI** (the owner, 2026-10-03, over the tools' two review rounds): reaching a
+**Seats.** The window played seat 0 and the random agent the others until the
+seats PR (#214, 2026-10-03); playable's PR had built the seat's controls and
+kept the window at seat 0 (2026-10-02). **The window plays every seat, and the
+agent has left the dev GUI** (the owner, 2026-10-03, over the tools' two
+review rounds): reaching a
 situation on a big Commander board takes specific choices from each seat, an
 agent's random ones get in the way, and the dev GUI is for building cards and
 debugging, not for play against an opponent. `fuzz_games` keeps the agent.
@@ -716,8 +717,10 @@ tester explores both sides of an interaction from one board. What it takes:
   engine.
 
 Sized ~200–300 lines with tests at two seats, and ~+100–150 past two. It
-comes before the tools, as a PR of its own ahead of SU-3 with four seats in it
-(§7b's decision 4, the owner, 2026-10-03), re-sized in §8.
+came before the tools, as a PR of its own ahead of SU-3 with four seats in it
+(§7b's decision 4, the owner, 2026-10-03), re-sized in §8: **built by the
+seats PR** (#214), whose record is in `plans/archive/roadmap-v2-landed.md`,
+A6g.
 
 **Savestates** (the owner's suggestion, placed in the tools PR by the owner,
 2026-10-01) are positions the tester sets during play and moves between, like a
@@ -1077,7 +1080,7 @@ an empty board ──┘    │    └─ undo: the boards before it
   `Snapshot::board_text`, the written board, built at every prompt. The window
   is seat 0 (`WINDOW_SEAT`, seven lines), the agent is built at
   `bridge.rs:181`, two decks are dealt at `:153`, and a scenario that is not
-  two-seat is refused at `:204`.
+  two-seat is refused at `:204`. (The seats PR changed all four: decision 4.)
 
 **Measured** (a throwaway probe, 2026-10-03, the owner's machine, the median
 of 30): a board written and read back (`Display`, then `parse`), and built.
@@ -1424,8 +1427,9 @@ Past two seats it adds:
 | Review | a small GUI PR: the pictures and a click script | the largest GUI PR yet, reviewed by its pictures | two small PRs |
 
 **Decided: A** (the owner, 2026-10-03), as the seats PR: A6g tooling like
-playable, with no SU code, since it is the dev GUI's and not CR 103's. It
-comes next, before SU-3's build. Decision 5's lever rides in it.
+playable, with no SU code, since it is the dev GUI's and not CR 103's.
+Decision 5's lever rides in it. **Built by the seats PR** (#214), ahead of
+SU-3's build.
 
 #### Decision 5 — the engine at opt-level 1 in the dev GUI's debug build
 

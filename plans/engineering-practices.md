@@ -1874,14 +1874,15 @@ scenario's seed (finding 3 of that PR's table).
 
 ### 10.3 Random clicks
 
-`devgui/tests/random_clicks.rs` plays whole games with the window's part
+`devgui/tests/random_clicks.rs` plays whole games with every seat's part
 taken by seeded random clicks, through `WindowState::input`. At each prompt
 it clicks anything the window would let a person click (a live button, a
 board item marked clickable, "Start over" one click in twenty) until an
 answer completes: the half chosen and abandoned, the ordering reset midway,
 the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
-pool and three seeds on each review board, eighteen games in about 15 s of
-the debug build CI runs, read locally. Each game must finish, the engine's thread must not panic,
+pool, and three seeds on each review board and on the four-seat sample:
+twenty-one games in about 23 s of the debug build CI runs, read locally with
+the engine at opt-level 1 (§10.4). Each game must finish, the engine's thread must not panic,
 the engine must accept every answer the view model builds, and every click
 the window offers must change the answer or complete it: the view model asks
 one probe, `Selection::is_live`, which runs the click on a copy. The games
@@ -1902,6 +1903,12 @@ and offer nothing in its beat. A fourth review board, `reask.scenario`,
 declares blocks illegally. Its second find came from full control's extra
 prompts: `Scenario::write`, which the snapshot calls, indexed a blocker's
 attacker after the attacker, a token, had ceased to exist.
+
+**Since the seats PR** the window plays every seat, and so do the clicks. A
+yield is one click in twenty, as "Start over" is. A yield as likely as any
+other click had both seats passing at most priority prompts, so a game ran
+on to the end of the libraries: one stress game ran 112 turns, 2,892 prompts
+and 40 s in debug.
 
 ### 10.4 What one prompt costs the window
 
