@@ -185,6 +185,23 @@ hand 0: Grizly Bears
     }
 }
 
+/// A setup line the engine cannot play reaches the window as a refusal
+/// naming its line, as a line the loader refuses does: the setup driver
+/// stops the run, where it once panicked.
+#[test]
+fn a_setup_line_refused_in_play_reaches_the_window_with_its_line() {
+    let path = std::env::temp_dir().join("devgui-refused-in-play.scenario");
+    std::fs::write(&path, "hand 0: Lightning Bolt
+battlefield: Grizzly Bears | controller 1
+then: player 0 casts Lightning Bolt | targeting Grizzly Bears
+").unwrap();
+    let engine = spawn_game(GameSetup { scenario: Some(path), ..dealt(0, None) }, Arc::new(|| {}));
+    match next(&engine) {
+        ToWindow::Refused { message } => assert!(message.starts_with("line 3, `"), "{message}"),
+        other => panic!("expected the refusal, got {other:?}"),
+    }
+}
+
 /// A session's first prompt, waited for: the engine thread sends it.
 fn first_prompt(session: &mut Session) {
     let deadline = Instant::now() + Duration::from_secs(60);

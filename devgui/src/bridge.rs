@@ -20,7 +20,7 @@ use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupActions, SetupDriver};
-use mtgsim::state::game::{Game, RandomStreams};
+use mtgsim::state::game::{Game, Halt, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::decision_log::LoggedDecision;
 use mtgsim::state::game_state::{GameResult, GameState};
@@ -191,13 +191,20 @@ fn play(
     // A scenario's setup actions play first, every seat's, so the window's
     // first prompt comes once they have built their stack.
     let played = match setup.scenario {
-        Some(_) => game.resume(&SetupDriver::new(setup_actions, &dp)),
-        None => game.setup(&dp).and_then(|()| game.run(&dp)),
+        Some(_) => game.until_stopped(|game| game.resume(&SetupDriver::new(setup_actions, &dp))),
+        None => game.setup(&dp).and_then(|()| game.run(&dp)).map_err(Halt::Error),
     };
     let outcome = match played {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
         Ok(GameResult::Draw) => Outcome::Draw,
-        Err(error) => Outcome::Error(error),
+        Err(Halt::Error(error)) => Outcome::Error(error),
+        // A setup line the engine cannot play is the file's to fix, as a
+        // line the loader refuses is.
+        Err(Halt::Stopped(stop)) => {
+            let _ = to_window.send(ToWindow::Refused { message: stop.to_string() });
+            wake();
+            return;
+        }
     };
     locked(&log).outcome(&outcome);
     let snapshot = Snapshot::build(&game.state, events_logged.get());
