@@ -1032,10 +1032,13 @@ in the editor (SU-3, §7b).
 ## 7b. The board editor (SU-3)
 
 > **Status:** design, 2026-10-03, in review; nothing built. It grows §7a's
-> item 5. At the first review round (2026-10-03) the owner decided 1 and 4:
-> one window, and the seats PR ahead of SU-3 with four seats in it.
-> Decisions 2, 3 and 5 are open. The rest is settled by §7a and
-> `engineering-practices.md` §10, or is this design's own and reviewed with it.
+> item 5. The owner decided 1 and 4 at the first review round (2026-10-03):
+> one window, and the seats PR ahead of SU-3 with four seats in it. At the
+> second, 2 and 3: the board's own words, the rest to follow as advanced
+> settings, and a `boards/` folder. A folder per board inside it, the owner's
+> direction, is designed in decision 3 for the owner to confirm. Decision 5
+> is open. The rest is settled by §7a and `engineering-practices.md` §10, or
+> is this design's own and reviewed with it.
 
 **Where it sits.** Nowhere on the event path: before the first event, on the
 start's side of `Scenario::build`, beside the parser and the writer. It is a
@@ -1226,8 +1229,8 @@ sets how many steps each turn of that loop takes.
 
 | | **A. One window, two modes** | **B. A window that only edits** |
 |---|---|---|
-| Shape | Edit beside Play, a switch in the header. "Play this board" starts the edited board as Reload starts a file, from the editor's text, which the log records as it records a file's. Switching back to Edit returns to the board as it was, undo and all. At any prompt, "Edit this board" opens the board the game is at through `Scenario::write`, which the snapshot already carries, with the writer's report shown | `devgui --edit FILE` opens a window that only edits, and Save writes the file. A second window, `devgui --scenario FILE`, plays it, and Reload picks up each save. A board reached in play comes back through "Save board as scenario" and `--edit` |
-| Code | `Session` keeps an `Editor` beside its game, and a mode; `GameSetup` starts from text beside a file. About 80 lines more than B | a second `eframe::App`, chosen at launch, ~40 lines; the session is unchanged |
+| Shape | Edit beside Play, a switch in the header. "Play this board" saves the board to its file (decision 3) and starts it as Reload starts a file. Switching back to Edit returns to the board as it was, undo and all. At any prompt, "Edit this board" opens the board the game is at through `Scenario::write`, which the snapshot already carries, with the writer's report shown | `devgui --edit FILE` opens a window that only edits, and Save writes the file. A second window, `devgui --scenario FILE`, plays it, and Reload picks up each save. A board reached in play comes back through "Save board as scenario" and `--edit` |
+| Code | `Session` keeps an `Editor` beside its game, and a mode. About 60 lines more than B | a second `eframe::App`, chosen at launch, ~40 lines; the session is unchanged |
 | Performance | the dev GUI's alone, since nothing here runs in a game: the game waits at its prompt while the person edits, its thread blocked on `recv`, as it is now between clicks | the same |
 | Upkeep | one header gains a switch; the two views share the item and zone drawing | two windows kept in step by hand: each turn of the loop is Save, switch windows, Reload |
 
@@ -1264,16 +1267,18 @@ each built from a seat, a card in its hand and targets clicked in order.
 |---|---|---|
 | §5.1's rows clicked | 21: the game's facts (1–5), life (8), the zones and their lines (15–17, 19, 20), `commander` (18), and a permanent's words (21–24, 26–30): controller and owner, tapped, arrival, counters, damage, attachment, combat, dealt first-strike damage | 31: A's, and player counters (9), lands played (10), left the game (11), commander damage (12), history (13), `this turn:` (14), `counters:` lines (25), and setup actions with their targets and ability (31, 32, 34) |
 | The rest | 10 rows shown as their text: under the player, on the card's button, or listed under the board (`counters:` and `this turn:` lines, setup actions), each removable. Edited in the file, which then opens again | none |
-| Code and tests | ~1,500–2,150 (§8) | ~2,100–3,050. The ten rows add ~600–900, setup actions the most (~250): a list of lines, each a seat, a verb, a card from that seat's hand or board, an ability, and targets clicked in order |
+| Code and tests | ~1,500–2,200 (§8) | ~2,100–3,100. The ten rows add ~600–900, setup actions the most (~250): a list of lines, each a seat, a verb, a card from that seat's hand or board, an ability, and targets clicked in order |
 | Upkeep | a word a later PR adds (§5.2's growth contract) is kept and shown as text until a board needs a control for it | each word a later PR adds owes a control and its test in that PR |
 
-**Recommendation: A.** A four-seat Commander board is built from A's words:
-four players at 40 life, commanders in the command zone and on the
-battlefield, and combat. A word moves into the editor when a board needs it,
-at the size §8 gives its row. Commander damage (12) and a player who has left
-(11) are the two such a board is likeliest to want next, and
-`four-seats-commander.scenario` uses both. Together they add ~70–110 lines,
-and they can join A in the first editor if the owner wants them there.
+**Decided: A** (the owner, 2026-10-03), with B to follow as the editor's
+**advanced settings**: a switch that shows controls for the ten rows A leaves
+as text. Those controls can be typeable, a field that takes any line of the
+grammar and reads it with the parser (~40–60 lines), and clickable, a control
+per row at the sizes §8 gives (~600–900 in all). A6g's row slots them after
+the "why" panel. A four-seat Commander board is built from A's words: four
+players at 40 life, commanders in the command zone and on the battlefield,
+and combat. Commander damage (12) and a player who has left (11), which
+`four-seats-commander.scenario` uses, are the likeliest first advanced rows.
 
 #### Decision 3 — where a built board is saved, and how a file comes back
 
@@ -1322,16 +1327,57 @@ among them, and pruning old records never takes a board. About 10 lines, and
   on an empty two-seat board if no file is given. "Edit this board" works at
   any prompt. In a scenario game, "Edit the scenario" opens the editor's own
   board if Play started it, or else the file, read again with its setup
-  actions. And a list in the header names the `.scenario` files under
-  `boards/`, `mtgsim/scenarios/` and `devgui/tests/scenarios/`, ~40 lines. §7
-  deferred that list until there were more than a handful of files, and there
-  are eleven committed ones.
+  actions. And a list in the header names the boards in `boards/` and the
+  `.scenario` files under `mtgsim/scenarios/` and `devgui/tests/scenarios/`,
+  ~40 lines. §7 deferred that list until there were more than a handful of
+  files, and there are eleven committed ones.
 
-**Recommendation: `boards/`, and B inside it**, with Copy as text and the
-list. Play needs no file, since decision 1 starts it from the editor's text, so
-a save is only for keeping. Working on one board then writes one file, and
-the editor never writes a committed file, so a board becomes a sample by a
-copy that its PR reviews.
+**Decided: `boards/`, and B inside it** (the owner, 2026-10-03), with Copy as
+text and the list. Working on one board writes one file, and the editor never
+writes a committed file, so a board becomes a sample by a copy that its PR
+reviews.
+
+**A folder per board** (the owner's direction at the second round, designed
+here for the owner to confirm). Each board gets a folder in `boards/`, named
+for the board, holding the board and the record of every game played from it:
+
+```
+devgui/
+  boards/
+    holy-strength/
+      holy-strength.scenario   the board, as Save or Play last wrote it
+      seed-0.log               a game played from it; Reload's is seed-0-2.log
+      seed-0.log.save          SU-4's save, beside its log
+    board-3/                   a new board, named at its first Save or Play
+  logs/
+    seed-41.log                a dealt game, which starts from no board
+```
+
+- **The board is the key, as the log already says.** Each log names its start
+  in its header and holds the board's text, so the folder shows what the log
+  records, and a log read alone still replays (§2).
+- **Play saves first**, then starts the board from its file as Reload does. So
+  every game in a folder sits beside the board it began from or a later edit
+  of it, each log keeping the text it began from. Play is live only while the
+  loader accepts the board.
+- **A new board is named `board-N`**, the first unused, at its first Save or
+  Play, and is renamed by renaming its folder and its file.
+- **"Save board as scenario"** makes a new board, so a new folder, named for
+  the game's start and turn (`holy-strength-turn-3/`), with a leading comment
+  naming the log it came from.
+- **A committed board** played with `--scenario` (a sample, a review board)
+  records its games in `boards/<its stem>/`, which holds no board file until
+  the editor saves one there; the committed file is never written. Two
+  committed boards with one stem share a folder, and each log still names its
+  file.
+- **A dealt game** has no board, so its records stay in `logs/`, named for the
+  seed as today.
+
+Deleting or sharing a board's folder takes its history with it. For v1 it
+gives SU-4's design one fact: in the dev GUI, records are grouped by the start
+they replay from. Where v1's GUI and the harness put theirs stays SU-4's
+(§7.2). About 20–40 lines over a flat `boards/`, and starting Play from a file
+drops the start from text that decision 1's first draft needed.
 
 #### Decision 4 — the window playing every seat, and past two seats
 
@@ -1373,7 +1419,7 @@ Past two seats it adds:
 
 | | **A. A PR ahead, four seats in it** | **B. Inside SU-3, four seats in it** | **C. A PR ahead, two seats; four later** |
 |---|---|---|---|
-| Size | ~200–320 with tests, a review of its own (§8); SU-3 stays ~1,500–2,150 | SU-3 ~1,700–2,470, at the band's top before any overrun | ~150–240; four seats a later PR of ~50–80 |
+| Size | ~200–320 with tests, a review of its own (§8); SU-3 stays ~1,500–2,200 | SU-3 ~1,700–2,520, at the band's top before any overrun | ~150–240; four seats a later PR of ~50–80 |
 | What lands first | four-seat boards written by hand play at once, and the editor's Play plays any board it builds | everything at SU-3's merge | the editor's four-seat boards cannot be played until the later PR |
 | Review | a small GUI PR: the pictures and a click script | the largest GUI PR yet, reviewed by its pictures | two small PRs |
 
@@ -1383,15 +1429,19 @@ comes next, before SU-3's build. Decision 5's lever would ride in it.
 
 #### Decision 5 — the engine at opt-level 1 in the dev GUI's debug build
 
-**The problem, from the start.** Rust builds a program two ways:
-- `cargo run` and `cargo test` make a **debug** build: quick to compile, slow
-  to run, and carrying the checks only a debug build has (code under
-  `#[cfg(debug_assertions)]`);
-- `cargo run --release` makes a **release** build: slow to compile, fast to
-  run, with those checks off.
+**The problem, from the start.** A build sets two separate switches, which
+`cargo` sets together for debug and for release:
 
-Most of the speed difference is the optimization level, `opt-level`: 0 in
-debug, where the compiler translates the code as written, and 3 in release.
+| | How hard the compiler optimizes (`opt-level`) | The debug checks (`debug_assertions`), the layer memo's audit among them |
+|---|---|---|
+| a debug build (`cargo run`, `cargo test`), today | 0: the code as written; quick to compile, slow to run | on |
+| a release build (`cargo run --release`) | 3: fully optimized; slow to compile, fast to run | off |
+| **the lever**: the engine, in the dev GUI's debug build | 1: lightly optimized | on, unchanged |
+
+Optimization changes how fast the code runs, never what it does. Under the
+lever the engine keeps the same cache, the same audit and the same checks, and
+computes the same answers, faster. The audit belongs to the second switch,
+which the lever leaves on.
 
 **The check that matters here is the layer memo's audit.** An object's
 characteristics through the layers (CR 613: its types, power and toughness,
@@ -1409,16 +1459,17 @@ and it is also why that window is slow. Each served answer costs a full walk
 anyway, which is about 98% of a debug engine call (§7.1) and 125 ms a prompt
 on a large board (§10.4). A release build has no audit.
 
-**The lever** is two lines in `devgui/Cargo.toml`:
+**The choice is yes or no** to two lines in `devgui/Cargo.toml`:
 `[profile.dev.package.mtgsim] opt-level = 1`. When the dev GUI is built in
-debug, the engine crate is compiled with light optimization, and everything
+debug, they compile the engine crate with light optimization, and everything
 else stays as debug has it: the audit and every other debug assertion, debug
 info, the overflow checks. Only the engine runs faster: §7.1 measured every
 engine call about 8× faster with the audit on, and an engine rebuild 2.4 →
-3.4 s. It applies only to builds of the dev GUI. The engine's own `cargo
-test`, in `mtgsim/`, reads its own manifest and is unchanged. **Why now:** the
-seats PR makes the window answer every seat, so the dev GUI's tests, which
-play whole games through the window, do more work.
+3.4 s. The lever applies only to builds of the dev GUI. Release builds, and
+the engine's own `cargo test` in `mtgsim/`, which reads its own manifest, are
+the same either way. **Why now:** the seats PR makes the window answer every
+seat, so the dev GUI's tests, which play whole games through the window, do
+more work.
 
 **Measured today**: the dev GUI's CI test step, `cargo test --locked --lib
 --test headless_game --test random_clicks`, each arm in a target directory of
@@ -1446,9 +1497,11 @@ step's time is quoted from the PR's run.
 ### 7b.3 What SU-3 and the seats PR change that §7.1–§7.3 name
 
 Each PR body lists these under "for SU-4" (§8). Expected from this design:
-- **a start from text**: Play's game starts from the editor's text, and its log
-  records that text as it records a file's. SU-4's reader of a start reads
-  it, and §7.3's "a scenario read again is a new start" holds for each Play;
+- **a folder per board** (decision 3): a scenario game's log, and SU-4's save
+  beside it, go into its board's folder, `boards/<board>/`, and a dealt game's
+  stay in `logs/`, so SU-4's `--load` and its menu read both. Play starts from
+  a file, as Reload does, so SU-4 meets no new kind of start, and §7.3's "a
+  scenario read again is a new start" holds for each Play;
 - **a `GuiSeat` and a stack of decorators per seat**, `WINDOW_SEAT` gone, the
   prompt naming its seat: §7.2's decision 2 ("the window's last prompt,
   whichever seat it was for") is built against these;
@@ -1473,9 +1526,9 @@ devgui code like that part, and its refusals are the loader's.
 | The names in development listed; `CardWord`'s `Display`; the step words and the tag spelling public | `cards::registry`, `scenario::text`, `scenario::write` | 25–40 | 15–25 |
 | The editor: the board, undo, the renumbering, the check and its mark; each input; tags, order, attaching, leaving the battlefield; the search | devgui `editor.rs` | 400–550 | 260–380 |
 | The editor's view: the facts, the seats and zones, the card buttons, the card's controls, the words shown as text, the search's results | devgui `editor.rs` | 250–330 | 100–150 |
-| Session and launch: the switch, Play from text, "Edit this board", "Edit the scenario", Save, Copy as text, the list, `--edit` | devgui `session.rs`, `bridge.rs`, `launch.rs` | 110–170 | 80–140 |
+| Session and launch: the switch, Play from the board's file, "Edit this board", "Edit the scenario", Save, Copy as text, the list, `--edit`; a folder per board | devgui `session.rs`, `bridge.rs`, `launch.rs` | 120–190 | 90–160 |
 | The drawing | devgui `app.rs` | 220–320 | two pictures, 30–50 |
-| **SU-3** | | **1,005–1,410** | **485–745** |
+| **SU-3** | | **1,015–1,430** | **495–765** |
 
 The editor's tests include its own random clicks (§10.3's shape): random
 inputs from what its view offers, checking after each that the board is its
@@ -1485,7 +1538,9 @@ selection, and that undo walks back to the start.
 **Decision 2's B** adds, row by row: player counters ~45–65, lands played
 ~20–30, left the game ~20–30, commander damage ~50–80, history ~110–160,
 `this turn:` ~90–130, `counters:` lines ~60–90, setup actions ~210–310: ~600–900
-in all, so ~2,100–3,050 for SU-3.
+in all, so ~2,100–3,100 for SU-3. Decided A, these rows are the editor's
+advanced settings, slotted on A6g's row after the "why" panel (§7b.2,
+decision 2).
 
 **The seats PR** (§7's "Seats", decision 4), with decision 5's lever if it is
 taken:
