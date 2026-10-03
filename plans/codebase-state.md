@@ -9059,3 +9059,47 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      beside C0 (`roadmap-v2.md` §C), the test-card reorganization before
      Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
      move: C0's text keeps behavior out of the move, so the move stays a move.
+
+### Found at SU-3's merge (2026-10-03)
+
+208. **The engine crate is named `mtgsim`, and the project MTG-Ichor.** The
+     owner's question at #215's merge: whether the crate takes the project's
+     name before outside contributors first read it. What a rename touches,
+     counted at `fb1767a`:
+     - **the crate**: 1,597 `mtgsim::` uses in 87 Rust files, 1,487 of them
+       in 74 engine test files, 49 in the engine's two binaries and a doc
+       test, and 61 in ten dev GUI files; both `Cargo.toml` files (the
+       package, the engine's dev-dependency on itself for `test-support`, the
+       dev GUI's two dependency lines and its `[profile.dev.package.mtgsim]`)
+       and both lockfiles; `check_egui_only_draws.py`'s engine pattern
+       (`\bmtgsim\b`); and two environment names that follow the crate's by
+       habit, not by any rule: `MTGSIM_COMMIT`, which `stamp_commit.rs`
+       stamps and `state::trace` reads, and `MTGSIM_HASH_SEED`, which
+       `types::ids` reads and CI, `CLAUDE.md`, two scripts, two tests and
+       seven docs name;
+     - **the directory too**, if it moves with the crate: 20 tracked scripts
+       (nine of the ten `check_*.py`, `close_out.py`, `fuzz_ab.py`,
+       `panic_surface.py`, `specdb.py`, `trace_spine.py`, five census
+       scripts in `plans/references/` and `prof_arm.sh`), CI's two lines,
+       `CLAUDE.md`'s five, `.gitignore`, the template scenario, seven trace
+       pages, and 75 lines of docs, 60 of them outside `plans/archive/`.
+
+     **A Cargo workspace is the same kind of change**, so the two are decided
+     together. A root `Cargo.toml` over `mtgsim/` and `devgui/` gives one
+     lockfile and one target directory where there are two of each, and
+     moves every profile setting to the root: the dev GUI's opt-level-1
+     engine (`setup-architecture.md` §7b's decision 5) would then reach
+     `cargo test` in the engine too, unless a profile of its own carries it.
+
+     **Reachability (2026-10-03):** reachable — not wrong in any game: a
+     name, which a contributor reads first.
+
+     **Sized:** the crate alone is one mechanical commit, a sweep anchored on
+     `mtgsim::` and on the manifests' and the gate's names, the lockfiles
+     regenerated: about 1,600 changed lines and no logic. The directory adds
+     ~120 lines of scripts, CI and docs, and a workspace ~20–40 of manifests
+     and CI. **Slotted:** before the call for UI contributors goes out (the
+     owner's plan since SU-3's merge), decided with the workspace at A6g's
+     last entry, the dev GUI audit (`roadmap-v2.md` A6g), which reads the
+     crates as a contributor first meets them. The call has no route row of
+     its own.
