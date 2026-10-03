@@ -10,6 +10,117 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-3 — the board editor — ✅ landed 2026-10-03
+
+*Evicted 2026-10-03 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with the seats PR's sizing, which was made beside it.*
+
+### The build as sized (2026-10-03, at the design)
+
+**SU-3, the board editor, re-sized at its design (2026-10-03)** with doc
+comments and messages counted, for decision 2's A and decisions 1 and 3 as
+recommended (§7b.2). §7a's ~500–900 and the A6g row's ~350–600 came before the
+design. SU-1's code came in at about 1.9 times its sizing and SU-2's at about
+2.0, each from what its sizing left out (the archive's tables), while SU-1's
+devgui part came in inside its range (198 against 150–220). Most of SU-3 is
+devgui code like that part, and its refusals are the loader's.
+
+| SU-3 piece | Where | Code | Tests |
+|---|---|---|---|
+| The names in development listed; `CardWord`'s `Display`; the step words and the tag spelling public | `cards::registry`, `scenario::text`, `scenario::write` | 25–40 | 15–25 |
+| The editor: the board, undo, the renumbering, the check and its mark; each input; tags, order, attaching, leaving the battlefield; the search | devgui `editor.rs` | 400–550 | 260–380 |
+| The editor's view: the facts, the seats and zones, the card buttons, the card's controls, the words shown as text, the search's results | devgui `editor.rs` | 250–330 | 100–150 |
+| Session and launch: the switch, Play from the board's file, "Edit this board", "Edit the scenario", Save, Copy as text, the list, `--edit`; a folder per board | devgui `session.rs`, `bridge.rs`, `launch.rs` | 120–190 | 90–160 |
+| The drawing | devgui `app.rs` | 220–320 | two pictures, 30–50 |
+| **SU-3** | | **1,015–1,430** | **495–765** |
+
+The editor's tests include its own random clicks (§10.3's shape): random
+inputs from what its view offers, checking after each that the board is its
+own text read back, that each offered click changes the board or the
+selection, and that undo walks back to the start.
+
+**Decision 2's B** adds, row by row: player counters ~45–65, lands played
+~20–30, left the game ~20–30, commander damage ~50–80, history ~110–160,
+`this turn:` ~90–130, `counters:` lines ~60–90, setup actions ~210–310: ~600–900
+in all, so ~2,100–3,100 for SU-3. Decided A, these rows are the editor's
+advanced settings, slotted on A6g's row after the "why" panel (§7b.2,
+decision 2).
+
+**The seats PR** (§7's "Seats", decision 4), with decision 5's lever:
+
+| Seats PR piece | Where | Code | Tests |
+|---|---|---|---|
+| A stack of decorators and a yield per seat; the prompt names its seat; N decks; the agent and the two-seat refusal gone | devgui `bridge.rs`, `prompt.rs` | 50–80 | — |
+| `--players N` | devgui `launch.rs` | 15–25 | 10–15 |
+| The asked seat named and marked; seats in a fixed order; the outcome by seat | devgui `view_model.rs`, `app.rs` | 30–50 | 25–40 |
+| The tests answering every seat; a dealt four-seat game and the four-seat sample played by rule | devgui tests | — | 60–100 |
+| The engine at opt-level 1 in debug | `devgui/Cargo.toml` | 3–5 | — |
+| **The seats PR** | | **~100–160** | **~95–155** |
+
+Its review pictures are drawn again, since a prompt names its seat. Of its
+~200–320, four seats are ~50–80: `--players`, and the four-seat games.
+
+**A/B, predicted before any arm runs.** Neither PR changes what a fuzz game
+runs. The seats PR touches no engine file. SU-3's engine changes are a new
+listing and spellings made public, read by nothing `fuzz_games` reaches. So
+every gameplay and cost row is predicted `IDENTICAL` on both pools at two
+seats and four, and SU-3's instructions per decision within ±0.3%, for code
+the compiler places differently.
+
+### Sized against built
+
+Lines added, `mtgsim/` and `devgui/` with a `src` file's `#[cfg(test)]`
+module counted as tests, read off `main` (`7832f22`).
+
+| Part | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---:|---:|---:|---:|
+| The names in development, the spellings public, a card line written straight into its formatter | 25–40 | 50 | 15–25 | 25 |
+| The editor: its model and its view (`editor.rs`), and the search (`search.rs`) | 650–880 | 1,377 | 360–530 | 328 |
+| Session and launch: the switch, Play, "Edit this board", "Edit the scenario", Save, the list, `--edit`, the folders (`boards.rs`) | 120–190 | 376 | 90–160 | 210 |
+| The drawing (`app.rs`), and `prompt_cost`'s editor readings | 220–320 | 359 | 30–50 | 41 |
+| **SU-3, against `main`** | **1,015–1,430** | **2,162** | **495–765** | **604** |
+
+The editor's random clicks (`tests/random_clicks.rs`) are its tests' 120,
+in the second row. What the sizing left out: a type for each kind of
+control in the view, each with its doc comment; thirty inputs, each a
+variant with its line; the rules' helpers for references, tags and order; the
+counter controls, one per kind; the folders as a module of their own; and
+the read-back check. As SU-1's and SU-2's code ran at about twice its sizing,
+SU-3's ran at 1.5–2.1 times, all but 50 lines of it in the dev GUI. The band
+crossed 2,500 at the session's commit; the owner had said a dev GUI overage
+may run (2026-10-03).
+
+### What the build changed in the design
+
+1. **The battlefield is one zone in the editor's order.** §7b.1 said a card
+   moves up or down in its zone; across the seats that left Humility unable
+   to arrive before Opalescence when each was its seat's only permanent, so
+   the battlefield's order is one, its cards numbered across the seats, and
+   the other zones are each seat's own.
+2. **A line of several moves one copy.** Moving a card out of `library 0:
+   Forest | x10` takes one Forest, so a line on the battlefield is always one
+   permanent, which a tag can name.
+3. **The random clicks found two offered clicks that changed nothing.** A
+   move past only identical lines (two `Forest | x5` lines, one put back by
+   hand) and a second copy of a tagged card, which the grammar refuses. A move
+   is offered only when it passes a line that says something else, and a
+   tagged card's copies have no "+".
+4. **The read-back compares the text.** A name holding `#` reads back as
+   another board, the comment cut off, with no parse error, so an edit is
+   made only when the board read back writes the same text.
+5. **`commander` off drops the commander damage that named only it**, as
+   leaving the battlefield drops the words naming only a permanent: an edit
+   that takes a card out of a reference's reach takes that reference.
+6. **A fourth spelling made public**: `PlayerWord`'s Display, the player
+   words the editor shows as text. And `CardLine`'s Display writes each word
+   into its formatter: the snapshot's board text read 838 allocations on
+   `main`, 904 with `CardWord`'s Display through `to_string`, and 601 now.
+7. **The build's choices** the design left to it: a committed file's first
+   save in a session makes a board, the first of `<stem>`, `<stem>-2`, …
+   with no board file, and later saves write that board; "Edit this board"
+   and "Save board as scenario" name theirs for the game's start and turn, a
+   dealt game's `seed-N-turn-T`; a file's leading comment block, the comment
+   and blank lines above its first line, is written back above the board.
+
 #### SU-1 — the scenario loader — ✅ landed 2026-10-01
 
 *Evicted 2026-10-01 from `plans/setup-architecture.md` §8, where the heading and a stub remain.*

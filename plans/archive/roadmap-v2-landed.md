@@ -41,6 +41,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured** (the owner's machine, debug): the snapshot on the large board 121.7 → 29.5 ms with the lever (`engineering-practices.md` §10.4); the dev GUI's CI test step 16.5–17.9 s on `main`, 4.0–4.7 s with the lever alone, and about 25 s with every seat the window's, 23.4 s of it the random clicks. The window now builds a snapshot at every seat's prompts, where the agent answered seat 1's for nothing.
 
+### The board editor (SU-3), ✅ 2026-10-03 (PR #215)
+
+**Built:** a scenario built by clicking, beside the game in one window (`setup-architecture.md` §7b): an editor over the parser's `Scenario` value, each edit made on a copy written and read back, undo a stack of boards, the loader's refusal marking the card it names and Play waiting on it; the board's own words as controls and the other ten rows as text; tags, an Aura moved below its host, the words a card leaving the battlefield no longer has; a search over any list of names; Play saving the board and starting it from its file, "Edit this board", "Edit the scenario", `--edit [FILE]`; a folder per board under a git-ignored `boards/`, its games' logs beside it, with Copy as text and an Open… list. Tests: the editor's rules, its own random clicks (3,000 clicks, every one changing the board or the selection, each board its own text read back, Undo walking back to the start), and the session's Play, "Edit this board", "Edit the scenario", Save and logs, with a four-seat Commander board built in the editor and played; two pictures.
+
+**Decided:** at the design (#213, the owner, 2026-10-03): one window; the board's own words, the rest to follow as the editor's advanced settings; `boards/` with a folder per board, the editor never writing a committed file. At the build, that the dev GUI may run over its sizing (the owner, 2026-10-03).
+
+**Sized and built:** ~1,500–2,200 lines with tests (`setup-architecture.md` §8); built at +2,162 lines of code and +604 of tests against `main`, all but +75 of them in the dev GUI, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-3").
+
+**Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision +0.14% (`fuzz-record.md`); on the large board the editor's view 19 µs a repaint and an edit 142 µs a click in release, 104 µs and 278 µs in debug; the dev GUI's CI test step about 24 s, as before.
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*

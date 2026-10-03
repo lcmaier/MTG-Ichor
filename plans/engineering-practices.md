@@ -1910,6 +1910,17 @@ other click had both seats passing at most priority prompts, so a game ran
 on to the end of the libraries: one stress game ran 112 turns, 2,892 prompts
 and 40 s in debug.
 
+**Since SU-3** the board editor has random clicks of its own, with no game:
+from an empty board and four samples, three seeds each, 200 clicks of
+anything the editor offers but Play and Save, chosen by group first (the
+game's facts, the seats, the cards, the card being edited, the lines shown
+as text, the search, Undo), so the long list of names does not crowd out the
+board. Every click must change the board or what is selected, the board must
+be its own text read back, and Undo must walk back to the board opened:
+3,000 clicks in about 0.7 s of the debug build. Their first runs found two
+clicks the editor offered that changed nothing, a move past identical lines
+and a second copy of a tagged card (`setup-architecture.md`'s SU-3 archive).
+
 ### 10.4 What one prompt costs the window
 
 `cargo run --release --example prompt_cost`, in `devgui/`, reads what the
@@ -1960,3 +1971,19 @@ The snapshot is about 4× faster, and the window's own code, still at
 opt-level 0, is unchanged. The debug checks are still most of a debug
 snapshot's cost: it allocates 59 MB where release allocates 0.27 MB, the same
 code but for them. The dev GUI audit at the end of A6g's row weighs that.
+
+**Since SU-3 `prompt_cost` reads the board editor too**, on the same board
+opened in it: its view, which `app::draw` builds again at every repaint in
+the editor, and one edit at a click, which writes the board, reads it back
+and has the loader check it. Read 2026-10-03, the owner's machine:
+
+| | release median | debug median | allocations |
+|---|---|---|---|
+| the editor's view, every repaint | 19.2 µs | 104.0 µs | 487 |
+| an edit, at a click | 142–146 µs | 278.4 µs | 1,660 |
+
+So the view is built again at each repaint, as the game's views are, and an
+edit is checked at the click, on the window's thread, well inside §10.1's
+second question and `setup-architecture.md` §7b's 0.82 ms. The snapshot's
+board text fell to 601 allocations from 838, since a card line is written
+straight into its formatter.
