@@ -1,8 +1,8 @@
 //! `cargo run -- [--seed N] [--pool performance|stress] [--scenario FILE]`
 //!
-//! Plays seat 0 against the random agent. With `--scenario`, the game starts
-//! from the file's board, and Reload builds it again from the file. `launch`
-//! reads the command line; this starts the window over it.
+//! Plays every seat, a prompt naming the seat it asks. With `--scenario`, the
+//! game starts from the file's board, and Reload builds it again from the
+//! file. `launch` reads the command line; this starts the window over it.
 //!
 //! A debug build checks every layer-memo hit against a fresh walk, which is
 //! what to test cards under and costs a prompt about 30 ms on a large board,

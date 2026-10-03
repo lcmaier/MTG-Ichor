@@ -58,6 +58,8 @@ pub struct OptionView {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Prompt {
+    /// The player asked: the window answers at that player's seat.
+    pub player: PlayerId,
     /// The `ChoiceKind` variant's name, which the decision log records.
     pub kind: String,
     pub question: String,
@@ -75,16 +77,23 @@ pub struct Prompt {
 }
 
 impl Prompt {
-    pub fn pick_n(game: &GameState, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Prompt {
-        Prompt::new(game, context, Primitive::PickN { min: bounds.0, max: bounds.1 }, options)
+    pub fn pick_n(
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Prompt {
+        Prompt::new(game, player, context, Primitive::PickN { min: bounds.0, max: bounds.1 }, options)
     }
 
-    pub fn number(game: &GameState, context: &ChoiceContext, min: u64, max: u64) -> Prompt {
-        Prompt::new(game, context, Primitive::Number { min, max }, &[])
+    pub fn number(game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> Prompt {
+        Prompt::new(game, player, context, Primitive::Number { min, max }, &[])
     }
 
     pub fn allocate(
         game: &GameState,
+        player: PlayerId,
         context: &ChoiceContext,
         total: u64,
         buckets: &[ChoiceOption],
@@ -92,15 +101,22 @@ impl Prompt {
         maxs: Option<&[u64]>,
     ) -> Prompt {
         let primitive = Primitive::Allocate { total, mins: mins.to_vec(), maxs: maxs.map(<[u64]>::to_vec) };
-        Prompt::new(game, context, primitive, buckets)
+        Prompt::new(game, player, context, primitive, buckets)
     }
 
-    pub fn order(game: &GameState, context: &ChoiceContext, items: &[ChoiceOption]) -> Prompt {
-        Prompt::new(game, context, Primitive::Order, items)
+    pub fn order(game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Prompt {
+        Prompt::new(game, player, context, Primitive::Order, items)
     }
 
-    fn new(game: &GameState, context: &ChoiceContext, primitive: Primitive, options: &[ChoiceOption]) -> Prompt {
+    fn new(
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        primitive: Primitive,
+        options: &[ChoiceOption],
+    ) -> Prompt {
         Prompt {
+            player,
             kind: kind_name(&context.kind),
             question: question(game, &context.kind),
             subject: context.kind.subject(),
