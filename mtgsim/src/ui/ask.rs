@@ -69,7 +69,7 @@ use super::decision::{DecisionProvider, PriorityAction};
 /// the only thing standing between a caller bug and an unpayable split that
 /// `ManaPool::pay` refuses and CR 601.2 rewinds — `codebase-state.md` 16c's
 /// failure, which this guard must not reintroduce.
-fn forced_allocation(
+pub(crate) fn forced_allocation(
     total: u64,
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
@@ -153,45 +153,46 @@ fn check_pick_n(
     context_desc: &str,
     diagnostics: &Diagnostics,
 ) -> bool {
-    assert!(
-        indices.len() >= bounds.0 && indices.len() <= bounds.1,
-        "ask_{}: DP returned {} selections, expected {}-{}",
-        context_desc,
-        indices.len(),
-        bounds.0,
-        bounds.1,
-    );
-
-    for &idx in indices {
-        assert!(
-            idx < options_len,
-            "ask_{}: DP returned index {} but only {} options available",
-            context_desc,
-            idx,
-            options_len,
-        );
+    if let Err(why) = pick_fits(indices, options_len, bounds) {
+        panic!("ask_{context_desc}: DP returned {why}");
     }
-
-    // Check for duplicates
-    let mut seen = std::collections::HashSet::new();
-    for &idx in indices {
-        assert!(
-            seen.insert(idx),
-            "ask_{}: DP returned duplicate index {}",
-            context_desc,
-            idx,
-        );
-    }
-
-    // Item 138's decision count. A `pick_n` has one legal answer only when the
-    // count is fixed and that count admits one combination — take none, or
-    // take every option — so a lone candidate offered as "take it or not" is a
-    // decision and a forced list is not, whichever way the caller spelled it.
-    let decision = !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len));
+    // Item 138's decision count.
+    let decision = only_pick(options_len, bounds).is_none();
     if decision {
         diagnostics.record_decision();
     }
     decision
+}
+
+/// Whether `indices` answers a `pick_n` of `options_len` options within
+/// `bounds`: a count in bounds, each in range, none twice. What the validator
+/// asserts and a replay checks before it answers (`ui::replay`), so neither
+/// keeps a copy.
+pub(crate) fn pick_fits(indices: &[usize], options_len: usize, bounds: (usize, usize)) -> Result<(), String> {
+    if indices.len() < bounds.0 || indices.len() > bounds.1 {
+        return Err(format!("{} selections, expected {}-{}", indices.len(), bounds.0, bounds.1));
+    }
+    for (i, &idx) in indices.iter().enumerate() {
+        if idx >= options_len {
+            return Err(format!("index {idx} but only {options_len} options available"));
+        }
+        if indices[..i].contains(&idx) {
+            return Err(format!("duplicate index {idx}"));
+        }
+    }
+    Ok(())
+}
+
+/// The one legal answer a `pick_n` has, or `None` when it has two or more:
+/// one only when the count is fixed and admits one combination, take none or
+/// take every option, so a lone candidate offered as "take it or not" is a
+/// decision and a forced list is not, whichever way the caller spelled it.
+pub(crate) fn only_pick(options_len: usize, bounds: (usize, usize)) -> Option<Vec<usize>> {
+    match bounds {
+        (0, 0) => Some(Vec::new()),
+        (min, max) if min == max && min == options_len => Some((0..options_len).collect()),
+        _ => None,
+    }
 }
 
 /// Validate pick_number response: value in range.
@@ -228,21 +229,30 @@ fn check_pick_number(
     context_desc: &str,
     diagnostics: &Diagnostics,
 ) -> bool {
-    assert!(
-        value >= min && value <= max,
-        "ask_{}: DP returned {} but range is [{}, {}]",
-        context_desc,
-        value,
-        min,
-        max,
-    );
-
-    // Item 138's decision count: one number to name is no decision.
-    let decision = max > min;
+    if let Err(why) = number_fits(value, min, max) {
+        panic!("ask_{context_desc}: DP returned {why}");
+    }
+    // Item 138's decision count.
+    let decision = only_number(min, max).is_none();
     if decision {
         diagnostics.record_decision();
     }
     decision
+}
+
+/// Whether `value` answers a `pick_number` over `[min, max]`; shared as
+/// [`pick_fits`] is.
+pub(crate) fn number_fits(value: u64, min: u64, max: u64) -> Result<(), String> {
+    if value < min || value > max {
+        return Err(format!("{value} but range is [{min}, {max}]"));
+    }
+    Ok(())
+}
+
+/// The one number a `pick_number` admits, or `None`: one number to name is
+/// no decision.
+pub(crate) fn only_number(min: u64, max: u64) -> Option<u64> {
+    (max <= min).then_some(min)
 }
 
 /// Validate allocate response: length matches buckets, sum equals total,
@@ -293,15 +303,6 @@ fn check_allocation(
     diagnostics: &Diagnostics,
 ) -> bool {
     assert_eq!(
-        alloc.len(),
-        buckets_len,
-        "ask_{}: DP returned {} allocations but {} buckets provided",
-        context_desc,
-        alloc.len(),
-        buckets_len,
-    );
-
-    assert_eq!(
         per_bucket_mins.len(),
         buckets_len,
         "ask_{}: per_bucket_mins length {} != buckets length {}",
@@ -321,32 +322,8 @@ fn check_allocation(
         );
     }
 
-    let sum: u64 = alloc.iter().sum();
-    assert_eq!(
-        sum, total,
-        "ask_{}: DP allocation sum is {} but total should be {}",
-        context_desc, sum, total,
-    );
-
-    for (i, &val) in alloc.iter().enumerate() {
-        assert!(
-            val >= per_bucket_mins[i],
-            "ask_{}: DP allocated {} to bucket {} but minimum is {}",
-            context_desc,
-            val,
-            i,
-            per_bucket_mins[i],
-        );
-        if let Some(maxs) = per_bucket_maxs {
-            assert!(
-                val <= maxs[i],
-                "ask_{}: DP allocated {} to bucket {} but maximum is {}",
-                context_desc,
-                val,
-                i,
-                maxs[i],
-            );
-        }
+    if let Err(why) = allocation_fits(alloc, total, per_bucket_mins, per_bucket_maxs) {
+        panic!("ask_{context_desc}: DP {why}");
     }
 
     // Item 138's decision count, off the same predicate the callers skip on —
@@ -356,6 +333,30 @@ fn check_allocation(
         diagnostics.record_decision();
     }
     decision
+}
+
+/// Whether `alloc` answers an `allocate` of `total` across buckets with these
+/// bounds, one entry a bucket; shared as [`pick_fits`] is. The bounds' own
+/// lengths are the caller's, and [`check_allocation`] asserts them first.
+pub(crate) fn allocation_fits(alloc: &[u64], total: u64, per_bucket_mins: &[u64], per_bucket_maxs: Option<&[u64]>) -> Result<(), String> {
+    if alloc.len() != per_bucket_mins.len() {
+        return Err(format!("returned {} allocations but {} buckets provided", alloc.len(), per_bucket_mins.len()));
+    }
+    let sum: u64 = alloc.iter().sum();
+    if sum != total {
+        return Err(format!("allocation sum is {sum} but total should be {total}"));
+    }
+    for (i, &val) in alloc.iter().enumerate() {
+        if val < per_bucket_mins[i] {
+            return Err(format!("allocated {val} to bucket {i} but minimum is {}", per_bucket_mins[i]));
+        }
+        if let Some(max) = per_bucket_maxs.map(|maxs| maxs[i])
+            && val > max
+        {
+            return Err(format!("allocated {val} to bucket {i} but maximum is {max}"));
+        }
+    }
+    Ok(())
 }
 
 /// Validate choose_ordering response: valid permutation of 0..items_len.
@@ -388,39 +389,41 @@ fn check_ordering(
     context_desc: &str,
     diagnostics: &Diagnostics,
 ) -> bool {
-    assert_eq!(
-        order.len(),
-        items_len,
-        "ask_{}: DP returned {} indices but {} items to order",
-        context_desc,
-        order.len(),
-        items_len,
-    );
-
-    let mut seen = vec![false; items_len];
-    for &idx in order {
-        assert!(
-            idx < items_len,
-            "ask_{}: DP returned index {} but only {} items",
-            context_desc,
-            idx,
-            items_len,
-        );
-        assert!(
-            !seen[idx],
-            "ask_{}: DP returned duplicate index {} in ordering",
-            context_desc,
-            idx,
-        );
-        seen[idx] = true;
+    if let Err(why) = order_fits(order, items_len) {
+        panic!("ask_{context_desc}: DP returned {why}");
     }
-
-    // Item 138's decision count: one item has one order.
-    let decision = items_len >= 2;
+    // Item 138's decision count.
+    let decision = only_order(items_len).is_none();
     if decision {
         diagnostics.record_decision();
     }
     decision
+}
+
+/// Whether `order` is a permutation of `0..items_len`; shared as
+/// [`pick_fits`] is. N distinct indices each below N are a permutation, so
+/// nothing checks the sequence itself.
+pub(crate) fn order_fits(order: &[usize], items_len: usize) -> Result<(), String> {
+    if order.len() != items_len {
+        return Err(format!("{} indices but {items_len} items to order", order.len()));
+    }
+    let mut seen = vec![false; items_len];
+    for &idx in order {
+        if idx >= items_len {
+            return Err(format!("index {idx} but only {items_len} items"));
+        }
+        if seen[idx] {
+            return Err(format!("duplicate index {idx} in ordering"));
+        }
+        seen[idx] = true;
+    }
+    Ok(())
+}
+
+/// The one order a `choose_ordering` admits, or `None`: one item has one
+/// order.
+pub(crate) fn only_order(items_len: usize) -> Option<Vec<usize>> {
+    (items_len < 2).then(|| (0..items_len).collect())
 }
 
 // ===========================================================================
