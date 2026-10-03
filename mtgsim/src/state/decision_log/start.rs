@@ -9,6 +9,7 @@ use crate::state::game::{Game, Halt, RandomStreams};
 use crate::state::game_config::{GameConfig, MulliganRule};
 use crate::state::game_state::GameResult;
 use crate::ui::decision::DecisionProvider;
+use crate::ui::replay::Replay;
 
 use super::text::{LogError, Reader};
 
@@ -183,6 +184,20 @@ impl BuiltStart {
                 let driver = SetupDriver::new(std::mem::take(setup), seats);
                 game.until_stopped(|game| game.resume(&driver))
             }
+        }
+    }
+
+    /// Replay the game, every answer from `replay`, under
+    /// `Game::until_stopped`. A scenario's setup actions are replayed with
+    /// the rest, since its record holds the answers the setup driver gave,
+    /// so the driver does not run.
+    pub fn replay(&mut self, replay: &Replay) -> Result<GameResult, Halt> {
+        match self {
+            BuiltStart::Dealt(game) => game.until_stopped(|game| {
+                game.setup(replay)?;
+                game.run(replay)
+            }),
+            BuiltStart::Scenario(BuiltScenario { game, .. }) => game.until_stopped(|game| game.resume(replay)),
         }
     }
 }
