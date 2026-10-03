@@ -11,13 +11,17 @@ mod games;
 mod window_by_rule;
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use devgui::app::{SessionHeader, draw};
+use devgui::boards::Folders;
 use devgui::bridge::{EngineHandle, GameSetup, ToWindow, spawn_game};
+use devgui::editor::EditorInput;
+use devgui::launch::Start;
 use devgui::prompt::{Answer, Reply};
-use devgui::view_model::{Input, WindowState};
+use devgui::session::Session;
+use devgui::view_model::{Input, Mode, WindowState};
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
 use games::{from_board, next};
 
@@ -39,7 +43,7 @@ const BOARDS: [&str; 3] = ["main.scenario", "blocks.scenario", "damage.scenario"
 /// The header's line and decision log for a review board.
 fn header(board: &str) -> (String, PathBuf) {
     let stem = board.trim_end_matches(".scenario");
-    (format!("scenario tests/scenarios/{board} · seed 0"), PathBuf::from(format!("logs/{stem}-seed-0.log")))
+    (format!("scenario tests/scenarios/{board} · seed 0"), PathBuf::from(format!("boards/{stem}/seed-0.log")))
 }
 
 #[test]
@@ -69,11 +73,13 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(picture(&panicked(), &header("main.scenario"), None, "engine_panic"));
     results.add(picture(&refused(), &header("refused.scenario"), None, "scenario_refused"));
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
-    let line = (format!("scenario {sample} · seed 0"), PathBuf::from("logs/bolt-into-giant-growth-seed-0.log"));
+    let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
     results.add(picture(&blocks_rejected(), &header("reask.scenario"), None, "blocks_rejected"));
     let (state, board) = &first["priority"];
-    results.add(picture(state, &header(board), Some(Ok("saved logs/main-seed-0-turn-3.scenario")), "board_saved"));
+    results.add(picture(state, &header(board), Some(Ok("saved boards/main-turn-3/main-turn-3.scenario")), "board_saved"));
+    results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
+    results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
     assert!(missing.is_empty(), "the review boards no longer reach {missing:?}");
 }
@@ -83,7 +89,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
 fn clicked_once(state: &WindowState) -> WindowState {
     let mut after = state.clone();
     if let Some(input) = window_by_rule::inputs_by_rule(state).into_iter().find(|input| *input != Input::Done)
-        && after.clone().input(input).is_none()
+        && after.clone().input(input.clone()).is_none()
     {
         after.input(input);
     }
@@ -148,9 +154,36 @@ fn refused() -> WindowState {
 }
 
 fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
-    let header = SessionHeader { line, log: Some(log), reloadable: true, saved };
+    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[] };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
-        draw(ui, state, &header);
+        draw(ui, state, &header, None);
+    });
+    harness.run();
+    harness.try_snapshot(name)
+}
+
+/// The editor on a sample, after a click on each named step or card, and
+/// "bear" typed into the search with Grizzly Bears chosen. The session reads
+/// the file and writes nothing.
+fn editor_picture(sample: &str, clicks: &[&str], name: &str) -> SnapshotResult {
+    // As `cargo run -- --edit ../mtgsim/scenarios/<sample>` names it, from `devgui/`.
+    let path = Path::new("../mtgsim/scenarios").join(sample);
+    let mut session = Session::start(Start::Edit(Some(path)), Folders::default(), Arc::new(|| {}));
+    for clicked in clicks {
+        let view = session.editor.view();
+        let step = view.steps.iter().find(|step| step.label == *clicked).map(|step| step.input.clone());
+        let cards = view.seats.iter().flat_map(|seat| seat.zones.iter().flat_map(|zone| &zone.cards));
+        let card = cards.filter(|card| card.title.ends_with(*clicked)).map(|card| card.input.clone()).next();
+        let input = step.or(card).unwrap_or_else(|| panic!("{sample} shows no {clicked}"));
+        session.input(Input::Editor(input));
+    }
+    session.input(Input::Editor(EditorInput::Search("bear".to_string())));
+    let bears = session.editor.view().search.results.into_iter().find(|result| result.label == "Grizzly Bears").map(|result| result.input);
+    session.input(Input::Editor(bears.unwrap_or_else(|| panic!("no Grizzly Bears to choose"))));
+    let view = session.editor.view();
+    let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files };
+    let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
+        draw(ui, &WindowState::default(), &header, Some(&view));
     });
     harness.run();
     harness.try_snapshot(name)

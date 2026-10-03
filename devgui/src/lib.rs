@@ -16,6 +16,7 @@ pub mod prompt;
 pub mod view_model;
 pub mod search;
 pub mod editor;
+pub mod boards;
 pub mod session;
 pub mod launch;
 pub mod app;

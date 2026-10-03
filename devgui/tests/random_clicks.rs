@@ -157,14 +157,14 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
         let input = if can_reset && rng.random_ratio(1, RESET_ONE_IN) {
             Input::Reset
         } else if !yields.is_empty() && rng.random_ratio(1, YIELD_ONE_IN) {
-            yields[rng.random_range(0..yields.len())]
+            yields[rng.random_range(0..yields.len())].clone()
         } else {
             let offered = clickable(state, rng);
             assert!(!offered.is_empty(), "the window offers nothing to click at {:?}", state.prompt);
-            offered[rng.random_range(0..offered.len())]
+            offered[rng.random_range(0..offered.len())].clone()
         };
         let before = (state.selection.clone(), state.yielding);
-        match state.input(input) {
+        match state.input(input.clone()) {
             Some(Reply::StopYielding) => {
                 reached.stops += 1;
                 engine.answers.send(Reply::StopYielding).expect("the engine hung up with a prompt open");
@@ -185,7 +185,7 @@ fn live_yields(state: &WindowState) -> Vec<Input> {
     let Some(prompt) = state.prompt_view() else {
         return Vec::new();
     };
-    prompt.yields.iter().filter(|button| button.live).map(|SeatButton { input, .. }| *input).collect()
+    prompt.yields.iter().filter(|button| button.live).map(|SeatButton { input, .. }| input.clone()).collect()
 }
 
 /// What `app::draw` lets a person click now, besides "Start over" and the
@@ -214,7 +214,7 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
         inputs.push(Input::Done);
     }
     let stop = prompt.yielding.as_ref().map(|(_, stop)| stop).filter(|button| button.live);
-    inputs.extend(stop.map(|SeatButton { input, .. }| *input));
+    inputs.extend(stop.map(|SeatButton { input, .. }| input.clone()));
     let key = |key| Input::Key { key, repeat: false };
     let mut keyed: Vec<Input> = inputs
         .iter()

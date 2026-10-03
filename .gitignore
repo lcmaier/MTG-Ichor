@@ -17,6 +17,10 @@ MTG-Rules/
 # log files
 *.log
 
+# The dev GUI's boards, a folder each with its games' logs (`setup-architecture.md`
+# §7b, decision 3): a person's work, which a sample becomes only by a reviewed copy.
+devgui/boards/
+
 # Determinism-check scratch. `engineering-practices.md` §3.1's three-run recipe
 # writes these into mtgsim/; they are a diff's inputs, not artifacts.
 mtgsim/run*.txt

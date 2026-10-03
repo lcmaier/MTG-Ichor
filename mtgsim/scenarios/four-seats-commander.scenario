@@ -1,6 +1,6 @@
 # Four seats with a commander: Isamaru swings at a player who has taken 18
 # commander damage from it, one seat has left the game, and it is the second
-# time around the table. Loads in tests and fuzz_games; the dev GUI plays two.
+# time around the table. Loads in tests, fuzz_games and the dev GUI.
 players 4
 starting life 40
 seed 11

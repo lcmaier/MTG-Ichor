@@ -119,7 +119,7 @@ pub enum Direction {
 
 /// A number the editor sets: a game's fact, a player's life, or a count on
 /// the card line it names.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardNumber {
     Players,
     StartingLife,
@@ -259,6 +259,15 @@ impl Editor {
             comments.pop();
         }
         let board = Scenario::parse(&Scenario::parse(text)?.to_string())?;
+        Ok(Editor::with(board, comments, source, registry))
+    }
+
+    /// An empty two-seat board, named at its first save.
+    pub fn empty(registry: CardRegistry) -> Editor {
+        Editor::with(Scenario::default(), Vec::new(), Source::Empty, registry)
+    }
+
+    fn with(board: Scenario, comments: Vec<String>, source: Source, registry: CardRegistry) -> Editor {
         let mut names: Vec<String> = registry.card_names().into_iter().map(str::to_string).collect();
         let registered = names.len();
         names.extend(registry.names_in_development().into_iter().map(str::to_string));
@@ -278,7 +287,7 @@ impl Editor {
             registry,
         };
         editor.check();
-        Ok(editor)
+        editor
     }
 
     pub fn board(&self) -> &Scenario {
@@ -935,6 +944,7 @@ pub struct EditButton {
 /// A number between "−" and "+", each a button of its own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stepper {
+    /// Empty where its row's label says it.
     pub label: String,
     /// The number as shown: a counter kind the line does not state is `—`.
     pub value: String,
@@ -1158,7 +1168,7 @@ impl Editor {
         let here: Vec<usize> = (0..board.cards.len()).filter(|&i| listed_at(board, i) == Some((seat, zone))).collect();
         let count: u32 = here.iter().map(|&i| board.cards[i].value.copies).sum();
         let title = match zone {
-            Zone::Battlefield => format!("Battlefield ({count}), numbered in order of arrival"),
+            Zone::Battlefield => format!("Battlefield ({count}), by arrival"),
             Zone::Library => format!("Library ({count}), top first"),
             Zone::Graveyard => format!("Graveyard ({count}), bottom first"),
             _ => format!("{} ({count})", zone.name()),
@@ -1233,7 +1243,7 @@ impl Editor {
             rows.extend(self.permanent_rows(i, line));
         } else {
             rows.push(row("Words", vec![toggle(Flag::Commander, "commander")]));
-            let mut copies = stepper("Copies", BoardNumber::Copies(i), i64::from(line.copies), (1, i64::from(u32::MAX)), false);
+            let mut copies = stepper("", BoardNumber::Copies(i), i64::from(line.copies), (1, i64::from(u32::MAX)), false);
             // A tag names one card, so a tagged line is one (§5.1's `xN`).
             if line.card.tag.is_some() {
                 copies.raise = None;
@@ -1291,7 +1301,7 @@ impl Editor {
         let mut rows = vec![
             arrival,
             ControlRow { steppers: counters.collect(), ..row("Counters", Vec::new()) },
-            ControlRow { steppers: vec![stepper("Damage", BoardNumber::Damage(i), i64::from(damage), (0, i64::from(u32::MAX)), false)], ..row("Damage", Vec::new()) },
+            ControlRow { steppers: vec![stepper("", BoardNumber::Damage(i), i64::from(damage), (0, i64::from(u32::MAX)), false)], ..row("Damage", Vec::new()) },
         ];
         for (label, reference) in [("Attached to", Reference::AttachedTo), ("Attacking", Reference::Attacking), ("Blocking", Reference::Blocking)] {
             let named = line.words.iter().find_map(|w| match (reference, w) {

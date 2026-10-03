@@ -1,33 +1,67 @@
-//! One game the window plays, and what Reload and "Save board as scenario"
-//! do to it. Plain Rust, so a test drives it with no window; `app` draws
+//! One game and one board, and what Play, Reload, the editor and the saves
+//! do to them. Plain Rust, so a test drives it with no window; `app` draws
 //! over it and forwards each click here.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::bridge::{EngineHandle, GameSetup, spawn_game};
-use crate::view_model::{Input, WindowState};
+use mtgsim::cards::registry::CardRegistry;
+
+use crate::boards::{Folders, ListedFile, start_name};
+use crate::bridge::{EngineHandle, GameSetup, Pool, spawn_game};
+use crate::editor::{Editor, EditorInput, Source};
+use crate::launch::{Start, start_line};
+use crate::view_model::{Input, Mode, WindowState};
 
 pub struct Session {
-    /// The game as launched; each start's decision log is its own file
-    /// beside `log_path`'s.
-    pub setup: GameSetup,
-    /// This game's decision log.
+    /// The game the window plays, once one has started; each start's
+    /// decision log is its own file beside `log_path`'s.
+    pub setup: Option<GameSetup>,
+    /// That game's decision log.
     pub log_path: Option<PathBuf>,
-    /// What the window shows: the engine's last messages and the answer in
-    /// progress.
+    /// The game's seed and start, for the header.
+    pub start_line: String,
+    /// What the window shows of the game: the engine's last messages and
+    /// the answer in progress.
     pub state: WindowState,
-    /// What the last "Save board as scenario" did, for the header: where it
-    /// saved, or why it could not.
-    pub saved: Option<Result<String, String>>,
-    engine: EngineHandle,
+    /// The board in the editor, kept as it is while a game is played.
+    pub editor: Editor,
+    pub mode: Mode,
+    pub folders: Folders,
+    /// The header's list of files to open, read again at each save.
+    pub files: Vec<ListedFile>,
+    /// What the last save or open did, for the header: where it saved, or
+    /// why it could not.
+    pub message: Option<Result<String, String>>,
+    engine: Option<EngineHandle>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Session {
-    pub fn start(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Session {
-        let (engine, log_path) = start_game(&setup, &wake);
-        Session { setup, log_path, state: WindowState::default(), saved: None, engine, wake }
+    pub fn start(start: Start, folders: Folders, wake: Arc<dyn Fn() + Send + Sync>) -> Session {
+        let mut session = Session {
+            setup: None,
+            log_path: None,
+            start_line: String::new(),
+            state: WindowState::default(),
+            editor: Editor::empty(CardRegistry::default_registry()),
+            mode: Mode::Play,
+            files: folders.listed(),
+            folders,
+            message: None,
+            engine: None,
+            wake,
+        };
+        match start {
+            Start::Game(setup) => session.start_game(setup),
+            Start::Edit(file) => {
+                session.mode = Mode::Edit;
+                if let Some(path) = file {
+                    session.open_file(&path);
+                }
+            }
+        }
+        session
     }
 
     /// The window's clock, which settles each new prompt (`WindowState::settling_for`).
@@ -37,53 +71,158 @@ impl Session {
 
     /// Take every message the engine has sent since the last call.
     pub fn receive(&mut self) {
-        while let Ok(message) = self.engine.from_engine.try_recv() {
+        while let Some(message) = self.engine.as_ref().and_then(|engine| engine.from_engine.try_recv().ok()) {
             self.state.receive(message);
         }
     }
 
     /// Act on one input: a prompt's goes to the engine once it completes an
-    /// answer, and the window's own controls act here.
+    /// answer, the editor's to the editor, and the window's own controls act
+    /// here.
     pub fn input(&mut self, input: Input) {
         match input {
-            // The game again from its file, read again. The old engine thread
-            // unwinds when its channel closes, as a closed window ends it.
+            // The game again from its file, read again.
             Input::Reload => {
-                (self.engine, self.log_path) = start_game(&self.setup, &self.wake);
-                let full_control = self.state.full_control;
-                self.engine.full_control.set(full_control);
-                self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
-                self.saved = None;
+                if let Some(setup) = self.setup.clone() {
+                    self.start_game(setup);
+                }
             }
             // From the window's thread, at any moment: the seat reads the
             // switch at its next prompt, and the log never records it.
             Input::FullControl(on) => {
-                self.engine.full_control.set(on);
+                if let Some(engine) = &self.engine {
+                    engine.full_control.set(on);
+                }
                 self.state.input(input);
             }
-            Input::SaveBoard => {
-                let Some(board) = &self.state.board else { return };
-                let path = saved_board_path(self.log_path.as_deref(), board.turn);
-                self.saved = Some(match std::fs::write(&path, &board.board_text) {
-                    Ok(()) => Ok(format!("saved {}", path.display())),
-                    Err(e) => Err(format!("cannot save {}: {e}", path.display())),
-                });
+            Input::SaveBoard => self.save_game_board(),
+            Input::Mode(mode) => self.mode = mode,
+            Input::EditThisBoard => self.edit_this_board(),
+            Input::EditTheScenario => self.edit_the_scenario(),
+            Input::Editor(EditorInput::Play) => self.play_board(),
+            Input::Editor(EditorInput::Save) => {
+                self.save_board();
             }
+            Input::Editor(EditorInput::Open(i)) => {
+                if let Some(file) = self.files.get(i).cloned() {
+                    self.open_file(&file.path);
+                }
+            }
+            Input::Editor(edit) => self.editor.input(edit),
             input => {
-                if let Some(reply) = self.state.input(input) {
+                if let Some(reply) = self.state.input(input)
+                    && let Some(engine) = &self.engine
+                {
                     // Fails only once the engine thread has ended, and its last message said why.
-                    let _ = self.engine.answers.send(reply);
+                    let _ = engine.answers.send(reply);
                 }
             }
         }
     }
-}
 
-/// A game on its own thread, with a decision log no earlier game wrote.
-fn start_game(setup: &GameSetup, wake: &Arc<dyn Fn() + Send + Sync>) -> (EngineHandle, Option<PathBuf>) {
-    let log_path = setup.log_path.as_deref().map(own_log);
-    let engine = spawn_game(GameSetup { log_path: log_path.clone(), ..setup.clone() }, Arc::clone(wake));
-    (engine, log_path)
+    /// `setup`'s game on a thread of its own, with a decision log no earlier
+    /// game wrote. A game it supersedes unwinds when its channel closes, as
+    /// a closed window ends it.
+    fn start_game(&mut self, setup: GameSetup) {
+        let log_path = setup.log_path.as_deref().map(own_log);
+        let engine = spawn_game(GameSetup { log_path: log_path.clone(), ..setup.clone() }, Arc::clone(&self.wake));
+        let full_control = self.state.full_control;
+        engine.full_control.set(full_control);
+        self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
+        self.start_line = start_line(&setup);
+        (self.engine, self.log_path, self.setup, self.message) = (Some(engine), log_path, Some(setup), None);
+    }
+
+    /// The editor's board saved, then started from its file as Reload
+    /// starts one, its log beside it: only while the loader accepts it.
+    fn play_board(&mut self) {
+        if self.editor.refusal().is_some() {
+            return;
+        }
+        let Some(path) = self.save_board() else { return };
+        let board = self.editor.board();
+        let setup = GameSetup { seed: board.seed, pool: Pool::Performance, players: board.players, log_path: None, scenario: Some(path) };
+        self.start_game(GameSetup { log_path: Some(self.folders.game_log(&setup)), ..setup });
+        self.mode = Mode::Play;
+    }
+
+    /// The editor's board written to its file, which a board not yet in
+    /// `boards/` gets now; that file, or `None` and why not in the header.
+    fn save_board(&mut self) -> Option<PathBuf> {
+        let path = self.folders.save_path(&self.editor.source);
+        let saved = self.write(&path, &self.editor.file_text());
+        if saved.is_some() {
+            self.editor.source = Source::Board(path.clone());
+        }
+        saved
+    }
+
+    /// "Save board as scenario": the board the game is at, a new board
+    /// named for the game's start and turn, its first line naming the log.
+    fn save_game_board(&mut self) {
+        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
+        let path = self.folders.new_board(&format!("{}-turn-{}", start_name(setup), board.turn));
+        let text = format!("# Saved from {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
+        self.write(&path, &text);
+    }
+
+    /// "Edit this board": the board the game is at, as `Scenario::write`
+    /// writes it at each prompt, the writer's report kept above it.
+    fn edit_this_board(&mut self) {
+        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
+        let text = format!("# From {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
+        let source = Source::Game { start: start_name(setup), turn: board.turn };
+        self.open(&text, source, "the game's board");
+    }
+
+    /// "Edit the scenario": the editor's own board if Play started this
+    /// game, or else its file, read again.
+    fn edit_the_scenario(&mut self) {
+        let Some(path) = self.setup.as_ref().and_then(|setup| setup.scenario.clone()) else { return };
+        if self.editor.source == Source::Board(path.clone()) {
+            self.mode = Mode::Edit;
+        } else {
+            self.open_file(&path);
+        }
+    }
+
+    fn open_file(&mut self, path: &Path) {
+        match std::fs::read_to_string(path) {
+            Ok(text) => {
+                let source = if self.folders.holds(path) { Source::Board(path.to_path_buf()) } else { Source::File(path.to_path_buf()) };
+                self.open(&text, source, &path.display().to_string());
+            }
+            Err(e) => self.message = Some(Err(format!("cannot read {}: {e}", path.display()))),
+        }
+    }
+
+    /// `text` in the editor, in place of its board, which a person keeps
+    /// by saving it first.
+    fn open(&mut self, text: &str, source: Source, what: &str) {
+        match Editor::open(text, source, CardRegistry::default_registry()) {
+            Ok(editor) => {
+                (self.editor, self.mode, self.message) = (editor, Mode::Edit, None);
+            }
+            Err(refusal) => self.message = Some(Err(format!("cannot open {what}: {refusal}"))),
+        }
+    }
+
+    /// The game for a board's first line: its decision log.
+    fn game_named(&self) -> String {
+        self.log_path.as_ref().map_or_else(|| "a game".to_string(), |log| log.display().to_string())
+    }
+
+    /// `text` written to `path`, its folder made; the header says where, or
+    /// why not, and the list is read again.
+    fn write(&mut self, path: &Path, text: &str) -> Option<PathBuf> {
+        let made = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(path, text));
+        self.files = self.folders.listed();
+        self.message = Some(match &made {
+            Ok(()) => Ok(format!("saved {}", path.display())),
+            Err(e) => Err(format!("cannot save {}: {e}", path.display())),
+        });
+        made.ok().map(|()| path.to_path_buf())
+    }
 }
 
 /// `path`, or the first of `stem-2.log`, `stem-3.log`, … beside it that does
@@ -92,24 +231,9 @@ fn start_game(setup: &GameSetup, wake: &Arc<dyn Fn() + Send + Sync>) -> (EngineH
 fn own_log(path: &Path) -> PathBuf {
     let stem = path.file_stem().map_or("game".to_string(), |s| s.to_string_lossy().into_owned());
     let extension = path.extension().map_or(String::new(), |e| format!(".{}", e.to_string_lossy()));
-    first_unused(|n| match n {
+    let named = |n: u32| match n {
         1 => path.to_path_buf(),
         n => path.with_file_name(format!("{stem}-{n}{extension}")),
-    })
-}
-
-/// Where "Save board as scenario" writes: beside the decision log, named for
-/// the turn, and never over an earlier save.
-pub fn saved_board_path(log_path: Option<&Path>, turn: u32) -> PathBuf {
-    let log = log_path.map_or_else(|| PathBuf::from("logs").join("board.log"), Path::to_path_buf);
-    let stem = log.file_stem().map_or("board".to_string(), |s| s.to_string_lossy().into_owned());
-    first_unused(|n| match n {
-        1 => log.with_file_name(format!("{stem}-turn-{turn}.scenario")),
-        n => log.with_file_name(format!("{stem}-turn-{turn}-{n}.scenario")),
-    })
-}
-
-/// The first of `named(1)`, `named(2)`, … that does not exist yet.
-fn first_unused(named: impl Fn(u32) -> PathBuf) -> PathBuf {
-    (1..).map(&named).find(|path| !path.exists()).unwrap_or_else(|| named(1))
+    };
+    (1..).map(named).find(|path| !path.exists()).unwrap_or_else(|| path.to_path_buf())
 }
