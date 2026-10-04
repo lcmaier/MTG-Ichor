@@ -10,6 +10,165 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-5 — the tools — ✅ landed 2026-10-04
+
+*Evicted 2026-10-04 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with the split into SU-4 and SU-5 that was sized beside it.*
+
+### The build as sized (2026-10-03, at #216)
+
+**The tools (§7.1–§7.3), sized 2026-10-02 with doc comments and messages
+counted, revised over the review rounds of 2026-10-03, and re-sized at SU-4's
+design after SU-3 (2026-10-03).** The replay, undo, the save and savestates,
+whose consumer is the window. The exported test they were split from is
+dropped (§7.2, decision 5).
+
+**The order** (the owner, 2026-10-03): SU-3, then the tools. Nothing in the
+tools needs the editor, and nothing in the editor needs the tools, and the
+editor first makes the boards the tools are tried on quicker to build, a
+four-seat Commander board above all. The seats change (§7, the window playing
+every seat) came before both, as a PR of its own, the seats PR, with four
+seats in it (§7b's decision 4, the owner, 2026-10-03).
+
+**Kept true after SU-3.** §7.1–§7.3 named the dev GUI as it stood at their
+design. SU-3 and the seats PR moved some of it, which §7b.3 lists as built,
+and §7.1's "What the tree has" was read again against `fb1767a` before this
+re-size. The decisions themselves (the typed unwind, undo to the window's last
+prompt, no agent, the save a journal) rest on the decision boundary and the
+engine's log, which SU-3 did not touch.
+
+**What the re-size found**, against the first sizing's one PR of 1,085–1,585
+of code and 590–880 of tests:
+- eight readers of `Debug` text to replace, not three (§7.1);
+- the header and a dealt start's `GameConfig` (decision 6), ~40–60 more in the
+  text;
+- the answer's fit checked through `ui::ask`'s own predicates, which assert
+  today, so the replay and the validators share one check and keep no second
+  copy (~30–50 in `ui::ask`);
+- the stop's catcher over six entries, and its two consumers outside the
+  engine, `fuzz_games`' scenario path and the dev GUI's refused setup line,
+  ~25–35;
+- item 200 (§7.1), ~30–50, and the tools' controls beside the editor's switch,
+  ~10–20, in the window;
+- the dev GUI's log written in the engine's text, which the first sizing
+  counted in the bridge's row, moved to the engine's half with the refused
+  setup line's display (~35–50), so the text has its writer in the PR that
+  makes it and the window shows a stopped setup line as it did a panic;
+- answers recorded by what was chosen (decision 6's D, the owner at #216's
+  review): an option's identity written and compared by one matcher, which
+  the replay, the setup driver and `ById` use, and a forced line skipped or
+  answered where one build asks it and the other does not, and the scripted
+  provider's answer by identity for new tests, ~260–410 with tests. The 299
+  scripted answers already written move onto it in a PR of their own beside
+  C0, the test cleanup before Phase 8's breadth (`codebase-state.md` item
+  209, the owner at #216's review).
+
+The last three phases ran 1.5–2.1 times their sizing on code (SU-1 ~1.9,
+SU-2 ~2.0, SU-3 1.5–2.1; the archive's tables), each from what its sizing left
+out, so each total below carries that range beside the count.
+
+**Decided: two PRs, split along the engine's line** (the owner, 2026-10-03,
+at #216's review). The owner reads engine changes closely and the dev GUI
+loosely, so the engine's half goes up as a PR of its own, ahead of the
+window's.
+
+| SU-5, the tools: the window's half | Where | Code | Tests |
+|---|---|---|---|
+| The save: its journal (the engine's lines, the window's prompts, savestates, moves back), the tree, undo's place, the savestates and the line last left, written and read | devgui `save.rs` | 250–350 | 150–220 |
+| The bridge: a start from a save, the save's writer on the engine thread, the window's prompts marked, the savestate reply, a superseded game's writers shut, a rebuild's replayed lines buffered and flushed at the hand-over | devgui `bridge.rs` | 150–220 | — |
+| Session, launch and view model: Undo answer, Savestate, the menu, `--load`, the replaying count, a load playing on in a new pair | devgui `session.rs`, `launch.rs`, `view_model.rs` | 190–280 | 130–190 |
+| Item 200: a scenario's own seed kept until its file is read; a log that cannot be opened refused in the window | devgui `launch.rs`, `session.rs`, `bridge.rs` | 30–50 | 20–30 |
+| The drawing: the three controls beside Reload, the menu, the count | devgui `app.rs` | 50–80 | the pictures |
+| **SU-5** | | **670–980** | **300–440** |
+
+At the last phases' rate SU-5's code is 1,000–2,060, so 1,300–2,500 in all,
+the dev GUI's, which may run over, reported per commit (the owner,
+2026-10-03). Its tests are the rest of the proofs the tools owe: undo gives
+the board a game played to that answer gives, through `Scenario::write`; a
+savestate and a branch survive a save and a load; three presses of Undo
+during a replay wait for one replay; item 200's two fixes. Each plays a short
+board and is timed, as #214's and #215's were, and the dev GUI's CI step is
+read against its ~24 s. The view model changes, so `prompt_cost` is read
+before and after (`engineering-practices.md` §10.4).
+
+| | **A. One PR, as first planned** | **B. Two: SU-4 the engine's, SU-5 the window's** | **C. Three: B with SU-5 split again, the savestates and their menu last** |
+|---|---|---|---|
+| Size, code and tests | 2,300–3,410; at the last phases' rate 3,070–5,890 | SU-4 1,330–1,990, SU-5 970–1,420; at that rate to 3,390 and 2,500 | SU-4 as B; SU-5 ~750–1,100 and a third ~220–320 |
+| Review | the engine's ~1,300–2,000 lines in one PR with the dev GUI's ~1,000–1,400 | a PR that is the engine's, but for ~40 lines the window needs to keep working, read closely; then a dev GUI PR read by its click script and pictures | as B, and a third small window PR |
+| What lands first | everything at once | the replay, with every dev GUI log readable by it, before any button | as B; undo and the save before the savestates |
+| Risk | past the band, by a lot at the last phases' rate | the engine's text is designed before its second reader, the save's journal, exists: the journal's reader hands SU-4's its engine lines and reads its own (SU-4's ✅ section), and SU-5 may still find a gap to fix in the engine (`engineering-practices.md` §4: a split moves risk, it does not remove it) | as B |
+
+**Decided: B.** Named for what each delivers: **SU-4, the replay** (the
+engine's text, the replay and the stop) and **SU-5, the tools** (undo, the save
+and savestates), the next code rather than a letter.
+
+**A/B, predicted.** SU-5 is planned to touch no engine file, so its arms would
+be one engine; if it does touch one, its A/B runs as SU-4's did
+(`fuzz-record.md`, the SU-4 block).
+
+### Sized against built
+
+Lines added, `devgui/` with a `src` file's `#[cfg(test)]` module and
+`examples/` counted as tests, read off the PR's last code commit
+(`4139468`): each file's additions in the whole diff.
+
+| Part | Where | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---|---:|---:|---:|---:|
+| The save: the journal, the tree, undo's place, the savestates and the line left | `save.rs` | 250–350 | 331 | 150–220 | 141 |
+| The bridge: the record and its writers, the hand-over, the replay and a divergence, a start from a setup | `bridge.rs` | 150–220 | 394 | — | 38 |
+| Session, launch and view model: Undo answer, Savestate, the menu, `--load`, the count, the refusals | `session.rs`, `launch.rs`, `view_model.rs` | 190–280 | 364 | 130–190 | 31, and `tests/tools.rs`' 302 with its support's 50 |
+| Item 200: the seed read at each start, the log named for it; a log that cannot be made refused | across the above, `boards.rs` | 30–50 | 189 in its two commits | 20–30 | 132 in its two commits |
+| The drawing, and the pictures | `app.rs`, `tests/screenshots.rs` | 50–80 | 54 | the pictures | 70 |
+| **SU-5, the whole diff** | | **670–980** | **1,162** | **300–440** | **784** |
+
+The rest of the tests are the headless tests' moves onto the new start
+(`headless_game.rs`, +103), the random clicks' (+9), the other support
+files (+22), `boards.rs`' test (+4), and `prompt_cost`'s reading of the
+tools (+14). Code ran at 1.2–1.7 times its sizing, inside
+the 1.5–2.1 the last phases ran at, and tests at 1.8–2.6. What the sizing
+left out: item 200's first half moved the start's build to the session and
+named the log from it, which the save beside the log needed anyway (its 189
+lines are in the bridge's and the session's counts); the bridge's own
+forwarding wrapper for the hand-over, five methods; a load's divergence,
+played on from the answer before it; the refusals' kinds, which the view
+model words; and a writer's count for the window. The band stayed under
+2,500 at every commit: 1,946 in all.
+
+### What the build changed in the design
+
+1. **The save's answers are numbered in the order taken**, not by their
+   place on a line, so its engine lines are one record `decision_log::read`
+   reads, and the session's lines name places by those numbers. A line's own
+   numbering is given back when it is replayed (`Save::line_to`).
+2. **A savestate is written at the click**, under the record's lock, not
+   relayed to the engine's thread as a reply (decision 4, amended where it
+   stands): the thread waits at the open prompt, so it writes nothing then.
+3. **The game's buttons come first** after the Play | Edit switch. Beside
+   Reload at the header's end, they moved as the status changed width, which
+   a replay's count does at once, and a double click's second half landed
+   on Reload (`engineering-practices.md` §10.1, question 8).
+4. **A divergence plays on by building again.** Decision 6's "the window
+   plays on from that board" meets decision 1's "a stopped game is never
+   continued", so the bridge builds the game again and replays to the answer
+   before the one that diverged, its audits paused, as the first pass has
+   just checked those answers. The save's line moves there, and the place it
+   left is the menu's "Back to where I was", which diverges again if taken.
+5. **What a load does with a record that ended inside its setup actions**,
+   which SU-4 left to SU-5: it replays the answers the record holds and asks
+   the question the setup stopped at, on the board as far as it got. Such a
+   record is a refused setup line's, or a panic's during setup, and its
+   scenario's Reload is the way to play the setup again.
+6. **The undo target is one rule**: the last place the window was asked on
+   the line to the save's current place, strictly before it while a question
+   is open or a rebuild is on its way to one, else at it. So Undo after a
+   panic asks again the question whose answer the validator refused.
+7. **The line left survives undo after undo**: the place a move leaves is
+   kept while the moves walk back along one line, so three undos leave it
+   once, and "Back to where I was" returns to where they began.
+8. **`ToWindow::Refused` names what it refuses**, so a load's start that no
+   longer builds says the save did not load, and a decision log that cannot
+   be made says so, each with its own hint, where the window's one heading
+   said the scenario did not load.
+
 #### SU-4 — the replay — ✅ landed 2026-10-03
 
 *Evicted 2026-10-03 from `plans/setup-architecture.md` §8, where the heading and a stub remain; SU-5's sizing stays there.*

@@ -1990,3 +1990,11 @@ edit is checked at the click, on the window's thread, well inside §10.1's
 second question and `setup-architecture.md` §7b's 0.82 ms. The snapshot's
 board text fell to 601 allocations from 838, since a card line is written
 straight into its formatter.
+
+**Since SU-5 `prompt_cost` reads the header's tools too**, Undo answer,
+Savestate and a menu of three entries, which `app::draw` builds again at
+every repaint: 0.1–0.2 µs and 6 allocations in release (2026-10-04, the
+owner's machine). The other readings, taken twice interleaved with `main`'s,
+kept every allocation and byte and read within noise, so the tools put no
+work on a prompt: the save is read when a message arrives or a tool is
+clicked, never in a frame.
