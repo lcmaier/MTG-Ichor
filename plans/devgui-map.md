@@ -144,7 +144,7 @@ From `devgui/`, where `cargo run` runs the window:
 ## 9. Where the tools sit
 
 SU-4 (#217) put the record's text and the replay in the engine
-(`state::decision_log`, `ui::replay`); SU-5 (#218) built the window's side
+(`state::decision_log`, `ui::replay`); SU-5 (#219) built the window's side
 (`setup-architecture.md` §7.1–§7.3). Every game the window plays is a start
 and a line of answers, so any question it was asked can be asked again by
 building the game afresh and replaying the answers before it.
