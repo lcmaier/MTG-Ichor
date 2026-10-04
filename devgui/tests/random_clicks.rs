@@ -18,15 +18,14 @@
 mod games;
 
 use std::path::Path;
-use std::sync::Arc;
 
-use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
 use devgui::editor::{EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
 use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
     Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
 };
-use games::{dealt, from_board, next};
+use games::{dealt, from_board, next, spawn};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use rand::rngs::StdRng;
@@ -71,7 +70,7 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
     let mut reached = Reached::default();
     for pool in [Pool::Performance, Pool::Stress] {
         for seed in SEEDS {
-            play_at_random(GameSetup { pool, ..dealt(seed, None) }, seed, &mut reached);
+            play_at_random(GameSetup { pool, ..dealt(seed) }, seed, &mut reached);
         }
     }
     let primitive = |test: fn(&Primitive) -> bool| reached.primitives.iter().any(test);
@@ -90,12 +89,12 @@ fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
     for board in ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario"] {
         for seed in SEEDS {
-            play_at_random(from_board(board, None), seed, &mut reached);
+            play_at_random(from_board(board), seed, &mut reached);
         }
     }
     let four_seats = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/four-seats-commander.scenario");
     for seed in SEEDS {
-        play_at_random(GameSetup { scenario: Some(four_seats.clone()), ..dealt(0, None) }, seed, &mut reached);
+        play_at_random(GameSetup { scenario: Some(four_seats.clone()), ..dealt(0) }, seed, &mut reached);
     }
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
 }
@@ -104,9 +103,9 @@ fn random_clicks_finish_games_from_the_review_boards() {
 fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
     let game = match &setup.scenario {
         Some(path) => format!("{} at seed {seed}", path.display()),
-        None => format!("{:?} pool, seed {}", setup.pool, setup.seed),
+        None => format!("{:?} pool, seed {}", setup.pool, setup.seed.unwrap_or_default()),
     };
-    let engine = spawn_game(setup, Arc::new(|| {}));
+    let engine = spawn(setup);
     let mut rng = StdRng::seed_from_u64(seed);
     let mut state = WindowState::default();
     let mut clock = 0.0;

@@ -16,14 +16,14 @@ use std::sync::Arc;
 
 use devgui::app::{SessionHeader, draw};
 use devgui::boards::Folders;
-use devgui::bridge::{EngineHandle, GameSetup, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
 use devgui::prompt::{Answer, Reply};
 use devgui::session::Session;
 use devgui::view_model::{Input, Mode, WindowState};
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
-use games::{from_board, next};
+use games::{from_board, next, play, spawn};
 
 /// Each picture: the first prompt of a kind any review board reaches, with
 /// any clicks made before it is drawn. Kept to what a review needs, since
@@ -50,7 +50,7 @@ fn header(board: &str) -> (String, PathBuf) {
 fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let mut first: BTreeMap<&str, (WindowState, &str)> = BTreeMap::new();
     for board in BOARDS {
-        window_by_rule::play_by_rule(from_board(board, None), |state| {
+        window_by_rule::play_by_rule(play(from_board(board)), |state| {
             let Some(prompt) = &state.prompt else { return };
             let Some((_, name)) = PICTURES.iter().find(|(kind, _)| *kind == prompt.kind) else { return };
             // A priority prompt with a spell or two in reach, and blocks with
@@ -98,7 +98,7 @@ fn clicked_once(state: &WindowState) -> WindowState {
 
 /// What the window shows when the engine panics: an answer the validators refuse.
 fn panicked() -> WindowState {
-    let engine = spawn_game(from_board("main.scenario", None), Arc::new(|| {}));
+    let engine = spawn(from_board("main.scenario"));
     let mut state = WindowState::default();
     state.receive(next(&engine));
     engine.answers.send(Reply::Answer(Answer::Picks(vec![99]))).unwrap();
@@ -110,7 +110,7 @@ fn panicked() -> WindowState {
 /// built, player 0 holding priority over it with a Bolt left to cast.
 fn setup_stack(sample: &str) -> WindowState {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
-    let engine = spawn_game(GameSetup { scenario: Some(path), ..from_board("main.scenario", None) }, Arc::new(|| {}));
+    let engine = spawn(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
     let mut state = WindowState::default();
     state.receive(next(&engine));
     assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
@@ -121,7 +121,7 @@ fn setup_stack(sample: &str) -> WindowState {
 /// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking
 /// both Bears, and is asked again, told why.
 fn blocks_rejected() -> WindowState {
-    let engine = spawn_game(from_board("reask.scenario", None), Arc::new(|| {}));
+    let engine = spawn(from_board("reask.scenario"));
     let mut state = WindowState::default();
     state.receive(next(&engine));
     state.input(Input::OptionButton(0));
@@ -145,7 +145,7 @@ fn finish(engine: EngineHandle) {
 fn refused() -> WindowState {
     let path = std::env::temp_dir().join("devgui-picture-refused.scenario");
     std::fs::write(&path, "turn 3\nstep precombat main\nbattlefield: Grizzly Bears | controller 0, attacking player 1\n").unwrap();
-    let engine = spawn_game(GameSetup { scenario: Some(path), ..from_board("main.scenario", None) }, Arc::new(|| {}));
+    let engine = spawn(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
     let message = next(&engine);
     assert!(matches!(message, ToWindow::Refused { .. }), "{message:?}");
     let mut state = WindowState::default();

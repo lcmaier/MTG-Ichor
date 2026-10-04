@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
+use devgui::bridge::{Outcome, Play, ToWindow, spawn_game};
 use devgui::prompt::{BoardRef, Primitive};
 use devgui::view_model::{Input, WindowState};
 
@@ -46,8 +46,8 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
 
 /// Play a whole game by rule. `watch` sees the window after each message,
 /// before it answers. The outcome, and how many prompts the window answered.
-pub fn play_by_rule(setup: GameSetup, mut watch: impl FnMut(&WindowState)) -> (Outcome, usize) {
-    let engine = spawn_game(setup, Arc::new(|| {}));
+pub fn play_by_rule(game: Play, mut watch: impl FnMut(&WindowState)) -> (Outcome, usize) {
+    let engine = spawn_game(game, Arc::new(|| {}));
     let mut state = WindowState::default();
     for answered in 0..PROMPT_CAP {
         let message = next(&engine);

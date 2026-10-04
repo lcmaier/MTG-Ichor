@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use devgui::bridge::{GameSetup, Pool, ToWindow, spawn_game};
+use devgui::bridge::{GameSetup, Play, Pool, ToWindow, spawn_game};
 use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
@@ -46,10 +46,9 @@ fn main() {
     let mut game = scenario.build(&CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}")).game;
     game.state.record_events();
 
-    let engine = spawn_game(
-        GameSetup { seed: scenario.seed, pool: Pool::Stress, players: scenario.players, log_path: None, scenario: Some(board.clone()) },
-        Arc::new(|| {}),
-    );
+    let setup = GameSetup { seed: None, pool: Pool::Stress, players: scenario.players, scenario: Some(board.clone()) };
+    let start = setup.start().unwrap_or_else(|refusal| panic!("{refusal}"));
+    let engine = spawn_game(Play::new(start), Arc::new(|| {}));
     let message = engine.from_engine.recv_timeout(Duration::from_secs(60)).expect("the engine's first prompt");
     let ToWindow::Prompt { snapshot, prompt, .. } = message else {
         panic!("the board's first message is not a prompt: {message:?}");

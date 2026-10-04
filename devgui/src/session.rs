@@ -6,18 +6,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::state::decision_log::GameStart;
 
 use crate::boards::{Folders, ListedFile, start_name};
-use crate::bridge::{EngineHandle, GameSetup, Pool, spawn_game};
+use crate::bridge::{EngineHandle, GameSetup, Play, Pool, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
 use crate::launch::{Start, start_line};
 use crate::view_model::{Input, Mode, WindowState};
 
 pub struct Session {
-    /// The game the window plays, once one has started; each start's
-    /// decision log is its own file beside `log_path`'s.
+    /// How the game the window plays began, once one has; Reload begins it
+    /// again.
     pub setup: Option<GameSetup>,
-    /// That game's decision log.
+    /// Where it began, as read at its start.
+    pub start: Option<GameStart>,
+    /// That game's decision log, a file no earlier game wrote.
     pub log_path: Option<PathBuf>,
     /// The game's seed and start, for the header.
     pub start_line: String,
@@ -41,6 +44,7 @@ impl Session {
     pub fn start(start: Start, folders: Folders, wake: Arc<dyn Fn() + Send + Sync>) -> Session {
         let mut session = Session {
             setup: None,
+            start: None,
             log_path: None,
             start_line: String::new(),
             state: WindowState::default(),
@@ -120,17 +124,29 @@ impl Session {
         }
     }
 
-    /// `setup`'s game on a thread of its own, with a decision log no earlier
-    /// game wrote. A game it supersedes unwinds when its channel closes, as
-    /// a closed window ends it.
+    /// `setup`'s game on a thread of its own, its start read now and its
+    /// decision log a file no earlier game wrote, named for the seed the start
+    /// plays. A game it supersedes unwinds when its channel closes, as a closed
+    /// window ends it.
     fn start_game(&mut self, setup: GameSetup) {
-        let log_path = setup.log_path.as_deref().map(own_log);
-        let engine = spawn_game(GameSetup { log_path: log_path.clone(), ..setup.clone() }, Arc::clone(&self.wake));
         let full_control = self.state.full_control;
-        engine.full_control.set(full_control);
         self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
-        self.start_line = start_line(&setup);
-        (self.engine, self.log_path, self.setup, self.message) = (Some(engine), log_path, Some(setup), None);
+        (self.engine, self.start, self.log_path, self.message) = (None, None, None, None);
+        let begun = setup.start();
+        self.setup = Some(setup.clone());
+        let start = match begun {
+            Ok(start) => start,
+            Err(message) => {
+                self.start_line = setup.scenario.map_or_else(String::new, |path| format!("scenario {}", path.display()));
+                self.state.refused = Some(message);
+                return;
+            }
+        };
+        let log_path = own_log(&self.folders.game_log(&start));
+        let engine = spawn_game(Play { start: start.clone(), log: Some(log_path.clone()) }, Arc::clone(&self.wake));
+        engine.full_control.set(full_control);
+        self.start_line = start_line(&setup, &start);
+        (self.engine, self.start, self.log_path) = (Some(engine), Some(start), Some(log_path));
     }
 
     /// The editor's board saved, then started from its file as Reload
@@ -140,9 +156,8 @@ impl Session {
             return;
         }
         let Some(path) = self.save_board() else { return };
-        let board = self.editor.board();
-        let setup = GameSetup { seed: board.seed, pool: Pool::Performance, players: board.players, log_path: None, scenario: Some(path) };
-        self.start_game(GameSetup { log_path: Some(self.folders.game_log(&setup)), ..setup });
+        let players = self.editor.board().players;
+        self.start_game(GameSetup { seed: None, pool: Pool::Performance, players, scenario: Some(path) });
         self.mode = Mode::Play;
     }
 
@@ -160,8 +175,8 @@ impl Session {
     /// "Save board as scenario": the board the game is at, a new board
     /// named for the game's start and turn, its first line naming the log.
     fn save_game_board(&mut self) {
-        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
-        let path = self.folders.new_board(&format!("{}-turn-{}", start_name(setup), board.turn));
+        let (Some(board), Some(start)) = (&self.state.board, &self.start) else { return };
+        let path = self.folders.new_board(&format!("{}-turn-{}", start_name(start), board.turn));
         let text = format!("# Saved from {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
         self.write(&path, &text);
     }
@@ -169,9 +184,9 @@ impl Session {
     /// "Edit this board": the board the game is at, as `Scenario::write`
     /// writes it at each prompt, the writer's report kept above it.
     fn edit_this_board(&mut self) {
-        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
+        let (Some(board), Some(start)) = (&self.state.board, &self.start) else { return };
         let text = format!("# From {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
-        let source = Source::Game { start: start_name(setup), turn: board.turn };
+        let source = Source::Game { start: start_name(start), turn: board.turn };
         self.open(&text, source, "the game's board");
     }
 

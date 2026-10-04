@@ -10,7 +10,7 @@ use std::any::Any;
 use std::cell::Cell;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -18,6 +18,7 @@ use std::thread::JoinHandle;
 
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, AnswerLine, GameStart, LoggedDecision};
 use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
@@ -46,20 +47,64 @@ pub enum Pool {
     Stress,
 }
 
-/// Everything that decides a game besides the window's answers.
+/// How a game begins, as the command line or the editor's Play asks for one:
+/// everything that decides it besides the window's answers.
 #[derive(Clone, Debug)]
 pub struct GameSetup {
-    pub seed: u64,
+    /// `--seed`'s, or the clock's for a dealt game. `None` plays a scenario
+    /// at the seed its file says, read at each start, so Reload picks up an
+    /// edited `seed` line (`codebase-state.md` item 200).
+    pub seed: Option<u64>,
     pub pool: Pool,
     /// A dealt game's seats, dealt as `fuzz_games --players` deals them; a
     /// scenario states its own.
     pub players: usize,
-    /// Where the decision log goes; `None` keeps none.
-    pub log_path: Option<PathBuf>,
     /// A board to start from instead of dealt decks, read again at each
-    /// start, so Reload picks up an edit. Its seed is `seed`, which the
-    /// command line's `--seed` overrides.
+    /// start, so Reload picks up an edit.
     pub scenario: Option<PathBuf>,
+}
+
+impl GameSetup {
+    /// Where the game begins: a scenario's file read now, at the setup's seed
+    /// or else its own; or decks dealt from the seed as `fuzz_games` deals
+    /// them, so a fuzz game's printed seed deals the same game here, the
+    /// decks off the seed itself and the shuffle off `RandomStreams`.
+    pub fn start(&self) -> Result<GameStart, String> {
+        match &self.scenario {
+            Some(path) => {
+                let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+                // A file that does not parse is refused as the game is built.
+                let own = || Scenario::parse(&text).map_or(0, |scenario| scenario.seed);
+                let seed = self.seed.unwrap_or_else(own);
+                Ok(GameStart::Scenario { path: path.display().to_string(), seed, text })
+            }
+            None => {
+                let pool = match self.pool {
+                    Pool::Performance => CardRegistry::performance_pool(),
+                    Pool::Stress => CardRegistry::default_registry(),
+                };
+                let seed = self.seed.unwrap_or_default();
+                let mut deck_rng = StdRng::seed_from_u64(seed);
+                let mut dealt = || random_deck(&pool, &mut deck_rng, &[], 1, DECK_SIZE).iter().map(|card| card.name.clone()).collect();
+                let decks = (0..self.players).map(|_| dealt()).collect();
+                Ok(GameStart::Dealt { seed, config: GameConfig::unrestricted(), decks })
+            }
+        }
+    }
+}
+
+/// A game for the engine's thread: where it begins, and where its decision
+/// log goes, if anywhere.
+pub struct Play {
+    pub start: GameStart,
+    pub log: Option<PathBuf>,
+}
+
+impl Play {
+    /// `start`'s game, played from its start and logged nowhere.
+    pub fn new(start: GameStart) -> Play {
+        Play { start, log: None }
+    }
 }
 
 /// What the engine thread tells the window.
@@ -96,7 +141,7 @@ pub struct EngineHandle {
 
 /// Start a game on its own thread. `wake` runs after every message, so a
 /// window that repaints only on input still shows it.
-pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> EngineHandle {
+pub fn spawn_game(game: Play, wake: Arc<dyn Fn() + Send + Sync>) -> EngineHandle {
     let (to_window, from_engine) = mpsc::channel();
     let (answers, from_window) = mpsc::channel();
     let full_control = FullControlSwitch::default();
@@ -105,7 +150,7 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
         .name("engine".to_string())
         .spawn(move || {
             let played = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                play(&setup, &to_window, from_window, switch, &wake)
+                play(&game, &to_window, from_window, switch, &wake)
             }));
             if let Err(payload) = played
                 && !payload.is::<WindowGone>()
@@ -119,7 +164,7 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
 }
 
 fn play(
-    setup: &GameSetup,
+    game: &Play,
     to_window: &Sender<ToWindow>,
     from_window: Receiver<Reply>,
     full_control: FullControlSwitch,
@@ -129,17 +174,13 @@ fn play(
         let _ = to_window.send(ToWindow::Refused { message });
         wake();
     };
-    let start = match start_of(setup) {
-        Ok(start) => start,
-        Err(message) => return refuse(message),
-    };
-    let mut built = match start.build(&CardRegistry::default_registry()) {
+    let mut built = match game.start.build(&CardRegistry::default_registry()) {
         Ok(built) => built,
         Err(message) => return refuse(message),
     };
     // The engine writes the log, every seat's answers and its own passes, so
     // the record is the game's whatever answered at each seat.
-    let log = Arc::new(Mutex::new(DecisionLog::open(setup, &start)));
+    let log = Arc::new(Mutex::new(DecisionLog::open(game.log.as_deref(), &game.start)));
     let writer = Arc::clone(&log);
     let game = built.game_mut();
     game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
@@ -188,29 +229,6 @@ fn play(
     let snapshot = Snapshot::build(&built.game().state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
-}
-
-/// Where `setup`'s game begins: a scenario's file read now, so Reload picks
-/// up an edit, at the setup's seed; or decks dealt from the seed as
-/// `fuzz_games` deals them, so a fuzz game's printed seed deals the same game
-/// here, the decks off the seed itself and the shuffle off `RandomStreams`.
-fn start_of(setup: &GameSetup) -> Result<GameStart, String> {
-    match &setup.scenario {
-        Some(path) => {
-            let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-            Ok(GameStart::Scenario { path: path.display().to_string(), seed: setup.seed, text })
-        }
-        None => {
-            let pool = match setup.pool {
-                Pool::Performance => CardRegistry::performance_pool(),
-                Pool::Stress => CardRegistry::default_registry(),
-            };
-            let mut deck_rng = StdRng::seed_from_u64(setup.seed);
-            let mut dealt = || random_deck(&pool, &mut deck_rng, &[], 1, DECK_SIZE).iter().map(|card| card.name.clone()).collect();
-            let decks = (0..setup.players).map(|_| dealt()).collect();
-            Ok(GameStart::Dealt { seed: setup.seed, config: GameConfig::unrestricted(), decks })
-        }
-    }
 }
 
 /// A seat the window plays: every question that reaches it goes to the
@@ -329,8 +347,8 @@ struct DecisionLog {
 }
 
 impl DecisionLog {
-    fn open(setup: &GameSetup, start: &GameStart) -> DecisionLog {
-        let file = setup.log_path.as_ref().map(|path| {
+    fn open(path: Option<&Path>, start: &GameStart) -> DecisionLog {
+        let file = path.map(|path| {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
             }

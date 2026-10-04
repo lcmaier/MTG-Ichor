@@ -7,7 +7,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::bridge::GameSetup;
+use mtgsim::state::decision_log::GameStart;
+
 use crate::editor::Source;
 
 /// The folders the dev GUI writes into, and the committed ones it lists.
@@ -44,12 +45,12 @@ pub struct ListedFile {
 }
 
 impl Folders {
-    /// A game's decision log: in its board's folder, named for the seed; a
-    /// dealt game's in `logs/`, named for the seed and the seats.
-    pub fn game_log(&self, setup: &GameSetup) -> PathBuf {
-        match &setup.scenario {
-            Some(path) => self.boards.join(stem(path)).join(format!("seed-{}.log", setup.seed)),
-            None => self.logs.join(format!("{}.log", start_name(setup))),
+    /// A game's decision log: in its board's folder, named for the seed it
+    /// plays; a dealt game's in `logs/`, named for the seed and the seats.
+    pub fn game_log(&self, start: &GameStart) -> PathBuf {
+        match start {
+            GameStart::Scenario { path, seed, .. } => self.boards.join(stem(Path::new(path))).join(format!("seed-{seed}.log")),
+            GameStart::Dealt { .. } => self.logs.join(format!("{}.log", start_name(start))),
         }
     }
 
@@ -104,11 +105,11 @@ fn folder(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// The name of a game's start: its board's, or a dealt game's seed and seats.
-pub fn start_name(setup: &GameSetup) -> String {
-    match &setup.scenario {
-        Some(path) => stem(path),
-        None if setup.players == 2 => format!("seed-{}", setup.seed),
-        None => format!("seed-{}-players-{}", setup.seed, setup.players),
+pub fn start_name(start: &GameStart) -> String {
+    match start {
+        GameStart::Scenario { path, .. } => stem(Path::new(path)),
+        GameStart::Dealt { seed, decks, .. } if decks.len() == 2 => format!("seed-{seed}"),
+        GameStart::Dealt { seed, decks, .. } => format!("seed-{seed}-players-{}", decks.len()),
     }
 }
 
@@ -118,8 +119,9 @@ fn stem(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use mtgsim::state::game_config::GameConfig;
+
     use super::*;
-    use crate::bridge::Pool;
 
     fn temp_folders(name: &str) -> Folders {
         let root = std::env::temp_dir().join(name);
@@ -135,9 +137,9 @@ mod tests {
     fn a_board_gets_a_folder_of_its_own_beside_its_games() {
         let folders = temp_folders("devgui-boards");
         let sample = folders.committed[0].1.join("holy-strength.scenario");
-        let dealt = GameSetup { seed: 41, pool: Pool::Performance, players: 4, log_path: None, scenario: None };
+        let dealt = GameStart::Dealt { seed: 41, config: GameConfig::unrestricted(), decks: vec![Vec::new(); 4] };
         assert_eq!(folders.game_log(&dealt), folders.logs.join("seed-41-players-4.log"));
-        let from_sample = GameSetup { seed: 7, scenario: Some(sample.clone()), ..dealt };
+        let from_sample = GameStart::Scenario { path: sample.display().to_string(), seed: 7, text: String::new() };
         assert_eq!(folders.game_log(&from_sample), folders.boards.join("holy-strength").join("seed-7.log"));
         let first = folders.save_path(&Source::File(sample.clone()));
         assert_eq!(first, folders.boards.join("holy-strength").join("holy-strength.scenario"));
