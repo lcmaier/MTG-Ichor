@@ -1,7 +1,8 @@
 //! The command line, read into how the window starts.
 //!
 //! `cargo run -- [--seed N] [--pool performance|stress] [--players N] [--scenario FILE]`,
-//! or `cargo run -- --edit [FILE]` for the board editor.
+//! `cargo run -- --edit [FILE]` for the board editor, or `cargo run -- --load FILE`
+//! for a save, or a decision log, played on from where it ends.
 //!
 //! The seed defaults to the scenario's own, read at each start, or else to
 //! the clock. The header shows it and the decision log records it, so any
@@ -13,8 +14,7 @@ use mtgsim::state::decision_log::GameStart;
 
 use crate::bridge::{GameSetup, Pool};
 
-pub const USAGE: &str =
-    "usage: devgui [--seed N] [--pool performance|stress] [--players N] [--scenario FILE], or devgui --edit [FILE]";
+pub const USAGE: &str = "usage: devgui [--seed N] [--pool performance|stress] [--players N] [--scenario FILE], or devgui --edit [FILE], or devgui --load FILE";
 
 /// What the window starts with.
 #[derive(Clone, Debug)]
@@ -23,15 +23,20 @@ pub enum Start {
     Game(GameSetup),
     /// The board editor, on a file's board or an empty one.
     Edit(Option<PathBuf>),
+    /// A save, `<log>.save`, or a decision log, replayed to where it ends
+    /// (`setup-architecture.md` §7.3).
+    Load(PathBuf),
 }
 
 /// The game's seed and start, as the header says them: the seed `start`
-/// played, which a scenario's file may have given.
-pub fn start_line(setup: &GameSetup, start: &GameStart) -> String {
+/// played, which a scenario's file may have given, and the pool its decks
+/// were dealt from where that is known, which a record does not say.
+pub fn start_line(start: &GameStart, pool: Option<Pool>) -> String {
+    let pool = pool.map_or_else(String::new, |pool| format!(" · {pool:?} pool"));
     match start {
         GameStart::Scenario { path, seed, .. } => format!("scenario {path} · seed {seed}"),
-        GameStart::Dealt { seed, decks, .. } if decks.len() == 2 => format!("seed {seed} · {:?} pool", setup.pool),
-        GameStart::Dealt { seed, decks, .. } => format!("seed {seed} · {:?} pool · {} players", setup.pool, decks.len()),
+        GameStart::Dealt { seed, decks, .. } if decks.len() == 2 => format!("seed {seed}{pool}"),
+        GameStart::Dealt { seed, decks, .. } => format!("seed {seed}{pool} · {} players", decks.len()),
     }
 }
 
@@ -39,7 +44,7 @@ pub fn start_line(setup: &GameSetup, start: &GameStart) -> String {
 /// `clock` seeds a dealt game given no `--seed`. An `Err` says what to
 /// change, for the terminal.
 pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Start, String> {
-    let (mut seed, mut pool, mut players, mut scenario, mut edit) = (None, None, None, None, None);
+    let (mut seed, mut pool, mut players, mut scenario, mut edit, mut load) = (None, None, None, None, None, None);
     let mut words = args.iter().peekable();
     while let Some(flag) = words.next() {
         if flag == "--edit" {
@@ -66,8 +71,15 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Start, Strin
                 })?);
             }
             "--scenario" => scenario = Some(PathBuf::from(value()?)),
+            "--load" => load = Some(PathBuf::from(value()?)),
             other => return Err(format!("{other} is not a flag the dev GUI takes")),
         }
+    }
+    if let Some(file) = load {
+        if seed.is_some() || pool.is_some() || players.is_some() || scenario.is_some() || edit.is_some() {
+            return Err("--load plays a record on from where it ends, whose start says its seed and seats; it takes no other flag".to_string());
+        }
+        return Ok(Start::Load(file));
     }
     if let Some(file) = edit {
         if seed.is_some() || pool.is_some() || players.is_some() || scenario.is_some() {
@@ -109,7 +121,7 @@ mod tests {
     /// begins.
     fn begun(setup: &GameSetup) -> (String, PathBuf) {
         let start = setup.start().unwrap_or_else(|refusal| panic!("{refusal}"));
-        (start_line(setup, &start), Folders::default().game_log(&start))
+        (start_line(&start, Some(setup.pool)), Folders::default().game_log(&start))
     }
 
     #[test]
@@ -146,6 +158,15 @@ mod tests {
         assert_eq!(line, format!("scenario {} · seed 5", path.display()));
         assert_eq!(log, PathBuf::from("boards").join("devgui-launch-seed").join("seed-5.log"));
         assert_eq!(launched(&format!("--seed 9 --scenario {}", path.display())).seed, Some(9));
+    }
+
+    #[test]
+    fn a_load_takes_one_file() {
+        let loaded = read(&words("--load logs/seed-7.log.save"), || 41);
+        assert!(matches!(&loaded, Ok(Start::Load(file)) if file == &PathBuf::from("logs/seed-7.log.save")), "{loaded:?}");
+        let refused = read(&words("--load x.log --seed 3"), || 41).err().unwrap_or_default();
+        assert!(refused.starts_with("--load plays a record on from where it ends"), "{refused}");
+        assert_eq!(read(&words("--load"), || 41).err().as_deref(), Some("--load needs a value"));
     }
 
     #[test]

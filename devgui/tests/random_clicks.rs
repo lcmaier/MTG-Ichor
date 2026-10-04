@@ -124,7 +124,8 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
                 return;
             }
             ToWindow::Panicked { message } => panic!("{game}: the engine thread panicked after {last}: {message}"),
-            ToWindow::Refused { message } => panic!("{game}: the scenario did not load: {message}"),
+            ToWindow::Refused { message, .. } => panic!("{game}: the scenario did not load: {message}"),
+            ToWindow::Diverged { message, .. } => panic!("{game}: a game played from its start replayed nothing, yet {message}"),
             ToWindow::Prompt { prompt, .. } => {
                 reached.primitives.push(prompt.primitive.clone());
                 reached.pass_only += usize::from(prompt.pass.is_some() && prompt.options.len() == 1);

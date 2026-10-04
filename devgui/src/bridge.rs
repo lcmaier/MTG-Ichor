@@ -20,7 +20,7 @@ use std::thread::JoinHandle;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
-use mtgsim::state::decision_log::{self, AnswerLine, GameStart, LoggedDecision};
+use mtgsim::state::decision_log::{self, AnswerLine, GameStart, Log, LoggedDecision};
 use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
@@ -38,6 +38,7 @@ use rand::rngs::StdRng;
 use crate::prompt::{Answer, Prompt, Reply};
 use crate::save::{self, Save};
 use crate::snapshot::Snapshot;
+use crate::view_model::Refusal;
 
 const DECK_SIZE: usize = 60;
 
@@ -109,12 +110,15 @@ pub struct Play {
     /// them (`setup-architecture.md` §7.1); back on at the hand-over.
     pub audited: bool,
     pub record: Option<Writer>,
+    /// The engine that wrote a loaded line, which a divergence names beside
+    /// this one when they differ; `None` within a session.
+    pub written_by: Option<String>,
 }
 
 impl Play {
     /// `start`'s game, played from its start and recorded nowhere.
     pub fn new(start: GameStart) -> Play {
-        Play { start, line: Vec::new(), audited: true, record: None }
+        Play { start, line: Vec::new(), audited: true, record: None, written_by: None }
     }
 }
 
@@ -128,8 +132,13 @@ pub enum ToWindow {
     Finished { snapshot: Snapshot, outcome: Outcome },
     /// The engine thread panicked: an `ask_*` validator, or an engine bug.
     Panicked { message: String },
-    /// The scenario did not load: the file's line, and what to change.
-    Refused { message: String },
+    /// The game did not start: the scenario's file, or a loaded record's
+    /// start, does not build, or a setup line cannot be played.
+    Refused { refusal: Refusal, message: String },
+    /// A replay stopped at an answer this build does not take, `message`
+    /// saying where and why, and plays on from the one before it: a line
+    /// `replaying` answers long, replayed again.
+    Diverged { message: String, replaying: usize },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -181,21 +190,27 @@ fn play(
     full_control: FullControlSwitch,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
+    let Play { start, mut line, mut audited, record, written_by } = game;
+    // A loaded record's start may name what this build no longer has.
+    let refusal = if written_by.is_some() { Refusal::Load } else { Refusal::Scenario };
     let refuse = |message: String| {
-        let _ = to_window.send(ToWindow::Refused { message });
+        let _ = to_window.send(ToWindow::Refused { refusal, message });
         wake();
-    };
-    let mut built = match game.start.build(&CardRegistry::default_registry()) {
-        Ok(built) => built,
-        Err(message) => return refuse(message),
     };
     // The engine writes the log, every seat's answers and its own passes, so
     // the record is the game's whatever answered at each seat.
-    if let Some(record) = game.record.clone() {
-        built.game_mut().state.log_decisions(move |game, decision| record.answer(game, decision));
-    }
-    built.game_mut().state.record_events();
-    let record = game.record;
+    let build = || {
+        let mut built = start.build(&CardRegistry::default_registry())?;
+        if let Some(record) = record.clone() {
+            built.game_mut().state.log_decisions(move |game, decision| record.answer(game, decision));
+        }
+        built.game_mut().state.record_events();
+        Ok::<_, String>(built)
+    };
+    let mut built = match build() {
+        Ok(built) => built,
+        Err(message) => return refuse(message),
+    };
 
     let events_logged = Rc::new(Cell::new(0));
     let from_window = Rc::new(from_window);
@@ -224,23 +239,51 @@ fn play(
             record.outcome(&outcome);
         }
     };
-    let played = if game.line.is_empty() {
-        if let Some(record) = &record {
-            record.hand_over();
+    let played = loop {
+        if line.is_empty() {
+            if let Some(record) = &record {
+                record.hand_over();
+            }
+            // A scenario's setup actions play first, every seat's, so the
+            // window's first prompt comes once they have built their stack.
+            break built.play(&dp);
         }
-        // A scenario's setup actions play first, every seat's, so the
-        // window's first prompt comes once they have built their stack.
-        built.play(&dp)
-    } else {
         let seats = HandOver { seats: &dp, record: record.clone(), handed: Cell::new(false) };
-        let replay = Replay::new(game.line).then(&seats);
+        let replay = match &written_by {
+            Some(engine) => {
+                let log = Log { engine: engine.clone(), start: start.clone(), answers: line.clone(), outcome: None };
+                Replay::of(log)
+            }
+            None => Replay::new(line.clone()),
+        };
+        let replay = replay.then(&seats);
         if let Some(record) = &record {
             record.replaying(replay.control());
         }
-        if !game.audited {
+        if !audited {
             built.game().state.pause_layer_audit();
         }
-        built.replay(&replay)
+        // A line this build no longer plays says where it stopped and plays
+        // on from the answer before it. A stopped game is never continued
+        // (decision 1), so it is built again and replayed that far, its
+        // audits paused: they have just checked those answers.
+        match built.replay(&replay) {
+            Err(Halt::Stopped(Stop::Diverged { line: at, why })) => {
+                let message = Stop::Diverged { line: at, why }.to_string();
+                let _ = to_window.send(ToWindow::Diverged { message, replaying: at - 1 });
+                wake();
+                if let Some(record) = &record {
+                    record.diverged(at - 1);
+                }
+                line.truncate(at - 1);
+                audited = false;
+                built = match build() {
+                    Ok(built) => built,
+                    Err(message) => return refuse(message),
+                };
+            }
+            played => break played,
+        }
     };
     let outcome = match played {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
@@ -600,6 +643,17 @@ impl Writer {
             record.live = true;
             record.rewrite_log();
         }
+    }
+
+    /// The replay stopped at a line this build does not take, after
+    /// `answers` it did: the save's line moves back to the place they reach,
+    /// and the writer holds its next replay's answers afresh.
+    fn diverged(&self, answers: usize) {
+        let Some(mut record) = self.record() else { return };
+        let place = record.save.along(record.save.current(), answers);
+        record.move_to(place);
+        (record.replayed, record.logged) = (Vec::new(), 0);
+        self.replayed.store(0, Ordering::Relaxed);
     }
 
     /// The window is asked at the save's current place.

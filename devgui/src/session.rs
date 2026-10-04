@@ -69,6 +69,7 @@ impl Session {
                     session.open_file(&path);
                 }
             }
+            Start::Load(file) => session.load(&file),
         }
         session
     }
@@ -158,7 +159,7 @@ impl Session {
                 return;
             }
         };
-        self.start_line = start_line(&setup, &start);
+        self.start_line = start_line(&start, Some(setup.pool));
         let log_path = own_log(&self.folders.game_log(&start));
         let record = match Record::create(Save::new(start.clone()), log_path.clone()) {
             Ok(record) => Arc::new(Mutex::new(record)),
@@ -210,7 +211,42 @@ impl Session {
         let replaying = Progress { done: writer.replayed(), of: line.len() };
         let full_control = self.state.full_control;
         self.state = WindowState { full_control, now: self.state.now, replaying: Some(replaying), ..WindowState::default() };
-        self.spawn(Play { start, line, audited: false, record: Some(writer) });
+        self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None });
+        self.read_tools();
+    }
+
+    /// `--load`: a save, or a decision log read as a save of one line,
+    /// replayed to where it ends with the memo's audits on, since another
+    /// build may have played it (`setup-architecture.md` §7.1), the window
+    /// counting the answers, and the next question asked. Play goes on in a
+    /// new log and save beside the loaded pair, named as a Reload's are, so
+    /// the files loaded are never written.
+    fn load(&mut self, file: &Path) {
+        self.leave_game();
+        let read = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()));
+        let save = match read.and_then(|text| Save::read(&text).map_err(|why| format!("{}, {why}", file.display()))) {
+            Ok(save) => save,
+            Err(message) => {
+                self.state.refused = Some((Refusal::Load, message));
+                return;
+            }
+        };
+        let loaded_log = if file.extension().is_some_and(|extension| extension == "save") { file.with_extension("") } else { file.to_path_buf() };
+        let log_path = own_log(&loaded_log);
+        let (start, line, written_by) = (save.start.clone(), save.line_to(save.current()), save.engine.clone());
+        let record = match Record::create(save, log_path.clone()) {
+            Ok(record) => Arc::new(Mutex::new(record)),
+            Err(message) => {
+                self.state.refused = Some((Refusal::Record, message));
+                return;
+            }
+        };
+        let writer = Writer::take_over(&record);
+        self.state.replaying = Some(Progress { done: writer.replayed(), of: line.len() });
+        self.start_line = format!("loaded {} · {}", file.display(), start_line(&start, None));
+        self.setup = Some(loaded_setup(&start));
+        self.spawn(Play { start: start.clone(), line, audited: true, record: Some(writer), written_by: Some(written_by) });
+        (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
         self.read_tools();
     }
 
@@ -327,6 +363,16 @@ impl Session {
             Err(e) => Err(format!("cannot save {}: {e}", path.display())),
         });
         made.ok().map(|()| path.to_path_buf())
+    }
+}
+
+/// How a loaded record's game began, for Reload and the names the window
+/// gives: a scenario's file, read again as Reload reads it, or a dealt
+/// game's seed and seats, whose pool the record does not say.
+fn loaded_setup(start: &GameStart) -> GameSetup {
+    match start {
+        GameStart::Scenario { path, .. } => GameSetup { seed: None, pool: Pool::Performance, players: 2, scenario: Some(PathBuf::from(path)) },
+        GameStart::Dealt { seed, decks, .. } => GameSetup { seed: Some(*seed), pool: Pool::Performance, players: decks.len(), scenario: None },
     }
 }
 

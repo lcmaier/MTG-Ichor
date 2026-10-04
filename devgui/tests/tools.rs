@@ -20,7 +20,7 @@ use devgui::bridge::{Play, Record, Writer, locked, spawn_game};
 use devgui::launch::Start;
 use devgui::save::{self, Save};
 use devgui::session::Session;
-use devgui::view_model::{Input, NO_EARLIER_QUESTION};
+use devgui::view_model::{Input, NO_EARLIER_QUESTION, Refusal};
 use games::{dealt, play};
 use sessions::{BOLT_IN_HAND, next_prompt, scenario_game, session_with};
 use window_by_rule::{inputs_by_rule, play_by_rule};
@@ -142,7 +142,7 @@ fn a_superseded_replay_stops_and_asks_the_window_nothing() {
     assert!(line.len() > 300, "a whole game's line: {}", line.len());
     let writer = Writer::take_over(&record);
     let replayed = writer.replayed();
-    let engine = spawn_game(Play { start, line, audited: true, record: Some(writer) }, Arc::new(|| {}));
+    let engine = spawn_game(Play { line, audited: true, record: Some(writer), ..Play::new(start) }, Arc::new(|| {}));
     while replayed.load(Ordering::Relaxed) == 0 {
         std::thread::yield_now();
     }
@@ -186,4 +186,117 @@ fn a_savestate_marks_the_open_question_and_the_menu_moves_back_to_it() {
     session.input(session.state.tools_view().menu[1].input.clone());
     next_prompt(&mut session);
     assert_eq!(question(&session), left);
+}
+
+/// A session on the file `--load` reads, writing under the folder its own
+/// test made; what it read, as a load must leave it.
+fn loaded(file: &std::path::Path) -> Session {
+    let folders = devgui::boards::Folders { logs: file.with_file_name("logs"), boards: file.with_file_name("boards"), ..Default::default() };
+    Session::start(Start::Load(file.to_path_buf()), folders, Arc::new(|| {}))
+}
+
+/// The Bolt board played to the question after Bolt hit player 1, then
+/// undone to Bolt's target and branched onto player 0, with a savestate at
+/// the first question: the save holds two lines, three places the window
+/// was asked on each, the savestate, and the line left. Each question
+/// passed, in order.
+fn branched_bolt_game(name: &str) -> (Session, [(String, String, usize); 4]) {
+    let (mut session, ..) = session_with(name, BOLT_IN_HAND, scenario_game);
+    next_prompt(&mut session);
+    let first = question(&session);
+    session.input(Input::Savestate);
+    answer(&mut session, "Cast Lightning Bolt");
+    let target = question(&session);
+    answer(&mut session, "Player 1");
+    let hit_player_1 = question(&session);
+    session.input(Input::Undo);
+    next_prompt(&mut session);
+    answer(&mut session, "Player 0");
+    let hit_player_0 = question(&session);
+    (session, [first, target, hit_player_1, hit_player_0])
+}
+
+/// A savestate and a branch survive a save and a load: the load replays the
+/// line the save ended on and asks its next question, Undo walks back into
+/// the save, and the menu moves to the savestate and back. Play goes on in a
+/// new pair beside the loaded one, which is never written.
+#[test]
+fn a_savestate_and_a_branch_survive_a_save_and_a_load() {
+    let (session, [first, target, _, hit_player_0]) = branched_bolt_game("devgui-tools-load");
+    let log = session.log_path.clone().unwrap();
+    let saved = save::path_for(&log);
+    let before = (std::fs::read(&log).unwrap(), std::fs::read(&saved).unwrap());
+    drop(session);
+
+    let mut session = loaded(&saved);
+    assert!(session.state.replaying.is_some(), "the load counts its replay");
+    assert!(session.start_line.starts_with(&format!("loaded {} · scenario ", saved.display())), "{}", session.start_line);
+    next_prompt(&mut session);
+    assert_eq!(question(&session), hit_player_0, "the line the save ended on");
+    let next_log = log.with_file_name(format!("{}-2.log", log.file_stem().unwrap().to_string_lossy()));
+    assert_eq!(session.log_path.as_ref(), Some(&next_log), "a new pair beside the loaded one");
+    assert_eq!(menu(&session), [("Turn 1 · Precombat Main".to_string(), true), ("Back to where I was".to_string(), true)]);
+    session.input(Input::Undo);
+    next_prompt(&mut session);
+    assert_eq!(question(&session), target, "Undo walks back into the save");
+    session.input(session.state.tools_view().menu[0].input.clone());
+    next_prompt(&mut session);
+    assert_eq!(question(&session), first, "the savestate");
+    session.input(session.state.tools_view().menu[1].input.clone());
+    next_prompt(&mut session);
+    assert_eq!(question(&session), hit_player_0, "back to where the load began");
+    drop(session);
+    assert_eq!((std::fs::read(&log).unwrap(), std::fs::read(&saved).unwrap()), before, "the loaded files, untouched");
+    let resaved = Save::read(&std::fs::read_to_string(save::path_for(&next_log)).unwrap()).unwrap();
+    let reread = Save::read(&String::from_utf8(before.1).unwrap()).unwrap();
+    assert_eq!(resaved.line_to(resaved.current()), reread.line_to(reread.current()), "the new save, holding the loaded one, back at its end");
+}
+
+/// A decision log loads as a save of one line with no record of where the
+/// window was asked: it replays to its end, and its undo starts with the
+/// first answer given after loading.
+#[test]
+fn a_decision_log_loads_as_one_line_and_its_undo_starts_after_it() {
+    let (session, [.., hit_player_0]) = branched_bolt_game("devgui-tools-load-log");
+    let log = session.log_path.clone().unwrap();
+    drop(session);
+    let mut session = loaded(&log);
+    next_prompt(&mut session);
+    assert_eq!(question(&session), hit_player_0, "the log is the line the window was on");
+    assert!(menu(&session).is_empty() && !session.state.tools_view().undo.live, "nothing recorded before it");
+    answer_by_rule(&mut session);
+    session.input(Input::Undo);
+    next_prompt(&mut session);
+    assert_eq!(question(&session), hit_player_0, "the first question asked after loading");
+}
+
+/// A loaded line this build no longer takes stops at that answer and says
+/// where; the game plays on from the answer before it, asking its question.
+#[test]
+fn a_load_that_diverges_says_where_and_plays_on_from_the_answer_before() {
+    let (session, [_, target, ..]) = branched_bolt_game("devgui-tools-diverge");
+    let log = session.log_path.clone().unwrap();
+    drop(session);
+    let text = std::fs::read_to_string(&log).unwrap();
+    let changed = text.replace("SelectRecipients picks player 0", "SelectRecipients picks player 7");
+    assert_ne!(changed, text, "the log names Bolt's target");
+    let altered = log.with_file_name("altered.log");
+    std::fs::write(&altered, changed).unwrap();
+    let mut session = loaded(&altered);
+    next_prompt(&mut session);
+    let diverged = session.state.diverged.clone().expect("the divergence, said");
+    assert!(diverged.contains("it chose player 7, which is not offered"), "{diverged}");
+    assert_eq!(question(&session), target, "Bolt's target asked again");
+}
+
+/// A file `--load` cannot read as a record is refused in the window, naming
+/// its line, as a scenario that does not load is.
+#[test]
+fn a_load_that_does_not_read_is_refused_in_the_window() {
+    let (_, _, file) = session_with("devgui-tools-unreadable", "turn 2
+", |_| Start::Edit(None));
+    let session = loaded(&file);
+    let Some((Refusal::Load, message)) = &session.state.refused else { panic!("{}", session.state.status()) };
+    assert!(message.starts_with(&format!("{}, line 1: ", file.display())), "{message}");
+    assert_eq!(session.state.status(), "The save did not load");
 }

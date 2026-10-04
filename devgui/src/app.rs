@@ -13,8 +13,8 @@ use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, S
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton, ToolButton,
-    ToolsView, TypeLineView, TypeWordView, WindowState, ZoneView,
+    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton,
+    ToolButton, ToolsView, TypeLineView, TypeWordView, WindowState, ZoneView,
 };
 
 pub struct DevGui {
@@ -189,6 +189,12 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
                 ui.weak("Reload starts the scenario again.");
             }
         } else if let Some(prompt) = state.prompt_view() {
+            if let Some(message) = &state.diverged {
+                ui.colored_label(ui.visuals().warn_fg_color, DIVERGED[0]);
+                ui.monospace(message);
+                ui.weak(DIVERGED[1]);
+                ui.separator();
+            }
             ui.push_id(prompt.serial, |ui| prompt_panel(ui, &prompt, inputs));
         } else if header.playing {
             ui.weak(state.status());

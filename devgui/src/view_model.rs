@@ -256,6 +256,8 @@ pub enum Refusal {
     Scenario,
     /// The game's decision log could not be made (`codebase-state.md` item 200).
     Record,
+    /// The file `--load` names did not load, or its start does not build.
+    Load,
 }
 
 impl Refusal {
@@ -264,6 +266,7 @@ impl Refusal {
         match self {
             Refusal::Scenario => "The scenario did not load",
             Refusal::Record => "The decision log could not be made",
+            Refusal::Load => "The save did not load",
         }
     }
 
@@ -272,6 +275,7 @@ impl Refusal {
         match self {
             Refusal::Scenario => "Fix the file, then click Reload; or Edit the scenario.",
             Refusal::Record => "Make its folder writable, then start the game again.",
+            Refusal::Load => "--load takes a save, <log>.save, or a decision log.",
         }
     }
 }
@@ -288,6 +292,9 @@ pub struct WindowState {
     pub panic: Option<String>,
     /// Why no game started, and the refusal's words.
     pub refused: Option<(Refusal, String)>,
+    /// Where a replayed line stopped, as this build no longer takes it: the
+    /// game plays on from the answer before.
+    pub diverged: Option<String>,
     /// The yield the seat holds at the open prompt.
     pub yielding: Option<Yield>,
     /// Full control is on: the seat is asked at every priority point, with
@@ -321,6 +328,9 @@ pub const NO_EARLIER_QUESTION: &str = "No earlier question to go back to.";
 
 /// What the menu says while it lists nothing.
 pub const NO_SAVESTATES: &str = "No savestates yet: Savestate marks the open question.";
+
+/// What the prompt's place says above a divergence's message.
+pub const DIVERGED: [&str; 2] = ["The loaded line stops here: this build does not take its next answer.", "Play goes on from the answer before it."];
 
 /// The game's tools, beside Reload in the header (`setup-architecture.md`
 /// §7.3): Undo answer, Savestate, and the menu of savestates and the line
@@ -371,9 +381,15 @@ impl WindowState {
                 self.selection = None;
                 self.panic = Some(message);
             }
-            ToWindow::Refused { message } => {
+            ToWindow::Refused { refusal, message } => {
                 self.replaying = None;
-                self.refused = Some((Refusal::Scenario, message));
+                self.refused = Some((refusal, message));
+            }
+            ToWindow::Diverged { message, replaying } => {
+                self.diverged = Some(message);
+                if let Some(progress) = &mut self.replaying {
+                    progress.of = replaying;
+                }
             }
         }
     }
@@ -472,6 +488,7 @@ impl WindowState {
         match self.refused {
             Some((Refusal::Scenario, _)) => "No board: the scenario did not load.",
             Some((Refusal::Record, _)) => "No board: the decision log could not be made.",
+            Some((Refusal::Load, _)) => "No board: the save did not load.",
             None if self.panic.is_some() => "No board: the engine panicked before its first prompt.",
             None if self.replaying.is_some() => "Replaying the game to its question: the board shows once the question is asked.",
             None => "Waiting for the engine's first prompt.",

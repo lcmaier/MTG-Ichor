@@ -201,7 +201,7 @@ hand 0: Grizly Bears
 ").unwrap();
     let engine = spawn(GameSetup { scenario: Some(path), ..dealt(0) });
     match next(&engine) {
-        ToWindow::Refused { message } => assert!(message.starts_with("line 2: Grizly Bears is not registered"), "{message}"),
+        ToWindow::Refused { message, .. } => assert!(message.starts_with("line 2: Grizly Bears is not registered"), "{message}"),
         other => panic!("expected the refusal, got {other:?}"),
     }
 }
@@ -218,7 +218,7 @@ then: player 0 casts Lightning Bolt | targeting Grizzly Bears
 ").unwrap();
     let engine = spawn(GameSetup { scenario: Some(path), ..dealt(0) });
     match next(&engine) {
-        ToWindow::Refused { message } => assert!(message.starts_with("line 3, `"), "{message}"),
+        ToWindow::Refused { message, .. } => assert!(message.starts_with("line 3, `"), "{message}"),
         other => panic!("expected the refusal, got {other:?}"),
     }
 }

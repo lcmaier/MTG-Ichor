@@ -54,7 +54,8 @@ pub fn play_by_rule(game: Play, mut watch: impl FnMut(&WindowState)) -> (Outcome
         let finished = match &message {
             ToWindow::Finished { outcome, .. } => Some(outcome.clone()),
             ToWindow::Panicked { message } => panic!("the engine panicked: {message}"),
-            ToWindow::Refused { message } => panic!("the scenario did not load: {message}"),
+            ToWindow::Refused { message, .. } => panic!("the scenario did not load: {message}"),
+            ToWindow::Diverged { message, .. } => panic!("a game played from its start replayed nothing, yet {message}"),
             ToWindow::Prompt { .. } => None,
         };
         state.receive(message);
