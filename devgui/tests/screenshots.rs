@@ -13,6 +13,7 @@ mod window_by_rule;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 
 use devgui::app::{SessionHeader, draw};
 use devgui::boards::Folders;
@@ -20,8 +21,10 @@ use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
 use devgui::prompt::{Answer, Reply};
+use devgui::save::{Destination, Tools};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, WindowState};
+use devgui::view_model::{Input, Mode, Progress, WindowState};
+use egui_kittest::kittest::Queryable;
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
 use games::{from_board, next, play, spawn};
 
@@ -68,20 +71,50 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     }
     let mut results = SnapshotResults::new();
     for (name, (state, board)) in &first {
-        results.add(picture(state, &header(board), None, name));
+        results.add(picture(&partway(state.clone()), &header(board), None, name));
     }
-    results.add(picture(&panicked(), &header("main.scenario"), None, "engine_panic"));
+    results.add(picture(&partway(panicked()), &header("main.scenario"), None, "engine_panic"));
     results.add(picture(&refused(), &header("refused.scenario"), None, "scenario_refused"));
+    // The window's first question, after the setup actions: nothing to undo.
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
-    results.add(picture(&blocks_rejected(), &header("reask.scenario"), None, "blocks_rejected"));
+    results.add(picture(&partway(blocks_rejected()), &header("reask.scenario"), None, "blocks_rejected"));
     let (state, board) = &first["priority"];
-    results.add(picture(state, &header(board), Some(Ok("saved boards/main-turn-3/main-turn-3.scenario")), "board_saved"));
+    let saved = Some(Ok("saved boards/main-turn-3/main-turn-3.scenario"));
+    results.add(picture(&partway(state.clone()), &header(board), saved, "board_saved"));
+    results.add(picture(&replaying(), &header("main.scenario"), None, "replaying"));
+    results.add(menu_picture(&with_savestates(state.clone()), &header(board), "savestates_menu"));
+    let (state, board) = &first["targets"];
+    let diverged = "the log diverges at answer 12: it chose player 7, which is not offered".to_string();
+    results.add(picture(&WindowState { diverged: Some(diverged), ..partway(state.clone()) }, &header(board), None, "diverged"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
     assert!(missing.is_empty(), "the review boards no longer reach {missing:?}");
+}
+
+/// The tools as a game partway through shows them: a question before this
+/// one to go back to, and no savestate yet.
+fn partway(state: WindowState) -> WindowState {
+    WindowState { tools: Tools { undo_open: true, undo_answered: true, ..Tools::default() }, ..state }
+}
+
+/// Two savestates set, and a line left since: what the menu lists.
+fn with_savestates(state: WindowState) -> WindowState {
+    let destinations = vec![
+        Destination::Savestate { at: 4, name: "Turn 2 · Precombat Main".to_string() },
+        Destination::Savestate { at: 11, name: "Turn 3 · Declare Blockers".to_string() },
+        Destination::Left(19),
+    ];
+    let state = partway(state);
+    WindowState { tools: Tools { destinations, current: 23, ..state.tools.clone() }, ..state }
+}
+
+/// A rebuild on its way to a question: no board, the answers counted.
+fn replaying() -> WindowState {
+    let replaying = Progress { done: Arc::new(AtomicUsize::new(120)), of: 341 };
+    partway(WindowState { replaying: Some(replaying), ..WindowState::default() })
 }
 
 /// The first click the rule would make, when it does not answer the prompt,
@@ -153,13 +186,32 @@ fn refused() -> WindowState {
     state
 }
 
-fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
-    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[], tools: None };
-    let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
-        draw(ui, state, &header, None);
-    });
+fn picture(state: &WindowState, line: &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
+    let mut harness = game_window(state, line, saved);
+    if state.replaying.is_some() {
+        // A replay's count repaints on a timer, so its window never settles.
+        harness.run_steps(4);
+    } else {
+        harness.run();
+    }
+    harness.try_snapshot(name)
+}
+
+/// The game's window with the header's menu of savestates opened.
+fn menu_picture(state: &WindowState, line: &(String, PathBuf), name: &str) -> SnapshotResult {
+    let mut harness = game_window(state, line, None);
+    harness.run();
+    harness.get_by_label("Savestates").click();
     harness.run();
     harness.try_snapshot(name)
+}
+
+fn game_window<'a>(state: &'a WindowState, (line, log): &'a (String, PathBuf), saved: Option<Result<&'a str, &'a str>>) -> Harness<'a> {
+    let tools = Some(state.tools_view());
+    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[], tools };
+    Harness::builder().with_size([1280.0, 800.0]).build_ui(move |ui| {
+        draw(ui, state, &header, None);
+    })
 }
 
 /// The editor on a sample, after a click on each named step or card, and
