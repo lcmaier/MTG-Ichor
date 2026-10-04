@@ -312,6 +312,9 @@ pub struct WindowState {
     pub replaying: Option<Progress>,
     /// What the save lets the tools do, as the session last read it.
     pub tools: Tools,
+    /// Why the game's record stopped being written, if it has: what the
+    /// header says until another game starts.
+    pub unwritten: Option<String>,
 }
 
 /// A replay the window counts while it waits (`setup-architecture.md` §7.3).

@@ -89,7 +89,7 @@ impl Session {
             received = true;
         }
         if received {
-            self.read_tools();
+            self.read_record();
         }
     }
 
@@ -191,7 +191,7 @@ impl Session {
         let (Some(record), Some(name)) = (&self.record, self.state.savestate_name()) else { return };
         if !self.state.tools.savestate_here {
             locked(record).savestate(name);
-            self.read_tools();
+            self.read_record();
         }
     }
 
@@ -212,7 +212,7 @@ impl Session {
         let full_control = self.state.full_control;
         self.state = WindowState { full_control, now: self.state.now, replaying: Some(replaying), ..WindowState::default() };
         self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None });
-        self.read_tools();
+        self.read_record();
     }
 
     /// `--load`: a save, or a decision log read as a save of one line,
@@ -227,6 +227,7 @@ impl Session {
         let save = match read.and_then(|text| Save::read(&text).map_err(|why| format!("{}, {why}", file.display()))) {
             Ok(save) => save,
             Err(message) => {
+                self.start_line = format!("loaded {}", file.display());
                 self.state.refused = Some((Refusal::Load, message));
                 return;
             }
@@ -247,12 +248,15 @@ impl Session {
         self.setup = Some(loaded_setup(&start));
         self.spawn(Play { start: start.clone(), line, audited: true, record: Some(writer), written_by: Some(written_by) });
         (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
-        self.read_tools();
+        self.read_record();
     }
 
-    /// What the save lets the tools do, read again after it changed.
-    fn read_tools(&mut self) {
-        self.state.tools = self.record.as_ref().map(|record| locked(record).save.tools()).unwrap_or_default();
+    /// What the record says now: what its save lets the tools do, and a
+    /// write that failed.
+    fn read_record(&mut self) {
+        let Some(record) = &self.record else { return };
+        let record = locked(record);
+        (self.state.tools, self.state.unwritten) = (record.save.tools(), record.failed.clone());
     }
 
     /// The game left for another: its record shut, so a replay on its way

@@ -36,7 +36,7 @@ impl eframe::App for DevGui {
             mode: session.mode,
             line: &session.start_line,
             log: session.log_path.as_deref(),
-            playing: session.setup.is_some(),
+            playing: session.setup.is_some() || session.state.refused.is_some(),
             reloadable: session.setup.as_ref().is_some_and(|setup| setup.scenario.is_some()),
             message: session.message.as_ref().map(|message| message.as_ref().map(String::as_str).map_err(String::as_str)),
             files: &session.files,
@@ -56,7 +56,7 @@ pub struct SessionHeader<'a> {
     pub line: &'a str,
     /// The game's decision log.
     pub log: Option<&'a Path>,
-    /// A game has started.
+    /// A game has started, or was refused: the header says which.
     pub playing: bool,
     /// A scenario's game, which Reload builds again from its file.
     pub reloadable: bool,
@@ -125,28 +125,14 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         ui.weak("No game yet: the editor's Play starts its board.");
         return;
     }
-    ui.strong(state.status());
-    if let Some(board) = board {
-        ui.separator();
-        ui.label(&board.header);
-    }
-    ui.separator();
-    match header.log {
-        Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
-        None => ui.weak(header.line),
-    };
-    let mut full_control = state.full_control;
-    if ui.checkbox(&mut full_control, "Full control").changed() {
-        inputs.push(Input::FullControl(full_control));
-    }
+    // The game's buttons first, where nothing before them changes width: a
+    // replay's status and a board's line come and go, and a double click's
+    // second half would land on whatever moved under it.
     if header.reloadable && ui.button("Reload").clicked() {
         inputs.push(Input::Reload);
     }
     if let Some(tools) = &header.tools {
         tool_button(ui, &tools.undo, inputs);
-        if let Some(why) = tools.undo_off {
-            ui.weak(why);
-        }
         tool_button(ui, &tools.savestate, inputs);
         ui.menu_button("Savestates", |ui| {
             if tools.menu.is_empty() {
@@ -159,6 +145,27 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
                 }
             }
         });
+        if let Some(why) = tools.undo_off {
+            ui.weak(why);
+        }
+    }
+    ui.separator();
+    ui.strong(state.status());
+    if let Some(board) = board {
+        ui.separator();
+        ui.label(&board.header);
+    }
+    ui.separator();
+    match header.log {
+        Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
+        None => ui.weak(header.line),
+    };
+    if let Some(failed) = &state.unwritten {
+        ui.colored_label(ui.visuals().error_fg_color, failed);
+    }
+    let mut full_control = state.full_control;
+    if ui.checkbox(&mut full_control, "Full control").changed() {
+        inputs.push(Input::FullControl(full_control));
     }
     if state.board.is_some() {
         if ui.button("Save board as scenario").clicked() {

@@ -11,7 +11,8 @@
 //!   "Save board as scenario";
 //! - **receive**: `WindowState::receive`, the window's work as a prompt arrives;
 //! - **views**: `board_view` and `prompt_view`, which `app::draw` builds again
-//!   at every repaint;
+//!   at every repaint, and the header's tools with three entries in their
+//!   menu (`setup-architecture.md` §7.3);
 //! - **the editor** on the same board: its view, built again at every repaint
 //!   in the editor, and one edit at a click, which writes the board, reads it
 //!   back and has the loader check it (`setup-architecture.md` §7b).
@@ -30,6 +31,7 @@ use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Play, Pool, ToWindow, spawn_game};
 use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
+use devgui::save::{Destination, Tools};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
 use mtgsim::cards::registry::CardRegistry;
@@ -70,6 +72,13 @@ fn main() {
     let mut state = WindowState::default();
     state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None });
     reading("views, every repaint", || (state.board_view(), state.prompt_view()));
+    let destinations = vec![
+        Destination::Savestate { at: 4, name: "Turn 2 · Precombat Main".to_string() },
+        Destination::Savestate { at: 11, name: "Turn 3 · Declare Blockers".to_string() },
+        Destination::Left(19),
+    ];
+    state.tools = Tools { undo_open: true, undo_answered: true, savestate_here: false, destinations, current: 23 };
+    reading("tools view, every repaint", || state.tools_view());
 
     let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));
     let opened = &editor;

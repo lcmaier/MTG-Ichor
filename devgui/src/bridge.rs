@@ -525,10 +525,6 @@ impl Record {
         Ok(record)
     }
 
-    pub fn log_path(&self) -> &Path {
-        &self.log_path
-    }
-
     /// Shut the writer writing now and supersede its replay; the next
     /// writer's number.
     pub fn shut(&mut self) -> u64 {
