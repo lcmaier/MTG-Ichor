@@ -20,6 +20,7 @@ use devgui::session::Session;
 use devgui::view_model::{Input, Mode, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
+use mtgsim::state::decision_log::{self, GameStart, Log};
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next};
 use window_by_rule::{inputs_by_rule, play_by_rule};
@@ -43,16 +44,18 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert!(answered > 20, "a game of Magic asks more than {answered} questions");
     assert!(asked.contains(&0) && asked.contains(&1), "the window plays every seat");
 
-    let log = std::fs::read_to_string(&log).expect("the decision log");
-    let lines: Vec<&str> = log.lines().collect();
-    assert_eq!(lines[..2], ["seed 6", "pool Performance"]);
-    assert!(lines[2].starts_with("deck 0 ") && lines[3].starts_with("deck 1 "));
-    assert!(lines[4].starts_with("answer 1 [turn 1, "), "each answer says when: {}", lines[4]);
-    let answers: Vec<&&str> = lines.iter().filter(|l| l.starts_with("answer ")).collect();
-    assert!(answers.len() > answered, "the log holds the window's answers, its decorators' and the engine's passes");
-    assert!(answers.iter().any(|l| l.contains("] player 0 ")) && answers.iter().any(|l| l.contains("] player 1 ")), "for each seat");
-    assert!(answers.iter().any(|l| l.ends_with(" forced")), "a question with one legal answer is marked");
-    assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
+    let log = decision_log::read(&std::fs::read_to_string(&log).expect("the decision log")).expect("the engine reads the log");
+    assert!(matches!(&log.start, GameStart::Dealt { seed: 6, decks, .. } if decks.len() == 2), "{:?}", log.start);
+    assert_eq!(log.answers[0].turn, 1, "each answer says when");
+    assert!(log.answers.len() > answered, "the log holds the window's answers, its decorators' and the engine's passes");
+    assert!(log.answers.iter().any(|a| a.player == 0) && log.answers.iter().any(|a| a.player == 1), "for each seat");
+    assert!(log.answers.iter().any(|a| a.forced), "a question with one legal answer is marked");
+    let ended = match outcome {
+        Outcome::Won(player) => decision_log::Outcome::Won(player),
+        Outcome::Draw => decision_log::Outcome::Draw,
+        Outcome::Error(error) => decision_log::Outcome::Error(error),
+    };
+    assert_eq!(log.outcome, Some(ended));
 }
 
 /// CR 103.8a: seat 0 plays first in a two-player game and skips its first draw
@@ -150,7 +153,7 @@ fn an_illegal_block_is_asked_again_with_the_rule_it_broke() {
     assert!(!matches!(message, ToWindow::Panicked { .. } | ToWindow::Finished { .. }), "{message:?}");
 }
 
-/// A game from a scenario: the log opens with the file, its seed and its
+/// A game from a scenario: the log's start is the file, its seed and its
 /// text verbatim, so it is a save even after the file changes, and the game
 /// plays from the board to its end.
 #[test]
@@ -160,15 +163,11 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let board = std::fs::read_to_string(setup.scenario.as_ref().unwrap()).unwrap();
     let (outcome, answered) = play_by_rule(setup, |_| {});
     assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
-    let log = std::fs::read_to_string(&log).expect("the decision log");
-    let lines: Vec<&str> = log.lines().collect();
-    assert!(lines[0].starts_with("scenario ") && lines[0].ends_with("main.scenario"), "{}", lines[0]);
-    assert_eq!(lines[1..3], ["seed 0", "begin scenario text"]);
-    let text_lines = board.lines().count();
-    assert_eq!(lines[3..3 + text_lines], board.lines().collect::<Vec<_>>()[..]);
-    assert_eq!(lines[3 + text_lines], "end scenario text");
-    let answers = lines.iter().filter(|l| l.starts_with("answer ")).count();
-    assert!(answers > answered, "every answer the window gave is in the log, beside the engine's own passes");
+    let log = decision_log::read(&std::fs::read_to_string(&log).expect("the decision log")).expect("the engine reads the log");
+    let GameStart::Scenario { path, seed: 0, text } = &log.start else { panic!("{:?}", log.start) };
+    assert!(path.ends_with("main.scenario"), "{path}");
+    assert!(text.lines().eq(board.lines()), "the board's text, verbatim");
+    assert!(log.answers.len() > answered, "every answer the window gave is in the log, beside the engine's own passes");
 }
 
 /// A file the loader refuses reaches the window as its line and its fix.
@@ -181,6 +180,23 @@ hand 0: Grizly Bears
     let engine = spawn_game(GameSetup { scenario: Some(path), ..dealt(0, None) }, Arc::new(|| {}));
     match next(&engine) {
         ToWindow::Refused { message } => assert!(message.starts_with("line 2: Grizly Bears is not registered"), "{message}"),
+        other => panic!("expected the refusal, got {other:?}"),
+    }
+}
+
+/// A setup line the engine cannot play reaches the window as a refusal
+/// naming its line, as a line the loader refuses does: the setup driver
+/// stops the run, where it once panicked.
+#[test]
+fn a_setup_line_refused_in_play_reaches_the_window_with_its_line() {
+    let path = std::env::temp_dir().join("devgui-refused-in-play.scenario");
+    std::fs::write(&path, "hand 0: Lightning Bolt
+battlefield: Grizzly Bears | controller 1
+then: player 0 casts Lightning Bolt | targeting Grizzly Bears
+").unwrap();
+    let engine = spawn_game(GameSetup { scenario: Some(path), ..dealt(0, None) }, Arc::new(|| {}));
+    match next(&engine) {
+        ToWindow::Refused { message } => assert!(message.starts_with("line 3, `"), "{message}"),
         other => panic!("expected the refusal, got {other:?}"),
     }
 }
@@ -270,8 +286,8 @@ fn reload_keeps_the_replaced_games_log_and_starts_its_own() {
     first_prompt(&mut session);
     assert_eq!(session.log_path.as_ref(), Some(&dir.join("bolt-seed-0-2.log")));
     for log in [dir.join("bolt-seed-0.log"), dir.join("bolt-seed-0-2.log")] {
-        let text = std::fs::read_to_string(&log).unwrap();
-        assert!(text.starts_with("scenario ") && text.contains("end scenario text"), "{}: {text}", log.display());
+        let read = decision_log::read(&std::fs::read_to_string(&log).unwrap());
+        assert!(matches!(read, Ok(Log { start: GameStart::Scenario { .. }, .. })), "{}: {read:?}", log.display());
     }
 }
 

@@ -18,24 +18,21 @@ use std::thread::JoinHandle;
 
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::objects::card_data::CardData;
-use mtgsim::scenario::{BuiltScenario, Scenario, SetupActions, SetupDriver};
-use mtgsim::state::game::{Game, RandomStreams};
+use mtgsim::state::decision_log::{self, AnswerLine, GameStart, LoggedDecision};
+use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::decision_log::LoggedDecision;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
-use mtgsim::ui::display::format_phase;
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::prompt::{Answer, Prompt, Reply, kind_name};
+use crate::prompt::{Answer, Prompt, Reply};
 use crate::snapshot::Snapshot;
 
 const DECK_SIZE: usize = 60;
@@ -128,39 +125,23 @@ fn play(
     full_control: FullControlSwitch,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    let (mut game, setup_actions, log) = match &setup.scenario {
-        Some(path) => match build_scenario_game(setup, path) {
-            Ok((BuiltScenario { game, setup: actions }, text)) => {
-                let log = DecisionLog::open(setup, &GameStart::Scenario { path, text: &text });
-                (game, actions, log)
-            }
-            Err(message) => {
-                let _ = to_window.send(ToWindow::Refused { message });
-                wake();
-                return;
-            }
-        },
-        None => {
-            let registry = match setup.pool {
-                Pool::Performance => CardRegistry::performance_pool(),
-                Pool::Stress => CardRegistry::default_registry(),
-            };
-            // `fuzz_games`' streams from one seed: the decks off the seed
-            // itself and the shuffle off `RandomStreams`, so a fuzz game's
-            // printed seed deals the same game here.
-            let mut deck_rng = StdRng::seed_from_u64(setup.seed);
-            let decks: Vec<Vec<Arc<CardData>>> =
-                (0..setup.players).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
-            let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
-            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks or more always make a game");
-            game.reseed(RandomStreams::from_seed(setup.seed).game);
-            (game, SetupActions::default(), log)
-        }
+    let refuse = |message: String| {
+        let _ = to_window.send(ToWindow::Refused { message });
+        wake();
+    };
+    let start = match start_of(setup) {
+        Ok(start) => start,
+        Err(message) => return refuse(message),
+    };
+    let mut built = match start.build(&CardRegistry::default_registry()) {
+        Ok(built) => built,
+        Err(message) => return refuse(message),
     };
     // The engine writes the log, every seat's answers and its own passes, so
     // the record is the game's whatever answered at each seat.
-    let log = Arc::new(Mutex::new(log));
+    let log = Arc::new(Mutex::new(DecisionLog::open(setup, &start)));
     let writer = Arc::clone(&log);
+    let game = built.game_mut();
     game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
     game.state.record_events();
 
@@ -169,10 +150,7 @@ fn play(
     // Every seat the window's, each with `cli_play`'s stack and a yield of
     // its own: CR 601.2g's window closes once the cost is paid, and a yield
     // passes for the person, all of it off under full control's one switch.
-    let seats: Vec<Box<dyn DecisionProvider>> = game
-        .state
-        .players
-        .iter()
+    let seats: Vec<Box<dyn DecisionProvider>> = (0..built.game().state.players.len())
         .map(|_| {
             let yields = Yields::default();
             let seat = GuiSeat {
@@ -190,27 +168,49 @@ fn play(
     let dp = DispatchDecisionProvider::new(seats);
     // A scenario's setup actions play first, every seat's, so the window's
     // first prompt comes once they have built their stack.
-    let played = match setup.scenario {
-        Some(_) => game.resume(&SetupDriver::new(setup_actions, &dp)),
-        None => game.setup(&dp).and_then(|()| game.run(&dp)),
-    };
-    let outcome = match played {
+    let outcome = match built.play(&dp) {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
         Ok(GameResult::Draw) => Outcome::Draw,
-        Err(error) => Outcome::Error(error),
+        Err(Halt::Error(error)) => Outcome::Error(error),
+        // A setup line the engine cannot play is the file's to fix, as a
+        // line the loader refuses is.
+        Err(Halt::Stopped(stop)) => {
+            locked(&log).outcome(&decision_log::Outcome::Stopped(stop.to_string()));
+            return refuse(stop.to_string());
+        }
     };
-    locked(&log).outcome(&outcome);
-    let snapshot = Snapshot::build(&game.state, events_logged.get());
+    let ended = match &outcome {
+        Outcome::Won(player) => decision_log::Outcome::Won(*player),
+        Outcome::Draw => decision_log::Outcome::Draw,
+        Outcome::Error(error) => decision_log::Outcome::Error(error.clone()),
+    };
+    locked(&log).outcome(&ended);
+    let snapshot = Snapshot::build(&built.game().state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
 }
 
-/// The scenario at `path` built at `setup.seed`, and its text; or why not.
-fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(BuiltScenario, String), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
-    let built = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
-    Ok((built, text))
+/// Where `setup`'s game begins: a scenario's file read now, so Reload picks
+/// up an edit, at the setup's seed; or decks dealt from the seed as
+/// `fuzz_games` deals them, so a fuzz game's printed seed deals the same game
+/// here, the decks off the seed itself and the shuffle off `RandomStreams`.
+fn start_of(setup: &GameSetup) -> Result<GameStart, String> {
+    match &setup.scenario {
+        Some(path) => {
+            let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            Ok(GameStart::Scenario { path: path.display().to_string(), seed: setup.seed, text })
+        }
+        None => {
+            let pool = match setup.pool {
+                Pool::Performance => CardRegistry::performance_pool(),
+                Pool::Stress => CardRegistry::default_registry(),
+            };
+            let mut deck_rng = StdRng::seed_from_u64(setup.seed);
+            let mut dealt = || random_deck(&pool, &mut deck_rng, &[], 1, DECK_SIZE).iter().map(|card| card.name.clone()).collect();
+            let decks = (0..setup.players).map(|_| dealt()).collect();
+            Ok(GameStart::Dealt { seed: setup.seed, config: GameConfig::unrestricted(), decks })
+        }
+    }
 }
 
 /// A seat the window plays: every question that reaches it goes to the
@@ -320,19 +320,9 @@ impl DecisionProvider for GuiSeat {
 /// `spawn_game` sends no `Panicked` for it.
 struct WindowGone;
 
-/// How a game began, as its log records it.
-enum GameStart<'a> {
-    Dealt(&'a [Vec<Arc<CardData>>]),
-    /// The file and its text when it was read, so the log is a save even
-    /// after the file changes (`setup-architecture.md` §7).
-    Scenario { path: &'a PathBuf, text: &'a str },
-}
-
-/// The seed, the start and every answer the game's choices got, which the
-/// engine hands it (`mtgsim::state::decision_log`), a line each and flushed
-/// as written, so a game that panics leaves its whole record. Replaying it is
-/// the tools PR's; keeping it now is what makes anything the window shows
-/// reproducible.
+/// The game's record in the engine's text (`mtgsim::state::decision_log`), a
+/// line each and flushed as written, so a game that panics leaves its whole
+/// record, and every game the window plays is one a later replay reads.
 struct DecisionLog {
     file: Option<File>,
     answers: usize,
@@ -347,42 +337,20 @@ impl DecisionLog {
             File::create(path).unwrap_or_else(|e| panic!("cannot create the decision log {}: {e}", path.display()))
         });
         let mut log = DecisionLog { file, answers: 0 };
-        match start {
-            GameStart::Dealt(decks) => {
-                log.line(&format!("seed {}", setup.seed));
-                log.line(&format!("pool {:?}", setup.pool));
-                for (seat, deck) in decks.iter().enumerate() {
-                    // A decklist, before the game: the cards' definitions, not objects.
-                    let names: Vec<&str> = deck.iter().map(|card| card.name.as_str()).collect();
-                    log.line(&format!("deck {seat} {}", names.join("; ")));
-                }
-            }
-            GameStart::Scenario { path, text } => {
-                log.line(&format!("scenario {}", path.display()));
-                log.line(&format!("seed {}", setup.seed));
-                log.line("begin scenario text");
-                for line in text.lines() {
-                    log.line(line);
-                }
-                log.line("end scenario text");
-            }
+        for line in decision_log::opening(start) {
+            log.line(&line);
         }
         log
     }
 
-    /// `answer 23 [turn 3, Beginning — Upkeep] player 0 PriorityAction Picks([0]) forced`,
-    /// `forced` where the question had one legal answer.
     fn answer(&mut self, game: &GameState, decision: &LoggedDecision) {
         self.answers += 1;
-        let when = format!("turn {}, {}", game.turn_number, format_phase(game));
-        let (player, kind, answer) = (decision.player, kind_name(decision.kind), decision.answer);
-        let forced = if decision.forced { " forced" } else { "" };
-        let line = format!("answer {} [{when}] player {player} {kind} {answer:?}{forced}", self.answers);
+        let line = AnswerLine::of(game, self.answers, decision).to_string();
         self.line(&line);
     }
 
-    fn outcome(&mut self, outcome: &Outcome) {
-        self.line(&format!("outcome {outcome:?}"));
+    fn outcome(&mut self, outcome: &decision_log::Outcome) {
+        self.line(&outcome.to_string());
     }
 
     fn line(&mut self, text: &str) {

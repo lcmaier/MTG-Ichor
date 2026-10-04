@@ -45,9 +45,23 @@ pub struct LayerMemo {
     /// fork's own walks go into its own `frames` and leave the original's as
     /// they were.
     notes: RefCell<Option<(u64, Arc<[RowNote]>)>>,
+    /// The debug audits' pause (`GameState::pause_layer_audit`).
+    #[cfg(debug_assertions)]
+    audit_paused: std::cell::Cell<bool>,
 }
 
 impl LayerMemo {
+    /// Whether the debug audits check what this memo serves.
+    #[cfg(debug_assertions)]
+    pub(crate) fn audited(&self) -> bool {
+        !self.audit_paused.get()
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn pause_audit(&self, paused: bool) {
+        self.audit_paused.set(paused);
+    }
+
     /// The frame for `id`, if one was stored at exactly `epoch`.
     pub(crate) fn get(&self, id: ObjectId, epoch: u64) -> Option<Arc<EffectiveCharacteristics>> {
         self.frames
@@ -346,6 +360,22 @@ mod tests {
     /// The debug mode: a write to a walk input that skips its bump is caught
     /// on the next hit rather than served. Direct field writes are how a
     /// bump gets skipped, so the test does exactly that.
+    /// Paused for a replay within a session, the audit lets a stale frame
+    /// through unchecked, and catches it again once resumed.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_paused_audit_checks_nothing_until_it_resumes() {
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert_eq!(controller(&game, bears), (Some(0), false));
+        game.battlefield.get_mut(&bears).unwrap().controller = 1;
+        game.pause_layer_audit();
+        assert_eq!(controller(&game, bears), (Some(0), true), "served stale and unchecked");
+        game.resume_layer_audit();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compute_characteristics(&game, bears)));
+        assert!(caught.is_err(), "resumed, the audit catches the skipped bump");
+    }
+
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "stale frame")]

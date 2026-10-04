@@ -2430,6 +2430,12 @@ thinking time is a tell no client closes. The dev GUI does not care: it shows
 every card on purpose, and keeps a perfect-information toggle for the tester
 once §2.9's information model lands.
 
+**Open question 5: where a player's games are kept**, how one is found again,
+and when old ones go. The engine writes a record's text and replays it; the
+folder, an index and pruning are the client's. `setup-architecture.md` §7.2's
+decision 6 lists the options with their costs and settles the dev GUI's, and
+v1's design chooses its own from them.
+
 **How an object's text shows** (the owner, 2026-10-01, at A6g's ability
 names), as Arena shows it: an object's abilities in printed order, a granted
 one marked (Arena's blue), a removed one faded, a printed ability the engine

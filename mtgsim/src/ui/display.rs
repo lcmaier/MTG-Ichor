@@ -534,7 +534,7 @@ fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static 
         .map_or("an ability it no longer has", |def| def.rules_text.words)
 }
 
-fn alternative_cost_label(cost: &AlternativeCost) -> String {
+pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
     match cost {
         AlternativeCost::Flashback(costs) => keyword_and_cost("Flashback", costs),
         AlternativeCost::Overload(costs) => keyword_and_cost("Overload", costs),
@@ -546,7 +546,7 @@ fn alternative_cost_label(cost: &AlternativeCost) -> String {
     }
 }
 
-fn additional_cost_label(cost: &AdditionalCost) -> String {
+pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {
     match cost {
         AdditionalCost::Kicker(costs) => keyword_and_cost("Kicker", costs),
         AdditionalCost::Buyback(costs) => keyword_and_cost("Buyback", costs),
@@ -589,7 +589,7 @@ fn keyword_and_cost(keyword: &str, costs: &[Cost]) -> String {
     }
 }
 
-fn color_name(color: Color) -> &'static str {
+pub(crate) fn color_name(color: Color) -> &'static str {
     match color {
         Color::White => "White",
         Color::Blue => "Blue",
@@ -911,7 +911,7 @@ mod tests {
         let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
-        assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
+        assert!(dp.kinds()[0] == "ChooseCopySource", "{:?}", dp.kinds());
 
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");

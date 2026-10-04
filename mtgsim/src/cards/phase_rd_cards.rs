@@ -2260,7 +2260,7 @@ mod tests {
         bolt_with(&mut game, source, DamageTarget::Player(0), 6, &ctx);
 
         assert_eq!(dp.prompts(), 1, "CR 616.1 asks once, and only once");
-        assert!(dp.kinds()[0].starts_with("ChooseReplacement"), "{:?}", dp.kinds());
+        assert!(dp.kinds()[0] == "ChooseReplacementEffect", "{:?}", dp.kinds());
         assert_eq!(marked_on(&game, first) + marked_on(&game, second), 6, "nothing was lost");
         assert!(
             (marked_on(&game, first), marked_on(&game, second)) == (0, 6)

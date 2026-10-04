@@ -562,7 +562,7 @@ fn a_mana_ability_activated_in_the_payment_window_is_doubled() {
     let dp = RecordingDecisionProvider::picking(0);
     game.cast_spell(0, bear, &dp).expect("one Forest under Mana Reflection pays {1}{G}");
     assert!(
-        dp.kinds().iter().any(|k| k.starts_with("ManaAbilityWindow")),
+        dp.kinds().iter().any(|k| k == "ManaAbilityWindow"),
         "the Forest was tapped in the window: {:?}",
         dp.kinds()
     );

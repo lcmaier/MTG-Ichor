@@ -1754,6 +1754,9 @@ the view model built and report the person's clicks; they are reviewed against
 §10.1's checklist and by running them, and §10.2's gate holds the line between
 the two halves.
 
+**Start at `plans/devgui-map.md`**: the parts, one question's trip from the
+engine to the window and back, and how each part is reviewed.
+
 **Every GUI PR body carries three things** besides the usual ones:
 - **its files sorted by how to review them**: read closely (the plain Rust),
   read against §10.1 (the drawing), check by running;
