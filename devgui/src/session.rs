@@ -3,15 +3,16 @@
 //! over it and forwards each click here.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::decision_log::GameStart;
 
 use crate::boards::{Folders, ListedFile, start_name};
-use crate::bridge::{EngineHandle, GameSetup, Play, Pool, create_log, spawn_game};
+use crate::bridge::{EngineHandle, GameSetup, Play, Pool, Record, Writer, locked, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
 use crate::launch::{Start, start_line};
+use crate::save::{self, Save};
 use crate::view_model::{Input, Mode, Refusal, WindowState};
 
 pub struct Session {
@@ -37,6 +38,9 @@ pub struct Session {
     /// why it could not.
     pub message: Option<Result<String, String>>,
     engine: Option<EngineHandle>,
+    /// The game's record: its log, its save, and the tree of play the
+    /// window's tools read.
+    record: Option<Arc<Mutex<Record>>>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 
@@ -54,6 +58,7 @@ impl Session {
             folders,
             message: None,
             engine: None,
+            record: None,
             wake,
         };
         match start {
@@ -125,13 +130,10 @@ impl Session {
     }
 
     /// `setup`'s game on a thread of its own, its start read now and its
-    /// decision log a file no earlier game wrote, named for the seed the start
-    /// plays. A game it supersedes unwinds when its channel closes, as a closed
-    /// window ends it.
+    /// record a log and a save no earlier game wrote, the log named for the
+    /// seed the start plays.
     fn start_game(&mut self, setup: GameSetup) {
-        let full_control = self.state.full_control;
-        self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
-        (self.engine, self.start, self.log_path, self.message) = (None, None, None, None);
+        self.leave_game();
         let begun = setup.start();
         self.setup = Some(setup.clone());
         let start = match begun {
@@ -144,16 +146,35 @@ impl Session {
         };
         self.start_line = start_line(&setup, &start);
         let log_path = own_log(&self.folders.game_log(&start));
-        let log = match create_log(&log_path) {
-            Ok(log) => log,
+        let record = match Record::create(Save::new(start.clone()), log_path.clone()) {
+            Ok(record) => Arc::new(Mutex::new(record)),
             Err(message) => {
                 self.state.refused = Some((Refusal::Record, message));
                 return;
             }
         };
-        let engine = spawn_game(Play { start: start.clone(), log: Some(log) }, Arc::clone(&self.wake));
-        engine.full_control.set(full_control);
-        (self.engine, self.start, self.log_path) = (Some(engine), Some(start), Some(log_path));
+        self.spawn(Play { start: start.clone(), record: Some(Writer::take_over(&record)) });
+        (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
+    }
+
+    /// The game left for another: its record shut, so a replay on its way
+    /// stops and nothing more is written, and the window cleared but for
+    /// full control, which is the window's. Its thread unwinds when its
+    /// channel closes, as a closed window ends it.
+    fn leave_game(&mut self) {
+        if let Some(record) = self.record.take() {
+            locked(&record).shut();
+        }
+        let full_control = self.state.full_control;
+        self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
+        (self.engine, self.start, self.log_path, self.message) = (None, None, None, None);
+    }
+
+    /// `play` on a thread of its own, under the window's full control.
+    fn spawn(&mut self, play: Play) {
+        let engine = spawn_game(play, Arc::clone(&self.wake));
+        engine.full_control.set(self.state.full_control);
+        self.engine = Some(engine);
     }
 
     /// The editor's board saved, then started from its file as Reload
@@ -247,9 +268,9 @@ impl Session {
     }
 }
 
-/// `path`, or the first of `stem-2.log`, `stem-3.log`, … beside it that does
-/// not exist: Reload keeps the record of the game it replaces, and a thread
-/// still finishing that game writes only its own file.
+/// `path`, or the first of `stem-2.log`, `stem-3.log`, … beside it that is
+/// not on disk, nor its save: Reload keeps the record of the game it
+/// replaces, and a thread still finishing that game writes only its own.
 fn own_log(path: &Path) -> PathBuf {
     let stem = path.file_stem().map_or("game".to_string(), |s| s.to_string_lossy().into_owned());
     let extension = path.extension().map_or(String::new(), |e| format!(".{}", e.to_string_lossy()));
@@ -257,5 +278,5 @@ fn own_log(path: &Path) -> PathBuf {
         1 => path.to_path_buf(),
         n => path.with_file_name(format!("{stem}-{n}{extension}")),
     };
-    (1..).map(named).find(|path| !path.exists()).unwrap_or_else(|| path.to_path_buf())
+    (1..).map(named).find(|path| !path.exists() && !save::path_for(path).exists()).unwrap_or_else(|| path.to_path_buf())
 }

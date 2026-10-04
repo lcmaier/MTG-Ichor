@@ -9,7 +9,7 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -30,10 +30,12 @@ use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::ui::replay::ReplayControl;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
 use crate::prompt::{Answer, Prompt, Reply};
+use crate::save::{self, Save};
 use crate::snapshot::Snapshot;
 
 const DECK_SIZE: usize = 60;
@@ -93,26 +95,18 @@ impl GameSetup {
     }
 }
 
-/// A game for the engine's thread: where it begins, and the decision log it
+/// A game for the engine's thread: where it begins, and the record it
 /// writes, if any.
 pub struct Play {
     pub start: GameStart,
-    pub log: Option<File>,
+    pub record: Option<Writer>,
 }
 
 impl Play {
-    /// `start`'s game, played from its start and logged nowhere.
+    /// `start`'s game, played from its start and recorded nowhere.
     pub fn new(start: GameStart) -> Play {
-        Play { start, log: None }
+        Play { start, record: None }
     }
-}
-
-/// A decision log at `path`, its folder made: created on the window's thread
-/// before its game starts, so a folder that cannot be written is refused in
-/// the window as what it is (`codebase-state.md` item 200).
-pub fn create_log(path: &Path) -> Result<File, String> {
-    let made = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| File::create(path));
-    made.map_err(|e| format!("cannot create the decision log {}: {e}", path.display()))
 }
 
 /// What the engine thread tells the window.
@@ -188,11 +182,11 @@ fn play(
     };
     // The engine writes the log, every seat's answers and its own passes, so
     // the record is the game's whatever answered at each seat.
-    let log = Arc::new(Mutex::new(DecisionLog::open(game.log, &game.start)));
-    let writer = Arc::clone(&log);
-    let game = built.game_mut();
-    game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
-    game.state.record_events();
+    if let Some(record) = game.record.clone() {
+        built.game_mut().state.log_decisions(move |game, decision| record.answer(game, decision));
+    }
+    built.game_mut().state.record_events();
+    let record = game.record;
 
     let events_logged = Rc::new(Cell::new(0));
     let from_window = Rc::new(from_window);
@@ -208,6 +202,7 @@ fn play(
                 wake: Arc::clone(wake),
                 events_logged: Rc::clone(&events_logged),
                 yields: yields.clone(),
+                record: record.clone(),
             };
             let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(seat.clone())), yields.clone());
             let routed = FullControl::new(decorated, seat, full_control.clone()).superseding(yields);
@@ -215,6 +210,14 @@ fn play(
         })
         .collect();
     let dp = DispatchDecisionProvider::new(seats);
+    let ended = |outcome: decision_log::Outcome| {
+        if let Some(record) = &record {
+            record.outcome(&outcome);
+        }
+    };
+    if let Some(record) = &record {
+        record.hand_over();
+    }
     // A scenario's setup actions play first, every seat's, so the window's
     // first prompt comes once they have built their stack.
     let outcome = match built.play(&dp) {
@@ -224,16 +227,15 @@ fn play(
         // A setup line the engine cannot play is the file's to fix, as a
         // line the loader refuses is.
         Err(Halt::Stopped(stop)) => {
-            locked(&log).outcome(&decision_log::Outcome::Stopped(stop.to_string()));
+            ended(decision_log::Outcome::Stopped(stop.to_string()));
             return refuse(stop.to_string());
         }
     };
-    let ended = match &outcome {
+    ended(match &outcome {
         Outcome::Won(player) => decision_log::Outcome::Won(*player),
         Outcome::Draw => decision_log::Outcome::Draw,
         Outcome::Error(error) => decision_log::Outcome::Error(error.clone()),
-    };
-    locked(&log).outcome(&ended);
+    });
     let snapshot = Snapshot::build(&built.game().state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
@@ -254,6 +256,8 @@ struct GuiSeat {
     /// This seat's yield, which the window sets and this seat's `AutoYield`
     /// reads.
     yields: Yields,
+    /// The game's record, which marks each place the window is asked.
+    record: Option<Writer>,
 }
 
 impl GuiSeat {
@@ -263,6 +267,9 @@ impl GuiSeat {
     fn ask(&self, game: &GameState, prompt: Prompt) -> Reply {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
+        if let Some(record) = &self.record {
+            record.window_asked();
+        }
         let yielding = self.yields.holding(game, prompt.player);
         if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
@@ -346,43 +353,181 @@ impl DecisionProvider for GuiSeat {
 /// `spawn_game` sends no `Panicked` for it.
 struct WindowGone;
 
-/// The game's record in the engine's text (`mtgsim::state::decision_log`), a
-/// line each and flushed as written, so a game that panics leaves its whole
+/// A game's record on disk, in the engine's text: its decision log, the line
+/// of play the window is on, and beside it its save, the journal of every
+/// line the session played (`setup-architecture.md` §7.2, decision 4). Each
+/// line is written as it comes, so a game that panics leaves its whole
 /// record, and every game the window plays is one a later replay reads.
-struct DecisionLog {
-    file: Option<File>,
-    answers: usize,
+///
+/// One engine thread writes it at a time, a [`Writer`]. A rebuild's thread
+/// takes it over from the one before, whose writes are dropped from then on
+/// and whose replay stops at its next answer, and it holds the answers it
+/// replays until it hands the game to the seats, where it writes the log
+/// again: a replay superseded on its way writes nothing.
+pub struct Record {
+    pub save: Save,
+    log: File,
+    log_path: PathBuf,
+    journal: File,
+    /// The writer that may write now, by number.
+    writer: u64,
+    /// That writer's replay, which the next writer supersedes.
+    replay: Option<Arc<ReplayControl>>,
+    /// That writer's replayed answers, in the log's words, until it hands over.
+    replayed: Vec<String>,
+    /// That writer has handed the game to the seats.
+    live: bool,
+    /// The answers on the log's line, which number the next.
+    logged: usize,
+    /// Why the record stopped being written, if it has.
+    pub failed: Option<String>,
 }
 
-impl DecisionLog {
-    fn open(file: Option<File>, start: &GameStart) -> DecisionLog {
-        let mut log = DecisionLog { file, answers: 0 };
-        for line in decision_log::opening(start) {
-            log.line(&line);
+/// Which of a record's two files a line goes to.
+enum RecordFile {
+    Log,
+    Save,
+}
+
+impl Record {
+    /// A record for `save`'s game at `log_path`, its folder made, and the
+    /// save beside it written to its last entry. Made on the window's thread
+    /// before the game starts, so a folder that cannot be written is refused
+    /// in the window (`codebase-state.md` item 200).
+    pub fn create(save: Save, log_path: PathBuf) -> Result<Record, String> {
+        let create = |path: &Path, what: &str| {
+            let made = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| File::create(path));
+            made.map_err(|e| format!("cannot create the {what} {}: {e}", path.display()))
+        };
+        let log = create(&log_path, "decision log")?;
+        let save_path = save::path_for(&log_path);
+        let mut journal = create(&save_path, "save")?;
+        journal.write_all(save.text().as_bytes()).map_err(|e| format!("cannot write the save {}: {e}", save_path.display()))?;
+        let record = Record { save, log, log_path, journal, writer: 0, replay: None, replayed: Vec::new(), live: false, logged: 0, failed: None };
+        Ok(record)
+    }
+
+    pub fn log_path(&self) -> &Path {
+        &self.log_path
+    }
+
+    /// Shut the writer writing now and supersede its replay; the next
+    /// writer's number.
+    pub fn shut(&mut self) -> u64 {
+        self.writer += 1;
+        if let Some(replay) = self.replay.take() {
+            replay.supersede();
         }
-        log
+        (self.replayed, self.live, self.logged) = (Vec::new(), false, 0);
+        self.writer
     }
 
-    fn answer(&mut self, game: &GameState, decision: &LoggedDecision) {
-        self.answers += 1;
-        let line = AnswerLine::of(game, self.answers, decision).to_string();
-        self.line(&line);
+    /// The window's line moved to `place`: an undo, a savestate, back to
+    /// where it was.
+    pub fn move_to(&mut self, place: usize) {
+        let line = self.save.move_to(place);
+        self.write(RecordFile::Save, &line);
     }
 
-    fn outcome(&mut self, outcome: &decision_log::Outcome) {
-        self.line(&outcome.to_string());
+    /// A savestate at the place the window is asked, named `name`. Written
+    /// at the click: the engine's thread waits at that prompt meanwhile.
+    pub fn savestate(&mut self, name: String) {
+        let line = self.save.savestate(name);
+        self.write(RecordFile::Save, &line);
     }
 
-    fn line(&mut self, text: &str) {
-        if let Some(file) = &mut self.file {
-            writeln!(file, "{text}").and_then(|()| file.flush()).expect("cannot write the decision log");
+    /// `line` at the end of a file. A write that fails stops the record
+    /// there, and the header says why.
+    fn write(&mut self, to: RecordFile, line: &str) {
+        if self.failed.is_some() {
+            return;
+        }
+        let (file, path) = match to {
+            RecordFile::Log => (&mut self.log, self.log_path.clone()),
+            RecordFile::Save => (&mut self.journal, save::path_for(&self.log_path)),
+        };
+        if let Err(e) = writeln!(file, "{line}") {
+            self.failed = Some(format!("cannot write {}: {e}", path.display()));
+        }
+    }
+
+    /// The log written again from its start: the line the writer replayed.
+    fn rewrite_log(&mut self) {
+        let mut text: String = decision_log::opening(&self.save.start).into_iter().map(|line| line + "\n").collect();
+        text.extend(self.replayed.drain(..).map(|line| line + "\n"));
+        let rewritten = self.log.set_len(0).and_then(|()| self.log.rewind()).and_then(|()| self.log.write_all(text.as_bytes()));
+        if let Err(e) = rewritten
+            && self.failed.is_none()
+        {
+            self.failed = Some(format!("cannot write {}: {e}", self.log_path.display()));
         }
     }
 }
 
-/// The log behind its lock, which a panic while writing a line leaves as it was.
-fn locked(log: &Mutex<DecisionLog>) -> MutexGuard<'_, DecisionLog> {
-    log.lock().unwrap_or_else(PoisonError::into_inner)
+/// An engine thread's hold on its game's record: what it writes goes in only
+/// while no newer thread has taken the record over.
+#[derive(Clone)]
+pub struct Writer {
+    record: Arc<Mutex<Record>>,
+    number: u64,
+}
+
+impl Writer {
+    /// `record`'s next writer, the one writing now shut first.
+    pub fn take_over(record: &Arc<Mutex<Record>>) -> Writer {
+        let number = locked(record).shut();
+        Writer { record: Arc::clone(record), number }
+    }
+
+    /// The record, while this writer may write.
+    fn record(&self) -> Option<MutexGuard<'_, Record>> {
+        let record = locked(&self.record);
+        (record.writer == self.number).then_some(record)
+    }
+
+    /// The game's next answer: held while the writer replays, and once it
+    /// has handed over, written to the log and to the save.
+    fn answer(&self, game: &GameState, decision: &LoggedDecision) {
+        let Some(mut record) = self.record() else { return };
+        record.logged += 1;
+        let line = AnswerLine::of(game, record.logged, decision);
+        if !record.live {
+            record.replayed.push(line.to_string());
+            return;
+        }
+        record.write(RecordFile::Log, &line.to_string());
+        let saved = record.save.answer(line);
+        record.write(RecordFile::Save, &saved);
+    }
+
+    /// The writer hands the game to the seats: the log is its line from the
+    /// start, and what comes next is new.
+    fn hand_over(&self) {
+        let Some(mut record) = self.record() else { return };
+        if !record.live {
+            record.live = true;
+            record.rewrite_log();
+        }
+    }
+
+    /// The window is asked at the save's current place.
+    fn window_asked(&self) {
+        let Some(mut record) = self.record() else { return };
+        if let Some(line) = record.save.window_asked() {
+            record.write(RecordFile::Save, &line);
+        }
+    }
+
+    fn outcome(&self, outcome: &decision_log::Outcome) {
+        if let Some(mut record) = self.record() {
+            record.write(RecordFile::Log, &outcome.to_string());
+        }
+    }
+}
+
+/// A record behind its lock, which a panic while writing a line leaves as it was.
+pub fn locked(record: &Mutex<Record>) -> MutexGuard<'_, Record> {
+    record.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn panic_message(payload: &(dyn Any + Send)) -> String {
@@ -392,5 +537,44 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
         text.clone()
     } else {
         "the engine thread panicked with a payload that is not text".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mtgsim::state::decision_log::LoggedAnswer;
+    use mtgsim::test_support::setup_two_player_game;
+    use mtgsim::ui::decision::PriorityAction;
+
+    use super::*;
+
+    /// A writer taken over writes nothing more, to either file; the one
+    /// taking over holds what it replays until it hands over, then writes
+    /// the log again from its start, and the save takes only what is new.
+    #[test]
+    fn a_writer_taken_over_writes_nothing_more() {
+        let dir = std::env::temp_dir().join("devgui-record-writers");
+        let _ = std::fs::remove_dir_all(&dir);
+        let start = GameStart::Dealt { seed: 1, config: GameConfig::unrestricted(), decks: vec![Vec::new(); 2] };
+        let record = Arc::new(Mutex::new(Record::create(Save::new(start.clone()), dir.join("seed-1.log")).unwrap()));
+        let game = setup_two_player_game();
+        let options = [ChoiceOption::Action(PriorityAction::Pass)];
+        let pass = LoggedDecision { player: 0, kind: &ChoiceKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
+        let read = |path: PathBuf| std::fs::read_to_string(path).unwrap();
+        let opening = decision_log::opening(&start).join("\n") + "\n";
+        let answered = "answer 1 [turn 1, precombat main] player 0 PriorityAction forced picks pass\n";
+
+        let first = Writer::take_over(&record);
+        first.hand_over();
+        first.answer(&game, &pass);
+        let second = Writer::take_over(&record);
+        first.answer(&game, &pass);
+        first.outcome(&decision_log::Outcome::Draw);
+        assert_eq!(read(dir.join("seed-1.log")), format!("{opening}{answered}"), "the first writer, shut");
+        second.answer(&game, &pass);
+        assert_eq!(read(dir.join("seed-1.log")), format!("{opening}{answered}"), "the second's answer held");
+        second.hand_over();
+        assert_eq!(read(dir.join("seed-1.log")), format!("{opening}{answered}"), "the log written again");
+        assert_eq!(read(save::path_for(&dir.join("seed-1.log"))), format!("{opening}{answered}"), "one answer saved");
     }
 }

@@ -8,14 +8,15 @@ mod window_by_rule;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use std::time::{Duration, Instant};
 
 use devgui::boards::Folders;
-use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, ToWindow, create_log};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, Record, ToWindow, Writer};
 use devgui::editor::{BoardNumber, EditorInput, Flag, Source, Zone};
 use devgui::launch::{self, Start};
+use devgui::save::{self, Save};
 use devgui::session::Session;
 use devgui::view_model::{Input, Mode, Refusal, WindowState};
 use mtgsim::cards::registry::CardRegistry;
@@ -24,6 +25,24 @@ use mtgsim::state::decision_log::{self, GameStart, Log};
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next, play, spawn};
 use window_by_rule::{inputs_by_rule, play_by_rule};
+
+/// `setup`'s game, recorded in a decision log at `log` and a save beside it.
+fn recorded(setup: GameSetup, log: PathBuf) -> Play {
+    let start = setup.start().unwrap_or_else(|refusal| panic!("{refusal}"));
+    let record = Record::create(Save::new(start.clone()), log).unwrap_or_else(|refusal| panic!("{refusal}"));
+    Play { start, record: Some(Writer::take_over(&Arc::new(Mutex::new(record)))) }
+}
+
+/// The save beside `log` holds the log's line, the window asked once at
+/// each of `answered` places, and nothing else.
+fn saved_as_logged(log: &Path, answered: usize) -> Log {
+    let logged = decision_log::read(&std::fs::read_to_string(log).expect("the decision log")).expect("the engine reads the log");
+    let saved = Save::read(&std::fs::read_to_string(save::path_for(log)).expect("the save")).expect("the save reads");
+    assert_eq!((&saved.start, saved.line_to(saved.current())), (&logged.start, logged.answers.clone()));
+    let asked = saved.text().lines().filter(|line| line.starts_with("window asked at ")).count();
+    assert_eq!(asked, answered, "a place each prompt the window answered");
+    logged
+}
 
 /// Seed 6's game, played by rule at both seats, ends in 33 turns. Seed 7's,
 /// this test's until the window played every seat, ran 94 turns, 14 s in
@@ -35,7 +54,7 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
         let log = log.clone();
         move || {
             let mut asked = Vec::new();
-            let played = play_by_rule(Play { log: Some(create_log(&log).unwrap()), ..play(dealt(6)) }, |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
+            let played = play_by_rule(recorded(dealt(6), log), |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
             (played, asked)
         }
     });
@@ -44,7 +63,7 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert!(answered > 20, "a game of Magic asks more than {answered} questions");
     assert!(asked.contains(&0) && asked.contains(&1), "the window plays every seat");
 
-    let log = decision_log::read(&std::fs::read_to_string(&log).expect("the decision log")).expect("the engine reads the log");
+    let log = saved_as_logged(&log, answered);
     assert!(matches!(&log.start, GameStart::Dealt { seed: 6, decks, .. } if decks.len() == 2), "{:?}", log.start);
     assert_eq!(log.answers[0].turn, 1, "each answer says when");
     assert!(log.answers.len() > answered, "the log holds the window's answers, its decorators' and the engine's passes");
@@ -161,9 +180,9 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let log = std::env::temp_dir().join("devgui-headless-scenario.log");
     let setup = from_board("main.scenario");
     let board = std::fs::read_to_string(setup.scenario.as_ref().unwrap()).unwrap();
-    let (outcome, answered) = play_by_rule(Play { log: Some(create_log(&log).unwrap()), ..play(setup) }, |_| {});
+    let (outcome, answered) = play_by_rule(recorded(setup, log.clone()), |_| {});
     assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
-    let log = decision_log::read(&std::fs::read_to_string(&log).expect("the decision log")).expect("the engine reads the log");
+    let log = saved_as_logged(&log, answered);
     let GameStart::Scenario { path, seed: 0, text } = &log.start else { panic!("{:?}", log.start) };
     assert!(path.ends_with("main.scenario"), "{path}");
     assert!(text.lines().eq(board.lines()), "the board's text, verbatim");

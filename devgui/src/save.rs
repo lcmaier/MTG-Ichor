@@ -32,9 +32,17 @@
 //! log alone reads as a save with one line and no record of the window.
 
 use std::fmt;
+use std::path::{Path, PathBuf};
 
 use mtgsim::state::decision_log::{self, AnswerLine, GameStart};
 use mtgsim::state::trace::COMMIT;
+
+/// The save beside the decision log at `log`: `<log>.save`.
+pub fn path_for(log: &Path) -> PathBuf {
+    let mut path = log.as_os_str().to_owned();
+    path.push(".save");
+    PathBuf::from(path)
+}
 
 /// A session's journal, and the tree of play it describes.
 #[derive(Clone, Debug, PartialEq)]
