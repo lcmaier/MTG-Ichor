@@ -13,7 +13,7 @@ use crate::bridge::{EngineHandle, GameSetup, Play, Pool, Record, Writer, locked,
 use crate::editor::{Editor, EditorInput, Source};
 use crate::launch::{Start, start_line};
 use crate::save::{self, Save};
-use crate::view_model::{Input, Mode, Refusal, WindowState};
+use crate::view_model::{Input, Mode, Progress, Refusal, WindowState};
 
 pub struct Session {
     /// How the game the window plays began, once one has; Reload begins it
@@ -78,10 +78,17 @@ impl Session {
         self.state.tick(now);
     }
 
-    /// Take every message the engine has sent since the last call.
+    /// Take every message the engine has sent since the last call. The
+    /// engine's thread waits at the prompt it sent, or has ended, so the
+    /// save is read as it stands there.
     pub fn receive(&mut self) {
+        let mut received = false;
         while let Some(message) = self.engine.as_ref().and_then(|engine| engine.from_engine.try_recv().ok()) {
             self.state.receive(message);
+            received = true;
+        }
+        if received {
+            self.read_tools();
         }
     }
 
@@ -96,6 +103,7 @@ impl Session {
                     self.start_game(setup);
                 }
             }
+            Input::Undo => self.undo(),
             // From the window's thread, at any moment: the seat reads the
             // switch at its next prompt, and the log never records it.
             Input::FullControl(on) => {
@@ -153,8 +161,46 @@ impl Session {
                 return;
             }
         };
-        self.spawn(Play { start: start.clone(), record: Some(Writer::take_over(&record)) });
+        self.spawn(Play { record: Some(Writer::take_over(&record)), ..Play::new(start.clone()) });
         (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
+    }
+
+    /// Undo answer: the window's previous question asked again, on a game
+    /// built again from its start and replayed to it (`setup-architecture.md`
+    /// §7.2, decision 2). While a replay runs, each press moves its target
+    /// back one more question.
+    fn undo(&mut self) {
+        let Some(record) = self.record.clone() else { return };
+        let open = self.state.prompt.is_some() || self.state.replaying.is_some();
+        let target = locked(&record).save.undo_target(open);
+        if let Some(place) = target {
+            self.rebuild(&record, place);
+        }
+    }
+
+    /// The game built again from its start and replayed to `place`, where
+    /// the save's line moves; the window counts the replay until the engine
+    /// asks there. The game it replaces writes nothing more, its replay
+    /// stopping at its next answer, and its thread unwinds when its channel
+    /// closes.
+    fn rebuild(&mut self, record: &Arc<Mutex<Record>>, place: usize) {
+        let Some(start) = self.start.clone() else { return };
+        let writer = Writer::take_over(record);
+        let line = {
+            let mut record = locked(record);
+            record.move_to(place);
+            record.save.line_to(place)
+        };
+        let replaying = Progress { done: writer.replayed(), of: line.len() };
+        let full_control = self.state.full_control;
+        self.state = WindowState { full_control, now: self.state.now, replaying: Some(replaying), ..WindowState::default() };
+        self.spawn(Play { start, line, audited: false, record: Some(writer) });
+        self.read_tools();
+    }
+
+    /// What the save lets the tools do, read again after it changed.
+    fn read_tools(&mut self) {
+        self.state.tools = self.record.as_ref().map(|record| locked(record).save.tools()).unwrap_or_default();
     }
 
     /// The game left for another: its record shut, so a replay on its way

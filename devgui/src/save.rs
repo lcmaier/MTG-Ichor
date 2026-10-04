@@ -75,6 +75,16 @@ pub enum Entry {
     Moved(usize),
 }
 
+/// What the save lets the window's tools do, read when it last changed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tools {
+    /// Undo answer has a place to go while a question is open, or a
+    /// rebuild is on its way to one.
+    pub undo_open: bool,
+    /// And once the open question is answered.
+    pub undo_answered: bool,
+}
+
 /// A place the window's menu moves to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
@@ -198,6 +208,10 @@ impl Save {
     pub fn undo_target(&self, open: bool) -> Option<usize> {
         let from = if open { self.before(self.current)? } else { self.current };
         std::iter::successors(Some(from), |at| self.before(*at)).find(|at| self.asked[*at])
+    }
+
+    pub fn tools(&self) -> Tools {
+        Tools { undo_open: self.undo_target(true).is_some(), undo_answered: self.undo_target(false).is_some() }
     }
 
     /// Whether a savestate is at `place`.

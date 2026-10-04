@@ -3,6 +3,8 @@
 
 #[path = "support/games.rs"]
 mod games;
+#[path = "support/sessions.rs"]
+mod sessions;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
@@ -10,7 +12,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use devgui::boards::Folders;
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, Record, ToWindow, Writer};
@@ -24,13 +26,14 @@ use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, GameStart, Log};
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next, play, spawn};
+use sessions::{BOLT_IN_HAND, next_prompt, scenario_game, session_with};
 use window_by_rule::{inputs_by_rule, play_by_rule};
 
 /// `setup`'s game, recorded in a decision log at `log` and a save beside it.
 fn recorded(setup: GameSetup, log: PathBuf) -> Play {
     let start = setup.start().unwrap_or_else(|refusal| panic!("{refusal}"));
     let record = Record::create(Save::new(start.clone()), log).unwrap_or_else(|refusal| panic!("{refusal}"));
-    Play { start, record: Some(Writer::take_over(&Arc::new(Mutex::new(record)))) }
+    Play { record: Some(Writer::take_over(&Arc::new(Mutex::new(record)))), ..Play::new(start) }
 }
 
 /// The save beside `log` holds the log's line, the window asked once at
@@ -220,50 +223,16 @@ then: player 0 casts Lightning Bolt | targeting Grizzly Bears
     }
 }
 
-/// A session's first prompt, waited for: the engine thread sends it.
-fn first_prompt(session: &mut Session) {
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while session.state.prompt.is_none() {
-        assert!(Instant::now() < deadline, "no prompt in a minute");
-        std::thread::sleep(Duration::from_millis(10));
-        session.receive();
-    }
-}
-
-/// Seat 0 holds a spell it can cast, so its first prompt is turn 1's.
-const BOLT_IN_HAND: &str = "hand 0: Lightning Bolt
-library 0: Mountain | x5
-library 1: Mountain | x5
-                            battlefield: Mountain | controller 0
-player 0: life 13
-";
-
-/// A session writing its boards and logs under a fresh temporary folder,
-/// and a file there holding `text` as `<name>.scenario`.
-fn session_with(name: &str, text: &str, start: impl FnOnce(&Path) -> Start) -> (Session, Folders, PathBuf) {
-    let root = std::env::temp_dir().join(name);
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).unwrap();
-    let file = root.join(format!("{name}.scenario"));
-    std::fs::write(&file, text).unwrap();
-    let folders = Folders { logs: root.join("logs"), boards: root.join("boards"), ..Folders::default() };
-    (Session::start(start(&file), folders.clone(), Arc::new(|| {})), folders, file)
-}
-
-fn scenario_game(file: &Path) -> Start {
-    Start::Game(GameSetup { scenario: Some(file.to_path_buf()), ..dealt(0) })
-}
-
 /// Reload reads the file again, so an edit shows with no relaunch.
 #[test]
 fn reload_builds_the_game_again_from_the_file_as_it_now_reads() {
     let (mut session, _, file) = session_with("devgui-session-reload", BOLT_IN_HAND, scenario_game);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(13));
     std::fs::write(&file, BOLT_IN_HAND.replace("life 13", "life 7")).unwrap();
     session.input(Input::Reload);
     assert!(session.state.board.is_none(), "the old game's board is gone");
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(7));
 }
 
@@ -288,7 +257,7 @@ fn reload_plays_at_the_seed_the_file_now_says() {
     for seed in [5, 9] {
         std::fs::write(&file, format!("seed {seed}\n{BOLT_IN_HAND}")).unwrap();
         session.input(Input::Reload);
-        first_prompt(&mut session);
+        next_prompt(&mut session);
         assert_eq!(seed_played(&session), (seed, format!("seed-{seed}.log")));
     }
 }
@@ -301,7 +270,7 @@ fn setup_actions_play_before_the_first_prompt_and_again_on_reload() {
     let sample = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/bolt-into-giant-growth.scenario");
     let (mut session, ..) = session_with("devgui-session-setup", "", |_| scenario_game(&sample));
     for _ in 0..2 {
-        first_prompt(&mut session);
+        next_prompt(&mut session);
         let stack: Vec<&str> = session.state.board.iter().flat_map(|board| &board.stack).map(|item| item.name.as_str()).collect();
         assert_eq!(stack, ["Merfolk Thaumaturgist", "Giant Growth", "Lightning Bolt"], "top first");
         assert_eq!(session.state.prompt.as_ref().map(|prompt| prompt.kind.as_str()), Some("PriorityAction"));
@@ -334,9 +303,9 @@ fn a_decision_log_that_cannot_be_made_is_refused_in_the_window() {
 fn reload_keeps_the_replaced_games_log_and_starts_its_own() {
     let (mut session, folders, _) = session_with("devgui-session-reload-log", BOLT_IN_HAND, scenario_game);
     let dir = folders.boards.join("devgui-session-reload-log");
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     session.input(Input::Reload);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     assert_eq!(session.log_path.as_ref(), Some(&dir.join("seed-0-2.log")));
     for log in [dir.join("seed-0.log"), dir.join("seed-0-2.log")] {
         let read = decision_log::read(&std::fs::read_to_string(&log).unwrap());
@@ -350,7 +319,7 @@ fn reload_keeps_the_replaced_games_log_and_starts_its_own() {
 #[test]
 fn save_board_as_scenario_makes_a_board_folder_named_for_the_start_and_turn() {
     let (mut session, folders, _) = session_with("devgui-session-save", BOLT_IN_HAND, scenario_game);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     session.input(Input::SaveBoard);
     let saved = folders.boards.join("devgui-session-save-turn-1").join("devgui-session-save-turn-1.scenario");
     assert_eq!(session.message, Some(Ok(format!("saved {}", saved.display()))));
@@ -376,7 +345,7 @@ fn play_saves_the_board_in_its_folder_and_logs_its_games_beside_it() {
     let board = folders.boards.join("devgui-session-play");
     assert_eq!(session.setup.as_ref().and_then(|setup| setup.scenario.clone()), Some(board.join("devgui-session-play.scenario")));
     assert_eq!((session.mode, session.log_path.clone()), (Mode::Play, Some(board.join("seed-0.log"))));
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(9));
     assert_eq!(std::fs::read_to_string(&file).unwrap(), BOLT_IN_HAND, "the file opened is never written");
     session.input(Input::Mode(Mode::Edit));
@@ -392,7 +361,7 @@ fn play_saves_the_board_in_its_folder_and_logs_its_games_beside_it() {
 #[test]
 fn edit_this_board_opens_the_board_the_game_is_at() {
     let (mut session, folders, _) = session_with("devgui-session-edit-board", BOLT_IN_HAND, scenario_game);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     session.input(Input::EditThisBoard);
     assert_eq!(session.mode, Mode::Edit);
     assert_eq!(session.editor.source, Source::Game { start: "devgui-session-edit-board".to_string(), turn: 1 });
@@ -408,14 +377,14 @@ fn edit_this_board_opens_the_board_the_game_is_at() {
 #[test]
 fn edit_the_scenario_reads_the_file_again_or_returns_to_the_board_play_started() {
     let (mut session, _, file) = session_with("devgui-session-edit-scenario", BOLT_IN_HAND, scenario_game);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     std::fs::write(&file, BOLT_IN_HAND.replace("life 13", "life 6")).unwrap();
     session.input(Input::EditTheScenario);
     assert_eq!(session.editor.source, Source::File(file.clone()));
     assert!(session.editor.text().contains("player 0: life 6\n"), "read again: {}", session.editor.text());
     session.input(Input::Editor(EditorInput::Number(BoardNumber::Life(0), 5)));
     session.input(Input::Editor(EditorInput::Play));
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     session.input(Input::EditTheScenario);
     assert_eq!(session.mode, Mode::Edit);
     assert!(session.editor.view().undo.live, "the editor's own board, undo and all");
@@ -460,7 +429,7 @@ fn a_four_seat_commander_board_built_in_the_editor_plays() {
     assert!(text.contains("battlefield: Isamaru, Hound of Konda [b] | controller 2, commander, tapped, attacking player 3\n"), "{text}");
     assert!(session.editor.refusal().is_none(), "{:?}", session.editor.refusal());
     click(&mut session, EditorInput::Play);
-    first_prompt(&mut session);
+    next_prompt(&mut session);
     let prompt = session.state.prompt.as_ref().unwrap();
     assert_eq!((prompt.player, prompt.kind.as_str()), (3, "DeclareBlockers"));
     let board = session.state.board.as_ref().unwrap();

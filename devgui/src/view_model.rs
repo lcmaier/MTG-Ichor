@@ -10,6 +10,7 @@
 //! board things each option names (`prompt::OptionView::refs`).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
@@ -17,6 +18,7 @@ use mtgsim::ui::auto_yield::Yield;
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
+use crate::save::Tools;
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
@@ -47,6 +49,9 @@ pub enum Input {
     Reset,
     /// Build the game again from its scenario file, read again.
     Reload,
+    /// Go back to the window's previous question: a game built again and
+    /// replayed to it, asking it again.
+    Undo,
     /// Write the board at this prompt to a scenario file.
     SaveBoard,
     /// Pass at this priority prompt, and keep passing until the yield ends.
@@ -291,12 +296,45 @@ pub struct WindowState {
     /// Prompts received, which keys each prompt's widgets apart: focus on one
     /// prompt's button cannot pass to the next prompt's.
     pub prompts: u64,
+    /// A rebuild's replay, until the engine asks at the place it replays to.
+    pub replaying: Option<Progress>,
+    /// What the save lets the tools do, as the session last read it.
+    pub tools: Tools,
+}
+
+/// A replay the window counts while it waits (`setup-architecture.md` §7.3).
+#[derive(Clone, Debug)]
+pub struct Progress {
+    /// The answers replayed so far, which the engine's thread counts.
+    pub done: Arc<AtomicUsize>,
+    /// The answers its line holds.
+    pub of: usize,
+}
+
+/// What Undo answer's place says while it is off.
+pub const NO_EARLIER_QUESTION: &str = "No earlier question to go back to.";
+
+/// The game's tools, beside Reload in the header.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolsView {
+    pub undo: ToolButton,
+    /// Why Undo answer is off, while it is.
+    pub undo_off: Option<&'static str>,
+}
+
+/// A header control: a click on it is `input`, while it is live.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolButton {
+    pub label: String,
+    pub input: Input,
+    pub live: bool,
 }
 
 impl WindowState {
     pub fn receive(&mut self, message: ToWindow) {
         match message {
             ToWindow::Prompt { snapshot, prompt, yielding } => {
+                self.replaying = None;
                 self.log.extend(snapshot.log.iter().cloned());
                 self.yielding = yielding;
                 self.prompt_at = self.now;
@@ -306,6 +344,7 @@ impl WindowState {
                 self.board = Some(snapshot);
             }
             ToWindow::Finished { snapshot, outcome } => {
+                self.replaying = None;
                 self.log.extend(snapshot.log.iter().cloned());
                 self.board = Some(snapshot);
                 self.prompt = None;
@@ -313,11 +352,15 @@ impl WindowState {
                 self.outcome = Some(outcome);
             }
             ToWindow::Panicked { message } => {
+                self.replaying = None;
                 self.prompt = None;
                 self.selection = None;
                 self.panic = Some(message);
             }
-            ToWindow::Refused { message } => self.refused = Some((Refusal::Scenario, message)),
+            ToWindow::Refused { message } => {
+                self.replaying = None;
+                self.refused = Some((Refusal::Scenario, message));
+            }
         }
     }
 
@@ -328,9 +371,13 @@ impl WindowState {
     pub fn input(&mut self, input: Input) -> Option<Reply> {
         let reply = match input {
             // The window's own controls, and the editor's, which `Session::input` acts on.
-            Input::Reload | Input::SaveBoard | Input::Mode(_) | Input::EditThisBoard | Input::EditTheScenario | Input::Editor(_) => {
-                return None;
-            }
+            Input::Reload
+            | Input::Undo
+            | Input::SaveBoard
+            | Input::Mode(_)
+            | Input::EditThisBoard
+            | Input::EditTheScenario
+            | Input::Editor(_) => return None,
             Input::FullControl(on) => {
                 self.full_control = on;
                 return None;
@@ -397,6 +444,8 @@ impl WindowState {
             }
         } else if let Some(prompt) = &self.prompt {
             format!("Player {} to decide", prompt.player)
+        } else if let Some(replaying) = &self.replaying {
+            format!("Replaying: {} of {} answers", replaying.done.load(Ordering::Relaxed), replaying.of)
         } else {
             "The engine is playing".to_string()
         }
@@ -408,8 +457,19 @@ impl WindowState {
             Some((Refusal::Scenario, _)) => "No board: the scenario did not load.",
             Some((Refusal::Record, _)) => "No board: the decision log could not be made.",
             None if self.panic.is_some() => "No board: the engine panicked before its first prompt.",
+            None if self.replaying.is_some() => "Replaying the game to its question: the board shows once the question is asked.",
             None => "Waiting for the engine's first prompt.",
         }
+    }
+
+    /// The tools as the header shows them: Undo answer goes back past the
+    /// open question, or the one the replay is on its way to, or else to
+    /// the question last answered.
+    pub fn tools_view(&self) -> ToolsView {
+        let open = self.prompt.is_some() || self.replaying.is_some();
+        let live = if open { self.tools.undo_open } else { self.tools.undo_answered };
+        let undo = ToolButton { label: "Undo answer".to_string(), input: Input::Undo, live };
+        ToolsView { undo, undo_off: (!live).then_some(NO_EARLIER_QUESTION) }
     }
 
     pub fn board_view(&self) -> Option<BoardView> {

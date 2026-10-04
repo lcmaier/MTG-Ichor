@@ -13,6 +13,7 @@ use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
@@ -27,10 +28,10 @@ use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::replay::ReplayControl;
+use mtgsim::ui::replay::{Replay, ReplayControl};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -95,17 +96,25 @@ impl GameSetup {
     }
 }
 
-/// A game for the engine's thread: where it begins, and the record it
-/// writes, if any.
+/// A game for the engine's thread: where it begins, the answers it replays
+/// before the seats are asked, and the record it writes, if any.
 pub struct Play {
     pub start: GameStart,
+    /// The line to replay from the start: a rebuild's, to the place the
+    /// window moves to. Empty plays from the start, a scenario's setup
+    /// actions with it.
+    pub line: Vec<AnswerLine>,
+    /// The layer memo's debug audits stay on while the line replays. Off
+    /// for a rebuild, whose answers this build audited as the window gave
+    /// them (`setup-architecture.md` §7.1); back on at the hand-over.
+    pub audited: bool,
     pub record: Option<Writer>,
 }
 
 impl Play {
     /// `start`'s game, played from its start and recorded nowhere.
     pub fn new(start: GameStart) -> Play {
-        Play { start, record: None }
+        Play { start, line: Vec::new(), audited: true, record: None }
     }
 }
 
@@ -215,15 +224,30 @@ fn play(
             record.outcome(&outcome);
         }
     };
-    if let Some(record) = &record {
-        record.hand_over();
-    }
-    // A scenario's setup actions play first, every seat's, so the window's
-    // first prompt comes once they have built their stack.
-    let outcome = match built.play(&dp) {
+    let played = if game.line.is_empty() {
+        if let Some(record) = &record {
+            record.hand_over();
+        }
+        // A scenario's setup actions play first, every seat's, so the
+        // window's first prompt comes once they have built their stack.
+        built.play(&dp)
+    } else {
+        let seats = HandOver { seats: &dp, record: record.clone(), handed: Cell::new(false) };
+        let replay = Replay::new(game.line).then(&seats);
+        if let Some(record) = &record {
+            record.replaying(replay.control());
+        }
+        if !game.audited {
+            built.game().state.pause_layer_audit();
+        }
+        built.replay(&replay)
+    };
+    let outcome = match played {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
         Ok(GameResult::Draw) => Outcome::Draw,
         Err(Halt::Error(error)) => Outcome::Error(error),
+        // A newer rebuild took the record over; this game is nobody's.
+        Err(Halt::Stopped(Stop::Superseded)) => return,
         // A setup line the engine cannot play is the file's to fix, as a
         // line the loader refuses is.
         Err(Halt::Stopped(stop)) => {
@@ -344,6 +368,57 @@ impl DecisionProvider for GuiSeat {
             Answer::Order(order) => order,
             other => panic!("a choose_ordering was answered with {other:?}"),
         }
+    }
+}
+
+/// The seats behind a replay: the replay's first question to them, or its
+/// first look at their mode, is where it hands the game over, so the record
+/// writes the line it held before anything new is answered.
+struct HandOver<'a> {
+    seats: &'a dyn DecisionProvider,
+    record: Option<Writer>,
+    handed: Cell<bool>,
+}
+
+impl HandOver<'_> {
+    fn seats(&self) -> &dyn DecisionProvider {
+        if !self.handed.replace(true)
+            && let Some(record) = &self.record
+        {
+            record.hand_over();
+        }
+        self.seats
+    }
+}
+
+impl DecisionProvider for HandOver<'_> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        self.seats().pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.seats().pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.seats().allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.seats().choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.seats().seat_mode(player)
     }
 }
 
@@ -470,19 +545,35 @@ impl Record {
 pub struct Writer {
     record: Arc<Mutex<Record>>,
     number: u64,
+    /// The answers this writer has replayed, which the window counts.
+    replayed: Arc<AtomicUsize>,
 }
 
 impl Writer {
     /// `record`'s next writer, the one writing now shut first.
     pub fn take_over(record: &Arc<Mutex<Record>>) -> Writer {
         let number = locked(record).shut();
-        Writer { record: Arc::clone(record), number }
+        Writer { record: Arc::clone(record), number, replayed: Arc::default() }
+    }
+
+    /// The answers replayed so far, read from the window's thread.
+    pub fn replayed(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.replayed)
     }
 
     /// The record, while this writer may write.
     fn record(&self) -> Option<MutexGuard<'_, Record>> {
         let record = locked(&self.record);
         (record.writer == self.number).then_some(record)
+    }
+
+    /// The writer's replay, which a newer writer supersedes; at once, if
+    /// one already has.
+    fn replaying(&self, control: Arc<ReplayControl>) {
+        match self.record() {
+            Some(mut record) => record.replay = Some(control),
+            None => control.supersede(),
+        }
     }
 
     /// The game's next answer: held while the writer replays, and once it
@@ -493,6 +584,7 @@ impl Writer {
         let line = AnswerLine::of(game, record.logged, decision);
         if !record.live {
             record.replayed.push(line.to_string());
+            self.replayed.store(record.replayed.len(), Ordering::Relaxed);
             return;
         }
         record.write(RecordFile::Log, &line.to_string());

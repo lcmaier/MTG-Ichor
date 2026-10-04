@@ -154,7 +154,7 @@ fn refused() -> WindowState {
 }
 
 fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
-    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[] };
+    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[], tools: None };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
         draw(ui, state, &header, None);
     });
@@ -181,7 +181,7 @@ fn editor_picture(sample: &str, clicks: &[&str], name: &str) -> SnapshotResult {
     let bears = session.editor.view().search.results.into_iter().find(|result| result.label == "Grizzly Bears").map(|result| result.input);
     session.input(Input::Editor(bears.unwrap_or_else(|| panic!("no Grizzly Bears to choose"))));
     let view = session.editor.view();
-    let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files };
+    let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files, tools: None };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
         draw(ui, &WindowState::default(), &header, Some(&view));
     });
