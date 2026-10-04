@@ -150,3 +150,40 @@ fn a_superseded_replay_stops_and_asks_the_window_nothing() {
     let sent = engine.from_engine.recv_timeout(Duration::from_secs(60));
     assert!(matches!(sent, Err(RecvTimeoutError::Disconnected)), "the superseded replay sent {sent:?}");
 }
+
+/// The menu's entries as the header shows them: each label, and whether a
+/// click on it does anything.
+fn menu(session: &Session) -> Vec<(String, bool)> {
+    session.state.tools_view().menu.into_iter().map(|entry| (entry.label, entry.live)).collect()
+}
+
+/// Savestate marks the open question, once a place, named for its turn and
+/// step; the menu moves back to it, and then back to where the window was.
+#[test]
+fn a_savestate_marks_the_open_question_and_the_menu_moves_back_to_it() {
+    let (mut session, ..) = session_with("devgui-tools-savestate", "", |_| Start::Game(dealt(6)));
+    next_prompt(&mut session);
+    for _ in 0..3 {
+        answer_by_rule(&mut session);
+    }
+    let marked = question(&session);
+    assert!(session.state.tools_view().savestate.live && menu(&session).is_empty());
+    session.input(Input::Savestate);
+    let board = session.state.board.as_ref().unwrap();
+    let name = format!("Turn {} · {}", board.turn, board.phase);
+    assert!(!session.state.tools_view().savestate.live, "one savestate a place");
+    assert_eq!(menu(&session), [(name.clone(), false)], "listed, and the window is at it");
+    for _ in 0..4 {
+        answer_by_rule(&mut session);
+    }
+    let left = question(&session);
+    assert_eq!(menu(&session), [(name.clone(), true)]);
+    session.input(session.state.tools_view().menu[0].input.clone());
+    assert!(!session.state.tools_view().savestate.live, "no question open while it replays");
+    next_prompt(&mut session);
+    assert_eq!(question(&session), marked);
+    assert_eq!(menu(&session), [(name, false), ("Back to where I was".to_string(), true)]);
+    session.input(session.state.tools_view().menu[1].input.clone());
+    next_prompt(&mut session);
+    assert_eq!(question(&session), left);
+}

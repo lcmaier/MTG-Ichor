@@ -13,8 +13,8 @@ use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, S
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, Input, Item, KEYS, Key, Mode, NumberField, PromptView, SeatButton, ToolButton, ToolsView,
-    TypeLineView, TypeWordView, WindowState, ZoneView,
+    Amount, BoardView, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton, ToolButton,
+    ToolsView, TypeLineView, TypeWordView, WindowState, ZoneView,
 };
 
 pub struct DevGui {
@@ -147,6 +147,18 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         if let Some(why) = tools.undo_off {
             ui.weak(why);
         }
+        tool_button(ui, &tools.savestate, inputs);
+        ui.menu_button("Savestates", |ui| {
+            if tools.menu.is_empty() {
+                ui.weak(NO_SAVESTATES);
+            }
+            for entry in &tools.menu {
+                if ui.add_enabled(entry.live, egui::Button::new(&entry.label)).clicked() {
+                    inputs.push(entry.input.clone());
+                    ui.close();
+                }
+            }
+        });
     }
     if state.board.is_some() {
         if ui.button("Save board as scenario").clicked() {

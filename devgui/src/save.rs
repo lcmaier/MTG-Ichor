@@ -83,6 +83,11 @@ pub struct Tools {
     pub undo_open: bool,
     /// And once the open question is answered.
     pub undo_answered: bool,
+    /// The window's line is at a savestate.
+    pub savestate_here: bool,
+    /// What the menu lists, and the place the window's line is at.
+    pub destinations: Vec<Destination>,
+    pub current: usize,
 }
 
 /// A place the window's menu moves to.
@@ -135,8 +140,11 @@ impl Save {
         (!self.asked[self.current]).then(|| self.push(Entry::WindowAsked(self.current)))
     }
 
-    /// A savestate at the current place, named `name`; its journal line.
+    /// A savestate at the current place, named `name`, or `name (2)` and on
+    /// when another has that name; its journal line.
     pub fn savestate(&mut self, name: String) -> String {
+        let taken = |name: &str| self.entries.iter().any(|entry| matches!(entry, Entry::Savestate { name: had, .. } if had == name));
+        let name = std::iter::once(name.clone()).chain((2..).map(|n| format!("{name} ({n})"))).find(|name| !taken(name)).unwrap_or(name);
         self.push(Entry::Savestate { at: self.current, name })
     }
 
@@ -211,7 +219,13 @@ impl Save {
     }
 
     pub fn tools(&self) -> Tools {
-        Tools { undo_open: self.undo_target(true).is_some(), undo_answered: self.undo_target(false).is_some() }
+        Tools {
+            undo_open: self.undo_target(true).is_some(),
+            undo_answered: self.undo_target(false).is_some(),
+            savestate_here: self.has_savestate(self.current),
+            destinations: self.destinations(),
+            current: self.current,
+        }
     }
 
     /// Whether a savestate is at `place`.
@@ -418,6 +432,16 @@ mod tests {
         assert_eq!(save.destinations(), [savestate.clone(), Destination::Left(3)], "two undos along one line leave it once");
         save.move_to(3);
         assert_eq!(save.destinations(), [savestate], "back where it was");
+    }
+
+    /// Two savestates in one step are told apart in the menu by a number.
+    #[test]
+    fn a_savestate_named_as_another_is_numbered() {
+        let mut save = Save::new(start());
+        save.answer(answer("a"));
+        assert_eq!(save.savestate("Turn 1 · Upkeep".to_string()), "savestate at 1: Turn 1 · Upkeep");
+        save.answer(answer("b"));
+        assert_eq!(save.savestate("Turn 1 · Upkeep".to_string()), "savestate at 2: Turn 1 · Upkeep (2)");
     }
 
     /// A decision log is a save with one line, and nothing says where the

@@ -18,7 +18,7 @@ use mtgsim::ui::auto_yield::Yield;
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
-use crate::save::Tools;
+use crate::save::{Destination, Tools};
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
@@ -52,6 +52,11 @@ pub enum Input {
     /// Go back to the window's previous question: a game built again and
     /// replayed to it, asking it again.
     Undo,
+    /// Mark the open question's place in the save, to come back to.
+    Savestate,
+    /// Build the game again at this place in the save: a savestate's, or
+    /// the one the window's line last left.
+    MoveTo(usize),
     /// Write the board at this prompt to a scenario file.
     SaveBoard,
     /// Pass at this priority prompt, and keep passing until the yield ends.
@@ -314,12 +319,21 @@ pub struct Progress {
 /// What Undo answer's place says while it is off.
 pub const NO_EARLIER_QUESTION: &str = "No earlier question to go back to.";
 
-/// The game's tools, beside Reload in the header.
+/// What the menu says while it lists nothing.
+pub const NO_SAVESTATES: &str = "No savestates yet: Savestate marks the open question.";
+
+/// The game's tools, beside Reload in the header (`setup-architecture.md`
+/// §7.3): Undo answer, Savestate, and the menu of savestates and the line
+/// most recently left.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToolsView {
     pub undo: ToolButton,
     /// Why Undo answer is off, while it is.
     pub undo_off: Option<&'static str>,
+    pub savestate: ToolButton,
+    /// The savestates in the order set, then "back to where I was"; each
+    /// off while the window's line is at its place.
+    pub menu: Vec<ToolButton>,
 }
 
 /// A header control: a click on it is `input`, while it is live.
@@ -373,6 +387,8 @@ impl WindowState {
             // The window's own controls, and the editor's, which `Session::input` acts on.
             Input::Reload
             | Input::Undo
+            | Input::Savestate
+            | Input::MoveTo(_)
             | Input::SaveBoard
             | Input::Mode(_)
             | Input::EditThisBoard
@@ -469,7 +485,22 @@ impl WindowState {
         let open = self.prompt.is_some() || self.replaying.is_some();
         let live = if open { self.tools.undo_open } else { self.tools.undo_answered };
         let undo = ToolButton { label: "Undo answer".to_string(), input: Input::Undo, live };
-        ToolsView { undo, undo_off: (!live).then_some(NO_EARLIER_QUESTION) }
+        let marks = self.prompt.is_some() && !self.tools.savestate_here;
+        let savestate = ToolButton { label: "Savestate".to_string(), input: Input::Savestate, live: marks };
+        let menu = self.tools.destinations.iter().map(|destination| {
+            let (label, at) = match destination {
+                Destination::Savestate { at, name } => (name.clone(), *at),
+                Destination::Left(at) => ("Back to where I was".to_string(), *at),
+            };
+            ToolButton { label, input: Input::MoveTo(at), live: at != self.tools.current }
+        });
+        ToolsView { undo, undo_off: (!live).then_some(NO_EARLIER_QUESTION), savestate, menu: menu.collect() }
+    }
+
+    /// The name a savestate at the open question takes: its turn and step.
+    pub fn savestate_name(&self) -> Option<String> {
+        let board = self.board.as_ref().filter(|_| self.prompt.is_some())?;
+        Some(format!("Turn {} · {}", board.turn, board.phase))
     }
 
     pub fn board_view(&self) -> Option<BoardView> {

@@ -104,6 +104,12 @@ impl Session {
                 }
             }
             Input::Undo => self.undo(),
+            Input::Savestate => self.savestate(),
+            Input::MoveTo(place) => {
+                if let Some(record) = self.record.clone() {
+                    self.rebuild(&record, place);
+                }
+            }
             // From the window's thread, at any moment: the seat reads the
             // switch at its next prompt, and the log never records it.
             Input::FullControl(on) => {
@@ -175,6 +181,16 @@ impl Session {
         let target = locked(&record).save.undo_target(open);
         if let Some(place) = target {
             self.rebuild(&record, place);
+        }
+    }
+
+    /// Savestate: the open question's place kept in the save, named for its
+    /// turn and step, for the menu to come back to.
+    fn savestate(&mut self) {
+        let (Some(record), Some(name)) = (&self.record, self.state.savestate_name()) else { return };
+        if !self.state.tools.savestate_here {
+            locked(record).savestate(name);
+            self.read_tools();
         }
     }
 
