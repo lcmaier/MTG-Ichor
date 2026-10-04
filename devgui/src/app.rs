@@ -150,10 +150,10 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
 
 fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>, header: &SessionHeader, inputs: &mut Vec<Input>) {
     egui::Panel::bottom("prompt").show(ui, |ui| {
-        if let Some(message) = &state.refused {
-            ui.colored_label(ui.visuals().error_fg_color, "The scenario did not load:");
+        if let Some((refusal, message)) = &state.refused {
+            ui.colored_label(ui.visuals().error_fg_color, format!("{}:", refusal.heading()));
             ui.monospace(message);
-            ui.weak("Fix the file, then click Reload; or Edit the scenario.");
+            ui.weak(refusal.hint());
         } else if let Some(message) = &state.panic {
             ui.colored_label(ui.visuals().error_fg_color, "The engine thread panicked:");
             ui.monospace(message);

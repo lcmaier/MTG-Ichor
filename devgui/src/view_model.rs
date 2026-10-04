@@ -237,6 +237,35 @@ fn allocate(
     None
 }
 
+/// What kept a game from starting, which a person fixes, as against an
+/// engine panic, which is a bug to report (`engineering-practices.md` §10.1,
+/// question 6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// The scenario did not load: its file's line, and what to change.
+    Scenario,
+    /// The game's decision log could not be made (`codebase-state.md` item 200).
+    Record,
+}
+
+impl Refusal {
+    /// What did not happen, as the header and the prompt's place say it.
+    pub fn heading(self) -> &'static str {
+        match self {
+            Refusal::Scenario => "The scenario did not load",
+            Refusal::Record => "The decision log could not be made",
+        }
+    }
+
+    /// What to do about it.
+    pub fn hint(self) -> &'static str {
+        match self {
+            Refusal::Scenario => "Fix the file, then click Reload; or Edit the scenario.",
+            Refusal::Record => "Make its folder writable, then start the game again.",
+        }
+    }
+}
+
 /// Everything the window knows.
 #[derive(Clone, Debug, Default)]
 pub struct WindowState {
@@ -247,8 +276,8 @@ pub struct WindowState {
     pub log: Vec<String>,
     pub outcome: Option<Outcome>,
     pub panic: Option<String>,
-    /// Why the scenario did not load.
-    pub refused: Option<String>,
+    /// Why no game started, and the refusal's words.
+    pub refused: Option<(Refusal, String)>,
     /// The yield the seat holds at the open prompt.
     pub yielding: Option<Yield>,
     /// Full control is on: the seat is asked at every priority point, with
@@ -288,7 +317,7 @@ impl WindowState {
                 self.selection = None;
                 self.panic = Some(message);
             }
-            ToWindow::Refused { message } => self.refused = Some(message),
+            ToWindow::Refused { message } => self.refused = Some((Refusal::Scenario, message)),
         }
     }
 
@@ -356,8 +385,8 @@ impl WindowState {
 
     /// What the window is doing, for the header.
     pub fn status(&self) -> String {
-        if self.refused.is_some() {
-            "The scenario did not load".to_string()
+        if let Some((refusal, _)) = self.refused {
+            refusal.heading().to_string()
         } else if self.panic.is_some() {
             "The engine panicked".to_string()
         } else if let Some(outcome) = &self.outcome {
@@ -375,12 +404,11 @@ impl WindowState {
 
     /// What the board's place says while there is no board.
     pub fn no_board(&self) -> &'static str {
-        if self.refused.is_some() {
-            "No board: the scenario did not load."
-        } else if self.panic.is_some() {
-            "No board: the engine panicked before its first prompt."
-        } else {
-            "Waiting for the engine's first prompt."
+        match self.refused {
+            Some((Refusal::Scenario, _)) => "No board: the scenario did not load.",
+            Some((Refusal::Record, _)) => "No board: the decision log could not be made.",
+            None if self.panic.is_some() => "No board: the engine panicked before its first prompt.",
+            None => "Waiting for the engine's first prompt.",
         }
     }
 

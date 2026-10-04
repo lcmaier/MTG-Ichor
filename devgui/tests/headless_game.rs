@@ -13,11 +13,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use devgui::boards::Folders;
-use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, ToWindow};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, ToWindow, create_log};
 use devgui::editor::{BoardNumber, EditorInput, Flag, Source, Zone};
 use devgui::launch::{self, Start};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, WindowState};
+use devgui::view_model::{Input, Mode, Refusal, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, GameStart, Log};
@@ -35,7 +35,7 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
         let log = log.clone();
         move || {
             let mut asked = Vec::new();
-            let played = play_by_rule(Play { log: Some(log), ..play(dealt(6)) }, |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
+            let played = play_by_rule(Play { log: Some(create_log(&log).unwrap()), ..play(dealt(6)) }, |state| asked.extend(state.prompt.as_ref().map(|p| p.player)));
             (played, asked)
         }
     });
@@ -161,7 +161,7 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let log = std::env::temp_dir().join("devgui-headless-scenario.log");
     let setup = from_board("main.scenario");
     let board = std::fs::read_to_string(setup.scenario.as_ref().unwrap()).unwrap();
-    let (outcome, answered) = play_by_rule(Play { log: Some(log.clone()), ..play(setup) }, |_| {});
+    let (outcome, answered) = play_by_rule(Play { log: Some(create_log(&log).unwrap()), ..play(setup) }, |_| {});
     assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
     let log = decision_log::read(&std::fs::read_to_string(&log).expect("the decision log")).expect("the engine reads the log");
     let GameStart::Scenario { path, seed: 0, text } = &log.start else { panic!("{:?}", log.start) };
@@ -289,6 +289,24 @@ fn setup_actions_play_before_the_first_prompt_and_again_on_reload() {
         session.input(Input::Reload);
         assert!(session.state.board.is_none(), "the old game's board is gone");
     }
+}
+
+/// Item 200: a decision log whose folder cannot be made is refused in the
+/// window, not shown as an engine panic.
+#[test]
+fn a_decision_log_that_cannot_be_made_is_refused_in_the_window() {
+    let root = std::env::temp_dir().join("devgui-session-unwritable");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    // A file where the logs' folder would go, so no folder can be made there.
+    std::fs::write(root.join("logs"), "").unwrap();
+    let folders = Folders { logs: root.join("logs").join("logs"), boards: root.join("boards"), ..Folders::default() };
+    let session = Session::start(Start::Game(dealt(7)), folders, Arc::new(|| {}));
+    let Some((Refusal::Record, message)) = &session.state.refused else { panic!("{}", session.state.status()) };
+    let log = root.join("logs").join("logs").join("seed-7.log");
+    assert!(message.starts_with(&format!("cannot create the decision log {}: ", log.display())), "{message}");
+    assert_eq!((session.state.panic.as_ref(), session.log_path.as_ref()), (None, None), "no game started");
+    assert_eq!(session.state.no_board(), "No board: the decision log could not be made.");
 }
 
 /// Reload starts a decision log of its own beside the first, which keeps the

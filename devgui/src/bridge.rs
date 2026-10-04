@@ -93,11 +93,11 @@ impl GameSetup {
     }
 }
 
-/// A game for the engine's thread: where it begins, and where its decision
-/// log goes, if anywhere.
+/// A game for the engine's thread: where it begins, and the decision log it
+/// writes, if any.
 pub struct Play {
     pub start: GameStart,
-    pub log: Option<PathBuf>,
+    pub log: Option<File>,
 }
 
 impl Play {
@@ -105,6 +105,14 @@ impl Play {
     pub fn new(start: GameStart) -> Play {
         Play { start, log: None }
     }
+}
+
+/// A decision log at `path`, its folder made: created on the window's thread
+/// before its game starts, so a folder that cannot be written is refused in
+/// the window as what it is (`codebase-state.md` item 200).
+pub fn create_log(path: &Path) -> Result<File, String> {
+    let made = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| File::create(path));
+    made.map_err(|e| format!("cannot create the decision log {}: {e}", path.display()))
 }
 
 /// What the engine thread tells the window.
@@ -150,7 +158,7 @@ pub fn spawn_game(game: Play, wake: Arc<dyn Fn() + Send + Sync>) -> EngineHandle
         .name("engine".to_string())
         .spawn(move || {
             let played = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                play(&game, &to_window, from_window, switch, &wake)
+                play(game, &to_window, from_window, switch, &wake)
             }));
             if let Err(payload) = played
                 && !payload.is::<WindowGone>()
@@ -164,7 +172,7 @@ pub fn spawn_game(game: Play, wake: Arc<dyn Fn() + Send + Sync>) -> EngineHandle
 }
 
 fn play(
-    game: &Play,
+    game: Play,
     to_window: &Sender<ToWindow>,
     from_window: Receiver<Reply>,
     full_control: FullControlSwitch,
@@ -180,7 +188,7 @@ fn play(
     };
     // The engine writes the log, every seat's answers and its own passes, so
     // the record is the game's whatever answered at each seat.
-    let log = Arc::new(Mutex::new(DecisionLog::open(game.log.as_deref(), &game.start)));
+    let log = Arc::new(Mutex::new(DecisionLog::open(game.log, &game.start)));
     let writer = Arc::clone(&log);
     let game = built.game_mut();
     game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
@@ -347,13 +355,7 @@ struct DecisionLog {
 }
 
 impl DecisionLog {
-    fn open(path: Option<&Path>, start: &GameStart) -> DecisionLog {
-        let file = path.map(|path| {
-            if let Some(dir) = path.parent() {
-                std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
-            }
-            File::create(path).unwrap_or_else(|e| panic!("cannot create the decision log {}: {e}", path.display()))
-        });
+    fn open(file: Option<File>, start: &GameStart) -> DecisionLog {
         let mut log = DecisionLog { file, answers: 0 };
         for line in decision_log::opening(start) {
             log.line(&line);

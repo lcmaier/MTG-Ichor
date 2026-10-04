@@ -9,10 +9,10 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::decision_log::GameStart;
 
 use crate::boards::{Folders, ListedFile, start_name};
-use crate::bridge::{EngineHandle, GameSetup, Play, Pool, spawn_game};
+use crate::bridge::{EngineHandle, GameSetup, Play, Pool, create_log, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
 use crate::launch::{Start, start_line};
-use crate::view_model::{Input, Mode, WindowState};
+use crate::view_model::{Input, Mode, Refusal, WindowState};
 
 pub struct Session {
     /// How the game the window plays began, once one has; Reload begins it
@@ -138,14 +138,21 @@ impl Session {
             Ok(start) => start,
             Err(message) => {
                 self.start_line = setup.scenario.map_or_else(String::new, |path| format!("scenario {}", path.display()));
-                self.state.refused = Some(message);
+                self.state.refused = Some((Refusal::Scenario, message));
                 return;
             }
         };
-        let log_path = own_log(&self.folders.game_log(&start));
-        let engine = spawn_game(Play { start: start.clone(), log: Some(log_path.clone()) }, Arc::clone(&self.wake));
-        engine.full_control.set(full_control);
         self.start_line = start_line(&setup, &start);
+        let log_path = own_log(&self.folders.game_log(&start));
+        let log = match create_log(&log_path) {
+            Ok(log) => log,
+            Err(message) => {
+                self.state.refused = Some((Refusal::Record, message));
+                return;
+            }
+        };
+        let engine = spawn_game(Play { start: start.clone(), log: Some(log) }, Arc::clone(&self.wake));
+        engine.full_control.set(full_control);
         (self.engine, self.start, self.log_path) = (Some(engine), Some(start), Some(log_path));
     }
 
