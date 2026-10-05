@@ -2318,10 +2318,11 @@ are the easy part. The re-count found five facilities that no earlier row
 lists:
 - graveyard targets, for Scrap Trawler's and Myr Retriever's returns (with
   §17's `ManaValueLessThanSource`);
-- any-color mana, for Mox Opal and Chromatic Sphere (`backlog.md` §2.19);
+- any-color mana, for Mox Opal and Chromatic Sphere (`backlog.md` §2.19;
+  `mana-architecture.md` MA-3);
 - metalcraft, an activation restriction with a count condition (§2.8);
-- a draw inside a mana ability's effect (step 5);
-- a mana window inside a mana ability's activation (step 3).
+- a draw inside a mana ability's effect (step 5; MA-3's riders);
+- a mana window inside a mana ability's activation (step 3; MA-3).
 
 Not split yet. Its brief re-counts it against the tree TR-6 leaves.
 
