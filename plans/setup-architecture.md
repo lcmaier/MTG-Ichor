@@ -14,8 +14,8 @@
 > re-size, which builds them as two PRs (the owner, 2026-10-03): **SU-4** (the
 > replay, the engine's), landed 2026-10-03, and **SU-5** (the tools, the
 > window's), landed 2026-10-04.
-> **The why panel**, A6g's next item, is designed in §7c (2026-10-05) in
-> draft PR #220: SU-6 to SU-8, proposed, none of it decided.
+> **The why panel**, A6g's next item, is designed in §7c and decided at #220
+> (the owner, 2026-10-05, every recommendation taken): SU-6 to SU-8.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -103,7 +103,7 @@ code shape, cost and upkeep.
    for what only an effect makes, the growth contract for a new mechanic's
    state, and a board editor in the dev GUI, **SU-3**, before the tools (the
    owner, 2026-10-03), designed in §7b.
-10. **The why panel** (§7c, proposed 2026-10-05 for review). A right-click
+10. **The why panel** (§7c, decided 2026-10-05). A right-click
     asks why of an object, and a panel beside the board answers: what the
     layers did to it, and why it is or is not among the open question's
     options. From the trace, it also says what an event did and which
@@ -1759,10 +1759,10 @@ design against `fb1767a`:
 
 ## 7c. The why panel
 
-> **Status:** design, 2026-10-05, draft PR #220 for the owner's review;
-> nothing is built. It is `roadmap-v2.md` A6g's next item, "a 'why' panel fed by the
-> trace sink", read against `7f8532a` (#219's merge). Every decision in
-> §7c.1 is proposed and none is taken. The build is SU-6 to SU-8 (§8).
+> **Status:** design, 2026-10-05, decided at #220 the same day: the owner
+> took every recommendation in §7c.1. It is `roadmap-v2.md` A6g's next
+> item, "a 'why' panel fed by the trace sink", read against `7f8532a`
+> (#219's merge). The build is SU-6 to SU-8 (§8).
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
@@ -2032,7 +2032,7 @@ The sizes include the panel itself, ~180–270 lines of each option's code,
 which D builds once (§8 itemizes them). They are design estimates, and SU-1
 to SU-5 ran 1.0–2.5× their estimates on code.
 
-**Recommendation: D.** Build it as SU-6 (characteristics, and the panel), SU-7
+**Decided: D** (the owner, 2026-10-05). Build it as SU-6 (characteristics, and the panel), SU-7
 (options) and SU-8 (events and triggers). Each answers a surprise the brief
 names, and the measured costs make each cheap at a click.
 - **Characteristics and options are engine surfaces a second client wants
@@ -2064,8 +2064,8 @@ question.
 | Events | **`batch`, `pipeline`, `batch_end`, `event`**: the proposals, each CR 616.1 iteration, and what was performed | **one field**: `pipeline` names a member a "can't" blocked (CR 614.17), and the "can't"'s source | deciding a past event again at the open question reads today's board, not that one's |
 | Triggers | **`trigger`, `pending`**: each ability asked about a record, matched or refused by what, and its placement | — | the same as for events |
 
-**Recommendation: an engine query for the two kinds about now, and the sink
-for the two about then.**
+**Decided: an engine query for the two kinds about now, and the sink for
+the two about then** (the owner, 2026-10-05).
 - A record for each application would put work in every traced pass for a
   question asked about one object, and it would still miss the frame a memo
   hit serves.
@@ -2130,7 +2130,7 @@ runs with no sink attached.
 | Cost, release | +6% to +181% of the engine's own work, 2–11 µs an answer | 5–56 ms a click | at most 0.1 ms a question about now, and 5–56 ms a question about then |
 | Upkeep | every game the window plays carries an observer and its memory, and each Undo or savestate rebuilds the record from its replay | Undo's rebuild path, without the hand-over (where a replay gives the game to the seats): one more thread, over the line the save already has | both paths, each the cheaper one for its kind of question |
 
-**Recommendation: C.**
+**Decided: C** (the owner, 2026-10-05).
 - **A question about now is answered where the state already is**, at the
   cost of a pass.
 - **A question about then pays for a replay at the click.** That is the
@@ -2188,9 +2188,9 @@ is answered once, at its click, and marked with the question it was asked at.
 **Where it goes.** A panel on the window's left, beside the board, opened by
 the right-click and closed by its ×. The board stays in view, and the log and
 the stack keep the right side. The other choice was a floating window, which
-can cover the very cards it explains. Layout is the client's to decide
-(`engineering-practices.md` §10), so this is a recommendation, and nothing in
-the engine depends on it.
+can cover the very cards it explains. **Decided as recommended** (the owner,
+2026-10-05). Layout is the client's to decide (`engineering-practices.md`
+§10), and nothing in the engine depends on it.
 
 #### Decision 5 — where this design lives
 
@@ -2201,7 +2201,8 @@ the engine depends on it.
 | c | a new doc on `CLAUDE.md`'s architecture row | the row holds one doc per CR subsystem. This would be its first doc that is not one, which §9 declined for the loader |
 | d | each engine surface in its subsystem's doc, and the panel here | the layer recorder would go in `layers-architecture.md`, and the reasons beside `cost-architecture.md` §3.6's "enumeration and enforcement must agree". That is five places to read one design |
 
-**Recommendation: a.** Each other doc gets one line where an invariant lives:
+**Decided: a** (the owner, 2026-10-05). Each other doc gets one line where
+an invariant lives:
 - at SU-6's build, `layers-architecture.md` §13b gains that the recorder is
   the pass, with no second walk;
 - at SU-7's, `cost-architecture.md` §3.6 gains that the reasons are one check,
@@ -2293,11 +2294,11 @@ the grammar first at ~40–60. SU-3's own code came in at 1.5–2.1 times its
 sizing, nearly all of it in the dev GUI, which may run looser than the engine
 (the owner, 2026-10-03; §8's ✅ section).
 
-**The why panel** (§7c, proposed 2026-10-05 and not decided) is three PRs, in
-the order §7c.1's decision 1 recommends. Each size gives code, then tests, at
+**The why panel** (§7c, decided 2026-10-05) is three PRs, in the order
+§7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 
-### SU-6 — the why panel, and what the layers did (proposed)
+### SU-6 — the why panel, and what the layers did
 
 **The engine, ~280–420.**
 - `layers::explain`: the recorder in `run_pass`, `perform` and
@@ -2326,7 +2327,7 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%.
 `prompt_cost` reads a why on the large board's busiest object
 (`engineering-practices.md` §10.4).
 
-### SU-7 — why an option is not offered (proposed)
+### SU-7 — why an option is not offered
 
 **The engine, ~280–430.**
 - the reasons, typed and worded, ~80–120;
@@ -2345,7 +2346,7 @@ each shown to fail first where it moves a check.
 the same order. Predicted `IDENTICAL` on every counter, and instructions within
 ±0.3%.
 
-### SU-8 — what happened, from the trace (proposed)
+### SU-8 — what happened, from the trace
 
 **The engine, ~190–295.**
 - the reader of the sink's lines, ~90–130;
