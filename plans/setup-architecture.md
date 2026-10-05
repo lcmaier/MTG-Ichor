@@ -2335,7 +2335,22 @@ this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 - `is_prohibited`'s form that names the restriction, and the `pipeline`
   record's field, ~25–45;
 - the why's sections for an event and for an object's triggers, ~70–110;
-- item 210's fix, ~5–10.
+- item 210's fix, ~5–10;
+- **every question kind's line, ~80–140** (`codebase-state.md` item 212's
+  census, the owner, 2026-10-05). `ui::why::refusals` matches every
+  `ChoiceKind` without a wildcard. Each kind says what it ranges over, so a
+  why asked about anything else says the question does not range over it. Two
+  kinds are answered from the trace: `ChooseReplacementEffect`'s candidates,
+  from the `pipeline` record, and `OrderTriggers`', from the `trigger`
+  records. Three get a reason from their own filter:
+  `ChooseEnteringController` (CR 800.4a), `ChooseAuxiliaryZoneChange` (CR
+  614.13a and 101.2) and `ChooseCopySource` (the copy effect's filter). The
+  other filtered kinds' reasons land with their owners: `SelectRecipients`
+  with RS-2; `ManaAbilityWindow`, `ChooseXValue` and `GenericManaAllocation`
+  with item 162's build; `ChooseSacrificeForCost` with
+  `cost-architecture.md` CP-2. `plans/references/cast-census.md` §9 has the
+  table, read off the enum and asserted against it. `refusals`' doc comment
+  still cites item 212, now closed, and this PR rewrites it.
 
 **The dev GUI, ~110–180.**
 - the replay thread for a question about then, with its stop and its
@@ -2349,15 +2364,18 @@ this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 - an event's batch read back on `bolt-into-giant-growth.scenario`;
 - a "can't" named: an indestructible creature with lethal damage;
 - a trigger refused by its intervening "if";
-- in the headless tests, the replay stopping at the open question.
+- in the headless tests, the replay stopping at the open question;
+- every `ChoiceKind` answers a why without panicking, and a departed
+  player is named as the reason at `ChooseEnteringController`, ~30–50.
 
 **A/B.** No record is written in a fuzz game unless `--trace` asks for it.
 Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 `--trace`, the `pipeline` record's new field is the only change in its text.
 
 **In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
-#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606; SU-8, as
-sized above, is ~300–475 and ~150–230 more.
+#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606. SU-8, as
+sized above, is ~380–615 more and ~180–280 of tests; item 212's census added
+the question kinds' lines (~80–140 and ~30–50).
 
 ### SU-7 — why an option is not offered — ✅ landed 2026-10-05
 
