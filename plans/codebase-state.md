@@ -9111,3 +9111,31 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      About 600 changed lines, a PR of its own. **Slotted:** beside C0, the
      test cleanup before Phase 8's breadth (`roadmap-v2.md` §C), as a PR of
      its own (the owner, 2026-10-03, at #216's review).
+
+### Found by the why panel's design (2026-10-05)
+
+210. **A debug build's trace carries records a release build's does not.**
+     `check_order_invariance` (`engine/replacement/pipeline.rs:1597`) is a
+     debug-only self-check of a CR 616.1 prompt the pipeline suppressed as
+     order-invariant. For a suppressed prompt that is neither a substitute
+     nor an exit, it gathers again over a probe event, and `EntryFrame::new`
+     builds that probe's CR 614.12 look-ahead. The look-ahead writes a
+     `layer_walk` record (`membership: "entering"`) and counts its walk in
+     the diagnostics. A release build returns before any of it. The why
+     panel's probe (`setup-architecture.md` §7c, 2026-10-05) traced ten
+     two-seat games in both builds. Nine traces matched byte for byte, and
+     seed 12353's debug trace was five records longer: those five, and
+     nothing else. The sink's module doc states the rule this breaks, for
+     the memo's audit: a debug-only read that wrote a record "would make a
+     debug build's trace differ from a release build's — which would break
+     regenerating a page from a test".
+
+     **Reachability (2026-10-05):** reachable — not wrong in any game: a debug
+     build's trace and its layer counters, which no rule reads.
+
+     **Sized:** the call bracketed by `save_observers` and `restore_observers`
+     at its one site in `apply_replacements`, which holds the state mutably,
+     as the dispatch audit brackets its reads: ~5–10 lines. Plus a test that a
+     traced board where the check runs writes no record from it: ~25.
+     **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
+     debug engine's trace in the window.
