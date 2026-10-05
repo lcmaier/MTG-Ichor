@@ -2328,27 +2328,6 @@ sizing, nearly all of it in the dev GUI, which may run looser than the engine
 §7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 
-### SU-7 — why an option is not offered
-
-**The engine, ~290–450.**
-- the reasons, typed and worded, ~80–120;
-- the enumeration's checks as functions that return them (`can_cast`,
-  `can_play_land`, `can_activate` and `can_attack`), ~120–180, much of it
-  moved rather than written;
-- `check_cast_legality` on the same reasons, ~20–40;
-- the why's section for the open question, ~60–90, and a player as what a
-  why can be about, ~10–20 (moved from SU-6, §7c.1's decision 4).
-
-**The dev GUI, ~20–35**: the section's heading, and the right-click on a
-player's line.
-
-**Tests, ~150–220.** One per family of reasons, each reached on a board, and
-each shown to fail first where it moves a check.
-
-**A/B.** The priority question's candidates are built by the same checks, in
-the same order. Predicted `IDENTICAL` on every counter, and instructions within
-±0.3%.
-
 ### SU-8 — what happened, from the trace
 
 **The engine, ~190–295.**
@@ -2377,8 +2356,43 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 `--trace`, the `pipeline` record's new field is the only change in its text.
 
 **In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
-#220. SU-6 landed at 1,062 and 622; SU-7 and SU-8, as sized above, are
-~610–960 and ~300–450 more.
+#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606; SU-8, as
+sized above, is ~300–475 and ~150–230 more.
+
+### SU-7 — why an option is not offered — ✅ landed 2026-10-05
+
+**What shipped.** §7c's second PR (#SU7PR). Each option the window offers has one
+check that the enumeration and the enforcement both ask, and it returns why
+it refuses: `can_begin_to_cast` and `can_cast` (`CannotCast`), `can_play_land`
+(`CannotPlayLand`), `can_activate_its_abilities`, `can_begin_to_activate` and
+`can_activate` (`CannotActivate`), `can_attack` (`CombatError`, as `can_block`
+already did), with `SorceryTiming` for CR 307.1's three questions and
+`CannotPay` for a cost (CR 118.3). `ui::display` words each reason with its
+rule. The why's first section, **At this question**, says whether the open
+question offers the object or the player, and as what; if not, why, on two
+tiers: never offered, from the checks, or offered and then reversed
+(CR 732.1). In the dev GUI a player's line asks too.
+
+**What moved on the way in.** `play_land` and `activate_ability` share the
+checks too, and the cast now refuses a land (CR 305.9). A target's reasons
+are RS-2's. The click script edits Everywhere to a Mountain, since one
+Everywhere counts as five mana sources (`codebase-state.md` item 162, whose
+design doc is the next PR), and item 211 records that the priority question
+never offers a mana ability. It landed at +1,042 code and +606 tests,
+against 310–485 and 150–220 sized.
+
+**Measured.** `close_out.py` with three arms against #221's merge: the behavior arm
+(every commit but the last code one) `IDENTICAL` on every row, gameplay and
+cost, both pools, two seats and four; the shipped arm `IDENTICAL` on every
+gameplay row, with `Memo hits` down 57–165 a run, the one query its last
+commit drops (the owner's split). Instructions per decision −0.55%, against
+−1.0% ± 0.3 predicted: the error `String`s no longer allocated saved the
+1.09% priced, and the per-ability check, now a call where the old loop
+skipped an ability inline, took back 0.56. `prompt_cost` on the large board:
+a why at a question 38.7 µs median in release, a card in hand's 6.9 µs.
+
+→ `plans/archive/setup-architecture-landed.md`, "SU-7" (the build as sized,
+sized against built, and what the build changed in the design).
 
 ### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
 

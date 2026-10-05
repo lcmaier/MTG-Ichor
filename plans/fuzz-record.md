@@ -37,6 +37,58 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-05 for SU-7** (why an option is not offered;
+`setup-architecture.md` §8's ✅ section). Its engine change gives each check
+the priority question and the declarations build their options by a typed
+reason in place of a `String`, and makes the enforcement ask the same checks.
+`fuzz_games` never asks a why. No pool change, so the §3 tables stand.
+`close_out.py` with three arms: **main** `52f900f` (#221's merge),
+**behavior** `f7861c8` (every commit but the last code one) and **engine**
+`4cabaab`, whose one change drops a second `is_creature` query the old
+`can_attack` asked (the owner's split, so the behavior arm carries "nothing
+moved", TR-1's cost-lever recipe).
+
+**Predictions, before any arm ran** (2026-10-05, said in the session before
+the close-out): every gameplay and cost row `IDENTICAL` at the behavior arm;
+at the engine arm only `Memo hits`, down; instructions per decision −1.0% ±
+0.3, from the error `String`s the failing checks no longer allocate: 463,270
+a run on SU-6's engine arm (321,734 in `can_pay_costs`, 141,536 in
+`check_sorcery_timing`), about 180 instructions each.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, behavior vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, behavior vs `main` | none moved | none moved |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → engine, performance / stress | 68,888 → 68,817 / 78,709 → 78,652 | 179,796 → 179,631 / 233,653 → 233,500 |
+| audit, both arms, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6289 M → 0.6254 M, **−0.55%** |
+
+The counter predictions held. Instructions read 0.15 points short of the
+band's low end: the saving came in as priced and something new took part of
+it back. Per function (`callgrind_annotate --auto=no`, the `=>` lines dropped,
+joined by name), of the −43.7 M (7,898.7 M → 7,855.0 M):
+- **−86.3 M in malloc, free and memcpy**, the `String`s, −1.09%: the
+  prediction's own term;
+- **+44.1 M on the activation path**, +0.56%: `can_activate_as_its_controller`
+  +37.0 M and `activatable_abilities` +7.1 M. The old loop skipped a mana,
+  static or triggered ability with an inline `continue`; now every ability
+  of every permanent the player controls is a call that returns a `Result`.
+  Not priced. An `#[inline]` would likely take it back, and is left for a PR
+  with its own A/B;
+- **+5.0 M on the cast path**, `castable_spells`' body moved into `can_cast`
+  and `can_begin_to_cast`;
+- **−6.8 M of placement** in `board.rs`, `affected_members`' closure against
+  `Copied<Iter<ObjectId>>`, equal and opposite pairs in source this PR does
+  not change;
+- **+0.3 M elsewhere**, `can_play_land`'s per-card check (+5.0 M) about
+  balanced by small moves both ways.
+
+`prompt_cost` on the large board, release: a why at a question 38.7 µs median
+for the busiest permanent, its question section and the layers' together
+(SU-6: 38 µs, the layers' alone); 6.9 µs for a card in hand, which asks the
+cast check; the panel's view 1.7 µs a repaint.
+
 **Measured 2026-10-05 for SU-6** (the why panel, and what the layers did;
 `setup-architecture.md` §8's ✅ section). Its engine change threads a
 recorder through the layer pass, which every game path hands `None`:
