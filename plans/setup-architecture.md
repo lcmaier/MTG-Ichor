@@ -14,6 +14,8 @@
 > re-size, which builds them as two PRs (the owner, 2026-10-03): **SU-4** (the
 > replay, the engine's), landed 2026-10-03, and **SU-5** (the tools, the
 > window's), landed 2026-10-04.
+> **The why panel**, A6g's next item, is designed in §7c (2026-10-05) as a
+> draft for review: SU-6 to SU-8, proposed, none of it decided.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -101,6 +103,13 @@ code shape, cost and upkeep.
    for what only an effect makes, the growth contract for a new mechanic's
    state, and a board editor in the dev GUI, **SU-3**, before the tools (the
    owner, 2026-10-03), designed in §7b.
+10. **The why panel** (§7c, proposed 2026-10-05 for review). A right-click
+    asks why of an object, and a panel beside the board answers: what the
+    layers did to it, and why it is or is not among the open question's
+    options. From the trace, it also says what an event did and which
+    triggered abilities were asked about it. A question about now is the
+    engine's, asked at the seat. A question about then comes from a replay
+    to the open question with the sink on. Three PRs, SU-6 to SU-8.
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
 ~400–650 in all, built at 640 and 314. **A/B:** `IDENTICAL` predicted for each,
@@ -1748,6 +1757,531 @@ design against `fb1767a`:
 
 ---
 
+## 7c. The why panel
+
+> **Status:** design, 2026-10-05, a draft PR for the owner's review; nothing
+> is built. It is `roadmap-v2.md` A6g's next item, "a 'why' panel fed by the
+> trace sink", read against `7f8532a` (#219's merge). Every decision in
+> §7c.1 is proposed and none is taken. The build is SU-6 to SU-8 (§8).
+
+**What it is for.** When the window shows something surprising, the tester has
+two ways to find out why: read the engine's code, or write a trace page by hand
+(`engineering-practices.md` §7). The panel answers in the window instead. A
+right-click on a card, a permanent or a player opens it beside the board. It
+says which rules and effects made the thing look the way it does.
+
+- **"Why is Serra Angel a 1/1 with no abilities?"** On
+  `mtgsim/scenarios/humility-opalescence.scenario`, the panel lists what each
+  layer did to the Angel, in the order the layers applied it. As printed, it
+  is a 4/4 with flying and vigilance. In layer 6, Humility (#22), "All
+  creatures lose all abilities and have base power and toughness 1/1.", takes
+  flying and vigilance. In layer 7b, the same ability takes power and
+  toughness from 4/4 to 1/1. Below that, it lists what reached the Angel's
+  zone and did not apply to it: Opalescence (#21) at layers 4 and 7b, which
+  affects "each other non-Aura enchantment", and the Angel is not one. Each
+  line carries its rule (CR 613.1f, 613.4b), and each card a line names links
+  to that card's own why.
+- **"Why can't I cast Grizzly Bears?"** On the review board `main.scenario`,
+  the mana Player 0 can make, one from Everywhere, does not cover {1}{G} (CR
+  601.2g–h). On the opponent's turn it would say instead that a creature
+  spell is cast only in its controller's main phase with the stack empty (CR
+  117.1a, 302.1). At a declare-blockers question it would say "Grizzly Bears
+  can't block Serra Angel: the Angel has flying, and the Bears have neither
+  flying nor reach (CR 702.9b)".
+- **"Why didn't Grizzly Bears die?"** A right-click on a log line asks why of
+  that event. The panel shows the event's batch as the engine decided it: the
+  damage proposed, each CR 616.1 iteration with its candidates (a prevention
+  shield, say), the one applied and what it rewrote the event to, and what
+  was performed. When a "can't" stopped the event, it names that too.
+- **"Why didn't Soul Warden trigger?"** The same right-click, on "Grizzly Bears
+  enters the battlefield", lists every triggered ability the engine asked
+  about that event. Each one either matched or was refused, and the panel says
+  by what: its condition, its intervening "if" (CR 603.4), or a once-each-turn
+  limit. For a match, it says whether the trigger went on the stack or was
+  removed because it had no legal target (CR 603.3d).
+
+**The dev GUI's words**, as `plans/devgui-map.md` uses them:
+- The **window** plays every **seat**. A seat is a player's chair: the
+  `DecisionProvider` the engine asks for that player's choices.
+- A **question** is a prompt, a choice the engine is waiting on. The **open
+  question** is the one on screen.
+- The **snapshot** is the board, copied as plain data at each question.
+- The **view model** turns the snapshot into what the window draws.
+- The **bridge** carries each question from the engine's thread to the window,
+  and the answer back.
+- A **replay** builds the game again from its start and plays the recorded
+  answers into it. Undo answer works this way (§7.1).
+- The **sink** (`state::trace`) is the trace sink: an observer that writes one
+  JSON record per line at the engine's emit points, and is off unless a sink
+  is attached.
+
+And four engine words the design leans on:
+- A **frame** is an object's characteristics as the layers computed them.
+- The **layer memo** keeps each object's last frame until something a layer
+  walk reads changes. A walk runs only when the memo has no frame to serve,
+  which is a **memo miss**.
+- An **application** is `board.rs`'s word for one thing a layer applies: one
+  effect's rows in that layer, one CDA, one counter, or what an object entered
+  as.
+- The **key order** is the order a layer sorts its applications in before any
+  dependency: CDAs first, then by timestamp (CR 613.3, 613.7). CR 613.8 lets an
+  application wait out of it.
+
+**Where it sits.** In two places, and that is the design's first fact.
+- A question about **now** is a read of the state at the open question, as the
+  snapshot is. Characteristics and options are this kind. Nothing on the
+  event path changes.
+- A question about **then** is answered from the sink's records. Events and
+  triggers are this kind. The emit points write the records along the event
+  path as it happens: the batch's proposals, each CR 616.1 iteration, the
+  performed events, the dispatch's matcher, and placement.
+
+```
+now:   the open question ── its seat ── the engine explains X ─────────────────▶ the panel
+then:  a replay of the window's line, sink on: batch · CR 616.1 · perform · dispatch · placement
+                                               └── the records ──▶ the engine words them ──▶ the panel
+```
+
+**What the tree has** (read 2026-10-05 at `7f8532a`):
+- **The sink writes 12 kinds of record from six emit points**
+  (`state/trace.rs`, `engine/trace_records.rs`):
+  - `batch`: the proposals, and their CR 616.1 subject groups;
+  - `pipeline`: one CR 616.1 iteration, with the candidates, the chooser, the
+    choice, the rewrite and each member's result;
+  - `batch_end`: what each proposal became, or `null` if it was dropped;
+  - `event`: the performed event, in `ui::display::format_event`'s words;
+  - `trigger`: one matcher decision. It names the record asked about and the
+    ability, and says whether it matched or which predicate refused it;
+  - `pending`: placement, or its refusal (CR 800.4d's departed controller, CR
+    603.3d's no legal choice);
+  - `layer_walk`: one top-level walk, giving the answer's name, types, power,
+    toughness and controller;
+  - `decision` and `priority_rejected`: the prompt, and an action it refused;
+  - and `game`, `object` and `fork`.
+
+  **Two of the four kinds of why are in it**: the event's batch and the
+  dispatch's matcher. **Two are not.** A `layer_walk` records the answer but
+  not the applications that produced it. It is also written only on a memo
+  miss, so the frame on screen may have no record at all. And nothing records
+  why an option is *not* offered, since the enumeration drops a candidate
+  without a word.
+- **The layer pass already has a recorder, for one test.**
+  `compute_board_traced` (`engine/layers/board.rs:1589`) hands
+  `resolve_order_within_layer` (`:1550`) a list. For one layer, it fills that
+  list with a `TraceStep` (`:1294`): each application's source, and the
+  members it reached. `layer_4_order` (`:1810`) is its only caller.
+  `perform` (`:1301`), through `row_affected` (`:1198`), already decides three
+  things for each row:
+  - whether its ability is gone (CR 604.2, `Affected::Gone`);
+  - whether CR 613.6 locked its set (`Locked`);
+  - or else, which members its filter matches now (`Fresh`).
+- **The options are enumerated by checks that keep no reason.** Two of them
+  have a twin that does.
+  - `candidate_priority_actions` (`oracle/legality.rs:137`) offers
+    `playable_lands` (`:38`), `castable_spells` (`oracle/mana_helpers.rs:135`)
+    and `activatable_abilities` (`:333`). Each is a chain of `continue`s.
+  - `passes_timing_check` (`mana_helpers.rs:302`) "mirrors"
+    `check_cast_legality` (`engine/put_on_stack.rs:654`), which returns its
+    reason as a `String`.
+  - Combat already has the shape this design wants. `can_block`
+    (`engine/combat/validation.rs:280`) returns a `CombatError`: the
+    pre-filter keeps the `Ok`s and the validator reports the `Err`. Then
+    `ui::display::combat_error` (`ui/display.rs:501`) words each error with
+    its rule.
+  - The attack side has its checks twice. `legal_attackers`
+    (`oracle/legality.rs:82`) filters silently, and `validate_attackers`
+    (`validation.rs:151`) returns the `CombatError`.
+- **The window's seat can carry a request while a question is open.**
+  `GuiSeat::ask` (`devgui/src/bridge.rs:334`) waits on the window's replies.
+  It already carries one out in place without closing the question: "Stop
+  yielding" (`:347`).
+- **The window's line can be replayed to the open question.** The save holds
+  every answer, and `Save::line_to` (`devgui/src/save.rs:193`) gives the line
+  to any place. A `Replay` with no seats behind it stops the run with
+  `Stop::LogSpent` at the next question (§7.2's decision 1). That leaves the
+  state as that question showed it.
+
+**Breadth, counted.** Every kind serves cards. The counts say how many, and
+which rules.
+
+The registry, from a probe that classified each card's definition (2026-10-05):
+
+| A why about … | Registered (181) | Of them in the performance pool (101) | What puts a card there |
+|---|---:|---:|---|
+| options: cast, play, activate, attack, block, target | 181 | 101 | every card is cast or played; 77 are creatures, 36 choose targets or objects, 15 have activated abilities and 24 mana abilities |
+| characteristics, through the layers | 47 | 33 | 23 static abilities with layer rows, 26 resolutions that make a continuous effect, 11 counters, 5 copies, 5 CDAs, 2 attach |
+| events changed: replacement, prevention, "can't" | 66 | 18 | 46 static replacements, 16 made by a resolution, 4 "can't" |
+| triggers | 11 | 7 | a triggered ability |
+
+Magic, from Scryfall (2026-10-05, `total_cards` with ` game:paper -is:funny`
+appended to each query):
+
+| | Cards | Query |
+|---|---:|---|
+| every card | 32,381 | `-t:token` |
+| a triggered ability | 14,149 | `(o:"when " or o:"whenever " or o:"at the beginning of")` |
+| a target | 12,212 | `o:"target"` |
+| a power or toughness change | 5,233 | `(o:"gets +" or o:"get +" or o:"gets -" or o:"get -" or o:"base power")` |
+| a "can't" | 1,830 | `o:"can't"` |
+| a replacement | 554 | `o:/would.*instead/` |
+| a prevention | 522 | `o:"prevent"` |
+
+The CR (`tmnt.txt`), counting numbered rules and subrules per section:
+- **options:** 601 (28), 602 (21), 117 (22), 305 (13), 508 (40), 509 (25),
+  115 (28), 732 (4);
+- **characteristics:** 613 (43), 604 (10), 611 (15), 122 (21), 707 (34);
+- **events:** 614 (39), 615 (17), 616 (11), 704 (41), 608 (26);
+- **triggers:** 603 (49), and 113.6's functioning zones.
+
+So options touch every card, and characteristics touch the subtlest rules:
+CR 613.8's dependencies, CR 613.6's locked sets and CR 604.2's existence.
+Triggers are the largest share of Magic, 44% of it, and TR-3 to TR-7 build
+them next; `roadmap-v2.md` A6g's row calls those phases "where visual testing
+pays most". Events changed are 37% of the registry today, and under a tenth of
+Magic.
+
+**The rules pass** (`engineering-practices.md` §8). For each kind: the rule
+that owns it, the rule that watches it, and the CR's own words for what the
+panel reports.
+- **Options.** CR 601.2 owns casting. **CR 601.3** watches it: "A player can
+  begin to cast a spell only if a rule or effect allows that player to cast it
+  and no rule or effect prohibits that player from casting it". **CR 732.1**
+  catches what 601.3 lets through: an action that is begun and cannot be
+  completed is reversed. So a missing option has two tiers, and the panel must
+  say which.
+  - **Never offered.** The enumeration's checks decide this tier: CR 601.3's
+    "can begin", 117.1a's timing, 305.2's land drop, and 508.1a and 509.1a's
+    attackers and blockers.
+  - **Offered, then reversed** (CR 732.1). A cost not paid in CR 601.2g's
+    window is the usual case. The sink records it as `priority_rejected`, and
+    the re-asked question already says it in `ui::display::rejection`'s words.
+
+  The enumeration over-approximates on purpose (`oracle/legality.rs`'s
+  header). An option it offers may still be reversed, but one it drops must
+  be impossible. So a "why not offered" reason is always a static one.
+- **Characteristics.** CR 613 owns them. **CR 604.2** and **611.3b** watch an
+  effect's existence: a static ability's effect exists while its source has
+  the ability. **CR 613.6** fixes the set an effect applies to where it
+  starts, and **CR 613.8** reorders a layer by dependency. Each of these is a
+  reason an effect did or did not reach an object, and the pass already
+  decides each.
+- **Events.** CR 614–616 own how an event is modified. **CR 614.17** and
+  **101.2** watch them: a "can't" is checked ahead of every replacement and
+  wins. So "why didn't it die?" is as often a "can't" (indestructible, CR
+  702.12b) as a replacement. **CR 704.3** watches every state-based death, and
+  the cause names its rule (`ZoneChangeCause::DestroyedBySba` is 704.5g,
+  `ZeroToughness` is 704.5f). **CR 608.2b** is an event that never happens: a
+  spell whose every target is illegal does not resolve.
+- **Triggers.** CR 603 owns them. **CR 113.6** watches which abilities function
+  in which zone, and an ability that does not function there is never asked.
+  **CR 603.10** looks back in time for a leaves-the-battlefield trigger. **CR
+  603.3d** removes a trigger that has no legal choice as it is put on the
+  stack.
+
+**Measured.** A throwaway probe on the owner's machine, 2026-10-05. The random
+agent played each board to its end, with the decision log recorded as the dev
+GUI records it. Then the game was replayed from its start to its last question. The
+debug rows use the dev GUI's debug engine: opt-level 1 with its debug checks on,
+as `devgui/Cargo.toml` builds it. There were ten games a board. The release
+sitting ran straight after a build, so its absolute times may read high.
+
+| Board | Answer lines a game | A live game: sink off → on | Trace a game | Replay to the last question, audits paused: sink off → on |
+|---|---:|---|---:|---|
+| `large.scenario` (188 objects, 2 seats), debug | 126–375 | 2.2–6.2 s → 2.1–6.5 s (−5% to +8%) | 252–680 KB | 9–27 ms → 13–34 ms |
+| the same, release | | 4.5–11.9 ms → 6.2–15.7 ms (+6% to +51%) | | 4.2–10.2 ms → 5.5–15.2 ms |
+| two seats, 60 cards, debug | 379–1,602 | 0.03–3.8 s → 0.04–3.7 s (−3% to +12%) | 0.5–2.5 MB | 3–40 ms → 7–62 ms |
+| the same, release | | 1.6–18 ms → 4.5–36 ms (+78% to +181%) | | 1.4–17 ms → 4.8–35 ms |
+| four seats, 100 cards, 40 life, debug | 1,968–3,465 | 1.8–11.4 s → 1.7–11.8 s (−7% to +6%) | 1.9–3.2 MB | 33–81 ms → 52–114 ms |
+| the same, release | | 16–34 ms → 30–54 ms (+48% to +98%) | | 15–34 ms → 29–56 ms |
+
+- **In the debug window the sink costs nothing measurable.** The layer memo's
+  audit is about 98% of a debug game (§7.1). The sink's own work can be read
+  off the paused replays, where the audit is off: 2–7 ms a game on the large
+  board, 5–22 ms at two seats and 19–36 ms at four. That is under 1% of a live
+  debug game on the large board and at four seats, and 0.6–4% at two seats,
+  all inside the run-to-run noise. The one exception was the shortest game, at
+  33 ms, where it was 15%. In release the sink adds 6% to 181% to the engine's
+  own work, which is still 2–11 µs an answer.
+- **A replay to the open question with the sink on takes about as long as a
+  click.** In debug it is 13–34 ms on the large board, and at most 114 ms late
+  in a four-seat game. A question halfway through a game replays in a third to
+  a half of that.
+- **A trace is 4–8 records an answer line**, and 0.25–3.2 MB a game.
+- **One layer pass on the large board costs 29 µs in release and 46 µs in
+  debug**, with the memo cold. The priority question's candidates cost 39–40 µs
+  in release. In debug they cost 39 ms with the memo's audit, and 86 µs
+  without it.
+
+### 7c.1 The decisions
+
+#### Decision 1 — what a why is about
+
+**The problem.** The four kinds differ in when their facts exist, and in what
+the engine has today. Characteristics and options are questions about the
+open question's board. Events and triggers are about a moment before it. The
+sink holds the facts for events and triggers, and none for characteristics or
+options.
+
+| | **A. Characteristics only** | **B. Now: characteristics and options** | **C. Then: events and triggers** (the row's "fed by the trace sink") | **D. All four, in three PRs** |
+|---|---|---|---|---|
+| Answers | "why is it a 1/1" | that, and "why can't I cast, attack or block with it" | "why did this happen this way", "why didn't it trigger" | all four of the brief's examples |
+| The engine adds | the pass's recorder, and its words | that, and the enumeration's reasons | a reader of the sink's lines, and one field on `pipeline` | all three |
+| Code, then tests | ~460–690, ~200–300 | ~750–1,140, ~350–520 | ~480–745, ~250–330 | ~1,050–1,615, ~500–750 |
+
+The sizes include the panel itself, ~180–270 lines of each option's code,
+which D builds once (§8 itemizes them). They are design estimates, and SU-1
+to SU-5 ran 1.0–2.5× their estimates on code.
+
+**Recommendation: D.** Build it as SU-6 (characteristics, and the panel), SU-7
+(options) and SU-8 (events and triggers). Each answers a surprise the brief
+names, and the measured costs make each cheap at a click.
+- **Characteristics and options are engine surfaces a second client wants
+  too.** v1's GUI (`backlog.md` §2.38) will want "why can't I cast this" as
+  much as the dev GUI does. That is `engineering-practices.md` §10's test for
+  an engine surface.
+- **Characteristics come first.** The layer system is the subsystem the
+  hand-written trace pages explain most (item 7, LI-1, CV-1, CV-2b, RG). The
+  hover already shows its answer but not how it was reached, and its recorder
+  exists.
+- **Triggers come last of the three, but only by dependency.** The trace half
+  needs the replay and the reader, and all three PRs land before TR-3.
+
+**The trimmed option is A or C alone**, at the row's ~400–700, with the other
+kinds filed as items with their slots.
+
+#### Decision 2 — where the facts come from
+
+**The problem.** The sink records what was consulted, in what order, and with
+what answer (`engineering-practices.md` §7.1), and it records only where an
+emit point sits. For each kind there are three places the facts could come
+from: the sink as it stands, new records, or an engine query asked at the open
+question.
+
+| Kind | The sink as it stands | New records | An engine query |
+|---|---|---|---|
+| Characteristics | `layer_walk`: the answer, with no applications, and nothing on a memo hit | a record for each application in each layer, in every traced pass: ~5–50 a pass, and still nothing for the frame a memo hit serves | **the pass run again for one object, with a recorder**: ~0.05 ms, and the memo is untouched |
+| Options | `decision` lists what was offered, and nothing says what was not | a record for each dropped candidate, at every traced priority question | **the enumeration's own checks, each naming its reason** |
+| Events | **`batch`, `pipeline`, `batch_end`, `event`**: the proposals, each CR 616.1 iteration, and what was performed | **one field**: `pipeline` names a member a "can't" blocked (CR 614.17), and the "can't"'s source | deciding a past event again at the open question reads today's board, not that one's |
+| Triggers | **`trigger`, `pending`**: each ability asked about a record, matched or refused by what, and its placement | — | the same as for events |
+
+**Recommendation: an engine query for the two kinds about now, and the sink
+for the two about then.**
+- A record for each application would put work in every traced pass for a
+  question asked about one object, and it would still miss the frame a memo
+  hit serves.
+- A query is the pass itself, with a recorder watching one object. It has the
+  dispatch audit's shape from TR-1b, "the same code with its shortcuts off";
+  here the shortcut is the memo.
+- Past events need the sink. Deciding one again at the open question would
+  read the board as it is now.
+
+What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
+1. **`layers::explain(game, id)`** (SU-6). It is `run_pass` with a recorder for
+   one object, in place of `compute_board_traced`'s list for one layer, and
+   `compute_non_member` with the same for a card no pass holds. It records
+   each application in each layer, in the order applied:
+   - what it is: an effect's rows, a CDA, a counter, or what the object
+     entered as;
+   - its source and its timestamp;
+   - what it did to the watched object. It applied, with the frame before and
+     after. Or it did not, because its filter or its zones exclude the object.
+     Or it is gone (CR 604.2), or locked out (CR 613.6);
+   - and whether it waited (CR 613.8): an application applied ahead of one
+     earlier in the key order says so.
+
+   Hypotheticals (`depends_on`'s journaled `perform`) record nothing. A debug
+   assertion holds the explanation's result equal to the frame the memo
+   serves.
+2. **The enumeration's reasons** (SU-7). Each check in `playable_lands`,
+   `castable_spells` and `activatable_abilities` becomes a function that
+   returns why it refuses. The enumeration keeps its `Ok`s, and the why
+   reports its reasons, as `can_block` already does.
+   - `legal_attackers` takes `validate_attackers`' per-creature check the same
+     way, so the attack side has one road, as the block side does.
+   - `check_cast_legality`'s `String`s become the same typed reasons, so
+     enumeration and enforcement share one check. That is `codebase-state.md`
+     item 188's class: two roads to one answer.
+   - `ui::display` words each reason with its rule, beside `combat_error`.
+3. **A reader of the sink's lines** (SU-8), in `state::trace` beside the
+   writer, as its inverse. It gives a record's kind and fields, for the panel
+   to select by. So the format has one owner, and a round-trip test against
+   `Record` holds the two halves equal.
+4. **`pipeline` names what a "can't" blocked** (SU-8). `is_prohibited`
+   (`engine/restriction/predicate.rs:60`) gains a form that returns the
+   restriction's source, and the iteration record writes it for each member.
+
+**Every why comes back as one value, `ui::why::Why`**: a title, and sections
+of lines, each line with its words, its rule, and the objects it names. The
+engine words it, from the explanation, the reasons or the records. So the
+window draws a list and never a case per mechanic, as A6g's row requires:
+"the GUI draws only the engine's generic surfaces".
+
+#### Decision 3 — when the facts are gathered
+
+**The problem.** A question about now needs the state at the open question. A
+question about then needs the sink's records up to it. Today the window's game
+runs with no sink attached.
+
+| | **A. Live: a sink on every game the window plays** | **B. On demand: a replay to the open question, with the sink on** | **C. Now at the seat, then by a replay** |
+|---|---|---|---|
+| Questions about now | asked at the seat, while the question is open | answered on the replayed game, stopped at the open question | **asked at the seat**, which answers while the question stays open, as it carries out "Stop yielding" |
+| Questions about then | read from the game's own records, kept in memory | read from the replay's records | **read from a replay's records**, built again at the click |
+| Cost, debug | within the run-to-run noise during play, but 0.25–3.2 MB kept a game and the records parsed at each click | a replay a click: 13–34 ms on the large board, at most 114 ms late in a four-seat game | at most 0.1 ms a question about now, and a replay a question about then |
+| Cost, release | +6% to +181% of the engine's own work, 2–11 µs an answer | 5–56 ms a click | at most 0.1 ms a question about now, and 5–56 ms a question about then |
+| Upkeep | every game the window plays carries an observer and its memory, and each Undo or savestate rebuilds the record from its replay | Undo's rebuild path, without the hand-over (where a replay gives the game to the seats): one more thread, over the line the save already has | both paths, each the cheaper one for its kind of question |
+
+**Recommendation: C.**
+- **A question about now is answered where the state already is**, at the
+  cost of a pass.
+- **A question about then pays for a replay at the click.** That is the
+  brief's own suggestion, and the measurements put it at about a click's wait.
+  Nothing about live play changes, and the window keeps no trace.
+- **The replay is Undo answer's rebuild (§7.3), with three differences**: the
+  sink is attached, the line is the window's current one, and no seat stands
+  behind it, so it stops at the open question (`Stop::LogSpent`). It runs on a
+  thread of its own while the game's own thread keeps waiting at the question.
+  Its audits are paused, as an undo's are, since this build checked every
+  answer on the line as it was given.
+
+**Asking at the seat is safe, because the explanation only reads.**
+- Its reads can fill the layer memo at the current epoch, with the frames a
+  later read would compute anyway. The memo's audit holds the two equal.
+- Its reads also count in the diagnostics, which the dev GUI shows nowhere.
+- The test plays a game with every object's why asked at every question, and
+  the same game with none asked. They must have the same events and the same
+  decision log.
+- In debug the explanation runs with the memo's audit paused, since the
+  snapshot has just audited the same frames at this question.
+
+#### Decision 4 — what the window shows, and how a tester gets there
+
+**Getting there.**
+- A right-click on anything the board draws as an object or a player asks why
+  of it: a permanent, a card in any zone, a stack object, or a player's line.
+- A left click keeps its meaning, so a why never answers the question by
+  accident. So the settling beat, the 0.3 s after a question arrives when the
+  window drops clicks (`codebase-state.md` item 201), has no need to drop a
+  why.
+- In SU-8, a right-click on a log line asks why of that event.
+- Each object named in the panel's lines links to its own why, and a Back
+  button retraces the path taken.
+
+**The panel follows its object.** While the panel is open, each new question's
+message carries the why of the object it shows. The seat answers it beside the
+snapshot, for about 0.1 ms a question. So the panel is never stale: following a
+creature through combat shows each change as it happens. A question about then
+is answered once, at its click, and marked with the question it was asked at.
+
+**What it shows**, in sections:
+1. **At this question** (SU-7). It says whether the object is among the open
+   question's options, and as which. If not, it says why and on which tier:
+   never offered, or offered and then reversed (CR 732.1).
+2. **What the layers did** (SU-6). The printed card comes first. Then each
+   application that reached the object, in the order applied, with its layer,
+   source, timestamp, the ability's own text, and what it changed ("power 4 →
+   1"). Then each application that reached the object's zone but not the
+   object, with the reason. Last comes the result, which matches the hover.
+3. **What happened** (SU-8). For an event, it shows the event's batch as the
+   trace viewer draws it (`plans/traces/viewer.html`), and every triggered
+   ability asked about it, matched or refused and by what.
+
+**Where it goes.** A panel on the window's left, beside the board, opened by
+the right-click and closed by its ×. The board stays in view, and the log and
+the stack keep the right side. The other choice was a floating window, which
+can cover the very cards it explains. Layout is the client's to decide
+(`engineering-practices.md` §10), so this is a recommendation, and nothing in
+the engine depends on it.
+
+#### Decision 5 — where this design lives
+
+| | Home | Fit |
+|---|---|---|
+| **a** | **this file, §7c**, beside the tools | the panel is built from the tools' parts (§7.1–§7.3): the save's line, the replay and its stop, the seat's loop. `devgui-map.md` §9 already sends a reader to this file for the tools, and the panel's PRs take this file's codes, as SU-4 and SU-5 did |
+| b | `engineering-practices.md` §7, beside the trace pages | the panel is tier 2's reader (§7.1), but that file is process, and a design with decisions and phases does not belong in it |
+| c | a new doc on `CLAUDE.md`'s architecture row | the row holds one doc per CR subsystem. This would be its first doc that is not one, which §9 declined for the loader |
+| d | each engine surface in its subsystem's doc, and the panel here | the layer recorder would go in `layers-architecture.md`, and the reasons beside `cost-architecture.md` §3.6's "enumeration and enforcement must agree". That is five places to read one design |
+
+**Recommendation: a.** Each other doc gets one line where an invariant lives:
+- at SU-6's build, `layers-architecture.md` §13b gains that the recorder is
+  the pass, with no second walk;
+- at SU-7's, `cost-architecture.md` §3.6 gains that the reasons are one check,
+  shared by the enumeration and the enforcement;
+- at SU-8's, `engineering-practices.md` §7.1 gains a pointer here, as tier 2's
+  reader in the window.
+
+`CLAUDE.md` does not change.
+
+### 7c.2 The surfaces, sketched
+
+Each is a shape for the build to refine, not a type list to copy.
+
+```rust
+// engine::layers (SU-6): the pass, recording for one object.
+pub fn explain(game: &GameState, id: ObjectId) -> Option<LayerExplanation>;
+// One step: the application, its layer, timestamp and source, and what it did to `id`:
+// Applied { before, after }, NotMatched, NotInItsZones, Gone (CR 604.2) or LockedOut (CR 613.6).
+
+// oracle (SU-7): one check for the enumeration and the enforcement.
+pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<(), CannotCast>;
+let castable = hand.iter().filter(|&&card| can_cast(game, player, card).is_ok());
+
+// ui::why: what every client draws.
+pub fn why(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>) -> Why;
+pub struct WhyLine { pub text: String, pub rule: Option<&'static str>, pub names: Vec<ObjectId> }
+```
+
+**The bridge** (SU-6). The window sends `Reply::Why(Some(about))`, and the seat
+stores what the panel shows. It answers at once with `ToWindow::Why`, and while
+the panel stays open it puts `why: Option<Why>` in each `ToWindow::Prompt`.
+`Reply::Why(None)` closes the panel. In SU-8, `Session` starts the replay
+thread for a question about then, and its answer arrives as `ToWindow::Why`
+too. A newer replay supersedes an older one, as an undo's does.
+
+**When no question is open**, the right-click is off, with a line saying why,
+as Savestate is. That covers the engine playing between questions, a replay on
+its way, and a game that has ended. After SU-8, a game that has ended answers
+through the replay of its whole line.
+
+**What each PR's review runs**, in Magic terms:
+- **SU-6.** Load `humility-opalescence.scenario`, then right-click Serra
+  Angel. The panel says 1/1 with no abilities: layer 6 takes flying and
+  vigilance, layer 7b sets base 1/1, and Opalescence does not apply to it
+  because it is not an enchantment. Right-click Humility: Opalescence makes it
+  a creature at layer 4, its own ability strips it at layer 6, and at 7b
+  Opalescence's 4/4 comes before Humility's 1/1 by timestamp (CR 613.7). Swap
+  the two lines in the editor, Play, and ask again.
+- **SU-7.** On `main.scenario`, right-click Grizzly Bears in the hand: the
+  mana is short. Pass to Player 1's turn and ask again: now it is the timing.
+  On `blocks.scenario`, edit in a Serra Angel attacking and right-click Wall of
+  Stone at the block: it cannot block the flyer.
+- **SU-8.** On `bolt-into-giant-growth.scenario`, let the stack resolve, then
+  right-click the log line where Lightning Bolt deals its damage. The panel
+  lists that event's batch, its CR 616.1 iterations and the triggers asked
+  about it. Then right-click the Bears: Giant Growth at layer 7c and the
+  Thaumaturgist's switch at 7d say why the damage was or was not lethal.
+
+**Random clicks** (`engineering-practices.md` §10.3) gain right-clicks on the
+board, and clicks on the panel's links. A why click must change what the panel
+shows or refresh it, and the engine must answer every why without panicking.
+In debug that runs the explanation's equality assertion against the memo across
+whole random games, which is the recorder's widest test.
+
+### 7c.3 Found while designing
+
+1. **A debug build's trace carries records a release build's does not.**
+   `check_order_invariance` (`engine/replacement/pipeline.rs:1597`) is a
+   debug-only self-check, and its `gather` builds a CR 614.12 look-ahead. That
+   look-ahead writes a `layer_walk` record (`membership: "entering"`) and
+   counts its walks. Release returns before any of it. The probe's two-seat
+   seed 12353 wrote 412 walks in release and 417 in debug. The diff is those
+   five records alone, and every other game matched byte for byte. The sink's
+   own module doc says why that matters: a debug trace that differs from a
+   release one breaks regenerating a page's spine from a test. Filed as
+   `codebase-state.md` item 210, slotted to SU-8, the first PR that reads a
+   debug engine's trace in the window.
+
+---
+
 ## 8. The build, sized
 
 **The editor's advanced settings** (§7b.2's decision 2, B; A6g's row, after
@@ -1759,6 +2293,86 @@ the grammar first at ~40–60. SU-3's own code came in at 1.5–2.1 times its
 sizing, nearly all of it in the dev GUI, which may run looser than the engine
 (the owner, 2026-10-03; §8's ✅ section).
 
+**The why panel** (§7c, proposed 2026-10-05 and not decided) is three PRs, in
+the order §7c.1's decision 1 recommends. Each size gives code, then tests, at
+this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
+
+### SU-6 — the why panel, and what the layers did (proposed)
+
+**The engine, ~280–420.**
+- `layers::explain`: the recorder in `run_pass`, `perform` and
+  `compute_non_member`, ~110–160;
+- its types and its entry, ~50–80;
+- `ui::why`'s value, and the words of the layer section: a frame's changes
+  field by field, destructured with no `..` so that a new field must answer,
+  ~120–180.
+
+**The dev GUI, ~180–270.**
+- `Reply::Why` and the seat following its object, ~40–60;
+- the view model's panel, with Back, ~80–120;
+- the drawing, ~50–80, and the right-click on each item, ~10.
+
+**Tests, ~200–300.**
+- the explanation on these boards: Humility and Opalescence in both orders;
+  Blood Moon and Urborg's dependency; an anthem that does not apply; a CR
+  613.6 lock; a counter; a CDA; and a card in a library that a row reaches;
+- its equality with the memo's frame;
+- a game with every why asked, against the same game with none;
+- the bridge's round trip, the view model, random clicks with right-clicks,
+  and a review picture.
+
+**A/B.** `run_pass` takes a recorder, which every game path passes as `None`.
+Predicted `IDENTICAL` on every counter, and instructions within ±0.3%.
+`prompt_cost` reads a why on the large board's busiest object
+(`engineering-practices.md` §10.4).
+
+### SU-7 — why an option is not offered (proposed)
+
+**The engine, ~280–430.**
+- the reasons, typed and worded, ~80–120;
+- the enumeration's checks as functions that return them (`can_cast`,
+  `can_play_land`, `can_activate` and `can_attack`), ~120–180, much of it
+  moved rather than written;
+- `check_cast_legality` on the same reasons, ~20–40;
+- the why's section for the open question, ~60–90.
+
+**The dev GUI, ~10–20**: the section's heading.
+
+**Tests, ~150–220.** One per family of reasons, each reached on a board, and
+each shown to fail first where it moves a check.
+
+**A/B.** The priority question's candidates are built by the same checks, in
+the same order. Predicted `IDENTICAL` on every counter, and instructions within
+±0.3%.
+
+### SU-8 — what happened, from the trace (proposed)
+
+**The engine, ~190–295.**
+- the reader of the sink's lines, ~90–130;
+- `is_prohibited`'s form that names the restriction, and the `pipeline`
+  record's field, ~25–45;
+- the why's sections for an event and for an object's triggers, ~70–110;
+- item 210's fix, ~5–10.
+
+**The dev GUI, ~110–180.**
+- the replay thread for a question about then, with its stop and its
+  supersession, ~70–110;
+- each log line's event number in the snapshot, and the right-click on it,
+  ~30–50;
+- the sections drawn, ~10–20.
+
+**Tests, ~150–230.**
+- the reader's round trip against every record kind;
+- an event's batch read back on `bolt-into-giant-growth.scenario`;
+- a "can't" named: an indestructible creature with lethal damage;
+- a trigger refused by its intervening "if";
+- in the headless tests, the replay stopping at the open question.
+
+**A/B.** No record is written in a fuzz game unless `--trace` asks for it.
+Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
+`--trace`, the `pipeline` record's new field is the only change in its text.
+
+**In all:** ~1,050–1,615 lines of code and ~500–750 of tests.
 ### SU-5 — the tools — ✅ landed 2026-10-04
 
 **What shipped.** §7.1–§7.3's window half, as decided at #212 and #216.
@@ -1983,4 +2597,7 @@ save, undo and savestates (A6g's tools, SU-4 and SU-5); item 193 (playable); the
 stack and resolved effects as written state (§2), which SU-2's setup actions
 play instead; a script for a seat during play (§5.3, dropped at review); the
 board editor (SU-3, §7b); CR 103.5's mulligans and CR 103.6's opening-hand
-actions, named in the header and owned elsewhere.
+actions, named in the header and owned elsewhere. For the why panel (§7c): a
+why in `cli_play`, which `ui::why` makes possible since it is the engine's,
+but which nothing builds; and a why about an earlier question's board, which is
+Undo answer or a savestate away.
