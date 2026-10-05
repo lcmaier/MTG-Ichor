@@ -46,7 +46,7 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%.
 ### Sized against built
 
 Lines added, a `src` file's `#[cfg(test)]` module and `devgui/examples/`
-counted as tests, read off the PR's last code commit (`5d900c1`): each
+counted as tests, read off the PR's last code commit (`92a3334`): each
 file's additions in the whole diff.
 
 | Part | Where | Code, sized | Code, built | Tests, sized | Tests, built |
@@ -54,15 +54,15 @@ file's additions in the whole diff.
 | The recorder in the pass, `perform` and the non-member walk | `board.rs`, `compute.rs` | 110–160 | 268 | | 19, the layer tests' hook |
 | The explanation's types and its entry | `explain.rs`, `layers/mod.rs` | 50–80 | 191 | | |
 | The why's value, and the layer section's words | `ui/why.rs`, `ui/mod.rs` | 120–180 | 361 | | 299, `phase_su6_integration_test.rs` |
-| `Reply::Why`, and the seat following its object | `prompt.rs`, `bridge.rs`, `session.rs` | 40–60 | 61 | | |
+| `Reply::Why`, and the seat following its object | `prompt.rs`, `bridge.rs`, `session.rs` | 40–60 | 68 | | |
 | The view model's panel, with Back, and the hover's hint | `view_model.rs` | 80–120 | 123 | | 57 |
 | The drawing, and the right-click on each item | `app.rs` | 60–90 | 51 | | |
-| The panel's tests, random clicks with right-clicks, the picture, `prompt_cost` | `devgui/tests/`, `devgui/examples/` | | | | 225 |
-| **SU-6, the whole diff** | | **460–690** | **1,055** | **200–300** | **600** |
+| The panel's tests, random clicks with right-clicks, the picture, `prompt_cost` | `devgui/tests/`, `devgui/examples/` | | | | 247 |
+| **SU-6, the whole diff** | | **460–690** | **1,062** | **200–300** | **622** |
 
 CI's test step adds six lines. Code ran at 1.5–2.3 times its sizing, inside
-the 1.0–2.5 SU-1 to SU-5 ran at, and tests at 2.0–3.0. The engine ran over
-and the dev GUI did not: 820 against 280–420, and 235 against 180–270. The
+the 1.0–2.5 SU-1 to SU-5 ran at, and tests at 2.1–3.1. The engine ran over
+and the dev GUI did not: 820 against 280–420, and 242 against 180–270. The
 sizing left out most of what an explanation has to say. `ui::why` words
 every characteristic a frame has, each a field's change, where the sizing
 counted the change list alone; it summarizes a frame for the printed card
@@ -72,7 +72,7 @@ with a route for each of the four pass memberships. The pass gained `Own`,
 which names a member's own applications at the four sites that push one,
 and `could_name` and `missed`, which decide before an application applies
 what it would do to the object. The band stayed under 2,500 at every
-commit: 1,655 in all.
+commit: 1,684 in all.
 
 ### What the build changed in the design
 
@@ -103,10 +103,14 @@ commit: 1,655 in all.
 7. **The memo's audit is not paused in debug** (decision 3, amended where it
    stands): a why at a question costs 1.9 ms there, audit and all, beside the
    snapshot's 33 ms.
-8. **The panel is kept across Reload and Undo.** The rebuilt game's seat is
-   told the object (`Play::watching`) and answers about it at its first
-   question, since a rebuilt game numbers its objects alike. A load clears
-   it, as another game's objects may be anything.
+8. **The panel is kept across Undo answer, the savestates and an unchanged
+   board's Reload.** The rebuilt game's seat is told the object
+   (`Play::watching`) and answers about it at its first question, since
+   the same start numbers its objects alike. Any other start closes it, a
+   load among them: a board edited since, or a dealt game's new seed, can
+   give the id another card. As first built, Play after swapping Humility
+   and Opalescence in the editor followed #22 onto Opalescence (`92a3334`,
+   with a test that fails on the tree before it).
 9. **A player's line moved to SU-7** (decision 4, amended): the layers say
    nothing about a player, and SU-7's section is the first that does.
 10. **With no question open, an object's hover says a right-click asks

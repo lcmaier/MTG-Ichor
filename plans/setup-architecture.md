@@ -2360,7 +2360,7 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 `--trace`, the `pipeline` record's new field is the only change in its text.
 
 **In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
-#220. SU-6 landed at 1,055 and 600; SU-7 and SU-8, as sized above, are
+#220. SU-6 landed at 1,062 and 622; SU-7 and SU-8, as sized above, are
 ~610–960 and ~300–450 more.
 
 ### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
@@ -2379,14 +2379,14 @@ result, each line with its rule and a link for each object it names. In the
 dev GUI a right-click on an object asks why at the open question, the seat
 answers beside the snapshot, and the panel on the window's left follows its
 object from question to question, with links, Back and ×, kept across
-Reload and Undo.
+Undo and an unchanged board's Reload.
 
 **What moved on the way in.** Each step keeps every object it reached, which
 the panel names and LI-2's one-layer test hook now reads. `Kind::Own` names
 which of a member's own applications it is. A change reads "from 4/4 to
 1/1", since the window's font has no arrow. A player's line moved to SU-7,
 and the memo's audit is not paused in debug (§7c.1's decisions 3 and 4,
-amended where they stand). It landed at +1,055 code and +600 tests, against
+amended where they stand). It landed at +1,062 code and +622 tests, against
 460–690 and 200–300 sized.
 
 **Measured.** `close_out.py` against #219's merge: each counter file

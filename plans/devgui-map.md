@@ -5,7 +5,7 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `5d900c1`, SU-6's last code commit, 2026-10-05.
+§7. Read at `92a3334`, SU-6's last code commit, 2026-10-05.
 
 ## 1. What it is
 
@@ -127,7 +127,7 @@ From `devgui/`, where `cargo run` runs the window:
 - `tests/why_panel.rs`: the why panel through the session on the Humility
   sample: a right-click answered at the open question, the panel following
   its object to the next question and through Undo answer, its links, Back
-  and close.
+  and close, and a Reload keeping it only on the same board.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new.
@@ -189,8 +189,9 @@ line's rule.
   progress and need not wait out the beat after a prompt arrives.
 - **The panel follows its object.** The seat keeps the object the panel
   shows, and each later question's message carries its why. The session
-  keeps the panel across Undo answer, a savestate and Reload, whose games
-  number objects alike, and closes it at `--load`.
+  keeps the panel across Undo answer, a savestate and a Reload of the same
+  start, whose games number objects alike, and closes it at any other
+  start, `--load` among them.
 - **The words are the engine's.** The panel lays out the engine's sections
   and lines; `WindowState::why_view` adds a link for each object a line
   names, Back, and a close, and `app.rs` draws them (`why_panel`). With no
