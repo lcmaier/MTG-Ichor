@@ -7,6 +7,7 @@
 
 use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
 use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
+use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
@@ -15,19 +16,36 @@ use crate::types::zones::Zone;
 use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
 
-/// Check if a creature can attack (not summoning-sick, or has haste).
-/// Rule 702.10b: Haste bypasses summoning sickness for attacking.
+/// Can `player_id` declare `id` as an attacker (CR 508.1a)? One check for the
+/// enumeration and the declaration: the declare-attackers question offers what
+/// it allows, and `validate_attackers` refuses what it refuses, so attacking
+/// has one road, as blocking has `can_block`.
 ///
 /// The creature check is part of the answer, not the caller's job: CR 508.1a
 /// lets only creatures be declared as attackers, and `has_summoning_sickness`
-/// is false for a noncreature permanent — so without it this would report that
-/// an untapped Sol Ring can attack.
-pub fn can_attack(game: &GameState, id: ObjectId) -> bool {
-    if game.battlefield.contains_key(&id) {
-        is_creature(game, id) && !has_summoning_sickness(game, id)
-    } else {
-        false
+/// is false for a noncreature permanent, so without it an untapped Sol Ring
+/// could attack.
+pub fn can_attack(game: &GameState, player_id: PlayerId, id: ObjectId) -> Result<(), CombatError> {
+    let entry = game.battlefield.get(&id).ok_or(CombatError::NotOnBattlefield(id))?;
+    // Effective controller (CR 613.1b): the creature you stole this turn
+    // attacks for you, which is what the haste clause is buying.
+    if !controls(game, id, player_id) {
+        return Err(CombatError::NotControlledByPlayer(id, player_id));
     }
+    if !is_creature(game, id) {
+        return Err(CombatError::NotACreature(id));
+    }
+    if entry.tapped {
+        return Err(CombatError::CreatureIsTapped(id));
+    }
+    // CR 302.6, which haste lifts (CR 702.10b).
+    if !is_creature(game, id) || has_summoning_sickness(game, id) {
+        return Err(CombatError::CreatureHasSummoningSickness(id));
+    }
+    if has_keyword(game, id, KeywordFlag::Defender) {
+        return Err(CombatError::HasDefender(id));
+    }
+    Ok(())
 }
 
 /// Why a card is not offered to play as a land at a priority question.
@@ -95,36 +113,16 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
     player.hand.iter().copied().filter(|&id| can_play_land(game, player_id, id).is_ok()).collect()
 }
 
-/// Get all creatures controlled by a player that can legally be declared as attackers.
+/// Get all creatures controlled by a player that can legally be declared as
+/// attackers: each one [`can_attack`] allows.
 ///
 /// Ordered by `battlefield_ordered` — a `DecisionProvider` picks by index, so
 /// the order this returns in is part of the decision, not a presentation
 /// detail.
-///
-/// Checks per-creature legality (rule 508.1a): on battlefield, is a creature,
-/// controlled by player, untapped, not summoning-sick (or has haste), no defender.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered().into_iter()
-        .filter_map(|(id, entry)| {
-            // Effective controller (CR 613.1b): the creature you stole this turn
-            // attacks for you, which is what the haste clause is buying.
-            if !controls(game, id, player_id) {
-                return None;
-            }
-            if !is_creature(game, id) {
-                return None;
-            }
-            if entry.tapped {
-                return None;
-            }
-            if !can_attack(game, id) {
-                return None;
-            }
-            if has_keyword(game, id, KeywordFlag::Defender) {
-                return None;
-            }
-            Some(id)
-        })
+    game.battlefield_ordered()
+        .into_iter()
+        .filter_map(|(id, _)| can_attack(game, player_id, id).is_ok().then_some(id))
         .collect()
 }
 
@@ -340,7 +338,7 @@ mod tests {
 
         assert!(!crate::oracle::characteristics::is_creature(&game, sol_ring));
         assert!(!has_summoning_sickness(&game, sol_ring), "not a creature, not sick");
-        assert!(!can_attack(&game, sol_ring));
+        assert_eq!(can_attack(&game, 0, sol_ring), Err(CombatError::NotACreature(sol_ring)));
     }
 
     #[test]
@@ -355,7 +353,7 @@ mod tests {
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
-        assert!(can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Ok(()));
     }
 
     #[test]
@@ -369,7 +367,7 @@ mod tests {
         let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
-        assert!(!can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Err(CombatError::CreatureHasSummoningSickness(id)));
     }
 
     #[test]
@@ -384,14 +382,14 @@ mod tests {
         let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
-        assert!(can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Ok(()));
     }
 
     #[test]
     fn test_can_attack_not_on_battlefield() {
         let game = GameState::new(2, 20);
         let fake_id = crate::types::ids::new_object_id();
-        assert!(!can_attack(&game, fake_id));
+        assert_eq!(can_attack(&game, 0, fake_id), Err(CombatError::NotOnBattlefield(fake_id)));
     }
 
     // --- playable_lands tests ---
