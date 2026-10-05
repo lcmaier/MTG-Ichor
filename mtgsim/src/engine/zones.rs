@@ -12,7 +12,6 @@ use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
@@ -296,54 +295,18 @@ impl GameState {
         Ok(Some(card_id))
     }
 
-    /// Play a land to the battlefield (special action, not a spell).
-    ///
-    /// The `from` parameter specifies which zone the land is being played from.
-    /// Normally this is `Zone::Hand`, but continuous effects can allow playing
-    /// lands from other zones (e.g. graveyard via Crucible of Worlds).
+    /// Play a land from its owner's hand to the battlefield (special action,
+    /// not a spell). Playing one from another zone, as Conduit of Worlds
+    /// allows, is a permission, which `cant-effects-architecture.md` §4.3
+    /// asks with the same query as a prohibition (RS-2).
     pub fn play_land(
         &mut self,
         player_id: PlayerId,
         card_id: ObjectId,
-        from: Zone,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        // Rule 505.6b: Only the active player can play a land
-        if player_id != self.active_player {
-            return Err("Only the active player can play a land".to_string());
-        }
-
-        // Rule 505.6b: Lands can only be played during a main phase
-        match self.phase.phase_type {
-            crate::state::game_state::PhaseType::Precombat
-            | crate::state::game_state::PhaseType::Postcombat => {}
-            _ => return Err("Lands can only be played during a main phase".to_string()),
-        }
-
-        // Rule 505.6b: Stack must be empty to play a land
-        if !self.stack.is_empty() {
-            return Err("Cannot play a land while the stack is not empty".to_string());
-        }
-
-        let obj = self.get_object(card_id)?;
-        if obj.zone != from {
-            return Err(format!("Card is not in {:?}", from));
-        }
-        if obj.owner != player_id {
-            return Err("Can only play your own lands".to_string());
-        }
-        // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
-        // play-from-hand legality, which happens before the object is a permanent,
-        // so the layer system has nothing to contribute. Same exemption as
-        // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
-        if !obj.card_data.types.contains(&CardType::Land) {
-            return Err("This card is not a land".to_string());
-        }
-
-        let player = self.get_player(player_id)?;
-        if !player.can_play_land() {
-            return Err("Already played maximum lands this turn".to_string());
-        }
+        // The check the enumeration asks, so the two agree.
+        crate::oracle::legality::can_play_land(self, player_id, card_id).map_err(|reason| reason.to_string())?;
 
         // Through the chokepoint: CR 305.1 makes playing a land a special action
         // that still puts a permanent onto the battlefield, so every ETB
@@ -705,7 +668,7 @@ mod tests {
         game.players[0].hand.push(forest_id);
 
         // Play it
-        game.play_land(0, forest_id, Zone::Hand, &test_ctx()).unwrap();
+        game.play_land(0, forest_id, &test_ctx()).unwrap();
 
         assert!(game.players[0].hand.len() == 1); // drew 1 card during draw step
         assert!(game.battlefield.contains_key(&forest_id));
@@ -719,7 +682,7 @@ mod tests {
         let forest2_id = game.add_object(forest2);
         game.players[0].hand.push(forest2_id);
 
-        let result = game.play_land(0, forest2_id, Zone::Hand, &test_ctx());
+        let result = game.play_land(0, forest2_id, &test_ctx());
         assert!(result.is_err());
     }
 
@@ -733,7 +696,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[0].hand.push(forest_id);
 
-        let result = game.play_land(0, forest_id, Zone::Hand, &test_ctx());
+        let result = game.play_land(0, forest_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("main phase"));
     }
@@ -753,7 +716,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[1].hand.push(forest_id);
 
-        let result = game.play_land(1, forest_id, Zone::Hand, &test_ctx());
+        let result = game.play_land(1, forest_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("active player"));
     }

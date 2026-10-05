@@ -15,7 +15,6 @@ use std::sync::Arc;
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
-use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
@@ -26,7 +25,8 @@ use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::{
-    enumerate_activatable_mana_abilities, remaining_cost_after_pool,
+    can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, enumerate_activatable_mana_abilities,
+    remaining_cost_after_pool, CannotActivate,
 };
 use crate::ui::ask::{
     ask_activate_mana_ability,
@@ -34,6 +34,26 @@ use crate::ui::ask::{
     ask_choose_x_value, ask_select_recipients,
 };
 use crate::ui::decision::DecisionProvider;
+
+/// Which of CR 307.1's three conditions a sorcery-speed action missed, in the
+/// order `GameState::check_sorcery_timing` asks them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SorceryTiming {
+    NotYourTurn,
+    NotAMainPhase,
+    StackNotEmpty,
+}
+
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for SorceryTiming {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SorceryTiming::NotYourTurn => "Only the active player can act at sorcery speed",
+            SorceryTiming::NotAMainPhase => "Sorcery speed is only available during a main phase",
+            SorceryTiming::StackNotEmpty => "Sorcery speed requires an empty stack",
+        })
+    }
+}
 
 impl GameState {
     /// Cast a spell from hand onto the stack (rule 601.2).
@@ -56,7 +76,8 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // --- Pre-proposal legality check (rule 601.3) ---
-        self.check_cast_legality(player_id, card_id)?;
+        // The check the enumeration asks, so the two agree.
+        can_begin_to_cast(self, player_id, card_id).map_err(|reason| reason.to_string())?;
 
         // Casting is not itself a resolution (CR 601), so no resolution stamp.
         let actx = ActionContext::new(decisions);
@@ -236,7 +257,7 @@ impl GameState {
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
             // CR 601.2 rewind, not a zone change — see rollback_cast_to_hand.
             self.rollback_cast_to_hand(card_id)?;
-            return Err(e);
+            return Err(e.to_string());
         }
 
         // Every choice the payment needs, taken against the board as it stands
@@ -364,26 +385,11 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // On the battlefield, and this player's: activating from another zone is
-        // `backlog.md` §2.8's.
+        // `backlog.md` §2.8's. The checks the enumeration asks, so the two agree.
         if !self.battlefield.contains_key(&source_id) {
-            return Err(format!("Permanent {} not on battlefield", source_id));
+            return Err(CannotActivate::NotOnBattlefield.to_string());
         }
-        // CR 602.1a's *default*, not a universal rule: an activated ability is
-        // activated by the object's controller unless the ability says
-        // otherwise, and 41 printed cards say otherwise with "Any player may
-        // activate this ability" (Aether Storm, Excavation, Feral Hydra). That
-        // permission is unmodeled — `AbilityDef` has nowhere to record it — so
-        // this rejects an activation those cards would allow. Deferred
-        // Migrations, "Before card breadth".
-        //
-        // Effective controller, not the battlefield field, so a stolen
-        // permanent answers to whoever stole it (CR 613.1b).
-        if !crate::oracle::characteristics::controls(self, source_id, player_id) {
-            return Err(
-                "Only this permanent's controller can activate its abilities (CR 602.1a; \"any player may activate\" is not yet modeled)"
-                    .to_string(),
-            );
-        }
+        can_activate_its_abilities(self, player_id, source_id).map_err(|reason| reason.to_string())?;
 
         let card_data = self.get_object(source_id)?.card_data.clone();
         // `ability_index` indexes the EFFECTIVE ability list — see the matching
@@ -391,18 +397,7 @@ impl GameState {
         let abilities = crate::oracle::characteristics::get_effective_abilities(self, source_id);
         let ability = abilities.get(ability_index)
             .ok_or_else(|| format!("Ability index {} out of range", ability_index))?;
-
-        if ability.ability_type == AbilityType::Mana {
-            return Err("Use activate_mana_ability for mana abilities".to_string());
-        }
-        if ability.ability_type != AbilityType::Activated {
-            return Err(format!("Ability at index {} is not an activated ability", ability_index));
-        }
-        // CR 602.5d. The enforcement: `activatable_abilities` keeps a
-        // restricted ability out of the window, and this refuses it anyway.
-        if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery {
-            self.check_sorcery_timing(player_id)?;
-        }
+        can_begin_to_activate(self, player_id, ability).map_err(|reason| reason.to_string())?;
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
@@ -474,7 +469,7 @@ impl GameState {
         // ask how the generic part is split, then pay.
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
-            return Err(e);
+            return Err(e.to_string());
         }
         let actx = ActionContext::new(decisions);
         let plan = match self.plan_payment(&ability_costs, player_id, source_id, &actx) {
@@ -638,57 +633,17 @@ impl GameState {
         self.remove_object(ability_obj_id);
     }
 
-    /// Check whether a player can legally begin casting a spell (rule 601.3).
-    ///
-    /// # Future extensibility
-    /// Currently hard-codes Zone::Hand as the only legal cast zone. This will
-    /// need to become a query against "cast permissions" once we implement:
-    /// - **Flashback** (cast from graveyard, rule 702.33)
-    /// - **Cascade / Impulse draw** (cast from exile)
-    /// - **Cycling-adjacent** cast-from-zone effects
-    ///
-    /// The planned approach: introduce a `CastPermission` enum or trait that
-    /// cards/effects register on the GameState (e.g. "player X may cast card Y
-    /// from zone Z this turn"). `check_cast_legality` would then check the
-    /// card's current zone against any active permissions, defaulting to Hand.
-    fn check_cast_legality(
-        &self,
-        player_id: PlayerId,
-        card_id: ObjectId,
-    ) -> Result<(), String> {
-        let obj = self.get_object(card_id)?;
-
-        // In hand: casting from another zone is `backlog.md` §2.3's.
-        if obj.zone != Zone::Hand {
-            return Err(format!("Card is in {:?}, not in hand", obj.zone));
-        }
-
-        if obj.owner != player_id {
-            return Err("Cannot cast another player's spell".to_string());
-        }
-
-        // Timing check (rule 117.1a):
-        // - Instants and spells with flash: anytime you have priority
-        // - Everything else: main phase, stack empty, active player only
-        // Through the layers: a row can give a card in hand flash.
-        if !crate::oracle::characteristics::is_instant_or_has_flash(self, card_id) {
-            self.check_sorcery_timing(player_id)?;
-        }
-
-        Ok(())
-    }
-
     /// CR 307.1's timing, as a rule other things borrow: the active player,
-    /// a main phase, an empty stack. Sorcery-speed spells (rule 117.1a) and
-    /// `ActivationRestriction::OnlyAsSorcery` (CR 602.5d) ask the same three
-    /// questions, so there is one place that asks them.
-    pub(crate) fn check_sorcery_timing(&self, player_id: PlayerId) -> Result<(), String> {
+    /// a main phase, an empty stack. Sorcery-speed spells (rule 117.1a), a
+    /// land (CR 305.1) and `ActivationRestriction::OnlyAsSorcery` (CR 602.5d)
+    /// ask the same three questions, so there is one place that asks them.
+    pub(crate) fn check_sorcery_timing(&self, player_id: PlayerId) -> Result<(), SorceryTiming> {
         if player_id != self.active_player {
-            return Err("Only the active player can act at sorcery speed".to_string());
+            return Err(SorceryTiming::NotYourTurn);
         }
         match self.phase.phase_type {
             PhaseType::Precombat | PhaseType::Postcombat => {}
-            _ => return Err("Sorcery speed is only available during a main phase".to_string()),
+            _ => return Err(SorceryTiming::NotAMainPhase),
         }
         // The resolving object is still on the stack (CR 608.2), so this reads
         // "not empty" throughout a resolution. Unreachable today — CR 608.2g
@@ -697,7 +652,7 @@ impl GameState {
         // overriding timing outright, or the resolving object not counting against
         // its own instruction. Not decided here.
         if !self.stack.is_empty() {
-            return Err("Sorcery speed requires an empty stack".to_string());
+            return Err(SorceryTiming::StackNotEmpty);
         }
         Ok(())
     }
@@ -708,7 +663,7 @@ impl GameState {
 mod tests {
     use super::*;
     use crate::engine::resolve::ResolvedTarget;
-    use crate::objects::card_data::{AbilityDef, CardDataBuilder};
+    use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};

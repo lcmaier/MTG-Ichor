@@ -2,7 +2,6 @@ use crate::oracle::legality::candidate_priority_actions;
 use crate::engine::actions::ActionContext;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
-use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
@@ -138,7 +137,7 @@ impl GameState {
                     ),
                     PriorityAction::PlayLand(card_id) => (
                         self.play_land(
-                            current_priority, *card_id, Zone::Hand,
+                            current_priority, *card_id,
                             &ActionContext::new(decisions),
                         ),
                         false,
@@ -311,6 +310,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::zones::Zone;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;

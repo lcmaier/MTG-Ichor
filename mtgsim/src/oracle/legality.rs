@@ -7,9 +7,11 @@
 
 use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
 use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
-use crate::state::game_state::{GameState, PhaseType};
+use crate::engine::put_on_stack::SorceryTiming;
+use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::Zone;
 use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
 
@@ -28,47 +30,69 @@ pub fn can_attack(game: &GameState, id: ObjectId) -> bool {
     }
 }
 
-/// Get all lands in a player's hand that they can legally play this turn.
-///
-/// Checks:
-/// - Card is a land
-/// - Player hasn't exceeded their lands-per-turn limit
-/// - It's a main phase and the stack is empty (sorcery-speed timing)
-/// - Player is the active player
-pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    let player = match game.players.get(player_id) {
-        Some(p) => p,
-        None => return Vec::new(),
+/// Why a card is not offered to play as a land at a priority question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CannotPlayLand {
+    /// Not in the player's hand, the one zone the engine plays a land from
+    /// (CR 305.1).
+    NotInHand,
+    /// Not a land card (CR 305.1).
+    NotALand,
+    /// Outside its owner's main phase with the stack empty (CR 305.1).
+    Timing(SorceryTiming),
+    /// The player has played as many lands this turn as they may
+    /// (CR 305.2a).
+    NoLandDropLeft { played: u32, allowed: u32 },
+}
+
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for CannotPlayLand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CannotPlayLand::NotInHand => f.write_str("Card is not in its owner's hand"),
+            CannotPlayLand::NotALand => f.write_str("This card is not a land"),
+            CannotPlayLand::Timing(timing) => timing.fmt(f),
+            CannotPlayLand::NoLandDropLeft { .. } => f.write_str("Already played maximum lands this turn"),
+        }
+    }
+}
+
+/// May `player_id` play `card_id` as a land now (CR 305.1, 305.2a)? One check
+/// for the enumeration and for `GameState::play_land`.
+pub fn can_play_land(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotPlayLand> {
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotPlayLand::NotInHand);
     };
-
-    // Timing: active player, main phase, empty stack
-    if player_id != game.active_player {
-        return Vec::new();
+    // A hand holds only its owner's cards (CR 400.3).
+    if obj.zone != Zone::Hand || obj.owner != player_id {
+        return Err(CannotPlayLand::NotInHand);
     }
-    let is_main = matches!(
-        game.phase.phase_type,
-        PhaseType::Precombat | PhaseType::Postcombat
-    );
-    if !is_main || !game.stack.is_empty() {
-        return Vec::new();
+    // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+    // play-from-hand legality, which happens before the object is a permanent,
+    // so the layer system has nothing to contribute. Same exemption as
+    // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
+    if !obj.card_data.types.contains(&CardType::Land) {
+        return Err(CannotPlayLand::NotALand);
     }
-
-    if !player.can_play_land() {
-        return Vec::new();
+    game.check_sorcery_timing(player_id).map_err(CannotPlayLand::Timing)?;
+    if let Some(player) = game.players.get(player_id)
+        && !player.can_play_land()
+    {
+        return Err(CannotPlayLand::NoLandDropLeft {
+            played: player.lands_played_this_turn,
+            allowed: player.lands_per_turn,
+        });
     }
+    Ok(())
+}
 
-    player.hand.iter()
-        .copied()
-        .filter(|&id| {
-            game.objects.get(&id)
-                // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
-                // play-from-hand legality, which happens before the object is a permanent,
-                // so the layer system has nothing to contribute. Same exemption as
-                // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
-                .map(|obj| obj.card_data.types.contains(&CardType::Land))
-                .unwrap_or(false)
-        })
-        .collect()
+/// Get all lands in a player's hand that they can legally play this turn:
+/// each one [`can_play_land`] allows.
+pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
+    let Some(player) = game.players.get(player_id) else {
+        return Vec::new();
+    };
+    player.hand.iter().copied().filter(|&id| can_play_land(game, player_id, id).is_ok()).collect()
 }
 
 /// Get all creatures controlled by a player that can legally be declared as attackers.
@@ -299,6 +323,7 @@ mod tests {
     use crate::state::battlefield::PermanentState;
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
+    use crate::state::game_state::PhaseType;
 
     /// CR 508.1a — only creatures attack, and `has_summoning_sickness` answers
     /// `false` for a noncreature permanent because CR 302.6 does not restrict

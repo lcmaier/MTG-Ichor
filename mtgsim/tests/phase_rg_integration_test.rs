@@ -494,7 +494,7 @@ fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
     assert!(!game.battlefield[&archelos].tapped);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &ActionContext::new(&ScriptedReplacementChoices::new(&[(0, 1)]))).unwrap();
+    game.play_land(0, land, &ActionContext::new(&ScriptedReplacementChoices::new(&[(0, 1)]))).unwrap();
     assert!(!game.battlefield[&land].tapped, "its own ability first, then Archelos");
     let land = return_asking(&mut game, idyllic_beachfront(), 0, &[(0, 0)]);
     assert!(game.battlefield[&land].tapped, "Archelos first, then its own ability");

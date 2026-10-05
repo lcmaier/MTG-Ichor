@@ -4,13 +4,16 @@
 // Used by CLI (show affordable spells), Random DP (auto-tap), and future AI.
 // All functions are read-only queries over &GameState.
 
-use crate::objects::card_data::{AbilityType, ActivationRestriction};
+use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
 use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::zones::Zone;
+use crate::engine::costs::CannotPay;
+use crate::engine::put_on_stack::SorceryTiming;
 
 /// A mana source: a permanent with a mana ability that can currently be activated.
 ///
@@ -130,99 +133,148 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
     sources
 }
 
-/// For each spell in hand that passes timing checks, check if `find_mana_sources`
-/// can cover its cost. Returns spell ID + the mana sources that would need tapping.
+/// Why a card is not offered to cast at a priority question.
+///
+/// The first four are CR 601.3's "can begin to cast", which
+/// [`can_begin_to_cast`] asks for the enumeration and for the cast alike. The
+/// last three predict what CR 601.2c and 601.2h would refuse: the enumeration
+/// leaves out a cast that could not be completed, and the cast itself finds
+/// them by trying, and reverses what it began (CR 732.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CannotCast {
+    /// Not in the caster's hand, the one zone the engine casts from
+    /// (`backlog.md` §2.3).
+    NotInHand,
+    /// A land is played, never cast (CR 305.9).
+    Land,
+    /// Neither a permanent card nor one with a spell ability, so there is
+    /// nothing to resolve.
+    NoSpellAbility,
+    /// Neither an instant nor with flash, and outside sorcery timing
+    /// (CR 117.1a).
+    Timing(SorceryTiming),
+    /// An instance of "target" with no legal choice (CR 601.2c).
+    NoLegalTarget,
+    /// A mandatory additional cost that can't be paid (CR 601.2h).
+    AdditionalCost(CannotPay),
+    /// The mana its caster's pool and untapped sources can make does not
+    /// cover the total cost CR 601.2f would lock in.
+    ManaShort,
+}
+
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for CannotCast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CannotCast::NotInHand => f.write_str("Card is not in its caster's hand"),
+            CannotCast::Land => f.write_str("A land is played, never cast"),
+            CannotCast::NoSpellAbility => f.write_str("Card has no spell ability"),
+            CannotCast::Timing(timing) => timing.fmt(f),
+            CannotCast::NoLegalTarget => f.write_str("No legal choice for one of its targets"),
+            CannotCast::AdditionalCost(cost) => cost.fmt(f),
+            CannotCast::ManaShort => f.write_str("Not enough mana"),
+        }
+    }
+}
+
+/// CR 601.3: may `player_id` begin to cast `card_id`? The enumeration asks it,
+/// and the cast asks it again before it moves the card, so the two agree.
+pub fn can_begin_to_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotCast> {
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotCast::NotInHand);
+    };
+    // A hand holds only its owner's cards (CR 400.3), so this is "in the
+    // caster's hand".
+    if obj.zone != Zone::Hand || obj.owner != player_id {
+        return Err(CannotCast::NotInHand);
+    }
+    // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+    // play-from-hand legality, which happens before the object is a permanent,
+    // so the layer system has nothing to contribute. Same exemption as
+    // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
+    if obj.card_data.types.contains(&CardType::Land) {
+        return Err(CannotCast::Land);
+    }
+    let has_spell_ability = obj.card_data.abilities.iter().any(|a| a.ability_type == AbilityType::Spell);
+    if !has_spell_ability && !obj.card_data.types.iter().any(|t| t.is_permanent()) {
+        return Err(CannotCast::NoSpellAbility);
+    }
+    // Through the layers: a row can give a card in hand flash.
+    if !crate::oracle::characteristics::is_instant_or_has_flash(game, card_id) {
+        game.check_sorcery_timing(player_id).map_err(CannotCast::Timing)?;
+    }
+    Ok(())
+}
+
+/// Is `card_id` offered to `player_id` to cast: CR 601.3's start, then what
+/// CR 601.2c and 601.2h would refuse. `Ok` holds the mana sources the cast
+/// would tap beyond the pool, as [`find_mana_sources`] picks them.
+pub fn can_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<Vec<ManaSource>, CannotCast> {
+    can_begin_to_cast(game, player_id, card_id)?;
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotCast::NotInHand);
+    };
+
+    // Target legality check (rule 601.2c): can't cast a spell that
+    // requires targets if no legal target exists. Asked of the card, not
+    // the spell ability — an Aura's target is its enchant ability
+    // (CR 303.4a) and it has no spell ability to ask.
+    if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id) {
+        return Err(CannotCast::NoLegalTarget);
+    }
+
+    // A mandatory additional cost is part of what casting takes, so a
+    // spell whose mandatory cost is unpayable is not castable (CR 601.2h, "unpayable
+    // costs can't be paid"). Enumeration and enforcement must agree
+    // (`cost-architecture.md` §3.6): without this, Altar's Reap is offered
+    // with no creature on the board and the cast rolls back. Optional
+    // costs are not checked — declining one is always available.
+    //
+    // Only the non-mana part: a mandatory cost's own mana is inside the
+    // total `preview_mana_cost` returns below, and asking `can_pay_costs`
+    // about it here would test it against a pool that has not been filled
+    // by 601.2g yet.
+    let mandatory_non_mana: Vec<Cost> = obj.card_data.additional_costs
+        .iter()
+        .filter(|c| !c.is_optional())
+        .flat_map(|c| c.costs().iter())
+        .filter(|c| !matches!(c, Cost::Mana(_)))
+        .cloned()
+        .collect();
+    if !mandatory_non_mana.is_empty() {
+        game.can_pay_costs(&mandatory_non_mana, player_id, card_id).map_err(CannotCast::AdditionalCost)?;
+    }
+
+    // Check mana affordability — against the cost CR 601.2f would lock
+    // in, not the printed one. Enumeration and enforcement must agree
+    // (`cost-architecture.md` §3.6): a Thalia on the board would
+    // otherwise offer spells the cast then rolls back, and an
+    // Electromancer would withhold ones the player can afford.
+    let Some(printed) = &obj.card_data.mana_cost else {
+        return Ok(Vec::new());
+    };
+    let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
+    let pool = &game.players[player_id].mana_pool;
+    if pool.can_pay(&mana_cost) {
+        return Ok(Vec::new());
+    }
+    let remaining = remaining_cost_after_pool(&mana_cost, pool);
+    find_mana_sources(game, player_id, &remaining).ok_or(CannotCast::ManaShort)
+}
+
+/// The cards in `player_id`'s hand that [`can_cast`] offers, each with the
+/// mana sources it would tap.
 pub fn castable_spells(
     game: &GameState,
     player_id: PlayerId,
 ) -> Vec<(ObjectId, Vec<ManaSource>)> {
-    let player = match game.players.get(player_id) {
-        Some(p) => p,
-        None => return Vec::new(),
+    let Some(player) = game.players.get(player_id) else {
+        return Vec::new();
     };
-
-    let mut result = Vec::new();
-
-    for &card_id in &player.hand {
-        let obj = match game.objects.get(&card_id) {
-            Some(o) => o,
-            None => continue,
-        };
-
-        // Lands are never cast — they're played via the special action (rule 305.1)
-        // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
-        // play-from-hand legality, which happens before the object is a permanent,
-        // so the layer system has nothing to contribute. Same exemption as
-        // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
-        if obj.card_data.types.contains(&CardType::Land) {
-            continue;
-        }
-
-        let spell_ability = obj.card_data.abilities.iter()
-            .find(|a| a.ability_type == AbilityType::Spell);
-        if spell_ability.is_none() && !obj.card_data.types.iter().any(|t| t.is_permanent()) {
-            continue;
-        }
-
-        if !passes_timing_check(game, player_id, card_id) {
-            continue;
-        }
-
-        // Target legality check (rule 601.2c): can't cast a spell that
-        // requires targets if no legal target exists. Asked of the card, not
-        // the spell ability — an Aura's target is its enchant ability
-        // (CR 303.4a) and it has no spell ability to ask.
-        if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id) {
-            continue;
-        }
-
-        // A mandatory additional cost is part of what casting takes, so a
-        // spell whose mandatory cost is unpayable is not castable (CR 601.2h, "unpayable
-        // costs can't be paid"). Enumeration and enforcement must agree
-        // (`cost-architecture.md` §3.6): without this, Altar's Reap is offered
-        // with no creature on the board and the cast rolls back. Optional
-        // costs are not checked — declining one is always available.
-        //
-        // Only the non-mana part: a mandatory cost's own mana is inside the
-        // total `preview_mana_cost` returns below, and asking `can_pay_costs`
-        // about it here would test it against a pool that has not been filled
-        // by 601.2g yet.
-        let mandatory_non_mana: Vec<Cost> = obj.card_data.additional_costs
-            .iter()
-            .filter(|c| !c.is_optional())
-            .flat_map(|c| c.costs().iter())
-            .filter(|c| !matches!(c, Cost::Mana(_)))
-            .cloned()
-            .collect();
-        if !mandatory_non_mana.is_empty()
-            && game.can_pay_costs(&mandatory_non_mana, player_id, card_id).is_err()
-        {
-            continue;
-        }
-
-        // Check mana affordability — against the cost CR 601.2f would lock
-        // in, not the printed one. Enumeration and enforcement must agree
-        // (`cost-architecture.md` §3.6): a Thalia on the board would
-        // otherwise offer spells the cast then rolls back, and an
-        // Electromancer would withhold ones the player can afford.
-        if let Some(ref printed) = obj.card_data.mana_cost {
-            let previewed = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
-            let mana_cost = &previewed;
-            let pool = &game.players[player_id].mana_pool;
-            if pool.can_pay(mana_cost) {
-                result.push((card_id, Vec::new()));
-            } else {
-                let remaining = remaining_cost_after_pool(mana_cost, pool);
-                if let Some(sources) = find_mana_sources(game, player_id, &remaining) {
-                    result.push((card_id, sources));
-                }
-            }
-        } else {
-            result.push((card_id, Vec::new()));
-        }
-    }
-
-    result
+    player.hand
+        .iter()
+        .filter_map(|&card_id| can_cast(game, player_id, card_id).ok().map(|sources| (card_id, sources)))
+        .collect()
 }
 
 /// Enumerate currently-activatable mana abilities for a player.
@@ -297,35 +349,133 @@ pub(crate) fn remaining_cost_after_pool(
     ManaCost::from_symbols(cost.symbols.iter().zip(covered).filter(|(_, covered)| !covered).map(|(sym, _)| *sym).collect())
 }
 
-/// Check if a card in hand passes the timing check for casting.
-/// Mirrors the logic in `check_cast_legality` but as a read-only query.
-fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> bool {
-    let obj = match game.objects.get(&card_id) {
-        Some(o) => o,
-        None => return false,
-    };
-
-    // Must own the card (rule 601.3)
-    if obj.owner != player_id {
-        return false;
-    }
-
-    if obj.zone != crate::types::zones::Zone::Hand {
-        return false;
-    }
-
-    // Through the layers, as `check_cast_legality` asks it: a row can give a
-    // card in hand flash.
-    if crate::oracle::characteristics::is_instant_or_has_flash(game, card_id) {
-        return true; // can cast anytime with priority
-    }
-
-    // Sorcery-speed: active player, main phase, empty stack — the engine's
-    // own rule, so the window and the cast agree.
-    game.check_sorcery_timing(player_id).is_ok()
+/// Why an ability is not offered to activate at a priority question.
+///
+/// The first five are CR 602.2's and CR 602.5's "can begin to activate",
+/// which [`can_activate_its_abilities`] and [`can_begin_to_activate`] ask for
+/// the enumeration and for the activation alike. The last three predict what
+/// CR 602.2b's run of 601.2c and 601.2h would refuse, which the activation
+/// finds by trying, and reverses (CR 732.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CannotActivate {
+    /// Not on the battlefield, the one zone the engine activates from
+    /// (`backlog.md` §2.8).
+    NotOnBattlefield,
+    /// Only its controller activates it (CR 602.2).
+    NotYours,
+    /// A mana ability: the engine offers one when a cost asks for mana
+    /// (CR 601.2g), and never at a priority question, though CR 605.3a
+    /// allows it there.
+    ManaAbility,
+    /// Not an activated ability at all.
+    NotActivated,
+    /// "Activate only as a sorcery", outside sorcery timing (CR 602.5d).
+    Timing(SorceryTiming),
+    /// A cost other than mana that can't be paid (CR 118.3).
+    Cost(CannotPay),
+    /// The mana its controller's pool and untapped sources can make does not
+    /// cover its mana cost.
+    ManaShort,
+    /// An instance of "target" with no legal choice (CR 602.2b, 601.2c).
+    NoLegalTarget,
 }
 
-/// Non-mana activated abilities the player can currently pay for.
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for CannotActivate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CannotActivate::NotOnBattlefield => f.write_str("Permanent not on battlefield"),
+            CannotActivate::NotYours => f.write_str(
+                "Only this permanent's controller can activate its abilities (CR 602.1a; \"any player may activate\" is not yet modeled)",
+            ),
+            CannotActivate::ManaAbility => f.write_str("Use activate_mana_ability for mana abilities"),
+            CannotActivate::NotActivated => f.write_str("Not an activated ability"),
+            CannotActivate::Timing(timing) => timing.fmt(f),
+            CannotActivate::Cost(cost) => cost.fmt(f),
+            CannotActivate::ManaShort => f.write_str("Not enough mana"),
+            CannotActivate::NoLegalTarget => f.write_str("No legal choice for one of its targets"),
+        }
+    }
+}
+
+/// CR 602.2: "Only an object's controller ... can activate its activated
+/// ability". The source's half of the check, asked once for all its
+/// abilities.
+///
+/// CR 602.2's *default*, not a universal rule: 41 printed cards say "Any
+/// player may activate this ability" (Aether Storm, Excavation, Feral Hydra).
+/// That permission is unmodeled — `AbilityDef` has nowhere to record it — so
+/// this refuses an activation those cards would allow. Deferred Migrations,
+/// "Before card breadth".
+///
+/// Effective controller, not the battlefield field, so a stolen permanent
+/// answers to whoever stole it (CR 613.1b).
+pub fn can_activate_its_abilities(game: &GameState, player_id: PlayerId, source_id: ObjectId) -> Result<(), CannotActivate> {
+    if !crate::oracle::characteristics::controls(game, source_id, player_id) {
+        return Err(CannotActivate::NotYours);
+    }
+    Ok(())
+}
+
+/// CR 602.5's "can begin to activate", for one ability: an activated ability,
+/// and, if it may be activated only as a sorcery, at sorcery timing
+/// (CR 602.5d).
+pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &AbilityDef) -> Result<(), CannotActivate> {
+    match ability.ability_type {
+        AbilityType::Activated => {}
+        AbilityType::Mana => return Err(CannotActivate::ManaAbility),
+        AbilityType::Spell | AbilityType::Triggered | AbilityType::Static => {
+            return Err(CannotActivate::NotActivated);
+        }
+    }
+    if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery {
+        game.check_sorcery_timing(player_id).map_err(CannotActivate::Timing)?;
+    }
+    Ok(())
+}
+
+/// Is `ability`, on `source_id`, offered to `player_id` to activate: CR 602.2
+/// and 602.5's start, then what CR 602.2b's costs and targets would refuse.
+pub fn can_activate(
+    game: &GameState,
+    player_id: PlayerId,
+    source_id: ObjectId,
+    ability: &AbilityDef,
+) -> Result<(), CannotActivate> {
+    can_activate_its_abilities(game, player_id, source_id)?;
+    can_activate_as_its_controller(game, player_id, source_id, ability)
+}
+
+/// [`can_activate`] past the controller's check, which the enumeration asks
+/// once a source rather than once an ability.
+fn can_activate_as_its_controller(
+    game: &GameState,
+    player_id: PlayerId,
+    source_id: ObjectId,
+    ability: &AbilityDef,
+) -> Result<(), CannotActivate> {
+    can_begin_to_activate(game, player_id, ability)?;
+
+    // Single-pass check: non-mana costs via engine, mana costs via
+    // pool + available sources. No double-check.
+    can_afford_ability_costs(game, player_id, source_id, &ability.costs)?;
+
+    // CR 602.2b routes an activation through 601.2c, so an ability
+    // that *requires* a target and has none is no more activatable
+    // than such a spell is castable — the same check `can_cast`
+    // makes, and the one the enumeration was missing. `UpTo` is left
+    // in: choosing zero targets is legal, so an empty board does not
+    // make it illegal. Provably illegal from a static read, which is
+    // what the oracle may filter on
+    // (`dp-middleware-and-candidate-enumeration.md` §2).
+    if !every_instance_has_a_choice(game, &ability.instances, player_id) {
+        return Err(CannotActivate::NoLegalTarget);
+    }
+    Ok(())
+}
+
+/// Non-mana activated abilities the player can currently pay for: each
+/// ability on a permanent they control that [`can_activate`] offers.
 ///
 /// For abilities with a mana cost component, checks both pool mana and
 /// available mana sources (lands to tap), mirroring `castable_spells`.
@@ -339,7 +489,7 @@ pub fn activatable_abilities(
     // Ordered, not raw `battlefield.iter()`: this is the activatable half of the
     // priority action list, which the DP picks from by index.
     for (id, _entry) in game.battlefield_ordered() {
-        if !crate::oracle::characteristics::controls(game, id, player_id) {
+        if can_activate_its_abilities(game, player_id, id).is_err() {
             continue;
         }
 
@@ -349,37 +499,9 @@ pub fn activatable_abilities(
         let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
 
         for (idx, ability) in abilities.iter().enumerate() {
-            if ability.ability_type != AbilityType::Activated {
-                continue;
+            if can_activate_as_its_controller(game, player_id, id, ability).is_ok() {
+                result.push((id, idx, ability.id));
             }
-            // CR 602.5d — static legality, like a spell's timing: an ability
-            // that may only be activated as a sorcery is not in the window
-            // outside one. `activate_ability` refuses it regardless.
-            if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery
-                && game.check_sorcery_timing(player_id).is_err()
-            {
-                continue;
-            }
-
-            // Single-pass check: non-mana costs via engine, mana costs via
-            // pool + available sources. No double-check.
-            if !can_afford_ability_costs(game, player_id, id, &ability.costs) {
-                continue;
-            }
-
-            // CR 602.2b routes an activation through 601.2c, so an ability
-            // that *requires* a target and has none is no more activatable
-            // than such a spell is castable — the same check `castable_spells`
-            // makes, and the one the enumeration was missing. `UpTo` is left
-            // in: choosing zero targets is legal, so an empty board does not
-            // make it illegal. Provably illegal from a static read, which is
-            // what the oracle may filter on
-            // (`dp-middleware-and-candidate-enumeration.md` §2).
-            if !every_instance_has_a_choice(game, &ability.instances, player_id) {
-                continue;
-            }
-
-            result.push((id, idx, ability.id));
         }
     }
 
@@ -496,7 +618,7 @@ fn can_afford_ability_costs(
     player_id: PlayerId,
     source_id: ObjectId,
     costs: &[crate::types::costs::Cost],
-) -> bool {
+) -> Result<(), CannotActivate> {
     let pool = &game.players[player_id].mana_pool;
 
     for cost in costs {
@@ -507,17 +629,16 @@ fn can_afford_ability_costs(
                 }
                 let remaining = remaining_cost_after_pool(mana_cost, pool);
                 if find_mana_sources(game, player_id, &remaining).is_none() {
-                    return false;
+                    return Err(CannotActivate::ManaShort);
                 }
             }
             other => {
-                if game.can_pay_costs(std::slice::from_ref(other), player_id, source_id).is_err() {
-                    return false;
-                }
+                game.can_pay_costs(std::slice::from_ref(other), player_id, source_id)
+                    .map_err(CannotActivate::Cost)?;
             }
         }
     }
-    true
+    Ok(())
 }
 
 #[cfg(test)]
