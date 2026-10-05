@@ -2,22 +2,51 @@
 //! every client draws alike (`setup-architecture.md` §7c).
 //!
 //! The facts are the engine's: what the layers did to an object comes from
-//! `engine::layers::explain`, the pass itself recorded. This module words
-//! them, a line at a time, each line with the rule it rests on and the
-//! objects it names. A client lays the lines out and links each name to that
-//! object's own why, and draws no case per mechanic.
+//! `engine::layers::explain`, the pass itself recorded, and why an option is
+//! not offered comes from the checks the enumeration builds the options by.
+//! This module words them, a line at a time, each line with the rule it rests
+//! on and the objects it names. A client lays the lines out and links each
+//! name to that object's own why, and draws no case per mechanic.
 
 use std::collections::HashSet;
 
+use crate::engine::combat::validation::{can_block, CombatError};
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
 use crate::engine::layers::{compute_characteristics, explain, AppliedBy, LayerStep, StepResult};
 use crate::objects::card_data::{AbilityDef, AbilityType};
+use crate::oracle::characteristics::{controls, get_effective_abilities, is_creature};
+use crate::oracle::legality::{can_attack, can_play_land};
+use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast};
+use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
+use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::ids::{AbilityId, ObjectId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
-use crate::ui::display::{color_name, keyword_name, named, player_name, type_line};
+use crate::types::zones::Zone;
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::decision::PriorityAction;
+use crate::ui::display::{
+    cannot_activate, cannot_cast, cannot_play_land, color_name, combat_refusal, keyword_name, named, option_label,
+    player_name, rejection_words, type_line, Declaring,
+};
+
+/// What a why is about: an object, or a player.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WhyAbout {
+    Object(ObjectId),
+    Player(PlayerId),
+}
+
+/// The question open where a why is asked: whom it asks, what, and the
+/// options it offers, as the seat was handed them.
+#[derive(Clone, Copy, Debug)]
+pub struct OpenQuestion<'a> {
+    pub player: PlayerId,
+    pub context: &'a ChoiceContext,
+    pub options: &'a [ChoiceOption],
+}
 
 /// One answer, about one object.
 #[derive(Clone, Debug, PartialEq)]
@@ -63,9 +92,293 @@ impl WhyLine {
     }
 }
 
-/// Why `about` is the way it is now: what the layers did to it, from what it
-/// prints to what it has.
-pub fn why(game: &GameState, about: ObjectId) -> Why {
+/// Why `about` is the way it is now: whether the open question offers it,
+/// and, for an object, what the layers did to it, from what it prints to what
+/// it has.
+pub fn why(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>) -> Why {
+    match about {
+        WhyAbout::Object(id) => {
+            let mut answer = what_the_layers_did(game, id);
+            if let Some(question) = at
+                && game.objects.contains_key(&id)
+            {
+                answer.sections.insert(0, at_this_question(game, about, question));
+            }
+            answer
+        }
+        WhyAbout::Player(player) => {
+            let section = match at {
+                Some(question) => at_this_question(game, about, question),
+                None => WhySection { heading: AT_THIS_QUESTION.to_string(), lines: vec![WhyLine::new("No question is open.")] },
+            };
+            Why { title: player_name(player), sections: vec![section] }
+        }
+    }
+}
+
+const AT_THIS_QUESTION: &str = "At this question";
+
+/// Whether the question offers `about`, and as what; if it offers it nothing,
+/// why, on each tier: never offered, by the checks the options were built by,
+/// or offered and then reversed (CR 732.1).
+fn at_this_question(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> WhySection {
+    let asked = player_name(question.player);
+    let mut lines = vec![WhyLine::new(format!("{asked}: {}", crate::ui::display::question(game, &question.context.kind)))];
+    let offered: Vec<&ChoiceOption> = question.options.iter().filter(|option| names(option, about)).collect();
+    if !offered.is_empty() {
+        lines.push(WhyLine::new(format!("Offered to {asked}:")));
+        lines.extend(offered.iter().map(|option| WhyLine::under(option_label(game, option)).naming(game, &option_objects(option))));
+    }
+    let refused = refusals(game, about, question);
+    if !refused.is_empty() {
+        lines.push(WhyLine::new(format!("Never offered to {asked}:")));
+        lines.extend(refused);
+    } else if offered.is_empty() {
+        lines.push(WhyLine::new(format!("Not among the options {asked} is offered here.")));
+    }
+    if let Some(rejected) = &question.context.rejected
+        && rejection_names(rejected, about)
+    {
+        lines.push(WhyLine::new(format!("Offered to {asked}, then reversed:")));
+        let (words, rule) = rejection_words(game, rejected);
+        lines.push(WhyLine { rule, ..WhyLine::under(words) });
+    }
+    WhySection { heading: AT_THIS_QUESTION.to_string(), lines }
+}
+
+/// Does `option` name `about`?
+fn names(option: &ChoiceOption, about: WhyAbout) -> bool {
+    match about {
+        WhyAbout::Object(id) => option_objects(option).contains(&id),
+        WhyAbout::Player(player) => matches!(
+            option,
+            ChoiceOption::Player(named) | ChoiceOption::AttackerTarget(_, AttackTarget::Player(named)) if *named == player
+        ),
+    }
+}
+
+/// The objects an option names: an action's object, or both sides of an
+/// attack or a block. One arm per kind of option and no wildcard.
+fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
+    match option {
+        ChoiceOption::Object(id)
+        | ChoiceOption::Action(
+            PriorityAction::CastSpell(id) | PriorityAction::PlayLand(id) | PriorityAction::ActivateAbility(id, _),
+        ) => vec![*id],
+        ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(_)) => vec![*attacker],
+        ChoiceOption::AttackerTarget(attacker, AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+            vec![*attacker, *id]
+        }
+        ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
+        ChoiceOption::Action(PriorityAction::Pass)
+        | ChoiceOption::Player(_)
+        | ChoiceOption::NormalCost
+        | ChoiceOption::AlternativeCost(_)
+        | ChoiceOption::AdditionalCost(_)
+        | ChoiceOption::Number(_)
+        | ChoiceOption::Color(_)
+        | ChoiceOption::CounterType(_)
+        | ChoiceOption::ManaType(_) => Vec::new(),
+    }
+}
+
+/// Does the answer the question rejected name `about`?
+fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
+    match rejected {
+        Rejection::Reversed(action) => names(&ChoiceOption::Action(action.clone()), about),
+        Rejection::IllegalBlocks { blocks, .. } => {
+            blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
+        }
+    }
+}
+
+/// Why each thing `about` could be at this question is not offered, from the
+/// check the options were built by. The priority question and the two
+/// declarations have such checks; at every other question the options are
+/// that question's own, and what they are not says nothing typed yet: a
+/// target's reasons are RS-2's, which rewrites target legality.
+fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<WhyLine> {
+    match (&question.context.kind, about) {
+        (ChoiceKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
+        (ChoiceKind::DeclareAttackers, WhyAbout::Object(id)) => {
+            let attacking = question.options.iter().any(|o| matches!(o, ChoiceOption::AttackerTarget(a, _) if *a == id));
+            match can_attack(game, question.player, id) {
+                Err(error) if !attacking => vec![refusal("To attack", combat_refusal(game, &error, Declaring::Attackers))],
+                _ => Vec::new(),
+            }
+        }
+        (ChoiceKind::DeclareAttackers, WhyAbout::Player(player)) if !question.options.iter().any(|o| names(o, about)) => {
+            if player == question.player {
+                vec![refusal("To be attacked", ("a creature attacks one of its controller's opponents".to_string(), Some("506.2")))]
+            } else if !game.in_game(player) {
+                vec![refusal("To be attacked", (format!("{} has left the game", player_name(player)), Some("800.4a")))]
+            } else {
+                Vec::new()
+            }
+        }
+        (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
+        (
+            ChoiceKind::PriorityAction
+            | ChoiceKind::DeclareAttackers
+            | ChoiceKind::DeclareBlockers
+            | ChoiceKind::AssignCombatDamage { .. }
+            | ChoiceKind::AssignTrampleDamage { .. }
+            | ChoiceKind::ChooseXValue { .. }
+            | ChoiceKind::ChooseAlternativeCost { .. }
+            | ChoiceKind::ChooseAdditionalCosts { .. }
+            | ChoiceKind::SelectRecipients { .. }
+            | ChoiceKind::GenericManaAllocation { .. }
+            | ChoiceKind::OrderCostReductions { .. }
+            | ChoiceKind::ManaAbilityWindow { .. }
+            | ChoiceKind::ChooseSacrificeForCost { .. }
+            | ChoiceKind::ChooseReplacementEffect { .. }
+            | ChoiceKind::OrderTriggers { .. }
+            | ChoiceKind::ApplyOptionalReplacement { .. }
+            | ChoiceKind::ApplyOptionalEffect { .. }
+            | ChoiceKind::AllocateNextDamage { .. }
+            | ChoiceKind::ChooseDamageSource { .. }
+            | ChoiceKind::ChooseEnteringController { .. }
+            | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
+            | ChoiceKind::ChooseCopySource { .. }
+            | ChoiceKind::CommanderToCommandZoneSba { .. }
+            | ChoiceKind::Discard { .. }
+            | ChoiceKind::Scry { .. }
+            | ChoiceKind::ScryOrder { .. }
+            | ChoiceKind::LegendRule { .. },
+            _,
+        ) => Vec::new(),
+    }
+}
+
+/// At a priority question: a card is played if it is a land and cast if it
+/// is not (CR 305.1, 305.9), and a permanent's abilities are activated.
+fn priority_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Vec<WhyLine> {
+    let player = question.player;
+    let offered = |ability: AbilityId| {
+        question.options.iter().any(|option| {
+            matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(source, offered))
+                if *source == id && *offered == ability)
+        })
+    };
+    let Some(obj) = game.objects.get(&id) else {
+        return Vec::new();
+    };
+    match obj.zone {
+        Zone::Battlefield => {
+            let abilities = get_effective_abilities(game, id);
+            let activated: Vec<&AbilityDef> = abilities
+                .iter()
+                .filter(|ability| matches!(ability.ability_type, AbilityType::Activated | AbilityType::Mana))
+                .collect();
+            let Some(first) = activated.first() else {
+                return vec![WhyLine::under("It has no ability to activate.")];
+            };
+            if let Err(reason) = can_activate_its_abilities(game, player, id) {
+                return vec![refusal("To activate its abilities", cannot_activate(game, player, id, first, &reason))];
+            }
+            activated
+                .iter()
+                .filter(|ability| !offered(ability.id))
+                .filter_map(|ability| {
+                    let reason = can_activate(game, player, id, ability).err()?;
+                    let action = format!("To activate “{}”", ability.rules_text.words);
+                    Some(refusal(action, cannot_activate(game, player, id, ability, &reason)))
+                })
+                .collect()
+        }
+        Zone::Stack => Vec::new(),
+        Zone::Hand | Zone::Library | Zone::Graveyard | Zone::Exile | Zone::Command => {
+            // PRE-LAYER ZONE: a card is played or cast by what it is in its
+            // zone, before it is a permanent or a spell.
+            if obj.card_data.types.contains(&CardType::Land) {
+                can_play_land(game, player, id)
+                    .err()
+                    .map(|reason| refusal("To play it", cannot_play_land(&reason, player)))
+                    .into_iter()
+                    .collect()
+            } else {
+                can_cast(game, player, id)
+                    .err()
+                    .map(|reason| refusal("To cast it", cannot_cast(game, player, id, &reason)))
+                    .into_iter()
+                    .collect()
+            }
+        }
+    }
+}
+
+/// At a declare-blockers question: for an attacker, which of the defending
+/// player's creatures can't block it; for anything else, which attackers it
+/// can't block. A reason about the blocker alone is the same for every
+/// attacker, so it is said once.
+fn block_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Vec<WhyLine> {
+    let defender = question.player;
+    let offered = |blocker: ObjectId, attacker: ObjectId| {
+        question.options.iter().any(|option| {
+            matches!(option, ChoiceOption::BlockerAttacker(b, a) if *b == blocker && *a == attacker)
+        })
+    };
+    let attackers: Vec<ObjectId> = game
+        .battlefield_ids_ordered()
+        .into_iter()
+        .filter(|a| game.battlefield.get(a).is_some_and(|entry| entry.attacking.is_some()))
+        .collect();
+    if attackers.contains(&id) {
+        return game
+            .battlefield_ids_ordered()
+            .into_iter()
+            .filter(|&blocker| controls(game, blocker, defender) && is_creature(game, blocker) && !offered(blocker, id))
+            .filter_map(|blocker| {
+                let error = can_block(game, defender, blocker, id).err()?;
+                let line = refusal(format!("To be blocked by {}", named(game, blocker)), combat_refusal(game, &error, Declaring::Blockers));
+                Some(line.naming(game, &[blocker]))
+            })
+            .collect();
+    }
+    let errors: Vec<(ObjectId, CombatError)> = attackers
+        .into_iter()
+        .filter(|&attacker| !offered(id, attacker))
+        .filter_map(|attacker| can_block(game, defender, id, attacker).err().map(|error| (attacker, error)))
+        .collect();
+    if let Some((_, error)) = errors.first()
+        && about_the_blocker_alone(error, id)
+    {
+        return vec![refusal("To block", combat_refusal(game, error, Declaring::Blockers))];
+    }
+    errors
+        .iter()
+        .map(|(attacker, error)| {
+            refusal(format!("To block {}", named(game, *attacker)), combat_refusal(game, error, Declaring::Blockers))
+                .naming(game, &[*attacker])
+        })
+        .collect()
+}
+
+/// Is `error` about `blocker` alone, so that it refuses every block the
+/// creature could make?
+fn about_the_blocker_alone(error: &CombatError, blocker: ObjectId) -> bool {
+    match error {
+        CombatError::NotOnBattlefield(id)
+        | CombatError::NotACreature(id)
+        | CombatError::NotControlledByPlayer(id, _)
+        | CombatError::CreatureIsTapped(id) => *id == blocker,
+        CombatError::CreatureHasSummoningSickness(_)
+        | CombatError::InvalidAttackTarget(_)
+        | CombatError::AttackerNotAttackingThisPlayer(..)
+        | CombatError::TooManyBlocks(..)
+        | CombatError::HasDefender(_)
+        | CombatError::CantBlockFlyer(..)
+        | CombatError::ConstraintViolation(_) => false,
+    }
+}
+
+/// A line under "Never offered": what was not offered, and why.
+fn refusal(action: impl Into<String>, (words, rule): (String, Option<&'static str>)) -> WhyLine {
+    WhyLine { rule, ..WhyLine::under(format!("{}: {words}.", action.into())) }
+}
+
+/// What the layers did to `about`, from what it prints to what it has.
+fn what_the_layers_did(game: &GameState, about: ObjectId) -> Why {
     let title = named(game, about);
     let Some(explanation) = explain(game, about) else {
         let gone = WhySection { heading: "Gone".to_string(), lines: vec![WhyLine::new("No object has this id now.")] };
