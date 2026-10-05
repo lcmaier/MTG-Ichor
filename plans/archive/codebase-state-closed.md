@@ -3258,3 +3258,52 @@ Closed in SU-5's first two commits, each test failing on the tree before it. **T
      until it reads the file, and a refusal for a log that cannot be
      opened. **Slotted:** A6g's tools PR, which reshapes the start as a
      save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.
+
+### Item 212 — closed 2026-10-05 by the census's PR, #223
+
+Closed as sized. `plans/references/cast-census.py` classifies the casting, activation, cost and payment text of every Commander-legal card (32,115). That is 16,086 cost pieces, 10,955 activated abilities and 2,222 mana abilities, plus the keyword, symbol and phrase families, each against the engine surface that would express it, and each number beside its query. `plans/references/cast-census.md` holds the tables. 127 families: 25 built, 25 owned and slotted, 77 found unowned. The owner placed the 77 at the census's review:
+
+- the permission half (CR 601.3's "allows", 602.2, 602.5, 113.6, 305.1–2, 606.3) in a new document, `permission-architecture.md`, designed beside RS-2 and built before B2;
+- the cost actions in `cost-architecture.md` CP-2, before C;
+- mana production in item 162's design;
+- the question kinds in SU-8, with each kind's owner;
+- breadth in C;
+- ticket counters excluded.
+
+The calibration passed. It found one exception already on the record, Mirrorweave's hybrid cost, and made one correction to the census: the mana table needed a column for play and one for the affordability check. SU-7's four findings have their v1 shapes in the census's §11, and `engineering-practices.md` §8 gained a second question (§8.1). This entry said "of 30" question kinds; `ChoiceKind` has 27, corrected below. #222's review reply, commit `3c4ee4f`'s message, says the same and stands on main, where a message cannot be rewritten; #223's description records the correction.
+
+*Original entry:*
+
+212. **How cards are cast, activated and paid for has no census, and SU-7
+     found three families with no owner.** `cr-coverage-audit.md` checks
+     whether the plan can express the CR; nothing checks the same for the
+     cards v1 needs, every Commander-legal card. The replacement census, the
+     trigger survey and the "can't" census each did it for one area, and each
+     found what reading the CR missed. SU-7's review (the owner, 2026-10-05)
+     found, in this area alone:
+     - costs no one owned: exile from a graveyard (about 161 cards) and
+       counters (about 334), beside `backlog.md` §2.5's discard (384);
+     - "who may activate" decided per source, where CR 602.2's exception is
+       per ability ("Before card breadth" item 2);
+     - casting and land play reasons naming today's default, the hand,
+       rather than CR 601.3's permission (`backlog.md` §2.3, RS-2);
+     - the why explaining the options of three question kinds of 27 (this
+     line said 30 until the census counted `ChoiceKind`'s arms)
+       (`ui::why::refusals`). Every other kind builds its options from a
+       filter of its own, with no typed reason.
+
+     **Reachability (2026-10-05):** reachable — not wrong in any game yet:
+     each family is refused loudly, or offered by a check that will need
+     reshaping, and no registered card meets them.
+
+     **Sized:** a docs PR. A script over Scryfall's data classifies each
+     family of casting, activation, cost and payment text against the
+     engine's surfaces: `Cost`'s arms, `AbilityDef`'s activation fields, cast
+     and play permissions, mana payment, and the question kinds whose options
+     a filter builds. Each family is built, owned and slotted, or unowned,
+     with card counts. Every unowned family leaves with an owner and a slot,
+     or a recorded exclusion. `engineering-practices.md` §8 gains a second
+     question for a new type, beside "which rule watches this one": what it
+     must express at v1, which rules let a card override it and which card
+     families do. **Slotted:** the PR after SU-7, ahead of item 162's design,
+     which it feeds (the owner, 2026-10-05).

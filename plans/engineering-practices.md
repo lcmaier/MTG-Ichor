@@ -1599,6 +1599,43 @@ CR 800.4a's first clause forbids — and that is the same failure from the
 authoring side: a scenario written against one rule without the rule that
 overrides it. → `replacement-architecture.md` §11 items 70 and 73.
 
+### 8.1 The second question — what a new type must express at v1
+
+**The first question asks which rule watches the one being implemented. The
+second asks what the type must express when v1 ships, and it is asked of the
+cards as well as the CR.** It was added 2026-10-05 by `codebase-state.md`
+item 212. SU-7's review found four surfaces shaped after today's engine:
+- a reason named for the hand, CR 601.3's default rather than its
+  permission;
+- a controller test asked once per source, where CR 602.2's exception is
+  printed per ability;
+- four cost arms that refused every payment;
+- a why that explained three question kinds of 27.
+
+A count of the cards would have shown each one when the type was designed.
+
+For a new type, or a type a phase grows, three questions:
+
+1. **What must it express at v1?** Read the rules that own it, and list what
+   the CR lets it be. Then count the cards. A census script over Scryfall's
+   data does it: each family against the surface, each number beside its
+   query. The replacement, trigger, "can't", copy and casting censuses in
+   `plans/references/` are the pattern, and a census calibrates on the
+   registered cards before anyone reads its tables.
+2. **Which rules let a card override it?** CR 101.1 lets card text override
+   any rule, and some rules name their own exception: "unless the object
+   specifically says otherwise" (602.2), "usually the hand" (601.2), "by
+   default" (701.9b). List them for the area. A rule that refuses an override
+   "for any reason" (305.2b, 305.3) is one the type may encode as fixed.
+3. **Which card families override it, and how many cards?** A default the
+   engine hard-codes is a family with no owner until its first card arrives.
+   That is item 212's finding in one sentence.
+
+**The answer goes where the type is designed.** A shape that cannot hold a
+family the count shows costs less to change before the first arm copies it: a
+`u32` count, where 96 cost pieces need an X or an amount the board decides, is the example. The worked
+example is `plans/references/cast-census.md` §2.
+
 ---
 
 ## 9. The spine-phase audit — a close is audited, not declared
