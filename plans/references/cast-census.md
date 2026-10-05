@@ -1,7 +1,7 @@
 # How cards are cast, activated and paid for — the census
 
 > **Status:** run 2026-10-05 against `0481f00` (#222's merge), for
-> `codebase-state.md` item 212, which this closes. **Authority:** every count
+> `codebase-state.md` item 212, which this closes (#223). **Authority:** every count
 > is `plans/references/cast-census.py`'s, spliced in between this file's
 > markers by `--write`. The statuses and owners are a reading of the tree and
 > the docs by hand. They live in the script's tables and change only there.

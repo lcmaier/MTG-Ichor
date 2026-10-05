@@ -9234,7 +9234,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 212. **~~How cards are cast, activated and paid for has no census, and SU-7
      found three families with no owner.~~ — ✅ CLOSED 2026-10-05 (the
-     census).** — archived. `plans/references/cast-census.md` and its script
+     census, #223).** — archived. `plans/references/cast-census.md` and its script
      count 127 families by status. The 77 found unowned each have an owner or
      an exclusion: `permission-architecture.md`, `cost-architecture.md` CP-2,
      item 162's design, SU-8, C, and one excluded. The census's §11 gives

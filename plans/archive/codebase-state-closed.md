@@ -3259,7 +3259,7 @@ Closed in SU-5's first two commits, each test failing on the tree before it. **T
      opened. **Slotted:** A6g's tools PR, which reshapes the start as a
      save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.
 
-### Item 212 — closed 2026-10-05 by the census's PR
+### Item 212 — closed 2026-10-05 by the census's PR, #223
 
 Closed as sized. `plans/references/cast-census.py` classifies the casting, activation, cost and payment text of every Commander-legal card (32,115). That is 16,086 cost pieces, 10,955 activated abilities and 2,222 mana abilities, plus the keyword, symbol and phrase families, each against the engine surface that would express it, and each number beside its query. `plans/references/cast-census.md` holds the tables. 127 families: 25 built, 25 owned and slotted, 77 found unowned. The owner placed the 77 at the census's review:
 

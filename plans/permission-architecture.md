@@ -1,7 +1,7 @@
 # Permission — who may cast, play or activate what, from where, and when
 
 > **Status:** a slot, not a design. Created 2026-10-05 by `codebase-state.md`
-> item 212's census (`plans/references/cast-census.md`). At its review the
+> item 212's census (`plans/references/cast-census.md`, #223). At its review the
 > owner chose a document of its own, designed beside RS-2 and built before B2.
 > No code written. **Authority:** whether a player may begin to cast, play or
 > activate an object, from the zone it is in, now: CR 601.3's "allows" half,
