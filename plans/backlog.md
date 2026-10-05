@@ -149,8 +149,9 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 ### 2.3 Casting from a non-hand zone
 
 - **Rules** — CR 601.3, 601.3f, 117.1a; the CR 702 cast-from-elsewhere keywords
-- **Verdict** — `check_cast_legality` hard-codes `Zone::Hand`, and cites
-  CR 117.1a while doing it. The *type* is already right: `StackEntry.cast_from`
+- **Verdict** — `can_begin_to_cast` (`oracle/mana_helpers.rs`, the check the
+  enumeration and the cast share since SU-7) hard-codes `Zone::Hand`, and cites
+  CR 601.3 while doing it. The *type* is already right: `StackEntry.cast_from`
   represents the fact correctly, which is why audit §3's calibration flagged this
   one at the function level and not the field level. The gate is the gap.
 - **Size** — small at the gate, large in what the gate admits; the keywords

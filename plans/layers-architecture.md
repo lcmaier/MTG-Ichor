@@ -2243,8 +2243,8 @@ passes printed types and is tagged `// PRE-LAYER ZONE:` like every other.
 
 **No `playable_from` parameter.** §11 item 9's sizing and `roadmap-v2.md` A5
 both name CR 113.6e's "any zone from which it could be played or cast", and the
-honest answer today is that `check_cast_legality` hard-codes `Zone::Hand`
-(`cast.rs:626`) — so the parameter would have exactly one possible value at
+honest answer today is that `can_begin_to_cast` hard-codes `Zone::Hand`
+(`oracle/mana_helpers.rs`, `check_cast_legality` until SU-7) — so the parameter would have exactly one possible value at
 every call site, supplied by the caller, forever, until `backlog.md` §2.3
 lands. A parameter with one value is a guess about §2.3's shape dressed as an
 interface. 113.6e is deferred by decision 4 and the parameter arrives with it.
@@ -2510,7 +2510,7 @@ deferrals are §2.3's, not this row's**.
 | **113.6c** states where it doesn't | **ships, as a spelling of 113.6b** | `ZoneSet::ALL.without(z)`, and `EVERYWHERE_BUT_BATTLEFIELD` is already a constant LJ wrote for Grist and Mycosynth Lattice. **No second arm and no card claimed** — a fixture asserts the complement round-trips through the same field |
 | **113.6d** cost abilities on the stack | **ships as a move** | Already answered by `CostSubject::applies_from_battlefield`; it becomes this predicate's arm and the method delegates. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
 | **113.6h** entry-modifying | **ships as an assertion** | Already true through RC-4's look-ahead frame and LJ's `in_zones_or_entering`: an entering object is admitted by a row iff the row reaches the battlefield. Registered consumer: Scarwood Treefolk, and ATOM-614.12-001 is the test that already passes |
-| 113.6e play/cast restrictions | **deferred — `backlog.md` §2.3** | Its first sentence needs "any zone from which it could be played", and that is `check_cast_legality`'s hard-coded `Zone::Hand`. Its second sentence is `codebase-state.md` item 75's gap and has nothing to grant *with*. Card: none until §2.3 |
+| 113.6e play/cast restrictions | **deferred — `backlog.md` §2.3** | Its first sentence needs "any zone from which it could be played", and that is `can_begin_to_cast`'s hard-coded `Zone::Hand`. Its second sentence is `codebase-state.md` item 75's gap and has nothing to grant *with*. Card: none until §2.3 |
 | 113.6f zone-of-play restrictions | **deferred — §2.3** | This *is* flashback, and §2.3 blocks all 210 |
 | 113.6g can't be countered / copied | **deferred, and the zone half is already free** | The predicate answers it with no arm of its own: an instant's abilities function on the stack by CR 113.6's *first sentence*, which is the default arm, so `functioning_zones` returns `STACK` for Abrupt Decay's static ability without knowing what it says. What is missing is §11 item 9's **(c)** — `restriction::predicate` sweeps `battlefield_ids_ordered`, so a stack source is invisible to it, and that is a gate leg wanting its own card. Card: **Abrupt Decay** ("This spell can't be countered", Scryfall 2026-09-14) |
 | 113.6i counters can't be put on | **deferred** | Needs a self-scoped counter restriction and CR 122.1's entry moment. Card: **Solemnity**'s second clause, which is other-scoped and so is the near miss rather than the case |

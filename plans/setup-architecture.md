@@ -1764,8 +1764,9 @@ design against `fb1767a`:
 > took every recommendation in §7c.1. It is `roadmap-v2.md` A6g's next
 > item, "a 'why' panel fed by the trace sink", read against `7f8532a`
 > (#219's merge). The build is SU-6 to SU-8 (§8). SU-6 built the layers'
-> section and the panel, 2026-10-05 (§8's ✅ section). What its build changed
-> here is amended where it stands, and listed in the archive's SU-6 entry.
+> section and the panel, 2026-10-05, and SU-7 the question's section, the
+> same day (§8's ✅ sections). What each build changed here is amended where
+> it stands, and listed in the archive's entry for it.
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
@@ -1784,9 +1785,11 @@ says which rules and effects made the thing look the way it does.
   affects "each other non-Aura enchantment", and the Angel is not one. Each
   line carries its rule (CR 613.1f, 613.4b), and each card a line names links
   to that card's own why.
-- **"Why can't I cast Grizzly Bears?"** On the review board `main.scenario`,
-  the mana Player 0 can make, one from Everywhere, does not cover {1}{G} (CR
-  601.2g–h). On the opponent's turn it would say instead that a creature
+- **"Why can't I cast Grizzly Bears?"** On the review board `main.scenario`
+  with Everywhere edited to a Mountain, the mana Player 0 can make, one red,
+  does not cover {1}{G} (CR 601.2g–h). With Everywhere itself the Bears are
+  offered: the enumeration counts its five mana abilities as five sources,
+  `codebase-state.md` item 162, whose design is the PR after SU-7. On the opponent's turn it would say instead that a creature
   spell is cast only in its controller's main phase with the stack empty (CR
   117.1a, 302.1). At a declare-blockers question it would say "Grizzly Bears
   can't block Serra Angel: the Angel has flying, and the Bears have neither
@@ -2105,6 +2108,15 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
      enumeration and enforcement share one check. That is `codebase-state.md`
      item 188's class: two roads to one answer.
    - `ui::display` words each reason with its rule, beside `combat_error`.
+
+   As SU-7 built it: `play_land` and `activate_ability` ask the same checks
+   too, the pairs item 188 names beside `check_cast_legality`, and a cost's
+   resource check (`can_pay_costs`) returns `CannotPay`. Each family's reason
+   is the first its check refuses, in the order the enumeration asked. The
+   section answers at every question whether it offers the object or the
+   player, and why not only at the three questions these checks build (the
+   priority question and the two declarations). A target's reasons are RS-2's,
+   which rewrites target legality (the owner, 2026-10-05).
 3. **A reader of the sink's lines** (SU-8), in `state::trace` beside the
    writer, as its inverse. It gives a record's kind and fields, for the panel
    to select by. So the format has one owner, and a round-trip test against
@@ -2233,8 +2245,9 @@ pub fn explain(game: &GameState, id: ObjectId) -> Option<LayerExplanation>;
 // One step: the application, its layer, timestamp and source, and what it did to `id`:
 // Applied { before, after }, NotMatched, NotInItsZones, Gone (CR 604.2) or LockedOut (CR 613.6).
 
-// oracle (SU-7): one check for the enumeration and the enforcement.
-pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<(), CannotCast>;
+// oracle (SU-7): one check for the enumeration and the enforcement. As built,
+// `Ok` holds the mana sources it would tap, which `castable_spells` returns.
+pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<Vec<ManaSource>, CannotCast>;
 let castable = hand.iter().filter(|&&card| can_cast(game, player, card).is_ok());
 
 // ui::why: what every client draws.
@@ -2264,10 +2277,14 @@ off, with a line saying why.
   a creature at layer 4, its own ability strips it at layer 6, and at 7b
   Opalescence's 4/4 comes before Humility's 1/1 by timestamp (CR 613.7). Swap
   the two lines in the editor, Play, and ask again.
-- **SU-7.** On `main.scenario`, right-click Grizzly Bears in the hand: the
-  mana is short. Pass to Player 1's turn and ask again: now it is the timing.
-  On `blocks.scenario`, edit in a Serra Angel attacking and right-click Wall of
-  Stone at the block: it cannot block the flyer.
+- **SU-7.** On `main.scenario`, edit Everywhere to a Mountain, Play, and
+  right-click Grizzly Bears in the hand: the mana is short. (A Mountain keeps
+  Lightning Bolt castable, so the window stops at the priority question.) (With Everywhere
+  the Bears are offered: item 162, amended 2026-10-05.) Pass to Player 1's
+  turn and ask again: now it is the timing. On `blocks.scenario`, edit in a
+  Serra Angel attacking and right-click Wall of Stone at the block: it cannot
+  block the flyer. Right-click a player's line: whether the question offers
+  that player.
 - **SU-8.** On `bolt-into-giant-growth.scenario`, let the stack resolve, then
   right-click the log line where Lightning Bolt deals its damage. The panel
   lists that event's batch, its CR 616.1 iterations and the triggers asked

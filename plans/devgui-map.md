@@ -178,17 +178,21 @@ building the game afresh and replaying the answers before it.
 SU-6 (#221, `setup-architecture.md` §7c) built its first part: a right-click on a
 card, a permanent or a stack object asks why it is the way it is, and a panel
 on the window's left shows what the layers did to it, line by line, with each
-line's rule.
+line's rule. SU-7 added the panel's first section, **At this question**: whether
+the open question offers the object, and as what, and if it does not, why. A
+player's line can be right-clicked too, and its why is that section alone.
 
 - **Asked at the seat.** `WindowState::input` turns the right-click into
   `Reply::Why`, which the session sends as it sends an answer. The seat
   waiting at the open question (`GuiSeat::ask`) carries it out without
   closing the question, as it carries out "Stop yielding": it asks the engine
-  (`ui::why::why`, which reads `engine::layers::explain`) and sends the answer
-  back as `ToWindow::Why`. A why answers nothing, so it keeps the answer in
+  (`ui::why::why`, which reads `engine::layers::explain` and, for the
+  question's section, the checks the options were built by) and sends the
+  answer back as `ToWindow::Why`. The seat hands it the open question too: who
+  is asked, the `ChoiceContext` and the options, as the engine gave them. A why answers nothing, so it keeps the answer in
   progress and need not wait out the beat after a prompt arrives.
-- **The panel follows its object.** The seat keeps the object the panel
-  shows, and each later question's message carries its why. The session
+- **The panel follows its object.** The seat keeps the object or player the
+  panel shows (`BoardRef`), and each later question's message carries its why. The session
   keeps the panel across Undo answer, a savestate and a Reload of the same
   start, whose games number objects alike, and closes it at any other
   start, `--load` among them.
@@ -197,7 +201,10 @@ line's rule.
   names, Back, and a close, and `app.rs` draws them (`why_panel`). With no
   question open the panel keeps its last answer, its links off, and says so,
   and an object's hover says a right-click asks nothing (`Item::why_hint`).
-- **What comes next:** SU-7 adds why an option is or is not offered at the
-  open question, and a player's line to right-click, and SU-8 what an event
-  did and which triggered abilities were asked about it, read from a
-  replay's trace (§7c).
+- **Two tiers of "not offered".** *Never offered* is what the checks refuse,
+  each line with its rule: the mana is short (CR 601.2h), it is not your turn
+  (CR 117.1a), the Angel has flying (CR 702.9b). *Offered, then reversed* is
+  an answer the engine took and undid at this question (CR 732.1), which the
+  re-asked question's `rejected` names.
+- **What comes next:** SU-8, what an event did and which triggered abilities
+  were asked about it, read from a replay's trace (§7c).

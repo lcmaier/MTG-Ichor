@@ -7859,6 +7859,28 @@ the file.
        only asks whether any payment exists. Performance is the session's
        first measurement.
 
+     **Found by SU-7 (2026-10-05): the affordability check errs both ways,
+     and the owner pulled its design forward.** SU-7's click script met the
+     over-offer on the review board itself: one Everywhere offers Grizzly
+     Bears' {1}{G} on `main.scenario`. The same greedy count also
+     under-offers, which `legality.rs`'s header calls a bug: Sol Ring's
+     {C}{C} counts once, and nothing it reads knows RE-9's replacements on
+     mana (Mana Reflection doubles, Nyxbloom Ancient triples, Pale Moon and
+     Deep Water change the type) or TR-1's triggered mana ability (Wild
+     Growth's extra {G}). Doubling Cube's and Krark-Clan Ironworks' mana
+     costs mana or a sacrifice, which no matching decides. **Slotted (the
+     owner, 2026-10-05, at SU-7):** a design doc is the next PR after SU-7,
+     reviewed before any build. It surveys every payment family the CR and
+     the cards have (convoke, delve, improvise, hybrid, Phyrexian, snow,
+     restricted mana, filters, sources fed by sacrifices, mana replacements,
+     triggered mana), says which fit which algorithm, and prices each on the
+     priority question, where the candidate list is 18.6% of a close-out
+     run's instructions and the source scan 13% (SU-6's engine arm). The
+     owner asked whether convoke and delve retrofit easily; that is the
+     survey's to show, not this entry's to assume. SU-7's checks call
+     `find_mana_sources` from one place each (`can_cast`,
+     `can_afford_ability_costs`), so the new check lands there.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
@@ -8666,6 +8688,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      counted 8 repeated cleanup steps in four 200-game runs, and none left an
      effect behind.
 
+     **Three confirmed and fixed by SU-7 (2026-10-05).** Cast timing, land-play
+     timing and attack legality each have one check now, which the
+     enumeration and the enforcement both ask: `can_begin_to_cast`,
+     `can_play_land` and `can_attack`, with `can_begin_to_activate` for
+     activation's half of the same pair. One answer had drifted: the cast
+     never refused a land (CR 305.9), and only the enumeration did, so a
+     `CastSpell` naming a land went through `cast_spell` as a spell (a test
+     fails on the tree before the fix). **Two more candidates, seen on the
+     way:** `pay_single_cost` re-checks {T}, {Q} and life in words of its
+     own beside `check_cost_resource`; and `legal_blockers` repeats the
+     blocker's half of `can_block`.
+
      **Sized:** the candidates are unsized until each is confirmed.
      **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
      185's inventory of elisions, which is the same kind of list.
@@ -9139,3 +9173,24 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      traced board where the check runs writes no record from it: ~25.
      **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
      debug engine's trace in the window.
+
+### Found by SU-7, why an option is not offered (2026-10-05)
+
+211. **The priority question never offers a mana ability.** CR 605.3a: "A
+     player may activate an activated mana ability whenever they have
+     priority". `activatable_abilities` keeps `AbilityType::Mana` out, so the
+     engine offers one only in a cost's mana window (CR 601.2g). The why says
+     so in the words of `CannotActivate::ManaAbility`. A player who wants to
+     sacrifice an artifact to Krark-Clan Ironworks in response to its
+     removal, which 605.3a allows, cannot, since no cost is being paid.
+
+     **Reachability (2026-10-05):** reachable — wrong: a play CR 605.3a allows
+     and the window never offers, with Krark-Clan Ironworks registered.
+
+     **Sized:** offering them is a few lines in `can_begin_to_activate`, but
+     it changes what the engine asks. Every priority point with an untapped
+     land stops being a lone `Pass`, which `backlog.md` §2.22's rule 1
+     answers for the seat, so the window and the random agent are asked far
+     more: a fixture migration (item 209), and the agent's stream moves.
+     **Slotted:** item 162's design doc (the next PR after SU-7), which owns
+     the mana abilities' offer and the window together.
