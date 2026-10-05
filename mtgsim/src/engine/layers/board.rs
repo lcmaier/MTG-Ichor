@@ -531,13 +531,13 @@ enum Kind<'a> {
     /// when its turn comes, CR 604.2), a keyword counter (CR 122.1b), a
     /// P/T counter kind (CR 122.1a), or what it entered as (CR 614.1c).
     /// Affects the member and nothing else.
-    Own { object: ObjectId, own: Own, modification: EffectModification },
+    Own { object: ObjectId, own: OwnApplication, modification: EffectModification },
 }
 
-/// Which of a member's own applications an `Own` is: what its existence
-/// check reads, and what an explanation calls it.
+/// Which of those a member's own application is. CR 604.2's existence check
+/// reads it, and `explain` reports it as what applied.
 #[derive(Clone, Copy)]
-enum Own {
+enum OwnApplication {
     Cda(AbilityId),
     KeywordCounter(KeywordFlag),
     PtCounters(CounterType, u32),
@@ -545,12 +545,12 @@ enum Own {
     EnteredWith,
 }
 
-impl Own {
+impl OwnApplication {
     /// CR 604.2 for a CDA: taken off the member before its turn came, so it
     /// applies to nothing. Nothing else of a member's own can be taken away
     /// mid-layer.
     fn stripped(self, board: &Board<'_>, object: ObjectId) -> bool {
-        matches!(self, Own::Cda(ability) if !cda_still_there(board, object, ability))
+        matches!(self, OwnApplication::Cda(ability) if !cda_still_there(board, object, ability))
     }
 }
 
@@ -585,7 +585,7 @@ enum Tiebreak {
 
 impl Application<'_> {
     fn is_cda(&self) -> bool {
-        matches!(self.kind, Kind::Own { own: Own::Cda(_), .. })
+        matches!(self.kind, Kind::Own { own: OwnApplication::Cda(_), .. })
     }
 
     /// What applied, as an explanation names it.
@@ -595,11 +595,11 @@ impl Application<'_> {
                 AppliedBy::Effect { source: rows[0].source, origin: rows[0].origin, effect: rows[0].id }
             }
             Kind::Own { own, .. } => match *own {
-                Own::Cda(ability) => AppliedBy::Cda { ability },
-                Own::KeywordCounter(keyword) => AppliedBy::KeywordCounter { keyword },
-                Own::PtCounters(kind, count) => AppliedBy::PtCounters { kind, count },
-                Own::EnteredAsCopy => AppliedBy::EnteredAsCopy,
-                Own::EnteredWith => AppliedBy::EnteredWith,
+                OwnApplication::Cda(ability) => AppliedBy::Cda { ability },
+                OwnApplication::KeywordCounter(keyword) => AppliedBy::KeywordCounter { keyword },
+                OwnApplication::PtCounters(kind, count) => AppliedBy::PtCounters { kind, count },
+                OwnApplication::EnteredAsCopy => AppliedBy::EnteredAsCopy,
+                OwnApplication::EnteredWith => AppliedBy::EnteredWith,
             },
         }
     }
@@ -985,7 +985,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                 modification_reads(&modification, &mut reads, Channels::CONTROLLER);
                 let writes = writes_of(&modification);
                 apps.push(Application {
-                    kind: Kind::Own { object, own: Own::Cda(ability), modification },
+                    kind: Kind::Own { object, own: OwnApplication::Cda(ability), modification },
                     timestamp,
                     tiebreak: Tiebreak::Cda(index, i),
                     reads,
@@ -1004,7 +1004,7 @@ fn applications_in_layer<'a, 'l: 'a>(
     // A snapshot and an edit read nothing, so neither depends on anything
     // (CR 613.8a).
     for note in &board.entered_as {
-        let mut push_own = |own: Own, modification: EffectModification, tiebreak: Tiebreak| {
+        let mut push_own = |own: OwnApplication, modification: EffectModification, tiebreak: Tiebreak| {
             let writes = writes_of(&modification);
             apps.push(Application {
                 kind: Kind::Own { object: note.object, own, modification },
@@ -1015,11 +1015,11 @@ fn applications_in_layer<'a, 'l: 'a>(
             });
         };
         if layer == Layer::Layer1Copy && let Some(values) = &note.copy {
-            push_own(Own::EnteredAsCopy, EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy);
+            push_own(OwnApplication::EnteredAsCopy, EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy);
         }
         for (i, (at, modification)) in note.edits.iter().enumerate() {
             if *at == layer {
-                push_own(Own::EnteredWith, modification.clone(), Tiebreak::EntryEdit(i));
+                push_own(OwnApplication::EnteredWith, modification.clone(), Tiebreak::EntryEdit(i));
             }
         }
     }
@@ -1074,7 +1074,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                             let modification = EffectModification::GrantKeywordFlag(keyword);
                             let writes = writes_of(&modification);
                             apps.push(Application {
-                                kind: Kind::Own { object, own: Own::KeywordCounter(keyword), modification },
+                                kind: Kind::Own { object, own: OwnApplication::KeywordCounter(keyword), modification },
                                 timestamp: stack.timestamp,
                                 tiebreak: Tiebreak::Keyword(keyword),
                                 reads: Reads::default(),
@@ -1097,7 +1097,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                         };
                         let writes = writes_of(&modification);
                         apps.push(Application {
-                            kind: Kind::Own { object, own: Own::PtCounters(*kind, stack.count), modification },
+                            kind: Kind::Own { object, own: OwnApplication::PtCounters(*kind, stack.count), modification },
                             timestamp: stack.timestamp,
                             tiebreak: Tiebreak::Counter(rank),
                             reads: Reads::default(),
@@ -1327,7 +1327,7 @@ fn write_affected(
 }
 
 /// Apply `app` to every member it affects — for real, or under a `journal`
-/// that lets it be taken back. Returns the members it reached.
+/// that lets it be taken back. Returns the members it affected.
 fn perform(
     game: &GameState,
     board: &mut Board<'_>,
@@ -1393,10 +1393,11 @@ fn perform(
     }
 }
 
-/// [`perform`], told to `recorder`: what `app` reached, and what it did to
-/// the watched object. That is decided before it applies, as `perform`'s
-/// first `row_affected` decides it: whether its set could name the object at
-/// all, and if it does not reach it, why not.
+/// [`perform`], with `recorder` told the members `app` affected and what it
+/// did to the object being explained: its frame before and after, or why
+/// `app` did not affect it. That is decided before `app` applies, as
+/// `perform`'s first `row_affected` decides it: whether its set could name
+/// the object at all, and if the set does not include it, why not.
 fn perform_recorded(
     game: &GameState,
     board: &mut Board<'_>,

@@ -97,7 +97,7 @@ fn serra_angel_under_humility_says_what_each_layer_did_and_what_missed_it() {
     assert_eq!((before.power, before.toughness, after.power, after.toughness), (Some(4), Some(4), Some(1), Some(1)));
     let opalescence = on_battlefield(&game, "Opalescence");
     let humility = on_battlefield(&game, "Humility");
-    assert_eq!(explanation.steps[0].reached, [humility], "what Opalescence did apply to");
+    assert_eq!(explanation.steps[0].affected, [humility], "what Opalescence did apply to");
     assert!(explanation.steps.iter().all(|step| step.waited_for.is_empty()), "nothing here depends on anything");
     let _ = opalescence;
 }
@@ -165,7 +165,7 @@ fn an_anthem_that_misses_a_creature_names_the_creatures_it_pumped() {
     let giant = put_on_battlefield(&mut game, creatures::hill_giant(), 1);
     let missed = explained(&game, giant);
     assert_eq!(steps(&game, &missed), [step(Layer::Layer7cModifyPT, "Glorious Anthem", "not matched")]);
-    assert_eq!(missed.steps[0].reached, [bears]);
+    assert_eq!(missed.steps[0].affected, [bears]);
     let pumped = explained(&game, bears);
     assert_eq!(steps(&game, &pumped), [step(Layer::Layer7cModifyPT, "Glorious Anthem", "applied")]);
     assert_eq!((pumped.result.power, pumped.result.toughness), (Some(3), Some(3)));

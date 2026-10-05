@@ -1,5 +1,6 @@
 //! What the layers did to one object: the pass run again with a recorder
-//! watching it (`setup-architecture.md` §7c, the why panel's SU-6).
+//! watching it, so a client can say how the object got its characteristics
+//! (`setup-architecture.md` §7c).
 //!
 //! **The recorder is the pass, not a second walk.** [`explain`] runs the walk
 //! `compute_characteristics` would run for the object (`board::run_pass` for
@@ -27,8 +28,8 @@ pub struct LayerExplanation {
     /// The object as the layers begin from it: printed, under the controller
     /// CR 108.4 gives it.
     pub seed: EffectiveCharacteristics,
-    /// Each application that reached the object, and each one whose set could
-    /// have named it and did not, in the order the pass applied them.
+    /// Each application that affected the object, and each one whose set
+    /// could have named it and did not, in the order the pass applied them.
     pub steps: Vec<LayerStep>,
     /// `compute_characteristics`'s answer for the object.
     pub result: EffectiveCharacteristics,
@@ -43,9 +44,9 @@ pub struct LayerStep {
     /// CR 306.5b's intrinsic ability has none.
     pub timestamp: Option<Timestamp>,
     pub result: StepResult,
-    /// Every object it reached in this layer, the explained one among them
+    /// Every object it affected in this layer, the explained one among them
     /// or not: what an effect that missed the object did apply to.
-    pub reached: Vec<ObjectId>,
+    pub affected: Vec<ObjectId>,
     /// CR 613.8: the objects whose applications this one waited for, when
     /// it depended on them and so applied after them, out of timestamp order.
     pub waited_for: Vec<ObjectId>,
@@ -88,10 +89,10 @@ pub enum StepResult {
 }
 
 /// What `explain` keeps of one walk: every application in the order applied,
-/// what each reached, and what each did to the watched object.
+/// the objects each affected, and what each did to the watched object.
 ///
-/// With no object watched it keeps the order and the reach alone, which is
-/// the layer tests' view of CR 613.8's sequence.
+/// With no object watched it keeps the order and the affected objects alone,
+/// which is the layer tests' view of CR 613.8's sequence.
 pub(super) struct Recorder {
     watched: Option<ObjectId>,
     seed: Option<EffectiveCharacteristics>,
@@ -103,7 +104,7 @@ pub(super) struct RecordedStep {
     pub(super) layer: Layer,
     pub(super) by: AppliedBy,
     pub(super) timestamp: Option<Timestamp>,
-    /// Every object it reached.
+    /// Every object it affected.
     pub(super) affected: Vec<ObjectId>,
     /// What it did to the watched object, when its set could name it.
     pub(super) watched: Option<StepResult>,
@@ -111,7 +112,8 @@ pub(super) struct RecordedStep {
 }
 
 impl Recorder {
-    /// A recorder keeping each application's order and reach, and no frame.
+    /// A recorder keeping each application's order and affected objects, and
+    /// no frame.
     #[cfg(test)]
     pub(super) fn order_only() -> Recorder {
         Recorder { watched: None, seed: None, steps: Vec::new() }
@@ -149,7 +151,7 @@ impl Recorder {
                     by: step.by,
                     timestamp: step.timestamp,
                     result,
-                    reached: step.affected,
+                    affected: step.affected,
                     waited_for: step.waited_for,
                 })
             })

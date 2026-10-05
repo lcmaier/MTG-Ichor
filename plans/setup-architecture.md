@@ -2369,7 +2369,7 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 id)` (`engine/layers/explain.rs`) runs the walk `compute_characteristics`
 runs for the object, by its pass membership, and hands it a `Recorder` where
 the game's passes hand `None`. It records each application in each layer as
-it applies: what it reached, and what it did to the object, applied with the
+it applies: what it affected, and what it did to the object, applied with the
 frame before and after or missed, by its set, by CR 604.2 or by CR 613.6.
 Each says what it waited for (CR 613.8), and CR 306.5b's loyalty ability is
 a step of its own. A debug assertion holds the answer to the walk's.
@@ -2381,8 +2381,8 @@ answers beside the snapshot, and the panel on the window's left follows its
 object from question to question, with links, Back and ×, kept across
 Undo and an unchanged board's Reload.
 
-**What moved on the way in.** Each step keeps every object it reached, which
-the panel names and LI-2's one-layer test hook now reads. `Kind::Own` names
+**What moved on the way in.** Each step keeps every object it affected, which
+the panel names and LI-2's one-layer test hook now reads. `OwnApplication` names
 which of a member's own applications it is. A change reads "from 4/4 to
 1/1", since the window's font has no arrow. A player's line moved to SU-7,
 and the memo's audit is not paused in debug (§7c.1's decisions 3 and 4,

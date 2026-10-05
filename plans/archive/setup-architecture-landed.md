@@ -68,24 +68,25 @@ every characteristic a frame has, each a field's change, where the sizing
 counted the change list alone; it summarizes a frame for the printed card
 and the result, and names a layer with its rule. `explain.rs` carries six
 kinds of application and four ways to miss, each with its doc, and an entry
-with a route for each of the four pass memberships. The pass gained `Own`,
-which names a member's own applications at the four sites that push one,
-and `could_name` and `missed`, which decide before an application applies
-what it would do to the object. The band stayed under 2,500 at every
-commit: 1,684 in all.
+with a route for each of the four pass memberships. The pass gained
+`OwnApplication`, which names a member's own applications at the four
+sites that push one, and `could_name` and `missed`, which decide before an
+application applies what it would do to the object. The band stayed under
+2,500 at every commit: 1,684 in all.
 
 ### What the build changed in the design
 
-1. **A step keeps every object it reached** (`LayerStep::reached`), which
+1. **A step keeps every object it affected** (`LayerStep::affected`), which
    §7c.2's sketch did not have. The panel names them under a miss ("It
    applied to"), and LI-2's one-layer test hook reads them:
    `compute_board_traced` and its `TraceStep` became
    `compute_board_recorded` with a `Recorder`, so there is one record of a
    layer's order, not two.
-2. **`Kind::Own` names which of a member's own applications it is**: a CDA,
+2. **`OwnApplication` names which of a member's own applications applied**: a CDA,
    a keyword counter, P/T counters, the copy it entered as, or what it
    entered with. It held an optional CDA id, and an explanation names each.
-   CR 604.2's check moved onto it (`Own::stripped`).
+   CR 604.2's check moved onto it (`OwnApplication::stripped`). It was `Own`
+   until the review, which found the name said nothing at its uses.
 3. **CR 306.5b's loyalty ability is a step of its own**
    (`AppliedBy::IntrinsicLoyalty`). It is added at the end of layer 4, outside
    any application, so the recorder records it there, in the pass and in the

@@ -114,8 +114,8 @@ pub fn why(game: &GameState, about: ObjectId) -> Why {
                     .rule("613.6"),
                     _ => WhyLine::under("What it applies to does not include this object."),
                 });
-                if !step.reached.is_empty() {
-                    missed.push(WhyLine::under("It applied to").naming(game, &step.reached));
+                if !step.affected.is_empty() {
+                    missed.push(WhyLine::under("It applied to").naming(game, &step.affected));
                 }
             }
         }
