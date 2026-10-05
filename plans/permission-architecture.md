@@ -178,8 +178,19 @@ Named here so the design session starts from them; none is answered.
 
    Is RS-1's `RestrictionRegistry` the shape for the second and third, as
    CR 609.4's permission half (B8) already asks?
-2. **The enumeration's cost.** Candidates come from every zone a permission
-   names. Item 162's measurement sets the price.
+2. **The enumeration's cost, priced at four seats.** PM-0 measures the
+   gather on SU-6's engine arm: the candidate list is 18.6% of a close-out
+   run's instructions, and 39–40 µs a question on the large board in release
+   (`setup-architecture.md` §7c). `castable_spells` walks the hand today, and
+   a permission adds every zone it names, whose size grows through a game.
+   **If a scan of those zones costs measurably, the plan is an index**,
+   maintained where an object changes zones, as LK registers the abilities
+   that function off the battlefield. "Any player may activate" (44 cards)
+   must not cost every player a read of every opponent's abilities.
+   `activatable_abilities` already walks every permanent and stops at SU-7's
+   per-source control check. A per-card bit for an ability someone else may
+   activate keeps that early exit, and the rest is a Layer 6 grant's
+   question.
 3. **A consequence.** Flashback's exile is a replacement keyed on the
    permission a cast used. Where is that recorded, and does a copy of the
    spell keep it (CR 707.10)?

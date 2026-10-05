@@ -2397,6 +2397,18 @@ the matrix waits for the design that needs it.
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
+**Costs are a slot too** (the owner, 2026-10-05, at `codebase-state.md` item
+212's census). `Cost` has ten arms and the cards ask for about fifty actions
+(`plans/references/cast-census.md` §3). `cost-architecture.md` CP-2's design
+decides between an arm per action and a cost composed of a choice and a
+`GameAction`. With the second, a custom cost built from existing actions is
+data, bounded by `GameAction`'s vocabulary; with the first, every new cost
+action is an engine change. The census's rule for custom cards is the same for
+every slot: a card may compose what the CR's vocabulary defines, and an action
+the CR does not define is an engine change held to a CR-style definition,
+never a runtime extension the replacement pipeline and RS-4's projection
+cannot see.
+
 ### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and its open questions
 
 **The surface that cannot serve it.** v1's first use case is four-player
