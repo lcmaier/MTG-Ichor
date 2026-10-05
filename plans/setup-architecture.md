@@ -2361,7 +2361,7 @@ sized above, is ~300–475 and ~150–230 more.
 
 ### SU-7 — why an option is not offered — ✅ landed 2026-10-05
 
-**What shipped.** §7c's second PR (#SU7PR). Each option the window offers has one
+**What shipped.** §7c's second PR (#222). Each option the window offers has one
 check that the enumeration and the enforcement both ask, and it returns why
 it refuses: `can_begin_to_cast` and `can_cast` (`CannotCast`), `can_play_land`
 (`CannotPlayLand`), `can_activate_its_abilities`, `can_begin_to_activate` and

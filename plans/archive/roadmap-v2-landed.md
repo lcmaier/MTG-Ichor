@@ -71,7 +71,7 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured:** no engine file changed, so no arms; `prompt_cost` in release as `main`'s, every reading's allocations and bytes the same, the header's tools 0.1–0.2 µs a repaint; the dev GUI's CI test step 24.0–24.1 s against `main`'s 23.2–23.4 s.
 
-### Why an option is not offered (SU-7), ✅ 2026-10-05 (PR #SU7PR)
+### Why an option is not offered (SU-7), ✅ 2026-10-05 (PR #222)
 
 **Built:** the "why" panel's second part (`setup-architecture.md` §7c, §8). Each option the window offers has one check, which the enumeration and the enforcement both ask and which returns why it refuses: casting (CR 601.3, 117.1a, 601.2c, 601.2h), land play (CR 305.1, 305.2), activation (CR 602.2, 602.5d, a cost's CR 118.3) and attacking (CR 508.1a), as blocking already had `can_block`. `ui::display` words each reason with its rule. The why's first section, "At this question", says whether the open question offers the object or player and as what, and if not, why, on two tiers: never offered, or offered and then reversed (CR 732.1). In the dev GUI a player's line asks too. On the way: `play_land` and `activate_ability` share the checks, and the cast refuses a land (CR 305.9), which it had cast as a spell. Tests: each family on a board with the enforcement refusing for the same reason, both declarations, the reversed tier, a player at a target question; every moved check broken once and caught; the panel for a blocker and a player; two pictures.
 
