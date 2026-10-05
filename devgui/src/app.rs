@@ -12,7 +12,6 @@ use crate::boards::{Folders, ListedFile};
 use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed};
 use crate::launch::Start;
 use crate::session::Session;
-use crate::prompt::BoardRef;
 use crate::view_model::{
     Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton,
     ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
@@ -550,8 +549,8 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     {
         inputs.push(Input::Board(target));
     }
-    if asked_why && let Some(BoardRef::Object(id)) = item.target {
-        inputs.push(Input::Why(id));
+    if asked_why && let Some(target) = item.target {
+        inputs.push(Input::Why(target));
     }
 }
 

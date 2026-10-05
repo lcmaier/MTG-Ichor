@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::why::{Why, WhyLine};
 
@@ -77,9 +77,9 @@ pub enum Input {
     EditTheScenario,
     /// A click in the editor, or one of its buttons the session acts on.
     Editor(EditorInput),
-    /// Ask why of an object: a right-click on it on the board, or a click on
-    /// its name in the why panel.
-    Why(ObjectId),
+    /// Ask why of an object or a player: a right-click on it on the board,
+    /// or a click on its name in the why panel.
+    Why(BoardRef),
     /// The why panel goes back to the object asked about before this one.
     WhyBack,
     /// Close the why panel.
@@ -325,7 +325,7 @@ pub struct WindowState {
     pub unwritten: Option<String>,
     /// The objects the why panel was asked about, the one it shows last;
     /// empty while the panel is closed (`setup-architecture.md` §7c).
-    pub why_path: Vec<ObjectId>,
+    pub why_path: Vec<BoardRef>,
     /// The engine's last answer for the object the panel shows.
     pub why: Option<Why>,
 }
@@ -442,12 +442,12 @@ impl WindowState {
             // A why answers nothing, so it closes no prompt and the beat after
             // one arrives need not drop it. The seat answers it at the open
             // question, and only there.
-            Input::Why(id) => {
+            Input::Why(about) => {
                 self.prompt.as_ref()?;
-                if self.why_path.last() != Some(&id) {
-                    self.why_path.push(id);
+                if self.why_path.last() != Some(&about) {
+                    self.why_path.push(about);
                 }
-                return Some(Reply::Why(Some(id)));
+                return Some(Reply::Why(Some(about)));
             }
             Input::WhyBack => {
                 self.prompt.as_ref()?;
@@ -608,7 +608,11 @@ impl WindowState {
             text: line.text.clone(),
             rule: line.rule.map(|rule| format!("CR {rule}")),
             depth: line.depth,
-            links: line.names.iter().map(|(id, label)| WhyLink { label: label.clone(), input: Input::Why(*id), live: open }).collect(),
+            links: line
+                .names
+                .iter()
+                .map(|(id, label)| WhyLink { label: label.clone(), input: Input::Why(BoardRef::Object(*id)), live: open })
+                .collect(),
         };
         let sections = why
             .sections
@@ -783,8 +787,7 @@ impl Marks {
             hover: String::new(),
             printed: None,
             type_line: None,
-            why_hint: matches!(target, BoardRef::Object(_))
-                .then_some(if self.asked.is_some() { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
+            why_hint: Some(if self.asked.is_some() { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
         }
     }
 
@@ -1518,12 +1521,15 @@ mod tests {
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 2 }, unnamed(3)));
         state.input(Input::OptionButton(1));
         let (prompt_before, selection_before) = (state.prompt.clone(), state.selection.clone());
-        assert_eq!(state.input(Input::Why(b.bear)), Some(Reply::Why(Some(b.bear))));
+        let bear = BoardRef::Object(b.bear);
+        assert_eq!(state.input(Input::Why(bear)), Some(Reply::Why(Some(bear))));
         assert_eq!((&state.prompt, &state.selection), (&prompt_before, &selection_before));
-        assert_eq!(state.input(Input::Why(b.bear)), Some(Reply::Why(Some(b.bear))), "asked again, as a refresh");
-        assert_eq!(state.why_path, [b.bear], "and not a second step back");
+        assert_eq!(state.input(Input::Why(bear)), Some(Reply::Why(Some(bear))), "asked again, as a refresh");
+        assert_eq!(state.why_path, [bear], "and not a second step back");
+        let player = BoardRef::Player(1);
+        assert_eq!(state.input(Input::Why(player)), Some(Reply::Why(Some(player))), "a player's line asks too");
         let idle = WindowState { board: Some(b.snapshot.clone()), ..WindowState::default() };
-        assert_eq!(idle.clone().input(Input::Why(b.bear)), None, "no seat is waiting to answer");
+        assert_eq!(idle.clone().input(Input::Why(bear)), None, "no seat is waiting to answer");
         let hint = |state: &WindowState| item(&state.board_view().expect("a board"), b.bear).why_hint;
         assert_eq!(hint(&state), Some(WHY_ON_RIGHT_CLICK));
         assert_eq!(hint(&idle), Some(WHY_ONLY_AT_A_QUESTION), "and its hover says so");
@@ -1535,9 +1541,9 @@ mod tests {
     fn back_returns_along_the_objects_asked_and_close_empties_the_panel() {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
-        state.input(Input::Why(b.bear));
-        state.input(Input::Why(b.relic));
-        assert_eq!(state.input(Input::WhyBack), Some(Reply::Why(Some(b.bear))));
+        state.input(Input::Why(BoardRef::Object(b.bear)));
+        state.input(Input::Why(BoardRef::Object(b.relic)));
+        assert_eq!(state.input(Input::WhyBack), Some(Reply::Why(Some(BoardRef::Object(b.bear)))));
         assert_eq!(state.input(Input::WhyBack), None, "nothing before the first");
         state.why = Some(Why { title: "Bear".to_string(), sections: Vec::new() });
         assert_eq!(state.input(Input::WhyClose), Some(Reply::Why(None)));
@@ -1553,11 +1559,11 @@ mod tests {
         let named = WhyLine { text: "Layer 6".to_string(), rule: Some("613.1f"), names: vec![(b.relic, "Relic (#4)".to_string())], depth: 0 };
         let why = Why { title: "Bear (#1)".to_string(), sections: vec![WhySection { heading: "What the layers did".to_string(), lines: vec![named] }] };
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
-        (state.why_path, state.why) = (vec![b.bear], Some(why));
+        (state.why_path, state.why) = (vec![BoardRef::Object(b.bear)], Some(why));
         let view = state.why_view().expect("an answer to show");
         let line = &view.sections[0].lines[0];
         assert_eq!((line.rule.as_deref(), line.depth), (Some("CR 613.1f"), 0));
-        assert_eq!(line.links, [WhyLink { label: "Relic (#4)".to_string(), input: Input::Why(b.relic), live: true }]);
+        assert_eq!(line.links, [WhyLink { label: "Relic (#4)".to_string(), input: Input::Why(BoardRef::Object(b.relic)), live: true }]);
         assert_eq!((view.back, view.note), (false, None));
         state.prompt = None;
         let idle = state.why_view().expect("kept with no question open");

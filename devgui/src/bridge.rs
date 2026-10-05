@@ -24,7 +24,7 @@ use mtgsim::state::decision_log::{self, AnswerLine, GameStart, Log, LoggedDecisi
 use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -32,11 +32,11 @@ use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode,
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::{Replay, ReplayControl};
-use mtgsim::ui::why::{Why, why};
+use mtgsim::ui::why::{OpenQuestion, Why, why};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::prompt::{Answer, Prompt, Reply};
+use crate::prompt::{Answer, BoardRef, Prompt, Reply};
 use crate::save::{self, Save};
 use crate::snapshot::Snapshot;
 use crate::view_model::Refusal;
@@ -114,9 +114,9 @@ pub struct Play {
     /// The engine that wrote a loaded line, which a divergence names beside
     /// this one when they differ; `None` within a session.
     pub written_by: Option<String>,
-    /// The object the why panel shows, whose why each question carries: the
-    /// panel outlasts a rebuild, as full control does.
-    pub watching: Option<ObjectId>,
+    /// The object or player the why panel shows, whose why each question
+    /// carries: the panel outlasts a rebuild, as full control does.
+    pub watching: Option<BoardRef>,
 }
 
 impl Play {
@@ -335,23 +335,23 @@ struct GuiSeat {
     yields: Yields,
     /// The game's record, which marks each place the window is asked.
     record: Option<Writer>,
-    /// The object the why panel shows, shared by every seat: the window has
-    /// one panel.
-    watching: Rc<Cell<Option<ObjectId>>>,
+    /// What the why panel shows, shared by every seat: the window has one
+    /// panel.
+    watching: Rc<Cell<Option<BoardRef>>>,
 }
 
 impl GuiSeat {
     /// Send `prompt` and wait for the window's reply: an answer, or at a
     /// priority prompt a yield. "Stop yielding" and a why are carried out
     /// here, and the prompt stays open.
-    fn ask(&self, game: &GameState, prompt: Prompt) -> Reply {
+    fn ask(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Reply {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
         if let Some(record) = &self.record {
             record.window_asked();
         }
         let yielding = self.yields.holding(game, prompt.player);
-        let why = self.watching.get().map(|id| Box::new(why(game, id)));
+        let why = self.watching.get().map(|about| Box::new(why(game, about.why_about(), Some(&question))));
         if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding, why }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
@@ -359,7 +359,7 @@ impl GuiSeat {
         loop {
             match self.from_window.recv() {
                 Ok(Reply::StopYielding) => self.yields.clear(),
-                Ok(Reply::Why(about)) => self.answer_why(game, about),
+                Ok(Reply::Why(about)) => self.answer_why(game, &question, about),
                 Ok(reply) => return reply,
                 Err(_) => std::panic::resume_unwind(Box::new(WindowGone)),
             }
@@ -368,17 +368,17 @@ impl GuiSeat {
 
     /// The panel shows `about` from now on, its why answered at once from
     /// the board at this question; `None` closes it.
-    fn answer_why(&self, game: &GameState, about: Option<ObjectId>) {
+    fn answer_why(&self, game: &GameState, question: &OpenQuestion, about: Option<BoardRef>) {
         self.watching.set(about);
-        let Some(id) = about else { return };
-        if self.to_window.send(ToWindow::Why(why(game, id))).is_err() {
+        let Some(about) = about else { return };
+        if self.to_window.send(ToWindow::Why(why(game, about.why_about(), Some(question)))).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
         (self.wake)();
     }
 
-    fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
-        match self.ask(game, prompt) {
+    fn answer(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Answer {
+        match self.ask(game, question, prompt) {
             Reply::Answer(answer) => answer,
             other => panic!("{other:?} answered a prompt that is not a priority prompt"),
         }
@@ -394,7 +394,8 @@ impl DecisionProvider for GuiSeat {
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        match self.ask(game, Prompt::pick_n(game, player, context, options, bounds)) {
+        let question = OpenQuestion { player, context, options };
+        match self.ask(game, question, Prompt::pick_n(game, player, context, options, bounds)) {
             Reply::Answer(Answer::Picks(picks)) => picks,
             // A yield answers the priority prompt it is set at with a pass;
             // the window offers a stack yield only over a stack, the one the
@@ -409,7 +410,8 @@ impl DecisionProvider for GuiSeat {
     }
 
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        match self.answer(game, Prompt::number(game, player, context, min, max)) {
+        let question = OpenQuestion { player, context, options: &[] };
+        match self.answer(game, question, Prompt::number(game, player, context, min, max)) {
             Answer::Number(number) => number,
             other => panic!("a pick_number was answered with {other:?}"),
         }
@@ -426,14 +428,14 @@ impl DecisionProvider for GuiSeat {
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         let prompt = Prompt::allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs);
-        match self.answer(game, prompt) {
+        match self.answer(game, OpenQuestion { player, context, options: buckets }, prompt) {
             Answer::Allocation(amounts) => amounts,
             other => panic!("an allocate was answered with {other:?}"),
         }
     }
 
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        match self.answer(game, Prompt::order(game, player, context, items)) {
+        match self.answer(game, OpenQuestion { player, context, options: items }, Prompt::order(game, player, context, items)) {
             Answer::Order(order) => order,
             other => panic!("a choose_ordering was answered with {other:?}"),
         }
