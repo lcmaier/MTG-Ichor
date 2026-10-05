@@ -24,7 +24,7 @@ use mtgsim::state::decision_log::{self, AnswerLine, GameStart, Log, LoggedDecisi
 use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
-use mtgsim::types::ids::PlayerId;
+use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -32,6 +32,7 @@ use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode,
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::{Replay, ReplayControl};
+use mtgsim::ui::why::{Why, why};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -113,12 +114,15 @@ pub struct Play {
     /// The engine that wrote a loaded line, which a divergence names beside
     /// this one when they differ; `None` within a session.
     pub written_by: Option<String>,
+    /// The object the why panel shows, whose why each question carries: the
+    /// panel outlasts a rebuild, as full control does.
+    pub watching: Option<ObjectId>,
 }
 
 impl Play {
     /// `start`'s game, played from its start and recorded nowhere.
     pub fn new(start: GameStart) -> Play {
-        Play { start, line: Vec::new(), audited: true, record: None, written_by: None }
+        Play { start, line: Vec::new(), audited: true, record: None, written_by: None, watching: None }
     }
 }
 
@@ -126,8 +130,12 @@ impl Play {
 #[derive(Debug)]
 pub enum ToWindow {
     /// The seat `prompt` names has a decision to make, and holds this yield
-    /// while it does.
-    Prompt { snapshot: Snapshot, prompt: Prompt, yielding: Option<Yield> },
+    /// while it does. `why` is the why of the object the panel shows, at this
+    /// question, boxed: the variant is the enum's largest already.
+    Prompt { snapshot: Snapshot, prompt: Prompt, yielding: Option<Yield>, why: Option<Box<Why>> },
+    /// The why the window asked for at the open question
+    /// (`setup-architecture.md` §7c).
+    Why(Why),
     /// `Game::run` returned.
     Finished { snapshot: Snapshot, outcome: Outcome },
     /// The engine thread panicked: an `ask_*` validator, or an engine bug.
@@ -190,7 +198,7 @@ fn play(
     full_control: FullControlSwitch,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    let Play { start, mut line, mut audited, record, written_by } = game;
+    let Play { start, mut line, mut audited, record, written_by, watching } = game;
     // A loaded record's start may name what this build no longer has.
     let refusal = if written_by.is_some() { Refusal::Load } else { Refusal::Scenario };
     let refuse = |message: String| {
@@ -213,6 +221,7 @@ fn play(
     };
 
     let events_logged = Rc::new(Cell::new(0));
+    let watching = Rc::new(Cell::new(watching));
     let from_window = Rc::new(from_window);
     // Every seat the window's, each with `cli_play`'s stack and a yield of
     // its own: CR 601.2g's window closes once the cost is paid, and a yield
@@ -227,6 +236,7 @@ fn play(
                 events_logged: Rc::clone(&events_logged),
                 yields: yields.clone(),
                 record: record.clone(),
+                watching: Rc::clone(&watching),
             };
             let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(seat.clone())), yields.clone());
             let routed = FullControl::new(decorated, seat, full_control.clone()).superseding(yields);
@@ -325,12 +335,15 @@ struct GuiSeat {
     yields: Yields,
     /// The game's record, which marks each place the window is asked.
     record: Option<Writer>,
+    /// The object the why panel shows, shared by every seat: the window has
+    /// one panel.
+    watching: Rc<Cell<Option<ObjectId>>>,
 }
 
 impl GuiSeat {
     /// Send `prompt` and wait for the window's reply: an answer, or at a
-    /// priority prompt a yield. "Stop yielding" is carried out here, and the
-    /// prompt stays open.
+    /// priority prompt a yield. "Stop yielding" and a why are carried out
+    /// here, and the prompt stays open.
     fn ask(&self, game: &GameState, prompt: Prompt) -> Reply {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
@@ -338,17 +351,30 @@ impl GuiSeat {
             record.window_asked();
         }
         let yielding = self.yields.holding(game, prompt.player);
-        if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding }).is_err() {
+        let why = self.watching.get().map(|id| Box::new(why(game, id)));
+        if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding, why }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
         (self.wake)();
         loop {
             match self.from_window.recv() {
                 Ok(Reply::StopYielding) => self.yields.clear(),
+                Ok(Reply::Why(about)) => self.answer_why(game, about),
                 Ok(reply) => return reply,
                 Err(_) => std::panic::resume_unwind(Box::new(WindowGone)),
             }
         }
+    }
+
+    /// The panel shows `about` from now on, its why answered at once from
+    /// the board at this question; `None` closes it.
+    fn answer_why(&self, game: &GameState, about: Option<ObjectId>) {
+        self.watching.set(about);
+        let Some(id) = about else { return };
+        if self.to_window.send(ToWindow::Why(why(game, id))).is_err() {
+            std::panic::resume_unwind(Box::new(WindowGone));
+        }
+        (self.wake)();
     }
 
     fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {

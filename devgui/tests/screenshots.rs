@@ -88,6 +88,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let (state, board) = &first["targets"];
     let diverged = "the log diverges at answer 12: it chose player 7, which is not offered".to_string();
     results.add(picture(&WindowState { diverged: Some(diverged), ..partway(state.clone()) }, &header(board), None, "diverged"));
+    let sample = "../mtgsim/scenarios/humility-opalescence.scenario";
+    let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/humility-opalescence/seed-0.log"));
+    results.add(picture(&partway(why_open(sample)), &line, None, "why_panel"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -147,6 +150,24 @@ fn setup_stack(sample: &str) -> WindowState {
     let mut state = WindowState::default();
     state.receive(next(&engine));
     assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
+    finish(engine);
+    state
+}
+
+/// The why panel open on Serra Angel at the sample's first question: what
+/// each layer did to it under Humility, and what reached it and did not
+/// apply (`setup-architecture.md` §7c).
+fn why_open(sample: &str) -> WindowState {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+    let engine = spawn(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let board = state.board.as_ref().expect("a board at the first question");
+    let permanents = board.players.iter().flat_map(|player| &player.battlefield);
+    let angel = permanents.map(|p| &p.card).find(|card| card.name == "Serra Angel").map(|card| card.id).expect("the Angel");
+    engine.answers.send(state.input(Input::Why(angel)).expect("a why at an open question")).unwrap();
+    state.receive(next(&engine));
+    assert!(state.why_view().is_some(), "the panel shows");
     finish(engine);
     state
 }

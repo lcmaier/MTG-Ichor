@@ -12,9 +12,10 @@ use crate::boards::{Folders, ListedFile};
 use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed};
 use crate::launch::Start;
 use crate::session::Session;
+use crate::prompt::BoardRef;
 use crate::view_model::{
     Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton,
-    ToolButton, ToolsView, TypeLineView, TypeWordView, WindowState, ZoneView,
+    ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
 };
 
 pub struct DevGui {
@@ -221,6 +222,9 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
             }
         });
     });
+    if let Some(why) = state.why_view() {
+        egui::Panel::left("why").default_size(400.0).show(ui, |ui| why_panel(ui, &why, inputs));
+    }
     egui::CentralPanel::default().show(ui, |ui| {
         let Some(board) = board else {
             ui.weak(if header.playing { state.no_board() } else { "No game yet." });
@@ -535,6 +539,9 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     let sense = if item.clickable { egui::Sense::click() } else { egui::Sense::hover() };
     let button = egui::Button::new(text).selected(item.chosen).stroke(stroke).sense(sense);
     let mut response = ui.add(button);
+    // Read before the hover's tooltip takes the response: a right-click asks
+    // why, on any item, clickable or not.
+    let asked_why = response.hovered() && ui.input(|input| input.pointer.secondary_clicked());
     if !item.hover.is_empty() || item.printed.is_some() {
         response = response.on_hover_ui(|ui| hover(ui, item));
     }
@@ -543,6 +550,46 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     {
         inputs.push(Input::Board(target));
     }
+    if asked_why && let Some(BoardRef::Object(id)) = item.target {
+        inputs.push(Input::Why(id));
+    }
+}
+
+/// The why panel: the engine's lines, each indented under the one it says
+/// more about, its rule beside it and a link for each object it names.
+fn why_panel(ui: &mut egui::Ui, why: &WhyView, inputs: &mut Vec<Input>) {
+    ui.horizontal(|ui| {
+        if ui.add_enabled(why.back, egui::Button::new("Back")).clicked() {
+            inputs.push(Input::WhyBack);
+        }
+        if ui.button("×").on_hover_text("Close").clicked() {
+            inputs.push(Input::WhyClose);
+        }
+        ui.strong(format!("Why: {}", why.title));
+    });
+    if let Some(note) = why.note {
+        ui.weak(note);
+    }
+    egui::ScrollArea::vertical().id_salt("why").show(ui, |ui| {
+        for section in &why.sections {
+            ui.separator();
+            ui.strong(&section.heading);
+            for line in &section.lines {
+                ui.horizontal_wrapped(|ui| {
+                    ui.add_space(18.0 * f32::from(line.depth));
+                    ui.label(&line.text);
+                    if let Some(rule) = &line.rule {
+                        ui.weak(rule);
+                    }
+                    for link in &line.links {
+                        if ui.add_enabled(link.live, egui::Link::new(&link.label)).clicked() {
+                            inputs.push(link.input.clone());
+                        }
+                    }
+                });
+            }
+        }
+    });
 }
 
 /// What a hover shows: the item as it is now, its type line under its first
@@ -569,6 +616,9 @@ fn hover(ui: &mut egui::Ui, item: &Item) {
             });
         }
     });
+    if matches!(item.target, Some(BoardRef::Object(_))) {
+        ui.weak("Right-click: why it is so");
+    }
 }
 
 /// A type line a word at a time, a word an effect took away greyed in place.

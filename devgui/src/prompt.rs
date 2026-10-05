@@ -30,6 +30,10 @@ pub enum Reply {
     Yield(Yield),
     /// End the seat's yield. The open prompt stays open.
     StopYielding,
+    /// Show this object's why in the panel, answered now and at each question
+    /// after; `None` closes the panel (`setup-architecture.md` §7c). The open
+    /// prompt stays open.
+    Why(Option<ObjectId>),
 }
 
 /// Which of the four `DecisionProvider` methods asked, with its bounds.
