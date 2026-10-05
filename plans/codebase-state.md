@@ -9,7 +9,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **v1 is two use cases** (owner, 2026-08-24): peer-to-peer human games through a GUI, specifically **4-player Commander**, and **highly parallel AI games** over the CLI. Two-player Standard is a checkpoint, not the target. Ordering lives in `CLAUDE.md` → "Critical path to v1"; the consequence for this file is that CR 800/802 and CR 903 below are path items, not deferrals, and that new systems get written N-player-shaped. `plans/state-of-play.md` is the generated board; this list is the prose beside it, rewritten in place at the post-RE audit (2026-09-15).
 - **Code size:** 62,241 lines of Rust across 118 `src/` files, plus 32,712 in `tests/`. 1,537 tests, 0 warnings. `fuzz_games` runs 200-game batches over two pools (`performance`, 89 cards; `stress`, every registered card, 159) at any seat count (`--players`), exits 1 on a panic or an unpaid resolution, and CI checks three runs at one seed line for line. The last readings: 13.98 ms CPU per two-seat game, 44.83 ms per four-seat (`fuzz-record.md`, RE-9's block).
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure — every turn, phase and step is a proposed event since RE-1, and the turn's sequence is data since RE-10), CR 7 (keyword abilities + SBAs).
-- **Partially covered:** CR 6 casting — the pipeline, X, alternative and additional costs, and **cost determination as its own pipeline** (`cost-architecture.md`, CM-0–CM-4, 2026-09-07/08: CR 601.2f's step, the spell's own cost abilities, sacrifice as a cost, the mana window and a payer split into two decorators); mode choice, distribution and target uniqueness pending; activation restrictions are one value (`ActivationRestriction::OnlyAsSorcery`, LH-2), the rest `backlog.md` §2.8. CR 1 mulligan is a stub. Equip ✅ (LH-2); Bestow not started.
+- **Partially covered:** CR 6 casting — the pipeline, X, alternative and additional costs, and **cost determination as its own pipeline** (`cost-architecture.md`, CM-0–CM-4, 2026-09-07/08: CR 601.2f's step, the spell's own cost abilities, sacrifice as a cost, the mana window and a payer split into two decorators); mode choice, distribution and target uniqueness pending; activation restrictions are one value (`ActivationRestriction::OnlyAsSorcery`, LH-2), the rest `permission-architecture.md`'s since 2026-10-05. CR 1 mulligan is a stub. Equip ✅ (LH-2); Bestow not started.
 - **Triggered abilities (CR 603) — in progress,** phased TR-1 to TR-6 in `triggers-architecture.md` §12; `state-of-play.md` says which have landed.
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
@@ -19,7 +19,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122; 122 closed 2026-09-24 by TR-2a, and 60 on 2026-09-28 by RG), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
-- **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
+- **Eight architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md`, `triggers-architecture.md`, `setup-architecture.md` and `permission-architecture.md` (a slot since 2026-10-05, from item 212's census) — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
 
 ## Spec database
@@ -5154,7 +5154,7 @@ first.
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
 
-2. **"Any player may activate this ability" is unmodeled (CR 602.1a).** `engine/put_on_stack.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
+2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — graduated 2026-10-05 to `permission-architecture.md`** (item 212's census: 39 Commander-legal cards let any player activate, 5 only an opponent; its §11 gives the v1 shape: a field on `AbilityDef`, read per ability by `can_begin_to_activate`). `engine/put_on_stack.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
 
    `AbilityDef` has nowhere to record the permission, so this is a missing field rather than a missing check: an `activatable_by` on `AbilityDef` (default: controller only), read by `put_on_stack.rs::activate_ability` and by `oracle::mana_helpers::activatable_abilities`, which currently enumerates only the asking player's permanents. Both halves are needed — a permission the action list never offers is invisible.
 
@@ -7890,6 +7890,34 @@ the file.
      `find_mana_sources` from one place each (`can_cast`,
      `can_afford_ability_costs`), so the new check lands there.
 
+     **What item 212's census settles for this design (2026-10-05).** The
+     counts and queries are in `plans/references/cast-census.md` §12.
+     - **Production this design now owns** (the owner, at the census's
+       review). One mana of any color: 380 Commander-legal cards print it,
+       and 347 more make a Treasure (`backlog.md` §2.19). Painland riders:
+       129 mana abilities `resolve_mana_effect` cannot resolve. "The chosen
+       color": 32, reading `backlog.md` §2.2's as-enters record, which has no
+       owner, so this design builds the record's mana half or names its slot.
+       "Could produce" (CR 106.7): 14. This design sets their build slots,
+       before C.
+     - **What the check misreads.** It counts one mana for several (156
+       abilities) and each listed type as a source of its own (381). It
+       skips a variable amount (60) and the doubled pool (1). It skips a
+       source whose cost is mana unless the pool already holds that cost
+       (175). It counts a sacrifice as free, the sacrificed source included
+       (143), and restricted mana as unrestricted (153). Triggered mana (19
+       cards) and its replacements (10) go unread.
+     - **X is never offered.** `ManaPool::can_pay` and `find_mana_sources`
+       refuse `{X}`, so the 527 cards with X in their mana cost are
+       `ManaShort` at every priority question. No registered card has one.
+     - **This design owns two more things:** payment by permanents or cards
+       (convoke 104, improvise 23, delve 28, assist 16, offering 6, waterbend
+       28), and the why of `ManaAbilityWindow`, `ChooseXValue` and
+       `GenericManaAllocation` (`setup-architecture.md` §7c).
+
+     The design prices each family on the priority question. The census
+     counted them and measured nothing.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
@@ -9204,35 +9232,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** item 162's design doc (the next PR after SU-7), which owns
      the mana abilities' offer and the window together.
 
-212. **How cards are cast, activated and paid for has no census, and SU-7
-     found three families with no owner.** `cr-coverage-audit.md` checks
-     whether the plan can express the CR; nothing checks the same for the
-     cards v1 needs, every Commander-legal card. The replacement census, the
-     trigger survey and the "can't" census each did it for one area, and each
-     found what reading the CR missed. SU-7's review (the owner, 2026-10-05)
-     found, in this area alone:
-     - costs no one owned: exile from a graveyard (about 161 cards) and
-       counters (about 334), beside `backlog.md` §2.5's discard (384);
-     - "who may activate" decided per source, where CR 602.2's exception is
-       per ability ("Before card breadth" item 2);
-     - casting and land play reasons naming today's default, the hand,
-       rather than CR 601.3's permission (`backlog.md` §2.3, RS-2);
-     - the why explaining the options of three question kinds of 30
-       (`ui::why::refusals`). Every other kind builds its options from a
-       filter of its own, with no typed reason.
-
-     **Reachability (2026-10-05):** reachable — not wrong in any game yet:
-     each family is refused loudly, or offered by a check that will need
-     reshaping, and no registered card meets them.
-
-     **Sized:** a docs PR. A script over Scryfall's data classifies each
-     family of casting, activation, cost and payment text against the
-     engine's surfaces: `Cost`'s arms, `AbilityDef`'s activation fields, cast
-     and play permissions, mana payment, and the question kinds whose options
-     a filter builds. Each family is built, owned and slotted, or unowned,
-     with card counts. Every unowned family leaves with an owner and a slot,
-     or a recorded exclusion. `engineering-practices.md` §8 gains a second
-     question for a new type, beside "which rule watches this one": what it
-     must express at v1, which rules let a card override it and which card
-     families do. **Slotted:** the PR after SU-7, ahead of item 162's design,
-     which it feeds (the owner, 2026-10-05).
+212. **~~How cards are cast, activated and paid for has no census, and SU-7
+     found three families with no owner.~~ — ✅ CLOSED 2026-10-05 (the
+     census).** — archived. `plans/references/cast-census.md` and its script
+     count 127 families by status. The 77 found unowned each have an owner or
+     an exclusion: `permission-architecture.md`, `cost-architecture.md` CP-2,
+     item 162's design, SU-8, C, and one excluded. The census's §11 gives
+     SU-7's four findings their v1 shapes, and its §12 says what it settles
+     for item 162.
+     **Reachability (2026-10-05):** closed — the census.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 212".

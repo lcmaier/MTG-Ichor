@@ -134,6 +134,11 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
     it exists in `EntrySelectionScope.chosen` for one batch, and
     `AuxiliaryMove.per_chosen` turns it into counters.
 
+  **A mana ability reads the first one** (item 212's census, 2026-10-05):
+  "one mana of the chosen color" is 32 Commander-legal mana abilities, and
+  `codebase-state.md` item 162's design owns them. That design builds this
+  record's mana half or names its slot.
+
   Four constraints on their shape:
   - **Made before the permanent enters (CR 614.12a),** so the choice travels
     in `EnterMods`, and the look-ahead frame reads it. A chosen creature type
@@ -146,7 +151,13 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   - **The auxiliary move's record holds the moved objects as they are after
     the move.**
 
-### 2.3 Casting from a non-hand zone
+### 2.3 Casting from a non-hand zone — ✅ graduated 2026-10-05 to `permission-architecture.md`
+
+*Owned there since `codebase-state.md` item 212's census (`plans/references/cast-census.md`): the owner placed casting from
+every zone, ownership inside the permission and the reasons beside RS-2's in
+one document, designed beside RS-2 and built before B2. The four cost arms
+below are `cost-architecture.md` CP-2's. The entry is kept as written for the
+record, corrected where it was wrong.*
 
 - **Rules** — CR 601.3, 601.3f, 117.1a; the CR 702 cast-from-elsewhere keywords
 - **Verdict** — `can_begin_to_cast` (`oracle/mana_helpers.rs`, the check the
@@ -178,9 +189,10 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   `Cost::AddCounters`: `can_pay_costs` refuses each as `CannotPay::Unchecked`
   (SU-7) and `pay_single_cost` returns an error. Discard as a cost is about
   384 cards, exile from a graveyard 161 and removing counters 334 (Scryfall,
-  2026-10-05). The first is this entry's; the others had no owner, and
-  `codebase-state.md` item 212's census assigns one.
-- **Owner** — none yet.
+  2026-10-05). **All four are `cost-architecture.md` CP-2's** (item 212's
+  census, 2026-10-05). An earlier line here called the first one this entry's,
+  and it was not: a discard cost is a payment, not a permission.
+- **Owner** — `permission-architecture.md` (2026-10-05).
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes
 
@@ -253,7 +265,9 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   Crossroads Augur. The sizing's first cut sent both here on §8a's sentence;
   the review overturned it on cost of delay — item 6's 1,045 discard-watchers
   would otherwise test against fixtures. "Another player chooses" (701.9b's
-  third shape) stays here with its first card.
+  third shape) stays here with its first card. **Slotted 2026-10-05 by item
+  212's census:** that chooser, and exert as a cost (8 activated abilities),
+  are C's, each with its first card.
 - **`Shuffle` (CR 701.24a) — ✅ built 2026-09-16 (RF)**, on RD-1's precedent
   again: `Primitive::ShuffleLibrary` and `GameAction::ShuffleLibrary` landed
   inside a replacement PR because Darksteel Colossus's rider needed them
@@ -311,6 +325,17 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   exiled-with-counters card; nothing owed until then.
 - **Blocks** — nothing structural. Protection also needs §2.8's SBA legality
   re-check for Auras and Equipment.
+- **The casting and cost keywords, owned** (item 212's census, 2026-10-05,
+  `plans/references/cast-census.md` §7):
+  - the keywords that cast or activate from another zone are
+    `permission-architecture.md`'s;
+  - crew, saddle and station's tap cost is CP-2's;
+  - every other alternative or additional cost whose arm exists or is
+    `Custom` is C's breadth. Evoke, dash, overload and bestow are 127 cards;
+    emerge, spectacle and the rest of that family, 211; buyback, entwine,
+    casualty, bargain and strive, 126; splice, offspring, gift and the rest,
+    102. Each is a card over the surfaces its census row names. The 601.2b
+    count of multikicker, replicate and squad is CP-2's.
 - **Atoms** — 20, not re-filed.
 - **Owner** — none yet.
 
@@ -598,7 +623,13 @@ critical path, which lists neither; that is the owner's line to add.
 - **Atoms** — 7, not re-filed.
 - **Owner** — none yet.
 
-### 2.8 Where an ability functions, and when it can be activated
+### 2.8 Where an ability functions, and when it can be activated — ✅ graduated 2026-10-05 to `permission-architecture.md`
+
+*Owned there since `codebase-state.md` item 212's census (`plans/references/cast-census.md`), with who may activate
+("Before card breadth" item 2) and the loyalty limit (§2.11). The census counts
+489 activated abilities with a limit beyond sorcery timing and 295 that work
+in a hand or a graveyard, with 639 keyword cards beside them. The entry is
+kept as written for the record.*
 
 - **Rules** — CR 602.5 (activation restrictions), 604.5/604.6 (static abilities
   that function on the stack or in hand), 113.6 (functioning zones), 608.3g
@@ -773,7 +804,7 @@ critical path, which lists neither; that is the owner's line to add.
 - **Atoms** — 20, across CR 202 (11) and CR 105 (9).
 - **Owner** — none yet.
 
-### 2.11 Loyalty abilities
+### 2.11 Loyalty abilities — ✅ graduated 2026-10-05 to `permission-architecture.md` and CP-2
 
 - **Rules** — CR 306.5 (loyalty as a characteristic), 306.5d (activation),
   306.8 (damage), 209.2
@@ -793,7 +824,9 @@ critical path, which lists neither; that is the owner's line to add.
   fixture (`phase_ll_cards::grist_insect_clause`); the card waits on these
   abilities, and its −2 on TR-3's reflexive trigger.
 - **Atoms** — 12, across CR 306 (10) and CR 209 (2).
-- **Owner** — none yet.
+- **Owner** — `permission-architecture.md` for the timing (CR 306.5d,
+  606.3), and `cost-architecture.md` CP-2 for the cost, which is the counter
+  arms (item 212's census, 2026-10-05; 311 Commander-legal planeswalkers).
 
 ### 2.12 Step- and phase-scoped durations
 
@@ -897,7 +930,11 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   general form.
 - **Atoms** — the two CR 402.2 atoms cover the base rule only; the
   modification half has none. Corpus-thin — see §5.
-- **Owner** — none yet.
+- **Owner** — `permission-architecture.md` builds the query with the land
+  count (CR 305.2), its first consumer and the card family item 212's census
+  counted (36 cards that play additional lands). Max hand size and player
+  hexproof reuse it, as `cost-architecture.md` §3.9's one surface asks.
+  Slotted with that document's land-count PR, before C (2026-10-05).
 
 ### 2.16 Counters on players (CR 122.1) — ✅ graduated 2026-09-13 (RE-5)
 
@@ -1107,9 +1144,10 @@ mechanic rather than a migration, which is why it is here and not in
   text).
 - **Verdict** — `ManaType` has no any-color variant and `ManaOutput.mana` is
   `Vec<(ManaType, AmountExpr)>`, so the ability cannot be written; and
-  `engine/mana.rs::resolve_mana_effect` accepts only `ProduceMana` atoms with
-  `Fixed` amounts and never asks a `DecisionProvider` anything, so a new atom
-  would still resolve without the color being chosen. The choice belongs at
+  `engine/mana.rs::resolve_mana_effect` accepts only `ProduceMana` atoms (it
+  evaluates any `AmountExpr` since; an earlier line here said `Fixed` alone)
+  and never asks a `DecisionProvider` anything, so a new atom would still
+  resolve without the color being chosen. The choice belongs at
   resolution, not at activation — `ChoiceKind::ManaAbilityWindow`'s docs
   already anticipate a Cavern of Souls whose second mode is "add one mana of
   any color", and today that mode would have to be five abilities. **The
@@ -1119,10 +1157,13 @@ mechanic rather than a migration, which is why it is here and not in
   land and wrong for everything below, which prints one ability and a choice.
 - **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one
   mana of any color", one `ChoiceKind` asked in `resolve_mana_effect`, and
-  `fuzz_games::land_mana_colors` learning to read it. Riders are separate
-  and already carriable: City of Brass's damage and Mana Confluence's life
-  loss are a mana ability with a non-mana effect, which the `Sequence` arm
-  can hold once the primitive exists. Command Tower needs color identity on
+  `fuzz_games::land_mana_colors` learning to read it. **Riders are not
+  carriable, which this line used to claim** (item 212's census,
+  2026-10-05). `resolve_mana_effect` resolves a `Sequence` of `ProduceMana`
+  atoms and refuses anything else, so a painland's "deals 1 damage to you"
+  cannot resolve. That is 129 Commander-legal mana abilities. Mana
+  Confluence's life is a cost and is fine; City of Brass's damage is a
+  triggered ability, TR's. Command Tower needs color identity on
   top, which is the Commander track's, not this one's.
 - **Blocks** — Command Tower, Birds of Paradise, Chromatic Lantern, City of
   Brass, Mana Confluence, Gemstone Mine, Exotic Orchard; every Treasure and
@@ -1136,7 +1177,11 @@ mechanic rather than a migration, which is why it is here and not in
   this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
   "as though it were mana of any color", ATOM-609.4b-001..003 — are a
   different surface (`ManaPool::pay`) and stay where they are.
-- **Owner** — none yet. (Recorded here on 2026-09-03 when
+- **Owner** — `codebase-state.md` item 162's design, the next PR after
+  item 212's census. It designs the production families once, for resolution
+  and for the affordability check, and sets their build slots before C (the
+  owner, 2026-10-05). The census counts 380 cards with one mana of any color
+  and 347 more that make a Treasure. (Recorded here on 2026-09-03 when
   `plans/handoffs/pool-five-color-land.md` was closed; its City of Brass
   recommendation is this entry.)
 
@@ -2103,7 +2148,7 @@ shape with two outcomes.
 | **Size** | one RE-shaped kind — a `GameAction::RollDice { player, sides, count }` family, its `EventPattern` arm, a performer drawing from `GameState.rng` (never ambient, `CLAUDE.md`), an `AmountExpr` for the result — ~300–400 lines with two cards, on RE's per-kind measure; coins fold in as `sides: 2` |
 | **Blocks** | ~84 printed cards roll a die outside Un-sets (Scryfall, 2026-09-15: the AFR and CLB Dragons, Barbarian Class, Pixie Guide, Wyll, Blade of Frontiers, …); seven of them replace the roll |
 | **Atoms** | the CR 705/706 atoms are Phase 8's and Phase 9's in the corpus |
-| **Owner** | — |
+| **Owner** | — (a die roll as a cost, Clay Golem's, is one `Cost` arm with this entry's first card, in C: item 212's census, 2026-10-05) |
 
 ### 2.32 Mulligans (CR 103.5)
 
