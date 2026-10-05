@@ -1633,7 +1633,7 @@ For a new type, or a type a phase grows, three questions:
 
 **The answer goes where the type is designed.** A shape that cannot hold a
 family the count shows costs less to change before the first arm copies it: a
-`u32` count, where 97 cost pieces need an X, is the example. The worked
+`u32` count, where 96 cost pieces need an X or an amount the board decides, is the example. The worked
 example is `plans/references/cast-census.md` §2.
 
 ---

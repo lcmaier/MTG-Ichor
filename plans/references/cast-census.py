@@ -346,7 +346,7 @@ VERBS = (r"pay|exile|sacrifice|discard|return|tap|untap|reveal|remove|put|collec
          r"|waterbend|forage|mill|exert|unattach|roll|choose")
 # "Pay {4} or sacrifice an artifact", "{T} or {U}": the payer picks one of two
 # costs. An "or" inside a filter ("an artifact or creature") is not one.
-CHOICE = re.compile(r"\bor (" + VERBS + r")\b|\} or \{", re.I)
+CHOICE = re.compile(r"\bor (" + VERBS + r")\b|\bor \{", re.I)
 
 
 def cost_pieces(cost):
@@ -401,10 +401,10 @@ NX = r"(?:x|any number of|one or more|all|half|that many|cards equal|up to)"
 MANA = r"^(pay )?(\{[^}]+\})+$"
 
 COST_BUCKETS = [
-    ("choice", "a choice between two costs (\"pay {4} or sacrifice\")", "118.1", "no arm: a cost is one action",
-     "unowned", "costs", r"\bor (" + VERBS + r")\b|\} or \{"),
     ("count", "a cost paid any number of times", "601.2b", "601.2b's announcement cannot ask for a number",
      "unowned", "costs", r"any number of times"),
+    ("choice", "a choice between two costs (\"pay {4} or sacrifice\")", "118.1", "no arm: a cost is one action",
+     "unowned", "costs", r"\bor (" + VERBS + r")\b|\bor \{"),
     ("tap-self", "{T}", "107.5", "`Cost::TapSelf`", "built", "built", r"^\{t\}$"),
     ("untap-self", "{Q}", "107.6", "`Cost::UntapSelf`", "built", "built", r"^\{q\}$"),
     ("loyalty", "a loyalty symbol, [+N] [−N] [0]", "606.4", "no loyalty ability", "unowned", "2.11",
@@ -428,10 +428,12 @@ COST_BUCKETS = [
      r"^pay .*\{e\}"),
     ("life", "pay N life", "119.4", "`Cost::PayLife`", "built", "built",
      r"^pay (\d+|one|two|three|four|five|six|seven|eight|ten) life$"),
-    ("life-variable", "pay X life, half your life", "119.4", "`Cost::PayLife(u64)` holds a number", "unowned", "costs",
+    ("life-variable", "pay X life, half your life", "119.4",
+     "`Cost::PayLife(u64)` holds a number; X is announced only from a mana cost (`cast_spell`)", "unowned", "costs",
      r"^pay .*life"),
     ("sacrifice-self", "sacrifice ~", "701.21a", "`Cost::SacrificeSelf`", "built", "built", r"^sacrifice ~$"),
-    ("sacrifice-variable", "sacrifice X, any number or half", "701.21a", "`Cost::Sacrifice(_, u32)` holds a number",
+    ("sacrifice-variable", "sacrifice X, any number or half", "701.21a",
+     "`Cost::Sacrifice(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`)",
      "unowned", "costs", r"^sacrifice " + NX),
     ("sacrifice-attached", "sacrifice the enchanted or equipped permanent", "701.21a", "no `ObjectFilter` for it",
      "unowned", "costs", r"^sacrifice (enchanted|equipped|the creature|the permanent|it\b|attached|[a-z]+$)"),
@@ -457,7 +459,7 @@ COST_BUCKETS = [
     ("remove-counters-self", "remove N counters from ~", "122.1", "`Cost::RemoveCounters`, unchecked",
      "unowned", "unchecked", r"^remove (" + N[3:-1] + r") .*counters? from ~$"),
     ("remove-counters-variable", "remove X or any number of counters", "122.1",
-     "`Cost::RemoveCounters(_, u32)` holds a number", "unowned", "costs",
+     "`Cost::RemoveCounters(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`)", "unowned", "costs",
      r"^remove (" + NX[3:-1] + r"|one or more) .*counters?"),
     ("remove-counters-other", "remove counters from another permanent", "122.1", "no arm: the arm names the source",
      "unowned", "costs", r"^remove .*counters? from"),

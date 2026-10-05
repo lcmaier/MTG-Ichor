@@ -215,8 +215,8 @@ past (118.6a).
 <!-- cast-census: begin COSTS -->
 | family | CR | surface | status | owner | pieces | cards | in a spell's cost |
 |---|---|---|---|---|---:|---:|---:|
-| a choice between two costs ("pay {4} or sacrifice") | 118.1 | no arm: a cost is one action | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 52 | 52 | 46 |
 | a cost paid any number of times | 601.2b | 601.2b's announcement cannot ask for a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 2 | 2 | 2 |
+| a choice between two costs ("pay {4} or sacrifice") | 118.1 | no arm: a cost is one action | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 53 | 53 | 46 |
 | {T} | 107.5 | `Cost::TapSelf` | built |  | 5,371 | 4,275 | 0 |
 | {Q} | 107.6 | `Cost::UntapSelf` | built |  | 18 | 18 | 0 |
 | a loyalty symbol, [+N] [−N] [0] | 606.4 | no loyalty ability | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 882 | 311 | 0 |
@@ -229,9 +229,9 @@ past (118.6a).
 | an amount of mana the board decides | 107.3 | `Cost::Mana(ManaCost)` holds symbols | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 2 | 2 | 0 |
 | pay {E} | 107.14 | no arm: a player's counters | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 58 | 52 | 0 |
 | pay N life | 119.4 | `Cost::PayLife` | built |  | 159 | 155 | 5 |
-| pay X life, half your life | 119.4 | `Cost::PayLife(u64)` holds a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 12 | 12 | 7 |
+| pay X life, half your life | 119.4 | `Cost::PayLife(u64)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 11 | 11 | 7 |
 | sacrifice ~ | 701.21a | `Cost::SacrificeSelf` | built |  | 1,150 | 1,118 | 0 |
-| sacrifice X, any number or half | 701.21a | `Cost::Sacrifice(_, u32)` holds a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 29 | 29 | 15 |
+| sacrifice X, any number or half | 701.21a | `Cost::Sacrifice(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 29 | 29 | 15 |
 | sacrifice the enchanted or equipped permanent | 701.21a | no `ObjectFilter` for it | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 3 | 3 | 0 |
 | sacrifice N permanents | 701.21a | `Cost::Sacrifice` | built |  | 841 | 813 | 122 |
 | discard ~ | 113.6m | no arm, and the ability works in a hand | **owned** (found unowned) | `permission-architecture.md` (`roadmap-v2.md` B11: designed beside RS-2, built before B2) | 73 | 72 | 0 |
@@ -245,7 +245,7 @@ past (118.6a).
 | exile a permanent you control | 701.13 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 14 | 14 | 3 |
 | put an exiled card into a graveyard (processors) | 406.3 | no arm | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 7 | 7 | 1 |
 | remove N counters from ~ | 122.1 | `Cost::RemoveCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 249 | 235 | 0 |
-| remove X or any number of counters | 122.1 | `Cost::RemoveCounters(_, u32)` holds a number | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 56 | 56 | 0 |
+| remove X or any number of counters | 122.1 | `Cost::RemoveCounters(_, u32)` holds a number; X is announced only from a mana cost (`cast_spell`) | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 56 | 56 | 0 |
 | remove counters from another permanent | 122.1 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 46 | 45 | 0 |
 | put N counters on ~ | 122.1 | `Cost::AddCounters`, unchecked | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 11 | 10 | 0 |
 | put counters on another permanent, blight | 701.68 | no arm: the arm names the source | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 16 | 15 | 7 |
@@ -268,8 +268,8 @@ past (118.6a).
 
 Each row's pattern, matched against the lowercased piece, in row order:
 
-- a choice between two costs ("pay {4} or sacrifice"): `\bor (pay\|exile\|sacrifice\|discard\|return\|tap\|untap\|reveal\|remove\|put\|collect evidence\|blight\|behold\|waterbend\|forage\|mill\|exert\|unattach\|roll\|choose)\b\|\} or \{`
 - a cost paid any number of times: `any number of times`
+- a choice between two costs ("pay {4} or sacrifice"): `\bor (pay\|exile\|sacrifice\|discard\|return\|tap\|untap\|reveal\|remove\|put\|collect evidence\|blight\|behold\|waterbend\|forage\|mill\|exert\|unattach\|roll\|choose)\b\|\bor \{`
 - {T}: `^\{t\}$`
 - {Q}: `^\{q\}$`
 - a loyalty symbol, [+N] [−N] [0]: `^[+−-]?(\d+\|x)$`
@@ -646,7 +646,9 @@ the battlefield and no keyword family but affinity and equip.
      "can't" says otherwise (Solemnity, RS-4). Each is paid through the
      chokepoint, and its choice (which card, which counter) is asked before
      any payment is performed, as `Cost::Sacrifice`'s is. Counts are amounts
-     that can be X, not a `u32`; 97 pieces in §3 need that already. The
+     that can be X, not a `u32`; 96 pieces in §3 need that already, and X
+     is announced from every cost that holds it (CR 107.3a), where
+     `cast_spell` reads the mana cost alone. The
      counter arms name their permanent, so "remove a counter from a creature
      you control" and blight are the same arms.
    - **Owner:** `cost-architecture.md` CP-2. **Slot:** before C, beside CP-1.
@@ -725,7 +727,7 @@ the paper count. §3's numbers are the ones to cite.
 - **Restrictions that arrive as keywords.** Split second is a prohibition on
   others (RS-2), and the "can't" census counts its printed half.
 - **A count is not a cost.** Families are sized by cards waiting on them, not
-  by the code they want. One `AmountExpr` in `Cost`'s count arms serves 97
+  by the code they want. One `AmountExpr` in `Cost`'s count arms serves 96
   pieces.
 - **Oracle text, not printings.** The corpus is `unique=cards`, so a reprint
   counts once.
