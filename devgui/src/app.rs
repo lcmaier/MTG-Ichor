@@ -13,8 +13,8 @@ use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, S
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, Input, Item, KEYS, Key, Mode, NumberField, PromptView, SeatButton, TypeLineView, TypeWordView,
-    WindowState, ZoneView,
+    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton,
+    ToolButton, ToolsView, TypeLineView, TypeWordView, WindowState, ZoneView,
 };
 
 pub struct DevGui {
@@ -36,10 +36,11 @@ impl eframe::App for DevGui {
             mode: session.mode,
             line: &session.start_line,
             log: session.log_path.as_deref(),
-            playing: session.setup.is_some(),
+            playing: session.setup.is_some() || session.state.refused.is_some(),
             reloadable: session.setup.as_ref().is_some_and(|setup| setup.scenario.is_some()),
             message: session.message.as_ref().map(|message| message.as_ref().map(String::as_str).map_err(String::as_str)),
             files: &session.files,
+            tools: session.setup.is_some().then(|| session.state.tools_view()),
         };
         let editor = (session.mode == Mode::Edit).then(|| session.editor.view());
         for input in draw(ui, &session.state, &header, editor.as_ref()) {
@@ -55,7 +56,7 @@ pub struct SessionHeader<'a> {
     pub line: &'a str,
     /// The game's decision log.
     pub log: Option<&'a Path>,
-    /// A game has started.
+    /// A game has started, or was refused: the header says which.
     pub playing: bool,
     /// A scenario's game, which Reload builds again from its file.
     pub reloadable: bool,
@@ -63,6 +64,8 @@ pub struct SessionHeader<'a> {
     pub message: Option<Result<&'a str, &'a str>>,
     /// The boards and scenarios the header's list opens.
     pub files: &'a [ListedFile],
+    /// The game's tools, once a game has started.
+    pub tools: Option<ToolsView>,
 }
 
 /// The whole window, the game's or the editor's; the inputs the player made
@@ -73,6 +76,10 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader, edit
     if let Some(left) = state.settling_for() {
         // The prompt's controls come back when the beat ends, mouse or no mouse.
         ui.ctx().request_repaint_after(Duration::from_secs_f64(left));
+    }
+    if state.replaying.is_some() {
+        // The replay's count moves with no message to wake the window.
+        ui.ctx().request_repaint_after(Duration::from_millis(100));
     }
     let board = editor.is_none().then(|| state.board_view()).flatten();
     egui::Panel::top("header").show(ui, |ui| {
@@ -118,6 +125,31 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         ui.weak("No game yet: the editor's Play starts its board.");
         return;
     }
+    // The game's buttons first, where nothing before them changes width: a
+    // replay's status and a board's line come and go, and a double click's
+    // second half would land on whatever moved under it.
+    if header.reloadable && ui.button("Reload").clicked() {
+        inputs.push(Input::Reload);
+    }
+    if let Some(tools) = &header.tools {
+        tool_button(ui, &tools.undo, inputs);
+        tool_button(ui, &tools.savestate, inputs);
+        ui.menu_button("Savestates", |ui| {
+            if tools.menu.is_empty() {
+                ui.weak(NO_SAVESTATES);
+            }
+            for entry in &tools.menu {
+                if ui.add_enabled(entry.live, egui::Button::new(&entry.label)).clicked() {
+                    inputs.push(entry.input.clone());
+                    ui.close();
+                }
+            }
+        });
+        if let Some(why) = tools.undo_off {
+            ui.weak(why);
+        }
+    }
+    ui.separator();
     ui.strong(state.status());
     if let Some(board) = board {
         ui.separator();
@@ -128,12 +160,12 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
         None => ui.weak(header.line),
     };
+    if let Some(failed) = &state.unwritten {
+        ui.colored_label(ui.visuals().error_fg_color, failed);
+    }
     let mut full_control = state.full_control;
     if ui.checkbox(&mut full_control, "Full control").changed() {
         inputs.push(Input::FullControl(full_control));
-    }
-    if header.reloadable && ui.button("Reload").clicked() {
-        inputs.push(Input::Reload);
     }
     if state.board.is_some() {
         if ui.button("Save board as scenario").clicked() {
@@ -150,10 +182,10 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
 
 fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>, header: &SessionHeader, inputs: &mut Vec<Input>) {
     egui::Panel::bottom("prompt").show(ui, |ui| {
-        if let Some(message) = &state.refused {
-            ui.colored_label(ui.visuals().error_fg_color, "The scenario did not load:");
+        if let Some((refusal, message)) = &state.refused {
+            ui.colored_label(ui.visuals().error_fg_color, format!("{}:", refusal.heading()));
             ui.monospace(message);
-            ui.weak("Fix the file, then click Reload; or Edit the scenario.");
+            ui.weak(refusal.hint());
         } else if let Some(message) = &state.panic {
             ui.colored_label(ui.visuals().error_fg_color, "The engine thread panicked:");
             ui.monospace(message);
@@ -164,6 +196,12 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
                 ui.weak("Reload starts the scenario again.");
             }
         } else if let Some(prompt) = state.prompt_view() {
+            if let Some(message) = &state.diverged {
+                ui.colored_label(ui.visuals().warn_fg_color, DIVERGED[0]);
+                ui.monospace(message);
+                ui.weak(DIVERGED[1]);
+                ui.separator();
+            }
             ui.push_id(prompt.serial, |ui| prompt_panel(ui, &prompt, inputs));
         } else if header.playing {
             ui.weak(state.status());
@@ -656,6 +694,12 @@ fn shortcut(key: egui::Key) -> Option<Key> {
         egui::Key::F6 => Key::F6,
         _ => return None,
     })
+}
+
+fn tool_button(ui: &mut egui::Ui, button: &ToolButton, inputs: &mut Vec<Input>) {
+    if ui.add_enabled(button.live, egui::Button::new(&button.label)).clicked() {
+        inputs.push(button.input.clone());
+    }
 }
 
 fn seat_button(ui: &mut egui::Ui, button: &SeatButton, inputs: &mut Vec<Input>) {

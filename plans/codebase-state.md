@@ -8915,23 +8915,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
      whose summary bit it shares, if that comes first.
 
-200. **The dev GUI's start is read once, and a decision log it cannot open
-     reads as an engine panic.** `launch::read` settles a scenario's seed
-     at launch into `GameSetup::seed`, which then overrides the file's own
-     at every start, so Reload ignores an edited `seed` line, and a file
-     that did not parse at launch plays at seed 0 once it is fixed.
-     `DecisionLog::open` panics when it cannot create its file, which the
-     window shows as "The engine thread panicked". Findings 4 and 11 of A6g's
-     review practices PR.
-
-     **Reachability (2026-10-01):** reachable — not wrong in any game: the
-     first misleads a tester editing a board, and the second needs a
-     `logs/` folder that cannot be written.
-
-     **Sized:** ~30–50 lines: a start that keeps "the scenario's own seed"
-     until it reads the file, and a refusal for a log that cannot be
-     opened. **Slotted:** A6g's tools PR, which reshapes the start as a
-     save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.
+200. **~~The dev GUI's start is read once, and a decision log it cannot open
+     reads as an engine panic.~~ — ✅ CLOSED 2026-10-04 (SU-5's PR).** —
+     archived. A scenario launched with no `--seed` plays at its file's seed,
+     read as each game starts, and its log is named for that seed; a log
+     the session cannot make is refused in the window, saying where and why.
+     **Reachability (2026-10-04):** closed — SU-5's PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 200".
 
 201. **~~A click or a key can answer a prompt the person never saw.~~ — ✅
      CLOSED 2026-10-02 (A6g's playable PR).** — archived. For 0.3 seconds

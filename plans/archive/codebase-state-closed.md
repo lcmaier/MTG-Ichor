@@ -3234,3 +3234,27 @@ Closed with the playable PR's keyboard shortcuts, by its decision c: hold input 
      hold input for a beat, or wait for the pointer to move); then ~20–40
      lines in `view_model` and a test. **Slotted:** A6g's playable PR,
      whose keyboard shortcuts make it acute.
+
+### Item 200 — closed 2026-10-04 by SU-5's PR
+
+Closed in SU-5's first two commits, each test failing on the tree before it. **The seed:** `GameSetup::seed` is `None` for a scenario's own, and `GameSetup::start` reads the file and its seed as each game starts, so Reload plays an edited `seed` line and a file fixed after it was refused plays at the seed it says, where it played at the 0 launch settled. The session builds the start, so it names the decision log for the seed played, `seed-9.log` after the edit, where launch named it once; the header's line says that seed too. `reload_plays_at_the_seed_the_file_now_says` refuses a broken file, fixes it at seed 5, edits it to 9, and reads each game's log. **The log:** the session makes the log, now with its save beside it (`Record::create`), on the window's thread before the game starts, and refuses there in words, "The decision log could not be made" and what to do, where the engine thread panicked. `a_decision_log_that_cannot_be_made_is_refused_in_the_window` puts a file where the logs' folder would go. A write that fails later stops the record and the header says why, where `DecisionLog` panicked the engine thread too.
+
+*Original entry:*
+
+200. **The dev GUI's start is read once, and a decision log it cannot open
+     reads as an engine panic.** `launch::read` settles a scenario's seed
+     at launch into `GameSetup::seed`, which then overrides the file's own
+     at every start, so Reload ignores an edited `seed` line, and a file
+     that did not parse at launch plays at seed 0 once it is fixed.
+     `DecisionLog::open` panics when it cannot create its file, which the
+     window shows as "The engine thread panicked". Findings 4 and 11 of A6g's
+     review practices PR.
+
+     **Reachability (2026-10-01):** reachable — not wrong in any game: the
+     first misleads a tester editing a board, and the second needs a
+     `logs/` folder that cannot be written.
+
+     **Sized:** ~30–50 lines: a start that keeps "the scenario's own seed"
+     until it reads the file, and a refusal for a log that cannot be
+     opened. **Slotted:** A6g's tools PR, which reshapes the start as a
+     save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.

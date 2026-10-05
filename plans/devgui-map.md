@@ -5,7 +5,7 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `2140218`, #217's tip, 2026-10-04.
+§7. Read at `4139468`, SU-5's last code commit, 2026-10-04.
 
 ## 1. What it is
 
@@ -21,9 +21,10 @@ sits in it.
 
 | Part | File | What it does | Reviewed |
 |---|---|---|---|
-| The command line | `launch.rs`, `main.rs` | reads `--seed`, `--players`, `--scenario` and `--edit`, and opens the window | `launch.rs` closely, `main.rs` by running |
-| The session | `session.rs` | one game and one board: Play, Reload, "Save board as scenario", the editor. Every click lands here first | closely |
-| The bridge | `bridge.rs` | runs the game on the engine's thread. Its seats carry each question to the window and the answer back, and it attaches the decision log's file | closely |
+| The command line | `launch.rs`, `main.rs` | reads `--seed`, `--players`, `--scenario`, `--edit` and `--load`, and opens the window | `launch.rs` closely, `main.rs` by running |
+| The session | `session.rs` | one game and one board: Play, Reload, Undo answer, Savestate and the menu, `--load`, "Save board as scenario", the editor. Every click lands here first | closely |
+| The bridge | `bridge.rs` | runs the game on the engine's thread, replaying a line first when a rebuild or a load asks. Its seats carry each question to the window and the answer back, and it writes the game's record, the log and the save, one thread at a time | closely |
+| The save | `save.rs` | the journal beside each log: every line played, where the window was asked, the savestates, each move; the tree Undo answer and the menu read | closely |
 | The snapshot | `snapshot.rs` | the board copied as plain data at each question, read through the layers, so the window never touches the live game | closely |
 | The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
@@ -70,9 +71,16 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 - **The engine's thread** runs one game, and waits at every question.
 - **What ends the engine's thread:** the game's end; the window closing, or
   Reload starting another game, which drops the channel, so the old game's
-  next question ends its thread quietly (`WindowGone`); or a panic, which the
-  window shows as an engine bug. A scenario line the engine cannot play is
-  shown as the file's refusal, not as a bug.
+  next question ends its thread quietly (`WindowGone`); a rebuild taking the
+  game's record over (Undo answer, the menu), whose replay then stops at its
+  next answer (`Stop::Superseded`) and which writes nothing more; or a panic,
+  which the window shows as an engine bug. A scenario line the engine cannot
+  play is shown as the file's refusal, not as a bug.
+- **One writer of the record.** Each engine thread writes the log and the
+  save through a `Writer`; taking the record over shuts the one before
+  under the record's lock, so a game still running toward its next question
+  cannot append to the line that replaced it. The window's thread writes a
+  savestate and a move under the same lock, at the click.
 
 ## 5. Who computes what
 
@@ -85,16 +93,25 @@ From `engineering-practices.md` §10:
 - **How it looks**, such as layout, color and what is hidden, is the
   window's.
 
-**The decision log is the engine's.** The engine writes every answer, whoever
+**The decision log is the engine's.** The engine words every answer, whoever
 gave it (you, a decorator, or the engine's own pass), so a game writes the
-same record whatever its seats were set to. The bridge only names the file.
+same record whatever its seats were set to. The bridge only puts its lines in
+the files. The save's own lines, where the window was asked, the savestates
+and the moves, are the window's: which questions reach a person is one
+client's choice, so they stay out of the log (`engineering-practices.md` §10).
 
 ## 6. Files on disk
 
 From `devgui/`, where `cargo run` runs the window:
 - `boards/<board>/` holds a board's file and the decision log of every game
-  played from it, `seed-N.log`;
-- `logs/seed-N-players-P.log` is a dealt game's decision log.
+  played from it, `seed-N.log`, named for the seed the game played;
+- `logs/seed-N-players-P.log` is a dealt game's decision log;
+- beside each log, its save, `seed-N.log.save`: the session's journal of
+  every line it played, where the window was asked, the savestates set and
+  each move back (`save.rs`). The log is the one line the window is on,
+  written again from the start at each Undo answer or move; the save keeps
+  every line. `devgui --load` takes either and plays on in a new pair beside
+  it, `seed-N-2.log` and its save, never writing the files it loaded.
 
 ## 7. Tests and measures
 
@@ -104,6 +121,9 @@ From `devgui/`, where `cargo run` runs the window:
 - `tests/random_clicks.rs`: whole games played by seeded random clicks on
   anything the window offers. Every click must change the answer or complete
   it (§10.3).
+- `tests/tools.rs`: Undo answer, savestates and the menu, the save and
+  `--load`, on short boards through the session, with a replay superseded
+  at the bridge.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new.
@@ -123,9 +143,28 @@ From `devgui/`, where `cargo run` runs the window:
 
 ## 9. Where the tools sit
 
-SU-4 (#217) put the record and the replay in the engine (`state::decision_log`,
-`ui::replay`). The bridge writes the engine's text and starts every game
-through `GameStart`, so each game the window plays can be replayed. SU-5 adds
-the window's side through the bridge and the session: Undo, a fresh game
-replayed to your previous question; savestates; `--load`; and a `.save`
-journal beside each log.
+SU-4 (#217) put the record's text and the replay in the engine
+(`state::decision_log`, `ui::replay`); SU-5 (#219) built the window's side
+(`setup-architecture.md` §7.1–§7.3). Every game the window plays is a start
+and a line of answers, so any question it was asked can be asked again by
+building the game afresh and replaying the answers before it.
+
+- **Undo answer** goes back to the window's previous question: the session
+  finds the last place the window was asked in the save, builds the game
+  again and replays the line to it, with the layer memo's debug audits paused
+  (this build checked those answers as you gave them), and the engine asks
+  that question again. Off at the first question, with a line saying why.
+  While a replay runs, the header counts its answers, and each press moves
+  the target back one more question; the replay it replaces stops at its next
+  answer.
+- **Savestate** marks the open question's place in the save, named for its
+  turn and step. The **Savestates** menu lists the savestates and "Back to
+  where I was", the place the window's line last left; a click replays to it.
+  The save keeps every line played, and the menu lists only these.
+- **`--load FILE`** replays the line a save, or a plain log, ended on, with
+  the audits on (another build may have written it), counting as it goes,
+  then asks the next question. A line this build no longer takes says where
+  it stopped, and the game plays on from the answer before it.
+- The buttons come first in the header, after the Play | Edit switch, so a
+  replay's count and the board's line changing width never move them under
+  the pointer.

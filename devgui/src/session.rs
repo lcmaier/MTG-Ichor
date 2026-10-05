@@ -3,21 +3,25 @@
 //! over it and forwards each click here.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::state::decision_log::GameStart;
 
 use crate::boards::{Folders, ListedFile, start_name};
-use crate::bridge::{EngineHandle, GameSetup, Pool, spawn_game};
+use crate::bridge::{EngineHandle, GameSetup, Play, Pool, Record, Writer, locked, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
 use crate::launch::{Start, start_line};
-use crate::view_model::{Input, Mode, WindowState};
+use crate::save::{self, Save};
+use crate::view_model::{Input, Mode, Progress, Refusal, WindowState};
 
 pub struct Session {
-    /// The game the window plays, once one has started; each start's
-    /// decision log is its own file beside `log_path`'s.
+    /// How the game the window plays began, once one has; Reload begins it
+    /// again.
     pub setup: Option<GameSetup>,
-    /// That game's decision log.
+    /// Where it began, as read at its start.
+    pub start: Option<GameStart>,
+    /// That game's decision log, a file no earlier game wrote.
     pub log_path: Option<PathBuf>,
     /// The game's seed and start, for the header.
     pub start_line: String,
@@ -34,6 +38,9 @@ pub struct Session {
     /// why it could not.
     pub message: Option<Result<String, String>>,
     engine: Option<EngineHandle>,
+    /// The game's record: its log, its save, and the tree of play the
+    /// window's tools read.
+    record: Option<Arc<Mutex<Record>>>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 
@@ -41,6 +48,7 @@ impl Session {
     pub fn start(start: Start, folders: Folders, wake: Arc<dyn Fn() + Send + Sync>) -> Session {
         let mut session = Session {
             setup: None,
+            start: None,
             log_path: None,
             start_line: String::new(),
             state: WindowState::default(),
@@ -50,6 +58,7 @@ impl Session {
             folders,
             message: None,
             engine: None,
+            record: None,
             wake,
         };
         match start {
@@ -60,6 +69,7 @@ impl Session {
                     session.open_file(&path);
                 }
             }
+            Start::Load(file) => session.load(&file),
         }
         session
     }
@@ -69,10 +79,17 @@ impl Session {
         self.state.tick(now);
     }
 
-    /// Take every message the engine has sent since the last call.
+    /// Take every message the engine has sent since the last call. The
+    /// engine's thread waits at the prompt it sent, or has ended, so the
+    /// save is read as it stands there.
     pub fn receive(&mut self) {
+        let mut received = false;
         while let Some(message) = self.engine.as_ref().and_then(|engine| engine.from_engine.try_recv().ok()) {
             self.state.receive(message);
+            received = true;
+        }
+        if received {
+            self.read_record();
         }
     }
 
@@ -85,6 +102,13 @@ impl Session {
             Input::Reload => {
                 if let Some(setup) = self.setup.clone() {
                     self.start_game(setup);
+                }
+            }
+            Input::Undo => self.undo(),
+            Input::Savestate => self.savestate(),
+            Input::MoveTo(place) => {
+                if let Some(record) = self.record.clone() {
+                    self.rebuild(&record, place);
                 }
             }
             // From the window's thread, at any moment: the seat reads the
@@ -120,17 +144,139 @@ impl Session {
         }
     }
 
-    /// `setup`'s game on a thread of its own, with a decision log no earlier
-    /// game wrote. A game it supersedes unwinds when its channel closes, as
-    /// a closed window ends it.
+    /// `setup`'s game on a thread of its own, its start read now and its
+    /// record a log and a save no earlier game wrote, the log named for the
+    /// seed the start plays.
     fn start_game(&mut self, setup: GameSetup) {
-        let log_path = setup.log_path.as_deref().map(own_log);
-        let engine = spawn_game(GameSetup { log_path: log_path.clone(), ..setup.clone() }, Arc::clone(&self.wake));
+        self.leave_game();
+        let begun = setup.start();
+        self.setup = Some(setup.clone());
+        let start = match begun {
+            Ok(start) => start,
+            Err(message) => {
+                self.start_line = setup.scenario.map_or_else(String::new, |path| format!("scenario {}", path.display()));
+                self.state.refused = Some((Refusal::Scenario, message));
+                return;
+            }
+        };
+        self.start_line = start_line(&start, Some(setup.pool));
+        let log_path = own_log(&self.folders.game_log(&start));
+        let record = match Record::create(Save::new(start.clone()), log_path.clone()) {
+            Ok(record) => Arc::new(Mutex::new(record)),
+            Err(message) => {
+                self.state.refused = Some((Refusal::Record, message));
+                return;
+            }
+        };
+        self.spawn(Play { record: Some(Writer::take_over(&record)), ..Play::new(start.clone()) });
+        (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
+    }
+
+    /// Undo answer: the window's previous question asked again, on a game
+    /// built again from its start and replayed to it (`setup-architecture.md`
+    /// §7.2, decision 2). While a replay runs, each press moves its target
+    /// back one more question.
+    fn undo(&mut self) {
+        let Some(record) = self.record.clone() else { return };
+        let open = self.state.prompt.is_some() || self.state.replaying.is_some();
+        let target = locked(&record).save.undo_target(open);
+        if let Some(place) = target {
+            self.rebuild(&record, place);
+        }
+    }
+
+    /// Savestate: the open question's place kept in the save, named for its
+    /// turn and step, for the menu to come back to.
+    fn savestate(&mut self) {
+        let (Some(record), Some(name)) = (&self.record, self.state.savestate_name()) else { return };
+        if !self.state.tools.savestate_here {
+            locked(record).savestate(name);
+            self.read_record();
+        }
+    }
+
+    /// The game built again from its start and replayed to `place`, where
+    /// the save's line moves; the window counts the replay until the engine
+    /// asks there. The game it replaces writes nothing more, its replay
+    /// stopping at its next answer, and its thread unwinds when its channel
+    /// closes.
+    fn rebuild(&mut self, record: &Arc<Mutex<Record>>, place: usize) {
+        let Some(start) = self.start.clone() else { return };
+        let writer = Writer::take_over(record);
+        let line = {
+            let mut record = locked(record);
+            record.move_to(place);
+            record.save.line_to(place)
+        };
+        let replaying = Progress { done: writer.replayed(), of: line.len() };
         let full_control = self.state.full_control;
-        engine.full_control.set(full_control);
+        self.state = WindowState { full_control, now: self.state.now, replaying: Some(replaying), ..WindowState::default() };
+        self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None });
+        self.read_record();
+    }
+
+    /// `--load`: a save, or a decision log read as a save of one line,
+    /// replayed to where it ends with the memo's audits on, since another
+    /// build may have played it (`setup-architecture.md` §7.1), the window
+    /// counting the answers, and the next question asked. Play goes on in a
+    /// new log and save beside the loaded pair, named as a Reload's are, so
+    /// the files loaded are never written.
+    fn load(&mut self, file: &Path) {
+        self.leave_game();
+        let read = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()));
+        let save = match read.and_then(|text| Save::read(&text).map_err(|why| format!("{}, {why}", file.display()))) {
+            Ok(save) => save,
+            Err(message) => {
+                self.start_line = format!("loaded {}", file.display());
+                self.state.refused = Some((Refusal::Load, message));
+                return;
+            }
+        };
+        let loaded_log = if file.extension().is_some_and(|extension| extension == "save") { file.with_extension("") } else { file.to_path_buf() };
+        let log_path = own_log(&loaded_log);
+        let (start, line, written_by) = (save.start.clone(), save.line_to(save.current()), save.engine.clone());
+        let record = match Record::create(save, log_path.clone()) {
+            Ok(record) => Arc::new(Mutex::new(record)),
+            Err(message) => {
+                self.state.refused = Some((Refusal::Record, message));
+                return;
+            }
+        };
+        let writer = Writer::take_over(&record);
+        self.state.replaying = Some(Progress { done: writer.replayed(), of: line.len() });
+        self.start_line = format!("loaded {} · {}", file.display(), start_line(&start, None));
+        self.setup = Some(loaded_setup(&start));
+        self.spawn(Play { start: start.clone(), line, audited: true, record: Some(writer), written_by: Some(written_by) });
+        (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
+        self.read_record();
+    }
+
+    /// What the record says now: what its save lets the tools do, and a
+    /// write that failed.
+    fn read_record(&mut self) {
+        let Some(record) = &self.record else { return };
+        let record = locked(record);
+        (self.state.tools, self.state.unwritten) = (record.save.tools(), record.failed.clone());
+    }
+
+    /// The game left for another: its record shut, so a replay on its way
+    /// stops and nothing more is written, and the window cleared but for
+    /// full control, which is the window's. Its thread unwinds when its
+    /// channel closes, as a closed window ends it.
+    fn leave_game(&mut self) {
+        if let Some(record) = self.record.take() {
+            locked(&record).shut();
+        }
+        let full_control = self.state.full_control;
         self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
-        self.start_line = start_line(&setup);
-        (self.engine, self.log_path, self.setup, self.message) = (Some(engine), log_path, Some(setup), None);
+        (self.engine, self.start, self.log_path, self.message) = (None, None, None, None);
+    }
+
+    /// `play` on a thread of its own, under the window's full control.
+    fn spawn(&mut self, play: Play) {
+        let engine = spawn_game(play, Arc::clone(&self.wake));
+        engine.full_control.set(self.state.full_control);
+        self.engine = Some(engine);
     }
 
     /// The editor's board saved, then started from its file as Reload
@@ -140,9 +286,8 @@ impl Session {
             return;
         }
         let Some(path) = self.save_board() else { return };
-        let board = self.editor.board();
-        let setup = GameSetup { seed: board.seed, pool: Pool::Performance, players: board.players, log_path: None, scenario: Some(path) };
-        self.start_game(GameSetup { log_path: Some(self.folders.game_log(&setup)), ..setup });
+        let players = self.editor.board().players;
+        self.start_game(GameSetup { seed: None, pool: Pool::Performance, players, scenario: Some(path) });
         self.mode = Mode::Play;
     }
 
@@ -160,8 +305,8 @@ impl Session {
     /// "Save board as scenario": the board the game is at, a new board
     /// named for the game's start and turn, its first line naming the log.
     fn save_game_board(&mut self) {
-        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
-        let path = self.folders.new_board(&format!("{}-turn-{}", start_name(setup), board.turn));
+        let (Some(board), Some(start)) = (&self.state.board, &self.start) else { return };
+        let path = self.folders.new_board(&format!("{}-turn-{}", start_name(start), board.turn));
         let text = format!("# Saved from {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
         self.write(&path, &text);
     }
@@ -169,9 +314,9 @@ impl Session {
     /// "Edit this board": the board the game is at, as `Scenario::write`
     /// writes it at each prompt, the writer's report kept above it.
     fn edit_this_board(&mut self) {
-        let (Some(board), Some(setup)) = (&self.state.board, &self.setup) else { return };
+        let (Some(board), Some(start)) = (&self.state.board, &self.start) else { return };
         let text = format!("# From {}, turn {}.\n{}", self.game_named(), board.turn, board.board_text);
-        let source = Source::Game { start: start_name(setup), turn: board.turn };
+        let source = Source::Game { start: start_name(start), turn: board.turn };
         self.open(&text, source, "the game's board");
     }
 
@@ -225,9 +370,19 @@ impl Session {
     }
 }
 
-/// `path`, or the first of `stem-2.log`, `stem-3.log`, … beside it that does
-/// not exist: Reload keeps the record of the game it replaces, and a thread
-/// still finishing that game writes only its own file.
+/// How a loaded record's game began, for Reload and the names the window
+/// gives: a scenario's file, read again as Reload reads it, or a dealt
+/// game's seed and seats, whose pool the record does not say.
+fn loaded_setup(start: &GameStart) -> GameSetup {
+    match start {
+        GameStart::Scenario { path, .. } => GameSetup { seed: None, pool: Pool::Performance, players: 2, scenario: Some(PathBuf::from(path)) },
+        GameStart::Dealt { seed, decks, .. } => GameSetup { seed: Some(*seed), pool: Pool::Performance, players: decks.len(), scenario: None },
+    }
+}
+
+/// `path`, or the first of `stem-2.log`, `stem-3.log`, … beside it that is
+/// not on disk, nor its save: Reload keeps the record of the game it
+/// replaces, and a thread still finishing that game writes only its own.
 fn own_log(path: &Path) -> PathBuf {
     let stem = path.file_stem().map_or("game".to_string(), |s| s.to_string_lossy().into_owned());
     let extension = path.extension().map_or(String::new(), |e| format!(".{}", e.to_string_lossy()));
@@ -235,5 +390,5 @@ fn own_log(path: &Path) -> PathBuf {
         1 => path.to_path_buf(),
         n => path.with_file_name(format!("{stem}-{n}{extension}")),
     };
-    (1..).map(named).find(|path| !path.exists()).unwrap_or_else(|| path.to_path_buf())
+    (1..).map(named).find(|path| !path.exists() && !save::path_for(path).exists()).unwrap_or_else(|| path.to_path_buf())
 }

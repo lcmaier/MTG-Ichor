@@ -61,6 +61,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision −0.39%, from code placement (`fuzz-record.md`); the a6g replay test 0.28 s in debug with its replay's audits paused; the dev GUI's CI test step 22.8 s.
 
+### The tools (SU-5), ✅ 2026-10-04 (PR #219)
+
+**Built:** the tools' window half (`setup-architecture.md` §7.1–§7.3, §8). The save, `<log>.save` beside each decision log: a journal of every line the session played, where the window was asked, the savestates and each move, in the engine's words and the session's (`devgui/src/save.rs`). The record: one engine thread writes the log and the save at a time, a rebuild's taking over from the one before, whose replay stops at its next answer, and a replay's answers held until it hands the game to the seats. Undo answer, a fresh game replayed to the window's previous question, off at the first question with a line saying why; three presses during a replay wait for one. Savestate, named for its turn and step, and a menu of the savestates and "Back to where I was". `--load FILE`, a save or a plain log, replayed with the memo's audits on and counted, play going on in a new pair beside it; a line that diverges shown and played on from the answer before it. Item 200: a scenario's seed read from its file at each start, and a log that cannot be made refused in the window. Tests: undo across a target choice against a game played straight there, through `Scenario::write`; three presses landing three questions back; a superseded replay sending the window nothing; a savestate and a branch through a save and a load; a plain log's load; a divergence; item 200's two fixes, each failing on the tree before it. Three new pictures and eleven redrawn.
+
+**Decided:** at the design (#212, #216, the owner, 2026-10-03): decisions 1 to 6, the menu's shape, and the split along the engine's line; at the build (the owner, 2026-10-04), no design PR, a gap to be brought back before working around it, and the dev GUI free to run over its sizing. None was found; a savestate is written at the click rather than relayed as a reply, the same order by the record's lock (`setup-architecture.md` §7.2, decision 4, amended where it stands).
+
+**Sized and built:** ~970–1,420 lines with tests (`setup-architecture.md` §8); built at +1,162 lines of code and +784 of tests, all in the dev GUI, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-5").
+
+**Measured:** no engine file changed, so no arms; `prompt_cost` in release as `main`'s, every reading's allocations and bytes the same, the header's tools 0.1–0.2 µs a repaint; the dev GUI's CI test step 24.0–24.1 s against `main`'s 23.2–23.4 s.
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*

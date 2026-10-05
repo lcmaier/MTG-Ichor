@@ -10,6 +10,7 @@
 //! board things each option names (`prompt::OptionView::refs`).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
@@ -17,6 +18,7 @@ use mtgsim::ui::auto_yield::Yield;
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
+use crate::save::{Destination, Tools};
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
@@ -47,6 +49,14 @@ pub enum Input {
     Reset,
     /// Build the game again from its scenario file, read again.
     Reload,
+    /// Go back to the window's previous question: a game built again and
+    /// replayed to it, asking it again.
+    Undo,
+    /// Mark the open question's place in the save, to come back to.
+    Savestate,
+    /// Build the game again at this place in the save: a savestate's, or
+    /// the one the window's line last left.
+    MoveTo(usize),
     /// Write the board at this prompt to a scenario file.
     SaveBoard,
     /// Pass at this priority prompt, and keep passing until the yield ends.
@@ -237,6 +247,39 @@ fn allocate(
     None
 }
 
+/// What kept a game from starting, which a person fixes, as against an
+/// engine panic, which is a bug to report (`engineering-practices.md` §10.1,
+/// question 6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// The scenario did not load: its file's line, and what to change.
+    Scenario,
+    /// The game's decision log could not be made (`codebase-state.md` item 200).
+    Record,
+    /// The file `--load` names did not load, or its start does not build.
+    Load,
+}
+
+impl Refusal {
+    /// What did not happen, as the header and the prompt's place say it.
+    pub fn heading(self) -> &'static str {
+        match self {
+            Refusal::Scenario => "The scenario did not load",
+            Refusal::Record => "The decision log could not be made",
+            Refusal::Load => "The save did not load",
+        }
+    }
+
+    /// What to do about it.
+    pub fn hint(self) -> &'static str {
+        match self {
+            Refusal::Scenario => "Fix the file, then click Reload; or Edit the scenario.",
+            Refusal::Record => "Make its folder writable, then start the game again.",
+            Refusal::Load => "--load takes a save, <log>.save, or a decision log.",
+        }
+    }
+}
+
 /// Everything the window knows.
 #[derive(Clone, Debug, Default)]
 pub struct WindowState {
@@ -247,8 +290,11 @@ pub struct WindowState {
     pub log: Vec<String>,
     pub outcome: Option<Outcome>,
     pub panic: Option<String>,
-    /// Why the scenario did not load.
-    pub refused: Option<String>,
+    /// Why no game started, and the refusal's words.
+    pub refused: Option<(Refusal, String)>,
+    /// Where a replayed line stopped, as this build no longer takes it: the
+    /// game plays on from the answer before.
+    pub diverged: Option<String>,
     /// The yield the seat holds at the open prompt.
     pub yielding: Option<Yield>,
     /// Full control is on: the seat is asked at every priority point, with
@@ -262,12 +308,60 @@ pub struct WindowState {
     /// Prompts received, which keys each prompt's widgets apart: focus on one
     /// prompt's button cannot pass to the next prompt's.
     pub prompts: u64,
+    /// A rebuild's replay, until the engine asks at the place it replays to.
+    pub replaying: Option<Progress>,
+    /// What the save lets the tools do, as the session last read it.
+    pub tools: Tools,
+    /// Why the game's record stopped being written, if it has: what the
+    /// header says until another game starts.
+    pub unwritten: Option<String>,
+}
+
+/// A replay the window counts while it waits (`setup-architecture.md` §7.3).
+#[derive(Clone, Debug)]
+pub struct Progress {
+    /// The answers replayed so far, which the engine's thread counts.
+    pub done: Arc<AtomicUsize>,
+    /// The answers its line holds.
+    pub of: usize,
+}
+
+/// What Undo answer's place says while it is off.
+pub const NO_EARLIER_QUESTION: &str = "No earlier question to go back to.";
+
+/// What the menu says while it lists nothing.
+pub const NO_SAVESTATES: &str = "No savestates yet: Savestate marks the open question.";
+
+/// What the prompt's place says above a divergence's message.
+pub const DIVERGED: [&str; 2] = ["The loaded line stops here: this build does not take its next answer.", "Play goes on from the answer before it."];
+
+/// The game's tools, beside Reload in the header (`setup-architecture.md`
+/// §7.3): Undo answer, Savestate, and the menu of savestates and the line
+/// most recently left.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolsView {
+    pub undo: ToolButton,
+    /// Why Undo answer is off, while it is.
+    pub undo_off: Option<&'static str>,
+    pub savestate: ToolButton,
+    /// The savestates in the order set, then "back to where I was"; each
+    /// off while the window's line is at its place.
+    pub menu: Vec<ToolButton>,
+}
+
+/// A header control: a click on it is `input`, while it is live.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolButton {
+    pub label: String,
+    pub input: Input,
+    pub live: bool,
 }
 
 impl WindowState {
     pub fn receive(&mut self, message: ToWindow) {
         match message {
             ToWindow::Prompt { snapshot, prompt, yielding } => {
+                self.replaying = None;
                 self.log.extend(snapshot.log.iter().cloned());
                 self.yielding = yielding;
                 self.prompt_at = self.now;
@@ -277,6 +371,7 @@ impl WindowState {
                 self.board = Some(snapshot);
             }
             ToWindow::Finished { snapshot, outcome } => {
+                self.replaying = None;
                 self.log.extend(snapshot.log.iter().cloned());
                 self.board = Some(snapshot);
                 self.prompt = None;
@@ -284,11 +379,21 @@ impl WindowState {
                 self.outcome = Some(outcome);
             }
             ToWindow::Panicked { message } => {
+                self.replaying = None;
                 self.prompt = None;
                 self.selection = None;
                 self.panic = Some(message);
             }
-            ToWindow::Refused { message } => self.refused = Some(message),
+            ToWindow::Refused { refusal, message } => {
+                self.replaying = None;
+                self.refused = Some((refusal, message));
+            }
+            ToWindow::Diverged { message, replaying } => {
+                self.diverged = Some(message);
+                if let Some(progress) = &mut self.replaying {
+                    progress.of = replaying;
+                }
+            }
         }
     }
 
@@ -299,9 +404,15 @@ impl WindowState {
     pub fn input(&mut self, input: Input) -> Option<Reply> {
         let reply = match input {
             // The window's own controls, and the editor's, which `Session::input` acts on.
-            Input::Reload | Input::SaveBoard | Input::Mode(_) | Input::EditThisBoard | Input::EditTheScenario | Input::Editor(_) => {
-                return None;
-            }
+            Input::Reload
+            | Input::Undo
+            | Input::Savestate
+            | Input::MoveTo(_)
+            | Input::SaveBoard
+            | Input::Mode(_)
+            | Input::EditThisBoard
+            | Input::EditTheScenario
+            | Input::Editor(_) => return None,
             Input::FullControl(on) => {
                 self.full_control = on;
                 return None;
@@ -356,8 +467,8 @@ impl WindowState {
 
     /// What the window is doing, for the header.
     pub fn status(&self) -> String {
-        if self.refused.is_some() {
-            "The scenario did not load".to_string()
+        if let Some((refusal, _)) = self.refused {
+            refusal.heading().to_string()
         } else if self.panic.is_some() {
             "The engine panicked".to_string()
         } else if let Some(outcome) = &self.outcome {
@@ -368,6 +479,8 @@ impl WindowState {
             }
         } else if let Some(prompt) = &self.prompt {
             format!("Player {} to decide", prompt.player)
+        } else if let Some(replaying) = &self.replaying {
+            format!("Replaying: {} of {} answers", replaying.done.load(Ordering::Relaxed), replaying.of)
         } else {
             "The engine is playing".to_string()
         }
@@ -375,13 +488,39 @@ impl WindowState {
 
     /// What the board's place says while there is no board.
     pub fn no_board(&self) -> &'static str {
-        if self.refused.is_some() {
-            "No board: the scenario did not load."
-        } else if self.panic.is_some() {
-            "No board: the engine panicked before its first prompt."
-        } else {
-            "Waiting for the engine's first prompt."
+        match self.refused {
+            Some((Refusal::Scenario, _)) => "No board: the scenario did not load.",
+            Some((Refusal::Record, _)) => "No board: the decision log could not be made.",
+            Some((Refusal::Load, _)) => "No board: the save did not load.",
+            None if self.panic.is_some() => "No board: the engine panicked before its first prompt.",
+            None if self.replaying.is_some() => "Replaying the game to its question: the board shows once the question is asked.",
+            None => "Waiting for the engine's first prompt.",
         }
+    }
+
+    /// The tools as the header shows them: Undo answer goes back past the
+    /// open question, or the one the replay is on its way to, or else to
+    /// the question last answered.
+    pub fn tools_view(&self) -> ToolsView {
+        let open = self.prompt.is_some() || self.replaying.is_some();
+        let live = if open { self.tools.undo_open } else { self.tools.undo_answered };
+        let undo = ToolButton { label: "Undo answer".to_string(), input: Input::Undo, live };
+        let marks = self.prompt.is_some() && !self.tools.savestate_here;
+        let savestate = ToolButton { label: "Savestate".to_string(), input: Input::Savestate, live: marks };
+        let menu = self.tools.destinations.iter().map(|destination| {
+            let (label, at) = match destination {
+                Destination::Savestate { at, name } => (name.clone(), *at),
+                Destination::Left(at) => ("Back to where I was".to_string(), *at),
+            };
+            ToolButton { label, input: Input::MoveTo(at), live: at != self.tools.current }
+        });
+        ToolsView { undo, undo_off: (!live).then_some(NO_EARLIER_QUESTION), savestate, menu: menu.collect() }
+    }
+
+    /// The name a savestate at the open question takes: its turn and step.
+    pub fn savestate_name(&self) -> Option<String> {
+        let board = self.board.as_ref().filter(|_| self.prompt.is_some())?;
+        Some(format!("Turn {} · {}", board.turn, board.phase))
     }
 
     pub fn board_view(&self) -> Option<BoardView> {

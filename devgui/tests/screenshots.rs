@@ -13,17 +13,20 @@ mod window_by_rule;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 
 use devgui::app::{SessionHeader, draw};
 use devgui::boards::Folders;
-use devgui::bridge::{EngineHandle, GameSetup, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
 use devgui::prompt::{Answer, Reply};
+use devgui::save::{Destination, Tools};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, WindowState};
+use devgui::view_model::{Input, Mode, Progress, WindowState};
+use egui_kittest::kittest::Queryable;
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
-use games::{from_board, next};
+use games::{from_board, next, play, spawn};
 
 /// Each picture: the first prompt of a kind any review board reaches, with
 /// any clicks made before it is drawn. Kept to what a review needs, since
@@ -50,7 +53,7 @@ fn header(board: &str) -> (String, PathBuf) {
 fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let mut first: BTreeMap<&str, (WindowState, &str)> = BTreeMap::new();
     for board in BOARDS {
-        window_by_rule::play_by_rule(from_board(board, None), |state| {
+        window_by_rule::play_by_rule(play(from_board(board)), |state| {
             let Some(prompt) = &state.prompt else { return };
             let Some((_, name)) = PICTURES.iter().find(|(kind, _)| *kind == prompt.kind) else { return };
             // A priority prompt with a spell or two in reach, and blocks with
@@ -68,20 +71,50 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     }
     let mut results = SnapshotResults::new();
     for (name, (state, board)) in &first {
-        results.add(picture(state, &header(board), None, name));
+        results.add(picture(&partway(state.clone()), &header(board), None, name));
     }
-    results.add(picture(&panicked(), &header("main.scenario"), None, "engine_panic"));
+    results.add(picture(&partway(panicked()), &header("main.scenario"), None, "engine_panic"));
     results.add(picture(&refused(), &header("refused.scenario"), None, "scenario_refused"));
+    // The window's first question, after the setup actions: nothing to undo.
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
-    results.add(picture(&blocks_rejected(), &header("reask.scenario"), None, "blocks_rejected"));
+    results.add(picture(&partway(blocks_rejected()), &header("reask.scenario"), None, "blocks_rejected"));
     let (state, board) = &first["priority"];
-    results.add(picture(state, &header(board), Some(Ok("saved boards/main-turn-3/main-turn-3.scenario")), "board_saved"));
+    let saved = Some(Ok("saved boards/main-turn-3/main-turn-3.scenario"));
+    results.add(picture(&partway(state.clone()), &header(board), saved, "board_saved"));
+    results.add(picture(&replaying(), &header("main.scenario"), None, "replaying"));
+    results.add(menu_picture(&with_savestates(state.clone()), &header(board), "savestates_menu"));
+    let (state, board) = &first["targets"];
+    let diverged = "the log diverges at answer 12: it chose player 7, which is not offered".to_string();
+    results.add(picture(&WindowState { diverged: Some(diverged), ..partway(state.clone()) }, &header(board), None, "diverged"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
     assert!(missing.is_empty(), "the review boards no longer reach {missing:?}");
+}
+
+/// The tools as a game partway through shows them: a question before this
+/// one to go back to, and no savestate yet.
+fn partway(state: WindowState) -> WindowState {
+    WindowState { tools: Tools { undo_open: true, undo_answered: true, ..Tools::default() }, ..state }
+}
+
+/// Two savestates set, and a line left since: what the menu lists.
+fn with_savestates(state: WindowState) -> WindowState {
+    let destinations = vec![
+        Destination::Savestate { at: 4, name: "Turn 2 · Precombat Main".to_string() },
+        Destination::Savestate { at: 11, name: "Turn 3 · Declare Blockers".to_string() },
+        Destination::Left(19),
+    ];
+    let state = partway(state);
+    WindowState { tools: Tools { destinations, current: 23, ..state.tools.clone() }, ..state }
+}
+
+/// A rebuild on its way to a question: no board, the answers counted.
+fn replaying() -> WindowState {
+    let replaying = Progress { done: Arc::new(AtomicUsize::new(120)), of: 341 };
+    partway(WindowState { replaying: Some(replaying), ..WindowState::default() })
 }
 
 /// The first click the rule would make, when it does not answer the prompt,
@@ -98,7 +131,7 @@ fn clicked_once(state: &WindowState) -> WindowState {
 
 /// What the window shows when the engine panics: an answer the validators refuse.
 fn panicked() -> WindowState {
-    let engine = spawn_game(from_board("main.scenario", None), Arc::new(|| {}));
+    let engine = spawn(from_board("main.scenario"));
     let mut state = WindowState::default();
     state.receive(next(&engine));
     engine.answers.send(Reply::Answer(Answer::Picks(vec![99]))).unwrap();
@@ -110,7 +143,7 @@ fn panicked() -> WindowState {
 /// built, player 0 holding priority over it with a Bolt left to cast.
 fn setup_stack(sample: &str) -> WindowState {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
-    let engine = spawn_game(GameSetup { scenario: Some(path), ..from_board("main.scenario", None) }, Arc::new(|| {}));
+    let engine = spawn(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
     let mut state = WindowState::default();
     state.receive(next(&engine));
     assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
@@ -121,7 +154,7 @@ fn setup_stack(sample: &str) -> WindowState {
 /// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking
 /// both Bears, and is asked again, told why.
 fn blocks_rejected() -> WindowState {
-    let engine = spawn_game(from_board("reask.scenario", None), Arc::new(|| {}));
+    let engine = spawn(from_board("reask.scenario"));
     let mut state = WindowState::default();
     state.receive(next(&engine));
     state.input(Input::OptionButton(0));
@@ -145,7 +178,7 @@ fn finish(engine: EngineHandle) {
 fn refused() -> WindowState {
     let path = std::env::temp_dir().join("devgui-picture-refused.scenario");
     std::fs::write(&path, "turn 3\nstep precombat main\nbattlefield: Grizzly Bears | controller 0, attacking player 1\n").unwrap();
-    let engine = spawn_game(GameSetup { scenario: Some(path), ..from_board("main.scenario", None) }, Arc::new(|| {}));
+    let engine = spawn(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
     let message = next(&engine);
     assert!(matches!(message, ToWindow::Refused { .. }), "{message:?}");
     let mut state = WindowState::default();
@@ -153,13 +186,32 @@ fn refused() -> WindowState {
     state
 }
 
-fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
-    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[] };
-    let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
-        draw(ui, state, &header, None);
-    });
+fn picture(state: &WindowState, line: &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
+    let mut harness = game_window(state, line, saved);
+    if state.replaying.is_some() {
+        // A replay's count repaints on a timer, so its window never settles.
+        harness.run_steps(4);
+    } else {
+        harness.run();
+    }
+    harness.try_snapshot(name)
+}
+
+/// The game's window with the header's menu of savestates opened.
+fn menu_picture(state: &WindowState, line: &(String, PathBuf), name: &str) -> SnapshotResult {
+    let mut harness = game_window(state, line, None);
+    harness.run();
+    harness.get_by_label("Savestates").click();
     harness.run();
     harness.try_snapshot(name)
+}
+
+fn game_window<'a>(state: &'a WindowState, (line, log): &'a (String, PathBuf), saved: Option<Result<&'a str, &'a str>>) -> Harness<'a> {
+    let tools = Some(state.tools_view());
+    let header = SessionHeader { mode: Mode::Play, line, log: Some(log), playing: true, reloadable: true, message: saved, files: &[], tools };
+    Harness::builder().with_size([1280.0, 800.0]).build_ui(move |ui| {
+        draw(ui, state, &header, None);
+    })
 }
 
 /// The editor on a sample, after a click on each named step or card, and
@@ -181,7 +233,7 @@ fn editor_picture(sample: &str, clicks: &[&str], name: &str) -> SnapshotResult {
     let bears = session.editor.view().search.results.into_iter().find(|result| result.label == "Grizzly Bears").map(|result| result.input);
     session.input(Input::Editor(bears.unwrap_or_else(|| panic!("no Grizzly Bears to choose"))));
     let view = session.editor.view();
-    let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files };
+    let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files, tools: None };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
         draw(ui, &WindowState::default(), &header, Some(&view));
     });
