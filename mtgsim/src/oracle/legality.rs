@@ -39,7 +39,7 @@ pub fn can_attack(game: &GameState, player_id: PlayerId, id: ObjectId) -> Result
         return Err(CombatError::CreatureIsTapped(id));
     }
     // CR 302.6, which haste lifts (CR 702.10b).
-    if !is_creature(game, id) || has_summoning_sickness(game, id) {
+    if has_summoning_sickness(game, id) {
         return Err(CombatError::CreatureHasSummoningSickness(id));
     }
     if has_keyword(game, id, KeywordFlag::Defender) {
