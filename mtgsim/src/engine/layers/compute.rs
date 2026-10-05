@@ -359,7 +359,9 @@ pub(super) fn compute_non_member_recorded(
                 let before = recorder.is_some().then(|| chars.clone());
                 let resolved = resolve_modification(&modification, game, board, id, layer_index, None);
                 apply_resolved(&resolved, &mut chars, id);
-                if let (Some(recorder), Some(before)) = (recorder.as_deref_mut(), before) {
+                if let Some(recorder) = recorder.as_deref_mut()
+                    && let Some(before) = before
+                {
                     recorder.push(RecordedStep {
                         layer,
                         by: AppliedBy::Cda { ability },
@@ -394,7 +396,9 @@ pub(super) fn compute_non_member_recorded(
             if applies {
                 apply_resolved(&resolve_without_reads(&row.modification, row), &mut chars, id);
             }
-            if let (Some(recorder), Some(before)) = (recorder.as_deref_mut(), before) {
+            if let Some(recorder) = recorder.as_deref_mut()
+                && let Some(before) = before
+            {
                 let watched = match (applies, note.affected) {
                     (true, _) => StepResult::Applied { before, after: chars.clone() },
                     (false, AffectedSet::Locked) => StepResult::LockedOut,
@@ -422,7 +426,11 @@ pub(super) fn compute_non_member_recorded(
 fn add_intrinsic(chars: &mut EffectiveCharacteristics, id: ObjectId, recorder: Option<&mut Recorder>) {
     let before = recorder.is_some().then(|| chars.clone());
     crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(chars, id);
-    if let (Some(recorder), Some(before)) = (recorder, before) {
+    // Let-chains, not a tuple: a tuple would move the frame `before` holds
+    // on every walk the game runs, where it is `None`.
+    if let Some(recorder) = recorder
+        && let Some(before) = before
+    {
         record_intrinsic(recorder, id, before, chars);
     }
 }

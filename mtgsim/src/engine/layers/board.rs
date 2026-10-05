@@ -1732,7 +1732,9 @@ fn run_pass<'l>(
     game.diagnostics.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked, hidden);
     let watched = recorder.as_deref().and_then(Recorder::watched);
-    if let (Some(recorder), Some(id)) = (recorder.as_deref_mut(), watched) {
+    if let Some(recorder) = recorder.as_deref_mut()
+        && let Some(id) = watched
+    {
         recorder.seeded(board.frames.get(&id));
     }
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
@@ -1745,7 +1747,12 @@ fn run_pass<'l>(
             for (&id, frame) in board.frames.iter_mut() {
                 crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(frame, id);
             }
-            if let (Some(recorder), Some(id), Some(before)) = (recorder.as_deref_mut(), watched, before) {
+            // Let-chains, not a tuple: a tuple would move the frame `before`
+            // holds on every pass the game runs, where it is `None`.
+            if let Some(recorder) = recorder.as_deref_mut()
+                && let Some(id) = watched
+                && let Some(before) = before
+            {
                 record_intrinsic(recorder, id, before, &board.frames[&id]);
             }
         }
