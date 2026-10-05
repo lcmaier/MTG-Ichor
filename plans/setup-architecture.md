@@ -14,8 +14,8 @@
 > re-size, which builds them as two PRs (the owner, 2026-10-03): **SU-4** (the
 > replay, the engine's), landed 2026-10-03, and **SU-5** (the tools, the
 > window's), landed 2026-10-04.
-> **The why panel**, A6g's next item, is designed in §7c (2026-10-05) as a
-> draft for review: SU-6 to SU-8, proposed, none of it decided.
+> **The why panel**, A6g's next item, is designed in §7c (2026-10-05) in
+> draft PR #220: SU-6 to SU-8, proposed, none of it decided.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -1759,8 +1759,8 @@ design against `fb1767a`:
 
 ## 7c. The why panel
 
-> **Status:** design, 2026-10-05, a draft PR for the owner's review; nothing
-> is built. It is `roadmap-v2.md` A6g's next item, "a 'why' panel fed by the
+> **Status:** design, 2026-10-05, draft PR #220 for the owner's review;
+> nothing is built. It is `roadmap-v2.md` A6g's next item, "a 'why' panel fed by the
 > trace sink", read against `7f8532a` (#219's merge). Every decision in
 > §7c.1 is proposed and none is taken. The build is SU-6 to SU-8 (§8).
 
