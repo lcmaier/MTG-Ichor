@@ -627,6 +627,11 @@ impl WindowState {
 /// What the why panel says while no question is open.
 pub const WHY_AT_A_QUESTION: &str = "The answer at the last question: a why is asked while a question is open.";
 
+/// What an object's hover says a right-click does, at an open question and
+/// with none open, when the seat has no one to answer it.
+pub const WHY_ON_RIGHT_CLICK: &str = "Right-click: why it is so";
+pub const WHY_ONLY_AT_A_QUESTION: &str = "A right-click asks why only while a question is open";
+
 /// The why panel: what the engine says made an object the way it is
 /// (`setup-architecture.md` §7c).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -694,6 +699,8 @@ pub struct Item {
     pub printed: Option<Arc<[String]>>,
     /// Shown on hover under the first line of `hover`, a permanent's.
     pub type_line: Option<Arc<TypeLineView>>,
+    /// Shown on hover last, an object's: what a right-click on it does now.
+    pub why_hint: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -776,6 +783,8 @@ impl Marks {
             hover: String::new(),
             printed: None,
             type_line: None,
+            why_hint: matches!(target, BoardRef::Object(_))
+                .then_some(if self.asked.is_some() { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
         }
     }
 
@@ -881,6 +890,7 @@ impl BoardView {
                     hover: String::new(),
                     printed: None,
                     type_line: None,
+                    why_hint: None,
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),
@@ -1514,6 +1524,9 @@ mod tests {
         assert_eq!(state.why_path, [b.bear], "and not a second step back");
         let idle = WindowState { board: Some(b.snapshot.clone()), ..WindowState::default() };
         assert_eq!(idle.clone().input(Input::Why(b.bear)), None, "no seat is waiting to answer");
+        let hint = |state: &WindowState| item(&state.board_view().expect("a board"), b.bear).why_hint;
+        assert_eq!(hint(&state), Some(WHY_ON_RIGHT_CLICK));
+        assert_eq!(hint(&idle), Some(WHY_ONLY_AT_A_QUESTION), "and its hover says so");
     }
 
     /// Back returns to the object asked about before, while there is one;

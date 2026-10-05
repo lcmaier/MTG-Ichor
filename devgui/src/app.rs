@@ -616,8 +616,8 @@ fn hover(ui: &mut egui::Ui, item: &Item) {
             });
         }
     });
-    if matches!(item.target, Some(BoardRef::Object(_))) {
-        ui.weak("Right-click: why it is so");
+    if let Some(hint) = item.why_hint {
+        ui.weak(hint);
     }
 }
 
