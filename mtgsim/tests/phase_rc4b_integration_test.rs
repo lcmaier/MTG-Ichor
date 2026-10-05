@@ -276,7 +276,7 @@ fn test_an_entry_from_hand_is_one_move_and_one_entry_in_one_batch() {
     let land = put_in_hand(&mut game, forest(), 0);
 
     let start = game.recorded_events().records().len();
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert_eq!(
         zone_changes(&game, start),

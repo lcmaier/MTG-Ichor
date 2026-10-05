@@ -157,36 +157,11 @@ pub fn validate_attackers(
     let num_players = game.num_players();
 
     for (creature_id, target) in proposed {
-        // 1. Must be on the battlefield
-        let entry = game.battlefield.get(creature_id)
-            .ok_or(CombatError::NotOnBattlefield(*creature_id))?;
+        // Per-creature legality (CR 508.1a), the check the question's
+        // options were built by.
+        can_attack(game, player_id, *creature_id)?;
 
-        // 2. Must be a creature
-        if !is_creature(game, *creature_id) {
-            return Err(CombatError::NotACreature(*creature_id));
-        }
-
-        // 3. Must be effectively controlled by the attacking player (CR 613.1b)
-        if !controls(game, *creature_id, player_id) {
-            return Err(CombatError::NotControlledByPlayer(*creature_id, player_id));
-        }
-
-        // 4. Must be untapped (rule 508.1a)
-        if entry.tapped {
-            return Err(CombatError::CreatureIsTapped(*creature_id));
-        }
-
-        // 5. Must not have summoning sickness (unless haste — Phase 4)
-        if !can_attack(game, *creature_id) {
-            return Err(CombatError::CreatureHasSummoningSickness(*creature_id));
-        }
-
-        // 6. Defender check (rule 702.3b)
-        if has_keyword(game, *creature_id, KeywordFlag::Defender) {
-            return Err(CombatError::HasDefender(*creature_id));
-        }
-
-        // 7. Attack target must be valid
+        // The attack target must be valid
         match target {
             AttackTarget::Player(pid) => {
                 // Must be an opponent (not self, and within player range)

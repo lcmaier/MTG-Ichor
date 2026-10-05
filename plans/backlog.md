@@ -149,10 +149,18 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 ### 2.3 Casting from a non-hand zone
 
 - **Rules** — CR 601.3, 601.3f, 117.1a; the CR 702 cast-from-elsewhere keywords
-- **Verdict** — `check_cast_legality` hard-codes `Zone::Hand`, and cites
-  CR 117.1a while doing it. The *type* is already right: `StackEntry.cast_from`
+- **Verdict** — `can_begin_to_cast` (`oracle/mana_helpers.rs`, the check the
+  enumeration and the cast share since SU-7) hard-codes `Zone::Hand`, and cites
+  CR 601.3 while doing it. The *type* is already right: `StackEntry.cast_from`
   represents the fact correctly, which is why audit §3's calibration flagged this
   one at the function level and not the field level. The gate is the gap.
+  **Since SU-7 (2026-10-05)** the gate is one check the enumeration and the
+  cast share, and its refusal is typed: `CannotCast::NotInHand` names today's
+  default, and becomes CR 601.3's "no rule or effect permits it", with the
+  zone, when a permission lands. The owner test moves into the permission
+  too, since Hostage Taker casts a card it does not own. About 132 cards say
+  "you may cast … from" a graveyard, library or exile (Scryfall, 2026-10-05).
+  `codebase-state.md` item 212's census counts the family.
 - **Size** — small at the gate, large in what the gate admits; the keywords
   behind it are Phase 8 card breadth, not one phase.
 - **Blocks** — flashback, escape, jump-start, aftermath, foretell, plot, warp,
@@ -165,6 +173,13 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   zone it was cast from" is tested from the hand only, and the first PR
   that opens the gate adds the board where a creature is cast from a
   graveyard or from exile under the Moonlight and enters.
+- **Costs that perform these actions are neither checked nor paid.**
+  `Cost::Discard`, `Cost::ExileFromGraveyard`, `Cost::RemoveCounters` and
+  `Cost::AddCounters`: `can_pay_costs` refuses each as `CannotPay::Unchecked`
+  (SU-7) and `pay_single_cost` returns an error. Discard as a cost is about
+  384 cards, exile from a graveyard 161 and removing counters 334 (Scryfall,
+  2026-10-05). The first is this entry's; the others had no owner, and
+  `codebase-state.md` item 212's census assigns one.
 - **Owner** — none yet.
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes
@@ -2435,6 +2450,42 @@ and when old ones go. The engine writes a record's text and replays it; the
 folder, an index and pruning are the client's. `setup-architecture.md` §7.2's
 decision 6 lists the options with their costs and settles the dev GUI's, and
 v1's design chooses its own from them.
+
+**Open question 6: where the words live** (the owner, 2026-10-05, at #221's
+review; noted, not designed). `ui::why` (360 lines at #221) and, by the same
+argument, `ui::display` (1,215) sit in the engine crate's `ui` module, so
+every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
+harness's logs. That is `engineering-practices.md` §10's "engine computes, ui
+words, window draws" and `setup-architecture.md` §7c's decision 2. The owner
+kept `why.rs` there at #221 and asked to revisit it at or near v1's release,
+once the engine's relation to the v1 GUI is clear. SU-7 adds the reasons an
+option is not offered to `ui::display` as the tree stands, and this question
+covers them too. The options, with what each costs:
+
+- **The words stay in the engine crate.** One copy, and the engine's own
+  output says the same words a client shows: `state::trace` writes each
+  `event` record in `ui::display::format_event`'s words, and the scenario text
+  names phases and steps with `phase_name` and `step_name`. The cost is that
+  the engine crate carries English presentation. A client that wants other
+  words or another language cannot change them, and a change of wording is an
+  engine PR.
+- **Each client words the engine's typed facts itself.** The engine keeps the
+  facts (`CombatError`, the option reasons, `LayerExplanation`, `ChoiceKind`)
+  and drops the words. Each client is then free to word them, at the cost of
+  one copy per client that can drift: `codebase-state.md` item 188's class,
+  for words. The engine's own trace and the scenario text still need words,
+  so one wording stays in the engine anyway, or the trace changes to typed
+  fields that a reader words.
+- **A words crate that clients depend on.** `ui::display` and `ui::why` move
+  to a crate over the engine, and every client depends on it. One copy stays,
+  and the engine crate drops its English. The cost is that the five engine
+  files that word things today (the trace's two writers, the trigger audit,
+  the scenario text and `Game`'s event log) would depend on a crate that
+  depends on them, so their words move out with the trace's reader, or the
+  records change to typed fields. It also needs a Cargo workspace.
+
+Decided at Phase 10's design, beside `codebase-state.md` item 208 (the
+crate's name and a workspace), since both redraw the crate boundary.
 
 **How an object's text shows** (the owner, 2026-10-01, at A6g's ability
 names), as Arena shows it: an object's abilities in printed order, a granted

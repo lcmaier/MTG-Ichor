@@ -1764,8 +1764,9 @@ design against `fb1767a`:
 > took every recommendation in §7c.1. It is `roadmap-v2.md` A6g's next
 > item, "a 'why' panel fed by the trace sink", read against `7f8532a`
 > (#219's merge). The build is SU-6 to SU-8 (§8). SU-6 built the layers'
-> section and the panel, 2026-10-05 (§8's ✅ section). What its build changed
-> here is amended where it stands, and listed in the archive's SU-6 entry.
+> section and the panel, 2026-10-05, and SU-7 the question's section, the
+> same day (§8's ✅ sections). What each build changed here is amended where
+> it stands, and listed in the archive's entry for it.
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
@@ -1784,9 +1785,11 @@ says which rules and effects made the thing look the way it does.
   affects "each other non-Aura enchantment", and the Angel is not one. Each
   line carries its rule (CR 613.1f, 613.4b), and each card a line names links
   to that card's own why.
-- **"Why can't I cast Grizzly Bears?"** On the review board `main.scenario`,
-  the mana Player 0 can make, one from Everywhere, does not cover {1}{G} (CR
-  601.2g–h). On the opponent's turn it would say instead that a creature
+- **"Why can't I cast Grizzly Bears?"** On the review board `main.scenario`
+  with Everywhere edited to a Mountain, the mana Player 0 can make, one red,
+  does not cover {1}{G} (CR 601.2g–h). With Everywhere itself the Bears are
+  offered: the enumeration counts its five mana abilities as five sources,
+  `codebase-state.md` item 162, whose design is the PR after SU-7. On the opponent's turn it would say instead that a creature
   spell is cast only in its controller's main phase with the stack empty (CR
   117.1a, 302.1). At a declare-blockers question it would say "Grizzly Bears
   can't block Serra Angel: the Angel has flying, and the Bears have neither
@@ -2105,6 +2108,15 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
      enumeration and enforcement share one check. That is `codebase-state.md`
      item 188's class: two roads to one answer.
    - `ui::display` words each reason with its rule, beside `combat_error`.
+
+   As SU-7 built it: `play_land` and `activate_ability` ask the same checks
+   too, the pairs item 188 names beside `check_cast_legality`, and a cost's
+   resource check (`can_pay_costs`) returns `CannotPay`. Each family's reason
+   is the first its check refuses, in the order the enumeration asked. The
+   section answers at every question whether it offers the object or the
+   player, and why not only at the three questions these checks build (the
+   priority question and the two declarations). A target's reasons are RS-2's,
+   which rewrites target legality (the owner, 2026-10-05).
 3. **A reader of the sink's lines** (SU-8), in `state::trace` beside the
    writer, as its inverse. It gives a record's kind and fields, for the panel
    to select by. So the format has one owner, and a round-trip test against
@@ -2233,8 +2245,9 @@ pub fn explain(game: &GameState, id: ObjectId) -> Option<LayerExplanation>;
 // One step: the application, its layer, timestamp and source, and what it did to `id`:
 // Applied { before, after }, NotMatched, NotInItsZones, Gone (CR 604.2) or LockedOut (CR 613.6).
 
-// oracle (SU-7): one check for the enumeration and the enforcement.
-pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<(), CannotCast>;
+// oracle (SU-7): one check for the enumeration and the enforcement. As built,
+// `Ok` holds the mana sources it would tap, which `castable_spells` returns.
+pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<Vec<ManaSource>, CannotCast>;
 let castable = hand.iter().filter(|&&card| can_cast(game, player, card).is_ok());
 
 // ui::why: what every client draws.
@@ -2264,10 +2277,14 @@ off, with a line saying why.
   a creature at layer 4, its own ability strips it at layer 6, and at 7b
   Opalescence's 4/4 comes before Humility's 1/1 by timestamp (CR 613.7). Swap
   the two lines in the editor, Play, and ask again.
-- **SU-7.** On `main.scenario`, right-click Grizzly Bears in the hand: the
-  mana is short. Pass to Player 1's turn and ask again: now it is the timing.
-  On `blocks.scenario`, edit in a Serra Angel attacking and right-click Wall of
-  Stone at the block: it cannot block the flyer.
+- **SU-7.** On `main.scenario`, edit Everywhere to a Mountain, Play, and
+  right-click Grizzly Bears in the hand: the mana is short. (A Mountain keeps
+  Lightning Bolt castable, so the window stops at the priority question.) (With Everywhere
+  the Bears are offered: item 162, amended 2026-10-05.) Pass to Player 1's
+  turn and ask again: now it is the timing. On `blocks.scenario`, edit in a
+  Serra Angel attacking and right-click Wall of Stone at the block: it cannot
+  block the flyer. Right-click a player's line: whether the question offers
+  that player.
 - **SU-8.** On `bolt-into-giant-growth.scenario`, let the stack resolve, then
   right-click the log line where Lightning Bolt deals its damage. The panel
   lists that event's batch, its CR 616.1 iterations and the triggers asked
@@ -2311,27 +2328,6 @@ sizing, nearly all of it in the dev GUI, which may run looser than the engine
 §7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 
-### SU-7 — why an option is not offered
-
-**The engine, ~290–450.**
-- the reasons, typed and worded, ~80–120;
-- the enumeration's checks as functions that return them (`can_cast`,
-  `can_play_land`, `can_activate` and `can_attack`), ~120–180, much of it
-  moved rather than written;
-- `check_cast_legality` on the same reasons, ~20–40;
-- the why's section for the open question, ~60–90, and a player as what a
-  why can be about, ~10–20 (moved from SU-6, §7c.1's decision 4).
-
-**The dev GUI, ~20–35**: the section's heading, and the right-click on a
-player's line.
-
-**Tests, ~150–220.** One per family of reasons, each reached on a board, and
-each shown to fail first where it moves a check.
-
-**A/B.** The priority question's candidates are built by the same checks, in
-the same order. Predicted `IDENTICAL` on every counter, and instructions within
-±0.3%.
-
 ### SU-8 — what happened, from the trace
 
 **The engine, ~190–295.**
@@ -2360,8 +2356,43 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 `--trace`, the `pipeline` record's new field is the only change in its text.
 
 **In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
-#220. SU-6 landed at 1,062 and 622; SU-7 and SU-8, as sized above, are
-~610–960 and ~300–450 more.
+#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606; SU-8, as
+sized above, is ~300–475 and ~150–230 more.
+
+### SU-7 — why an option is not offered — ✅ landed 2026-10-05
+
+**What shipped.** §7c's second PR (#222). Each option the window offers has one
+check that the enumeration and the enforcement both ask, and it returns why
+it refuses: `can_begin_to_cast` and `can_cast` (`CannotCast`), `can_play_land`
+(`CannotPlayLand`), `can_activate_its_abilities`, `can_begin_to_activate` and
+`can_activate` (`CannotActivate`), `can_attack` (`CombatError`, as `can_block`
+already did), with `SorceryTiming` for CR 307.1's three questions and
+`CannotPay` for a cost (CR 118.3). `ui::display` words each reason with its
+rule. The why's first section, **At this question**, says whether the open
+question offers the object or the player, and as what; if not, why, on two
+tiers: never offered, from the checks, or offered and then reversed
+(CR 732.1). In the dev GUI a player's line asks too.
+
+**What moved on the way in.** `play_land` and `activate_ability` share the
+checks too, and the cast now refuses a land (CR 305.9). A target's reasons
+are RS-2's. The click script edits Everywhere to a Mountain, since one
+Everywhere counts as five mana sources (`codebase-state.md` item 162, whose
+design doc is the next PR), and item 211 records that the priority question
+never offers a mana ability. It landed at +1,042 code and +606 tests,
+against 310–485 and 150–220 sized.
+
+**Measured.** `close_out.py` with three arms against #221's merge: the behavior arm
+(every commit but the last code one) `IDENTICAL` on every row, gameplay and
+cost, both pools, two seats and four; the shipped arm `IDENTICAL` on every
+gameplay row, with `Memo hits` down 57–165 a run, the one query its last
+commit drops (the owner's split). Instructions per decision −0.55%, against
+−1.0% ± 0.3 predicted: the error `String`s no longer allocated saved the
+1.09% priced, and the per-ability check, now a call where the old loop
+skipped an ability inline, took back 0.56. `prompt_cost` on the large board:
+a why at a question 38.7 µs median in release, a card in hand's 6.9 µs.
+
+→ `plans/archive/setup-architecture-landed.md`, "SU-7" (the build as sized,
+sized against built, and what the build changed in the design).
 
 ### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
 

@@ -207,7 +207,7 @@ fn test_a_land_play_is_a_zone_change_with_a_reason() {
     let land = put_in_hand(&mut game, basic_lands::forest(), 0);
     game.phase.phase_type = mtgsim::state::game_state::PhaseType::Precombat;
 
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert_eq!(
         zone_changes(&game),
@@ -465,9 +465,9 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
 
     let dp = ScriptedDecisionProvider::new();
     let ctx = ActionContext::new(&dp);
-    game.play_land(0, first, Zone::Hand, &ctx).unwrap();
+    game.play_land(0, first, &ctx).unwrap();
     game.players[0].lands_played_this_turn = 0;
-    game.play_land(0, second, Zone::Hand, &ctx).unwrap();
+    game.play_land(0, second, &ctx).unwrap();
 
     let batches: Vec<Option<BatchId>> = game
         .recorded_events()

@@ -19,7 +19,7 @@ use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
-use mtgsim::ui::why::why;
+use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -148,7 +148,7 @@ fn urborg_waits_for_blood_moon_and_is_gone_by_its_turn() {
     assert!(explanation.steps[0].waited_for.is_empty(), "Blood Moon waited for nothing");
     assert_eq!(explanation.steps[1].waited_for, [moon], "Urborg waited for Blood Moon");
 
-    let words = why(&game, urborg);
+    let words = why(&game, WhyAbout::Object(urborg), None);
     let texts: Vec<&str> = words.sections.iter().flat_map(|s| &s.lines).map(|l| l.text.as_str()).collect();
     assert!(texts.contains(&"Its source no longer has the ability, so the effect does not exist."), "{texts:#?}");
     let waited = words.sections.iter().flat_map(|s| &s.lines).find(|l| l.rule == Some("613.8")).expect("the wait is said");
@@ -169,7 +169,7 @@ fn an_anthem_that_misses_a_creature_names_the_creatures_it_pumped() {
     let pumped = explained(&game, bears);
     assert_eq!(steps(&game, &pumped), [step(Layer::Layer7cModifyPT, "Glorious Anthem", "applied")]);
     assert_eq!((pumped.result.power, pumped.result.toughness), (Some(3), Some(3)));
-    let words = why(&game, bears);
+    let words = why(&game, WhyAbout::Object(bears), None);
     let head = &words.sections[0].lines[2];
     assert_eq!(head.rule, Some("613.4c"));
     assert_eq!(head.names.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [anthem], "{head:?}");
@@ -193,7 +193,7 @@ fn a_cda_and_counters_are_steps_of_the_objects_own() {
     assert!(matches!(explanation.steps[0].by, AppliedBy::Cda { .. }) && explanation.steps[0].layer == Layer::Layer7aCdaPT);
     assert_eq!(explanation.steps[1].by, AppliedBy::PtCounters { kind: CounterType::PlusOnePlusOne, count: 2 });
     assert_eq!((explanation.result.power, explanation.result.toughness), (Some(4), Some(5)));
-    let texts: Vec<String> = why(&game, goyf).sections[0].lines.iter().map(|l| l.text.clone()).collect();
+    let texts: Vec<String> = why(&game, WhyAbout::Object(goyf), None).sections[0].lines.iter().map(|l| l.text.clone()).collect();
     assert!(texts.iter().any(|t| t.ends_with("2 +1/+1 counters (CR 122.1a) · timestamp ".to_string().as_str()) || t.contains("2 +1/+1 counters (CR 122.1a)")), "{texts:#?}");
 }
 
@@ -213,18 +213,21 @@ fn a_card_off_the_battlefield_says_what_reached_its_zone() {
     }
 }
 
-/// Asks every object's why at every question, then answers as `inner` does.
+/// Asks every object's and every player's why at every question, then
+/// answers as `inner` does.
 struct AskingWhy<'a> {
     inner: &'a dyn DecisionProvider,
     asked: std::cell::Cell<usize>,
 }
 
 impl AskingWhy<'_> {
-    fn ask(&self, game: &GameState) {
+    fn ask(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption]) {
+        let question = OpenQuestion { player, context, options };
         let mut ids: Vec<ObjectId> = game.objects.keys().copied().collect();
         ids.sort_by_key(|id| id.raw());
-        for id in ids {
-            assert!(!why(game, id).sections.is_empty());
+        let about = ids.into_iter().map(WhyAbout::Object).chain((0..game.num_players()).map(WhyAbout::Player));
+        for about in about {
+            assert!(!why(game, about, Some(&question)).sections.is_empty());
             self.asked.set(self.asked.get() + 1);
         }
     }
@@ -232,11 +235,11 @@ impl AskingWhy<'_> {
 
 impl DecisionProvider for AskingWhy<'_> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.ask(game);
+        self.ask(game, player, context, options);
         self.inner.pick_n(game, player, context, options, bounds)
     }
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.ask(game);
+        self.ask(game, player, context, &[]);
         self.inner.pick_number(game, player, context, min, max)
     }
     fn allocate(
@@ -249,11 +252,11 @@ impl DecisionProvider for AskingWhy<'_> {
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        self.ask(game);
+        self.ask(game, player, context, buckets);
         self.inner.allocate(game, player, context, total, buckets, mins, maxs)
     }
     fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        self.ask(game);
+        self.ask(game, player, context, items);
         self.inner.choose_ordering(game, player, context, items)
     }
     fn seat_mode(&self, player: PlayerId) -> SeatMode {
@@ -261,10 +264,10 @@ impl DecisionProvider for AskingWhy<'_> {
     }
 }
 
-/// Asking why only reads (§7c's decision 3): a game with every object's why
-/// asked at every question plays as the same game asks nothing, and every
-/// explanation is the walk's answer, which `explain` asserts in a debug
-/// build.
+/// Asking why only reads (§7c's decision 3): a game with every object's and
+/// every player's why asked at every question, the question's section among
+/// them, plays as the same game asks nothing, and every explanation is the
+/// walk's answer, which `explain` asserts in a debug build.
 #[test]
 fn a_game_with_every_why_asked_is_the_same_game() {
     const TURNS: u32 = 6;

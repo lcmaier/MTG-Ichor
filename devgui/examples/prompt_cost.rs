@@ -16,9 +16,10 @@
 //! - **the editor** on the same board: its view, built again at every repaint
 //!   in the editor, and one edit at a click, which writes the board, reads it
 //!   back and has the loader check it (`setup-architecture.md` §7b);
-//! - **the why panel**: the seat's answer about the permanent the layers did
-//!   most to, and the panel's view at every repaint (`setup-architecture.md`
-//!   §7c).
+//! - **the why panel**: the seat's answer at the priority question about the
+//!   permanent the layers did most to and about a card in hand, each with the
+//!   question's section, and the panel's view at every repaint
+//!   (`setup-architecture.md` §7c).
 //!
 //! A number to read beside a change, not a gate (`engineering-practices.md`
 //! §10.4): the time is the machine's, and the allocations are the code's.
@@ -34,6 +35,7 @@ use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Play, Pool, ToWindow, spawn_game};
 use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
+use devgui::prompt::BoardRef;
 use devgui::save::{Destination, Tools};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
@@ -41,7 +43,9 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::layers::explain;
 use mtgsim::scenario::Scenario;
 use mtgsim::types::ids::ObjectId;
-use mtgsim::ui::why::why;
+use mtgsim::oracle::legality::candidate_priority_actions;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::why::{OpenQuestion, WhyAbout, why};
 
 const RUNS: usize = 200;
 
@@ -63,6 +67,7 @@ fn main() {
     };
     let objects = snapshot.players.iter().map(|p| p.hand.len() + p.library.len() + p.graveyard.len() + p.battlefield.len()).sum::<usize>();
     println!("{}: {objects} objects, a {} prompt of {} options", board.display(), prompt.kind, prompt.options.len());
+    let (prompt_kind, asked) = (prompt.kind.clone(), prompt.player);
 
     reading("snapshot, memo warm", || Snapshot::build(&game.state, 0));
     reading("snapshot, memo cold", || {
@@ -85,13 +90,22 @@ fn main() {
     ];
     state.tools = Tools { undo_open: true, undo_answered: true, savestate_here: false, destinations, current: 23 };
     reading("tools view, every repaint", || state.tools_view());
-    // The why panel (`setup-architecture.md` §7c): the seat's answer at a
-    // question, about the permanent the layers did most to, and the panel's
-    // view, which `app::draw` builds again at every repaint while it is open.
+    // The why panel (`setup-architecture.md` §7c): the seat's answer at the
+    // board's priority question, about the permanent the layers did most to,
+    // and about the first card in the asked seat's hand, whose question
+    // section asks the cast check; and the panel's view, which `app::draw`
+    // builds again at every repaint while it is open.
+    assert_eq!(prompt_kind, "PriorityAction", "the board's first question is a priority question");
+    let options: Vec<ChoiceOption> = candidate_priority_actions(&game.state, asked).into_iter().map(ChoiceOption::Action).collect();
+    let context = ChoiceContext::new(ChoiceKind::PriorityAction);
+    let question = OpenQuestion { player: asked, context: &context, options: &options };
     let steps = |id: &ObjectId| explain(&game.state, *id).map_or(0, |explanation| explanation.steps.len());
     let busiest = game.state.battlefield_ids_ordered().into_iter().max_by_key(steps).expect("a permanent on the board");
-    reading("why, at a question", || why(&game.state, busiest));
-    (state.why_path, state.why) = (vec![busiest], Some(why(&game.state, busiest)));
+    reading("why, at a question", || why(&game.state, WhyAbout::Object(busiest), Some(&question)));
+    let in_hand = *game.state.players[asked].hand.first().expect("a card in the asked seat's hand");
+    reading("why of a card in hand, at a question", || why(&game.state, WhyAbout::Object(in_hand), Some(&question)));
+    let busiest_why = why(&game.state, WhyAbout::Object(busiest), Some(&question));
+    (state.why_path, state.why) = (vec![BoardRef::Object(busiest)], Some(busiest_why));
     reading("why view, every repaint", || state.why_view());
 
     let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));

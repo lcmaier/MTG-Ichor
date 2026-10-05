@@ -94,6 +94,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `SU-4` — plans/setup-architecture.md
 - `SU-5` — plans/setup-architecture.md
 - `SU-6` — plans/setup-architecture.md
+- `SU-7` — plans/setup-architecture.md
 - `TR-1` — plans/triggers-architecture.md
 - `TR-1b` — plans/triggers-architecture.md
 - `TR-2a` — plans/triggers-architecture.md
@@ -105,7 +106,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 101 |
-| `#[test]` functions | 1996 |
+| `#[test]` functions | 2008 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -113,14 +114,14 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Numbered items | 270 |
+| Numbered items | 272 |
 | …closed, still recorded | 97 |
 | …open — unreachable, and says why | 111 |
 | **…open — reachable, wrong today** | **3** |
-| …open — reachable, not wrong (perf, a name, a harness) | 31 |
+| …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 168 of 173 |
+| …open, carrying an explicit `**Sized:**` | 170 of 175 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

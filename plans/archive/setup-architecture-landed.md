@@ -10,6 +10,100 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-7 — why an option is not offered — ✅ landed 2026-10-05
+
+*Evicted 2026-10-05 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with SU-8's sizing beside it.*
+
+### The build as sized (2026-10-05, at #220)
+
+**The engine, ~290–450.**
+- the reasons, typed and worded, ~80–120;
+- the enumeration's checks as functions that return them (`can_cast`,
+  `can_play_land`, `can_activate` and `can_attack`), ~120–180, much of it
+  moved rather than written;
+- `check_cast_legality` on the same reasons, ~20–40;
+- the why's section for the open question, ~60–90, and a player as what a
+  why can be about, ~10–20 (moved from SU-6, §7c.1's decision 4).
+
+**The dev GUI, ~20–35**: the section's heading, and the right-click on a
+player's line.
+
+**Tests, ~150–220.** One per family of reasons, each reached on a board, and
+each shown to fail first where it moves a check.
+
+**A/B.** The priority question's candidates are built by the same checks, in
+the same order. Predicted `IDENTICAL` on every counter, and instructions within
+±0.3%.
+
+### Sized against built
+
+Lines added, a `src` file's `#[cfg(test)]` module and `devgui/examples/`
+counted as tests, read off the PR's last code commit (`4cabaab`): each
+file's additions in the whole diff, split by part where a file holds two.
+
+| Part | Where | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---|---:|---:|---:|---:|
+| The reasons, typed, with the engine's own words | `mana_helpers.rs`, `legality.rs`, `costs.rs`, `put_on_stack.rs` | 80–120, with the words | about 180 | | |
+| The words a client shows, each with its rule | `ui/display.rs` | (above) | 196 | | |
+| The checks, and the enumerations keeping their `Ok`s | `mana_helpers.rs`, `legality.rs` | 120–180 | about 240 | | 6, `legality.rs`' tests |
+| The enforcement on the same checks | `put_on_stack.rs`, `zones.rs`, `validation.rs`, `costs.rs`, `priority.rs` | 20–40 | about 50 | | 6 |
+| The question's section, and a player as what a why is about | `ui/why.rs` | 70–110 | 322 | | 439, `phase_su7_integration_test.rs` and SU-6's updated |
+| The right-click on a player's line, the seat's question | `devgui/src/` | 20–35 | 56 | | 12 |
+| The panel's tests, random clicks on players, two pictures, `prompt_cost` | `devgui/tests/`, `devgui/examples/` | | | | 121 |
+| Other tests: `play_land` loses its zone | `mtgsim/tests/` | | | | 22 |
+| **SU-7, the whole diff** | | **310–485** | **1,042** | **150–220** | **606** |
+
+Code ran at 2.1–3.4 times its sizing, past the 1.0–2.5 SU-1 to SU-6 ran at,
+and tests at 2.8–4.0. The engine ran over and the dev GUI did not much: 986
+against 290–450, and 56 against 20–35. Three things the sizing left out:
+- **Two more enforcement points and a cost check.** `play_land` and
+  `activate_ability` ask the shared checks too (item 188 names `play_land`
+  beside `check_cast_legality`), and `can_pay_costs` returns `CannotPay`, so a
+  {T} on a tapped permanent says so.
+- **Each reason worded twice, on purpose.** The engine's `Display` keeps the
+  old error text, which the trace's `priority_rejected` record carries;
+  `ui::display` words it for a person, with the rule apart.
+- **The section answers at every question.** Whether the question offers the
+  object or the player is matched over every kind of option with no wildcard,
+  and the declare-blockers question answers both ways, for a blocker and for
+  an attacker, with a reason about the blocker alone said once.
+
+The band stayed under 2,500 at every commit: 1,648 in all.
+
+### What the build changed in the design
+
+1. **`play_land` and `activate_ability` share the checks too** (decision 2's
+   item 2, amended where it stands), and `play_land` loses its `from` zone:
+   the check reads the hand, as CR 305.1 does, and playing from elsewhere is
+   RS-2's permission (`cant-effects-architecture.md` §4.3).
+2. **The cast refuses a land (CR 305.9).** Only the enumeration did, so a
+   `CastSpell` naming a land went through `cast_spell` as a spell; a probe on
+   the tree before `7463c38` cast a Forest and left it on the stack.
+3. **`can_cast` returns the mana sources it would tap**, which
+   `castable_spells` returns (§7c.2's sketch, amended).
+4. **A target's reasons are RS-2's** (the owner, 2026-10-05). At every
+   question but the priority question and the two declarations, the section
+   says only whether the thing is offered.
+5. **No "can't" arm yet.** No restriction on a choice exists until RS-2 and
+   RS-3a build them; each family's check is one site for them now, and the
+   RS rows say so.
+6. **The click script edits Everywhere to a Mountain** (§7c.2, amended). One
+   Everywhere counts as five mana sources, so on `main.scenario` the Bears are
+   offered: `codebase-state.md` item 162, whose design doc the owner made the
+   PR after SU-7. A Forest would leave Player 0 nothing to cast, so the
+   window would not stop at the priority question.
+7. **The A/B in two steps** (the owner, 2026-10-05). Merging the attack check
+   dropped a second `is_creature` the old bool asked, which moves `Memo hits`.
+   The merge kept it, the last code commit (`4cabaab`) drops it, and the
+   close-out's third arm sits between them.
+8. **Every moved check was broken once, and a test caught it.** 29 checks:
+   two caught only by the new tests (the cast refusing a land, the controller
+   check on activation), and the life check by an older test outside the SU-7
+   files (`pre_phase3_integration_test.rs`).
+9. **Found:** the priority question never offers a mana ability, which CR
+   605.3a allows (`codebase-state.md` item 211, slotted with item 162's
+   design).
+
 #### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
 
 *Evicted 2026-10-05 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with SU-7's and SU-8's sizing beside it.*

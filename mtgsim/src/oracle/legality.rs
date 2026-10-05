@@ -7,100 +7,122 @@
 
 use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
 use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
-use crate::state::game_state::{GameState, PhaseType};
+use crate::engine::combat::validation::CombatError;
+use crate::engine::put_on_stack::SorceryTiming;
+use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::Zone;
 use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
 
-/// Check if a creature can attack (not summoning-sick, or has haste).
-/// Rule 702.10b: Haste bypasses summoning sickness for attacking.
+/// Can `player_id` declare `id` as an attacker (CR 508.1a)? One check for the
+/// enumeration and the declaration: the declare-attackers question offers what
+/// it allows, and `validate_attackers` refuses what it refuses, so attacking
+/// has one road, as blocking has `can_block`.
 ///
 /// The creature check is part of the answer, not the caller's job: CR 508.1a
 /// lets only creatures be declared as attackers, and `has_summoning_sickness`
-/// is false for a noncreature permanent — so without it this would report that
-/// an untapped Sol Ring can attack.
-pub fn can_attack(game: &GameState, id: ObjectId) -> bool {
-    if game.battlefield.contains_key(&id) {
-        is_creature(game, id) && !has_summoning_sickness(game, id)
-    } else {
-        false
+/// is false for a noncreature permanent, so without it an untapped Sol Ring
+/// could attack.
+pub fn can_attack(game: &GameState, player_id: PlayerId, id: ObjectId) -> Result<(), CombatError> {
+    let entry = game.battlefield.get(&id).ok_or(CombatError::NotOnBattlefield(id))?;
+    // Effective controller (CR 613.1b): the creature you stole this turn
+    // attacks for you, which is what the haste clause is buying.
+    if !controls(game, id, player_id) {
+        return Err(CombatError::NotControlledByPlayer(id, player_id));
+    }
+    if !is_creature(game, id) {
+        return Err(CombatError::NotACreature(id));
+    }
+    if entry.tapped {
+        return Err(CombatError::CreatureIsTapped(id));
+    }
+    // CR 302.6, which haste lifts (CR 702.10b).
+    if has_summoning_sickness(game, id) {
+        return Err(CombatError::CreatureHasSummoningSickness(id));
+    }
+    if has_keyword(game, id, KeywordFlag::Defender) {
+        return Err(CombatError::HasDefender(id));
+    }
+    Ok(())
+}
+
+/// Why a card is not offered to play as a land at a priority question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CannotPlayLand {
+    /// Not in the player's hand, the one zone the engine plays a land from
+    /// (CR 305.1).
+    NotInHand,
+    /// Not a land card (CR 305.1).
+    NotALand,
+    /// Outside its owner's main phase with the stack empty (CR 305.1).
+    Timing(SorceryTiming),
+    /// The player has played as many lands this turn as they may
+    /// (CR 305.2a).
+    NoLandDropLeft { played: u32, allowed: u32 },
+}
+
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for CannotPlayLand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CannotPlayLand::NotInHand => f.write_str("Card is not in its owner's hand"),
+            CannotPlayLand::NotALand => f.write_str("This card is not a land"),
+            CannotPlayLand::Timing(timing) => timing.fmt(f),
+            CannotPlayLand::NoLandDropLeft { .. } => f.write_str("Already played maximum lands this turn"),
+        }
     }
 }
 
-/// Get all lands in a player's hand that they can legally play this turn.
-///
-/// Checks:
-/// - Card is a land
-/// - Player hasn't exceeded their lands-per-turn limit
-/// - It's a main phase and the stack is empty (sorcery-speed timing)
-/// - Player is the active player
-pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    let player = match game.players.get(player_id) {
-        Some(p) => p,
-        None => return Vec::new(),
+/// May `player_id` play `card_id` as a land now (CR 305.1, 305.2a)? One check
+/// for the enumeration and for `GameState::play_land`.
+pub fn can_play_land(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotPlayLand> {
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotPlayLand::NotInHand);
     };
-
-    // Timing: active player, main phase, empty stack
-    if player_id != game.active_player {
-        return Vec::new();
+    // A hand holds only its owner's cards (CR 400.3).
+    if obj.zone != Zone::Hand || obj.owner != player_id {
+        return Err(CannotPlayLand::NotInHand);
     }
-    let is_main = matches!(
-        game.phase.phase_type,
-        PhaseType::Precombat | PhaseType::Postcombat
-    );
-    if !is_main || !game.stack.is_empty() {
-        return Vec::new();
+    // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
+    // play-from-hand legality, which happens before the object is a permanent,
+    // so the layer system has nothing to contribute. Same exemption as
+    // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
+    if !obj.card_data.types.contains(&CardType::Land) {
+        return Err(CannotPlayLand::NotALand);
     }
-
-    if !player.can_play_land() {
-        return Vec::new();
+    game.check_sorcery_timing(player_id).map_err(CannotPlayLand::Timing)?;
+    if let Some(player) = game.players.get(player_id)
+        && !player.can_play_land()
+    {
+        return Err(CannotPlayLand::NoLandDropLeft {
+            played: player.lands_played_this_turn,
+            allowed: player.lands_per_turn,
+        });
     }
-
-    player.hand.iter()
-        .copied()
-        .filter(|&id| {
-            game.objects.get(&id)
-                // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
-                // play-from-hand legality, which happens before the object is a permanent,
-                // so the layer system has nothing to contribute. Same exemption as
-                // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
-                .map(|obj| obj.card_data.types.contains(&CardType::Land))
-                .unwrap_or(false)
-        })
-        .collect()
+    Ok(())
 }
 
-/// Get all creatures controlled by a player that can legally be declared as attackers.
+/// Get all lands in a player's hand that they can legally play this turn:
+/// each one [`can_play_land`] allows.
+pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
+    let Some(player) = game.players.get(player_id) else {
+        return Vec::new();
+    };
+    player.hand.iter().copied().filter(|&id| can_play_land(game, player_id, id).is_ok()).collect()
+}
+
+/// Get all creatures controlled by a player that can legally be declared as
+/// attackers: each one [`can_attack`] allows.
 ///
 /// Ordered by `battlefield_ordered` — a `DecisionProvider` picks by index, so
 /// the order this returns in is part of the decision, not a presentation
 /// detail.
-///
-/// Checks per-creature legality (rule 508.1a): on battlefield, is a creature,
-/// controlled by player, untapped, not summoning-sick (or has haste), no defender.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered().into_iter()
-        .filter_map(|(id, entry)| {
-            // Effective controller (CR 613.1b): the creature you stole this turn
-            // attacks for you, which is what the haste clause is buying.
-            if !controls(game, id, player_id) {
-                return None;
-            }
-            if !is_creature(game, id) {
-                return None;
-            }
-            if entry.tapped {
-                return None;
-            }
-            if !can_attack(game, id) {
-                return None;
-            }
-            if has_keyword(game, id, KeywordFlag::Defender) {
-                return None;
-            }
-            Some(id)
-        })
+    game.battlefield_ordered()
+        .into_iter()
+        .filter_map(|(id, _)| can_attack(game, player_id, id).is_ok().then_some(id))
         .collect()
 }
 
@@ -299,6 +321,7 @@ mod tests {
     use crate::state::battlefield::PermanentState;
     use crate::types::card_types::CardType;
     use crate::types::zones::Zone;
+    use crate::state::game_state::PhaseType;
 
     /// CR 508.1a — only creatures attack, and `has_summoning_sickness` answers
     /// `false` for a noncreature permanent because CR 302.6 does not restrict
@@ -315,7 +338,7 @@ mod tests {
 
         assert!(!crate::oracle::characteristics::is_creature(&game, sol_ring));
         assert!(!has_summoning_sickness(&game, sol_ring), "not a creature, not sick");
-        assert!(!can_attack(&game, sol_ring));
+        assert_eq!(can_attack(&game, 0, sol_ring), Err(CombatError::NotACreature(sol_ring)));
     }
 
     #[test]
@@ -330,7 +353,7 @@ mod tests {
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
-        assert!(can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Ok(()));
     }
 
     #[test]
@@ -344,7 +367,7 @@ mod tests {
         let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
-        assert!(!can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Err(CombatError::CreatureHasSummoningSickness(id)));
     }
 
     #[test]
@@ -359,14 +382,14 @@ mod tests {
         let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
-        assert!(can_attack(&game, id));
+        assert_eq!(can_attack(&game, 0, id), Ok(()));
     }
 
     #[test]
     fn test_can_attack_not_on_battlefield() {
         let game = GameState::new(2, 20);
         let fake_id = crate::types::ids::new_object_id();
-        assert!(!can_attack(&game, fake_id));
+        assert_eq!(can_attack(&game, 0, fake_id), Err(CombatError::NotOnBattlefield(fake_id)));
     }
 
     // --- playable_lands tests ---

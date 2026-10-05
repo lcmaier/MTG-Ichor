@@ -7,14 +7,18 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::engine::combat::validation::CombatError;
+use crate::engine::costs::CannotPay;
+use crate::engine::put_on_stack::SorceryTiming;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
-use crate::objects::card_data::{AbilityText, AbilityType, CardData, paragraphs};
+use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
-    get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
+    controller_or_owner, get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
 };
+use crate::oracle::legality::CannotPlayLand;
+use crate::oracle::mana_helpers::{CannotActivate, CannotCast};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
@@ -489,39 +493,208 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
 /// rule that rejected it.
 pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
     match rejected {
-        Rejection::Reversed(action) => format!(
-            "{} could not be completed, so it was reversed and its payments canceled (CR 732.1)",
-            option_label(game, &ChoiceOption::Action(action.clone())),
-        ),
+        Rejection::Reversed(_) => {
+            let (words, _) = rejection_words(game, rejected);
+            format!("{words} (CR 732.1)")
+        }
         Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
     }
 }
 
-/// The rule a combat declaration broke, one arm per error and no wildcard.
+/// [`rejection`]'s words with the rule apart, for a client that shows the
+/// rule on its own.
+pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Option<&'static str>) {
+    match rejected {
+        Rejection::Reversed(action) => (
+            format!(
+                "{} could not be completed, so it was reversed and its payments canceled",
+                option_label(game, &ChoiceOption::Action(action.clone())),
+            ),
+            Some("732.1"),
+        ),
+        Rejection::IllegalBlocks { why, .. } => {
+            let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
+            (format!("Those blocks are illegal: {words}"), rule)
+        }
+    }
+}
+
+/// Which declaration a combat error refused, since CR 508.1a and 509.1a
+/// state the same requirement for each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Declaring {
+    Attackers,
+    Blockers,
+}
+
+/// The rule a combat declaration broke, as the re-asked question shows it.
 fn combat_error(game: &GameState, error: &CombatError) -> String {
+    match combat_refusal(game, error, Declaring::Blockers) {
+        (words, Some(rule)) => format!("{words} (CR {rule})"),
+        (words, None) => words,
+    }
+}
+
+/// Why a creature can't attack or block as `error` says, and the rule: one
+/// arm per error and no wildcard.
+pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring) -> (String, Option<&'static str>) {
     let n = |id: &ObjectId| named(game, *id);
+    let declaration_rule = match refused {
+        Declaring::Attackers => "508.1a",
+        Declaring::Blockers => "509.1a",
+    };
     match error {
-        CombatError::NotOnBattlefield(id) => format!("{} is not on the battlefield", n(id)),
-        CombatError::NotACreature(id) => format!("{} is not a creature", n(id)),
+        CombatError::NotOnBattlefield(id) => (format!("{} is not on the battlefield", n(id)), None),
+        CombatError::NotACreature(id) => (format!("{} is not a creature", n(id)), None),
         CombatError::NotControlledByPlayer(id, player) => {
-            format!("{} is not controlled by {}", n(id), player_name(*player))
+            (format!("{} is not controlled by {}", n(id), player_name(*player)), None)
         }
-        CombatError::CreatureIsTapped(id) => format!("{} is tapped (CR 509.1a)", n(id)),
-        CombatError::CreatureHasSummoningSickness(id) => {
-            format!("{} has not been under its controller's control since their turn began (CR 302.6)", n(id))
-        }
-        CombatError::InvalidAttackTarget(id) => format!("{} can't attack that", n(id)),
-        CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => {
-            format!("{} is not attacking you, so {} can't block it (CR 509.1a)", n(attacker), n(blocker))
-        }
-        CombatError::TooManyBlocks(id, 1) => format!("{} can block only one attacker (CR 509.1a)", n(id)),
-        CombatError::TooManyBlocks(id, max) => format!("{} can block only {max} attackers", n(id)),
-        CombatError::HasDefender(id) => format!("{} has defender and can't attack (CR 702.3b)", n(id)),
-        CombatError::CantBlockFlyer(blocker, attacker) => {
-            format!("{} has flying, and {} has neither flying nor reach (CR 702.9b)", n(attacker), n(blocker))
-        }
+        CombatError::CreatureIsTapped(id) => (format!("{} is tapped", n(id)), Some(declaration_rule)),
+        CombatError::CreatureHasSummoningSickness(id) => (
+            format!("{} has not been under its controller's control since their turn began", n(id)),
+            Some("302.6"),
+        ),
+        CombatError::InvalidAttackTarget(id) => (format!("{} can't attack that", n(id)), None),
+        CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => (
+            format!("{} is not attacking you, so {} can't block it", n(attacker), n(blocker)),
+            Some("509.1a"),
+        ),
+        CombatError::TooManyBlocks(id, 1) => (format!("{} can block only one attacker", n(id)), Some("509.1a")),
+        CombatError::TooManyBlocks(id, max) => (format!("{} can block only {max} attackers", n(id)), None),
+        CombatError::HasDefender(id) => (format!("{} has defender and can't attack", n(id)), Some("702.3b")),
+        CombatError::CantBlockFlyer(blocker, attacker) => (
+            format!("{} has flying, and {} has neither flying nor reach", n(attacker), n(blocker)),
+            Some("702.9b"),
+        ),
         // A restriction's own words, until RS-3 gives restrictions ids.
-        CombatError::ConstraintViolation(text) => text.clone(),
+        CombatError::ConstraintViolation(text) => (text.clone(), None),
+    }
+}
+
+/// The end of a sentence saying which of CR 307.1's conditions `player` misses.
+fn timing_miss(player: PlayerId, miss: SorceryTiming) -> String {
+    match miss {
+        SorceryTiming::NotYourTurn => format!("it is not {}'s turn", player_name(player)),
+        SorceryTiming::NotAMainPhase => "it is not a main phase".to_string(),
+        SorceryTiming::StackNotEmpty => "the stack is not empty".to_string(),
+    }
+}
+
+/// Why `player` is not offered `card` to cast, and the rule: one arm per
+/// reason and no wildcard.
+pub fn cannot_cast(game: &GameState, player: PlayerId, card: ObjectId, reason: &CannotCast) -> (String, Option<&'static str>) {
+    let who = player_name(player);
+    match reason {
+        CannotCast::NotInHand => (format!("it is not in {who}'s hand, and a spell is cast from its caster's hand"), Some("601.3")),
+        CannotCast::Land => ("a land is played, never cast".to_string(), Some("305.9")),
+        CannotCast::NoSpellAbility => ("it has no spell ability, so nothing would resolve".to_string(), None),
+        CannotCast::Timing(miss) => (
+            format!(
+                "it is not an instant and has no flash, so it is cast only in its caster's main phase with the stack empty, and {}",
+                timing_miss(player, *miss),
+            ),
+            Some("117.1a"),
+        ),
+        CannotCast::NoLegalTarget => ("one of its targets has no legal choice".to_string(), Some("601.2c")),
+        CannotCast::AdditionalCost(cost) => {
+            let (words, rule) = cannot_pay(game, player, card, cost);
+            (format!("its additional cost can't be paid: {words}"), rule)
+        }
+        CannotCast::ManaShort => {
+            // The total CR 601.2f would lock in, which is what the
+            // enumeration compared (`cost-architecture.md` §3.6).
+            let printed = game.objects.get(&card).and_then(|obj| obj.card_data.mana_cost.clone());
+            let cost = printed.map_or_else(String::new, |printed| {
+                format!(" {}", crate::engine::cost_determination::preview_mana_cost(game, card, &printed))
+            });
+            (format!("the mana {who} can make now does not cover its cost{cost}"), Some("601.2h"))
+        }
+    }
+}
+
+/// Why `player` is not offered `card` to play as a land, and the rule.
+pub fn cannot_play_land(reason: &CannotPlayLand, player: PlayerId) -> (String, Option<&'static str>) {
+    let who = player_name(player);
+    match reason {
+        CannotPlayLand::NotInHand => (format!("it is not in {who}'s hand, and a land is played from its owner's hand"), Some("305.1")),
+        CannotPlayLand::NotALand => ("it is not a land".to_string(), Some("305.1")),
+        CannotPlayLand::Timing(miss) => (
+            format!("a land is played only in its owner's main phase with the stack empty, and {}", timing_miss(player, *miss)),
+            Some("305.1"),
+        ),
+        CannotPlayLand::NoLandDropLeft { played: 1, allowed: 1 } => {
+            (format!("{who} has played a land this turn already"), Some("305.2"))
+        }
+        CannotPlayLand::NoLandDropLeft { played, allowed } => {
+            (format!("{who} has played {played} of the {allowed} lands they may play this turn"), Some("305.2a"))
+        }
+    }
+}
+
+/// Why `player` is not offered `ability` of `source` to activate, and the
+/// rule.
+pub fn cannot_activate(
+    game: &GameState,
+    player: PlayerId,
+    source: ObjectId,
+    ability: &AbilityDef,
+    reason: &CannotActivate,
+) -> (String, Option<&'static str>) {
+    let who = player_name(player);
+    match reason {
+        CannotActivate::NotOnBattlefield => {
+            ("it is not on the battlefield, where its abilities function".to_string(), Some("113.6"))
+        }
+        CannotActivate::NotYours => {
+            let controller = controller_or_owner(game, source).map_or_else(|| "another player".to_string(), player_name);
+            (format!("{controller} controls it, and only its controller activates its abilities"), Some("602.2"))
+        }
+        CannotActivate::ManaAbility => (
+            "this engine offers a mana ability only while a cost asks for mana, though a player may activate one whenever they have priority".to_string(),
+            Some("605.3a"),
+        ),
+        CannotActivate::NotActivated => ("it is not an activated ability".to_string(), Some("602.1")),
+        CannotActivate::Timing(miss) => (
+            format!(
+                "it is activated only as a sorcery, in its controller's main phase with the stack empty, and {}",
+                timing_miss(player, *miss),
+            ),
+            Some("602.5d"),
+        ),
+        CannotActivate::Cost(cost) => cannot_pay(game, player, source, cost),
+        CannotActivate::ManaShort => {
+            let cost = ability.costs.iter().find_map(|cost| match cost {
+                Cost::Mana(mana) => Some(format!(" {mana}")),
+                _ => None,
+            });
+            (format!("the mana {who} can make now does not cover its cost{}", cost.unwrap_or_default()), Some("602.2b"))
+        }
+        CannotActivate::NoLegalTarget => ("one of its targets has no legal choice".to_string(), Some("601.2c")),
+    }
+}
+
+/// Why a cost of `source`'s can't be paid, and the rule.
+pub fn cannot_pay(game: &GameState, player: PlayerId, source: ObjectId, reason: &CannotPay) -> (String, Option<&'static str>) {
+    let who = player_name(player);
+    match reason {
+        CannotPay::SourceGone(_) => ("it is not on the battlefield to pay with".to_string(), Some("118.3")),
+        CannotPay::AlreadyTapped => ("it is already tapped, so it can't be tapped to pay {T}".to_string(), Some("118.3")),
+        CannotPay::NotTapped => ("it is untapped, so it can't be untapped to pay {Q}".to_string(), Some("118.3")),
+        CannotPay::SummoningSick => {
+            let controller = controller_or_owner(game, source).map_or_else(|| who.clone(), player_name);
+            (
+                format!("it has not been under {controller}'s control since their most recent turn began, so it can't pay {{T}} or {{Q}}"),
+                Some("302.6"),
+            )
+        }
+        CannotPay::PoolShort => (format!("{who}'s mana pool does not hold the mana"), Some("601.2h")),
+        CannotPay::TooLittleLife { life, amount } => (format!("{who} has {life} life, less than the {amount} it costs"), Some("119.4")),
+        CannotPay::TooFewToSacrifice { matching: 0, .. } => (format!("{who} controls nothing it could sacrifice"), Some("701.21a")),
+        CannotPay::TooFewToSacrifice { matching, needed } => (
+            format!("{who} controls only {matching} of the {needed} permanents it sacrifices"),
+            Some("701.21a"),
+        ),
+        CannotPay::Unchecked => ("the engine checks no cost of this kind yet, so it never pays one".to_string(), None),
     }
 }
 

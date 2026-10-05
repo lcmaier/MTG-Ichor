@@ -15,7 +15,6 @@ use mtgsim::oracle::mana_helpers::available_mana_sources;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx};
 use mtgsim::types::card_types::{LandType, Subtype};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::zones::Zone;
 
 /// The mana types Everywhere's abilities offer, sorted so the assertion does
 /// not depend on ability order.
@@ -72,7 +71,7 @@ fn test_everywhere_enters_untapped_when_played() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, everywhere(), 0);
 
-    game.play_land(0, land, Zone::Hand, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, land, &test_ctx()).expect("the land drop is legal");
 
     assert!(
         !game.battlefield.get(&land).unwrap().tapped,

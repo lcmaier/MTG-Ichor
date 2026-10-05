@@ -546,7 +546,7 @@ fn test_dryad_arbor_played_as_a_land_is_exiled_by_containment_priest() {
     put_on_battlefield(&mut game, containment_priest(), 1);
 
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, Zone::Hand, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, arbor, &test_ctx()).expect("the land drop is legal");
 
     assert!(game.exile.contains(&arbor));
     assert!(!game.battlefield.contains_key(&arbor));
@@ -573,7 +573,7 @@ fn test_an_exit_beside_an_enters_tapped_is_one_outcome_and_not_asked() {
 
     let dp = RecordingDecisionProvider::picking(0);
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, Zone::Hand, &ActionContext::new(&dp)).unwrap();
+    game.play_land(0, arbor, &ActionContext::new(&dp)).unwrap();
 
     assert_eq!(dp.prompts(), 0, "the exile wins whichever applied first");
     assert!(game.exile.contains(&arbor));
@@ -803,7 +803,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
 fn test_dryad_arbor_is_a_summoning_sick_land_creature() {
     let mut game = setup_two_player_game();
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, arbor, &test_ctx()).unwrap();
 
     assert!(game.battlefield.contains_key(&arbor));
     assert!(is_creature(&game, arbor));
@@ -821,7 +821,7 @@ fn test_blood_moon_makes_dryad_arbor_a_mountain_dryad() {
     put_on_battlefield(&mut game, blood_moon(), 1);
 
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, arbor, &test_ctx()).unwrap();
 
     let subtypes = get_effective_subtypes(&game, arbor);
     assert!(subtypes.contains(&Subtype::Land(LandType::Mountain)));

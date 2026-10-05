@@ -126,7 +126,7 @@ fn test_tapland_enters_tapped() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, land, &test_ctx()).expect("the land drop is legal");
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,
@@ -147,7 +147,7 @@ fn test_tapland_is_tapped_through_the_pipeline_not_by_hand() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     // The entry was announced exactly once, by the performer.
     assert_eq!(entries(&game), vec![(land, 0)]);
@@ -164,7 +164,7 @@ fn test_enters_tapped_does_not_leak_to_other_permanents() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
     assert!(game.battlefield.get(&land).unwrap().tapped);
 
     let bears = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -432,7 +432,7 @@ fn test_blood_moon_strips_an_entering_taplands_ability() {
     put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert!(
         !game.battlefield.get(&land).unwrap().tapped,
@@ -533,7 +533,7 @@ fn test_entering_permanent_is_gathered_before_it_is_a_source() {
     assert!(game.replacement_effects.is_empty(), "and the registry is empty");
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,
@@ -571,7 +571,7 @@ fn test_entry_is_announced_exactly_once_per_permanent() {
     let a = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     let b = reanimate(&mut game, chainbreaker(), 1);
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert_eq!(entries(&game), vec![(a, 0), (b, 1), (land, 0)]);
 }
@@ -721,7 +721,7 @@ fn test_root_maze_taps_an_entering_land() {
     put_on_battlefield(&mut game, root_maze(), 1);
 
     let forest = put_in_hand(&mut game, mtgsim::cards::basic_lands::forest(), 0);
-    game.play_land(0, forest, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, forest, &test_ctx()).unwrap();
 
     assert!(
         game.battlefield.get(&forest).unwrap().tapped,
@@ -755,7 +755,7 @@ fn test_two_commuting_entry_replacements_do_not_ask() {
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
     // A provider with nothing scripted: a prompt here fails the test.
-    game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_ctx()).unwrap();
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,

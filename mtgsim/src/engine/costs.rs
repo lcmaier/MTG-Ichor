@@ -54,6 +54,49 @@ impl PaymentPlan {
     }
 }
 
+/// Why a cost can't be paid now: the resource it needs is missing (CR 118.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CannotPay {
+    /// {T}, {Q} or "sacrifice this" on a source that has left the battlefield.
+    SourceGone(ObjectId),
+    /// {T} on a tapped permanent, CR 118.3's own example.
+    AlreadyTapped,
+    /// {Q} on an untapped permanent.
+    NotTapped,
+    /// {T} or {Q} on a creature that has not been under its controller's
+    /// control since their most recent turn began (CR 302.6).
+    SummoningSick,
+    /// More mana than the pool holds, asked at CR 601.2h once the window has
+    /// closed. The enumeration counts the sources too, in a reason of its own.
+    PoolShort,
+    /// More life than the player has (CR 119.4).
+    TooLittleLife { life: i64, amount: u64 },
+    /// Fewer permanents the player could sacrifice than the cost takes
+    /// (CR 701.21a).
+    TooFewToSacrifice { matching: usize, needed: u32 },
+    /// A discard, an exile from a graveyard, or a counter: the engine checks
+    /// none of them, and pays none.
+    Unchecked,
+}
+
+/// The engine's own words, for an error a caller returns as text.
+impl std::fmt::Display for CannotPay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CannotPay::SourceGone(id) => write!(f, "Permanent {id} not on battlefield"),
+            CannotPay::AlreadyTapped => f.write_str("Permanent is already tapped"),
+            CannotPay::NotTapped => f.write_str("Permanent is not tapped"),
+            CannotPay::SummoningSick => f.write_str("Creature has summoning sickness"),
+            CannotPay::PoolShort => f.write_str("Not enough mana"),
+            CannotPay::TooLittleLife { life, amount } => write!(f, "Cannot pay {amount} life, only {life} available"),
+            CannotPay::TooFewToSacrifice { matching, needed } => {
+                write!(f, "Cannot sacrifice {needed} permanent(s): only {matching} match")
+            }
+            CannotPay::Unchecked => f.write_str("Cost validation not yet implemented"),
+        }
+    }
+}
+
 /// CR 601.2h's payment order, as ranks. See [`payment_order_rank`].
 const RANK_MANA: u8 = 0;
 const RANK_MUTATES: u8 = 1;
@@ -121,16 +164,15 @@ fn ordered_for_payment(costs: &[Cost]) -> Vec<&Cost> {
 impl GameState {
     /// Read-only check: can all costs be paid right now?
     ///
-    /// Checks both resource availability AND cost restrictions.
-    /// Cost restrictions (Phase 5) start as a no-op — the `check_cost_restrictions`
-    /// call is a placeholder for when continuous effects populate
-    /// `GameState::cost_restrictions`.
+    /// The one resource check (CR 118.3): the enumeration asks it to keep an
+    /// unpayable option out of the window, and casting and activating ask it
+    /// again at CR 601.2h, after the mana window.
     pub fn can_pay_costs(
         &self,
         costs: &[Cost],
         player_id: PlayerId,
         source_id: ObjectId,
-    ) -> Result<(), String> {
+    ) -> Result<(), CannotPay> {
         for cost in ordered_for_payment(costs) {
             self.check_cost_resource(cost, player_id, source_id)?;
         }
@@ -143,74 +185,63 @@ impl GameState {
         cost: &Cost,
         player_id: PlayerId,
         source_id: ObjectId,
-    ) -> Result<(), String> {
+    ) -> Result<(), CannotPay> {
         match cost {
             Cost::TapSelf => {
-                let entry = self.battlefield.get(&source_id)
-                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
                 if entry.tapped {
-                    return Err("Permanent is already tapped".to_string());
+                    return Err(CannotPay::AlreadyTapped);
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // tapping, unless they have haste. `has_summoning_sickness` is
                 // false for a noncreature permanent, so it needs no type gate here.
                 if has_summoning_sickness(self, source_id) {
-                    return Err("Creature has summoning sickness".to_string());
+                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
             Cost::UntapSelf => {
-                let entry = self.battlefield.get(&source_id)
-                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
+                let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
                 if !entry.tapped {
-                    return Err("Permanent is not tapped".to_string());
+                    return Err(CannotPay::NotTapped);
                 }
                 // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
                 // paying {Q} (untap symbol), unless they have haste.
                 if has_summoning_sickness(self, source_id) {
-                    return Err("Creature has summoning sickness".to_string());
+                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
             Cost::Mana(mana_cost) => {
-                let player = self.get_player(player_id)?;
-                if !player.mana_pool.can_pay(mana_cost) {
-                    return Err("Not enough mana".to_string());
+                if !self.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(mana_cost)) {
+                    return Err(CannotPay::PoolShort);
                 }
                 Ok(())
             }
             Cost::PayLife(amount) => {
-                let player = self.get_player(player_id)?;
-                if player.life_total < *amount as i64 {
-                    return Err(format!(
-                        "Cannot pay {} life, only {} available",
-                        amount, player.life_total
-                    ));
+                let life = self.players.get(player_id).map_or(0, |player| player.life_total);
+                if life < *amount as i64 {
+                    return Err(CannotPay::TooLittleLife { life, amount: *amount });
                 }
                 Ok(())
             }
             Cost::SacrificeSelf => {
                 if !self.battlefield.contains_key(&source_id) {
-                    return Err(format!("Permanent {} not on battlefield", source_id));
+                    return Err(CannotPay::SourceGone(source_id));
                 }
                 Ok(())
             }
             Cost::Sacrifice(filter, n) => {
-                let available = self.sacrifice_candidates(filter, player_id).len();
-                if available < *n as usize {
-                    return Err(format!(
-                        "Cannot sacrifice {} permanent(s): only {} match",
-                        n, available
-                    ));
+                let matching = self.sacrifice_candidates(filter, player_id).len();
+                if matching < *n as usize {
+                    return Err(CannotPay::TooFewToSacrifice { matching, needed: *n });
                 }
                 Ok(())
             }
             Cost::Discard(_, _)
             | Cost::ExileFromGraveyard(_, _)
             | Cost::RemoveCounters(_, _)
-            | Cost::AddCounters(_, _) => {
-                Err(format!("Cost {:?} validation not yet implemented", cost))
-            }
+            | Cost::AddCounters(_, _) => Err(CannotPay::Unchecked),
         }
     }
 

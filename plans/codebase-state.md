@@ -5166,6 +5166,15 @@ first.
    **Sized:** `activatable_by` on `AbilityDef` plus the two read
    sites, ~60–80 lines, with the first such card.
 
+   **Since SU-7 (2026-10-05)** the controller test is one check,
+   `oracle::mana_helpers::can_activate_its_abilities`, which the enumeration
+   asks once a source. CR 602.2's exception is printed on the ability, so the
+   field moves the test into the per-ability check, `can_begin_to_activate`,
+   and the enumeration walks every permanent whose ability the player may
+   activate, not only theirs. Five cards say "only your opponents may
+   activate" (Detention Vortex), beside the 40. Item 212's census counts the
+   family.
+
 3. **Named counters have no representation — `CounterType` is a closed enum.** CR 122.1 lets a counter be named anything, and "counters with the same name or description are interchangeable" makes the *name* the identity. Most named counters have no rules meaning at all: the card counts its own counters and nothing in the engine cares what they are called.
 
    **Breadth, measured 2026-08-23:** a ~1000-card Scryfall sample of `o:/counters? on/` yields **115 distinct counter-name words** — charge, time, oil, quest, age, storage, lore, doom, plan, flood, bounty, egg, energy, scream, page, delay, gold, fuse, mire, ice, verse, luck, ki, collection, spore, slumber, book, burden, filibuster, and on. One sample, not the whole set. A variant per name is not viable.
@@ -7859,6 +7868,28 @@ the file.
        only asks whether any payment exists. Performance is the session's
        first measurement.
 
+     **Found by SU-7 (2026-10-05): the affordability check errs both ways,
+     and the owner pulled its design forward.** SU-7's click script met the
+     over-offer on the review board itself: one Everywhere offers Grizzly
+     Bears' {1}{G} on `main.scenario`. The same greedy count also
+     under-offers, which `legality.rs`'s header calls a bug: Sol Ring's
+     {C}{C} counts once, and nothing it reads knows RE-9's replacements on
+     mana (Mana Reflection doubles, Nyxbloom Ancient triples, Pale Moon and
+     Deep Water change the type) or TR-1's triggered mana ability (Wild
+     Growth's extra {G}). Doubling Cube's and Krark-Clan Ironworks' mana
+     costs mana or a sacrifice, which no matching decides. **Slotted (the
+     owner, 2026-10-05, at SU-7):** a design doc is the next PR after SU-7,
+     reviewed before any build. It surveys every payment family the CR and
+     the cards have (convoke, delve, improvise, hybrid, Phyrexian, snow,
+     restricted mana, filters, sources fed by sacrifices, mana replacements,
+     triggered mana), says which fit which algorithm, and prices each on the
+     priority question, where the candidate list is 18.6% of a close-out
+     run's instructions and the source scan 13% (SU-6's engine arm). The
+     owner asked whether convoke and delve retrofit easily; that is the
+     survey's to show, not this entry's to assume. SU-7's checks call
+     `find_mana_sources` from one place each (`can_cast`,
+     `can_afford_ability_costs`), so the new check lands there.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
@@ -8666,6 +8697,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      counted 8 repeated cleanup steps in four 200-game runs, and none left an
      effect behind.
 
+     **Three confirmed and fixed by SU-7 (2026-10-05).** Cast timing, land-play
+     timing and attack legality each have one check now, which the
+     enumeration and the enforcement both ask: `can_begin_to_cast`,
+     `can_play_land` and `can_attack`, with `can_begin_to_activate` for
+     activation's half of the same pair. One answer had drifted: the cast
+     never refused a land (CR 305.9), and only the enumeration did, so a
+     `CastSpell` naming a land went through `cast_spell` as a spell (a test
+     fails on the tree before the fix). **Two more candidates, seen on the
+     way:** `pay_single_cost` re-checks {T}, {Q} and life in words of its
+     own beside `check_cost_resource`; and `legal_blockers` repeats the
+     blocker's half of `can_block`.
+
      **Sized:** the candidates are unsized until each is confirmed.
      **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
      185's inventory of elisions, which is the same kind of list.
@@ -9139,3 +9182,57 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      traced board where the check runs writes no record from it: ~25.
      **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
      debug engine's trace in the window.
+
+### Found by SU-7, why an option is not offered (2026-10-05)
+
+211. **The priority question never offers a mana ability.** CR 605.3a: "A
+     player may activate an activated mana ability whenever they have
+     priority". `activatable_abilities` keeps `AbilityType::Mana` out, so the
+     engine offers one only in a cost's mana window (CR 601.2g). The why says
+     so in the words of `CannotActivate::ManaAbility`. A player who wants to
+     sacrifice an artifact to Krark-Clan Ironworks in response to its
+     removal, which 605.3a allows, cannot, since no cost is being paid.
+
+     **Reachability (2026-10-05):** reachable — wrong: a play CR 605.3a allows
+     and the window never offers, with Krark-Clan Ironworks registered.
+
+     **Sized:** offering them is a few lines in `can_begin_to_activate`, but
+     it changes what the engine asks. Every priority point with an untapped
+     land stops being a lone `Pass`, which `backlog.md` §2.22's rule 1
+     answers for the seat, so the window and the random agent are asked far
+     more: a fixture migration (item 209), and the agent's stream moves.
+     **Slotted:** item 162's design doc (the next PR after SU-7), which owns
+     the mana abilities' offer and the window together.
+
+212. **How cards are cast, activated and paid for has no census, and SU-7
+     found three families with no owner.** `cr-coverage-audit.md` checks
+     whether the plan can express the CR; nothing checks the same for the
+     cards v1 needs, every Commander-legal card. The replacement census, the
+     trigger survey and the "can't" census each did it for one area, and each
+     found what reading the CR missed. SU-7's review (the owner, 2026-10-05)
+     found, in this area alone:
+     - costs no one owned: exile from a graveyard (about 161 cards) and
+       counters (about 334), beside `backlog.md` §2.5's discard (384);
+     - "who may activate" decided per source, where CR 602.2's exception is
+       per ability ("Before card breadth" item 2);
+     - casting and land play reasons naming today's default, the hand,
+       rather than CR 601.3's permission (`backlog.md` §2.3, RS-2);
+     - the why explaining the options of three question kinds of 30
+       (`ui::why::refusals`). Every other kind builds its options from a
+       filter of its own, with no typed reason.
+
+     **Reachability (2026-10-05):** reachable — not wrong in any game yet:
+     each family is refused loudly, or offered by a check that will need
+     reshaping, and no registered card meets them.
+
+     **Sized:** a docs PR. A script over Scryfall's data classifies each
+     family of casting, activation, cost and payment text against the
+     engine's surfaces: `Cost`'s arms, `AbilityDef`'s activation fields, cast
+     and play permissions, mana payment, and the question kinds whose options
+     a filter builds. Each family is built, owned and slotted, or unowned,
+     with card counts. Every unowned family leaves with an owner and a slot,
+     or a recorded exclusion. `engineering-practices.md` §8 gains a second
+     question for a new type, beside "which rule watches this one": what it
+     must express at v1, which rules let a card override it and which card
+     families do. **Slotted:** the PR after SU-7, ahead of item 162's design,
+     which it feeds (the owner, 2026-10-05).

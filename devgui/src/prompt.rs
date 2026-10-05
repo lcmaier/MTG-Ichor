@@ -10,6 +10,7 @@ use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{option_label, question, rejection};
+use mtgsim::ui::why::WhyAbout;
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,10 +31,10 @@ pub enum Reply {
     Yield(Yield),
     /// End the seat's yield. The open prompt stays open.
     StopYielding,
-    /// Show this object's why in the panel, answered now and at each question
-    /// after; `None` closes the panel (`setup-architecture.md` §7c). The open
-    /// prompt stays open.
-    Why(Option<ObjectId>),
+    /// Show this object's or player's why in the panel, answered now and at
+    /// each question after; `None` closes the panel (`setup-architecture.md`
+    /// §7c). The open prompt stays open.
+    Why(Option<BoardRef>),
 }
 
 /// Which of the four `DecisionProvider` methods asked, with its bounds.
@@ -45,11 +46,21 @@ pub enum Primitive {
     Order,
 }
 
-/// A thing on the board an option names.
+/// A thing on the board an option names, or a why is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardRef {
     Object(ObjectId),
     Player(PlayerId),
+}
+
+impl BoardRef {
+    /// What the engine's why is asked about.
+    pub fn why_about(self) -> WhyAbout {
+        match self {
+            BoardRef::Object(id) => WhyAbout::Object(id),
+            BoardRef::Player(player) => WhyAbout::Player(player),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

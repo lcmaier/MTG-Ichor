@@ -20,7 +20,7 @@ use devgui::boards::Folders;
 use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
-use devgui::prompt::{Answer, Reply};
+use devgui::prompt::{Answer, BoardRef, Reply};
 use devgui::save::{Destination, Tools};
 use devgui::session::Session;
 use devgui::view_model::{Input, Mode, Progress, WindowState};
@@ -91,6 +91,12 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let sample = "../mtgsim/scenarios/humility-opalescence.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/humility-opalescence/seed-0.log"));
     results.add(picture(&partway(why_open(sample)), &line, None, "why_panel"));
+    let (blocks, mana) = (edited("blocks.scenario", "", ANGEL), edited("main.scenario", "Everywhere", "Mountain"));
+    let line = |board: &str, edit: &str| (format!("scenario tests/scenarios/{board}, {edit} · seed 0"), PathBuf::new());
+    let wall = why_on(&blocks, "Wall of Stone");
+    results.add(picture(&partway(wall), &line("blocks.scenario", "Serra Angel edited in"), None, "why_blocks"));
+    let bears = why_on(&mana, "Grizzly Bears");
+    results.add(picture(&partway(bears), &line("main.scenario", "Everywhere edited to a Mountain"), None, "why_mana"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -165,9 +171,39 @@ fn why_open(sample: &str) -> WindowState {
     let board = state.board.as_ref().expect("a board at the first question");
     let permanents = board.players.iter().flat_map(|player| &player.battlefield);
     let angel = permanents.map(|p| &p.card).find(|card| card.name == "Serra Angel").map(|card| card.id).expect("the Angel");
-    engine.answers.send(state.input(Input::Why(angel)).expect("a why at an open question")).unwrap();
+    engine.answers.send(state.input(Input::Why(BoardRef::Object(angel))).expect("a why at an open question")).unwrap();
     state.receive(next(&engine));
     assert!(state.why_view().is_some(), "the panel shows");
+    finish(engine);
+    state
+}
+
+/// The line SU-7's click script adds to `blocks.scenario`.
+const ANGEL: &str = "battlefield: Serra Angel | controller 1, attacking player 0\n";
+
+/// A review board with `from` replaced by `to`, or `to` added at its end when
+/// `from` is empty: the edit a click script makes in the editor, written to a
+/// file of its own.
+fn edited(board: &str, from: &str, to: &str) -> PathBuf {
+    let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/scenarios").join(board)).unwrap();
+    let text = if from.is_empty() { format!("{text}{to}") } else { text.replace(from, to) };
+    let file = std::env::temp_dir().join(format!("devgui-picture-{}", board.replace(".scenario", "-edited.scenario")));
+    std::fs::write(&file, text).unwrap();
+    file
+}
+
+/// The why panel open on the card called `name` at the board's first
+/// question: SU-7's section first, then what the layers did.
+fn why_on(board: &Path, name: &str) -> WindowState {
+    let engine = spawn(GameSetup { scenario: Some(board.to_path_buf()), ..from_board("main.scenario") });
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let board = state.board.as_ref().expect("a board at the first question");
+    let cards = board.players.iter().flat_map(|player| player.battlefield.iter().map(|p| &p.card).chain(&player.hand));
+    let id = cards.into_iter().find(|card| card.name == name).map(|card| card.id).unwrap_or_else(|| panic!("no {name}"));
+    engine.answers.send(state.input(Input::Why(BoardRef::Object(id))).expect("a why at an open question")).unwrap();
+    state.receive(next(&engine));
+    assert!(state.why_view().is_some_and(|view| view.sections[0].heading == "At this question"), "the panel shows");
     finish(engine);
     state
 }

@@ -546,6 +546,15 @@ cast will lock, using the one arithmetic that will lock it. Enumeration and
 enforcement agreeing is the requirement; the CR has no rule about it. `find_mana_sources` then reasons about the previewed
 component as it did about the printed one.
 
+**The reasons are one check, shared by the enumeration and the enforcement**
+(SU-7, 2026-10-05). `castable_spells` keeps the cards `can_cast` allows, and
+`cast_spell` asks `can_begin_to_cast`, the same CR 601.3 start, before it
+moves the card; land play and activation have the same pair
+(`can_play_land`, `can_begin_to_activate`). Each refusal is a typed reason
+(`CannotCast`, `CannotPlayLand`, `CannotActivate`, with `CannotPay` for a cost),
+which the why panel words (`setup-architecture.md` §7c). The affordability
+half, `find_mana_sources`, is `codebase-state.md` item 162's.
+
 ### 3.7 The dynamic-amount evaluator, and `SourcePower`'s third reader — the argument, made once (built, CM-2)
 
 `codebase-state.md` main item 57 warns that a cost-modification evaluator for
@@ -630,7 +639,7 @@ of the log. It needs two facts and one designation:
   bumps `zone_change_epoch`), incremented at 601.2i when the spell becomes
   cast and `cast_from == Command && is_commander`;
 - *a commander* — `is_commander` is set nowhere in production ("Before
-  Commander" item 2), and `check_cast_legality` admits only the hand.
+  Commander" item 2), and `can_begin_to_cast` admits only the hand.
 
 The counter is a fact, and facts are recorded on their first customer
 (`engineering-practices.md` §5). The first customer is the tax, and the tax

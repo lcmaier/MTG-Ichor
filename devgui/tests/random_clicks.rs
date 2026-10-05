@@ -21,7 +21,7 @@ use std::path::Path;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
 use devgui::editor::{EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
-use devgui::prompt::{BoardRef, Primitive, Reply};
+use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
     Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
 };
@@ -185,12 +185,12 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
             Some(Reply::Why(about)) => {
                 engine.answers.send(Reply::Why(about)).expect("the engine hung up with a prompt open");
                 match about {
-                    Some(id) => {
+                    Some(about) => {
                         let answer = next(engine);
                         assert!(matches!(answer, ToWindow::Why(_)), "{input:?} at {:?} was answered with {answer:?}", state.prompt);
                         state.receive(answer);
-                        let shown = state.why_view().unwrap_or_else(|| panic!("the why of {id} does not show"));
-                        assert!(!shown.sections.is_empty(), "the why of {id} says nothing");
+                        let shown = state.why_view().unwrap_or_else(|| panic!("the why of {about:?} does not show"));
+                        assert!(!shown.sections.is_empty(), "the why of {about:?} says nothing");
                         reached.whys += 1;
                     }
                     None => {
@@ -210,16 +210,13 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
     None
 }
 
-/// What a person can click for a why now: a right-click on any object on
-/// the board, and, with the panel open, each live link, Back while it is
-/// live, and the panel's close.
+/// What a person can click for a why now: a right-click on any object or
+/// player on the board, and, with the panel open, each live link, Back while
+/// it is live, and the panel's close.
 fn why_clicks(state: &WindowState) -> Vec<Input> {
     let mut inputs: Vec<Input> = Vec::new();
     if let Some(board) = state.board_view() {
-        inputs.extend(items(&board).filter_map(|item| match item.target {
-            Some(BoardRef::Object(id)) => Some(Input::Why(id)),
-            Some(BoardRef::Player(_)) | None => None,
-        }));
+        inputs.extend(items(&board).filter_map(|item| item.target.map(Input::Why)));
     }
     if let Some(panel) = state.why_view() {
         let links = panel.sections.iter().flat_map(|section| &section.lines).flat_map(|line| &line.links);
