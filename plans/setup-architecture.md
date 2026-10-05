@@ -16,7 +16,7 @@
 > window's), landed 2026-10-04.
 > **The why panel**, A6g's next item, is designed in §7c and decided at #220
 > (the owner, 2026-10-05, every recommendation taken): SU-6 to SU-8. **SU-6**
-> (what the layers did, and the panel) landed 2026-10-05.
+> (what the layers did, and the panel, #221) landed 2026-10-05.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -2365,7 +2365,7 @@ Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 
 ### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
 
-**What shipped.** §7c's first PR, as decided at #220. `layers::explain(game,
+**What shipped.** §7c's first PR (#221), as decided at #220. `layers::explain(game,
 id)` (`engine/layers/explain.rs`) runs the walk `compute_characteristics`
 runs for the object, by its pass membership, and hands it a `Recorder` where
 the game's passes hand `None`. It records each application in each layer as

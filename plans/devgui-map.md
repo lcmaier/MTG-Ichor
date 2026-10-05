@@ -175,7 +175,7 @@ building the game afresh and replaying the answers before it.
 
 ## 10. The why panel
 
-SU-6 (`setup-architecture.md` §7c) built its first part: a right-click on a
+SU-6 (#221, `setup-architecture.md` §7c) built its first part: a right-click on a
 card, a permanent or a stack object asks why it is the way it is, and a panel
 on the window's left shows what the layers did to it, line by line, with each
 line's rule.
