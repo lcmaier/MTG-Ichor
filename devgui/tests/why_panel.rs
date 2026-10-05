@@ -110,6 +110,28 @@ fn the_panel_follows_its_object_to_the_next_question_and_through_undo() {
     assert_eq!(session.state.why_view(), Some(asked), "asked again at the question undone to");
 }
 
+/// The panel follows an id, and another start may give the id another card:
+/// a Reload of the same board keeps the panel, and one of a board whose two
+/// lines were swapped closes it.
+#[test]
+fn a_reload_keeps_the_panel_only_on_the_same_board() {
+    let (mut session, _, file) = session_with("devgui-why-reload", &humility_board(), scenario_game);
+    next_prompt(&mut session);
+    let humility = on_board(&session, "Humility");
+    session.input(Input::Why(humility));
+    let asked = answered(&mut session, "Humility");
+    session.input(Input::Reload);
+    next_prompt(&mut session);
+    assert_eq!(session.state.why_view(), Some(asked), "the same board numbers Humility alike");
+    let (opalescence, humility_line) = ("battlefield: Opalescence | controller 0", "battlefield: Humility | controller 1");
+    let swapped = humility_board().replace(opalescence, "\u{0}").replace(humility_line, opalescence).replace('\u{0}', humility_line);
+    std::fs::write(&file, swapped).unwrap();
+    session.input(Input::Reload);
+    next_prompt(&mut session);
+    assert_eq!(on_board(&session, "Opalescence"), humility, "the id the panel showed is Opalescence's now");
+    assert_eq!(session.state.why_view(), None, "so the panel closed");
+}
+
 /// A link asks about the object it names, Back returns to the one before,
 /// and closing the panel stops the seats answering for it.
 #[test]

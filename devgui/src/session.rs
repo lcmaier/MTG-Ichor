@@ -148,8 +148,15 @@ impl Session {
     /// record a log and a save no earlier game wrote, the log named for the
     /// seed the start plays.
     fn start_game(&mut self, setup: GameSetup) {
+        let before = self.start.clone();
         self.leave_game();
         let begun = setup.start();
+        // The panel follows an id, which another start may give another
+        // card: only the same start again, an unchanged board's Reload,
+        // keeps it.
+        if begun.as_ref().ok() != before.as_ref() {
+            (self.state.why_path, self.state.why) = (Vec::new(), None);
+        }
         self.setup = Some(setup.clone());
         let start = match begun {
             Ok(start) => start,
