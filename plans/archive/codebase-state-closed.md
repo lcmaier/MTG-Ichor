@@ -3270,7 +3270,7 @@ Closed as sized. `plans/references/cast-census.py` classifies the casting, activ
 - breadth in C;
 - ticket counters excluded.
 
-The calibration passed. It found one exception already on the record, Mirrorweave's hybrid cost, and made one correction to the census: the mana table needed a column for play and one for the affordability check. SU-7's four findings have their v1 shapes in the census's §11, and `engineering-practices.md` §8 gained a second question (§8.1). This entry said "of 30" question kinds; `ChoiceKind` has 27, corrected below and in #222's review reply.
+The calibration passed. It found one exception already on the record, Mirrorweave's hybrid cost, and made one correction to the census: the mana table needed a column for play and one for the affordability check. SU-7's four findings have their v1 shapes in the census's §11, and `engineering-practices.md` §8 gained a second question (§8.1). This entry said "of 30" question kinds; `ChoiceKind` has 27, corrected below. #222's review reply, commit `3c4ee4f`'s message, says the same and stands on main, where a message cannot be rewritten; #223's description records the correction.
 
 *Original entry:*
 
