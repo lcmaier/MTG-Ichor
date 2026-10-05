@@ -154,6 +154,13 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   CR 601.3 while doing it. The *type* is already right: `StackEntry.cast_from`
   represents the fact correctly, which is why audit §3's calibration flagged this
   one at the function level and not the field level. The gate is the gap.
+  **Since SU-7 (2026-10-05)** the gate is one check the enumeration and the
+  cast share, and its refusal is typed: `CannotCast::NotInHand` names today's
+  default, and becomes CR 601.3's "no rule or effect permits it", with the
+  zone, when a permission lands. The owner test moves into the permission
+  too, since Hostage Taker casts a card it does not own. About 132 cards say
+  "you may cast … from" a graveyard, library or exile (Scryfall, 2026-10-05).
+  `codebase-state.md` item 212's census counts the family.
 - **Size** — small at the gate, large in what the gate admits; the keywords
   behind it are Phase 8 card breadth, not one phase.
 - **Blocks** — flashback, escape, jump-start, aftermath, foretell, plot, warp,
@@ -166,6 +173,13 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   zone it was cast from" is tested from the hand only, and the first PR
   that opens the gate adds the board where a creature is cast from a
   graveyard or from exile under the Moonlight and enters.
+- **Costs that perform these actions are neither checked nor paid.**
+  `Cost::Discard`, `Cost::ExileFromGraveyard`, `Cost::RemoveCounters` and
+  `Cost::AddCounters`: `can_pay_costs` refuses each as `CannotPay::Unchecked`
+  (SU-7) and `pay_single_cost` returns an error. Discard as a cost is about
+  384 cards, exile from a graveyard 161 and removing counters 334 (Scryfall,
+  2026-10-05). The first is this entry's; the others had no owner, and
+  `codebase-state.md` item 212's census assigns one.
 - **Owner** — none yet.
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes

@@ -5166,6 +5166,15 @@ first.
    **Sized:** `activatable_by` on `AbilityDef` plus the two read
    sites, ~60–80 lines, with the first such card.
 
+   **Since SU-7 (2026-10-05)** the controller test is one check,
+   `oracle::mana_helpers::can_activate_its_abilities`, which the enumeration
+   asks once a source. CR 602.2's exception is printed on the ability, so the
+   field moves the test into the per-ability check, `can_begin_to_activate`,
+   and the enumeration walks every permanent whose ability the player may
+   activate, not only theirs. Five cards say "only your opponents may
+   activate" (Detention Vortex), beside the 40. Item 212's census counts the
+   family.
+
 3. **Named counters have no representation — `CounterType` is a closed enum.** CR 122.1 lets a counter be named anything, and "counters with the same name or description are interchangeable" makes the *name* the identity. Most named counters have no rules meaning at all: the card counts its own counters and nothing in the engine cares what they are called.
 
    **Breadth, measured 2026-08-23:** a ~1000-card Scryfall sample of `o:/counters? on/` yields **115 distinct counter-name words** — charge, time, oil, quest, age, storage, lore, doom, plan, flood, bounty, egg, energy, scream, page, delay, gold, fuse, mire, ice, verse, luck, ki, collection, spore, slumber, book, burden, filibuster, and on. One sample, not the whole set. A variant per name is not viable.
@@ -9194,3 +9203,36 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      more: a fixture migration (item 209), and the agent's stream moves.
      **Slotted:** item 162's design doc (the next PR after SU-7), which owns
      the mana abilities' offer and the window together.
+
+212. **How cards are cast, activated and paid for has no census, and SU-7
+     found three families with no owner.** `cr-coverage-audit.md` checks
+     whether the plan can express the CR; nothing checks the same for the
+     cards v1 needs, every Commander-legal card. The replacement census, the
+     trigger survey and the "can't" census each did it for one area, and each
+     found what reading the CR missed. SU-7's review (the owner, 2026-10-05)
+     found, in this area alone:
+     - costs no one owned: exile from a graveyard (about 161 cards) and
+       counters (about 334), beside `backlog.md` §2.5's discard (384);
+     - "who may activate" decided per source, where CR 602.2's exception is
+       per ability ("Before card breadth" item 2);
+     - casting and land play reasons naming today's default, the hand,
+       rather than CR 601.3's permission (`backlog.md` §2.3, RS-2);
+     - the why explaining the options of three question kinds of 30
+       (`ui::why::refusals`). Every other kind builds its options from a
+       filter of its own, with no typed reason.
+
+     **Reachability (2026-10-05):** reachable — not wrong in any game yet:
+     each family is refused loudly, or offered by a check that will need
+     reshaping, and no registered card meets them.
+
+     **Sized:** a docs PR. A script over Scryfall's data classifies each
+     family of casting, activation, cost and payment text against the
+     engine's surfaces: `Cost`'s arms, `AbilityDef`'s activation fields, cast
+     and play permissions, mana payment, and the question kinds whose options
+     a filter builds. Each family is built, owned and slotted, or unowned,
+     with card counts. Every unowned family leaves with an owner and a slot,
+     or a recorded exclusion. `engineering-practices.md` §8 gains a second
+     question for a new type, beside "which rule watches this one": what it
+     must express at v1, which rules let a card override it and which card
+     families do. **Slotted:** the PR after SU-7, ahead of item 162's design,
+     which it feeds (the owner, 2026-10-05).

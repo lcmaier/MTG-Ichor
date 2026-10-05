@@ -194,9 +194,9 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 
 /// Why each thing `about` could be at this question is not offered, from the
 /// check the options were built by. The priority question and the two
-/// declarations have such checks; at every other question the options are
-/// that question's own, and what they are not says nothing typed yet: a
-/// target's reasons are RS-2's, which rewrites target legality.
+/// declarations have such checks; at every other question the options come
+/// from a filter of the question's own, with no typed reason yet
+/// (`codebase-state.md` item 212), and a target's are RS-2's.
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<WhyLine> {
     match (&question.context.kind, about) {
         (ChoiceKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
