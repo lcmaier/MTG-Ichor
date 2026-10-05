@@ -15,8 +15,10 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::engine::layers::board::{
-    compute_board, compute_board_to, is_dynamic, pass_membership, Board, PassMembership, RowNote, AffectedSet,
+    compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
+    AffectedSet,
 };
+use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResult};
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
@@ -304,6 +306,19 @@ pub(super) fn compute_non_member(
     ceiling: usize,
     notes: &[RowNote],
 ) -> Option<EffectiveCharacteristics> {
+    compute_non_member_recorded(game, board, id, ceiling, notes, None)
+}
+
+/// [`compute_non_member`], telling `recorder` each CDA and each noted row as
+/// it applies or misses (`explain`).
+pub(super) fn compute_non_member_recorded(
+    game: &GameState,
+    board: &Board<'_>,
+    id: ObjectId,
+    ceiling: usize,
+    notes: &[RowNote],
+    mut recorder: Option<&mut Recorder>,
+) -> Option<EffectiveCharacteristics> {
     let obj = game.objects.get(&id)?;
     debug_assert!(
         board.entity(game, id).is_none(),
@@ -313,6 +328,9 @@ pub(super) fn compute_non_member(
 
     let controller = base_controller(game, id, board.lookahead).unwrap_or(obj.owner);
     let mut chars = seed_frame(&obj.card_data, controller, 0);
+    if let Some(recorder) = recorder.as_deref_mut() {
+        recorder.seeded(Some(&chars));
+    }
 
     // The common case, and worth its own exit: with no CDA and no row reaching
     // its zone there is nothing any layer can do to the object. Before LJ this
@@ -326,7 +344,7 @@ pub(super) fn compute_non_member(
     };
     if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
         if LAYER_ORDER.iter().take(ceiling).any(|l| *l == Layer::Layer4Type) {
-            crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(&mut chars, id);
+            add_intrinsic(&mut chars, id, recorder);
         }
         return Some(chars);
     }
@@ -337,9 +355,22 @@ pub(super) fn compute_non_member(
         if crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
             // Collected before applying, because applying mutates the list
             // being read.
-            for (_, modification) in crate::engine::layers::cda::cda_modifications(&chars, layer) {
+            for (ability, modification) in crate::engine::layers::cda::cda_modifications(&chars, layer) {
+                let before = recorder.is_some().then(|| chars.clone());
                 let resolved = resolve_modification(&modification, game, board, id, layer_index, None);
                 apply_resolved(&resolved, &mut chars, id);
+                if let Some(recorder) = recorder.as_deref_mut()
+                    && let Some(before) = before
+                {
+                    recorder.push(RecordedStep {
+                        layer,
+                        by: AppliedBy::Cda { ability },
+                        timestamp: Some(game.object_timestamp(id)),
+                        affected: vec![id],
+                        watched: Some(StepResult::Applied { before, after: chars.clone() }),
+                        waited_for: Vec::new(),
+                    });
+                }
             }
         }
         for note in notes.iter().filter(|note| note.layer_index == layer_index) {
@@ -361,16 +392,47 @@ pub(super) fn compute_non_member(
                     hit
                 }
             };
+            let before = (recorder.is_some() && (applies || reaches(note))).then(|| chars.clone());
             if applies {
                 apply_resolved(&resolve_without_reads(&row.modification, row), &mut chars, id);
             }
+            if let Some(recorder) = recorder.as_deref_mut()
+                && let Some(before) = before
+            {
+                let watched = match (applies, note.affected) {
+                    (true, _) => StepResult::Applied { before, after: chars.clone() },
+                    (false, AffectedSet::Locked) => StepResult::LockedOut,
+                    (false, AffectedSet::Fresh { .. }) => StepResult::NotMatched,
+                };
+                recorder.push(RecordedStep {
+                    layer,
+                    by: AppliedBy::Effect { source: row.source, origin: row.origin, effect: row.id },
+                    timestamp: Some(row.timestamp),
+                    affected: if applies { vec![id] } else { Vec::new() },
+                    watched: Some(watched),
+                    waited_for: Vec::new(),
+                });
+            }
         }
-        // CR 306.5b, as the pass does it (`board::run_pass`).
         if layer == Layer::Layer4Type {
-            crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(&mut chars, id);
+            add_intrinsic(&mut chars, id, recorder.as_deref_mut());
         }
     }
     Some(chars)
+}
+
+/// CR 306.5b at the end of layer 4, as the pass does it (`board::run_pass`),
+/// told to a recorder.
+fn add_intrinsic(chars: &mut EffectiveCharacteristics, id: ObjectId, recorder: Option<&mut Recorder>) {
+    let before = recorder.is_some().then(|| chars.clone());
+    crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(chars, id);
+    // Let-chains, not a tuple: a tuple would move the frame `before` holds
+    // on every walk the game runs, where it is `None`.
+    if let Some(recorder) = recorder
+        && let Some(before) = before
+    {
+        record_intrinsic(recorder, id, before, chars);
+    }
 }
 
 /// The controller an object has before Layer 2 touches it — CR 110.2's default,

@@ -10,6 +10,116 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
+
+*Evicted 2026-10-05 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with SU-7's and SU-8's sizing beside it.*
+
+### The build as sized (2026-10-05, at #220)
+
+**The engine, ~280–420.**
+- `layers::explain`: the recorder in `run_pass`, `perform` and
+  `compute_non_member`, ~110–160;
+- its types and its entry, ~50–80;
+- `ui::why`'s value, and the words of the layer section: a frame's changes
+  field by field, destructured with no `..` so that a new field must answer,
+  ~120–180.
+
+**The dev GUI, ~180–270.**
+- `Reply::Why` and the seat following its object, ~40–60;
+- the view model's panel, with Back, ~80–120;
+- the drawing, ~50–80, and the right-click on each item, ~10.
+
+**Tests, ~200–300.**
+- the explanation on these boards: Humility and Opalescence in both orders;
+  Blood Moon and Urborg's dependency; an anthem that does not apply; a CR
+  613.6 lock; a counter; a CDA; and a card in a library that a row reaches;
+- its equality with the memo's frame;
+- a game with every why asked, against the same game with none;
+- the bridge's round trip, the view model, random clicks with right-clicks,
+  and a review picture.
+
+**A/B.** `run_pass` takes a recorder, which every game path passes as `None`.
+Predicted `IDENTICAL` on every counter, and instructions within ±0.3%.
+`prompt_cost` reads a why on the large board's busiest object
+(`engineering-practices.md` §10.4).
+
+### Sized against built
+
+Lines added, a `src` file's `#[cfg(test)]` module and `devgui/examples/`
+counted as tests, read off the PR's last code commit (`92a3334`): each
+file's additions in the whole diff.
+
+| Part | Where | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---|---:|---:|---:|---:|
+| The recorder in the pass, `perform` and the non-member walk | `board.rs`, `compute.rs` | 110–160 | 268 | | 19, the layer tests' hook |
+| The explanation's types and its entry | `explain.rs`, `layers/mod.rs` | 50–80 | 191 | | |
+| The why's value, and the layer section's words | `ui/why.rs`, `ui/mod.rs` | 120–180 | 361 | | 299, `phase_su6_integration_test.rs` |
+| `Reply::Why`, and the seat following its object | `prompt.rs`, `bridge.rs`, `session.rs` | 40–60 | 68 | | |
+| The view model's panel, with Back, and the hover's hint | `view_model.rs` | 80–120 | 123 | | 57 |
+| The drawing, and the right-click on each item | `app.rs` | 60–90 | 51 | | |
+| The panel's tests, random clicks with right-clicks, the picture, `prompt_cost` | `devgui/tests/`, `devgui/examples/` | | | | 247 |
+| **SU-6, the whole diff** | | **460–690** | **1,062** | **200–300** | **622** |
+
+CI's test step adds six lines. Code ran at 1.5–2.3 times its sizing, inside
+the 1.0–2.5 SU-1 to SU-5 ran at, and tests at 2.1–3.1. The engine ran over
+and the dev GUI did not: 820 against 280–420, and 242 against 180–270. The
+sizing left out most of what an explanation has to say. `ui::why` words
+every characteristic a frame has, each a field's change, where the sizing
+counted the change list alone; it summarizes a frame for the printed card
+and the result, and names a layer with its rule. `explain.rs` carries six
+kinds of application and four ways to miss, each with its doc, and an entry
+with a route for each of the four pass memberships. The pass gained
+`OwnApplication`, which names a member's own applications at the four
+sites that push one, and `could_name` and `missed`, which decide before an
+application applies what it would do to the object. The band stayed under
+2,500 at every commit: 1,684 in all.
+
+### What the build changed in the design
+
+1. **A step keeps every object it affected** (`LayerStep::affected`), which
+   §7c.2's sketch did not have. The panel names them under a miss ("It
+   applied to"), and LI-2's one-layer test hook reads them:
+   `compute_board_traced` and its `TraceStep` became
+   `compute_board_recorded` with a `Recorder`, so there is one record of a
+   layer's order, not two.
+2. **`OwnApplication` names which of a member's own applications applied**: a CDA,
+   a keyword counter, P/T counters, the copy it entered as, or what it
+   entered with. It held an optional CDA id, and an explanation names each.
+   CR 604.2's check moved onto it (`OwnApplication::stripped`). It was `Own`
+   until the review, which found the name said nothing at its uses.
+3. **CR 306.5b's loyalty ability is a step of its own**
+   (`AppliedBy::IntrinsicLoyalty`). It is added at the end of layer 4, outside
+   any application, so the recorder records it there, in the pass and in the
+   non-member walk alike.
+4. **The recorder's checks move nothing on the game's path.** The first
+   close-out read +0.55%. Per function, a tuple match built `(recorder,
+   before)`, which moved an `Option` of a frame, about two hundred bytes, on
+   every walk the game runs, where it is `None`. Let-chains test each part
+   in place (`0195717`), and the reading fell to +0.50%; the rest is placed
+   code (`fuzz-record.md`, the SU-6 block).
+5. **A change reads "from … to …"**, not "… → …": the window's font has no
+   arrow, and drew a box.
+6. **`ToWindow::Prompt`'s why is boxed**, for clippy's `large_enum_variant`:
+   the variant was 457 bytes against `Finished`'s 240.
+7. **The memo's audit is not paused in debug** (decision 3, amended where it
+   stands): a why at a question costs 1.9 ms there, audit and all, beside the
+   snapshot's 33 ms.
+8. **The panel is kept across Undo answer, the savestates and an unchanged
+   board's Reload.** The rebuilt game's seat is told the object
+   (`Play::watching`) and answers about it at its first question, since
+   the same start numbers its objects alike. Any other start closes it, a
+   load among them: a board edited since, or a dealt game's new seed, can
+   give the id another card. As first built, Play after swapping Humility
+   and Opalescence in the editor followed #22 onto Opalescence (`92a3334`,
+   with a test that fails on the tree before it).
+9. **A player's line moved to SU-7** (decision 4, amended): the layers say
+   nothing about a player, and SU-7's section is the first that does.
+10. **With no question open, an object's hover says a right-click asks
+    nothing** (`5d900c1`), as decision 3's "a line saying why" asked; the
+    open panel already said so.
+11. **The layers doc's line went to §9**, beside LI-2's loop, not §13b, LI's
+    landed plan (decision 5, amended).
+
 #### SU-5 — the tools — ✅ landed 2026-10-04
 
 *Evicted 2026-10-04 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with the split into SU-4 and SU-5 that was sized beside it.*

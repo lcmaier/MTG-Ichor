@@ -71,6 +71,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured:** no engine file changed, so no arms; `prompt_cost` in release as `main`'s, every reading's allocations and bytes the same, the header's tools 0.1–0.2 µs a repaint; the dev GUI's CI test step 24.0–24.1 s against `main`'s 23.2–23.4 s.
 
+### What the layers did (SU-6), ✅ 2026-10-05 (PR #221)
+
+**Built:** the "why" panel's first part (`setup-architecture.md` §7c, §8). `layers::explain`, the layer pass for one object with a recorder where the game's passes hand none: each application in each layer as it applies, what it affected and what it did to the object, applied with the frame before and after or missed by its set, by CR 604.2 or by CR 613.6, with what it waited for (CR 613.8), and CR 306.5b's loyalty ability a step of its own; a debug assertion holding its answer to the walk's. `ui::why`, one value every client draws: the printed card, each layer's changes in the order applied, what reached the object's zone and missed it, and the result, each line with its rule and a link for each object it names. In the dev GUI, a right-click on an object asks why at the open question; the seat answers beside the snapshot and follows the object at each question after; the panel on the window's left has links, Back and ×, and is kept across Undo and an unchanged board's Reload; a hover says when a right-click asks nothing. Tests: Serra Angel under Humility; Humility and Opalescence in both orders; Urborg waiting for Blood Moon and gone by its turn; an anthem that misses; a CDA and counters; a card off the battlefield; a game with every why asked against the same game with none; the panel's round trip, Back and links, and a Reload keeping it only on the same board; random clicks with right-clicks; a picture.
+
+**Decided:** at the design (#220, the owner, 2026-10-05), every recommendation: all four kinds of why in three PRs, SU-6 to SU-8; an engine query for a question about now and the trace sink for a question about then; now asked at the seat, then by a replay with the sink on; a right-click into a panel on the window's left that follows its object; the design in `setup-architecture.md` §7c. At the build, a player's line moved to SU-7, the layers having nothing to say about a player.
+
+**Sized and built:** ~660–990 lines with tests (`setup-architecture.md` §8); built at +1,062 lines of code and +622 of tests, 820 and 318 of them in the engine, the docs beside (`plans/archive/setup-architecture-landed.md`, "SU-6").
+
+**Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision +0.50%, about 0.10 of it the recorder's checks and the rest code placement (`fuzz-record.md`); on the large board a why at a question 38 µs in release and 1.9 ms in debug, and the panel 1.5 µs a repaint; the dev GUI's CI test step 14.4–15.0 s against `main`'s 28.9–30.9 s, the random clicks playing other games since a why's draw moved their stream (with the draw taken out, `main`'s games in 24.3 s against 27.2 s).
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*

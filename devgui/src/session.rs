@@ -148,8 +148,15 @@ impl Session {
     /// record a log and a save no earlier game wrote, the log named for the
     /// seed the start plays.
     fn start_game(&mut self, setup: GameSetup) {
+        let before = self.start.clone();
         self.leave_game();
         let begun = setup.start();
+        // The panel follows an id, which another start may give another
+        // card: only the same start again, an unchanged board's Reload,
+        // keeps it.
+        if begun.as_ref().ok() != before.as_ref() {
+            (self.state.why_path, self.state.why) = (Vec::new(), None);
+        }
         self.setup = Some(setup.clone());
         let start = match begun {
             Ok(start) => start,
@@ -168,7 +175,8 @@ impl Session {
                 return;
             }
         };
-        self.spawn(Play { record: Some(Writer::take_over(&record)), ..Play::new(start.clone()) });
+        let watching = self.state.why_path.last().copied();
+        self.spawn(Play { record: Some(Writer::take_over(&record)), watching, ..Play::new(start.clone()) });
         (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
     }
 
@@ -209,10 +217,22 @@ impl Session {
             record.save.line_to(place)
         };
         let replaying = Progress { done: writer.replayed(), of: line.len() };
-        let full_control = self.state.full_control;
-        self.state = WindowState { full_control, now: self.state.now, replaying: Some(replaying), ..WindowState::default() };
-        self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None });
+        self.state = WindowState { replaying: Some(replaying), ..self.window_kept() };
+        let watching = self.state.why_path.last().copied();
+        self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None, watching });
         self.read_record();
+    }
+
+    /// A fresh window but for what is the window's own: full control, the
+    /// clock, and the why panel, whose object a rebuilt game numbers alike.
+    fn window_kept(&mut self) -> WindowState {
+        WindowState {
+            full_control: self.state.full_control,
+            now: self.state.now,
+            why_path: std::mem::take(&mut self.state.why_path),
+            why: self.state.why.take(),
+            ..WindowState::default()
+        }
     }
 
     /// `--load`: a save, or a decision log read as a save of one line,
@@ -223,6 +243,8 @@ impl Session {
     /// the files loaded are never written.
     fn load(&mut self, file: &Path) {
         self.leave_game();
+        // Another game: the panel's object may be anything in it.
+        (self.state.why_path, self.state.why) = (Vec::new(), None);
         let read = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()));
         let save = match read.and_then(|text| Save::read(&text).map_err(|why| format!("{}, {why}", file.display()))) {
             Ok(save) => save,
@@ -246,7 +268,7 @@ impl Session {
         self.state.replaying = Some(Progress { done: writer.replayed(), of: line.len() });
         self.start_line = format!("loaded {} · {}", file.display(), start_line(&start, None));
         self.setup = Some(loaded_setup(&start));
-        self.spawn(Play { start: start.clone(), line, audited: true, record: Some(writer), written_by: Some(written_by) });
+        self.spawn(Play { start: start.clone(), line, audited: true, record: Some(writer), written_by: Some(written_by), watching: None });
         (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
         self.read_record();
     }
@@ -260,15 +282,14 @@ impl Session {
     }
 
     /// The game left for another: its record shut, so a replay on its way
-    /// stops and nothing more is written, and the window cleared but for
-    /// full control, which is the window's. Its thread unwinds when its
+    /// stops and nothing more is written, and the window cleared but for what
+    /// is the window's own (`window_kept`). Its thread unwinds when its
     /// channel closes, as a closed window ends it.
     fn leave_game(&mut self) {
         if let Some(record) = self.record.take() {
             locked(&record).shut();
         }
-        let full_control = self.state.full_control;
-        self.state = WindowState { full_control, now: self.state.now, ..WindowState::default() };
+        self.state = self.window_kept();
         (self.engine, self.start, self.log_path, self.message) = (None, None, None, None);
     }
 

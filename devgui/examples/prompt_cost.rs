@@ -15,7 +15,10 @@
 //!   menu (`setup-architecture.md` §7.3);
 //! - **the editor** on the same board: its view, built again at every repaint
 //!   in the editor, and one edit at a click, which writes the board, reads it
-//!   back and has the loader check it (`setup-architecture.md` §7b).
+//!   back and has the loader check it (`setup-architecture.md` §7b);
+//! - **the why panel**: the seat's answer about the permanent the layers did
+//!   most to, and the panel's view at every repaint (`setup-architecture.md`
+//!   §7c).
 //!
 //! A number to read beside a change, not a gate (`engineering-practices.md`
 //! §10.4): the time is the machine's, and the allocations are the code's.
@@ -35,7 +38,10 @@ use devgui::save::{Destination, Tools};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::engine::layers::explain;
 use mtgsim::scenario::Scenario;
+use mtgsim::types::ids::ObjectId;
+use mtgsim::ui::why::why;
 
 const RUNS: usize = 200;
 
@@ -66,11 +72,11 @@ fn main() {
     reading("  of which the board text", || Scenario::write(&game.state).to_string());
     reading("receive", || {
         let mut state = WindowState::default();
-        state.receive(ToWindow::Prompt { snapshot: snapshot.clone(), prompt: prompt.clone(), yielding: None });
+        state.receive(ToWindow::Prompt { snapshot: snapshot.clone(), prompt: prompt.clone(), yielding: None, why: None });
         state
     });
     let mut state = WindowState::default();
-    state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None });
+    state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None, why: None });
     reading("views, every repaint", || (state.board_view(), state.prompt_view()));
     let destinations = vec![
         Destination::Savestate { at: 4, name: "Turn 2 · Precombat Main".to_string() },
@@ -79,6 +85,14 @@ fn main() {
     ];
     state.tools = Tools { undo_open: true, undo_answered: true, savestate_here: false, destinations, current: 23 };
     reading("tools view, every repaint", || state.tools_view());
+    // The why panel (`setup-architecture.md` §7c): the seat's answer at a
+    // question, about the permanent the layers did most to, and the panel's
+    // view, which `app::draw` builds again at every repaint while it is open.
+    let steps = |id: &ObjectId| explain(&game.state, *id).map_or(0, |explanation| explanation.steps.len());
+    let busiest = game.state.battlefield_ids_ordered().into_iter().max_by_key(steps).expect("a permanent on the board");
+    reading("why, at a question", || why(&game.state, busiest));
+    (state.why_path, state.why) = (vec![busiest], Some(why(&game.state, busiest)));
+    reading("why view, every repaint", || state.why_view());
 
     let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));
     let opened = &editor;

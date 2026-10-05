@@ -15,11 +15,13 @@ pub mod cda;
 pub mod compute;
 pub mod condition;
 pub mod copy;
+pub mod explain;
 pub mod intrinsic;
 pub mod land_types;
 pub mod lookahead;
 
 pub use compute::compute_characteristics;
 pub use copy::{copiable_values, CopiableValues};
+pub use explain::{explain, AppliedBy, LayerExplanation, LayerStep, StepResult};
 pub use lookahead::compute_as_entering;
 pub use types::*;

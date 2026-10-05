@@ -12,8 +12,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use mtgsim::types::ids::PlayerId;
+use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
+use mtgsim::ui::why::{Why, WhyLine};
 
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
@@ -76,6 +77,13 @@ pub enum Input {
     EditTheScenario,
     /// A click in the editor, or one of its buttons the session acts on.
     Editor(EditorInput),
+    /// Ask why of an object: a right-click on it on the board, or a click on
+    /// its name in the why panel.
+    Why(ObjectId),
+    /// The why panel goes back to the object asked about before this one.
+    WhyBack,
+    /// Close the why panel.
+    WhyClose,
 }
 
 /// A key the window reads, as the drawing reports it.
@@ -315,6 +323,11 @@ pub struct WindowState {
     /// Why the game's record stopped being written, if it has: what the
     /// header says until another game starts.
     pub unwritten: Option<String>,
+    /// The objects the why panel was asked about, the one it shows last;
+    /// empty while the panel is closed (`setup-architecture.md` §7c).
+    pub why_path: Vec<ObjectId>,
+    /// The engine's last answer for the object the panel shows.
+    pub why: Option<Why>,
 }
 
 /// A replay the window counts while it waits (`setup-architecture.md` §7.3).
@@ -360,7 +373,7 @@ pub struct ToolButton {
 impl WindowState {
     pub fn receive(&mut self, message: ToWindow) {
         match message {
-            ToWindow::Prompt { snapshot, prompt, yielding } => {
+            ToWindow::Prompt { snapshot, prompt, yielding, why } => {
                 self.replaying = None;
                 self.log.extend(snapshot.log.iter().cloned());
                 self.yielding = yielding;
@@ -369,6 +382,15 @@ impl WindowState {
                 self.selection = Some(Selection::start(&prompt));
                 self.prompt = Some(prompt);
                 self.board = Some(snapshot);
+                // A panel closed while this was on its way shows nothing.
+                if !self.why_path.is_empty() {
+                    self.why = why.map(|why| *why);
+                }
+            }
+            ToWindow::Why(why) => {
+                if !self.why_path.is_empty() {
+                    self.why = Some(why);
+                }
             }
             ToWindow::Finished { snapshot, outcome } => {
                 self.replaying = None;
@@ -416,6 +438,29 @@ impl WindowState {
             Input::FullControl(on) => {
                 self.full_control = on;
                 return None;
+            }
+            // A why answers nothing, so it closes no prompt and the beat after
+            // one arrives need not drop it. The seat answers it at the open
+            // question, and only there.
+            Input::Why(id) => {
+                self.prompt.as_ref()?;
+                if self.why_path.last() != Some(&id) {
+                    self.why_path.push(id);
+                }
+                return Some(Reply::Why(Some(id)));
+            }
+            Input::WhyBack => {
+                self.prompt.as_ref()?;
+                if self.why_path.len() < 2 {
+                    return None;
+                }
+                self.why_path.pop();
+                return Some(Reply::Why(self.why_path.last().copied()));
+            }
+            Input::WhyClose => {
+                self.why_path.clear();
+                self.why = None;
+                return Some(Reply::Why(None));
             }
             // Aimed at the prompt before: it arrived too recently to be read.
             _ if self.settling_for().is_some() => return None,
@@ -552,6 +597,77 @@ impl WindowState {
         });
         Some(if self.settling_for().is_some() { view.settling() } else { view })
     }
+
+    /// The why panel, while it is open and the engine has answered. Its
+    /// links ask at the open question, so with none open they are off and
+    /// the panel says so.
+    pub fn why_view(&self) -> Option<WhyView> {
+        let why = self.why.as_ref()?;
+        let open = self.prompt.is_some();
+        let line = |line: &WhyLine| WhyLineView {
+            text: line.text.clone(),
+            rule: line.rule.map(|rule| format!("CR {rule}")),
+            depth: line.depth,
+            links: line.names.iter().map(|(id, label)| WhyLink { label: label.clone(), input: Input::Why(*id), live: open }).collect(),
+        };
+        let sections = why
+            .sections
+            .iter()
+            .map(|section| WhySectionView { heading: section.heading.clone(), lines: section.lines.iter().map(line).collect() })
+            .collect();
+        Some(WhyView {
+            title: why.title.clone(),
+            back: open && self.why_path.len() > 1,
+            note: (!open).then_some(WHY_AT_A_QUESTION),
+            sections,
+        })
+    }
+}
+
+/// What the why panel says while no question is open.
+pub const WHY_AT_A_QUESTION: &str = "The answer at the last question: a why is asked while a question is open.";
+
+/// What an object's hover says a right-click does, at an open question and
+/// with none open, when the seat has no one to answer it.
+pub const WHY_ON_RIGHT_CLICK: &str = "Right-click: why it is so";
+pub const WHY_ONLY_AT_A_QUESTION: &str = "A right-click asks why only while a question is open";
+
+/// The why panel: what the engine says made an object the way it is
+/// (`setup-architecture.md` §7c).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WhyView {
+    /// The object, as the board names it.
+    pub title: String,
+    /// Back is live: there is an object asked about before this one, and a
+    /// question open to ask at.
+    pub back: bool,
+    /// Why the panel's links are off, while they are.
+    pub note: Option<&'static str>,
+    pub sections: Vec<WhySectionView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WhySectionView {
+    pub heading: String,
+    pub lines: Vec<WhyLineView>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WhyLineView {
+    pub text: String,
+    /// The rule it rests on: `CR 613.1f`.
+    pub rule: Option<String>,
+    /// How far it sits under the line before it.
+    pub depth: u8,
+    /// Each object it names: a click asks that object's why.
+    pub links: Vec<WhyLink>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WhyLink {
+    pub label: String,
+    pub input: Input,
+    pub live: bool,
 }
 
 /// How long a yield passes for, in the person's words: a seat's yield passes
@@ -583,6 +699,8 @@ pub struct Item {
     pub printed: Option<Arc<[String]>>,
     /// Shown on hover under the first line of `hover`, a permanent's.
     pub type_line: Option<Arc<TypeLineView>>,
+    /// Shown on hover last, an object's: what a right-click on it does now.
+    pub why_hint: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -665,6 +783,8 @@ impl Marks {
             hover: String::new(),
             printed: None,
             type_line: None,
+            why_hint: matches!(target, BoardRef::Object(_))
+                .then_some(if self.asked.is_some() { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
         }
     }
 
@@ -770,6 +890,7 @@ impl BoardView {
                     hover: String::new(),
                     printed: None,
                     type_line: None,
+                    why_hint: None,
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),
@@ -1323,7 +1444,7 @@ mod tests {
         let b = board();
         let mut state = WindowState::default();
         state.tick(10.0);
-        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None });
+        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None });
         state.tick(10.1);
         assert_eq!(state.input(Input::OptionButton(0)), None, "the second click of a double click");
         assert!(state.prompt_view().unwrap().options.iter().all(|option| !option.live));
@@ -1386,5 +1507,61 @@ mod tests {
         }
         let won = WindowState { outcome: Some(Outcome::Won(0)), ..WindowState::default() };
         assert_eq!(won.status(), "Game over: Player 0 wins");
+    }
+
+    /// A why answers nothing: it leaves the prompt and the answer in progress
+    /// as they were, and is asked only at an open question, where a seat is
+    /// waiting to answer it.
+    #[test]
+    fn a_why_answers_nothing_and_is_asked_only_at_an_open_question() {
+        let b = board();
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 2 }, unnamed(3)));
+        state.input(Input::OptionButton(1));
+        let (prompt_before, selection_before) = (state.prompt.clone(), state.selection.clone());
+        assert_eq!(state.input(Input::Why(b.bear)), Some(Reply::Why(Some(b.bear))));
+        assert_eq!((&state.prompt, &state.selection), (&prompt_before, &selection_before));
+        assert_eq!(state.input(Input::Why(b.bear)), Some(Reply::Why(Some(b.bear))), "asked again, as a refresh");
+        assert_eq!(state.why_path, [b.bear], "and not a second step back");
+        let idle = WindowState { board: Some(b.snapshot.clone()), ..WindowState::default() };
+        assert_eq!(idle.clone().input(Input::Why(b.bear)), None, "no seat is waiting to answer");
+        let hint = |state: &WindowState| item(&state.board_view().expect("a board"), b.bear).why_hint;
+        assert_eq!(hint(&state), Some(WHY_ON_RIGHT_CLICK));
+        assert_eq!(hint(&idle), Some(WHY_ONLY_AT_A_QUESTION), "and its hover says so");
+    }
+
+    /// Back returns to the object asked about before, while there is one;
+    /// closing empties the panel and tells the seats to stop answering.
+    #[test]
+    fn back_returns_along_the_objects_asked_and_close_empties_the_panel() {
+        let b = board();
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
+        state.input(Input::Why(b.bear));
+        state.input(Input::Why(b.relic));
+        assert_eq!(state.input(Input::WhyBack), Some(Reply::Why(Some(b.bear))));
+        assert_eq!(state.input(Input::WhyBack), None, "nothing before the first");
+        state.why = Some(Why { title: "Bear".to_string(), sections: Vec::new() });
+        assert_eq!(state.input(Input::WhyClose), Some(Reply::Why(None)));
+        assert!(state.why_path.is_empty() && state.why_view().is_none());
+    }
+
+    /// Each object a line names is a link while a question is open; with
+    /// none open the panel keeps its last answer, its links off, and says so.
+    #[test]
+    fn the_panels_links_are_live_only_at_an_open_question() {
+        use mtgsim::ui::why::WhySection;
+        let b = board();
+        let named = WhyLine { text: "Layer 6".to_string(), rule: Some("613.1f"), names: vec![(b.relic, "Relic (#4)".to_string())], depth: 0 };
+        let why = Why { title: "Bear (#1)".to_string(), sections: vec![WhySection { heading: "What the layers did".to_string(), lines: vec![named] }] };
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
+        (state.why_path, state.why) = (vec![b.bear], Some(why));
+        let view = state.why_view().expect("an answer to show");
+        let line = &view.sections[0].lines[0];
+        assert_eq!((line.rule.as_deref(), line.depth), (Some("CR 613.1f"), 0));
+        assert_eq!(line.links, [WhyLink { label: "Relic (#4)".to_string(), input: Input::Why(b.relic), live: true }]);
+        assert_eq!((view.back, view.note), (false, None));
+        state.prompt = None;
+        let idle = state.why_view().expect("kept with no question open");
+        assert!(!idle.sections[0].lines[0].links[0].live);
+        assert_eq!(idle.note, Some(WHY_AT_A_QUESTION));
     }
 }

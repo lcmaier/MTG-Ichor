@@ -21,7 +21,7 @@ use std::path::Path;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
 use devgui::editor::{EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
-use devgui::prompt::{Primitive, Reply};
+use devgui::prompt::{BoardRef, Primitive, Reply};
 use devgui::view_model::{
     Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
 };
@@ -55,6 +55,10 @@ const FULL_CONTROL_ONE_IN: u32 = 25;
 /// game in debug.
 const YIELD_ONE_IN: u32 = 20;
 
+/// How often a click is in the why panel or asks a why on the board: as
+/// often as a yield, so a game still plays on.
+const WHY_ONE_IN: u32 = 20;
+
 /// What the games reached, beside the primitives.
 #[derive(Default)]
 struct Reached {
@@ -63,6 +67,9 @@ struct Reached {
     pass_only: usize,
     yields: usize,
     stops: usize,
+    /// Whys asked and answered, and the panel closed.
+    whys: usize,
+    closed: usize,
 }
 
 #[test]
@@ -78,6 +85,7 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
     assert!(primitive(|p| matches!(p, Primitive::PickN { max, .. } if *max > 1)), "no multiple pick reached");
     assert!(reached.pass_only > 0, "full control asked nothing a seat can only pass at");
     assert!(reached.yields > 0 && reached.stops > 0, "yields set {}, stopped {}", reached.yields, reached.stops);
+    assert!(reached.whys > 0 && reached.closed > 0, "whys asked {}, the panel closed {}", reached.whys, reached.closed);
 }
 
 /// The review boards reach what a dealt game reaches only now and then: a
@@ -126,6 +134,7 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
             ToWindow::Panicked { message } => panic!("{game}: the engine thread panicked after {last}: {message}"),
             ToWindow::Refused { message, .. } => panic!("{game}: the scenario did not load: {message}"),
             ToWindow::Diverged { message, .. } => panic!("{game}: a game played from its start replayed nothing, yet {message}"),
+            ToWindow::Why(why) => panic!("{game}: a why came with no question asked: {}", why.title),
             ToWindow::Prompt { prompt, .. } => {
                 reached.primitives.push(prompt.primitive.clone());
                 reached.pass_only += usize::from(prompt.pass.is_some() && prompt.options.len() == 1);
@@ -148,16 +157,20 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
     panic!("{game}: no result after {PROMPT_CAP} prompts");
 }
 
-/// Clicks until a reply closes the prompt. "Stop yielding" is sent as it is
-/// clicked, as `Session::input` sends it, and the prompt stays open.
+/// Clicks until a reply closes the prompt. "Stop yielding" and a why are
+/// sent as they are clicked, as `Session::input` sends them, and the prompt
+/// stays open; the seat answers a why at once, and its answer must show.
 fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mut StdRng, reached: &mut Reached) -> Option<Reply> {
     for _ in 0..CLICK_CAP {
         let can_reset = state.prompt_view().is_some_and(|prompt| prompt.can_reset);
         let yields = live_yields(state);
+        let whys = why_clicks(state);
         let input = if can_reset && rng.random_ratio(1, RESET_ONE_IN) {
             Input::Reset
         } else if !yields.is_empty() && rng.random_ratio(1, YIELD_ONE_IN) {
             yields[rng.random_range(0..yields.len())].clone()
+        } else if !whys.is_empty() && rng.random_ratio(1, WHY_ONE_IN) {
+            whys[rng.random_range(0..whys.len())].clone()
         } else {
             let offered = clickable(state, rng);
             assert!(!offered.is_empty(), "the window offers nothing to click at {:?}", state.prompt);
@@ -169,6 +182,23 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
                 reached.stops += 1;
                 engine.answers.send(Reply::StopYielding).expect("the engine hung up with a prompt open");
             }
+            Some(Reply::Why(about)) => {
+                engine.answers.send(Reply::Why(about)).expect("the engine hung up with a prompt open");
+                match about {
+                    Some(id) => {
+                        let answer = next(engine);
+                        assert!(matches!(answer, ToWindow::Why(_)), "{input:?} at {:?} was answered with {answer:?}", state.prompt);
+                        state.receive(answer);
+                        let shown = state.why_view().unwrap_or_else(|| panic!("the why of {id} does not show"));
+                        assert!(!shown.sections.is_empty(), "the why of {id} says nothing");
+                        reached.whys += 1;
+                    }
+                    None => {
+                        assert_eq!(state.why_view(), None, "the panel closed and still shows");
+                        reached.closed += 1;
+                    }
+                }
+            }
             Some(reply) => return Some(reply),
             None => {
                 let typed = matches!(input, Input::Number(_));
@@ -178,6 +208,26 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
         }
     }
     None
+}
+
+/// What a person can click for a why now: a right-click on any object on
+/// the board, and, with the panel open, each live link, Back while it is
+/// live, and the panel's close.
+fn why_clicks(state: &WindowState) -> Vec<Input> {
+    let mut inputs: Vec<Input> = Vec::new();
+    if let Some(board) = state.board_view() {
+        inputs.extend(items(&board).filter_map(|item| match item.target {
+            Some(BoardRef::Object(id)) => Some(Input::Why(id)),
+            Some(BoardRef::Player(_)) | None => None,
+        }));
+    }
+    if let Some(panel) = state.why_view() {
+        let links = panel.sections.iter().flat_map(|section| &section.lines).flat_map(|line| &line.links);
+        inputs.extend(links.filter(|link| link.live).map(|link| link.input.clone()));
+        inputs.extend(panel.back.then_some(Input::WhyBack));
+        inputs.push(Input::WhyClose);
+    }
+    inputs
 }
 
 /// The yields the prompt offers now, each one live.

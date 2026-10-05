@@ -260,9 +260,10 @@ jobs:
 
       # The view model's and the board editor's tests, whole games with a
       # thread in the window's place, by a fixed rule and by seeded random
-      # clicks, the editor's beside them, and the tools (undo, savestates,
-      # the save and `--load`) on short boards (about 25 s of debug build:
-      # the layer memo's audit runs in it, which is how the random clicks
-      # found an engine bug). `tests/screenshots.rs` is the local check above.
+      # clicks, the editor's beside them, the tools (undo, savestates, the
+      # save and `--load`) and the why panel on short boards (about 25 s of
+      # debug build: the layer memo's audit runs in it, which is how the
+      # random clicks found an engine bug). `tests/screenshots.rs` is the
+      # local check above.
       - name: Test, without the pictures
-        run: cargo test --locked --lib --test headless_game --test random_clicks --test tools
+        run: cargo test --locked --lib --test headless_game --test random_clicks --test tools --test why_panel
