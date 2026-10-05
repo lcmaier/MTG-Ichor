@@ -37,6 +37,52 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-05 for SU-6** (the why panel, and what the layers did;
+`setup-architecture.md` §8's ✅ section). Its engine change threads a
+recorder through the layer pass, which every game path hands `None`:
+`fuzz_games` never asks a why. No pool change, so the §3 tables stand as the
+first-strike block below recorded them. `close_out.py`: **main** `7f8532a`
+(#219's merge) against **engine** `0195717`, the last commit touching
+`mtgsim/`.
+
+**Predictions, before any arm ran** (`setup-architecture.md` §8, at #220):
+every gameplay and cost row `IDENTICAL` on both pools at two seats and four;
+instructions per decision within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| each counter file outside `=== Timing ===`, engine vs `main`, performance / stress | byte-identical / byte-identical | byte-identical / byte-identical |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6255 M → 0.6286 M, **+0.50%** |
+
+The gameplay and cost predictions held. Instructions read 0.20 points past
+the band, inside §3.1's 2.5. **The first arm read +0.55%** (`d1dceb9`,
+0.6256 M → 0.6290 M), and the per-function reading named part of it: each
+function's own instructions (`callgrind_annotate --auto=no`, the `=>` call
+lines dropped), joined across the arms by name. The recorder's checks in
+`run_pass` and `compute_non_member` matched a tuple, `(recorder, before)`,
+and building it moved `before`, an `Option` of a frame, on every walk the
+game runs, where it is `None`: 41,709 more `memcpy` calls in the non-member
+walk alone. Let-chains (`0195717`) took the reading to +0.50%. Of the
++38.9 M instructions left (7,856.8 M → 7,895.7 M):
+- **about 8 M in code this PR changed**: `run_pass` +6.0 M, its recorder
+  checks once a pass and once an application; the non-member walk +0.7 M;
+  `add_intrinsic`, out of line now, +1.0 M; `Own::stripped` against the
+  `cda_still_there` it replaced, +0.1 M;
+- **about 31 M in functions whose source it does not change**:
+  `affected_members`' filter closure folded into an iterator's `try_fold`,
+  net +11.2 M (+148.1 M against −118.8 M and −18.1 M);
+  `apply_set_subtypes` and `apply_add_subtype` each making three `memcpy`
+  calls a call where `main` made one (111,321 → 333,963 and 18,487 → 55,461
+  calls), +16.2 M of `memcpy`'s +18.1 M; `cda_modifications` +2.7 M; and
+  `EffectiveCharacteristics::clone` out of line, +6.6 M against the −7.7 M
+  its callers shed, a wash.
+
+So the PR's own share is about 0.10 points, inside the prediction, and the
+rest is SU-2's case (that block): the crate builds in 16 codegen units, and
+new code moves the compiler's inlining in code it does not touch.
+
 **Measured 2026-10-03 for SU-4** (the replay; `setup-architecture.md` §8's ✅
 section). Its engine changes put nothing new on a fuzz game's path:
 `fuzz_games` attaches no log and uses no replay, and meets the stop only on a

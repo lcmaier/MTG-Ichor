@@ -5,7 +5,7 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `4139468`, SU-5's last code commit, 2026-10-04.
+§7. Read at `5d900c1`, SU-6's last code commit, 2026-10-05.
 
 ## 1. What it is
 
@@ -124,6 +124,10 @@ From `devgui/`, where `cargo run` runs the window:
 - `tests/tools.rs`: Undo answer, savestates and the menu, the save and
   `--load`, on short boards through the session, with a replay superseded
   at the bridge.
+- `tests/why_panel.rs`: the why panel through the session on the Humility
+  sample: a right-click answered at the open question, the panel following
+  its object to the next question and through Undo answer, its links, Back
+  and close.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new.
@@ -168,3 +172,31 @@ building the game afresh and replaying the answers before it.
 - The buttons come first in the header, after the Play | Edit switch, so a
   replay's count and the board's line changing width never move them under
   the pointer.
+
+## 10. The why panel
+
+SU-6 (`setup-architecture.md` §7c) built its first part: a right-click on a
+card, a permanent or a stack object asks why it is the way it is, and a panel
+on the window's left shows what the layers did to it, line by line, with each
+line's rule.
+
+- **Asked at the seat.** `WindowState::input` turns the right-click into
+  `Reply::Why`, which the session sends as it sends an answer. The seat
+  waiting at the open question (`GuiSeat::ask`) carries it out without
+  closing the question, as it carries out "Stop yielding": it asks the engine
+  (`ui::why::why`, which reads `engine::layers::explain`) and sends the answer
+  back as `ToWindow::Why`. A why answers nothing, so it keeps the answer in
+  progress and need not wait out the beat after a prompt arrives.
+- **The panel follows its object.** The seat keeps the object the panel
+  shows, and each later question's message carries its why. The session
+  keeps the panel across Undo answer, a savestate and Reload, whose games
+  number objects alike, and closes it at `--load`.
+- **The words are the engine's.** The panel lays out the engine's sections
+  and lines; `WindowState::why_view` adds a link for each object a line
+  names, Back, and a close, and `app.rs` draws them (`why_panel`). With no
+  question open the panel keeps its last answer, its links off, and says so,
+  and an object's hover says a right-click asks nothing (`Item::why_hint`).
+- **What comes next:** SU-7 adds why an option is or is not offered at the
+  open question, and a player's line to right-click, and SU-8 what an event
+  did and which triggered abilities were asked about it, read from a
+  replay's trace (§7c).

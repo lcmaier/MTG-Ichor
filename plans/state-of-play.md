@@ -93,6 +93,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `SU-3` — plans/setup-architecture.md
 - `SU-4` — plans/setup-architecture.md
 - `SU-5` — plans/setup-architecture.md
+- `SU-6` — plans/setup-architecture.md
 - `TR-1` — plans/triggers-architecture.md
 - `TR-1b` — plans/triggers-architecture.md
 - `TR-2a` — plans/triggers-architecture.md
@@ -104,7 +105,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 101 |
-| `#[test]` functions | 1989 |
+| `#[test]` functions | 1996 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

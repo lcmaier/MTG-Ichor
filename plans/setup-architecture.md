@@ -15,7 +15,8 @@
 > replay, the engine's), landed 2026-10-03, and **SU-5** (the tools, the
 > window's), landed 2026-10-04.
 > **The why panel**, A6g's next item, is designed in §7c and decided at #220
-> (the owner, 2026-10-05, every recommendation taken): SU-6 to SU-8.
+> (the owner, 2026-10-05, every recommendation taken): SU-6 to SU-8. **SU-6**
+> (what the layers did, and the panel) landed 2026-10-05.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -1762,7 +1763,9 @@ design against `fb1767a`:
 > **Status:** design, 2026-10-05, decided at #220 the same day: the owner
 > took every recommendation in §7c.1. It is `roadmap-v2.md` A6g's next
 > item, "a 'why' panel fed by the trace sink", read against `7f8532a`
-> (#219's merge). The build is SU-6 to SU-8 (§8).
+> (#219's merge). The build is SU-6 to SU-8 (§8). SU-6 built the layers'
+> section and the panel, 2026-10-05 (§8's ✅ section). What its build changed
+> here is amended where it stands, and listed in the archive's SU-6 entry.
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
@@ -2150,14 +2153,19 @@ runs with no sink attached.
 - The test plays a game with every object's why asked at every question, and
   the same game with none asked. They must have the same events and the same
   decision log.
-- In debug the explanation runs with the memo's audit paused, since the
-  snapshot has just audited the same frames at this question.
+- The memo's audit is not paused for it in debug. SU-6 measured a why at a
+  question at 1.9 ms on the large board in debug, audit and all, beside the
+  snapshot's own 33 ms there (`prompt_cost`, 2026-10-05), so a pause would
+  save nothing a tester sees.
 
 #### Decision 4 — what the window shows, and how a tester gets there
 
 **Getting there.**
 - A right-click on anything the board draws as an object or a player asks why
   of it: a permanent, a card in any zone, a stack object, or a player's line.
+  SU-6 built it for objects, since the layers say nothing about a player. A
+  player's line comes with SU-7, whose section is the first with something to
+  say about one: whether the player is among the open question's options.
 - A left click keeps its meaning, so a why never answers the question by
   accident. So the settling beat, the 0.3 s after a question arrives when the
   window drops clicks (`codebase-state.md` item 201), has no need to drop a
@@ -2178,9 +2186,11 @@ is answered once, at its click, and marked with the question it was asked at.
    never offered, or offered and then reversed (CR 732.1).
 2. **What the layers did** (SU-6). The printed card comes first. Then each
    application that reached the object, in the order applied, with its layer,
-   source, timestamp, the ability's own text, and what it changed ("power 4 →
-   1"). Then each application that reached the object's zone but not the
-   object, with the reason. Last comes the result, which matches the hover.
+   source, timestamp, the ability's own text, and what it changed ("Power and
+   toughness from 4/4 to 1/1": SU-6 wrote "from … to …", since the window's
+   font has no arrow). Then each application that reached the object's zone
+   but not the object, with the reason. Last comes the result, which matches
+   the hover.
 3. **What happened** (SU-8). For an event, it shows the event's batch as the
    trace viewer draws it (`plans/traces/viewer.html`), and every triggered
    ability asked about it, matched or refused and by what.
@@ -2203,8 +2213,9 @@ can cover the very cards it explains. **Decided as recommended** (the owner,
 
 **Decided: a** (the owner, 2026-10-05). Each other doc gets one line where
 an invariant lives:
-- at SU-6's build, `layers-architecture.md` §13b gains that the recorder is
-  the pass, with no second walk;
+- at SU-6's build, `layers-architecture.md` §9 gains that the recorder is
+  the pass, with no second walk. The design named §13b, LI's landed plan;
+  the line went beside LI-2's loop in §9, which is what the recorder watches;
 - at SU-7's, `cost-architecture.md` §3.6 gains that the reasons are one check,
   shared by the enumeration and the enforcement;
 - at SU-8's, `engineering-practices.md` §7.1 gains a pointer here, as tier 2's
@@ -2233,7 +2244,7 @@ pub struct WhyLine { pub text: String, pub rule: Option<&'static str>, pub names
 
 **The bridge** (SU-6). The window sends `Reply::Why(Some(about))`, and the seat
 stores what the panel shows. It answers at once with `ToWindow::Why`, and while
-the panel stays open it puts `why: Option<Why>` in each `ToWindow::Prompt`.
+the panel stays open it puts `why: Option<Box<Why>>` in each `ToWindow::Prompt`.
 `Reply::Why(None)` closes the panel. In SU-8, `Session` starts the replay
 thread for a question about then, and its answer arrives as `ToWindow::Why`
 too. A newer replay supersedes an older one, as an undo's does.
@@ -2241,7 +2252,9 @@ too. A newer replay supersedes an older one, as an undo's does.
 **When no question is open**, the right-click is off, with a line saying why,
 as Savestate is. That covers the engine playing between questions, a replay on
 its way, and a game that has ended. After SU-8, a game that has ended answers
-through the replay of its whole line.
+through the replay of its whole line. As SU-6 built it, an object's hover
+says so, and an open panel keeps its answer at the last question, its links
+off, with a line saying why.
 
 **What each PR's review runs**, in Magic terms:
 - **SU-6.** Load `humility-opalescence.scenario`, then right-click Serra
@@ -2298,46 +2311,19 @@ sizing, nearly all of it in the dev GUI, which may run looser than the engine
 §7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 
-### SU-6 — the why panel, and what the layers did
-
-**The engine, ~280–420.**
-- `layers::explain`: the recorder in `run_pass`, `perform` and
-  `compute_non_member`, ~110–160;
-- its types and its entry, ~50–80;
-- `ui::why`'s value, and the words of the layer section: a frame's changes
-  field by field, destructured with no `..` so that a new field must answer,
-  ~120–180.
-
-**The dev GUI, ~180–270.**
-- `Reply::Why` and the seat following its object, ~40–60;
-- the view model's panel, with Back, ~80–120;
-- the drawing, ~50–80, and the right-click on each item, ~10.
-
-**Tests, ~200–300.**
-- the explanation on these boards: Humility and Opalescence in both orders;
-  Blood Moon and Urborg's dependency; an anthem that does not apply; a CR
-  613.6 lock; a counter; a CDA; and a card in a library that a row reaches;
-- its equality with the memo's frame;
-- a game with every why asked, against the same game with none;
-- the bridge's round trip, the view model, random clicks with right-clicks,
-  and a review picture.
-
-**A/B.** `run_pass` takes a recorder, which every game path passes as `None`.
-Predicted `IDENTICAL` on every counter, and instructions within ±0.3%.
-`prompt_cost` reads a why on the large board's busiest object
-(`engineering-practices.md` §10.4).
-
 ### SU-7 — why an option is not offered
 
-**The engine, ~280–430.**
+**The engine, ~290–450.**
 - the reasons, typed and worded, ~80–120;
 - the enumeration's checks as functions that return them (`can_cast`,
   `can_play_land`, `can_activate` and `can_attack`), ~120–180, much of it
   moved rather than written;
 - `check_cast_legality` on the same reasons, ~20–40;
-- the why's section for the open question, ~60–90.
+- the why's section for the open question, ~60–90, and a player as what a
+  why can be about, ~10–20 (moved from SU-6, §7c.1's decision 4).
 
-**The dev GUI, ~10–20**: the section's heading.
+**The dev GUI, ~20–35**: the section's heading, and the right-click on a
+player's line.
 
 **Tests, ~150–220.** One per family of reasons, each reached on a board, and
 each shown to fail first where it moves a check.
@@ -2373,7 +2359,47 @@ the same order. Predicted `IDENTICAL` on every counter, and instructions within
 Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
 `--trace`, the `pipeline` record's new field is the only change in its text.
 
-**In all:** ~1,050–1,615 lines of code and ~500–750 of tests.
+**In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
+#220. SU-6 landed at 1,055 and 600; SU-7 and SU-8, as sized above, are
+~610–960 and ~300–450 more.
+
+### SU-6 — the why panel, and what the layers did — ✅ landed 2026-10-05
+
+**What shipped.** §7c's first PR, as decided at #220. `layers::explain(game,
+id)` (`engine/layers/explain.rs`) runs the walk `compute_characteristics`
+runs for the object, by its pass membership, and hands it a `Recorder` where
+the game's passes hand `None`. It records each application in each layer as
+it applies: what it reached, and what it did to the object, applied with the
+frame before and after or missed, by its set, by CR 604.2 or by CR 613.6.
+Each says what it waited for (CR 613.8), and CR 306.5b's loyalty ability is
+a step of its own. A debug assertion holds the answer to the walk's.
+`ui::why::why(game, id)` words it: the printed card, each layer's changes in
+the order applied, what reached the object's zone and missed it, and the
+result, each line with its rule and a link for each object it names. In the
+dev GUI a right-click on an object asks why at the open question, the seat
+answers beside the snapshot, and the panel on the window's left follows its
+object from question to question, with links, Back and ×, kept across
+Reload and Undo.
+
+**What moved on the way in.** Each step keeps every object it reached, which
+the panel names and LI-2's one-layer test hook now reads. `Kind::Own` names
+which of a member's own applications it is. A change reads "from 4/4 to
+1/1", since the window's font has no arrow. A player's line moved to SU-7,
+and the memo's audit is not paused in debug (§7c.1's decisions 3 and 4,
+amended where they stand). It landed at +1,055 code and +600 tests, against
+460–690 and 200–300 sized.
+
+**Measured.** `close_out.py` against #219's merge: each counter file
+byte-identical outside `=== Timing ===`, both pools, two seats and four.
+Instructions per decision +0.50%, past the ±0.3% predicted and inside §3.1's
+2.5 points: about 0.10 in the recorder's checks on the game's path, about
+0.40 in functions whose source this PR does not change. `prompt_cost` on the
+large board: a why at a question 38 µs median in release, 1.9 ms in debug;
+the panel's view 1.5 µs a repaint.
+
+→ `plans/archive/setup-architecture-landed.md`, "SU-6" (the build as sized,
+sized against built, and what the build changed in the design).
+
 ### SU-5 — the tools — ✅ landed 2026-10-04
 
 **What shipped.** §7.1–§7.3's window half, as decided at #212 and #216.
