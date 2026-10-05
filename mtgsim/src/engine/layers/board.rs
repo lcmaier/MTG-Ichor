@@ -47,6 +47,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::cda;
 use crate::engine::layers::condition;
+use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResult};
 use crate::engine::layers::compute::{
     apply_resolved, base_controller, compute_non_member, object_matches_filter,
     resolve_modification, seed_frame, FilterPlayers, Resolved, LAYER_ORDER,
@@ -499,8 +500,8 @@ impl<'l> Board<'l> {
 
 /// One thing a layer applies — CR 613.8's unit of ordering: an effect's rows
 /// in this layer, one member's CDA, or one of its counters. The word means
-/// exactly this throughout the module; what one of them did, once applied,
-/// is a [`TraceStep`], and applying one is [`perform`].
+/// exactly this throughout the module; applying one is [`perform`], and what
+/// it did, to a pass a recorder watches, is a [`RecordedStep`].
 pub(super) struct Application<'a> {
     kind: Kind<'a>,
     timestamp: Timestamp,
@@ -527,9 +528,30 @@ enum Kind<'a> {
     /// `plans/references/` applies Ashaya as one step.
     Effect { rows: Vec<&'a ContinuousEffect>, would_be: bool },
     /// One member's own application: its CDA (which must still be on it
-    /// when its turn comes, CR 604.2), a keyword counter (CR 122.1b), or a
-    /// P/T counter kind (CR 122.1a). Affects the member and nothing else.
-    Own { object: ObjectId, cda: Option<AbilityId>, modification: EffectModification },
+    /// when its turn comes, CR 604.2), a keyword counter (CR 122.1b), a
+    /// P/T counter kind (CR 122.1a), or what it entered as (CR 614.1c).
+    /// Affects the member and nothing else.
+    Own { object: ObjectId, own: Own, modification: EffectModification },
+}
+
+/// Which of a member's own applications an `Own` is: what its existence
+/// check reads, and what an explanation calls it.
+#[derive(Clone, Copy)]
+enum Own {
+    Cda(AbilityId),
+    KeywordCounter(KeywordFlag),
+    PtCounters(CounterType, u32),
+    EnteredAsCopy,
+    EnteredWith,
+}
+
+impl Own {
+    /// CR 604.2 for a CDA: taken off the member before its turn came, so it
+    /// applies to nothing. Nothing else of a member's own can be taken away
+    /// mid-layer.
+    fn stripped(self, board: &Board<'_>, object: ObjectId) -> bool {
+        matches!(self, Own::Cda(ability) if !cda_still_there(board, object, ability))
+    }
 }
 
 /// The last component of the sort key: the order of applications that share
@@ -563,7 +585,23 @@ enum Tiebreak {
 
 impl Application<'_> {
     fn is_cda(&self) -> bool {
-        matches!(self.kind, Kind::Own { cda: Some(_), .. })
+        matches!(self.kind, Kind::Own { own: Own::Cda(_), .. })
+    }
+
+    /// What applied, as an explanation names it.
+    fn applied_by(&self) -> AppliedBy {
+        match &self.kind {
+            Kind::Effect { rows, .. } => {
+                AppliedBy::Effect { source: rows[0].source, origin: rows[0].origin, effect: rows[0].id }
+            }
+            Kind::Own { own, .. } => match *own {
+                Own::Cda(ability) => AppliedBy::Cda { ability },
+                Own::KeywordCounter(keyword) => AppliedBy::KeywordCounter { keyword },
+                Own::PtCounters(kind, count) => AppliedBy::PtCounters { kind, count },
+                Own::EnteredAsCopy => AppliedBy::EnteredAsCopy,
+                Own::EnteredWith => AppliedBy::EnteredWith,
+            },
+        }
     }
 
     /// CR 613.3 — CDAs first, then timestamp order; CR 613.7c puts counters
@@ -947,7 +985,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                 modification_reads(&modification, &mut reads, Channels::CONTROLLER);
                 let writes = writes_of(&modification);
                 apps.push(Application {
-                    kind: Kind::Own { object, cda: Some(ability), modification },
+                    kind: Kind::Own { object, own: Own::Cda(ability), modification },
                     timestamp,
                     tiebreak: Tiebreak::Cda(index, i),
                     reads,
@@ -966,10 +1004,10 @@ fn applications_in_layer<'a, 'l: 'a>(
     // A snapshot and an edit read nothing, so neither depends on anything
     // (CR 613.8a).
     for note in &board.entered_as {
-        let mut own = |modification: EffectModification, tiebreak: Tiebreak| {
+        let mut push_own = |own: Own, modification: EffectModification, tiebreak: Tiebreak| {
             let writes = writes_of(&modification);
             apps.push(Application {
-                kind: Kind::Own { object: note.object, cda: None, modification },
+                kind: Kind::Own { object: note.object, own, modification },
                 timestamp: board.timestamp_of(game, note.object),
                 tiebreak,
                 reads: Reads::default(),
@@ -977,11 +1015,11 @@ fn applications_in_layer<'a, 'l: 'a>(
             });
         };
         if layer == Layer::Layer1Copy && let Some(values) = &note.copy {
-            own(EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy);
+            push_own(Own::EnteredAsCopy, EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy);
         }
         for (i, (at, modification)) in note.edits.iter().enumerate() {
             if *at == layer {
-                own(modification.clone(), Tiebreak::EntryEdit(i));
+                push_own(Own::EnteredWith, modification.clone(), Tiebreak::EntryEdit(i));
             }
         }
     }
@@ -1036,7 +1074,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                             let modification = EffectModification::GrantKeywordFlag(keyword);
                             let writes = writes_of(&modification);
                             apps.push(Application {
-                                kind: Kind::Own { object, cda: None, modification },
+                                kind: Kind::Own { object, own: Own::KeywordCounter(keyword), modification },
                                 timestamp: stack.timestamp,
                                 tiebreak: Tiebreak::Keyword(keyword),
                                 reads: Reads::default(),
@@ -1059,7 +1097,7 @@ fn applications_in_layer<'a, 'l: 'a>(
                         };
                         let writes = writes_of(&modification);
                         apps.push(Application {
-                            kind: Kind::Own { object, cda: None, modification },
+                            kind: Kind::Own { object, own: Own::PtCounters(*kind, stack.count), modification },
                             timestamp: stack.timestamp,
                             tiebreak: Tiebreak::Counter(rank),
                             reads: Reads::default(),
@@ -1220,8 +1258,8 @@ fn affected_by(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Ap
             Affected::Gone => Vec::new(),
             Affected::Locked(t) | Affected::Fresh(t) => t,
         },
-        Kind::Own { object, cda, .. } => {
-            if cda.is_some_and(|a| !cda_still_there(board, *object, a)) {
+        Kind::Own { object, own, .. } => {
+            if own.stripped(board, *object) {
                 Vec::new()
             } else {
                 vec![*object]
@@ -1288,23 +1326,15 @@ fn write_affected(
     }
 }
 
-/// One step of a layer's sequence, for the trace: the application (by the
-/// object it belongs to) and the members it affected.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct TraceStep {
-    pub(super) source: ObjectId,
-    pub(super) affected: Vec<ObjectId>,
-}
-
 /// Apply `app` to every member it affects — for real, or under a `journal`
-/// that lets it be taken back.
+/// that lets it be taken back. Returns the members it reached.
 fn perform(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     app: &Application<'_>,
     journal: &mut Option<Journal>,
-) -> TraceStep {
+) -> Vec<ObjectId> {
     match &app.kind {
         Kind::Effect { rows, would_be } => {
             let mut reached: Vec<ObjectId> = Vec::new();
@@ -1351,15 +1381,82 @@ fn perform(
                     }
                 }
             }
-            TraceStep { source: rows[0].source, affected: reached }
+            reached
         }
-        Kind::Own { object, cda, modification } => {
-            if cda.is_some_and(|a| !cda_still_there(board, *object, a)) {
-                return TraceStep { source: *object, affected: Vec::new() };
+        Kind::Own { object, own, modification } => {
+            if own.stripped(board, *object) {
+                return Vec::new();
             }
             write_affected(game, board, layer_index, modification, None, &[*object], journal);
-            TraceStep { source: *object, affected: vec![*object] }
+            vec![*object]
         }
+    }
+}
+
+/// [`perform`], told to `recorder`: what `app` reached, and what it did to
+/// the watched object. That is decided before it applies, as `perform`'s
+/// first `row_affected` decides it: whether its set could name the object at
+/// all, and if it does not reach it, why not.
+fn perform_recorded(
+    game: &GameState,
+    board: &mut Board<'_>,
+    layer_index: usize,
+    app: &Application<'_>,
+    waited_for: Vec<ObjectId>,
+    recorder: &mut Recorder,
+) {
+    let watched = recorder.watched().filter(|&id| could_name(game, board, app, id));
+    // The object's frame, and why the application would miss it, both read
+    // before it writes anything.
+    let seen = watched.and_then(|id| {
+        let before = board.frames.get(&id)?.clone();
+        Some((id, before, missed(game, board, layer_index, app, id)))
+    });
+    let affected = perform(game, board, layer_index, app, &mut None);
+    let watched = seen.map(|(id, before, missed)| match board.frames.get(&id) {
+        Some(after) if affected.contains(&id) => StepResult::Applied { before, after: after.clone() },
+        _ => missed,
+    });
+    recorder.push(RecordedStep {
+        layer: LAYER_ORDER[layer_index],
+        by: app.applied_by(),
+        timestamp: Some(app.timestamp),
+        affected,
+        watched,
+        waited_for,
+    });
+}
+
+/// Whether `app`'s set could name `id` at all: its own application, a row
+/// whose filter reaches its zone, or a row that names it, its source or its
+/// host. The rows a filter does not reach are not explained to it.
+fn could_name(game: &GameState, board: &Board<'_>, app: &Application<'_>, id: ObjectId) -> bool {
+    match &app.kind {
+        Kind::Own { object, .. } => *object == id,
+        Kind::Effect { rows, would_be } => {
+            let row = rows[0];
+            if *would_be {
+                return row.source == id;
+            }
+            match &row.affected_objects {
+                ObjectSet::SourceOnly => row.source == id,
+                ObjectSet::Fixed(ids) => ids.contains(&id),
+                ObjectSet::Host => game.battlefield.get(&row.source).and_then(|e| e.attached_to) == Some(id),
+                ObjectSet::Filter { zones, .. } => board.in_zones_or_entering(game, id, *zones),
+            }
+        }
+    }
+}
+
+/// Why `app` would not reach `id`, were it not to, read before it applies.
+fn missed(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Application<'_>, id: ObjectId) -> StepResult {
+    match &app.kind {
+        Kind::Own { .. } => StepResult::Gone,
+        Kind::Effect { rows, would_be } => match row_affected(game, board, rows[0], *would_be, layer_index) {
+            Affected::Gone => StepResult::Gone,
+            Affected::Locked(set) if !set.contains(&id) => StepResult::LockedOut,
+            Affected::Locked(_) | Affected::Fresh(_) => StepResult::NotMatched,
+        },
     }
 }
 
@@ -1398,8 +1495,8 @@ fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Applic
                 };
                 (exists, affected, rows.iter().map(|r| (&r.modification, Some(*r))).collect())
             }
-            Kind::Own { object, cda, modification } => {
-                let exists = !cda.is_some_and(|a| !cda_still_there(board, *object, a));
+            Kind::Own { object, own, modification } => {
+                let exists = !own.stripped(board, *object);
                 let affected = if exists { vec![*object] } else { Vec::new() };
                 (exists, affected, vec![(modification, None)])
             }
@@ -1485,12 +1582,16 @@ fn depends_on(
 /// hypothetical, and then it is next. Only when it does depend on something
 /// is the whole graph built — over a handful of applications, so the closure
 /// is Floyd–Warshall rather than anything cleverer.
+///
+/// `head_waits_on`, when given, gains each pending application the head
+/// depends on, as indexes into `apps`: what an explanation says it waited for.
 fn next_ready(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     apps: &[Application<'_>],
     pending: &[usize],
+    head_waits_on: Option<&mut Vec<usize>>,
 ) -> usize {
     let m = pending.len();
     if m == 1 {
@@ -1507,6 +1608,13 @@ fn next_ready(
     }
     if !head_waits {
         return 0;
+    }
+    if let Some(waits_on) = head_waits_on {
+        for j in (1..m).filter(|&j| depends[0][j]) {
+            if !waits_on.contains(&pending[j]) {
+                waits_on.push(pending[j]);
+            }
+        }
     }
 
     for i in 1..m {
@@ -1545,22 +1653,30 @@ fn next_ready(
 ///
 /// It applies as it orders, which is why §9's reserved `Vec<EffectId>`
 /// return could not exist: after the k-th application the order of the rest
-/// is a function of the first k. `trace`, when given, receives what each
-/// application reached, in the order applied.
+/// is a function of the first k. `recorder`, when given, is told each
+/// application as it applies, with what it waited for (`explain`).
 fn resolve_order_within_layer(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     apps: Vec<Application<'_>>,
-    mut trace: Option<&mut Vec<TraceStep>>,
+    mut recorder: Option<&mut Recorder>,
 ) {
     let mut pending: Vec<usize> = (0..apps.len()).collect();
+    // Per application, what it waited for: kept only for a recorder, so the
+    // game's own passes allocate nothing here.
+    let mut waits: Vec<Vec<usize>> = if recorder.is_some() { vec![Vec::new(); apps.len()] } else { Vec::new() };
     while !pending.is_empty() {
-        let next = next_ready(game, board, layer_index, &apps, &pending);
+        let next = next_ready(game, board, layer_index, &apps, &pending, waits.get_mut(pending[0]));
         let index = pending.remove(next);
-        let applied = perform(game, board, layer_index, &apps[index], &mut None);
-        if let Some(trace) = trace.as_deref_mut() {
-            trace.push(applied);
+        match recorder.as_deref_mut() {
+            None => {
+                perform(game, board, layer_index, &apps[index], &mut None);
+            }
+            Some(recorder) => {
+                let waited_for = waits[index].iter().map(|&j| apps[j].source_object()).collect();
+                perform_recorded(game, board, layer_index, &apps[index], waited_for, recorder);
+            }
         }
     }
 }
@@ -1581,19 +1697,20 @@ pub(super) fn compute_board_to<'l>(
     asked: Option<ObjectId>,
     ceiling: usize,
 ) -> Board<'l> {
-    compute_board_traced(game, lookahead, asked, ceiling, None)
+    compute_board_recorded(game, lookahead, asked, ceiling, None)
 }
 
-/// [`compute_board_to`], recording the order one layer applied its
-/// applications in — the test hook for CR 613.8's sequence.
-pub(super) fn compute_board_traced<'l>(
+/// [`compute_board_to`], telling `recorder` each application in the order
+/// applied: `explain`'s walk, and the layer tests' view of CR 613.8's
+/// sequence.
+pub(super) fn compute_board_recorded<'l>(
     game: &GameState,
     lookahead: Option<&'l Lookahead>,
     asked: Option<ObjectId>,
     ceiling: usize,
-    trace: Option<(usize, &mut Vec<TraceStep>)>,
+    recorder: Option<&mut Recorder>,
 ) -> Board<'l> {
-    run_pass(game, lookahead, asked, ceiling, trace, HiddenCards::LeftOut)
+    run_pass(game, lookahead, asked, ceiling, recorder, HiddenCards::LeftOut)
 }
 
 /// One full pass with every card in a hidden zone a row reaches in it, as
@@ -1609,27 +1726,53 @@ fn run_pass<'l>(
     lookahead: Option<&'l Lookahead>,
     asked: Option<ObjectId>,
     ceiling: usize,
-    mut trace: Option<(usize, &mut Vec<TraceStep>)>,
+    mut recorder: Option<&mut Recorder>,
     hidden: HiddenCards,
 ) -> Board<'l> {
     game.diagnostics.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked, hidden);
+    let watched = recorder.as_deref().and_then(Recorder::watched);
+    if let (Some(recorder), Some(id)) = (recorder.as_deref_mut(), watched) {
+        recorder.seeded(board.frames.get(&id));
+    }
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
         let apps = applications_in_layer(game, &board, layer, layer_index);
-        let layer_trace: Option<&mut Vec<TraceStep>> = match trace.as_mut() {
-            Some((traced, layer_trace)) if *traced == layer_index => Some(layer_trace),
-            _ => None,
-        };
-        resolve_order_within_layer(game, &mut board, layer_index, apps, layer_trace);
+        resolve_order_within_layer(game, &mut board, layer_index, apps, recorder.as_deref_mut());
         // CR 306.5b — a planeswalker's intrinsic ability, once its types are
         // settled. Each frame is its own, so the map's order is unobservable.
         if layer == Layer::Layer4Type {
+            let before = watched.and_then(|id| board.frames.get(&id).cloned());
             for (&id, frame) in board.frames.iter_mut() {
                 crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(frame, id);
+            }
+            if let (Some(recorder), Some(id), Some(before)) = (recorder.as_deref_mut(), watched, before) {
+                record_intrinsic(recorder, id, before, &board.frames[&id]);
             }
         }
     }
     board
+}
+
+/// CR 306.5b's ability as a step of `id`'s, when the end of layer 4 gave it
+/// one: `before` is its frame ahead of the intrinsic abilities, `after` its
+/// frame with them.
+pub(super) fn record_intrinsic(
+    recorder: &mut Recorder,
+    id: ObjectId,
+    before: EffectiveCharacteristics,
+    after: &EffectiveCharacteristics,
+) {
+    if before.abilities.len() == after.abilities.len() {
+        return;
+    }
+    recorder.push(RecordedStep {
+        layer: Layer::Layer4Type,
+        by: AppliedBy::IntrinsicLoyalty,
+        timestamp: None,
+        affected: vec![id],
+        watched: Some(StepResult::Applied { before, after: after.clone() }),
+        waited_for: Vec::new(),
+    });
 }
 
 /// Whether `id` is one of the objects a layer pass computes together (its
@@ -1807,11 +1950,18 @@ mod tests {
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
     /// The order layer 4 applied its effects in, as `(source, reached)`.
-    fn layer_4_order(game: &GameState) -> Vec<TraceStep> {
-        let mut trace = Vec::new();
-        let layer_4 = LAYER_ORDER.iter().position(|l| *l == Layer::Layer4Type).unwrap();
-        compute_board_traced(game, None, None, LAYER_ORDER.len(), Some((layer_4, &mut trace)));
-        trace
+    fn layer_4_order(game: &GameState) -> Vec<(ObjectId, Vec<ObjectId>)> {
+        let mut recorder = Recorder::order_only();
+        compute_board_recorded(game, None, None, LAYER_ORDER.len(), Some(&mut recorder));
+        recorder
+            .steps()
+            .iter()
+            .filter(|step| step.layer == Layer::Layer4Type)
+            .filter_map(|step| match step.by {
+                AppliedBy::Effect { source, .. } => Some((source, step.affected.clone())),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The judge answer's board, entered in the reverse of the order it
@@ -1829,10 +1979,10 @@ mod tests {
         let opalescence = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
 
         let order = layer_4_order(&game);
-        let sources: Vec<ObjectId> = order.iter().map(|a| a.source).collect();
+        let sources: Vec<ObjectId> = order.iter().map(|(source, _)| *source).collect();
         assert_eq!(sources, vec![opalescence, ashaya, moon, urborg]);
 
-        let reached = |i: usize| -> IdSet<ObjectId> { order[i].affected.iter().copied().collect() };
+        let reached = |i: usize| -> IdSet<ObjectId> { order[i].1.iter().copied().collect() };
         assert_eq!(reached(0), IdSet::from_iter([moon]), "Opalescence makes Blood Moon a creature");
         assert_eq!(
             reached(1),
@@ -1857,8 +2007,8 @@ mod tests {
         let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
         let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
-        assert_eq!(order.iter().map(|a| a.source).collect::<Vec<_>>(), vec![moon, urborg]);
-        assert!(order[1].affected.is_empty(), "Urborg's ability is gone by its turn");
+        assert_eq!(order.iter().map(|(source, _)| *source).collect::<Vec<_>>(), vec![moon, urborg]);
+        assert!(order[1].1.is_empty(), "Urborg's ability is gone by its turn");
         assert_eq!(game.diagnostics.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
 
@@ -1881,12 +2031,12 @@ mod tests {
         let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
         assert_eq!(
-            order.iter().map(|a| a.source).collect::<Vec<_>>(),
+            order.iter().map(|(source, _)| *source).collect::<Vec<_>>(),
             vec![moon, clause],
             "the Clause entered first and still applies second"
         );
-        assert_eq!(order[0].affected, vec![taiga], "Blood Moon reaches the one nonbasic land");
-        assert!(order[1].affected.is_empty(), "and by the Clause's turn there is no Forest");
+        assert_eq!(order[0].1, vec![taiga], "Blood Moon reaches the one nonbasic land");
+        assert!(order[1].1.is_empty(), "and by the Clause's turn there is no Forest");
         assert_eq!(
             game.diagnostics.dependency_checks() - before,
             1,
