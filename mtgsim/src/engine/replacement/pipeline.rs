@@ -574,7 +574,12 @@ pub(crate) fn apply_replacements(
                 // effect can become applicable as the result of another"
                 // works without any special case.
                 check_exempt_terminates(game, &chosen, next, cause_of(ctx), &mut exempt_applied)?;
-                if let Some(before) = &before {
+                // A debug-only read, so it puts back what it touched: a debug
+                // build's trace and counters are a release build's (item 210).
+                if let Some(before) = &before
+                    && !unsuppressed.is_empty()
+                {
+                    let saved = game.save_observers();
                     check_order_invariance(
                         game,
                         ctx,
@@ -585,6 +590,7 @@ pub(crate) fn apply_replacements(
                         pos,
                         &unsuppressed,
                     );
+                    game.restore_observers(saved);
                 }
             }
             // CR 614.6 — `None` here means this member's event does not

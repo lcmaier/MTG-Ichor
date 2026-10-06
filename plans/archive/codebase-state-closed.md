@@ -3307,3 +3307,35 @@ The calibration passed. It found one exception already on the record, Mirrorweav
      must express at v1, which rules let a card override it and which card
      families do. **Slotted:** the PR after SU-7, ahead of item 162's design,
      which it feeds (the owner, 2026-10-05).
+
+### Item 210 — closed 2026-10-06 by SU-8's PR
+
+Closed as sized, in the first PR that reads a debug engine's trace in the window. `apply_replacements` brackets `check_order_invariance` with `save_observers` and `restore_observers`, as the dispatch audit brackets its reads, and only when the check has a suppressed prompt to check, so the memo's clone is paid only then. The check's probe gather no longer writes a `layer_walk` record or counts its walk. `phase_su8_integration_test::a_debug_builds_order_check_writes_nothing_to_the_trace` returns a creature under two Master Biomancers, whose entry counters commute, and pins the four look-ahead walks a release build writes; the debug build wrote five before the fix.
+
+*Original entry:*
+
+210. **A debug build's trace carries records a release build's does not.**
+     `check_order_invariance` (`engine/replacement/pipeline.rs:1597`) is a
+     debug-only self-check of a CR 616.1 prompt the pipeline suppressed as
+     order-invariant. For a suppressed prompt that is neither a substitute
+     nor an exit, it gathers again over a probe event, and `EntryFrame::new`
+     builds that probe's CR 614.12 look-ahead. The look-ahead writes a
+     `layer_walk` record (`membership: "entering"`) and counts its walk in
+     the diagnostics. A release build returns before any of it. The why
+     panel's probe (`setup-architecture.md` §7c, 2026-10-05) traced ten
+     two-seat games in both builds. Nine traces matched byte for byte, and
+     seed 12353's debug trace was five records longer: those five, and
+     nothing else. The sink's module doc states the rule this breaks, for
+     the memo's audit: a debug-only read that wrote a record "would make a
+     debug build's trace differ from a release build's — which would break
+     regenerating a page from a test".
+
+     **Reachability (2026-10-05):** reachable — not wrong in any game: a debug
+     build's trace and its layer counters, which no rule reads.
+
+     **Sized:** the call bracketed by `save_observers` and `restore_observers`
+     at its one site in `apply_replacements`, which holds the state mutably,
+     as the dispatch audit brackets its reads: ~5–10 lines. Plus a test that a
+     traced board where the check runs writes no record from it: ~25.
+     **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
+     debug engine's trace in the window.
