@@ -182,6 +182,14 @@ fn history_rows_and_since_your_last_turn() {
     assert!(refused("turn 2\nplayer 0 this game: cards drawn 1").message.contains("no turn before last"));
 }
 
+/// The loader builds at most 99 seats, each with its state, so a typed
+/// `players` in the millions is refused rather than allocated.
+#[test]
+fn players_past_the_most_the_loader_builds_are_refused() {
+    assert_eq!(load("players 99").state.players.len(), 99);
+    assert!(refused("players 100000000").message.contains("99 players at most"), "{}", refused("players 100000000"));
+}
+
 /// Counts past what a row holds stay at the most, loaded and written again.
 #[test]
 fn history_counts_past_what_a_row_holds_stay_at_the_most() {

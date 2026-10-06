@@ -25,6 +25,11 @@ use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::PriorityAction;
 
+/// The most seats a scenario builds. No rule caps players (CR 102.1), but
+/// each seat is built with its state, so a typed number in the millions would
+/// exhaust memory; the board editor's control stops here too.
+pub const MOST_PLAYERS: usize = 99;
+
 /// A scenario built: its board at rest, and its setup actions with every
 /// name resolved. `game.resume(&SetupDriver::new(setup, &seats))` plays it,
 /// the setup actions first.
@@ -78,6 +83,9 @@ impl<'s> Loader<'s> {
         let whole = |message: String| ScenarioError { kind: ScenarioErrorKind::Unreachable, line: None, message };
         if scenario.players < 2 {
             return Err(whole("a game has two players or more (CR 102.1)".to_string()));
+        }
+        if scenario.players > MOST_PLAYERS {
+            return Err(whole(format!("the loader builds {MOST_PLAYERS} players at most, each with its state, not {}", scenario.players)));
         }
         if scenario.active >= scenario.players || scenario.turn == 0 {
             return Err(whole(format!("`turn {}, active {}` names no turn of this game", scenario.turn, scenario.active)));
