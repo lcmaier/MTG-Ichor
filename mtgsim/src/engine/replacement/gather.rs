@@ -34,12 +34,12 @@ use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
-use crate::objects::card_data::AbilityType;
+use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
@@ -540,17 +540,10 @@ fn push_static_ability_replacements(
         // condition is asked here against the settled board, with the evaluator
         // the layer pass and CR 613.11 use. Laboratory Maniac is a candidate exactly
         // when the draw would fail, never a prompt beside Thought Reflection.
-        let def = match &ability.effect {
-            Effect::Replacement(def) => def,
-            Effect::Conditional(condition, inner) => {
-                let Effect::Replacement(def) = &**inner else { continue };
-                if !settled_holds(condition, game, id, None) {
-                    continue;
-                }
-                def
-            }
-            _ => continue,
-        };
+        let Some((def, condition)) = replacement_of(ability) else { continue };
+        if condition.is_some_and(|condition| !settled_holds(condition, game, id, None)) {
+            continue;
+        }
         if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
             continue;
         }
@@ -561,11 +554,45 @@ fn push_static_ability_replacements(
                 id: ReplacementInstanceId::StaticAbility(id, ability.id),
                 source: id,
                 controller,
-                def: (**def).clone(),
+                def: def.clone(),
             },
             p,
         );
     }
+}
+
+/// The replacement effect a static ability's body generates, and the "as
+/// long as" it exists under (CR 604.2): the one reading of that body, for
+/// the sweep and for `oracle::mana_supply`'s scan of what changes a
+/// production.
+pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, Option<&Condition>)> {
+    match &ability.effect {
+        Effect::Replacement(def) => Some((def, None)),
+        Effect::Conditional(condition, inner) => match &**inner {
+            Effect::Replacement(def) => Some((def, Some(condition))),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Does `def`, from `source` under `controller`, apply to `player`'s mana
+/// from `producer` (CR 106.6a, 106.12b)? [`def_applies`], asked of a
+/// production nobody has proposed: `oracle::mana_supply` reads what a tap
+/// would make before the window opens. The cause is the producing ability's
+/// controller, as `resolve_mana_effect`'s resolution makes it.
+pub(crate) fn applies_to_production(
+    game: &GameState,
+    def: &ReplacementDef,
+    source: ObjectId,
+    controller: PlayerId,
+    player: PlayerId,
+    producer: ObjectId,
+    tapped_for_mana: bool,
+) -> bool {
+    let action = GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana };
+    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause: Some(player), frame: None };
+    def_applies(game, def, source, controller, &proposal)
 }
 
 fn push_if_applicable(

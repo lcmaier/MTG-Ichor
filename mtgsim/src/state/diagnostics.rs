@@ -259,6 +259,47 @@ impl Diagnostics {
         self.dependency_checks.set(checks);
     }
 
+    /// Every row back to `earlier`, a clone taken before an audit's own reads,
+    /// whichever rows they moved. Destructured whole, so a new row is a
+    /// compile error here rather than a debug build's drift.
+    #[cfg(debug_assertions)]
+    pub(crate) fn rewind_to(&self, earlier: &Diagnostics) {
+        let Diagnostics {
+            layer_walks,
+            board_walks,
+            memo_hits,
+            layer_frames,
+            dependency_checks,
+            replacement_gathers,
+            restriction_queries,
+            prevention_allocations,
+            replacement_prompts,
+            max_batch_depth,
+            mana_productions,
+            decisions,
+            priority_decisions,
+            actions_reversed,
+            triggers_placed,
+            trigger_dispatch,
+        } = earlier;
+        self.layer_walks.set(layer_walks.get());
+        self.board_walks.set(board_walks.get());
+        self.memo_hits.set(memo_hits.get());
+        self.layer_frames.set(layer_frames.get());
+        self.dependency_checks.set(dependency_checks.get());
+        self.replacement_gathers.set(replacement_gathers.get());
+        self.restriction_queries.set(restriction_queries.get());
+        self.prevention_allocations.set(prevention_allocations.get());
+        self.replacement_prompts.set(replacement_prompts.get());
+        self.max_batch_depth.set(max_batch_depth.get());
+        self.mana_productions.set(mana_productions.get());
+        self.decisions.set(decisions.get());
+        self.priority_decisions.set(priority_decisions.get());
+        self.actions_reversed.set(actions_reversed.get());
+        self.triggers_placed.set(triggers_placed.get());
+        self.trigger_dispatch.set(trigger_dispatch.get());
+    }
+
     pub fn layer_frames(&self) -> u64 {
         self.layer_frames.get()
     }
