@@ -20,7 +20,7 @@ mod games;
 use std::path::Path;
 
 use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
-use devgui::editor::{EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
+use devgui::editor::{BoardNumber, EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
 use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
     Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
@@ -302,6 +302,18 @@ const EDITOR_CLICKS: usize = 200;
 /// What a person types into the search, now and then.
 const QUERIES: [&str; 6] = ["", "bear", "of", "forest", "thalia", "x"];
 
+/// What a person types into the advanced settings' field, now and then: lines
+/// the grammar reads, one it refuses, and one that says nothing.
+const TYPED_LINES: [&str; 7] = [
+    "player 1: poison 3",
+    "player 0: energy 2, lands played 1",
+    "player 1: left the game",
+    "player 0 this turn: spells cast 1",
+    "battlefield: Grizzly Bears | controller 0",
+    "player 0: poison three",
+    "# a comment",
+];
+
 /// From an empty board and from the samples (a Commander table, a board
 /// with every word, setup actions), anything the editor offers, clicked at
 /// random (`setup-architecture.md` §8).
@@ -318,18 +330,38 @@ fn random_clicks_build_boards_in_the_editor() {
             edit_at_random(text, 10 * b as u64 + seed, &mut reached);
         }
     }
-    let EditorReached { named, refused, accepted, undone } = reached;
+    let EditorReached { named, refused, accepted, undone, ref advanced } = reached;
     assert!(named > 0 && refused > 0 && accepted > 0 && undone > 0, "named {named}, refused {refused}, accepted {accepted}, undone {undone}");
+    assert!(ADVANCED.iter().all(|control| advanced.contains(control)), "the advanced settings' clicks reached only {advanced:?}");
 }
 
 /// What the editor's clicks reached: a card named by a click on it, boards
-/// the loader refused and accepted, and Undo taken along the way.
+/// the loader refused and accepted, Undo taken along the way, and each of
+/// the advanced settings' controls.
 #[derive(Default)]
 struct EditorReached {
     named: usize,
     refused: usize,
     accepted: usize,
     undone: usize,
+    advanced: Vec<&'static str>,
+}
+
+/// The advanced settings' controls, as `advanced_control` names them.
+const ADVANCED: [&str; 7] = ["the switch", "a line typed", "a line added", "lands played", "a player counter", "commander damage", "left the game"];
+
+/// The advanced settings' control a click sending `input` is on.
+fn advanced_control(input: &EditorInput) -> Option<&'static str> {
+    Some(match input {
+        EditorInput::Advanced(_) => "the switch",
+        EditorInput::TypedLine(_) => "a line typed",
+        EditorInput::AddTypedLine => "a line added",
+        EditorInput::Number(BoardNumber::LandsPlayed(_), _) => "lands played",
+        EditorInput::Number(BoardNumber::PlayerCounter(..), _) => "a player counter",
+        EditorInput::Number(BoardNumber::CommanderDamage { .. }, _) => "commander damage",
+        EditorInput::LeftTheGame(..) => "left the game",
+        _ => return None,
+    })
 }
 
 fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
@@ -340,10 +372,14 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
         let groups = editor_clicks(&editor.view(), &mut rng);
         let group = &groups[rng.random_range(0..groups.len())];
         let input = group[rng.random_range(0..group.len())].clone();
-        let state = |e: &Editor| (e.board().clone(), e.editing, e.picking, e.chosen, e.search().query().to_string());
+        let typed = |e: &Editor| e.view().typed_line.map(|typed| (typed.line.to_string(), typed.refusal.map(str::to_string)));
+        let state = |e: &Editor| (e.board().clone(), e.editing, e.picking, e.chosen, e.search().query().to_string(), e.advanced, typed(e));
         let before = state(&editor);
         reached.named += usize::from(editor.picking.is_some() && matches!(input, EditorInput::Card(_)));
         reached.undone += usize::from(input == EditorInput::Undo);
+        if let Some(control) = advanced_control(&input).filter(|control| !reached.advanced.contains(control)) {
+            reached.advanced.push(control);
+        }
         editor.input(input.clone());
         assert_ne!(state(&editor), before, "seed {seed}, click {click}: {input:?} changed nothing in\n{}", editor.text());
         let read = Scenario::parse(&editor.board().to_string()).unwrap();
@@ -360,7 +396,8 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
 /// What `app::draw` lets a person click in the editor, besides Play and
 /// Save, which are the session's, in groups so the long list of names does
 /// not crowd out the board: the game's facts, the seats, the cards, the card
-/// being edited, the lines shown as text, the search, and Undo.
+/// being edited, the lines shown as text, the search, the advanced settings'
+/// switch and typed field, and Undo.
 fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     let live = |buttons: &mut dyn Iterator<Item = &EditButton>| -> Vec<EditorInput> {
         buttons.filter(|button| button.live).map(|button| button.input.clone()).collect()
@@ -373,6 +410,10 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     for seat in &view.seats {
         seats.extend(stepped(&seat.life, rng));
         seats.extend(seat.words.iter().map(|word| word.remove.clone()));
+        for row in &seat.rows {
+            seats.extend(live(&mut row.buttons.iter()));
+            seats.extend(row.steppers.iter().flat_map(|stepper| stepped(stepper, rng)));
+        }
         for zone in &seat.zones {
             seats.extend(live(&mut std::iter::once(&zone.put).chain(&zone.shuffled)));
             cards.extend(zone.cards.iter().filter(|card| card.live).map(|card| card.input.clone()));
@@ -387,8 +428,14 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     let mut search = live(&mut view.search.results.iter());
     let queries: Vec<&str> = QUERIES.into_iter().filter(|query| *query != view.search.query).collect();
     search.push(EditorInput::Search(queries[rng.random_range(0..queries.len())].to_string()));
+    let mut advanced = live(&mut std::iter::once(&view.advanced));
+    if let Some(typed) = &view.typed_line {
+        let lines: Vec<&str> = TYPED_LINES.into_iter().filter(|line| *line != typed.line).collect();
+        advanced.push(EditorInput::TypedLine(lines[rng.random_range(0..lines.len())].to_string()));
+        advanced.extend(live(&mut std::iter::once(&typed.add)));
+    }
     let undo = live(&mut std::iter::once(&view.undo));
-    [facts, seats, cards, card, texts, search, undo].into_iter().filter(|group| !group.is_empty()).collect()
+    [facts, seats, cards, card, texts, search, advanced, undo].into_iter().filter(|group| !group.is_empty()).collect()
 }
 
 /// A stepper's live "−" and "+", and a number typed near its own.
