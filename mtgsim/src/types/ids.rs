@@ -80,6 +80,12 @@ impl ObjectId {
     pub fn raw(self) -> u64 {
         self.0
     }
+
+    /// An id a trace wrote, read back: the store of the game that wrote it
+    /// minted it, so it names the same object in that game.
+    pub(crate) fn from_trace(raw: u64) -> ObjectId {
+        ObjectId(raw)
+    }
 }
 
 impl std::fmt::Display for ObjectId {

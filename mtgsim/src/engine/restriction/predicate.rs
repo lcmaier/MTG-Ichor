@@ -71,6 +71,18 @@ pub(crate) enum ProhibitedBy {
     RegisteredEffect,
 }
 
+impl ProhibitedBy {
+    /// How the trace's `pipeline` record names it: which kind of restriction,
+    /// and its words, which a registered effect leaves to its source.
+    pub(crate) fn as_recorded(self) -> (&'static str, Option<&'static str>) {
+        match self {
+            ProhibitedBy::Keyword(keyword) => ("keyword", Some(crate::ui::display::keyword_name(keyword))),
+            ProhibitedBy::StaticAbility(words) => ("static_ability", Some(words)),
+            ProhibitedBy::RegisteredEffect => ("registered_effect", None),
+        }
+    }
+}
+
 /// CR 101.2 — is this prohibited right now?
 ///
 /// The one reader of every restriction. Returns `true` when *any* source

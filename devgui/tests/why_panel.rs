@@ -188,6 +188,6 @@ fn the_first_section_says_what_the_question_offers_and_why_not() {
     session.input(Input::Why(BoardRef::Player(0)));
     let view = answered(&mut session, "Player 0");
     assert_eq!(view.sections.len(), 1, "a player has only the question's section");
-    line(&view, "Not among the options Player 0 is offered here.");
+    line(&view, "Not among the options: the question ranges over the creatures Player 0 controls that can block, and what each can block.");
     assert!(view.back, "back to Wall of Stone");
 }

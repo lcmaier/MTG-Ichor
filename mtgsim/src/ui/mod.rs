@@ -9,4 +9,5 @@ pub mod auto_payer;
 pub mod full_control;
 pub mod auto_yield;
 pub mod replay;
+pub mod what_happened;
 pub mod why;

@@ -4,39 +4,49 @@
 //! The facts are the engine's: what the layers did to an object comes from
 //! `engine::layers::explain`, the pass itself recorded, and why an option is
 //! not offered comes from the checks the enumeration builds the options by.
-//! This module words them, a line at a time, each line with the rule it rests
-//! on and the objects it names. A client lays the lines out and links each
-//! name to that object's own why, and draws no case per mechanic.
+//! What happened, and why two questions offer what they do, are read from a
+//! replay's trace (`ui::what_happened`). This module words them, a line at a
+//! time, each line with the rule it rests on and the objects it names. A
+//! client lays the lines out and links each name to that object's own why,
+//! and draws no case per mechanic.
 
 use std::collections::HashSet;
 
 use crate::engine::combat::validation::{can_block, CombatError};
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
 use crate::engine::layers::{compute_characteristics, explain, AppliedBy, LayerStep, StepResult};
+use crate::engine::replacement::{auxiliary_zone, not_an_opponent, not_auxiliary, NotAnOpponent, NotAuxiliary};
+use crate::events::event::EventSeq;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controls, get_effective_abilities, is_creature};
 use crate::oracle::legality::{can_attack, can_play_land};
 use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
+use crate::state::trace::{RecordKind, TraceRecord};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
+use crate::types::effects::Effect;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
+use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
-    cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, keyword_name, named,
-    option_label, player_name, rejection_words, type_line, Declaring,
+    cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
+    named, option_label, player_name, rejection_words, type_line, Declaring,
 };
+use crate::ui::what_happened::{cant_words, trigger_lines, what_happened, WHAT_HAPPENED};
 
-/// What a why is about: an object, or a player.
+/// What a why is about: an object, a player, or a performed event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WhyAbout {
     Object(ObjectId),
     Player(PlayerId),
+    /// An event, by its place in the performed stream: the trace's `index`.
+    Event(EventSeq),
 }
 
 /// The question open where a why is asked: whom it asks, what, and the
@@ -75,66 +85,110 @@ pub struct WhyLine {
 }
 
 impl WhyLine {
-    fn new(text: impl Into<String>) -> WhyLine {
+    pub(crate) fn new(text: impl Into<String>) -> WhyLine {
         WhyLine { text: text.into(), rule: None, names: Vec::new(), depth: 0 }
     }
 
-    fn under(text: impl Into<String>) -> WhyLine {
+    pub(crate) fn under(text: impl Into<String>) -> WhyLine {
         WhyLine { depth: 1, ..WhyLine::new(text) }
     }
 
-    fn rule(self, rule: &'static str) -> WhyLine {
+    pub(crate) fn rule(self, rule: &'static str) -> WhyLine {
         WhyLine { rule: Some(rule), ..self }
     }
 
-    fn naming(self, game: &GameState, ids: &[ObjectId]) -> WhyLine {
+    pub(crate) fn naming(self, game: &GameState, ids: &[ObjectId]) -> WhyLine {
         WhyLine { names: ids.iter().map(|&id| (id, named(game, id))).collect(), ..self }
     }
 }
 
 /// Why `about` is the way it is now: whether the open question offers it,
 /// and, for an object, what the layers did to it, from what it prints to what
-/// it has.
+/// it has. What an event did is read from a trace, [`why_from_trace`]'s.
 pub fn why(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>) -> Why {
+    answer(game, about, at, None)
+}
+
+/// [`why`] with the trace of a game replayed to the open question, or to its
+/// end: what an event did, and what the trace says at the two questions whose
+/// options it explains, the choice of a replacement effect (CR 616.1) and the
+/// order of triggered abilities (CR 603.3b).
+pub fn why_from_trace(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>, trace: &[TraceRecord]) -> Why {
+    answer(game, about, at, Some(trace))
+}
+
+/// Whether a why at a question of this kind reads the trace, so that a client
+/// asks it of a replay rather than of the seat.
+pub fn read_from_the_trace(kind: &ChoiceKind) -> bool {
+    matches!(kind, ChoiceKind::ChooseReplacementEffect { .. } | ChoiceKind::OrderTriggers { .. })
+}
+
+fn answer(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>, trace: Option<&[TraceRecord]>) -> Why {
     match about {
         WhyAbout::Object(id) => {
             let mut answer = what_the_layers_did(game, id);
             if let Some(question) = at
                 && game.objects.contains_key(&id)
             {
-                answer.sections.insert(0, at_this_question(game, about, question));
+                answer.sections.insert(0, at_this_question(game, about, question, trace));
             }
             answer
         }
         WhyAbout::Player(player) => {
             let section = match at {
-                Some(question) => at_this_question(game, about, question),
+                Some(question) => at_this_question(game, about, question, trace),
                 None => WhySection { heading: AT_THIS_QUESTION.to_string(), lines: vec![WhyLine::new("No question is open.")] },
             };
             Why { title: player_name(player), sections: vec![section] }
+        }
+        WhyAbout::Event(event) => {
+            let Some(trace) = trace else {
+                let lines = vec![WhyLine::new("What an event did is read from the trace of a replay.")];
+                return Why { title: format!("Event {}", event.0), sections: vec![WhySection { heading: WHAT_HAPPENED.to_string(), lines }] };
+            };
+            let mut answer = what_happened(game, event, trace);
+            let replayed = match at {
+                Some(question) => format!(
+                    "Read from a replay to {}'s question, {}: {}",
+                    player_name(question.player),
+                    format_phase(game),
+                    question_words(game, question)
+                ),
+                None => "Read from a replay of the whole game.".to_string(),
+            };
+            if let Some(first) = answer.sections.first_mut() {
+                first.lines.insert(0, WhyLine::new(replayed));
+            }
+            answer
         }
     }
 }
 
 const AT_THIS_QUESTION: &str = "At this question";
 
+/// The question, as `ui::display` asks it.
+fn question_words(game: &GameState, open: &OpenQuestion) -> String {
+    crate::ui::display::question(game, &open.context.kind)
+}
+
 /// Whether the question offers `about`, and as what; if it offers it nothing,
 /// why, on each tier: never offered, by the checks the options were built by,
 /// or offered and then reversed (CR 732.1).
-fn at_this_question(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> WhySection {
+fn at_this_question(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> WhySection {
     let asked = player_name(question.player);
-    let mut lines = vec![WhyLine::new(format!("{asked}: {}", crate::ui::display::question(game, &question.context.kind)))];
+    let mut lines = vec![WhyLine::new(format!("{asked}: {}", question_words(game, question)))];
     let offered: Vec<&ChoiceOption> = question.options.iter().filter(|option| names(option, about)).collect();
     if !offered.is_empty() {
         lines.push(WhyLine::new(format!("Offered to {asked}:")));
         lines.extend(offered.iter().map(|option| WhyLine::under(option_label(game, option)).naming(game, &option_objects(option))));
     }
-    let refused = refusals(game, about, question);
+    let refused = refusals(game, about, question, trace);
     if !refused.is_empty() {
         lines.push(WhyLine::new(format!("Never offered to {asked}:")));
         lines.extend(refused);
     } else if offered.is_empty() {
-        lines.push(WhyLine::new(format!("Not among the options {asked} is offered here.")));
+        let (range, rule) = ranges_over(game, &question.context.kind, question.player);
+        lines.push(WhyLine { rule, ..WhyLine::new(format!("Not among the options: the question ranges over {range}.")) });
     }
     if let Some(rejected) = &question.context.rejected
         && rejection_names(rejected, about)
@@ -154,6 +208,8 @@ fn names(option: &ChoiceOption, about: WhyAbout) -> bool {
             option,
             ChoiceOption::Player(named) | ChoiceOption::AttackerTarget(_, AttackTarget::Player(named)) if *named == player
         ),
+        // No option is an event: a question chooses among what is now.
+        WhyAbout::Event(_) => false,
     }
 }
 
@@ -193,11 +249,20 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 }
 
 /// Why each thing `about` could be at this question is not offered, from the
-/// check the options were built by. The priority question, the two
-/// declarations and CR 601.2g's window have such checks; at every other
-/// question the options come from a filter of the question's own, with no
-/// typed reason yet (`codebase-state.md` item 212), and a target's are RS-2's.
-fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<WhyLine> {
+/// check or the filter the options were built by. Every kind answers here,
+/// with no wildcard, and a kind with no line for `about` leaves it to
+/// [`ranges_over`]: what the question ranges over, which is then not `about`.
+///
+/// The priority question, the two declarations and CR 601.2g's window ask
+/// their checks; three kinds ask their filters, the opponents an entering
+/// permanent may go to, an entry's auxiliary move and a copy effect's donor;
+/// and two read the trace, when a replay has one: the effects a CR 616.1
+/// choice has applied already, and the triggered abilities asked about the
+/// events an ordering's abilities triggered on. The other filtered kinds'
+/// reasons are their owners': a target's RS-2's, X's and the generic split's
+/// MA-2's, a sacrifice's CP-2's (`setup-architecture.md` §8).
+fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
+    let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {
         (ChoiceKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
         (ChoiceKind::DeclareAttackers, WhyAbout::Object(id)) => {
@@ -218,6 +283,23 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<W
         }
         (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
         (ChoiceKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
+        (ChoiceKind::ChooseEnteringController { .. }, WhyAbout::Player(player)) => {
+            let reason = not_an_opponent(game, question.player, player).map(|reason| match reason {
+                NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
+                NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
+            });
+            reason.map(|reason| refusal("To control it", reason)).into_iter().collect()
+        }
+        (ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
+            auxiliary_refusal(game, question.player, (*entering, *source, *to), id).into_iter().collect()
+        }
+        (ChoiceKind::ChooseCopySource { source }, WhyAbout::Object(id)) if !offered => vec![copy_refusal(game, *source, id)],
+        (ChoiceKind::ChooseReplacementEffect { .. }, WhyAbout::Object(id)) if !offered => {
+            trace.map(|trace| applied_already(game, trace, id)).unwrap_or_default()
+        }
+        (ChoiceKind::OrderTriggers { .. }, WhyAbout::Object(id)) if !offered => {
+            trace.map(|trace| asked_about_these_events(game, trace, id)).unwrap_or_default()
+        }
         (
             ChoiceKind::PriorityAction
             | ChoiceKind::DeclareAttackers
@@ -249,6 +331,178 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<W
             _,
         ) => Vec::new(),
     }
+}
+
+/// What a question ranges over, said to a why about something it does not
+/// offer, and the rule; one arm per kind and no wildcard, so a new kind says
+/// at birth what it asks about.
+fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String, Option<&'static str>) {
+    let n = |id: &ObjectId| named(game, *id);
+    let who = player_name(asked);
+    match kind {
+        ChoiceKind::PriorityAction => (
+            format!("the lands {who} can play, the spells {who} can cast, the abilities {who} can activate, and passing"),
+            Some("117.1"),
+        ),
+        ChoiceKind::DeclareAttackers => (format!("the creatures {who} controls that can attack, and what each can attack"), Some("508.1a")),
+        ChoiceKind::DeclareBlockers => (format!("the creatures {who} controls that can block, and what each can block"), Some("509.1a")),
+        ChoiceKind::AssignCombatDamage { attacker_id } => {
+            (format!("how {}'s combat damage is divided among the creatures blocking it", n(attacker_id)), Some("510.1c"))
+        }
+        ChoiceKind::AssignTrampleDamage { attacker_id, .. } => (
+            format!("how {}'s combat damage is divided among the creatures blocking it and what it attacks", n(attacker_id)),
+            Some("702.19b"),
+        ),
+        ChoiceKind::ChooseXValue { spell_id, .. } => (format!("the value of X for {}", n(spell_id)), Some("601.2b")),
+        ChoiceKind::ChooseAlternativeCost { spell_id } => {
+            (format!("whether {} is cast for its mana cost or for an alternative cost", n(spell_id)), Some("118.9"))
+        }
+        ChoiceKind::ChooseAdditionalCosts { spell_id } => {
+            (format!("which of {}'s optional additional costs are paid", n(spell_id)), Some("118.8"))
+        }
+        ChoiceKind::SelectRecipients { spell_id, .. } => {
+            (format!("the objects and players {} may target or choose", n(spell_id)), Some("601.2c"))
+        }
+        ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => {
+            (format!("the mana in the pool that pays the generic part of {}'s cost", n(spell_or_ability_id)), Some("601.2h"))
+        }
+        ChoiceKind::OrderCostReductions { spell_id } => {
+            (format!("the order the cost reductions apply to {} in", n(spell_id)), Some("601.2f"))
+        }
+        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
+            (format!("the mana abilities {who} can activate to pay for {}", n(spell_or_ability_id)), Some("601.2g"))
+        }
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => {
+            (format!("the permanents {who} controls that can be sacrificed to pay for {}", n(spell_or_ability_id)), Some("701.21a"))
+        }
+        ChoiceKind::ChooseReplacementEffect { .. } => (
+            "the replacement and prevention effects that apply to the event, from the first step of CR 616.1's order that has any"
+                .to_string(),
+            Some("616.1"),
+        ),
+        ChoiceKind::OrderTriggers { .. } => {
+            (format!("{who}'s triggered abilities that triggered together, in the order they go on the stack"), Some("603.3b"))
+        }
+        ChoiceKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
+        ChoiceKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
+        ChoiceKind::AllocateNextDamage { source, remaining } => {
+            (format!("the damage {}'s effect prevents, {remaining} at most", n(source)), Some("615.7"))
+        }
+        ChoiceKind::ChooseDamageSource { source } => {
+            (format!("every permanent and every spell on the stack, as the source {} names", n(source)), Some("609.7a"))
+        }
+        ChoiceKind::ChooseEnteringController { object } => {
+            (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
+        }
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
+            (format!("the objects {}'s effect may move as {} enters", n(source), n(entering)), Some("614.13a"))
+        }
+        ChoiceKind::ChooseCopySource { source } => (format!("the permanents {}'s effect may copy", n(source)), None),
+        ChoiceKind::CommanderToCommandZoneSba { commander } => {
+            (format!("whether {} goes to the command zone", n(commander)), Some("903.9a"))
+        }
+        ChoiceKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
+        ChoiceKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
+        ChoiceKind::ScryOrder { bottom, .. } => {
+            let pile = if *bottom { "bottom" } else { "top" };
+            (format!("the order of the cards going on the {pile}"), Some("701.22a"))
+        }
+        ChoiceKind::LegendRule { legend_name } => {
+            (format!("the permanents named {legend_name} {who} controls, one of which stays"), Some("704.5j"))
+        }
+    }
+}
+
+/// At CR 614.13a's choice: why `id` may not be moved as `entering` enters, by
+/// the check the candidates were built by, read off `source`'s effect.
+fn auxiliary_refusal(game: &GameState, you: PlayerId, (entering, source, to): (ObjectId, ObjectId, Zone), id: ObjectId) -> Option<WhyLine> {
+    let moved = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
+        Effect::Replacement(def) => match &def.rewrite {
+            Rewrite::EnterAfterMoving(aux) if aux.to == to => Some(aux.clone()),
+            _ => None,
+        },
+        _ => None,
+    })?;
+    let reason = if id == entering {
+        Some(NotAuxiliary::Entering)
+    } else if !auxiliary_zone(game, &moved, you).is_ok_and(|zone| zone.contains(&id)) {
+        let zone = match moved.from {
+            Zone::Battlefield => "on the battlefield".to_string(),
+            from => format!("in {}'s {from:?}", player_name(you)),
+        };
+        return Some(refusal("To be moved", (format!("it is not {zone}, where the effect chooses from"), None)));
+    } else {
+        not_auxiliary(game, &moved, you, id)
+    };
+    let words = match reason? {
+        NotAuxiliary::Entering => ("it is entering the battlefield in this event".to_string(), Some("614.13a")),
+        NotAuxiliary::AlreadyChosen => ("an entry earlier in this event chose it already".to_string(), Some("614.13b")),
+        NotAuxiliary::NotMatched => (format!("it is not what {}'s effect chooses", named(game, source)), None),
+        NotAuxiliary::Prohibited(cant) => {
+            let (by, words) = cant.by.as_recorded();
+            (format!("a “can't” forbids it: {}", cant_words(game, cant.source, by, words)), Some("101.2"))
+        }
+    };
+    Some(refusal("To be moved", words))
+}
+
+/// At a copy effect's choice of donor: a permanent its filter does not admit,
+/// in the effect's own words, or what is not a permanent at all.
+fn copy_refusal(game: &GameState, source: ObjectId, id: ObjectId) -> WhyLine {
+    if !game.battlefield.contains_key(&id) {
+        return refusal("To be copied", ("it is not a permanent on the battlefield".to_string(), None));
+    }
+    let entering = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
+        Effect::Replacement(def) if def.class == ReplacementClass::CopyAsEnters => Some(ability.rules_text.words),
+        _ => None,
+    });
+    // AS PRINTED: a resolving spell's words, for a line no rule reads.
+    let resolving = || {
+        let card = &game.objects.get(&source)?.card_data;
+        card.abilities.iter().find(|ability| ability.ability_type == AbilityType::Spell).map(|ability| ability.rules_text.words)
+    };
+    let words = match entering.or_else(resolving) {
+        Some(words) if !words.is_empty() => format!("it is not what {}'s effect may copy: “{words}”", named(game, source)),
+        _ => format!("it is not what {}'s effect may copy", named(game, source)),
+    };
+    refusal("To be copied", (words, None))
+}
+
+/// At a CR 616.1 choice, from the trace: what this batch's earlier iterations
+/// did with `id`'s effects, each of which gets one chance at an event.
+fn applied_already(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
+    let Some(batch) = game.events.current_stamp().batch else { return Vec::new() };
+    let iterations = trace.iter().filter(|r| r.kind == RecordKind::Pipeline && r.u64("batch") == Some(batch.0));
+    iterations
+        .filter_map(|record| {
+            let mine = record.items("candidates").iter().find(|c| c.get("source").and_then(|s| s.as_u64()) == Some(id.raw()))?;
+            let chosen = mine.get("id").and_then(|i| i.as_str()) == record.str("choice");
+            let iteration = record.u64("iteration").unwrap_or_default();
+            let what = match (chosen, record.str("optional")) {
+                (true, Some("declined")) => format!("its effect was declined at iteration {iteration}"),
+                (true, _) => format!("its effect applied at iteration {iteration}"),
+                (false, _) => return None,
+            };
+            Some(refusal("To apply again", (format!("{what}, and an effect gets one chance at an event"), Some("614.5"))))
+        })
+        .collect()
+}
+
+/// At CR 603.3b's ordering, from the trace: what `id`'s triggered abilities
+/// answered when asked about the events the queued abilities triggered on.
+fn asked_about_these_events(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
+    let bound: Vec<u64> =
+        game.pending_triggers.iter().flat_map(|t| t.binding.records.iter().map(|r| r.seq.0 as u64)).collect();
+    trace
+        .iter()
+        .filter(|r| r.kind == RecordKind::Trigger && r.u64("source") == Some(id.raw()))
+        .filter(|r| r.u64("record").is_some_and(|record| bound.contains(&record)))
+        .flat_map(|r| {
+            let event = trace.iter().find(|e| e.kind == RecordKind::Event && e.u64("index") == r.u64("record"));
+            let asked = WhyLine::under(format!("Asked about: {}", event.and_then(|e| e.str("text")).unwrap_or("an event")));
+            std::iter::once(asked).chain(trigger_lines(game, trace, r).into_iter().map(|line| WhyLine { depth: line.depth + 1, ..line }))
+        })
+        .collect()
 }
 
 /// At a priority question: a card is played if it is a land and cast if it
