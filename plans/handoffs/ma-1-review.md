@@ -2,8 +2,8 @@
 
 The owner's review of [PR #225](https://github.com/lcmaier/MTG-Ichor/pull/225),
 2026-10-06, captured before anything was fixed (`engineering-practices.md` §4).
-Thirteen inline comments and four requests, numbered in the order they were
-asked and indexed at the bottom. **Close one theme per session, starting cold
+Thirteen inline comments and four requests in round 1, eleven more in round
+2, numbered in the order they were asked and indexed at the bottom. **Close one theme per session, starting cold
 from this file**, and delete it in the PR that lands the last one.
 
 Theme A lands on #225 before the merge, because a rename after it is a second
@@ -149,6 +149,15 @@ group, `useful_copies`). Two options:
 
 Recommended: the fold now, and D1; D2 if C makes the choices more common.
 
+**Round 2 (#26) moves the recommendation to D2.** Leaves multiply across
+*distinct* choice entries, not within one: Mana Reflection makes every land a
+choice entry, and a three-color cost against ten different duals that each
+make one asked color is 2^10 = 1,024 leaves, about 150,000 instructions a
+check, several checks a priority point. Nyxbloom Ancient and Virtue of
+Strength do the same, and Nyxbloom is a Commander staple. Measure it first on
+a constructed board (a multiplier and fifteen distinct duals), with D1's
+counter, then build D2 and read the board again.
+
 ---
 
 ## E — the audit's un-count (#13)
@@ -216,10 +225,76 @@ where today it needs a fifth whole-list shape. `PoolMultiplier` keeps the
 demand transform, which is general in its factor; the Cube is its one printed
 card, and the arm is named for the mechanism.
 
+**Round 2's inputs.**
+- **Conditions inside the window (#20).** 35 printed mana abilities say
+  "Activate only if" (`o:/: add [^.]*\. activate only if/`), 23 of them "if
+  you control" (Mox Opal's metalcraft, the Verges). The engine cannot express
+  them yet (`ActivationRestriction` has sorcery timing alone; CR 602.5's
+  conditions are `permission-architecture.md`'s). When it can, the reader
+  reads them, and so does the order inside one window: a sacrifice outlet
+  can turn Mox Opal off, so Opal taps first. The action's own costs cannot
+  interact with them: they are paid at 601.2h, after the window. No printed
+  mana ability has a life-total condition.
+- **A life budget (#20).** Mana Confluence's life and an action's "pay N
+  life" draw on one total (CR 119.4), as fodder does.
+- **Sorcery timing.** Grinning Ignus is the one printed mana ability with
+  "Activate only as a sorcery"; the reader does not read
+  `ActivationRestriction` at all.
+- **An outlet need not be its own fodder (#18).** The code never assumed it;
+  the comment did, and `an_outlet_that_is_not_its_own_fodder_counts_only_its_fodder`
+  now holds the case (Ashnod's Altar's shape), shown to fail with every outlet
+  made its own fodder.
+
 **For the owner:** on #225 before the merge (past the 2,500 band, which the
 PR body would then report), or as its own PR off `main` before MA-2. Size: about
 200–300 lines of code and 200 of tests, with one fixture card per cost kind
 the pool can register.
+
+---
+
+## Round 2 (2026-10-06)
+
+Answered in the reply, with what each changed:
+
+| # | Disposition |
+|---|---|
+| 18 | **Fixed**: the outlet's comment claimed too much; a test holds the case (theme C's inputs) |
+| 19 | **Kept, the comment shows its sum**: CR 701.10f doubles mana by adding as much again, and the Cube's {T} makes it a tap for mana (106.12), which Mana Reflection doubles and Nyxbloom Ancient triples (their rulings), so a pool of n ends at 3n or 4n |
+| 20 | **Answered** (theme C's inputs) |
+| 21 | **Fixed**: `pays` is three named steps with a worked example |
+| 22 | **Answered**: the color toggle orders *which* payment a person's seat makes (MA-6's solver, over the inventory's entries); the split answers *whether* one exists and is not consulted |
+| 23 | **Fixed for this module**: `oracle::board::permanents_controlled_by` was the helper, unused by the engine and slow; it takes `permanents_of`'s fast path and the inventory calls it. Theme H routes the rest |
+| 24 | **Defined** where it first appears; a rename is the owner's call |
+| 25 | **Answered**: refused because no payment path pays them, and the check must agree with the payment (`cost-architecture.md` §3.6); each family's price is in §4, the worst a 3.6K bound a cost, and a hybrid pip is Hall's own case |
+| 26 | **Answered**; theme D's recommendation moves to D2 |
+| 27 | **Answered**: the transportation form of the marriage theorem; flow by augmenting paths gives the same answer at more cost, and is kept for MA-6's solver, which needs the assignment |
+| 28 | **Theme H** |
+
+---
+
+## H — one helper per board query (#23, #28)
+
+**The permanents a player controls** were built in six places: `oracle::board`'s
+helper, the inventory's copy, and inline loops in `legality.rs`
+(`legal_blockers`), `engine/costs.rs`, `engine/turns.rs` and `ui/why.rs`.
+Round 2 made the helper the fast one and the inventory its caller; the four
+loops are left.
+
+**A sizing scan for the rest** (`dupes.py` in the session's scratchpad: token
+5-grams over the 1,058 non-test functions of 60 tokens or more): 27 pairs of
+near-copies and 7 of one shape with different names. Most are card
+definitions, which resemble each other by design. About eight are engine
+candidates: `static_replacement`, byte-identical in three card files;
+`intrinsic_mana_ability` (layers) beside `mana_ability_single` (card data);
+`ManaPool::can_pay` beside `can_pay_with_context`; two pairs of prompt wrappers
+in `ui/ask.rs`. A scan of text cannot see a copy written differently, as the
+permanents were; that takes a grep per concept.
+
+**Recommended: no new audit.** Item 6's close audit (`roadmap-v2.md` A6e,
+already on the route) has a hygiene pass; the scan joins it as an instrument,
+with a concept grep for the common board queries (a player's permanents,
+creatures, opponents, untapped lands). The handful above is one small PR,
+in that pass or sooner.
 
 ---
 
@@ -244,3 +319,14 @@ the pool can register.
 | 15 | the review | names too vague for mana production | A |
 | 16 | the review | an explainer, and how to know it is understood | F |
 | 17 | the review | the performance impact | G |
+| 18 | `mana_supply.rs:170` | an outlet is not always its own fodder | C, fixed |
+| 19 | `mana_supply.rs:183` | the factor's 4 under Nyxbloom Ancient | kept, shown |
+| 20 | `mana_supply.rs:201` | costs that interact with the mana | C |
+| 21 | `mana_supply.rs:327` | `pays` cannot be followed | fixed |
+| 22 | `mana_supply.rs:379` | the split and the color toggle | answered |
+| 23 | `mana_supply.rs:700` | a player's permanents already had a helper | H |
+| 24 | `mana_supply.rs:743` | what a watcher is | defined |
+| 25 | `mana_supply.rs:1103` | hybrid, Phyrexian, {S} and X left for later | answered |
+| 26 | `mana_supply.rs:1163` | why 4,096, and its cost | D |
+| 27 | `mana_supply.rs:1205` | Hall's theorem, and the alternatives | answered |
+| 28 | the review | an audit for functional copies | H |
