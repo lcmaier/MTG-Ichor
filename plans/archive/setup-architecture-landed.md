@@ -10,6 +10,133 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
+
+*Evicted 2026-10-06 from `plans/setup-architecture.md` §8, where the heading and a stub remain.*
+
+### The build as sized (2026-10-05, at #220; amended 2026-10-06)
+
+**The engine, ~190–295.**
+- the reader of the sink's lines, ~90–130;
+- `is_prohibited`'s form that names the restriction, and the `pipeline`
+  record's field, ~25–45;
+- the why's sections for an event and for an object's triggers, ~70–110;
+- item 210's fix, ~5–10;
+- **every question kind's line, ~80–140** (`codebase-state.md` item 212's
+  census, the owner, 2026-10-05). `ui::why::refusals` matches every
+  `ChoiceKind` without a wildcard. Four kinds already answer: the priority
+  question and the two declarations (SU-7), and CR 601.2g's mana window, which
+  MA-1 built (`mana-architecture.md` §3.13; amended 2026-10-06, since this
+  line had it landing with item 162's build). Each kind says what it ranges
+  over, so a why asked about anything else says the question does not range
+  over it. Two kinds are answered from the trace: `ChooseReplacementEffect`'s
+  candidates, from the `pipeline` record, and `OrderTriggers`', from the
+  `trigger` records. Three get a reason from their own filter:
+  `ChooseEnteringController` (CR 800.4a), `ChooseAuxiliaryZoneChange` (CR
+  614.13a and 101.2) and `ChooseCopySource` (the copy effect's filter). The
+  other filtered kinds' reasons land with their owners: `SelectRecipients`
+  with RS-2; `ChooseXValue` and `GenericManaAllocation` with MA-2
+  (`mana-architecture.md` §3.13); `ChooseSacrificeForCost` with
+  `cost-architecture.md` CP-2. The rest say only what they range over.
+  `plans/references/cast-census.md` §9 has the table, read off the enum and
+  asserted against it. `refusals`' doc comment still cites item 212, now
+  closed, and this PR rewrites it.
+
+**The dev GUI, ~110–180.**
+- the replay thread for a question about then, with its stop and its
+  supersession, ~70–110;
+- each log line's event number in the snapshot, and the right-click on it,
+  ~30–50;
+- the sections drawn, ~10–20.
+
+**Tests, ~150–230.**
+- the reader's round trip against every record kind;
+- an event's batch read back on `bolt-into-giant-growth.scenario`;
+- a "can't" named: an indestructible creature with lethal damage;
+- a trigger refused by its intervening "if";
+- in the headless tests, the replay stopping at the open question;
+- every `ChoiceKind` answers a why without panicking, and a departed
+  player is named as the reason at `ChooseEnteringController`, ~30–50.
+
+**A/B.** No record is written in a fuzz game unless `--trace` asks for it.
+Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
+`--trace`, the `pipeline` record's new field is the only change in its text.
+
+**In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
+#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606. SU-8, as
+sized above, is ~380–615 more and ~180–280 of tests; item 212's census added
+the question kinds' lines (~80–140 and ~30–50).
+
+### Sized against built
+
+Lines added, a `src` file's `#[cfg(test)]` module and `devgui/examples/`
+counted as tests, read off the PR's last code commit (`8bfeb01`): each file's
+additions in the whole diff, split by part where a file holds two.
+
+| Part | Where | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---|---:|---:|---:|---:|
+| The reader of the sink's lines, and `RecordKind` | `state/trace.rs`, `engine/trace_records.rs` | 90–130 | 368 | | 47, the round trip |
+| `prohibition`, and the `pipeline` record's field | `restriction/predicate.rs`, `restriction/mod.rs`, `replacement/pipeline.rs` | 25–45 | about 87 | | |
+| The why's sections for an event and the triggers asked about it | `ui/what_happened.rs`, `ui/why.rs`, `types/ids.rs`, `ui/mod.rs` | 70–110 | about 323 | | |
+| Every question kind's line, and the three filters made shared checks | `ui/why.rs`, `replacement/pipeline.rs`, `replacement/mod.rs` | 80–140 | about 284 | | |
+| Item 210's fix | `replacement/pipeline.rs` | 5–10 | 7 | | |
+| A replay's stop handed to it | `ui/replay.rs` | | 6 | | |
+| The replay thread, its stop and its supersession | `devgui/src/why_replay.rs`, `session.rs` | 70–110 | 212 | | |
+| Each log line's event number, the right-click, and who answers which why | `snapshot.rs`, `prompt.rs`, `bridge.rs`, `view_model.rs`, `lib.rs` | 30–50 | 174 | | 54, `view_model.rs`' tests |
+| The sections drawn | `app.rs` | 10–20 | 7 | | |
+| The engine's tests | `phase_su8_integration_test.rs`, `test_support.rs`, SU-7's updated | | | 150–230, with the dev GUI's | 400 |
+| The dev GUI's tests: the replay's headless tests, random clicks, the pictures | `devgui/tests/`, `devgui/examples/` | | | | 150 |
+| **SU-8, the whole diff** | | **380–615** | **1,468** | **180–280** | **651** |
+
+Code ran at 2.4–3.9 times its sizing, past SU-1 to SU-7's 1.0–3.4, and tests
+at 2.3–3.6. The engine ran over most, 1,075 against 190–295, and the dev GUI
+393 against 110–180. What the sizing left out:
+- **The reader is a parser of its own.** No `serde` (main item 141), so it reads
+  the writer's JSON itself, with a value type, typed reads and a kind list the
+  writer shares, where the sizing counted a reader of fields.
+- **Every record a batch writes is worded**: its proposals, each iteration's
+  candidates, "can't"s, choice and results, a batch after it that performed
+  nothing, and each trigger's verdict with where it went. And 27 range lines,
+  three filters made checks the enumeration shares, and two trace readers.
+- **Who answers which why**, in the dev GUI: the seat or a replay, a request
+  number so a newer request supersedes an older one, the panel's waiting
+  state, and a finished game answering through its whole line.
+
+The band stayed under 2,500 at every commit: 2,119 in all.
+
+### What the build changed in the design
+
+1. **A seat stands behind the replay's line** (§7c.1's decision 3, amended
+   where it stands). The why needs the open question's context and options,
+   which only the asking seat holds, so the seat behind the line reads it
+   there and stops the run with `Stop::LogSpent`. `Replay::with_control` takes
+   the stop the window holds before the replay exists.
+2. **A why at CR 616.1's choice or CR 603.3b's order is a replay's too**
+   (decision 3, amended). Their reasons are in the trace, and the seat follows
+   the object there without answering, so each why has one answerer. At CR
+   616.1's choice the trace holds the batch's earlier iterations only, since
+   the open one is written at its exit: a why says what applied already (CR
+   614.5), and the range line says the rest.
+3. **A batch decided after an event that performed nothing is told with it**
+   (decision 4, amended). A destruction a "can't" stopped has no event of its
+   own, so "why didn't it die" is the damage's why.
+4. **`prohibition` names which restriction**, a keyword, a static ability's
+   text or an effect a resolution registered (decision 2's item 4, amended).
+5. **The window marks the request it waits on** (§7c.2's bridge, amended):
+   `ToWindow::WhyFromTrace` carries the request's number, and an answer to any
+   other request is dropped.
+6. **A game that has ended answers through its whole line**, its right-clicks
+   and links live, as §7c.2 said SU-8 would.
+7. **A range line names the player asked**: "the lands Player 0 can play".
+8. **`ChooseCopySource`'s reason is the effect's own words.** Its filter is a
+   `SelectionFilter` the question does not carry, and `validate_selection`
+   answers in engine text; both are RS-2's to type.
+9. **The log is a shade brighter.** egui draws a label that senses a click in
+   its interactive color.
+10. **Found:** the review pictures had not been redrawn since MA-1, whose
+    exact check changed the games they show, and the screenshot test failed on
+    `main` (`codebase-state.md` item 216).
+
 #### SU-7 — why an option is not offered — ✅ landed 2026-10-05
 
 *Evicted 2026-10-05 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with SU-8's sizing beside it.*

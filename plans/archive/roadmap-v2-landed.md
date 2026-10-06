@@ -91,6 +91,16 @@ PRs left, the rule and the scope. The two cells, unchanged.*
 
 **Measured:** every fuzz counter file byte-identical to `main`'s, instructions per decision +0.50%, about 0.10 of it the recorder's checks and the rest code placement (`fuzz-record.md`); on the large board a why at a question 38 µs in release and 1.9 ms in debug, and the panel 1.5 µs a repaint; the dev GUI's CI test step 14.4–15.0 s against `main`'s 28.9–30.9 s, the random clicks playing other games since a why's draw moved their stream (with the draw taken out, `main`'s games in 24.3 s against 27.2 s).
 
+### What happened, from the trace (SU-8), ✅ 2026-10-06 (PR #226)
+
+**Built:** the "why" panel's third part (`setup-architecture.md` §7c, §8). The trace sink's lines read back: `RecordKind`, the one list of what a record is, and `TraceRecord::read`, the writer's inverse over all twelve kinds. `prohibition`, `is_prohibited` naming the "can't" it finds, and the `pipeline` record's `prohibited` list. `why_from_trace`: what an event did, its batch, each CR 616.1 iteration that met an effect or a "can't", a batch after it that performed nothing, and every triggered ability asked about it, matched or refused and by what; every question kind's range line, three filters made shared checks, and two kinds read from the trace. In the dev GUI a log line's right-click, answered by a replay of the window's line with the sink on, stopped at the open question, as a why at CR 616.1's choice or CR 603.3b's order and every why once the game is over are. Item 210 fixed, shown failing first. Tests: the reader's round trip; a "can't" named, and told after the damage; Felidar Sovereign's intervening "if"; the Bolt board's batch; every kind answering; a departed player; devour's filter; an ordering read from the trace; a random game's every event; the replay stopped at the open question, superseded, and from a finished game; a picture, and thirteen redrawn.
+
+**Decided:** at the design (#220, the owner, 2026-10-05); the brief (2026-10-06) set the question kinds' owners: X and the generic split MA-2's, the mana window MA-1's, built. None arose at the build; what it changed is amended where it stands in §7c and listed in the archive's SU-8.
+
+**Sized and built:** ~560–895 lines with tests (`setup-architecture.md` §8); built at +1,468 lines of code and +651 of tests, 1,075 and 447 of them in the engine (`plans/archive/setup-architecture-landed.md`, "SU-8").
+
+**Measured:** every gameplay and cost row identical to `main`'s, instructions per decision −0.10%, and with `--trace` 40 games' traces identical but for the new field (`fuzz-record.md`).
+
 ## A1 — the CR 704.5d token-order leak
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A1 row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*

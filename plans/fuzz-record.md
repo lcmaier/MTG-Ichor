@@ -37,6 +37,31 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-06 for SU-8** (what happened, from the trace;
+`setup-architecture.md` §8's ✅ section). The sink writes nothing unless
+`--trace` asks, so no game moves and no pool changed: the §3 tables stand.
+`close_out.py` against **main** `6b6d61e` (#225's merge), one arm, **engine**
+`8bfeb01`, the last code commit.
+
+**Predictions, before any arm ran** (the PR body): every gameplay and cost row
+`IDENTICAL`, both pools, two seats and four; instructions per decision within
+±0.3%; with `--trace`, the `pipeline` record's new field the only change in a
+trace's text, beside the header's commit.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, engine vs `main` | none moved | none moved |
+| audit, engine, performance / stress, dispatches agreed | 164,309 / 173,758 | 324,859 / 355,449 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7530 M → 0.7522 M, **−0.10%** |
+
+Every prediction held. The traces: both arms' release `fuzz_games` traced ten
+games a sitting at seed 12345, each pool at two seats and four, 40 games and
+402,318 lines with 92,494 `pipeline` records. With the `prohibited` field taken
+from the engine arm's records and the header's commit from both, every file
+matched line for line; the field named 1,066 "can't"s. The close-out ran in
+94 s.
+
 **Re-recorded 2026-10-05 for MA-1** (the inventory and the exact mana check;
 `mana-architecture.md` §10's ✅ section). Its gate offers a card or ability
 exactly when a payment covers it, where `find_mana_sources`' greedy count
