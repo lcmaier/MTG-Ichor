@@ -1729,6 +1729,11 @@ mod tests {
         assert_eq!(editor.text(), "player 1: poison 4, energy 4, flying 1\n");
         editor.input(EditorInput::Number(count(&editor, 1, "energy").typed.unwrap().field, 0));
         assert_eq!(editor.text(), "player 1: poison 4, flying 1\n");
+        // A typed word that sums past what a count holds is checked on the
+        // window's thread, and the loader keeps the most.
+        editor.input(EditorInput::TypedLine("player 1: poison 4294967295".to_string()));
+        editor.input(EditorInput::AddTypedLine);
+        assert_eq!((count(&editor, 1, "poison").value, editor.refusal()), ("4294967295".to_string(), None));
     }
 
     /// The loader sets lands played, so the last word stands; zero is where
