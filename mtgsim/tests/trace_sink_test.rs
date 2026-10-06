@@ -141,7 +141,7 @@ fn rd_2_trace_a_comes_out_of_the_five_emit_points() {
     assert!(p.contains(r#""frame_computed":false"#), "{p}");
     assert!(
         p.contains(&format!(
-            r#""candidates":[{{"id":"Counter({}, Shield, Prevention)","source":{},"class":"#,
+            r#""candidates":[{{"id":"Counter(ObjectRef {{ id: {}, zone_change_epoch: 0 }}, Shield, Prevention)","source":{},"class":"#,
             attacker,
             attacker.raw()
         )),
