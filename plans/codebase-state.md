@@ -7952,7 +7952,8 @@ the file.
      enumeration; what Ironworks sacrifices after the Cube's doubling pays
      undoubled; and the random agent's window view reads each ability's
      production on the board, without which it declined windows a payment
-     covered (Wild Growth's {G}). The solver customer is MA-6's.
+     covered (Wild Growth's {G}). The solver customer is MA-6's. Trace page:
+     `plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html`.
 
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the

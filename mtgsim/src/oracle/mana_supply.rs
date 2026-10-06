@@ -17,6 +17,22 @@
 //!
 //! **It answers whether a payment exists, never which.** Comparing payments
 //! runs once per payment, on a person's seat (§3.12, item 162's rule).
+//!
+//! **Reading order**: the check first, then where its inputs come from.
+//! - Mana as numbers: `ManaBag`, `ManaTypes`, and `EntryWay` with its
+//!   dominance.
+//! - `ManaDemand`, the cost as numbers, with the pool multiplier's transform.
+//! - `SplitSupply` and `ChoiceSearch`: free mana by type set, choice groups,
+//!   and `feasible`, Hall's condition, at each leaf.
+//! - [`ManaSupply::covers`] and `pays`: the plain split, then each pool
+//!   multiplier; `ReservedByCosts`, what the action's own costs keep.
+//! - [`ManaSupply::read`]: the inventory, permanent by permanent, through
+//!   `mana_ability_cost_of` and the mana production watchers.
+//! - [`ManaAbilityWindowOffer`] and [`available_mana_sources`]: the window's
+//!   offer and the random agent's view of it.
+//!
+//! `plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html` walks six
+//! boards through it.
 
 use std::cell::OnceCell;
 use std::sync::Arc;

@@ -28,7 +28,7 @@ review reply, and recorded in `fuzz-record.md`'s MA-1 block.
 
 ---
 
-## A — names
+## A — names · *closed 2026-10-06 on #225, `d535d2e`*
 
 Rename sweeps anchored on each item's own definition and call sites, never on
 a bare word (`sizing-and-doing-a-rename-sweep`). The rule (`CLAUDE.md`, name
@@ -60,7 +60,7 @@ records and keep the names they were written with.
 
 ---
 
-## F — the walkthrough
+## F — the walkthrough · *closed 2026-10-06 on #225*
 
 **A trace page, `engineering-practices.md` §7's format**: MA-1 changes how a
 read is answered, "can this player pay?", and the owner could not follow it

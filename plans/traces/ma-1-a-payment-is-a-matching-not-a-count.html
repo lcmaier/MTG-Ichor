@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch mana/ma-1-exact-check at d535d2e (the review's renames)
+  and the frozen CR `tmnt`; never maintained: a later phase that changes
+  these paths gets its own page. Every number on it is the engine's, from an
+  instrumented run of each board and seven mutation runs at that commit.
+  Self-contained: fonts from Google Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>A Payment Is a Matching, Not a Count — MA-1</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226; --muted: #5B6770; --line: #D5DCDD;
+    --real: #1F6F78; --real-tint: #E3F0F1; --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B; --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif; --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+      --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8; --muted: #93A0A5; --line: #2E393D;
+    --real: #58B7BF; --real-tint: #163338; --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97; --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .read.math { background: var(--changed-tint); color: var(--changed); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 1rem; margin: 0.7rem 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 0.5rem; }
+  .yes { color: var(--changed); font-weight: 600; }
+  .no { color: var(--decide); font-weight: 600; }
+  dl.words { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1.2rem; margin: 1rem 0; }
+  dl.words dt { font-family: var(--mono); font-weight: 600; font-size: 0.88em; }
+  dl.words dd { margin: 0; }
+  @media (max-width: 40rem) { dl.words { grid-template-columns: 1fr; } dl.words dd { margin-bottom: 0.5rem; } }
+  small { color: var(--muted); }
+</style>
+
+<div class="page">
+
+<h1>A Payment Is a Matching, Not a Count</h1>
+<p class="lede">MA-1 changes how the engine answers one question, asked at every priority point for every card and ability: <em>can this player pay this mana cost right now?</em> The greedy count it replaced added up sources. The inventory that answers now asks whether each mana can be sent to one pip, which is a matching problem with a closed-form test. Six boards walk the module, each one a finding of the phase.</p>
+<p class="meta"><span class="pin">mana/ma-1-exact-check</span><span class="pin">d535d2e</span><span class="pin">CR tmnt</span><span class="pin">2026-10-06, at review</span> Authority: <code>plans/mana-architecture.md</code> §3 and §10; the review's findings, <code>plans/handoffs/ma-1-review.md</code>. Code: <code>mtgsim/src/oracle/mana_supply.rs</code>. Tests: its own module, and <code>mtgsim/tests/phase_ma1_integration_test.rs</code>.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p><b>Where it sits.</b> A priority question lists what the player may do. <span class="fn">candidate_priority_actions</span> asks each card in hand and each activated ability whether it could be begun and completed. The cheap refusals come first: timing, targets, the costs that are not mana. Only a candidate that survives them reaches the mana. The pool alone is tried first; past that, the player's <b>inventory</b> is read, once per priority point, the first time anything needs it, and every later candidate there shares it. If the action is chosen, CR 601.2g's window opens, and <span class="fn">ManaAbilityWindowOffer</span> offers the mana abilities that check counted.</p>
+<p><b>Nine words to read the rest by.</b></p>
+</div>
+<dl class="words">
+  <dt>inventory</dt><dd><code>ManaSupply</code>: everything the player can make mana from at this moment: the pool, each permanent's mana abilities, the sacrifice outlets and the pool multipliers.</dd>
+  <dt>entry</dt><dd><code>SupplyEntry</code>: one thing a payment can use once. The pool, or one permanent, whose mana abilities share its <code>{T}</code> (or the permanent itself). Everywhere's five abilities are one entry.</dd>
+  <dt>way</dt><dd><code>EntryWay</code>: one alternative use of an entry and the mana it makes, after the board has acted on it. Everywhere has five ways, <code>{W}</code> to <code>{G}</code>.</dd>
+  <dt>demand</dt><dd><code>ManaDemand</code>: the cost as numbers: colored pips by type, and generic.</dd>
+  <dt>free mana</dt><dd>An entry whose every way is one mana is just "one mana of any type in this set". These are pooled by type set, and are the easy part.</dd>
+  <dt>choice</dt><dd>An entry with ways of several mana (Mana Reflection doubling a land: <code>{W}{W}</code> <i>or</i> <code>{U}{U}</code>), or of different sizes. Its mana cannot be split across types, so the check tries its ways.</dd>
+  <dt>Hall's condition</dt><dd>The test that decides, for free mana, whether a payment exists. Enough mana in total, and for every set of the cost's colored pip kinds, at least as much mana that can pay one of them as there are pips.</dd>
+  <dt>pool multiplier</dt><dd><code>PoolMultiplier</code>: a mana ability that adds the unspent pool again: Doubling Cube. It turns into a smaller demand on the mana made before it.</dd>
+  <dt>reserved</dt><dd><code>ReservedByCosts</code>: what the action's own non-mana costs keep for themselves: its <code>{T}</code>, its sacrifices. CR 601.2h pays them after the window, so their permanents cannot also make mana.</dd>
+</dl>
+
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td>One Everywhere; Grizzly Bears' <code>{1}{G}</code></td><td>Why one land is one mana, and how the old count saw five</td><td><code>everywhere_is_one_mana_of_any_color</code></td></tr>
+<tr><td><b>B</b></td><td>Tundra and Plains; <code>{W}{U}</code>, <code>{U}{U}</code></td><td>What Hall's condition checks, set by set</td><td><code>a_dual_pays_the_pip_its_partner_cannot</code></td></tr>
+<tr><td><b>C</b></td><td>Mana Reflection on Everywhere; Sol Ring granted a green tap</td><td>Why some mana is a choice the check has to try</td><td><code>a_doubled_land_of_several_types_makes_one_type_twice</code>, <code>ways_of_different_sizes_are_tried_one_at_a_time</code></td></tr>
+<tr><td><b>D</b></td><td>Wild Growth on a Badlands, under Mana Reflection</td><td>Where an entry's mana comes from when the board changes what a tap makes</td><td><code>a_triggered_mana_ability_adds_to_its_hosts_tap</code></td></tr>
+<tr><td><b>E</b></td><td>Chainbreaker paying its own <code>{3}</code></td><td>What an action's own <code>{T}</code> takes away</td><td><code>a_cost_that_taps_its_source_rules_out_that_source</code></td></tr>
+<tr><td><b>F</b></td><td>Eight Plains, Krark-Clan Ironworks, Doubling Cube; <code>{14}</code>, <code>{15}</code></td><td>How a pool multiplier becomes a smaller demand, and why Ironworks' last two sacrifices come after it</td><td><code>what_ironworks_sacrifices_after_the_doubling_is_not_doubled</code></td></tr>
+</table>
+</div>
+
+<h3>The path, with MA-1's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  PQ["candidate_priority_actions — one priority question"] --> CC["can_cast / can_activate: timing, targets, other costs first"]:::changed
+  CC --> MP["mana_payable: does the pool alone pay?"]:::changed
+  MP -->|"no"| READ["ManaSupply::read — at most once per priority point"]:::new
+  READ --> COST["mana_ability_cost_of: how a use is paid"]:::new
+  READ --> WATCH["mana_production_watchers — memo per layer epoch"]:::new
+  READ --> MADE["mana_made_by: replacements folded, triggered mana added"]:::new
+  MP --> COV["covers(cost, non-mana costs)"]:::new
+  COV --> RES["ReservedByCosts: the action's own {T} and sacrifices"]:::new
+  COV --> PAYS["pays: the plain split first, then each pool multiplier"]:::new
+  PAYS --> SPLIT["split: free mana by type set, choice groups"]:::new
+  PAYS --> XF["before_multiplying: the demand on what is made before it"]:::new
+  XF --> SPLIT
+  SPLIT --> SEARCH["ChoiceSearch: one way per choice, leaf by leaf"]:::new
+  SEARCH --> HALL["feasible: Hall's condition, one check a leaf"]:::new
+  CC -->|"offered"| WIN["cast_spell → the CR 601.2g window"]
+  WIN --> OFFER["ManaAbilityWindowOffer: read once a window, costs re-asked at each prompt"]:::new
+  OFFER --> SEAT["the seat picks a mana ability, or stops"]:::decide
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+  classDef decide fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">new in MA-1</span><span class="c">a check that existed, now asking the mana last</span><span class="d">a decision boundary</span></div>
+
+<h3>The file, in reading order</h3>
+<div class="prose"><p>Line numbers at <code>d535d2e</code>. The order below is the order to read it in, not the order of the file: the check first, then where its inputs come from.</p></div>
+<div class="wrap">
+<table>
+<tr><th>Read</th><th>Lines</th><th>What it is</th></tr>
+<tr><td>1</td><td>41–136</td><td>Mana as numbers. <code>ManaBag</code> is six counts, W U B R G C. <code>ManaTypes</code> is a set of types, a bit each. <code>EntryWay</code> and its dominance: a way that makes at least as much of every type, for no more of the permanent, makes the other redundant.</td></tr>
+<tr><td>2</td><td>1070–1135</td><td><code>ManaDemand</code>: the cost as numbers; <code>less</code> for what some mana already pays; <code>before_multiplying</code>, the pool-multiplier transform (trace F).</td></tr>
+<tr><td>3</td><td>1136–1279</td><td>The check proper. <code>SplitSupply</code> sorts entries into free mana and choice groups. <code>pays</code> starts a <code>ChoiceSearch</code>, which picks a way for each choice entry and runs <code>feasible</code>, Hall's condition, at each leaf. <code>useful_copies</code> and <code>views</code> keep the search small.</td></tr>
+<tr><td>4</td><td>138–193</td><td>The inventory's shape: <code>SupplyEntry</code>, <code>SacrificeOutlet</code>, <code>PoolMultiplier</code>, <code>ManaSupply</code>, and <code>NonManaCosts</code>, the action's other costs.</td></tr>
+<tr><td>5</td><td>304–389</td><td>The check's top: <code>covers</code> → <code>pays</code>, which tries the plain split, then each prefix of pool multipliers; <code>made_after_multiplying</code> and <code>split</code>.</td></tr>
+<tr><td>6</td><td>533–600</td><td><code>ReservedByCosts</code>: what the action's own <code>{T}</code> and sacrifices keep (trace E).</td></tr>
+<tr><td>7</td><td>196–302</td><td><code>ManaSupply::read</code>: building the inventory from the board, permanent by permanent.</td></tr>
+<tr><td>8</td><td>602–708</td><td>Reading one mana ability: <code>mana_ability_cost_of</code>, how a use is paid; <code>mana_production_of</code>, what it prints; <code>permanents_of</code>, the player's permanents oldest first.</td></tr>
+<tr><td>9</td><td>710–1068</td><td>What a tap makes on this board: the watchers, the replacement effects and triggered mana abilities that change a production, found once per layer epoch and audited in debug builds; <code>mana_made_by</code> folds them in every order the player may choose (trace D).</td></tr>
+<tr><td>10</td><td>446–531</td><td><code>ManaAbilityWindowOffer</code>: what the window offers, read once a window.</td></tr>
+<tr><td>11</td><td>390–445</td><td><code>available_mana_sources</code>: the random agent's view of the window's options.</td></tr>
+<tr><td>12</td><td>1281–</td><td>The tests, and last, <code>the_check_agrees_with_an_exhaustive_search</code>: 3,000 random boards against trying every payment.</td></tr>
+</table>
+</div>
+
+<h2>Trace A — one Everywhere, against Grizzly Bears' {1}{G}</h2>
+<div class="prose">
+<p>SU-7's review board, and the over-offer behind every one of the 448 rewinds in twenty Commander games before MA-1. Player 0 controls one Everywhere and nothing else; the pool is empty.</p>
+</div>
+<ol class="trace">
+<li class="changed"><span class="fn">can_cast</span><span class="read board">board</span> Bears are in hand, it is player 0's main phase, there are no targets and no other costs. The mana is asked last, in <span class="fn">mana_payable</span>: the pool alone is empty, so the inventory is read.</li>
+<li class="new"><span class="fn">ManaSupply::read · mana_production_watchers</span><span class="read state">memo</span> nothing on the board or in the replacement registry changes what a tap makes, so the read is <em>quiet</em>: each tap makes what it prints.</li>
+<li class="new"><span class="fn">ManaSupply::read · permanents_of</span><span class="read board">board</span> player 0's permanents, oldest first: Everywhere.</li>
+<li class="new"><span class="fn">mana_ability_cost_of · ×5</span><span class="read frame">frame</span> Everywhere has every basic land type, so CR 305.6 gives it five abilities, read off its effective list. Each costs <code>{T}</code> alone: <code>SpendsItsTapOrItself { taps }</code>. Each one's costs can be paid (it is untapped), and <span class="fn">mana_production_of</span> reads what each prints: <code>{W}</code>, <code>{U}</code>, <code>{B}</code>, <code>{R}</code>, <code>{G}</code>.</li>
+<li class="new"><span class="fn">ManaSupply::read</span><span class="read math">math</span> all five use the same <code>{T}</code>, so they are <b>one entry with five ways</b>, not five entries: <code>Everywhere: {W} | {U} | {B} | {R} | {G}</code>. None dominates another, so all five stay.</li>
+<li class="new"><span class="fn">covers · ManaDemand::of</span><span class="read math">math</span> <code>{1}{G}</code> is one green pip and one generic: total 2.</li>
+<li class="new"><span class="fn">pays · split</span><span class="read math">math</span> nothing is reserved, so this is the plain split, made once and cached for every later check at this priority point. Every way of the entry is one mana, so it is <b>free mana: one mana of W/U/B/R/G</b>. No choice groups.</li>
+<li class="new"><span class="fn">SplitSupply::pays → feasible</span><span class="read math">math</span> one leaf, since there is nothing to choose. Hall: total 1 against 2 asked. <b>Short. Not offered.</b> Against <code>{G}</code> alone the same entry passes: total 1 of 1, and the set {G} asks 1 that 1 can reach.</li>
+</ol>
+<div class="callout before"><b>What the greedy count read.</b> Before MA-1, <code>find_mana_sources</code> listed a row per printed type: W, U, B, R and G one each. The green pip took the G row and four rows were left for the <code>{1}</code>, so Bears were offered. The cast moved to the stack, the window opened, Everywhere tapped once, and the payment failed: CR 732.1 reversed the cast and the agent was asked again. Twenty budget games had 1,963 such casts and 44 activations offered, every one of the 448 rewinds. With MA-1 the row "Actions reversed" reads 0.0 on that board.</div>
+
+<h2>Trace B — a Tundra and a Plains: what Hall's condition checks</h2>
+<div class="prose">
+<p>A payment sends each mana to one pip. A pip of a color takes mana whose type set includes it, and generic takes any mana. <b>Gale's theorem, Hall's with counts, says a full payment exists exactly when two things hold.</b> There is enough mana in total. And for every set of the cost's colored pip kinds, the pips of those kinds number no more than the mana that can pay at least one of them. A shortage always shows up as some set of kinds that more pips want than mana can reach; the theorem says that is the only way one can. So the check reads the sets and never builds the payment.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">ManaSupply::read</span><span class="read board">board</span> two entries: <code>Tundra: {W} | {U}</code>, <code>Plains: {W}</code>.</li>
+<li class="new"><span class="fn">split</span><span class="read math">math</span> both are one mana a way, so both are free mana: <b>1 of W/U, 1 of W</b>.</li>
+<li class="new"><span class="fn">feasible · {W}{U}</span><span class="read math">math</span> total 2 of 2. The sets of the cost's kinds: {W, U} asks 2 and 2 can reach it; {U} asks 1 and the Tundra reaches it; {W} asks 1 and both reach it. Every set holds. <b>Offered.</b></li>
+<li class="new"><span class="fn">feasible · {U}{U}</span><span class="read math">math</span> total 2 of 2, but {U} asks 2 and only the Tundra can pay a blue pip. <b>Fails, so not offered.</b> A count that only checked the total would have offered it (mutation M1 below).</li>
+</ol>
+<div class="callout rule"><b>Why sets, and how many.</b> A cost with <i>k</i> distinct colored pip kinds has 2<sup><i>k</i></sup> − 1 nonempty sets, and <i>k</i> is 1 to 3 on nearly every printed card: at most seven comparisons, about 100 instructions a check. Generic pips are in the total only, because any mana pays them once the colored pips are matched.</div>
+
+<h2>Trace C — mana whose type is one choice: Mana Reflection on Everywhere</h2>
+<div class="prose">
+<p>Mana Reflection: "If you tap a permanent for mana, it produces twice as much of that mana instead." Everywhere under it makes <code>{W}{W}</code> or <code>{U}{U}</code>, never one of each, so its mana cannot be free mana: both mana go to the type the tap chose. Sol Ring granted Citanul Hierophants' <code>{T}: Add {G}</code> (through March of the Machines) is the same problem by another route. One tap makes <code>{C}{C}</code> <i>or</i> <code>{G}</code>, ways of different sizes.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">mana_production_watchers</span><span class="read state">memo</span> one watcher: Mana Reflection's replacement ability. The read is not quiet.</li>
+<li class="new"><span class="fn">mana_made_by · each of Everywhere's taps</span><span class="read frame">frame</span> <code>{W}</code> becomes <code>{W}{W}</code>, and so on: the entry is <code>Everywhere: {W}{W} | {U}{U} | {B}{B} | {R}{R} | {G}{G}</code>.</li>
+<li class="new"><span class="fn">split</span><span class="read math">math</span> its ways are two mana each, so it is a <b>choice group</b> (×1), not free mana.</li>
+<li class="new"><span class="fn">SplitSupply::pays · views</span><span class="read math">math</span> for <code>{W}{U}</code> the search reads each way as the cost tells them apart: white, blue, and every other type as one "unasked" slot, which pays generic only. Three views stay: <code>{W}{W}</code>, <code>{U}{U}</code>, and the rest as one. Equal views are kept once.</li>
+<li class="new"><span class="fn">ChoiceSearch</span><span class="read math">math</span> each leaf is one choice of view, then a Hall check of the free mana plus what the choice makes. <code>{W}{W}</code> leaves the blue pip unpaid; <code>{U}{U}</code> the white; the third pays neither. <b>Three leaves, all fail: not offered.</b> For <code>{W}{W}</code>: one leaf, offered.</li>
+<li class="new"><span class="fn">the Sol Ring board</span><span class="read math">math</span> the entry is <code>Sol Ring: {C}{C} | {G}</code>. <code>{C}{C}</code> passes at the first leaf and <code>{G}</code> at the second: offered. <code>{G}{G}</code> and <code>{C}{G}</code> try both leaves and fail both: not offered.</li>
+</ol>
+<div class="callout before"><b>What the greedy count read.</b> Everywhere under Reflection as five rows of one mana: <code>{W}{U}</code> offered, which no tap makes, and <code>{W}{W}</code> hidden, which one tap makes. Sol Ring as one row of <code>{C}</code> and one of <code>{G}</code>: <code>{C}{C}</code> hidden, <code>{C}{G}</code> offered. Merging a choice into free mana of its types, "two mana, W to G", offers <code>{W}{U}</code> too (mutation M3).</div>
+<div class="callout rule"><b>Why the search stays small.</b> Identical choice entries are one group with a count, so twenty Everywheres under Reflection are not 5<sup>20</sup> leaves. When every way of a group makes as much, a copy past what one asked type's pips need pays only generic, as the group's last way does, so <code>useful_copies</code> stops there. With a Tundra beside the Everywhere, <code>{2}{W}{W}{U}</code> took 6 leaves on the probe. The search stops at 4,096 leaves and answers yes; theme D of the review is about that cap.</div>
+
+<h2>Trace D — what a tap makes: Wild Growth on a Badlands, under Mana Reflection</h2>
+<div class="prose">
+<p>A tap's production is not what the card prints once the board changes it. CR 106.6a and 106.12b replacement effects rewrite it (Mana Reflection, Deep Water, Pale Moon), and CR 605.1b triggered mana abilities add to it (Wild Growth: "Whenever enchanted land is tapped for mana, its controller adds an additional {G}"). The inventory has to read both, or it errs both ways.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">mana_production_watchers</span><span class="read state">memo</span> scanned once per layer epoch, for every player at once: a replacement watcher (Mana Reflection) and a triggered mana watcher (Wild Growth). A memo hit is checked against a fresh scan in debug builds.</li>
+<li class="new"><span class="fn">mana_after_replacements · the Badlands' tap for {B}</span><span class="read board">board</span> the pipeline's own applicability test (<code>applies_to_mana_production</code>) says Reflection applies: <code>{B}</code> becomes <code>{B}{B}</code>.</li>
+<li class="new"><span class="fn">mana_trigger_adds · Wild Growth</span><span class="read board">board</span> its event arm matches a tap of its host, so it adds <code>{G}</code>. Run through the replacements as its own production, which was not a tap for mana (CR 106.12; Mana Reflection's ruling), so it is not doubled.</li>
+<li class="new"><span class="fn">mana_made_by</span><span class="read math">math</span> the entry: <code>Badlands: {B}{B}{G} | {R}{R}{G}</code>, a choice group of one.</li>
+<li class="new"><span class="fn">ChoiceSearch</span><span class="read math">math</span> <code>{B}{B}{G}</code>: one leaf, offered. <code>{B}{G}{G}</code>: two leaves, both fail. The trigger's green is one, and the land's mana is two of one type. Not offered.</li>
+</ol>
+<div class="callout rule"><b>Order is the player's.</b> Two replacement effects on one production apply in the order the player chooses (CR 616.1), each once (614.5), and an optional one may be declined. <code>fold_mana_rewrites</code> tries every order and keeps what no other order beats: Deep Water and Pale Moon on one tap make <code>{U}</code> or <code>{C}</code>. Six effects on one tap are up to 2<sup>6</sup>·6! = 46,080 orders. That is the cap, and theme D's defect. Folding by state rather than by order makes it at most 64 states, times the few distinct mana each can hold.</div>
+
+<h2>Trace E — Chainbreaker paying its own {3}</h2>
+<div class="prose">
+<p>Chainbreaker: "{3}, {T}: Put a -1/-1 counter on target creature." Citanul Hierophants grant it <code>{T}: Add {G}</code>, and Sol Ring is beside it.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">ManaSupply::read</span><span class="read board">board</span> two entries: <code>Chainbreaker: {G} [taps]</code>, <code>Sol Ring: {C}{C} [taps]</code>.</li>
+<li class="new"><span class="fn">ReservedByCosts::of</span><span class="read state">state</span> the ability's other costs are <code>{T}</code>, with Chainbreaker as the source, so <b>Chainbreaker's tap is reserved</b>. The window (601.2g) comes before the payment (601.2h): tapping it for <code>{G}</code> would leave nothing to pay its <code>{T}</code>.</li>
+<li class="new"><span class="fn">split</span><span class="read math">math</span> the reserved way is left out: free mana <code>2 of C</code>. Total 2 against 3: <b>not offered.</b></li>
+<li class="new"><span class="fn">the same {3} for a spell</span><span class="read math">math</span> nothing reserved: <code>1 of G, 2 of C</code>, total 3. <b>Offered.</b></li>
+</ol>
+<div class="callout before"><b>What the greedy count read.</b> Both questions said no, the first rightly and the second wrongly. It counted Sol Ring's <code>{C}{C}</code> as one mana, which hid the spell (16 casts and 136 activations hidden in twenty games). It never reserved a source's own tap, among the 44 activations offered that no payment covers. Without the reservation (mutation M4), this test and the Mind Stone test fail.</div>
+
+<h2>Trace F — eight Plains, Krark-Clan Ironworks and Doubling Cube</h2>
+<div class="prose">
+<p>Ironworks: "Sacrifice an artifact: Add {C}{C}." Doubling Cube: "{3}, {T}: Double the amount of each type of unspent mana you have." The order matters: what is made after the Cube is not doubled, and Ironworks can feed itself and the Cube only once the Cube has doubled.</p>
+</div>
+<ol class="trace">
+<li class="new"><span class="fn">ManaSupply::read</span><span class="read board">board</span> eight Plains entries, <code>{W}</code> each. A <b>sacrifice outlet</b>: Ironworks needs one artifact a use, makes <code>{C}{C}</code>, and can sacrifice itself and the Cube. A <b>pool multiplier</b>: the Cube, input <code>{3}</code>, factor 2.</li>
+<li class="new"><span class="fn">pays · the plain split</span><span class="read math">math</span> without the Cube: <code>8 of W, 4 of C</code>, two sacrifices of <code>{C}{C}</code>. Total 12 against 14. Short.</li>
+<li class="new"><span class="fn">made_after_multiplying</span><span class="read math">math</span> with the Cube: it can be sacrificed only after it has doubled, and the last Ironworks only after that, so both <code>{C}{C}</code>s come <b>after</b> the doubling and are not doubled: <code>{C}{C}{C}{C}</code>.</li>
+<li class="new"><span class="fn">ManaDemand::less, then before_multiplying</span><span class="read math">math</span> the four colorless pay four of <code>{14}</code>, leaving <code>{10}</code>. Every mana left in the pool after the Cube's <code>{3}</code> becomes two of its own type. So <i>n</i> pips of a type need ⌈<i>n</i>/2⌉ of that type left, and the whole cost ⌈total/2⌉ left in all. Then add the input. <code>{10}</code> needs <code>{5}</code> left, and with the <code>{3}</code>, <b><code>{8}</code> made before the Cube</b>.</li>
+<li class="new"><span class="fn">split · feasible</span><span class="read math">math</span> before the Cube there is no fodder left to count: <code>8 of W</code>, total 8 of 8. <b>Offered.</b> Against <code>{15}</code> the demand before is <code>{9}</code>, and 8 is short: <b>not offered.</b> Against <code>{4}</code> and ten <code>{W}</code>: after it, four colorless pay the <code>{4}</code>; before it, <code>{3}</code> and five <code>{W}</code>, eight Plains enough. Offered.</li>
+</ol>
+<div class="callout before"><b>Two readings this replaced.</b> The greedy count read eight W rows and one C row, and hid <code>{14}</code>. MA-1's first build counted Ironworks' sacrifices before the doubling and offered <code>{15}</code>, which the board cannot make. It was found while writing item 213's list of unread shapes against the registered cards (<code>c07ef44</code>). One test stands between that and an over-offer (mutation M5). And "every mana counts twice, less the input" is wrong too. Four Plains and three Islands with the Cube look like 8 mana against <code>{W}{W}{W}{W}{W}{U}{U}{U}</code>, but the transform asks <code>{3}{W}{W}{W}{U}{U}</code> before the Cube, 8 of 7 (self-check Q3).</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>Board · cost</th><th>The greedy count read</th><th>The inventory reads</th><th>Decided by</th><th>Offered: before → now</th></tr>
+<tr><td>A · Everywhere · <code>{1}{G}</code></td><td>five rows of one mana</td><td>one entry, five ways, one <code>{T}</code></td><td>Hall's total: 1 of 2</td><td><span class="yes">yes</span> → <span class="no">no</span></td></tr>
+<tr><td>B · Tundra, Plains · <code>{U}{U}</code></td><td>W×2, U×1</td><td>free: 1 of W/U, 1 of W</td><td>the set {U}: 2 asked, 1 reaches</td><td><span class="no">no</span> → <span class="no">no</span></td></tr>
+<tr><td>C · Reflection, Everywhere · <code>{W}{U}</code></td><td>five rows of one mana</td><td>a choice: <code>{W}{W}</code> or <code>{U}{U}</code> or …</td><td>three leaves, each short</td><td><span class="yes">yes</span> → <span class="no">no</span></td></tr>
+<tr><td>C · the same · <code>{W}{W}</code></td><td>one W row</td><td>the same choice</td><td>one leaf</td><td><span class="no">no</span> → <span class="yes">yes</span></td></tr>
+<tr><td>C · Sol Ring granted <code>{G}</code> · <code>{C}{C}</code></td><td>one C row, one G row</td><td><code>{C}{C}</code> or <code>{G}</code></td><td>one leaf</td><td><span class="no">no</span> → <span class="yes">yes</span></td></tr>
+<tr><td>C · the same · <code>{C}{G}</code></td><td>one C row, one G row</td><td>the same</td><td>two leaves, each short</td><td><span class="yes">yes</span> → <span class="no">no</span></td></tr>
+<tr><td>D · Wild Growth, Reflection · <code>{B}{B}{G}</code></td><td>B×1, R×1, no G</td><td><code>{B}{B}{G}</code> or <code>{R}{R}{G}</code></td><td>one leaf</td><td><span class="no">no</span> → <span class="yes">yes</span></td></tr>
+<tr><td>E · Chainbreaker's own <code>{3}</code></td><td>G×1, C×1</td><td>its tap reserved: 2 of C</td><td>Hall's total: 2 of 3</td><td><span class="no">no</span> → <span class="no">no</span></td></tr>
+<tr><td>E · a spell's <code>{3}</code></td><td>G×1, C×1</td><td>1 of G, 2 of C</td><td>Hall's total: 3 of 3</td><td><span class="no">no</span> → <span class="yes">yes</span></td></tr>
+<tr><td>F · Plains×8, Ironworks, Cube · <code>{14}</code></td><td>W×8, C×1</td><td>an outlet, a multiplier</td><td>the transform: <code>{8}</code> before the Cube</td><td><span class="no">no</span> → <span class="yes">yes</span></td></tr>
+<tr><td>F · the same · <code>{15}</code></td><td>W×8, C×1</td><td>the same</td><td>the transform: <code>{9}</code> before, 8 made</td><td><span class="no">no</span> → <span class="no">no</span></td></tr>
+</table>
+</div>
+
+<h2>What MA-1 changed, and what is still open</h2>
+<div class="prose">
+<p><b>Every offer on the six boards is now exactly what a payment can make.</b> Before, there was a count that treated each printed type as a separate mana. On the budget's board the rewinds that count caused went from 22.4 a game to 0.0, and the casts and activations it hid are offered. Pooled with Ironworks and the Cube, "Actions reversed" reads 2.3. Every one of the 64 reversals read in traces is a payment the random agent did not make, mostly the Cube's route on Blood Moon boards. None is an offer that no payment covers (<code>codebase-state.md</code> item 214).</p>
+<p><b>Open, from the review</b> (<code>plans/handoffs/ma-1-review.md</code>):</p>
+<ul>
+<li>Theme C: <code>mana_ability_cost_of</code> reads four whole cost lists, and every other cost falls to <code>NotCounted</code>. That is 116 printed cards with costs the engine can already represent: life, counters, <code>{T}</code> with another sacrifice, <code>{Q}</code>.</li>
+<li>Theme D: the fold's 46,080 orders at its cap, and the search's lean-yes past 4,096 leaves.</li>
+<li>Item 213: the shapes the inventory reads only one way.</li>
+</ul>
+</div>
+
+<h2>Check yourself</h2>
+<div class="prose">
+<p>Believing you understand the module and understanding it differ in one way you can test: whether you can predict what it does on a board you have not seen, and say what breaks without each piece. Three kinds of question follow. Answer each before you open it. Every answer below came from the engine at this commit.</p>
+</div>
+
+<h3>1. Predict the offer</h3>
+<details><summary>Q1 · Two Everywheres. <code>{W}{U}</code>? <code>{W}{W}{W}</code>?</summary>
+<p><code>{W}{U}</code> <span class="yes">yes</span>: two entries, each one mana of W/U/B/R/G, free mana 2 of five types. Total 2 of 2; {W} and {U} each reach 2. <code>{W}{W}{W}</code> <span class="no">no</span>: total 2 of 3.</p></details>
+<details><summary>Q2 · Krark-Clan Ironworks and Sol Ring. <code>{6}</code>? <code>{7}</code>?</summary>
+<p><code>{6}</code> <span class="yes">yes</span>: Sol Ring's tap makes <code>{C}{C}</code>, then Ironworks sacrifices Sol Ring (tapped is fine) and itself, <code>{C}{C}</code> each, 6 in all. <code>{7}</code> <span class="no">no</span>. The greedy count read two C rows and said no to both.</p></details>
+<details><summary>Q3 · Four Plains, three Islands, Doubling Cube. <code>{W}{W}{W}{W}{W}{U}{U}{U}</code>? <code>{W}{W}{W}{W}{U}{U}</code>? <code>{8}</code>?</summary>
+<p>The first <span class="no">no</span>. Without the Cube, 7 of 8. With it, five white need three white left and three blue need two, so before the Cube <code>{3}{W}{W}{W}{U}{U}</code>: 8 asked, 7 made. "Twice the mana less three" says 8 and is wrong. The second <span class="yes">yes</span>, without the Cube: the Plains pay the white, the Islands the blue. <code>{8}</code> <span class="yes">yes</span>: before the Cube <code>{3}</code> plus ⌈8/2⌉ = <code>{7}</code>, all seven lands.</p></details>
+<details><summary>Q4 · Mana Reflection, Sol Ring and a Plains. <code>{4}{W}{W}</code>? <code>{W}{W}{W}</code>? <code>{7}</code>?</summary>
+<p>Sol Ring makes <code>{C}{C}{C}{C}</code> and the Plains <code>{W}{W}</code>; each is one way of one type, so both are free mana. <code>{4}{W}{W}</code> <span class="yes">yes</span>, 6 of 6. <code>{W}{W}{W}</code> <span class="no">no</span>: the set {W} asks 3 and 2 reach it. <code>{7}</code> <span class="no">no</span>: 6 in all. The greedy count read one W row and one C row, and hid the first.</p></details>
+<details><summary>Q5 · Chainbreaker with the Hierophants' grant, a Sol Ring and a Plains. Is its ability offered against its <code>{3}</code>?</summary>
+<p><span class="yes">Yes</span>: Chainbreaker's tap is reserved, which leaves Sol Ring's <code>{C}{C}</code> and the Plains' <code>{W}</code>, 3 of 3. Without the Plains it is <span class="no">no</span> (trace E).</p></details>
+
+<h3>2. What breaks without it</h3>
+<div class="prose">
+<p>Each row removes one piece from the module and runs its tests. Predict which test fails before reading the right column. Two things show up. First, every piece is held by at least one test. Second, the property test, which pits 3,000 random boards against brute force, catches the mistakes in the <em>check</em>. It cannot catch the mistakes in <em>how entries are built from cards</em>: it builds its entries directly. Those rest on the named card tests, one test in M5's case.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th></th><th>Removed</th><th>The tests that fail</th></tr>
+<tr><td>M1</td><td>Hall's condition reads only the total, never a set of kinds</td><td>7: <code>a_dual_pays_the_pip_its_partner_cannot</code>, <code>a_doubled_land_of_several_types_makes_one_type_twice</code>, <code>a_retype_reads_what_the_land_makes_under_it</code>, <code>a_triggered_mana_ability_adds_to_its_hosts_tap</code>, <code>doubling_cube_doubles_what_its_input_leaves</code>, <code>ways_of_different_sizes_are_tried_one_at_a_time</code>, and the property test</td></tr>
+<tr><td>M2</td><td>each ability its own entry, as the greedy count read them</td><td>4: <code>everywhere_is_one_mana_of_any_color</code>, <code>a_doubled_land_…</code>, <code>a_triggered_mana_ability_…</code>, <code>ways_of_different_sizes_…</code>. The property test passes</td></tr>
+<tr><td>M3</td><td>a choice merged into free mana, as much as its largest way</td><td>4: <code>a_doubled_land_…</code>, <code>a_triggered_mana_ability_…</code>, <code>ways_of_different_sizes_…</code>, and the property test</td></tr>
+<tr><td>M4</td><td>an action's own <code>{T}</code> and sacrifice reserve nothing</td><td>2: <code>a_cost_that_taps_its_source_rules_out_that_source</code>, <code>a_cost_that_sacrifices_its_source_rules_it_out_as_fodder</code>. The property test passes</td></tr>
+<tr><td>M5</td><td>what Ironworks sacrifices after the Cube is counted before it too</td><td>1: <code>what_ironworks_sacrifices_after_the_doubling_is_not_doubled</code>. The property test passes</td></tr>
+<tr><td>M6</td><td>the transform rounds a pip's need down, not up</td><td>2: <code>doubling_cube_doubles_what_its_input_leaves</code>, and the property test</td></tr>
+<tr><td>M7</td><td>the board's replacement effects and triggered mana never read</td><td>4: <code>a_doubled_land_…</code>, <code>a_multiplier_scales_the_doubling</code>, <code>a_retype_reads_…</code>, <code>a_triggered_mana_ability_…</code>. The property test passes</td></tr>
+</table>
+</div>
+
+<h3>3. Say why</h3>
+<details><summary>Why is Everywhere one entry and not five?</summary>
+<p>Its five abilities share one <code>{T}</code>, and a payment can use a <code>{T}</code> once. In one 601.2g window only a mana ability could untap it again. No printed mana ability untaps another permanent, and the one that untaps at all, Pili-Pala, untaps itself as its <code>{Q}</code> cost. Five entries would count five mana (trace A, mutation M2).</p></details>
+<details><summary>Why are a choice entry's ways tried one at a time, rather than its mana added to the free table?</summary>
+<p>Because its mana is not independent: both of Reflection's mana go to the one type the tap made. Free mana of W to G would let one go to white and one to blue, which no tap makes (trace C, mutation M3). Hall's condition is exact only for mana whose type is its own choice, so the check enumerates what is not and runs Hall at each leaf.</p></details>
+<details><summary>Why does the pool-multiplier transform round up, and add the input after?</summary>
+<p>Every mana left after the input becomes <i>f</i> of its own type, so <i>n</i> pips of a type need ⌈<i>n</i>/<i>f</i>⌉ of it left: one mana left over cannot become half a pip. The input is paid first, from what was made before, so it is added back on top. Rounding down offers what cannot be paid (mutation M6, caught by the property test).</p></details>
+<details><summary>Why is the action's own {T} reserved before the split, not after?</summary>
+<p>The split decides what mana exists. A permanent tapped for mana in the window (601.2g) cannot then pay the <code>{T}</code> at 601.2h, so its tap is not mana at all for this payment (trace E, mutation M4).</p></details>
+<details><summary>Why is the inventory read at most once per priority point, and only when a candidate needs it?</summary>
+<p>It costs about 29,000 instructions, and most priority points never reach the mana. The cheaper refusals come first, so the design counted 17,906 inventories against 58,921 priority points. Read inside each check, it would be one per card; read eagerly, about 41,000 more. That is why <code>candidate_priority_actions</code> shares one lazily filled cell (the review's theme B is about its shape).</p></details>
+<details><summary>What is the property test's blind spot, and what covers it?</summary>
+<p>It builds entries directly, from random shapes, so it proves Hall's condition, the choice search and the transform against brute force, but never <code>ManaSupply::read</code>: how a card becomes an entry, what a cost reserves, what a sacrifice outlet counts, what the watchers change. Those are covered by one test per card shape (mutations M2, M4, M5, M7). The review's theme C, widening the cost reader, has to add to them.</p></details>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>

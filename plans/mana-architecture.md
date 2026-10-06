@@ -824,6 +824,6 @@ decision against −3.0 predicted; the window −1.22% against −0.6. Shipped:
 547. Pooled, the new baseline: 2.3 a game, every one read a payment the
 random agent did not make, none an over-offer (item 214).
 
-→ `plans/archive/mana-architecture-landed.md`, "MA-1" (the build as sized
-with §5's plan, sized against built, and what the build changed in the
-design); `fuzz-record.md`, MA-1's block.
+→ `plans/archive/mana-architecture-landed.md`, "MA-1" (as sized, sized
+against built, what the build changed); `fuzz-record.md`, MA-1's block;
+`plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html`, six boards.
