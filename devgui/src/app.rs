@@ -217,7 +217,13 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         egui::ScrollArea::vertical().stick_to_bottom(true).show_rows(ui, row_height, state.log.len(), |ui, rows| {
             // One text line a row, as `show_rows` counts them; the whole line on hover.
             for line in &state.log[rows] {
-                ui.add(egui::Label::new(line).truncate());
+                let response = ui.add(egui::Label::new(&line.text).truncate().sense(egui::Sense::click()));
+                if response.secondary_clicked() {
+                    inputs.push(Input::WhyEvent(line.event));
+                }
+                if let Some(hint) = state.log_hint() {
+                    response.on_hover_text(hint);
+                }
             }
         });
     });

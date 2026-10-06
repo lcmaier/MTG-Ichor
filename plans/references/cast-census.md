@@ -47,7 +47,7 @@ count is Scryfall's `total_cards`, with the query in the row. `--residual` is
 empty at this run: every cost piece and every mana ability lands in a bucket.
 
 <!-- cast-census: begin DATE -->
-Counted 2026-10-05: the corpus fetched 2026-10-05, the counts cache's newest entry 2026-10-05, the tree as of the run.
+Counted 2026-10-06: the corpus fetched 2026-10-05, the counts cache's newest entry 2026-10-05, the tree as of the run.
 <!-- cast-census: end DATE -->
 
 ## 1. The families by status, and what changed in ownership
@@ -520,52 +520,54 @@ cost, so no game meets it today. It is item 162's.
 ## 9. The question kinds
 
 <!-- cast-census: begin QUESTIONS -->
-27 kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` answers 3 with a check (`DeclareAttackers`, `DeclareBlockers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`. Of the 24 it does not, 7 are **filtered**: a check drops a candidate the question could have named. 5 are **bounds**: the options are amounts, and the why explains a limit. 12 are **no**: every candidate is offered.
+27 kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` answers 9 with a check (`ChooseAuxiliaryZoneChange`, `ChooseCopySource`, `ChooseEnteringController`, `ChooseReplacementEffect`, `DeclareAttackers`, `DeclareBlockers`, `ManaAbilityWindow`, `OrderTriggers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it ranges over (`ranges_over`). Of the 18 it does not check, 2 are **filtered**: a check drops a candidate the question could have named. 5 are **bounds**: the options are amounts, and the why explains a limit. 11 are **no**: every candidate is offered.
 
 | `ChoiceKind` | its options | filtered | what a why reads | owner | slot |
 |---|---|---|---|---|---|
 | `PriorityAction` | lands, spells, abilities, and Pass | yes | `can_play_land`, `can_cast`, `can_activate` (SU-7) | built (SU-7) | -- |
 | `DeclareAttackers` | creatures and what each may attack | yes | `can_attack` (SU-7) | built (SU-7) | -- |
 | `DeclareBlockers` | creatures and what each may block | yes | `can_block` (SU-7) | built (SU-7) | -- |
-| `AssignCombatDamage` | amounts across the creatures blocking it | bounds | CR 510.1c's lethal-damage bound | `setup-architecture.md` §7c | SU-8 |
-| `AssignTrampleDamage` | amounts across blockers and the player | bounds | CR 702.19b's lethal-damage bound | `setup-architecture.md` §7c | SU-8 |
-| `ChooseXValue` | a number | bounds | the bound the enumeration sets on X | `codebase-state.md` item 162 | item 162's build |
-| `ChooseAlternativeCost` | the mana cost and each printed alternative | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `ChooseAdditionalCosts` | each optional additional cost | no | a mandatory cost is in the total, not offered (CR 118.8) | `setup-architecture.md` §7c | SU-8 |
+| `AssignCombatDamage` | amounts across the creatures blocking it | bounds | what it ranges over, CR 510.1c | what it ranges over (SU-8) | -- |
+| `AssignTrampleDamage` | amounts across blockers and the player | bounds | what it ranges over, CR 702.19b | what it ranges over (SU-8) | -- |
+| `ChooseXValue` | a number | bounds | the bound the enumeration sets on X | `mana-architecture.md` MA-2 | MA-2 |
+| `ChooseAlternativeCost` | the mana cost and each printed alternative | no | -- | what it ranges over (SU-8) | -- |
+| `ChooseAdditionalCosts` | each optional additional cost | no | -- | what it ranges over (SU-8) | -- |
 | `SelectRecipients` | the objects or players a target or choice may name | yes | `validate_selection`'s reasons, typed | `cant-effects-architecture.md` RS-2 | RS-2 |
-| `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana | `codebase-state.md` item 162 | item 162's build |
-| `OrderCostReductions` | an order of every reduction that applies | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `ManaAbilityWindow` | the mana abilities that can pay now | yes | `can_pay_costs`'s `CannotPay`, per ability | `codebase-state.md` item 162 | item 162's build |
+| `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana | `mana-architecture.md` MA-2 | MA-2 |
+| `OrderCostReductions` | an order of every reduction that applies | no | -- | what it ranges over (SU-8) | -- |
+| `ManaAbilityWindow` | the mana abilities that can pay now | yes | `can_pay_costs`'s `CannotPay`, per ability | built (MA-1) | -- |
 | `ChooseSacrificeForCost` | the permanents that can pay the cost | yes | CR 701.21a and the cost's filter | the cost phase that pays the cost | the cost phase |
-| `ChooseReplacementEffect` | the replacement effects that apply | yes | the gather's candidates, from the trace | `setup-architecture.md` §7c | SU-8 |
-| `OrderTriggers` | an order of one player's pending triggers | no | the dispatch's matcher, from the trace | `setup-architecture.md` §7c | SU-8 |
-| `ApplyOptionalReplacement` | yes or no | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `ApplyOptionalEffect` | yes or no | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `AllocateNextDamage` | amounts across the damage sources | bounds | CR 615.7's count | `setup-architecture.md` §7c | SU-8 |
-| `ChooseDamageSource` | every permanent and spell | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `ChooseEnteringController` | the opponents still in the game | yes | CR 800.4a | `setup-architecture.md` §7c | SU-8 |
-| `ChooseAuxiliaryZoneChange` | the objects CR 614.13a/b and CR 101.2 allow | yes | the filter and the restriction that dropped it | `setup-architecture.md` §7c | SU-8 |
-| `ChooseCopySource` | the permanents the copy effect may copy | yes | the copy effect's filter | `setup-architecture.md` §7c | SU-8 |
-| `CommanderToCommandZoneSba` | yes or no | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `Discard` | the cards in the hand | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `Scry` | the cards looked at | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `ScryOrder` | an order of one pile | no | -- | `setup-architecture.md` §7c | SU-8 |
-| `LegendRule` | the legendary permanents sharing the name | no | -- | `setup-architecture.md` §7c | SU-8 |
+| `ChooseReplacementEffect` | the replacement effects that apply | yes | what the batch's earlier iterations applied, from the trace | built (SU-8) | -- |
+| `OrderTriggers` | an order of one player's pending triggers | no | what the matcher answered about the events, from the trace | built (SU-8) | -- |
+| `ApplyOptionalReplacement` | yes or no | no | -- | what it ranges over (SU-8) | -- |
+| `ApplyOptionalEffect` | yes or no | no | -- | what it ranges over (SU-8) | -- |
+| `AllocateNextDamage` | amounts across the damage sources | bounds | what it ranges over, CR 615.7 | what it ranges over (SU-8) | -- |
+| `ChooseDamageSource` | every permanent and spell | no | -- | what it ranges over (SU-8) | -- |
+| `ChooseEnteringController` | the opponents still in the game | yes | `not_an_opponent`, CR 102.2 and 800.4a | built (SU-8) | -- |
+| `ChooseAuxiliaryZoneChange` | the objects CR 614.13a/b and CR 101.2 allow | yes | `not_auxiliary`, and the "can't" that dropped it | built (SU-8) | -- |
+| `ChooseCopySource` | the permanents the copy effect may copy | yes | the copy effect's words; typed with RS-2's selection reasons | built (SU-8) | -- |
+| `CommanderToCommandZoneSba` | yes or no | no | -- | what it ranges over (SU-8) | -- |
+| `Discard` | the cards in the hand | no | -- | what it ranges over (SU-8) | -- |
+| `Scry` | the cards looked at | no | -- | what it ranges over (SU-8) | -- |
+| `ScryOrder` | an order of one pile | no | -- | what it ranges over (SU-8) | -- |
+| `LegendRule` | the legendary permanents sharing the name | no | -- | what it ranges over (SU-8) | -- |
 <!-- cast-census: end QUESTIONS -->
 
-**The shape at v1** (the owner, 2026-10-05). SU-8 gives every kind a line
-saying what the question ranges over. It is an exhaustive match in
-`ui::why::refusals`, so a new `ChoiceKind` decides its line at birth. SU-8
-also reads the trace for two kinds: the replacement candidates and the
-trigger order. Each kind a check filters gets a typed reason from that check,
-with the check's owner:
+**The shape at v1** (the owner, 2026-10-05), **built by SU-8** (#226) but
+for the three kinds other owners hold. Every kind has a line saying what the
+question ranges over, `ui::why::ranges_over`, an exhaustive match, so a new
+`ChoiceKind` decides its line at birth; and `ui::why::refusals` matches every
+kind with no wildcard. SU-8 reads the trace for two kinds, the effects a CR
+616.1 choice applied already and what the triggered abilities answered about
+the events an ordering's abilities triggered on, and gives three a reason from
+their own filter, each now one check the enumeration shares. The other
+filtered kinds' reasons are their owners':
 
-- `SelectRecipients`, with RS-2;
-- `ManaAbilityWindow`, `ChooseXValue` and `GenericManaAllocation`, with item
-  162's build;
-- `ChooseSacrificeForCost`, with CP-2;
-- `ChooseCopySource`, `ChooseAuxiliaryZoneChange` and
-  `ChooseEnteringController`, with SU-8, since they read one filter apiece.
+- `SelectRecipients`, with RS-2, which also types `ChooseCopySource`'s, today
+  the copy effect's own words;
+- `ChooseXValue` and `GenericManaAllocation`, with MA-2; `ManaAbilityWindow`'s
+  MA-1 built;
+- `ChooseSacrificeForCost`, with CP-2.
 
 The kinds marked "no" need no reason: every candidate is offered. A why
 asked about anything else says the question does not range over it.

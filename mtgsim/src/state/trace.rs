@@ -42,7 +42,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::engine::layers::compute_characteristics;
 use crate::events::event::{GameEvent, NamesAsAnnounced};
@@ -108,7 +108,7 @@ impl TraceSink {
         // A write failure is not the engine's to report: the sink is an
         // observer, and an observer that could fail a game would be a
         // participant. The record is dropped and the game goes on.
-        let _ = writeln!(inner.out, "{{\"seq\":{},\"branch\":{},{}}}", seq, branch, record.body);
+        let _ = write_line(&mut inner.out, seq, branch, &record.body);
     }
 
     /// Allocate a branch for a forked handle and record the fork.
@@ -119,11 +119,41 @@ impl TraceSink {
             inner.next_branch += 1;
             to
         };
-        let mut r = Record::new("fork");
+        let mut r = Record::new(RecordKind::Fork);
         r.field_u64("from", from);
         r.field_u64("to", to);
         self.write(from, r);
         to
+    }
+}
+
+/// One record as a line: its `seq`, its `branch`, then the rest of its body.
+/// The sink writes every line through this, and a [`TraceRecord`] read back
+/// writes itself again through it.
+fn write_line(out: &mut impl Write, seq: u64, branch: u64, body: &str) -> io::Result<()> {
+    writeln!(out, "{{\"seq\":{seq},\"branch\":{branch},{body}}}")
+}
+
+/// A writer for a sink whose lines a reader in the same process reads: the
+/// sink owns one clone, the reader keeps another, and both share the bytes.
+#[derive(Clone, Debug, Default)]
+pub struct TraceMemory(Arc<Mutex<Vec<u8>>>);
+
+impl TraceMemory {
+    /// What the sink has written so far. Flush the sink first: it buffers.
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
+    }
+}
+
+impl Write for TraceMemory {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -176,6 +206,79 @@ impl fmt::Debug for TraceHandle {
 // Records
 // ---------------------------------------------------------------------------
 
+/// Every kind of record the sink writes: the one list the writer names a
+/// record by and [`TraceRecord::read`] reads one back by. What each holds is
+/// its writer's, in `engine::trace_records`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RecordKind {
+    /// The per-game header.
+    Game,
+    /// One row of the names table.
+    Object,
+    /// A traced state cloned: a new branch.
+    Fork,
+    /// A performed event, in `ui::display::format_event`'s words.
+    Event,
+    /// The proposals entering a batch, and their CR 616.1 subject groups.
+    Batch,
+    /// One pass of the replacement pipeline over an event: the replacement
+    /// and prevention effects that applied to it, the one chosen, any "can't"
+    /// that stopped it, and what each proposal became (CR 616.1). Written as
+    /// `pipeline`, the name the trace's readers know it by.
+    ReplacementPipeline,
+    /// What each of a batch's proposals became.
+    BatchEnd,
+    /// One top-level layer walk.
+    LayerWalk,
+    /// A prompt at the decision boundary.
+    Decision,
+    /// An action a prompt offered and the engine refused.
+    PriorityRejected,
+    /// One trigger-matcher decision.
+    Trigger,
+    /// One entry leaving the trigger queue at placement.
+    Pending,
+}
+
+impl RecordKind {
+    pub const ALL: [RecordKind; 12] = [
+        RecordKind::Game,
+        RecordKind::Object,
+        RecordKind::Fork,
+        RecordKind::Event,
+        RecordKind::Batch,
+        RecordKind::ReplacementPipeline,
+        RecordKind::BatchEnd,
+        RecordKind::LayerWalk,
+        RecordKind::Decision,
+        RecordKind::PriorityRejected,
+        RecordKind::Trigger,
+        RecordKind::Pending,
+    ];
+
+    /// The `kind` field's value.
+    pub fn name(self) -> &'static str {
+        match self {
+            RecordKind::Game => "game",
+            RecordKind::Object => "object",
+            RecordKind::Fork => "fork",
+            RecordKind::Event => "event",
+            RecordKind::Batch => "batch",
+            RecordKind::ReplacementPipeline => "pipeline",
+            RecordKind::BatchEnd => "batch_end",
+            RecordKind::LayerWalk => "layer_walk",
+            RecordKind::Decision => "decision",
+            RecordKind::PriorityRejected => "priority_rejected",
+            RecordKind::Trigger => "trigger",
+            RecordKind::Pending => "pending",
+        }
+    }
+
+    fn named(name: &str) -> Option<RecordKind> {
+        RecordKind::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+}
+
 /// One JSON object in progress — the fields of a record after its `seq`,
 /// `branch` and `kind`, which every record carries.
 ///
@@ -200,13 +303,13 @@ struct Container {
 
 impl Record {
     /// A record of the given kind, with no other field yet.
-    pub fn new(kind: &str) -> Record {
+    pub fn new(kind: RecordKind) -> Record {
         let mut r = Record {
             body: String::new(),
             open: vec![Container { first: true, array: false }],
             after_key: false,
         };
-        r.field_str("kind", kind);
+        r.field_str("kind", kind.name());
         r
     }
 
@@ -402,6 +505,258 @@ pub fn tidy_ids(s: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Reading the lines back
+// ---------------------------------------------------------------------------
+
+/// A field's value as a line holds it. The writer writes no fraction, so a
+/// number is whole, and `i128` holds both the `u64`s and the `i64`s it writes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FieldValue {
+    Null,
+    Bool(bool),
+    Number(i128),
+    Text(String),
+    List(Vec<FieldValue>),
+    Fields(Vec<(String, FieldValue)>),
+}
+
+impl FieldValue {
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            FieldValue::Number(n) => u64::try_from(*n).ok(),
+            _ => None,
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            FieldValue::Number(n) => i64::try_from(*n).ok(),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            FieldValue::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            FieldValue::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    /// A list's items; nothing for any other value.
+    pub fn items(&self) -> &[FieldValue] {
+        match self {
+            FieldValue::List(items) => items,
+            _ => &[],
+        }
+    }
+
+    /// A nested object's field `key`.
+    pub fn get(&self, key: &str) -> Option<&FieldValue> {
+        match self {
+            FieldValue::Fields(fields) => fields.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
+    fn write(&self, r: &mut Record) {
+        match self {
+            FieldValue::Null => r.null(),
+            FieldValue::Bool(b) => r.bool(*b),
+            FieldValue::Number(n) => match u64::try_from(*n) {
+                Ok(n) => r.u64(n),
+                Err(_) => r.i64(*n as i64),
+            },
+            FieldValue::Text(text) => r.str(text),
+            FieldValue::List(items) => {
+                r.begin_array();
+                items.iter().for_each(|item| item.write(r));
+                r.end()
+            }
+            FieldValue::Fields(fields) => {
+                r.begin_object();
+                for (key, value) in fields {
+                    r.key(key);
+                    value.write(r);
+                }
+                r.end()
+            }
+        };
+    }
+}
+
+/// One line of a trace, read back: where it sits in the trace, which branch
+/// wrote it, its kind, and the rest of its fields in the order written.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TraceRecord {
+    pub seq: u64,
+    pub branch: u64,
+    pub kind: RecordKind,
+    pub fields: Vec<(String, FieldValue)>,
+}
+
+impl TraceRecord {
+    /// A line as the sink writes one; anything else is refused, saying where.
+    pub fn read(line: &str) -> Result<TraceRecord, String> {
+        let mut reader = LineReader { line, at: 0 };
+        let FieldValue::Fields(mut fields) = reader.value()? else {
+            return Err("a record is an object".to_string());
+        };
+        if reader.at != line.len() {
+            return Err(format!("something follows the record at byte {}", reader.at));
+        }
+        let mut lead = |key: &str| match fields.first() {
+            Some((k, _)) if k == key => Ok(fields.remove(0).1),
+            _ => Err(format!("a record opens with `{key}`")),
+        };
+        let seq = lead("seq")?.as_u64().ok_or("`seq` is a count")?;
+        let branch = lead("branch")?.as_u64().ok_or("`branch` is a count")?;
+        let kind = lead("kind")?;
+        let kind = kind.as_str().and_then(RecordKind::named).ok_or_else(|| format!("no record kind {kind:?}"))?;
+        Ok(TraceRecord { seq, branch, kind, fields })
+    }
+
+    /// Every line of `text`, as a sink wrote them, numbering the one refused.
+    pub fn read_all(text: &str) -> Result<Vec<TraceRecord>, String> {
+        let lines = text.lines().enumerate().filter(|(_, line)| !line.is_empty());
+        lines.map(|(i, line)| TraceRecord::read(line).map_err(|why| format!("line {}: {why}", i + 1))).collect()
+    }
+
+    /// The line again, as the sink writes it: the round trip's other half.
+    pub fn line(&self) -> String {
+        let mut r = Record::new(self.kind);
+        for (key, value) in &self.fields {
+            r.key(key);
+            value.write(&mut r);
+        }
+        let mut out = Vec::new();
+        let _ = write_line(&mut out, self.seq, self.branch, &r.body);
+        String::from_utf8_lossy(&out).trim_end().to_string()
+    }
+
+    pub fn get(&self, key: &str) -> Option<&FieldValue> {
+        self.fields.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
+
+    pub fn u64(&self, key: &str) -> Option<u64> {
+        self.get(key)?.as_u64()
+    }
+
+    pub fn str(&self, key: &str) -> Option<&str> {
+        self.get(key)?.as_str()
+    }
+
+    pub fn bool(&self, key: &str) -> Option<bool> {
+        self.get(key)?.as_bool()
+    }
+
+    /// A list field's items; nothing when the field is absent or not a list.
+    pub fn items(&self, key: &str) -> &[FieldValue] {
+        self.get(key).map_or(&[], FieldValue::items)
+    }
+}
+
+/// The writer's JSON and nothing wider: no whitespace, no fractions, and the
+/// escapes [`Record`] writes.
+struct LineReader<'a> {
+    line: &'a str,
+    at: usize,
+}
+
+impl LineReader<'_> {
+    fn rest(&self) -> &str {
+        &self.line[self.at..]
+    }
+
+    fn take(&mut self, expected: &str) -> Result<(), String> {
+        if !self.rest().starts_with(expected) {
+            return Err(format!("expected `{expected}` at byte {}", self.at));
+        }
+        self.at += expected.len();
+        Ok(())
+    }
+
+    fn value(&mut self) -> Result<FieldValue, String> {
+        match self.rest().chars().next() {
+            Some('{') => self.fields(),
+            Some('[') => self.list(),
+            Some('"') => self.text().map(FieldValue::Text),
+            Some('t') => self.take("true").map(|()| FieldValue::Bool(true)),
+            Some('f') => self.take("false").map(|()| FieldValue::Bool(false)),
+            Some('n') => self.take("null").map(|()| FieldValue::Null),
+            Some('-' | '0'..='9') => {
+                let len = self.rest().char_indices().find(|&(i, c)| !(c.is_ascii_digit() || (i == 0 && c == '-'))).map_or(self.rest().len(), |(i, _)| i);
+                let number = self.rest()[..len].parse().map_err(|_| format!("a malformed number at byte {}", self.at))?;
+                self.at += len;
+                Ok(FieldValue::Number(number))
+            }
+            other => Err(format!("unexpected {other:?} at byte {}", self.at)),
+        }
+    }
+
+    fn fields(&mut self) -> Result<FieldValue, String> {
+        self.take("{")?;
+        let mut fields = Vec::new();
+        while !self.rest().starts_with('}') {
+            if !fields.is_empty() {
+                self.take(",")?;
+            }
+            let key = self.text()?;
+            self.take(":")?;
+            fields.push((key, self.value()?));
+        }
+        self.take("}")?;
+        Ok(FieldValue::Fields(fields))
+    }
+
+    fn list(&mut self) -> Result<FieldValue, String> {
+        self.take("[")?;
+        let mut items = Vec::new();
+        while !self.rest().starts_with(']') {
+            if !items.is_empty() {
+                self.take(",")?;
+            }
+            items.push(self.value()?);
+        }
+        self.take("]")?;
+        Ok(FieldValue::List(items))
+    }
+
+    fn text(&mut self) -> Result<String, String> {
+        self.take("\"")?;
+        let mut out = String::new();
+        let mut chars = self.rest().chars();
+        loop {
+            let c = chars.next().ok_or("a string is not closed")?;
+            match c {
+                '"' => break,
+                '\\' => out.push(match chars.next().ok_or("an escape is not finished")? {
+                    '"' => '"',
+                    '\\' => '\\',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    'u' => {
+                        let hex: String = chars.by_ref().take(4).collect();
+                        u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32).ok_or("a malformed \\u escape")?
+                    }
+                    other => return Err(format!("an escape the writer does not write: \\{other}")),
+                }),
+                c => out.push(c),
+            }
+        }
+        self.at = self.line.len() - chars.as_str().len();
+        Ok(out)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The state's side
 // ---------------------------------------------------------------------------
 
@@ -445,7 +800,7 @@ impl GameState {
     /// has none and says so.
     pub fn trace_game(&self, label: &str, seed: Option<u64>) {
         self.trace(|| {
-            let mut r = Record::new("game");
+            let mut r = Record::new(RecordKind::Game);
             r.field_str("label", label);
             r.field_opt_u64("seed", seed);
             r.field_u64("players", self.players.len() as u64);
@@ -468,7 +823,7 @@ impl GameState {
         for id in ids {
             self.trace(|| {
                 let object = &self.objects[&id];
-                let mut r = Record::new("object");
+                let mut r = Record::new(RecordKind::Object);
                 r.field_u64("id", id.raw());
                 r.field_str("name", &crate::ui::display::printed_name(self, id));
                 r.field_u64("owner", object.owner as u64);
@@ -502,7 +857,7 @@ impl GameState {
         };
         let names = self.names_as_announced(&event);
         self.trace(|| {
-            let mut r = Record::new("event");
+            let mut r = Record::new(RecordKind::Event);
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
             r.field_opt_u64("resolution", stamp.resolution.map(|s| s.source.raw()));
@@ -571,15 +926,60 @@ mod tests {
 
     #[test]
     fn a_record_separates_fields_and_nests_containers() {
-        let mut r = Record::new("t");
+        let mut r = Record::new(RecordKind::Game);
         r.field_u64("n", 3).field_str("s", "a\"b\\c\n");
         r.key("list").begin_array().u64(1).str("x").end();
         r.key("obj").begin_object().field_bool("b", true).key("inner").begin_array().end().end();
         r.field_opt_u64("none", None);
         assert_eq!(
             body(r),
-            r#""kind":"t","n":3,"s":"a\"b\\c\n","list":[1,"x"],"obj":{"b":true,"inner":[]},"none":null"#
+            r#""kind":"game","n":3,"s":"a\"b\\c\n","list":[1,"x"],"obj":{"b":true,"inner":[]},"none":null"#
         );
+    }
+
+    /// The reader is the writer's inverse: every kind of record, written by
+    /// its own writer on a board that reaches it, reads back to the line it
+    /// came from.
+    #[test]
+    fn every_record_kind_reads_back_to_the_line_it_came_from() {
+        use crate::engine::actions::ActionContext;
+        use crate::engine::trace_records;
+        use crate::test_support::{install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::zones::{Zone, ZoneChangeCause};
+        use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+        use crate::ui::decision::PriorityAction;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::phase_tr1_cards::soul_warden(), 0);
+        let bears = put_in_graveyard(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let trace = install_trace(&mut game, "a \"quoted\" label");
+        // A walk the memo cannot serve writes a `layer_walk`.
+        game.bump_layer_epoch();
+        let dp = RecordingDecisionProvider::picking(0);
+        // The entry's `batch`, `pipeline`, `event` and `batch_end`, and Soul
+        // Warden's `trigger`; then its `pending` as it is put on the stack.
+        game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.place_pending_triggers(&dp).unwrap();
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        game.trace(|| trace_records::decision("pick_n", 0, &ctx, &[ChoiceOption::Action(PriorityAction::Pass)]));
+        game.trace(|| trace_records::priority_rejected(0, &PriorityAction::CastSpell(bears), "a reason\nover two lines", 1));
+        let _fork = game.clone();
+        game.trace_objects();
+
+        let mut kinds = std::collections::HashSet::new();
+        for line in trace.lines() {
+            let record = TraceRecord::read(&line).unwrap_or_else(|why| panic!("{why}: {line}"));
+            assert_eq!(record.line(), line);
+            kinds.insert(record.kind);
+        }
+        let unwritten: Vec<RecordKind> = RecordKind::ALL.into_iter().filter(|kind| !kinds.contains(kind)).collect();
+        assert!(unwritten.is_empty(), "no {unwritten:?} record was written");
+
+        let negative = r#"{"seq":1,"branch":0,"kind":"layer_walk","power":-2,"toughness":null}"#;
+        let record = TraceRecord::read(negative).unwrap();
+        assert_eq!((record.get("power").and_then(FieldValue::as_i64), record.line().as_str()), (Some(-2), negative));
+        assert!(TraceRecord::read(r#"{"seq":1,"branch":0,"kind":"layer_walk"} "#).is_err(), "a byte after the record");
+        assert!(TraceRecord::read(r#"{"branch":0,"seq":1,"kind":"game"}"#).is_err(), "the sink writes `seq` first");
     }
 
     #[test]

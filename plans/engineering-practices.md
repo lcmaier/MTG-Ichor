@@ -1543,7 +1543,12 @@ schedulable rather than done:
   item 5 recorded before the code held: "gated the way `Diagnostics` is"
   became one `Option` branch per emit point with the payload built behind
   it, and the check was `IDENTICAL` on every counter with the sink compiled
-  in and off, and on (`fuzz-record.md`, the A4c block).
+  in and off, and on (`fuzz-record.md`, the A4c block). **Read back in the
+  window since SU-8** (`setup-architecture.md` §7c): `TraceRecord::read`, beside
+  the writer, is its inverse over every record kind, and the dev GUI's why
+  panel answers a question about the past, what an event did and which
+  triggered abilities were asked about it, from the trace of a replay to the
+  open question.
 - **Tier 3 — the engine map.** One page: the modules and what each owns, the
   chokepoint's arms, the three gate legs a new replacement source must
   extend, the two `object_matches_filter`s, the accessor pair, and the

@@ -914,29 +914,21 @@ pub fn put_on_battlefield_this_turn(
 /// install one on the board a `// COVERS:` test builds, run the test, hand
 /// [`Self::lines`] to `plans/trace_spine.py`.
 pub struct TraceBuffer {
-    buf: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    memory: crate::state::trace::TraceMemory,
     sink: std::sync::Arc<TraceSink>,
-}
-
-struct SharedBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-impl std::io::Write for SharedBuffer {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("trace buffer poisoned").extend_from_slice(data);
-        Ok(data.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
 impl TraceBuffer {
     /// Every line written so far, flushed first.
     pub fn lines(&self) -> Vec<String> {
         self.sink.flush().expect("trace flush");
-        let bytes = self.buf.lock().expect("trace buffer poisoned").clone();
-        String::from_utf8(bytes).expect("trace is UTF-8").lines().map(str::to_string).collect()
+        self.memory.text().lines().map(str::to_string).collect()
+    }
+
+    /// Every record written so far, read back.
+    pub fn records(&self) -> Vec<crate::state::trace::TraceRecord> {
+        self.sink.flush().expect("trace flush");
+        crate::state::trace::TraceRecord::read_all(&self.memory.text()).expect("the sink's lines read back")
     }
 
     /// The lines whose `kind` is `kind`.
@@ -954,11 +946,11 @@ impl TraceBuffer {
 /// Attach a buffer-backed sink to `game` and write its header. `label` is the
 /// trace's own name for the board, usually the test's.
 pub fn install_trace(game: &mut GameState, label: &str) -> TraceBuffer {
-    let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    let sink = TraceSink::to_writer(SharedBuffer(std::sync::Arc::clone(&buf)));
+    let memory = crate::state::trace::TraceMemory::default();
+    let sink = TraceSink::to_writer(memory.clone());
     game.install_trace(TraceHandle::new(&sink));
     game.trace_game(label, None);
-    TraceBuffer { buf, sink }
+    TraceBuffer { memory, sink }
 }
 
 /// Attach a file-backed sink to `game` — for regenerating a page's spine from

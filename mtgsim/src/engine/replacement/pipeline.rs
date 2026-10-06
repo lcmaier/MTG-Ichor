@@ -3,12 +3,12 @@
 use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::engine::restriction::{is_prohibited, Query};
+use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::state::trace::{render_debug, Record};
+use crate::state::trace::{render_debug, Record, RecordKind};
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
@@ -397,7 +397,7 @@ pub(crate) fn apply_replacements(
             // CR 614.17: a "can't" is checked ahead of the pipeline and wins (CR 101.2);
             // never a `ReplacementDef`, or a player could decline it. Re-asked every
             // iteration because CR 614.17c lets a self-replacement change the event's type.
-            let blocked = is_prohibited(
+            let prohibited = prohibition(
                 game,
                 &Query::Event {
                     action: event,
@@ -408,6 +408,10 @@ pub(crate) fn apply_replacements(
                     lookahead: Some(&frame),
                 },
             );
+            if let (Some(t), Some(prohibited)) = (&mut trace, prohibited) {
+                t.prohibited.push((m.index, prohibited));
+            }
+            let blocked = prohibited.is_some();
             let mut any = false;
             for c in gather(game, event, ctx, blocked, &frame)
                 .into_iter()
@@ -574,7 +578,12 @@ pub(crate) fn apply_replacements(
                 // effect can become applicable as the result of another"
                 // works without any special case.
                 check_exempt_terminates(game, &chosen, next, cause_of(ctx), &mut exempt_applied)?;
-                if let Some(before) = &before {
+                // A debug-only read, so it puts back what it touched: a debug
+                // build's trace and counters are a release build's (item 210).
+                if let Some(before) = &before
+                    && !unsuppressed.is_empty()
+                {
+                    let saved = game.save_observers();
                     check_order_invariance(
                         game,
                         ctx,
@@ -585,6 +594,7 @@ pub(crate) fn apply_replacements(
                         pos,
                         &unsuppressed,
                     );
+                    game.restore_observers(saved);
                 }
             }
             // CR 614.6 — `None` here means this member's event does not
@@ -620,8 +630,9 @@ pub(crate) fn apply_replacements(
 
 /// The trace sink's view of one CR 616.1 iteration — what the hand-authored
 /// pages record per step: the candidates and their verdicts, whether the
-/// look-ahead frame was consulted, the bucket, the chooser, the choice or
-/// its suppression, the rewrite, and what each member became.
+/// look-ahead frame was consulted, each member a "can't" stopped, the bucket,
+/// the chooser, the choice or its suppression, the rewrite, and what each
+/// member became.
 ///
 /// Accumulated rather than written in one place because an iteration has
 /// three exits — nothing gathered, an optional declined, an effect applied —
@@ -634,6 +645,9 @@ struct IterationTrace {
     frame_computed: bool,
     /// One row per applicable effect the gather found this iteration.
     candidates: Vec<CandidateRow>,
+    /// Each member a "can't" stopped (CR 614.17), by batch index, and the
+    /// restriction that did.
+    prohibited: Vec<(usize, Prohibition)>,
     chooser: Option<PlayerId>,
     decided: Decided,
     choice: Option<String>,
@@ -702,6 +716,7 @@ impl IterationTrace {
             subject: render_debug(subject),
             frame_computed: false,
             candidates: Vec::new(),
+            prohibited: Vec::new(),
             chooser: None,
             decided: Decided::None,
             choice: None,
@@ -730,7 +745,7 @@ impl IterationTrace {
     }
 
     fn record(self, game: &GameState, members: &[Member]) -> Record {
-        let mut r = Record::new("pipeline");
+        let mut r = Record::new(RecordKind::ReplacementPipeline);
         r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
@@ -744,6 +759,17 @@ impl IterationTrace {
             r.field_str("class", &c.class);
             r.field_usizes("members", &c.members);
             r.field_bool("bucket", c.bucket);
+            r.end();
+        }
+        r.end();
+        r.key("prohibited").begin_array();
+        for (i, prohibition) in &self.prohibited {
+            let (by, words) = prohibition.by.as_recorded();
+            r.begin_object();
+            r.field_u64("i", *i as u64);
+            r.field_u64("source", prohibition.source.raw());
+            r.field_str("by", by);
+            r.field_opt_str("words", words);
             r.end();
         }
         r.end();
@@ -3071,7 +3097,26 @@ fn putter_of(
 /// Every player still in the game who is not `you` — CR 102.1's "opponent",
 /// with CR 102.3's teams not modeled.
 fn opponents_of(game: &GameState, you: PlayerId) -> Vec<PlayerId> {
-    (0..game.num_players()).filter(|&p| p != you && !game.player_lost[p]).collect()
+    (0..game.num_players()).filter(|&p| not_an_opponent(game, you, p).is_none()).collect()
+}
+
+/// Why `player` is not an opponent `you` may choose, if they are not.
+pub(crate) fn not_an_opponent(game: &GameState, you: PlayerId, player: PlayerId) -> Option<NotAnOpponent> {
+    if player == you {
+        Some(NotAnOpponent::Yourself)
+    } else if !game.in_game(player) {
+        Some(NotAnOpponent::LeftTheGame)
+    } else {
+        None
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NotAnOpponent {
+    /// CR 102.2: an opponent is another player.
+    Yourself,
+    /// CR 800.4a: a player who has left the game is in it no longer.
+    LeftTheGame,
 }
 
 /// CR 614.13's application: choose a number of objects, move them, and report
@@ -3171,48 +3216,61 @@ fn auxiliary_candidates(
     aux: &AuxiliaryMove,
     you: PlayerId,
 ) -> Result<Vec<ObjectId>, String> {
-    let ids: Vec<ObjectId> = match aux.from {
-        Zone::Battlefield => game.battlefield_ids_ordered(),
-        Zone::Graveyard => game.players[you].graveyard.clone(),
-        other => {
-            return Err(format!(
-                "CR 614.13 auxiliary move reads {:?}, which has no candidate enumeration. \
-                 The battlefield and a player's graveyard are the two the printed cards \
-                 use; a third needs its ordering and its ownership scope stated.",
-                other
-            ))
-        }
-    };
+    let ids = auxiliary_zone(game, aux, you)?;
+    Ok(ids.into_iter().filter(|&id| not_auxiliary(game, aux, you, id).is_none()).collect())
+}
 
-    Ok(ids
-        .into_iter()
-        .filter(|&id| {
-            // CR 614.13a/b, ahead of everything else: an excluded object is not
-            // a candidate that fails a check, it is not a candidate.
-            if !game.entry_selection.admits(id) {
-                return false;
-            }
-            if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
-                return false;
-            }
-            // CR 101.2 on the move this choice would produce — the resolution-time choice's
-            // axis-1 question. `cause` is a `PlayerId` because `SourceFilter`'s one
-            // variant, `ControlledBy(PlayerRef)`, reads control and nothing else; it
-            // widens with the variant that needs more. The player is the effect's
-            // controller, which is why Sigarda does not stop her own devour.
-            !is_prohibited(
-                game,
-                &Query::Event {
-                    action: &GameAction::ZoneChange {
-                        object: id,
-                        from: aux.from,
-                        to: aux.to,
-                        cause: aux.cause,
-                    },
-                    cause: Some(you),
-                    lookahead: None,
-                },
-            )
-        })
-        .collect())
+/// The objects in the zone `aux` chooses from, in its order.
+pub(crate) fn auxiliary_zone(game: &GameState, aux: &AuxiliaryMove, you: PlayerId) -> Result<Vec<ObjectId>, String> {
+    match aux.from {
+        Zone::Battlefield => Ok(game.battlefield_ids_ordered()),
+        Zone::Graveyard => Ok(game.players[you].graveyard.clone()),
+        other => Err(format!(
+            "CR 614.13 auxiliary move reads {:?}, which has no candidate enumeration. \
+             The battlefield and a player's graveyard are the two the printed cards \
+             use; a third needs its ordering and its ownership scope stated.",
+            other
+        )),
+    }
+}
+
+/// Why `id`, in `aux`'s zone, may not be chosen, if it may not.
+pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId, id: ObjectId) -> Option<NotAuxiliary> {
+    // CR 614.13a/b, ahead of everything else: an excluded object is not
+    // a candidate that fails a check, it is not a candidate.
+    if game.entry_selection.entering.contains(&id) {
+        return Some(NotAuxiliary::Entering);
+    }
+    if game.entry_selection.chosen.contains(&id) {
+        return Some(NotAuxiliary::AlreadyChosen);
+    }
+    if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
+        return Some(NotAuxiliary::NotMatched);
+    }
+    // CR 101.2 on the move this choice would produce — the resolution-time choice's
+    // axis-1 question. `cause` is a `PlayerId` because `SourceFilter`'s one
+    // variant, `ControlledBy(PlayerRef)`, reads control and nothing else; it
+    // widens with the variant that needs more. The player is the effect's
+    // controller, which is why Sigarda does not stop her own devour.
+    prohibition(
+        game,
+        &Query::Event {
+            action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, cause: aux.cause },
+            cause: Some(you),
+            lookahead: None,
+        },
+    )
+    .map(NotAuxiliary::Prohibited)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NotAuxiliary {
+    /// CR 614.13a: it is entering the battlefield in this event.
+    Entering,
+    /// CR 614.13b: an earlier entry in this event chose it already.
+    AlreadyChosen,
+    /// It is not what the effect chooses.
+    NotMatched,
+    /// CR 101.2: a "can't" forbids the move.
+    Prohibited(Prohibition),
 }

@@ -799,52 +799,58 @@ PRIORS = [
 
 QUESTIONS = {
     "PriorityAction": ("lands, spells, abilities, and Pass", "yes",
-                       "`can_play_land`, `can_cast`, `can_activate` (SU-7)", "built", ""),
-    "DeclareAttackers": ("creatures and what each may attack", "yes", "`can_attack` (SU-7)", "built", ""),
-    "DeclareBlockers": ("creatures and what each may block", "yes", "`can_block` (SU-7)", "built", ""),
+                       "`can_play_land`, `can_cast`, `can_activate` (SU-7)", "SU-7", ""),
+    "DeclareAttackers": ("creatures and what each may attack", "yes", "`can_attack` (SU-7)", "SU-7", ""),
+    "DeclareBlockers": ("creatures and what each may block", "yes", "`can_block` (SU-7)", "SU-7", ""),
     "AssignCombatDamage": ("amounts across the creatures blocking it", "bounds",
-                           "CR 510.1c's lethal-damage bound", "setup", "SU-8"),
+                           "what it ranges over, CR 510.1c", "range", ""),
     "AssignTrampleDamage": ("amounts across blockers and the player", "bounds",
-                            "CR 702.19b's lethal-damage bound", "setup", "SU-8"),
-    "ChooseXValue": ("a number", "bounds", "the bound the enumeration sets on X", "162", "item 162's build"),
-    "ChooseAlternativeCost": ("the mana cost and each printed alternative", "no", "", "setup", "SU-8"),
-    "ChooseAdditionalCosts": ("each optional additional cost", "no",
-                              "a mandatory cost is in the total, not offered (CR 118.8)", "setup", "SU-8"),
+                            "what it ranges over, CR 702.19b", "range", ""),
+    "ChooseXValue": ("a number", "bounds", "the bound the enumeration sets on X", "MA-2", "MA-2"),
+    "ChooseAlternativeCost": ("the mana cost and each printed alternative", "no", "", "range", ""),
+    "ChooseAdditionalCosts": ("each optional additional cost", "no", "", "range", ""),
     "SelectRecipients": ("the objects or players a target or choice may name", "yes",
                          "`validate_selection`'s reasons, typed", "RS-2", "RS-2"),
     "GenericManaAllocation": ("a split of the generic part across the pool", "bounds",
-                              "the clamp that keeps each pip's mana", "162", "item 162's build"),
-    "OrderCostReductions": ("an order of every reduction that applies", "no", "", "setup", "SU-8"),
+                              "the clamp that keeps each pip's mana", "MA-2", "MA-2"),
+    "OrderCostReductions": ("an order of every reduction that applies", "no", "", "range", ""),
     "ManaAbilityWindow": ("the mana abilities that can pay now", "yes",
-                          "`can_pay_costs`'s `CannotPay`, per ability", "162", "item 162's build"),
+                          "`can_pay_costs`'s `CannotPay`, per ability", "MA-1", ""),
     "ChooseSacrificeForCost": ("the permanents that can pay the cost", "yes",
                                "CR 701.21a and the cost's filter", "costs", "the cost phase"),
     "ChooseReplacementEffect": ("the replacement effects that apply", "yes",
-                                "the gather's candidates, from the trace", "setup", "SU-8"),
+                                "what the batch's earlier iterations applied, from the trace", "SU-8", ""),
     "OrderTriggers": ("an order of one player's pending triggers", "no",
-                      "the dispatch's matcher, from the trace", "setup", "SU-8"),
-    "ApplyOptionalReplacement": ("yes or no", "no", "", "setup", "SU-8"),
-    "ApplyOptionalEffect": ("yes or no", "no", "", "setup", "SU-8"),
-    "AllocateNextDamage": ("amounts across the damage sources", "bounds", "CR 615.7's count", "setup", "SU-8"),
-    "ChooseDamageSource": ("every permanent and spell", "no", "", "setup", "SU-8"),
-    "ChooseEnteringController": ("the opponents still in the game", "yes", "CR 800.4a", "setup", "SU-8"),
+                      "what the matcher answered about the events, from the trace", "SU-8", ""),
+    "ApplyOptionalReplacement": ("yes or no", "no", "", "range", ""),
+    "ApplyOptionalEffect": ("yes or no", "no", "", "range", ""),
+    "AllocateNextDamage": ("amounts across the damage sources", "bounds", "what it ranges over, CR 615.7", "range", ""),
+    "ChooseDamageSource": ("every permanent and spell", "no", "", "range", ""),
+    "ChooseEnteringController": ("the opponents still in the game", "yes", "`not_an_opponent`, CR 102.2 and 800.4a",
+                                 "SU-8", ""),
     "ChooseAuxiliaryZoneChange": ("the objects CR 614.13a/b and CR 101.2 allow", "yes",
-                                  "the filter and the restriction that dropped it", "setup", "SU-8"),
-    "ChooseCopySource": ("the permanents the copy effect may copy", "yes", "the copy effect's filter", "setup", "SU-8"),
-    "CommanderToCommandZoneSba": ("yes or no", "no", "", "setup", "SU-8"),
-    "Discard": ("the cards in the hand", "no", "", "setup", "SU-8"),
-    "Scry": ("the cards looked at", "no", "", "setup", "SU-8"),
-    "ScryOrder": ("an order of one pile", "no", "", "setup", "SU-8"),
-    "LegendRule": ("the legendary permanents sharing the name", "no", "", "setup", "SU-8"),
+                                  "`not_auxiliary`, and the \"can't\" that dropped it", "SU-8", ""),
+    "ChooseCopySource": ("the permanents the copy effect may copy", "yes",
+                         "the copy effect's words; typed with RS-2's selection reasons", "SU-8", ""),
+    "CommanderToCommandZoneSba": ("yes or no", "no", "", "range", ""),
+    "Discard": ("the cards in the hand", "no", "", "range", ""),
+    "Scry": ("the cards looked at", "no", "", "range", ""),
+    "ScryOrder": ("an order of one pile", "no", "", "range", ""),
+    "LegendRule": ("the legendary permanents sharing the name", "no", "", "range", ""),
 }
 
 QUESTION_OWNERS = {
-    "built": "built (SU-7)",
-    "setup": "`setup-architecture.md` §7c",
-    "162": "`codebase-state.md` item 162",
+    "SU-7": "built (SU-7)",
+    "MA-1": "built (MA-1)",
+    "SU-8": "built (SU-8)",
+    "range": "what it ranges over (SU-8)",
+    "MA-2": "`mana-architecture.md` MA-2",
     "RS-2": "`cant-effects-architecture.md` RS-2",
     "costs": "the cost phase that pays the cost",
 }
+
+#: The owners whose kinds `ui::why::refusals` answers with a check of their own.
+CHECKED = ("SU-7", "MA-1", "SU-8")
 
 # ==========================================================================
 # Classification
@@ -959,7 +965,7 @@ def explained_kinds():
     src = open(WHY, encoding="utf-8").read()
     body = src[src.index("fn refusals("):]
     body = body[:body.index("\n}\n")]
-    return sorted(set(re.findall(r"\(ChoiceKind::(\w+),\s*WhyAbout::", body)))
+    return sorted(set(re.findall(r"\(ChoiceKind::(\w+)(?:\s*\{[^}]*\})?,\s*WhyAbout::", body)))
 
 
 def registered():
@@ -1256,7 +1262,7 @@ def render_questions():
         raise SystemExit("ChoiceKind no longer matches the census:\n  new: %s\n  gone: %s" % (
             sorted(set(kinds) - set(QUESTIONS)), sorted(set(QUESTIONS) - set(kinds))))
     explained = explained_kinds()
-    claimed = sorted(k for k, v in QUESTIONS.items() if v[3] == "built")
+    claimed = sorted(k for k, v in QUESTIONS.items() if v[3] in CHECKED)
     if explained != claimed:
         raise SystemExit("ui::why::refusals explains %s; the census says %s" % (explained, claimed))
     L = ["| `ChoiceKind` | its options | filtered | what a why reads | owner | slot |", "|---|---|---|---|---|---|"]
@@ -1266,7 +1272,8 @@ def render_questions():
                                                      QUESTION_OWNERS[key], slot or "--"))
     rest = Counter(QUESTIONS[k][1] for k in kinds if k not in explained)
     head = ("%d kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` "
-            "answers %d with a check (%s), read off its arms in `mtgsim/src/ui/why.rs`. Of the %d it does not, "
+            "answers %d with a check (%s), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it "
+            "ranges over (`ranges_over`). Of the %d it does not check, "
             "%d are **filtered**: a check drops a candidate the question could have named. %d are **bounds**: the "
             "options are amounts, and the why explains a limit. %d are **no**: every candidate is offered."
             % (len(kinds), len(explained), ", ".join("`%s`" % k for k in explained), len(kinds) - len(explained),

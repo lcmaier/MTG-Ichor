@@ -449,8 +449,10 @@ fn a_player_is_among_a_target_questions_options_or_not() {
     assert_eq!(answer.title, "Player 1");
     assert!(has(&answer, "Offered to Player 0:", None) && has(&answer, "Player 1", None), "{answer:#?}");
     let forest = why(&game, WhyAbout::Object(find(&game, "Forest")), Some(&question));
-    assert!(has(&forest, "Not among the options Player 0 is offered here.", None), "{forest:#?}");
+    let targets = format!("Not among the options: the question ranges over the objects and players {} may target or choose.", named(&game, bolt));
+    assert!(has(&forest, &targets, Some("601.2c")), "{forest:#?}");
     let at_priority = at_priority(&game, 0, WhyAbout::Player(1), None);
-    assert!(has(&at_priority, "Not among the options Player 0 is offered here.", None), "{at_priority:#?}");
+    let range = "the lands Player 0 can play, the spells Player 0 can cast, the abilities Player 0 can activate, and passing";
+    assert!(has(&at_priority, &format!("Not among the options: the question ranges over {range}."), Some("117.1")), "{at_priority:#?}");
     assert_eq!(why(&game, WhyAbout::Player(1), None).sections[0].lines[0].text, "No question is open.");
 }

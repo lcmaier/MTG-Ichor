@@ -5,7 +5,7 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `92a3334`, SU-6's last code commit, 2026-10-05.
+§7. Read at `8bfeb01`, SU-8's last code commit, 2026-10-06.
 
 ## 1. What it is
 
@@ -25,6 +25,7 @@ sits in it.
 | The session | `session.rs` | one game and one board: Play, Reload, Undo answer, Savestate and the menu, `--load`, "Save board as scenario", the editor. Every click lands here first | closely |
 | The bridge | `bridge.rs` | runs the game on the engine's thread, replaying a line first when a rebuild or a load asks. Its seats carry each question to the window and the answer back, and it writes the game's record, the log and the save, one thread at a time | closely |
 | The save | `save.rs` | the journal beside each log: every line played, where the window was asked, the savestates, each move; the tree Undo answer and the menu read | closely |
+| The why's replay | `why_replay.rs` | a why about the past: the game built again, the window's line replayed into it with the trace sink on, and the why read at the open question from the trace (SU-8) | closely |
 | The snapshot | `snapshot.rs` | the board copied as plain data at each question, read through the layers, so the window never touches the live game | closely |
 | The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
@@ -81,6 +82,11 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
   under the record's lock, so a game still running toward its next question
   cannot append to the line that replaced it. The window's thread writes a
   savestate and a move under the same lock, at the click.
+- **A third, while a why about the past is read** (§10): a replay of the
+  window's line on a thread of its own, which writes no record. It ends with
+  its answer, sent over a channel of its own; a newer request supersedes it,
+  and it stops at its next answer; and an answer the window no longer waits
+  on goes nowhere.
 
 ## 5. Who computes what
 
@@ -127,7 +133,10 @@ From `devgui/`, where `cargo run` runs the window:
 - `tests/why_panel.rs`: the why panel through the session on the Humility
   sample: a right-click answered at the open question, the panel following
   its object to the next question and through Undo answer, its links, Back
-  and close, and a Reload keeping it only on the same board.
+  and close, and a Reload keeping it only on the same board. Since SU-8, a
+  log line's why read from a replay stopped at the open question, a newer
+  request replacing one on its way, and a finished game answering from its
+  whole line.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new.
@@ -206,5 +215,22 @@ player's line can be right-clicked too, and its why is that section alone.
   (CR 117.1a), the Angel has flying (CR 702.9b). *Offered, then reversed* is
   an answer the engine took and undid at this question (CR 732.1), which the
   re-asked question's `rejected` names.
-- **What comes next:** SU-8, what an event did and which triggered abilities
-  were asked about it, read from a replay's trace (§7c).
+- **What happened (SU-8).** A right-click on a log line asks what its event
+  did. Each line carries its event's number (`snapshot::LogLine`). The panel
+  shows the event's batch as the engine decided it: the proposals, each CR
+  616.1 iteration that met an effect or a "can't", and a batch after it that
+  performed nothing, which is where a destruction a "can't" stopped shows.
+  Then every triggered ability asked about the event, matched or refused and
+  by what. Every question kind's line says what the question ranges over.
+- **A question about the past is a replay's.** The engine reads a past event
+  from its trace (`ui::why::why_from_trace`), and the window keeps no trace,
+  so the session replays the window's line on a thread of its own with the
+  sink on: `why_replay`, Undo answer's rebuild with three differences. The
+  sink is on, nothing is recorded, and the seat behind the line reads the why
+  at the first question the line does not answer, the open one, then stops the
+  run. The game's own thread waits at its question meanwhile, and the panel
+  says it is reading the trace. A why at a question whose options the trace
+  explains (CR 616.1's choice, CR 603.3b's order) goes the same way. So does
+  any why once the game is over, from the whole line. The window marks the
+  request it waits on, `reading_the_trace`, and takes only that one's answer,
+  so a newer request supersedes an older one.

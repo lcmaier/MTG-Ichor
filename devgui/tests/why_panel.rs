@@ -1,9 +1,11 @@
-//! The why panel with no window (`setup-architecture.md` §7c, SU-6 and
-//! SU-7): a right-click asks the open question's seat, the answer shows
-//! beside the board, and the panel follows its object to each question after,
-//! through Undo answer too. A player's line asks too, and the first section
-//! says whether the open question offers what was clicked, and if not, why.
-//! Each test plays a board through the session, as clicks do.
+//! The why panel with no window (`setup-architecture.md` §7c, SU-6 to SU-8):
+//! a right-click asks the open question's seat, the answer shows beside the
+//! board, and the panel follows its object to each question after, through
+//! Undo answer too. A player's line asks too, and the first section says
+//! whether the open question offers what was clicked, and if not, why. A log
+//! line asks what its event did, which a replay reads from its trace, stopped
+//! at the open question or at the game's end. Each test plays a board through
+//! the session, as clicks do.
 
 #[path = "support/games.rs"]
 #[allow(dead_code, reason = "these tests drive a session; the bridge-level helpers are the other files'")]
@@ -20,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use devgui::session::Session;
 use devgui::prompt::BoardRef;
-use devgui::view_model::{Input, WhyLineView, WhyView};
+use devgui::view_model::{Input, WHY_READING_THE_TRACE, WhyLineView, WhyView};
 use mtgsim::types::ids::ObjectId;
 use sessions::{next_prompt, scenario_game, session_with};
 use window_by_rule::inputs_by_rule;
@@ -188,6 +190,97 @@ fn the_first_section_says_what_the_question_offers_and_why_not() {
     session.input(Input::Why(BoardRef::Player(0)));
     let view = answered(&mut session, "Player 0");
     assert_eq!(view.sections.len(), 1, "a player has only the question's section");
-    line(&view, "Not among the options Player 0 is offered here.");
+    line(&view, "Not among the options: the question ranges over the creatures Player 0 controls that can block, and what each can block.");
     assert!(view.back, "back to Wall of Stone");
+}
+
+/// The review board `bolt-into-giant-growth.scenario`: Lightning Bolt at
+/// Grizzly Bears, Giant Growth in response and the Thaumaturgist on top.
+fn bolt_board() -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/bolt-into-giant-growth.scenario");
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+}
+
+/// The seats pass until the log shows a line starting `words`: its event.
+fn pass_until_the_log_shows(session: &mut Session, words: &str) -> mtgsim::events::event::EventSeq {
+    loop {
+        if let Some(line) = session.state.log.iter().find(|line| line.text.starts_with(words)) {
+            return line.event;
+        }
+        let pass = session.state.prompt.as_ref().and_then(|prompt| prompt.pass).expect("a priority question");
+        session.input(Input::OptionButton(pass));
+        next_prompt(session);
+    }
+}
+
+/// A right-click on the log line where Lightning Bolt deals its damage reads
+/// the event from a replay stopped at the open question: the answer says
+/// which question, the game's own stays open meanwhile, and the batch names
+/// the Bears.
+#[test]
+fn a_log_lines_why_is_read_from_a_replay_stopped_at_the_open_question() {
+    let (mut session, ..) = session_with("devgui-why-event", &bolt_board(), scenario_game);
+    next_prompt(&mut session);
+    let damage = pass_until_the_log_shows(&mut session, "DamageDealt: Lightning Bolt");
+    let (asked, question) = session.state.prompt.as_ref().map(|prompt| (prompt.player, prompt.question.clone())).unwrap();
+    let (prompts, selection) = (session.state.prompts, session.state.selection.clone());
+    session.input(Input::WhyEvent(damage));
+    assert_eq!(session.state.why_view().and_then(|view| view.note), Some(WHY_READING_THE_TRACE));
+    let view = answered(&mut session, "DamageDealt: Lightning Bolt");
+    assert_eq!((session.state.prompts, &session.state.selection), (prompts, &selection), "the game's question stayed open");
+    let first = &view.sections[0].lines[0].text;
+    assert!(first.starts_with(&format!("Read from a replay to Player {asked}'s question, ")) && first.ends_with(&question), "{first}");
+    let proposed = view.sections[0].lines.iter().find(|line| line.text.starts_with("Proposed: DealDamage")).expect("the proposal");
+    assert!(proposed.links.iter().any(|link| link.label.starts_with("Grizzly Bears") && link.live), "the Bears are linked");
+}
+
+/// A newer why replaces one on its way: two log lines asked in turn, and the
+/// panel shows the second's answer, and still does once the first replay
+/// could have finished.
+#[test]
+fn a_newer_why_replaces_a_replay_on_its_way() {
+    let (mut session, ..) = session_with("devgui-why-supersede", &bolt_board(), scenario_game);
+    next_prompt(&mut session);
+    let damage = pass_until_the_log_shows(&mut session, "DamageDealt: Lightning Bolt");
+    let first = session.state.log[0].event;
+    session.input(Input::WhyEvent(first));
+    session.input(Input::WhyEvent(damage));
+    answered(&mut session, "DamageDealt: Lightning Bolt");
+    let deadline = Instant::now() + Duration::from_millis(300);
+    while Instant::now() < deadline {
+        session.receive();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(session.state.why_view().is_some_and(|view| view.title.starts_with("DamageDealt: Lightning Bolt")));
+    assert_eq!(session.state.why_path.len(), 2, "both asked, the second shown");
+}
+
+/// Once the game is over no question is open, and a log line's why is read
+/// from a replay of the whole line.
+#[test]
+fn a_game_that_has_ended_answers_from_its_whole_line() {
+    let board = "hand 0: Lightning Bolt
+battlefield: Mountain | controller 0
+player 1: life 3
+library 0: Mountain | x5
+library 1: Mountain | x5
+";
+    let (mut session, ..) = session_with("devgui-why-over", board, scenario_game);
+    next_prompt(&mut session);
+    while session.state.outcome.is_none() {
+        for input in inputs_by_rule(&session.state) {
+            session.input(input);
+        }
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while session.state.prompt.is_none() && session.state.outcome.is_none() {
+            assert!(Instant::now() < deadline && session.state.panic.is_none(), "{}", session.state.status());
+            std::thread::sleep(Duration::from_millis(5));
+            session.receive();
+        }
+    }
+    let damage = session.state.log.iter().find(|line| line.text.starts_with("DamageDealt")).expect("the Bolt's damage").event;
+    session.input(Input::WhyEvent(damage));
+    let view = answered(&mut session, "DamageDealt: Lightning Bolt");
+    assert_eq!(view.sections[0].lines[0].text, "Read from a replay of the whole game.");
+    assert!(view.note.is_none(), "a game over answers, its links live");
 }

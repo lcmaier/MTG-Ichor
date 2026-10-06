@@ -1764,9 +1764,10 @@ design against `fb1767a`:
 > took every recommendation in §7c.1. It is `roadmap-v2.md` A6g's next
 > item, "a 'why' panel fed by the trace sink", read against `7f8532a`
 > (#219's merge). The build is SU-6 to SU-8 (§8). SU-6 built the layers'
-> section and the panel, 2026-10-05, and SU-7 the question's section, the
-> same day (§8's ✅ sections). What each build changed here is amended where
-> it stands, and listed in the archive's entry for it.
+> section and the panel, 2026-10-05, SU-7 the question's section the same
+> day, and SU-8 what happened, 2026-10-06 (§8's ✅ sections). What each build
+> changed here is amended where it stands, and listed in the archive's entry
+> for it.
 
 **What it is for.** When the window shows something surprising, the tester has
 two ways to find out why: read the engine's code, or write a trace page by hand
@@ -2124,6 +2125,9 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
 4. **`pipeline` names what a "can't" blocked** (SU-8). `is_prohibited`
    (`engine/restriction/predicate.rs:60`) gains a form that returns the
    restriction's source, and the iteration record writes it for each member.
+   As SU-8 built it, `prohibition` names which restriction too, a keyword, a
+   static ability's text or an effect a resolution registered, and the record's
+   `prohibited` list carries the member's batch index, the source and both.
 
 **Every why comes back as one value, `ui::why::Why`**: a title, and sections
 of lines, each line with its words, its rule, and the objects it names. The
@@ -2156,7 +2160,16 @@ runs with no sink attached.
   behind it, so it stops at the open question (`Stop::LogSpent`). It runs on a
   thread of its own while the game's own thread keeps waiting at the question.
   Its audits are paused, as an undo's are, since this build checked every
-  answer on the line as it was given.
+  answer on the line as it was given. As SU-8 built it, a seat stands behind
+  the line after all: the first question the line does not answer is the open
+  one, and that seat reads the why there, with the question's context and
+  options in hand, then stops the run with `Stop::LogSpent`. A line that ends
+  with the game is answered from its end.
+- **A why at a question whose options the trace explains is a replay's too**
+  (SU-8): CR 616.1's choice and CR 603.3b's order, whose reasons are what the
+  batch's earlier iterations applied and what the triggered abilities asked
+  about these events answered. There the seat follows the object and answers
+  nothing, so each why has one answerer.
 
 **Asking at the seat is safe, because the explanation only reads.**
 - Its reads can fill the layer memo at the current epoch, with the frames a
@@ -2205,7 +2218,10 @@ is answered once, at its click, and marked with the question it was asked at.
    the hover.
 3. **What happened** (SU-8). For an event, it shows the event's batch as the
    trace viewer draws it (`plans/traces/viewer.html`), and every triggered
-   ability asked about it, matched or refused and by what.
+   ability asked about it, matched or refused and by what. As SU-8 built it,
+   a batch decided after the event that performed nothing shows too: a
+   destruction a "can't" stopped has no event of its own, so its why is the
+   event's before it.
 
 **Where it goes.** A panel on the window's left, beside the board, opened by
 the right-click and closed by its ×. The board stays in view, and the log and
@@ -2260,14 +2276,19 @@ stores what the panel shows. It answers at once with `ToWindow::Why`, and while
 the panel stays open it puts `why: Option<Box<Why>>` in each `ToWindow::Prompt`.
 `Reply::Why(None)` closes the panel. In SU-8, `Session` starts the replay
 thread for a question about then, and its answer arrives as `ToWindow::Why`
-too. A newer replay supersedes an older one, as an undo's does.
+too. A newer replay supersedes an older one, as an undo's does. As SU-8 built
+it, the answer arrives as `ToWindow::WhyFromTrace`, carrying the number of the
+request it answers: the window marks the request it waits on
+(`reading_the_trace`), the session starts a replay for it and supersedes one
+it no longer waits on, and an answer to any other request is dropped.
 
 **When no question is open**, the right-click is off, with a line saying why,
 as Savestate is. That covers the engine playing between questions, a replay on
 its way, and a game that has ended. After SU-8, a game that has ended answers
 through the replay of its whole line. As SU-6 built it, an object's hover
 says so, and an open panel keeps its answer at the last question, its links
-off, with a line saying why.
+off, with a line saying why. SU-8 built the game's end: its right-clicks and
+its links ask, a log line's too.
 
 **What each PR's review runs**, in Magic terms:
 - **SU-6.** Load `humility-opalescence.scenario`, then right-click Serra
@@ -2309,7 +2330,7 @@ whole random games, which is the recorder's widest test.
    own module doc says why that matters: a debug trace that differs from a
    release one breaks regenerating a page's spine from a test. Filed as
    `codebase-state.md` item 210, slotted to SU-8, the first PR that reads a
-   debug engine's trace in the window.
+   debug engine's trace in the window, and fixed there.
 
 ---
 
@@ -2328,54 +2349,36 @@ sizing, nearly all of it in the dev GUI, which may run looser than the engine
 §7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 
-### SU-8 — what happened, from the trace
+### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 
-**The engine, ~190–295.**
-- the reader of the sink's lines, ~90–130;
-- `is_prohibited`'s form that names the restriction, and the `pipeline`
-  record's field, ~25–45;
-- the why's sections for an event and for an object's triggers, ~70–110;
-- item 210's fix, ~5–10;
-- **every question kind's line, ~80–140** (`codebase-state.md` item 212's
-  census, the owner, 2026-10-05). `ui::why::refusals` matches every
-  `ChoiceKind` without a wildcard. Each kind says what it ranges over, so a
-  why asked about anything else says the question does not range over it. Two
-  kinds are answered from the trace: `ChooseReplacementEffect`'s candidates,
-  from the `pipeline` record, and `OrderTriggers`', from the `trigger`
-  records. Three get a reason from their own filter:
-  `ChooseEnteringController` (CR 800.4a), `ChooseAuxiliaryZoneChange` (CR
-  614.13a and 101.2) and `ChooseCopySource` (the copy effect's filter). The
-  other filtered kinds' reasons land with their owners: `SelectRecipients`
-  with RS-2; `ManaAbilityWindow`, `ChooseXValue` and `GenericManaAllocation`
-  with item 162's build; `ChooseSacrificeForCost` with
-  `cost-architecture.md` CP-2. `plans/references/cast-census.md` §9 has the
-  table, read off the enum and asserted against it. `refusals`' doc comment
-  still cites item 212, now closed, and this PR rewrites it.
+**What shipped.** §7c's third PR (#226). The trace sink's lines read back
+(`state::trace`): `RecordKind` names every record the writer writes and the
+reader reads, and `TraceRecord::read` is the writer's inverse over all twelve.
+`prohibition` names the "can't" `is_prohibited` finds, and the `pipeline`
+record lists each member one stopped. `ui::why::why_from_trace` answers what an
+event did: its batch as the engine decided it, each CR 616.1 iteration that
+met an effect or a "can't", a batch after it that performed nothing, and every
+triggered ability asked about it, matched or refused and by what. Every
+question kind says what it ranges over; three ask their own filters and two
+the trace. In the dev GUI a right-click on a log line asks what its event did,
+which a replay of the window's line answers from its trace, stopped at the
+open question; so does a why at CR 616.1's choice or CR 603.3b's order, and
+every why once the game is over. Item 210 is fixed.
 
-**The dev GUI, ~110–180.**
-- the replay thread for a question about then, with its stop and its
-  supersession, ~70–110;
-- each log line's event number in the snapshot, and the right-click on it,
-  ~30–50;
-- the sections drawn, ~10–20.
+**What moved on the way in.** A seat stands behind the replay's line and reads
+the why at the open question; a destruction a "can't" stopped is told with the
+event before it; the window marks the request it waits on (§7c, amended where
+it stands). The review pictures had not been drawn since MA-1, whose games
+they show (`codebase-state.md` item 216). It landed at +1,468 code and +651
+tests, against 380–615 and 180–280 sized.
 
-**Tests, ~150–230.**
-- the reader's round trip against every record kind;
-- an event's batch read back on `bolt-into-giant-growth.scenario`;
-- a "can't" named: an indestructible creature with lethal damage;
-- a trigger refused by its intervening "if";
-- in the headless tests, the replay stopping at the open question;
-- every `ChoiceKind` answers a why without panicking, and a departed
-  player is named as the reason at `ChooseEnteringController`, ~30–50.
+**Measured.** `close_out.py` against #225's merge: every gameplay and cost
+row `IDENTICAL`, both pools, two seats and four, and instructions per decision
+−0.10%, against ±0.3% predicted. With `--trace`, 40 games' traces matched line
+for line but for the new field.
 
-**A/B.** No record is written in a fuzz game unless `--trace` asks for it.
-Predicted `IDENTICAL` on every counter, and instructions within ±0.3%. With
-`--trace`, the `pipeline` record's new field is the only change in its text.
-
-**In all:** ~1,050–1,615 lines of code and ~500–750 of tests, as sized at
-#220. SU-6 landed at 1,062 and 622, and SU-7 at 1,042 and 606. SU-8, as
-sized above, is ~380–615 more and ~180–280 of tests; item 212's census added
-the question kinds' lines (~80–140 and ~30–50).
+→ `plans/archive/setup-architecture-landed.md`, "SU-8" (the build as sized,
+sized against built, and what the build changed in the design).
 
 ### SU-7 — why an option is not offered — ✅ landed 2026-10-05
 

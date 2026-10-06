@@ -9222,31 +9222,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the why panel's design (2026-10-05)
 
-210. **A debug build's trace carries records a release build's does not.**
-     `check_order_invariance` (`engine/replacement/pipeline.rs:1597`) is a
-     debug-only self-check of a CR 616.1 prompt the pipeline suppressed as
-     order-invariant. For a suppressed prompt that is neither a substitute
-     nor an exit, it gathers again over a probe event, and `EntryFrame::new`
-     builds that probe's CR 614.12 look-ahead. The look-ahead writes a
-     `layer_walk` record (`membership: "entering"`) and counts its walk in
-     the diagnostics. A release build returns before any of it. The why
-     panel's probe (`setup-architecture.md` §7c, 2026-10-05) traced ten
-     two-seat games in both builds. Nine traces matched byte for byte, and
-     seed 12353's debug trace was five records longer: those five, and
-     nothing else. The sink's module doc states the rule this breaks, for
-     the memo's audit: a debug-only read that wrote a record "would make a
-     debug build's trace differ from a release build's — which would break
-     regenerating a page from a test".
-
-     **Reachability (2026-10-05):** reachable — not wrong in any game: a debug
-     build's trace and its layer counters, which no rule reads.
-
-     **Sized:** the call bracketed by `save_observers` and `restore_observers`
-     at its one site in `apply_replacements`, which holds the state mutably,
-     as the dispatch audit brackets its reads: ~5–10 lines. Plus a test that a
-     traced board where the check runs writes no record from it: ~25.
-     **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
-     debug engine's trace in the window.
+210. **~~A debug build's trace carries records a release build's does not.~~
+     — ✅ CLOSED 2026-10-06 (SU-8).** — archived. The debug-only order check's
+     call in `apply_replacements` is bracketed by `save_observers` and
+     `restore_observers`, so a debug build's trace and counters are a release
+     build's. `phase_su8_integration_test` pins the look-ahead walks a release
+     build writes, and failed on the tree before the fix.
+     **Reachability (2026-10-06):** closed — SU-8.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 210".
 
 ### Found by SU-7, why an option is not offered (2026-10-05)
 
@@ -9361,3 +9344,23 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** about 150–250 lines in all. Slot: the hygiene pass of item
      6's close audit (`roadmap-v2.md` A6e), which asks the third question at
      every spine close since this review (`engineering-practices.md` §9).
+
+### Found by SU-8, what happened, from the trace (2026-10-06)
+
+216. **The review pictures are drawn by a test no CI step runs.**
+     `devgui/tests/screenshots.rs` draws the dev GUI at the review boards'
+     prompts and compares each picture with its committed PNG, which holds
+     only on the machine that drew it, so CI's dev GUI step leaves the test
+     out, and with it the games it plays to reach each picture. MA-1 (#225)
+     counts Everywhere as one mana source, so no review board offers two
+     spells at once, and the test waited for a priority prompt with three
+     options that never came: it failed on `main` from #225's merge until
+     SU-8's redraw found it and took a prompt with a spell in reach. Eight
+     pictures had moved with MA-1's games.
+     **Reachability (2026-10-06):** reachable — not wrong in any game: a
+     harness, the review's pictures.
+     **Sized:** a CI step running the test with `UPDATE_SNAPSHOTS=true`, which
+     compares nothing and still fails when a review board stops reaching a
+     picture's prompt: ~5 lines, if CI's runner can draw offscreen, which the
+     step's first run says. **Slotted:** A6g's dev GUI audit, the row's last
+     PR.

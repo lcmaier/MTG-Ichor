@@ -15,6 +15,7 @@ use crate::oracle::characteristics::{controller_or_owner, get_effective_abilitie
 use crate::state::game_state::GameState;
 use crate::types::effects::{ObjectSet, Effect, PlayerSet};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
@@ -52,12 +53,49 @@ pub(crate) enum Query<'a> {
     },
 }
 
+/// A restriction that forbids what was asked, named: whose it is, and which.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Prohibition {
+    /// The object the restriction is an ability or an effect of.
+    pub source: ObjectId,
+    pub by: ProhibitedBy,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ProhibitedBy {
+    /// A keyword the source has, as indestructible is (CR 702.12b).
+    Keyword(KeywordFlag),
+    /// One of the source's static abilities, by its text.
+    StaticAbility(&'static str),
+    /// An effect a resolving spell or ability registered.
+    RegisteredEffect,
+}
+
+impl ProhibitedBy {
+    /// How the trace's `pipeline` record names it: which kind of restriction,
+    /// and its words, which a registered effect leaves to its source.
+    pub(crate) fn as_recorded(self) -> (&'static str, Option<&'static str>) {
+        match self {
+            ProhibitedBy::Keyword(keyword) => ("keyword", Some(crate::ui::display::keyword_name(keyword))),
+            ProhibitedBy::StaticAbility(words) => ("static_ability", Some(words)),
+            ProhibitedBy::RegisteredEffect => ("registered_effect", None),
+        }
+    }
+}
+
 /// CR 101.2 — is this prohibited right now?
 ///
 /// The one reader of every restriction. Returns `true` when *any* source
 /// forbids it: CR 101.2 has no tiebreak because it needs none — two
 /// prohibitions agree, so this is a disjunction and never an ordering.
 pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
+    prohibition(game, query).is_some()
+}
+
+/// [`is_prohibited`], naming the restriction it found first, in the order its
+/// sources are swept. Which one is named is a reader's question, never a
+/// rule's: any one forbids it (CR 101.2).
+pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition> {
     game.diagnostics.record_restriction_query();
 
     // --- Source 3: keyword abilities -------------------------------------
@@ -66,8 +104,8 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     // is found and the gate would skip it (§3.5 commitment 2).
     if let Query::Event { action, .. } = query
         && let EventSubject::Object(id) = subject_of(action)
-        && keyword_prohibits(game, id, action) {
-        return true;
+        && let Some(keyword) = keyword_prohibits(game, id, action) {
+        return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
 
     // The fast-path gate, and it is exact rather than a heuristic — the same
@@ -83,7 +121,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
         || game.continuous_effects.summary().any_granted_restriction
         || game.continuous_effects.summary().any_copied_restriction;
     if !has_static_source && game.restrictions.is_empty() {
-        return false;
+        return None;
     }
 
     // CR 614.17d's frame for an entry. Held here so the sweep and the registry
@@ -122,7 +160,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
                     _ => continue,
                 };
                 if matches(game, def, id, controller, query, frame) {
-                    return true;
+                    return Some(Prohibition { source: id, by: ProhibitedBy::StaticAbility(ability.rules_text.words) });
                 }
             }
         }
@@ -131,11 +169,11 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     // --- Source 4: the registry ------------------------------------------
     for row in game.restrictions.iter() {
         if matches(game, &row.def, row.source, row.controller, query, frame) {
-            return true;
+            return Some(Prohibition { source: row.source, by: ProhibitedBy::RegisteredEffect });
         }
     }
 
-    false
+    None
 }
 
 /// Does this restriction forbid what the query asks about?
@@ -268,17 +306,17 @@ fn cause_matches(
 /// `debug_assert` is what keeps the argument true as the list grows: a keyword
 /// restriction that is *not* `SourceOnly` needs the sweep, and it must not be
 /// able to arrive here quietly.
-fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> bool {
+fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> Option<KeywordFlag> {
     let defs = keyword_restrictions(game, id);
     if defs.is_empty() {
-        return false;
+        return None;
     }
     // Resolved after the early-out, not before it: `controller_of` is a full
     // `compute_characteristics` walk and almost no object has a keyword
     // restriction, so paying for it up front would double the cost of every
     // proposed action about an object.
     let controller = controller_or_owner(game, id).unwrap_or(0);
-    for def in defs {
+    for (keyword, def) in defs {
         debug_assert!(
             matches!(
                 def.what,
@@ -300,10 +338,10 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
             // `SourceOnly`, per the assertion above, so no frame is ever read.
             None,
         ) {
-            return true;
+            return Some(keyword);
         }
     }
-    false
+    None
 }
 
 /// The whole of source 3 today.
@@ -313,9 +351,8 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
 /// and intimidate are the next four (`codebase-state.md` item 15) and are Tier
 /// 1a/1d — RS-2's and RS-3a's, because they forbid a *choice* rather than an
 /// event, so none of them belongs in this function.
-fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<RestrictionDef> {
+fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, RestrictionDef)> {
     use crate::oracle::characteristics::has_keyword;
-    use crate::types::keywords::KeywordFlag;
 
     let mut out = Vec::new();
 
@@ -325,12 +362,15 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<RestrictionDef> {
     //
     // No `DestructionSourcePattern`: 702.12b names both of CR 701.8b's ways.
     if has_keyword(game, id, KeywordFlag::Indestructible) {
-        out.push(RestrictionDef::new(Restriction::Event {
-            pattern: EventPattern::Destroy { source: None },
-            affected_objects: ObjectSet::SourceOnly,
-            affected_players: PlayerSet::Nobody,
-            by: None,
-        }));
+        out.push((
+            KeywordFlag::Indestructible,
+            RestrictionDef::new(Restriction::Event {
+                pattern: EventPattern::Destroy { source: None },
+                affected_objects: ObjectSet::SourceOnly,
+                affected_players: PlayerSet::Nobody,
+                by: None,
+            }),
+        ));
     }
 
     out
