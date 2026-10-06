@@ -33,7 +33,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
 then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 after MA-1), the
-information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10), the mana check (`mana-architecture.md` MA-1–MA-6: MA-1 next, MA-3 before TR-7, the rest before Phase 8) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, after MA-1, before Phase 8), and a clone during a deep stack (item 183, B10 — before Phase 8).
+information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10), the mana check (`mana-architecture.md` MA-1–MA-6: MA-3 before TR-7, the rest before Phase 8) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, after MA-1, before Phase 8), and a clone during a deep stack (item 183, B10 — before Phase 8).
 Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
@@ -61,6 +61,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `LJ` — plans/layers-architecture.md
 - `LK` — plans/layers-architecture.md
 - `LL` — plans/layers-architecture.md
+- `MA-1` — plans/mana-architecture.md
 - `RA-1` — plans/replacement-architecture.md
 - `RA-2` — plans/replacement-architecture.md
 - `RA-3` — plans/replacement-architecture.md
@@ -105,8 +106,8 @@ says nothing about progress, so there is one answer and it is derived.
 | | |
 |---|---:|
 | Cards registered | 181 |
-| …of them in `PERFORMANCE_POOL` | 101 |
-| `#[test]` functions | 2008 |
+| …of them in `PERFORMANCE_POOL` | 103 |
+| `#[test]` functions | 2031 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -114,14 +115,14 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Numbered items | 272 |
+| Numbered items | 274 |
 | …closed, still recorded | 98 |
-| …open — unreachable, and says why | 111 |
-| **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 30 |
+| …open — unreachable, and says why | 112 |
+| **…open — reachable, wrong today** | **4** |
+| …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 169 of 174 |
+| …open, carrying an explicit `**Sized:**` | 171 of 176 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
