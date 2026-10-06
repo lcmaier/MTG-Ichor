@@ -1071,6 +1071,19 @@ impl GameState {
         self.layer_memo.pause_audit(false);
     }
 
+    /// `read`, with the layer memo's debug audit checking each frame `read`
+    /// is served once rather than at every hit. `read` holds the game by
+    /// shared reference, so no walk input can change while it runs, and a
+    /// frame that matched a fresh walk once matches it at every later hit:
+    /// for a reader that asks about every object several times, as the dev
+    /// GUI does at each question (`setup-architecture.md` §7b, decision 5).
+    /// Only `read()` in a release build, which has no audits.
+    pub fn audit_each_frame_once<R>(&self, read: impl FnOnce() -> R) -> R {
+        #[cfg(debug_assertions)]
+        let _scope = self.layer_memo.open_audit_scope();
+        read()
+    }
+
     /// The refusal every run entry gives a game a provider stopped
     /// (`Game::until_stopped`).
     pub(crate) fn refuse_if_stopped(&self) -> Result<(), String> {

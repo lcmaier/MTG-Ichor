@@ -24,6 +24,8 @@ use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
+#[cfg(debug_assertions)]
+use crate::state::layer_memo::AuditOwed;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
 /// The layers, in application order (CR 613.1). Index into this array is the
@@ -193,8 +195,15 @@ pub(crate) fn no_row_reaches(game: &GameState, id: ObjectId) -> bool {
 ///
 /// The fresh walk is not engine work: its counts are rewound, so a debug
 /// build's `Layer walks` and `Layer frames` are the release build's.
+///
+/// Inside `GameState::audit_each_frame_once` it checks each frame once.
 #[cfg(debug_assertions)]
 fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
+    match game.layer_memo.audit_owed(id, || matches!(pass_membership(game, id), PassMembership::Member)) {
+        AuditOwed::ThisFrame => {}
+        AuditOwed::EveryMember => return audit_every_member(game),
+        AuditOwed::Nothing => return,
+    }
     let (walks, board_walks, frames, checks) = (
         game.diagnostics.layer_walks(),
         game.diagnostics.board_walks(),
@@ -211,6 +220,43 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
         id,
         game.layer_epoch()
     );
+}
+
+/// The memo audit at a scope's first hit on a member: one pass, and every
+/// member's stored frame checked against it, where a hit's audit walks the
+/// pass for its one frame. Nothing writes the game while the scope is open,
+/// so each member's frame is then checked for the scope's every hit on it.
+#[cfg(debug_assertions)]
+fn audit_every_member(game: &GameState) {
+    let (walks, board_walks, frames, checks) = (
+        game.diagnostics.layer_walks(),
+        game.diagnostics.board_walks(),
+        game.diagnostics.layer_frames(),
+        game.diagnostics.dependency_checks(),
+    );
+    let (fresh, _) = compute_board(game, None).into_frames_and_notes();
+    game.diagnostics.rewind_layer_work(walks, board_walks, frames, checks);
+    let epoch = game.layer_epoch();
+    let mut stale: Vec<_> = fresh
+        .iter()
+        .filter_map(|(id, frame)| {
+            let stored = game.layer_memo.get(*id, epoch)?;
+            (stored.as_ref() != frame).then(|| (id.to_string(), frame, stored))
+        })
+        .collect();
+    // By id, so the frame a panic shows is the same in every process.
+    stale.sort_by(|a, b| a.0.cmp(&b.0));
+    if let Some((id, fresh, stored)) = stale.first() {
+        debug_assert_eq!(
+            *fresh,
+            stored.as_ref(),
+            "layer memo holds a stale frame for {} at epoch {} (of {} stale): a write to a layer-walk \
+             input skipped `GameState::bump_layer_epoch`",
+            id,
+            epoch,
+            stale.len()
+        );
+    }
 }
 
 /// The debug mode §13e decision 6 requires beside the notes: every frame of a
