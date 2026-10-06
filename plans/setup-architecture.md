@@ -1431,7 +1431,12 @@ prompt.
   - for attached to, attacking and blocking, a button that waits for the
     click on the card it names;
   - then copies (`xN`) off the battlefield, the zone, up and down, and Remove;
-- Undo, Play, Save, and the file it saves to (decision 3).
+- Undo, Play, Save, and the file it saves to (decision 3);
+- an **Advanced** switch (decision 2's B; its first part, §8's ✅ section),
+  which shows a field that takes a line of the file and, on each player, a
+  toggle for leaving the game and counts for lands played, poison, energy and
+  the commander damage from each commander on the board, each in place of the
+  words it shows.
 
 **§10's question** for each new surface: would a second client compute the
 same thing from the same facts?
@@ -1504,6 +1509,11 @@ the "why" panel. A four-seat Commander board is built from A's words: four
 players at 40 life, commanders in the command zone and on the battlefield,
 and combat. Commander damage (12) and a player who has left (11), which
 `four-seats-commander.scenario` uses, are the likeliest first advanced rows.
+
+**The first part built** (#227, 2026-10-06, §8's ✅ section): the switch,
+the field, and the four player rows (9–12). Only the parser refuses a typed
+line: one the loader refuses goes in, as any edit the parser reads does, and
+its refusal marks it. The other six rows stay text, which the field writes.
 
 #### Decision 3 — where a built board is saved, and how a file comes back
 
@@ -2337,17 +2347,54 @@ whole random games, which is the recorder's widest test.
 ## 8. The build, sized
 
 **The editor's advanced settings** (§7b.2's decision 2, B; A6g's row, after
-the "why" panel), sized at SU-3's design, row by row: player counters
-~45–65, lands played ~20–30, left the game ~20–30, commander damage ~50–80,
-history ~110–160, `this turn:` ~90–130, `counters:` lines ~60–90, setup
-actions ~210–310: ~600–900 in all, the typeable field that reads any line of
-the grammar first at ~40–60. SU-3's own code came in at 1.5–2.1 times its
-sizing, nearly all of it in the dev GUI, which may run looser than the engine
-(the owner, 2026-10-03; §8's ✅ section).
+the "why" panel), sized at SU-3's design, row by row, code and tests
+together: player counters ~45–65, lands played ~20–30, left the game ~20–30,
+commander damage ~50–80, history ~110–160, `this turn:` ~90–130, `counters:`
+lines ~60–90, setup actions ~210–310: ~600–900 in all, the typeable field
+that reads any line of the grammar first at ~40–60. SU-3's own code came in
+at 1.5–2.1 times its sizing, nearly all of it in the dev GUI, which may run
+looser than the engine (the owner, 2026-10-03; §8's ✅ section). The brief
+(2026-10-06) split them into up to three PRs: the switch, the field and the
+four player rows, landed below; then history, `this turn:` and `counters:`
+lines, ~260–380; then setup actions with their targets and ability,
+~210–310. Whether the last two are built is the owner's call, since the
+field already writes every row.
 
 **The why panel** (§7c, decided 2026-10-05) is three PRs, in the order
 §7c.1's decision 1 set. Each size gives code, then tests, at
 this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
+
+### The editor's advanced settings, first part — ✅ landed 2026-10-06
+
+**What shipped.** §7b.2's decision 2, B, its first part (#227). An Advanced
+switch in the editor's header, off by default and kept across opens, shows
+controls in place of the text they replace. A field takes any line of the
+file, put last in the board's text and read back as an edit is, so Undo
+takes it out; a line the parser refuses, or one that says nothing new,
+leaves the board and stays in the field with why. Each player has a toggle
+for leaving the game (CR 800.4a) and counts for lands played (CR 305.2),
+poison and energy (CR 122.1), and the commander damage from each commander
+on the board (CR 903.10a), each the loader's reading of the words: the last
+word stands for lands played and commander damage, and counters add. The
+loader's refusal of a word a control shows marks the player's name.
+
+**What moved on the way in.** Only the parser refuses a typed line: one the
+loader refuses goes in, as any edit the parser reads does, and its refusal
+marks it (decision 2, amended where it stands). Life's write rule became
+every player word's. It landed at +238 code and +206 tests, all in the dev
+GUI, against ~175–265 sized with tests: 1.7–2.5 times, about SU-3's rate.
+
+**Measured.** No engine file changed, so no arms ran. `prompt_cost` on the
+large board in release, interleaved with `main`'s: the editor's view 18.8 µs
+a repaint with the switch off (`main`'s 18.9), 19.1–19.2 µs with it on; a
+typed line added and undone 224–234 µs. The editor's random clicks reach
+every control: 3,000 clicks in 1.0 s.
+
+**Left:** the second part, ~260–380, and the third, ~210–310 (above).
+
+→ `plans/archive/setup-architecture-landed.md`, "The editor's advanced
+settings, first part" (the build as sized, sized against built, and what the
+build changed in the design).
 
 ### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 
