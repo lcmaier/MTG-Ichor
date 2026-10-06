@@ -7,7 +7,7 @@
 
 use crate::state::replacement_effects::ReplacementEffectId;
 use crate::types::effects::CounterType;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::ReplacementDef;
 
 use super::gather::CounterEffectKind;
@@ -23,18 +23,23 @@ use super::gather::CounterEffectKind;
 /// stops this becoming a fourth notion of identity:
 ///
 /// - a registry row is its `ReplacementEffectId`, never reused;
-/// - a static ability is `(ObjectId, AbilityId)` — the same pair
+/// - a static ability is `(ObjectRef, AbilityId)` — the pair
 ///   `EffectOrigin::StaticAbility` and `activatable_abilities` use, because
 ///   `AbilityId` names a *definition* that two objects sharing an
 ///   `Arc<CardData>` also share;
 /// - a counter-derived effect is the permanent plus the counter kind plus
 ///   which of CR 122.1c's two effects it is.
+///
+/// **An object by identity, not by id** (CR 400.7). A CR 615.5 rider carries
+/// the replaced event's applied set into its own events, and an object those
+/// events have moved out and back is a new object whose abilities are new
+/// effects. Keyed by id, its ability would read as already applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ReplacementInstanceId {
     /// A row in the replacement registry (CR 614.3, 615.7, 701.19a).
     Registered(ReplacementEffectId),
     /// A static ability of an object (CR 614.1a).
-    StaticAbility(ObjectId, AbilityId),
+    StaticAbility(ObjectRef, AbilityId),
     /// Synthesized from counters on a permanent (CR 122.1c/d/h).
     ///
     /// Three components rather than two because **CR 122.1c makes two effects
@@ -46,12 +51,12 @@ pub enum ReplacementInstanceId {
     /// counters ... create **a single** replacement effect", so two stun
     /// counters do not give two applications to one event. Keying on the kind
     /// rather than on a counter gives that structurally.
-    Counter(ObjectId, CounterType, CounterEffectKind),
+    Counter(ObjectRef, CounterType, CounterEffectKind),
     /// A replacement effect that belongs to no object's text — a *rule* that
-    /// behaves as one. CR 903.9b is the only member. The `ObjectId` is the
+    /// behaves as one. CR 903.9b is the only member. The object is the
     /// commander the rule is about, so two commanders leaving at once are two
     /// instances and CR 614.5 (or its 903.9b exception) applies to each.
-    GameRule(ObjectId, GameRuleReplacement),
+    GameRule(ObjectRef, GameRuleReplacement),
 }
 
 /// Which rule-shaped replacement effect a [`ReplacementInstanceId::GameRule`]
