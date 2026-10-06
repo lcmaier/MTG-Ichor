@@ -12,6 +12,9 @@
 //!
 //! 1. The registries' half: a row that named the mover stops naming it, and
 //!    CR 400.7a and 400.7c's exceptions for a permanent spell.
+//! 2. The announcement's half: a target or a choice is remembered with the
+//!    epoch it had when chosen, and CR 608.2b compares it. Cast from hand,
+//!    since the cast path is what stamps it.
 
 use std::sync::Arc;
 
@@ -23,8 +26,8 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget};
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_name, get_effective_power, get_effective_toughness,
     has_summoning_sickness,
@@ -33,17 +36,22 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
-    pacifism, put_in_hand, put_on_battlefield, put_spell_on_stack, setup_two_player_game, test_ctx,
-    test_dp, RecordingDecisionProvider,
+    lightning_bolt, pacifism, put_in_hand, put_on_battlefield, put_spell_on_stack, setup_two_player_game,
+    test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{CounterType, Duration, ObjectSet, PlayerSet};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::effects::{
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    TargetCount,
+};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -154,6 +162,33 @@ fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
     game.execute_action(GameAction::Destroy { object, source: DestructionSource::Effect(by) }, &test_ctx())
         .unwrap();
+}
+
+/// Empty `player`'s pool, fill it with exactly `pool`, and cast `card` from
+/// hand under `ManaWindowStop`, as a shipped client does.
+fn cast_from_pool(
+    game: &mut GameState,
+    player: PlayerId,
+    card: Arc<CardData>,
+    pool: &[(ManaType, u64)],
+    dp: impl DecisionProvider,
+) -> ObjectId {
+    let id = put_in_hand(game, card, player);
+    for t in [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless] {
+        let have = game.players[player].mana_pool.amount(t);
+        if have > 0 {
+            game.players[player].mana_pool.remove(t, have).unwrap();
+        }
+    }
+    for &(t, n) in pool {
+        game.players[player].mana_pool.add(t, n);
+    }
+    game.cast_spell(player, id, &ManaWindowStop::new(dp)).expect("castable from exactly its cost");
+    id
+}
+
+fn fizzled(game: &GameState, spell: ObjectId) -> bool {
+    game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { spell_id } if *spell_id == spell))
 }
 
 // ---------------------------------------------------------------------------
@@ -330,4 +365,92 @@ fn a_move_no_row_names_leaves_every_registry_alone() {
     assert_eq!(game.get_object(card).unwrap().zone, Zone::Hand);
     assert_eq!(game.continuous_effects.mutations(), before);
     assert_eq!(pt(&game, bears), (Some(5), Some(5)));
+}
+
+// ---------------------------------------------------------------------------
+// 2. The announcement's half
+// ---------------------------------------------------------------------------
+
+/// CR 608.2b: "a target that's no longer in the zone it was in when it was
+/// targeted is illegal". Lightning Bolt cast at the Bears; the Bears die and
+/// come back before it resolves. The id still finds a creature on the
+/// battlefield, and the epoch says it is not the one targeted, so Bolt does
+/// not resolve. Partial: the atom's board is a delayed trigger (TR-3a's).
+// COVERS-PARTIAL: ATOM-400.7-001
+#[test]
+fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].targets().collect();
+    assert_eq!(announced, vec![ResolvedTarget::Object(bears)], "players first, then the Bears");
+
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert!(fizzled(&game, bolt));
+    assert_eq!(game.battlefield[&bears].damage_marked, 0);
+    assert_eq!(game.get_object(bolt).unwrap().zone, Zone::Graveyard);
+}
+
+/// Two references to one creature, one move, and each finds out on its own
+/// that the object is new: Giant Growth's row is pruned, and Bolt's target is
+/// stale. Neither had to be told by the other. Partial: the atom's first
+/// tracker is a delayed trigger.
+// COVERS-PARTIAL: ATOM-400.7-003
+#[test]
+fn two_references_to_one_creature_both_end_at_one_move() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    resolve_spell(&mut game, giant_growth(), 1, &[bears]);
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
+
+    leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeCause::Exiled);
+    assert_eq!(pt(&game, bears), (Some(2), Some(2)));
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert!(fizzled(&game, bolt));
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "the 2/2 is not bolted");
+}
+
+/// "Choose a creature. It gets +2/+2 until end of turn", the choice made as
+/// the spell is cast. A choice does not fizzle (CR 115.1 is about targets),
+/// so the spell resolves, and the creature chosen is gone: the one that came
+/// back is another object, and the pump finds nothing.
+#[test]
+fn a_choice_made_at_cast_finds_nothing_once_its_object_has_moved() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let spell = cast_from_pool(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], RecordingDecisionProvider::picking(0));
+    assert!(!game.stack_entries[&spell].chosen_targets[0].is_targeted());
+
+    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeCause::Returned);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert!(!fizzled(&game, spell), "a choice does not fizzle");
+    assert_eq!(pt(&game, bears), (Some(2), Some(2)));
+    assert!(game.continuous_effects.is_empty(), "nothing left to pump");
+}
+
+/// **Fixture.** "Choose a creature. It gets +2/+2 until end of turn." No
+/// printed card chooses an object as it is cast without targeting it and
+/// then acts on it, so the shape is written here.
+fn chosen_pump() -> Arc<CardData> {
+    CardDataBuilder::new("Chosen Pump")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(Color::Green)
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            rules_text: "Choose a creature. It gets +2/+2 until end of turn.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
+                EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .build()
 }

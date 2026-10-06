@@ -51,7 +51,7 @@
 //!   (`replacement-architecture.md` §3.3 source 2; CR 113.6 first).
 
 use crate::engine::replacement::ReplacementInstanceId;
-use crate::engine::resolve::ResolvedTarget;
+use crate::engine::targeting::TargetRef;
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -79,7 +79,9 @@ pub struct RegisteredReplacementEffect {
     pub created_on_turn: u32,
     /// The targets of the resolution that created this row, as chosen at cast
     /// (CR 601.2c) — kept because they are unrecoverable a moment later and a
-    /// rider may need them.
+    /// rider may need them. Each by identity, since "an existence and type
+    /// check" (Divine Deflection's ruling) is about the object chosen, and an
+    /// object that has left and come back is another one (CR 400.7).
     ///
     /// **Not the affected set.** For Mending Hands the two coincide (the row's
     /// `Fixed` *is* its target); for Divine Deflection they do not — "prevent
@@ -95,7 +97,7 @@ pub struct RegisteredReplacementEffect {
     /// effect targeted at resolution" arrives with the first rider that needs
     /// it, and threads this onto `ReplacementInstance` and `Rider` then
     /// (`codebase-state.md`, Deferred Migrations).
-    pub targets: Vec<ResolvedTarget>,
+    pub targets: Vec<TargetRef>,
     /// What it watches for and what it does.
     pub def: ReplacementDef,
 }

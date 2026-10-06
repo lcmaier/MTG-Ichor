@@ -227,7 +227,7 @@ impl GameState {
                     let host_id = match entry
                         .chosen_targets
                         .first()
-                        .and_then(|inst| inst.chosen.first().copied())
+                        .and_then(|inst| inst.targets().next())
                     {
                         Some(ResolvedTarget::Object(id)) => id,
                         _ => return Err(format!(
@@ -361,10 +361,11 @@ mod tests {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
         game.stack.push(id);
+        let chosen_targets = vec![TargetInstance::announce(game, recipient, &targets).unwrap()];
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: vec![TargetInstance::new(recipient, targets)],
+            chosen_targets,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: std::sync::Arc::new(effect),
@@ -629,10 +630,11 @@ mod tests {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
         game.stack.push(id);
+        let chosen_targets = vec![TargetInstance::announce(game, recipient, &targets).unwrap()];
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: vec![TargetInstance::new(recipient, targets)],
+            chosen_targets,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),

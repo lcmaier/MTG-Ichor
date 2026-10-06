@@ -1099,6 +1099,7 @@ impl GameState {
             // next time", `Duration::UntilEndOfTurn` "this turn", `Prevent` "instead",
             // the `then` rider its sentence — so the engine builds it, not a card author.
             Primitive::Regenerate => {
+                let recorded = self.target_refs(targets);
                 for object in self.collect_battlefield_targets(targets) {
                     let controller = get_effective_controller(self, object)
                         .unwrap_or(ctx.controller);
@@ -1116,7 +1117,7 @@ impl GameState {
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
-                        targets: targets.to_vec(),
+                        targets: recorded.clone(),
                         def,
                     });
                 }
@@ -1261,6 +1262,7 @@ impl GameState {
                         ))
                     }
                 };
+                let recorded = self.target_refs(targets);
                 for row in rows {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
@@ -1268,7 +1270,7 @@ impl GameState {
                         controller: ctx.controller,
                         duration: *duration,
                         created_on_turn: self.turn_number,
-                        targets: targets.to_vec(),
+                        targets: recorded.clone(),
                         def: row,
                     });
                 }
@@ -2093,6 +2095,13 @@ impl GameState {
                 .collect(),
             _ => self.collect_battlefield_targets(targets),
         }
+    }
+
+    /// `targets` as a row keeps them: each object by identity, at the epoch
+    /// it has now. An object an earlier part of this effect moved is the one
+    /// it moved, which CR 400.7j lets the rest of the effect find.
+    fn target_refs(&self, targets: &[ResolvedTarget]) -> Vec<crate::engine::targeting::TargetRef> {
+        targets.iter().filter_map(|&target| self.target_ref(target)).collect()
     }
 
     fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {

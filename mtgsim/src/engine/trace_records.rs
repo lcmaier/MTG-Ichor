@@ -206,7 +206,7 @@ pub(crate) fn pending(
     r.field_opt_str("refused_by", refused_by);
     let rendered: Vec<String> = targets
         .iter()
-        .flat_map(|t| t.chosen.iter().map(render_debug))
+        .flat_map(|t| t.targets().map(|target| render_debug(&target)))
         .collect();
     r.field_strs("targets", &rendered);
     r

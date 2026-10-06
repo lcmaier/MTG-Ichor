@@ -191,10 +191,11 @@ fn stack_object_with(
     let obj = GameObject::new(CardDataBuilder::new("Fixture Stack Object").build(), owner, Zone::Stack);
     let id = game.add_object(obj);
     game.stack.push(id);
+    let chosen_targets = vec![TargetInstance::announce(game, recipient, &chosen_targets).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets: vec![TargetInstance::new(recipient, chosen_targets)],
+        chosen_targets,
         chosen_modes: Vec::new(),
         x_value: None,
         effect: Arc::new(effect),

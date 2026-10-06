@@ -355,8 +355,8 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             self.validate_targets(recipient, &chosen, player_id, &earlier_targets)?;
-            earlier_targets.push(chosen.clone());
-            announced.push(TargetInstance::new(recipient.clone(), chosen));
+            announced.push(TargetInstance::announce(self, recipient.clone(), &chosen)?);
+            earlier_targets.push(chosen);
         }
         Ok(announced)
     }
@@ -830,7 +830,7 @@ mod tests {
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
         assert_eq!(
-            entry.chosen_targets[0].chosen,
+            entry.chosen_targets[0].targets().collect::<Vec<_>>(),
             vec![ResolvedTarget::Player(1)]
         );
         assert!(entry.is_spell);
