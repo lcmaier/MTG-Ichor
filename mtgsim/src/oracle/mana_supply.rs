@@ -147,6 +147,7 @@ struct Entry {
 /// each permanent it can sacrifice (CR 701.21a), itself last.
 #[derive(Debug, Clone, PartialEq)]
 struct Outlet {
+    permanent: ObjectId,
     /// Outlets of one ability share their fodder, so they are counted once.
     definition: AbilityId,
     needs: u32,
@@ -235,7 +236,7 @@ impl ManaSupply {
                         }
                         let Some(base) = production_of(game, &ability.effect, id, player) else { continue };
                         let ways = made_by(game, &watchers, player, id, false, base);
-                        supply.outlets.push(Outlet { definition: ability.id.definition(), needs, fodder, ways });
+                        supply.outlets.push(Outlet { permanent: id, definition: ability.id.definition(), needs, fodder, ways });
                     }
                     Activation::Doubling { input } => {
                         let Some(input) = Demand::of(input) else { continue };
@@ -295,12 +296,41 @@ impl ManaSupply {
             return true;
         }
         // Every other entry is used before a doubler, since mana made after
-        // it is not doubled.
+        // it is not doubled; what cannot be, comes after and pays as made.
         let doublers: Vec<&Doubler> = self.doublers.iter().filter(|d| !taken.takes(d.permanent)).collect();
         (1..=doublers.len()).any(|used| {
             let used = &doublers[..used];
-            let asked = used.iter().rev().fold(*demand, |asked, d| asked.before_doubling(d.factor, &d.input));
+            let after = self.made_after_doubling(taken, used);
+            let asked = used.iter().rev().fold(demand.less(&after), |asked, d| asked.before_doubling(d.factor, &d.input));
             self.pieces(taken, used).pay(&asked)
+        })
+    }
+
+    /// What an outlet makes after the doublers in `used`: a doubler it can
+    /// sacrifice is sacrificed after its doubling, and so is the last outlet
+    /// of the ability, which must still be there to do it (Krark-Clan
+    /// Ironworks beside Doubling Cube).
+    fn made_after_doubling(&self, taken: &Taken, used: &[&Doubler]) -> Bag {
+        let mut after = NO_MANA;
+        for outlet in self.outlets_counted() {
+            let late = used.iter().filter(|d| outlet.fodder.contains(&d.permanent)).count() as u64;
+            if late == 0 {
+                continue;
+            }
+            let last = u64::from(outlet.fodder.contains(&outlet.permanent));
+            let activations = (late + last).min(taken.fodder_left(&outlet.fodder)) / u64::from(outlet.needs.max(1));
+            // Its first way, which is every printed outlet's only one.
+            if let Some(made) = outlet.ways.first() {
+                after = std::array::from_fn(|t| after[t] + made[t] * activations);
+            }
+        }
+        after
+    }
+
+    /// One outlet of each ability: outlets of one ability share their fodder.
+    fn outlets_counted(&self) -> impl Iterator<Item = &Outlet> {
+        self.outlets.iter().enumerate().filter_map(|(i, outlet)| {
+            (!self.outlets[..i].iter().any(|earlier| earlier.definition == outlet.definition)).then_some(outlet)
         })
     }
 
@@ -318,13 +348,11 @@ impl ManaSupply {
                 .collect();
             pieces.add(&ways, 1);
         }
-        let mut counted: Vec<AbilityId> = Vec::new();
-        for outlet in &self.outlets {
-            if counted.contains(&outlet.definition) {
-                continue;
-            }
-            counted.push(outlet.definition);
-            let activations = taken.fodder_left(&outlet.fodder) / u64::from(outlet.needs.max(1));
+        for outlet in self.outlets_counted() {
+            // Less what is sacrificed after a doubler (`made_after_doubling`).
+            let late = doubling.iter().filter(|d| outlet.fodder.contains(&d.permanent)).count() as u64;
+            let last = u64::from(late > 0 && outlet.fodder.contains(&outlet.permanent));
+            let activations = taken.fodder_left(&outlet.fodder).saturating_sub(late + last) / u64::from(outlet.needs.max(1));
             pieces.add(&outlet.ways, activations);
         }
         pieces
@@ -1043,6 +1071,20 @@ impl Demand {
         Types::of(&self.pips)
     }
 
+    /// The demand left once `made` has paid what it can: a mana pays a pip
+    /// of its own type first, since generic takes any.
+    fn less(&self, made: &Bag) -> Demand {
+        let mut left = *self;
+        let mut spare = 0;
+        for t in 0..6 {
+            let paid = made[t].min(left.pips[t]);
+            left.pips[t] -= paid;
+            spare += made[t] - paid;
+        }
+        left.generic = left.generic.saturating_sub(spare);
+        left
+    }
+
     /// What must be made before a doubler for this demand to be met after it.
     ///
     /// Every mana left in the pool becomes `factor` of its own type, so a pip
@@ -1154,10 +1196,33 @@ impl Search<'_> {
             let next_copies = groups.get(group + 1).map_or(0, |(_, copies)| *copies);
             return self.from(group + 1, 0, next_copies, extra);
         }
-        (0..=left).rev().any(|n| {
+        let most = useful_copies(ways, way, self.demand).min(left);
+        (0..=most).rev().any(|n| {
             let extra = std::array::from_fn(|t| extra[t] + ways[way][t] * n);
             self.from(group, way + 1, left - n, extra)
         })
+    }
+}
+
+/// How many copies of `ways[way]` can help pay `demand` beyond what the
+/// group's last way gives, which takes the copies left: when every way makes
+/// as much (one choice of type, as Everywheres under Mana Reflection are),
+/// enough of one asked type to pay its pips, since a copy past them pays only
+/// generic, as a copy of the last way does. Twenty such Everywheres are then
+/// a few choices a cost, not thousands. Ways of different sizes are every
+/// count, since a bigger way's copies pay more generic than the last's.
+fn useful_copies(ways: &[Bag], way: usize, demand: &Demand) -> u64 {
+    let size = |view: &Bag| view.iter().sum::<u64>();
+    let view = &ways[way];
+    match (0..6).find(|&t| view[t] > 0) {
+        Some(t)
+            if Types::of(view) == Types::one(t)
+                && demand.pips[t] > 0
+                && ways.iter().all(|other| size(other) == size(view)) =>
+        {
+            demand.pips[t].div_ceil(view[t])
+        }
+        _ => u64::MAX,
     }
 
 }
@@ -1382,6 +1447,46 @@ mod tests {
         assert!(!covers(&game, &cost(&[], 9)));
         assert!(covers(&game, &cost(&[Blue, Blue, Blue, Blue], 4)), "the input paid with Plains");
         assert!(!covers(&game, &cost(&[Blue; 7], 1)), "three Islands make six blue at most");
+    }
+
+    /// Ironworks can sacrifice the Cube only after the Cube has doubled, and
+    /// itself after that, so their {C}{C}s are not doubled: eight Plains less
+    /// three, doubled, and four colorless, fourteen and not more.
+    #[test]
+    fn what_ironworks_sacrifices_after_the_doubling_is_not_doubled() {
+        let mut game = setup_two_player_game();
+        for _ in 0..8 {
+            put_on_battlefield(&mut game, plains(), 0);
+        }
+        put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
+        put_on_battlefield(&mut game, doubling_cube(), 0);
+        assert!(covers(&game, &cost(&[], 14)));
+        assert!(!covers(&game, &cost(&[], 15)), "the Cube cannot feed Ironworks before it doubles");
+        assert!(covers(&game, &cost(&[White; 10], 4)), "ten white from the doubling, four colorless after");
+    }
+
+    /// Ways of different sizes keep every count: two copies of {W}{W}{W}-or-{U}
+    /// pay {W}{5} only both as white, which a count capped at what the white
+    /// pip needs would never try.
+    #[test]
+    fn copies_of_ways_of_different_sizes_are_counted_every_way() {
+        let entry = |_| Entry {
+            permanent: Some(new_object_id()),
+            ways: vec![
+                Way { makes: [3, 0, 0, 0, 0, 0], taps: true, sacrifices: false },
+                Way { makes: [0, 1, 0, 0, 0, 0], taps: true, sacrifices: false },
+            ],
+        };
+        let supply = ManaSupply {
+            player: 0,
+            entries: (0..2).map(entry).collect(),
+            outlets: Vec::new(),
+            doublers: Vec::new(),
+            plain: OnceCell::new(),
+        };
+        let demand = Demand { pips: [1, 0, 0, 0, 0, 0], generic: 5 };
+        assert!(supply.pays(&demand, &Taken::default()));
+        assert!(pays_by_search(&supply, &demand));
     }
 
     /// The Cube's doubling is a tap for mana, so Mana Reflection doubles what
@@ -1757,7 +1862,13 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(162);
         let (mut yes, mut no) = (0, 0);
         for _ in 0..3000 {
-            let entries = (0..rng.random_range(0..=5)).map(|_| random_entry(&mut rng)).collect();
+            let mut entries: Vec<Entry> = (0..rng.random_range(0..=5)).map(|_| random_entry(&mut rng)).collect();
+            // Copies of one entry, which the check counts as a group.
+            if let Some(copied) = entries.first().cloned().filter(|_| rng.random_bool(0.4)) {
+                for _ in 0..rng.random_range(1..=2) {
+                    entries.push(Entry { permanent: Some(new_object_id()), ..copied.clone() });
+                }
+            }
             let doublers = (0..rng.random_range(0..=2))
                 .map(|_| {
                     let mut input = Demand { pips: NO_MANA, generic: rng.random_range(1..=3) };
