@@ -429,6 +429,18 @@ Next after CV-2b, ahead of the rest of A6c (the owner: "probably soon"; movable)
 
 `backlog.md` §2.22's "before the GUI", and all three were back-stopped before A6g: a GUI seat needs auto-yield, the switch and no `[Pass]`-only prompts from its first game. **What the row did not predict, three things.** The migration ran at its count, 72 failing tests and the 148 + 112 expectations behind them, but twelve tests whose subject is every priority grant could not migrate, and four CR 104.1 boards would have passed vacuously, an agent's strict script no longer seeing a grant the CR does not make; so `SeatMode`'s stop is a field any provider may set, beside the person's. The GUI seat's shortcut had answered only `[Pass]`-only priority prompts, 9,330 and 11,187 across 40 seeds a pool, so all of it went. And the code came to 476 lines added, 391 net, against 300–450: the two new decorators are 278 of them, about half of it the trait's forwarding, five methods each. Every gameplay counter `IDENTICAL`, both pools, two seats and four; instructions per decision −0.75% (`fuzz-record.md`)
 
+## A6i — the feedback-loop census
+
+*Evicted 2026-10-06 from `plans/roadmap-v2.md` §3a's A6i row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*
+
+### Do this
+
+✅ **done 2026-10-06 (PR #TBD)** — **The feedback-loop census** (the owner, 2026-09-29, at CV-2b's design review): every loop in which a write feeds a decision in the same loop, and the printed cards that close each. The loops known today: an entry's writes and CR 616.1's re-gather (the feeds table, `replacement-architecture.md` §3.5); a layer effect and CR 613.8's dependency; a state-based action's result and the next check (CR 704.3); and an event a triggered ability produces and what else triggers (CR 603). For each, the card classes that close it, counted on Scryfall with each query printed beside its number, and each class's disposition: a test, a register row (`engineering-practices.md` §3.4b), or a `backlog.md` line
+
+### Why here
+
+Kaito, Bane of Nightmares beside Spark Double (`copy-effects-architecture.md` §4.1a) was found by a judges' thread, not by the engine: a permanent whose type hangs on its own counters closes the first loop. The census makes the next such card a query result. After the map (A4d), which names the seams it counts, and before the triggers phase adds the fourth loop's producers. **What the row did not predict, four things.** There is no fifth loop, but loop 1 is every event's re-gather, not only an entry's, and loops 3 and 4 take turns under CR 117.5, three state-based actions reading the trigger queue themselves (704.5s, 704.5t, 704.5v; `backlog.md` §2.44 and §2.23). The engine reads four of loop 3's next-check results one check early, which is harmless except where 704.5n's and 704.5p's condition reads what the check's batch changed (`codebase-state.md` item 6), and loop 2's pre-check is not exhaustive over amounts (item 217). A fourth disposition joined the brief's three, owned, where a phase on the route already owns the missing surface: six classes. And the counts took 69 Scryfall requests against the brief's 60 or so: Scryfall drops a regex it calls too complex, says so only in a warning and counts the whole corpus, which cost four requests before the script made the warning an error
+
 ## A6c — CV-2a, the entry state, CV-2b, then CV-1b with item 10
 
 *Evicted 2026-10-02 from `plans/roadmap-v2.md` §3a's A6c row, which keeps CV-1b with item 10; its why cell stands. Its Do this cell, unchanged.*
