@@ -20,7 +20,7 @@ use devgui::editor::{BoardNumber, EditorInput, Flag, Source, Zone};
 use devgui::launch::{self, Start};
 use devgui::save::{self, Save};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, Refusal, WindowState};
+use devgui::view_model::{Input, Mode, Refusal, SETTLE_SECONDS, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, GameStart, Log};
@@ -391,6 +391,33 @@ fn edit_the_scenario_reads_the_file_again_or_returns_to_the_board_play_started()
     session.input(Input::EditTheScenario);
     assert_eq!(session.mode, Mode::Edit);
     assert!(session.editor.view().undo.live, "the editor's own board, undo and all");
+}
+
+/// A double click on a button that replaces what the window shows lands its
+/// second click on whatever is drawn there next: Edit this board's on the
+/// editor's board, Play this board's on the game's header. So every click in
+/// the beat after the game and the editor switch, or another board opens, is
+/// dropped, as one in the beat after a prompt arrives is.
+#[test]
+fn a_click_in_the_beat_after_the_window_is_replaced_is_dropped() {
+    let (mut session, _, _) = session_with("devgui-session-replaced", BOLT_IN_HAND, |file| Start::Edit(Some(file.to_path_buf())));
+    session.tick(10.0);
+    session.input(Input::Mode(Mode::Play));
+    session.tick(10.1);
+    session.input(Input::Mode(Mode::Edit));
+    assert_eq!(session.mode, Mode::Play, "the second click of a double click");
+    session.tick(10.0 + 2.0 * SETTLE_SECONDS);
+    session.input(Input::Mode(Mode::Edit));
+    assert_eq!(session.mode, Mode::Edit);
+    session.tick(20.0);
+    session.input(Input::Editor(EditorInput::Open(0)));
+    let opened = session.editor.board().clone();
+    session.tick(20.1);
+    session.input(Input::Editor(EditorInput::Number(BoardNumber::Life(0), 9)));
+    assert_eq!(session.editor.board(), &opened, "an edit aimed at the board before");
+    session.tick(20.0 + 2.0 * SETTLE_SECONDS);
+    session.input(Input::Editor(EditorInput::Number(BoardNumber::Life(0), 9)));
+    assert_ne!(session.editor.board(), &opened);
 }
 
 /// The PR's click script: a four-seat Commander board built in the editor

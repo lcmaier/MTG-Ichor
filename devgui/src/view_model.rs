@@ -111,6 +111,12 @@ pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · 
 /// person has not seen.
 pub const SETTLE_SECONDS: f64 = 0.3;
 
+/// What is left by `now` of a beat that began at `began`, while some is.
+fn beat_left(now: f64, began: f64) -> Option<f64> {
+    let left = SETTLE_SECONDS - (now - began);
+    (left > 0.0).then_some(left)
+}
+
 /// The answer being put together.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Selection {
@@ -316,6 +322,12 @@ pub struct WindowState {
     pub now: Option<f64>,
     /// When the open prompt arrived, by `now`.
     pub prompt_at: Option<f64>,
+    /// When the why panel last opened or closed beside the board, sliding
+    /// the board under the pointer, by `now`.
+    pub board_moved_at: Option<f64>,
+    /// When what the window shows was last replaced under the pointer: the
+    /// game and the editor switched, or another board opened, by `now`.
+    pub replaced_at: Option<f64>,
     /// Prompts received, which keys each prompt's widgets apart: focus on one
     /// prompt's button cannot pass to the next prompt's.
     pub prompts: u64,
@@ -388,6 +400,12 @@ pub struct ToolButton {
 
 impl WindowState {
     pub fn receive(&mut self, message: ToWindow) {
+        let shown = self.why_shown();
+        self.take(message);
+        self.note_the_panel(shown);
+    }
+
+    fn take(&mut self, message: ToWindow) {
         match message {
             ToWindow::Prompt { snapshot, prompt, yielding, why } => {
                 self.replaying = None;
@@ -455,6 +473,13 @@ impl WindowState {
     /// yielding", which leaves it open. The board stays until the engine's
     /// next message.
     pub fn input(&mut self, input: Input) -> Option<Reply> {
+        let shown = self.why_shown();
+        let reply = self.reply_to(input);
+        self.note_the_panel(shown);
+        reply
+    }
+
+    fn reply_to(&mut self, input: Input) -> Option<Reply> {
         let reply = match input {
             // The window's own controls, and the editor's, which `Session::input` acts on.
             Input::Reload
@@ -488,6 +513,8 @@ impl WindowState {
             }
             // Aimed at the prompt before: it arrived too recently to be read.
             _ if self.settling_for().is_some() => return None,
+            // Aimed at the board before the why panel slid it.
+            Input::Board(_) if self.board_settling_for().is_some() => return None,
             // A shortcut acts on the press; a held key's repeat answers nothing.
             Input::Key { repeat: true, .. } => return None,
             Input::Key { key, .. } => return self.click_for(key).and_then(|click| self.input(click)),
@@ -571,8 +598,37 @@ impl WindowState {
 
     /// How much longer the open prompt drops input, while it does.
     pub fn settling_for(&self) -> Option<f64> {
-        let left = SETTLE_SECONDS - (self.now? - self.prompt_at?);
-        (left > 0.0).then_some(left)
+        beat_left(self.now?, self.prompt_at?)
+    }
+
+    /// How much longer a click on the board is dropped, while one is: the
+    /// prompt's beat, or the one after the why panel slid the board.
+    pub fn board_settling_for(&self) -> Option<f64> {
+        let moved = self.now.zip(self.board_moved_at).and_then(|(now, at)| beat_left(now, at));
+        self.settling_for().into_iter().chain(moved).reduce(f64::max)
+    }
+
+    /// What the window shows was replaced under the pointer, so every click
+    /// is dropped for a beat, as at a new prompt (`Session::input`).
+    pub fn replaced(&mut self) {
+        self.replaced_at = self.now;
+    }
+
+    /// How much longer every click is dropped, after a replacement.
+    pub fn replacing_for(&self) -> Option<f64> {
+        beat_left(self.now?, self.replaced_at?)
+    }
+
+    /// Whether the why panel shows, as `why_view` decides.
+    fn why_shown(&self) -> bool {
+        self.why.is_some() || (self.reading_the_trace.is_some() && !self.why_path.is_empty())
+    }
+
+    /// The board moved if the panel beside it opened or closed since `shown`.
+    fn note_the_panel(&mut self, shown: bool) {
+        if self.why_shown() != shown {
+            self.board_moved_at = self.now;
+        }
     }
 
     /// Whether `until` can be set at the open prompt: a priority prompt, with
@@ -646,7 +702,7 @@ impl WindowState {
         let board = self.board.as_ref()?;
         let mut marks = Marks::new(self.prompt.as_ref(), self.selection.as_ref());
         marks.why_is_live = self.why_is_live();
-        if self.settling_for().is_some() {
+        if self.board_settling_for().is_some() {
             marks.clickable.clear();
         }
         Some(BoardView::new(board, &marks))
@@ -1543,6 +1599,41 @@ mod tests {
         state.tick(10.0 + 2.0 * SETTLE_SECONDS);
         assert_eq!(state.input(Input::Key { key: Key::Digit(1), repeat: true }), None, "a held key");
         assert_eq!(state.input(Input::Key { key: Key::Digit(2), repeat: false }), Some(Reply::Answer(Answer::Picks(vec![1]))));
+    }
+
+    /// The why panel opening or closing slides the board under the pointer,
+    /// so a click on the board in the beat after either is dropped, and the
+    /// board offers nothing until it has passed: a double click on the
+    /// panel's close would otherwise answer a target on the player line the
+    /// close was drawn over. The prompt's own buttons do not move.
+    #[test]
+    fn a_board_click_in_the_beat_after_the_why_panel_opens_or_closes_is_dropped() {
+        let b = board();
+        let player = BoardRef::Player(0);
+        let mut state = WindowState::default();
+        state.tick(10.0);
+        state.receive(ToWindow::Prompt {
+            snapshot: b.snapshot.clone(),
+            prompt: prompt(Primitive::PickN { min: 1, max: 1 }, vec![option("Player 0", vec![player])]),
+            yielding: None,
+            why: None,
+        });
+        let offered = |state: &WindowState| state.board_view().unwrap().seats.iter().any(|seat| seat.player.clickable);
+        state.tick(11.0);
+        assert!(offered(&state), "the prompt's beat has passed");
+        assert_eq!(state.input(Input::Why(BoardRef::Object(b.bear))), Some(Reply::Why(Some(BoardRef::Object(b.bear)))));
+        assert!(offered(&state), "nothing shows until the seat answers");
+        state.receive(ToWindow::Why(Why { title: "Bear".to_string(), sections: Vec::new() }));
+        state.tick(11.1);
+        assert!(!offered(&state), "the panel opened");
+        assert_eq!(state.input(Input::Board(player)), None);
+        assert!(state.prompt_view().unwrap().options[0].live, "the prompt's buttons stayed where they were");
+        state.tick(12.0);
+        assert_eq!(state.input(Input::WhyClose), Some(Reply::Why(None)));
+        state.tick(12.1);
+        assert_eq!(state.input(Input::Board(player)), None, "the second click of a double click on the close");
+        state.tick(12.0 + 2.0 * SETTLE_SECONDS);
+        assert_eq!(state.input(Input::Board(player)), Some(Reply::Answer(Answer::Picks(vec![0]))));
     }
 
     /// A key is a click the prompt already offers: Space is the pass a

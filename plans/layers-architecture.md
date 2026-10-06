@@ -984,7 +984,12 @@ residual rather than in advance.
 - **The debug mode in the same commit, as this section has always required.** On every
   hit, `debug_assert_eq!` against a fresh walk. That turns `cargo test` and a debug
   fuzz run into the invalidation-completeness test, which is the one thing a coarse
-  cache can get wrong.
+  cache can get wrong. Since the dev GUI audit (2026-10-06), a reader that holds the
+  game by shared reference and asks about every object several times, as the dev
+  GUI's snapshot does, can run inside `GameState::audit_each_frame_once`, which checks
+  each frame once: a member's by one pass at the first hit on any, the rest at their
+  first hit. No walk input can change under a shared borrow, so it loses nothing
+  (`engineering-practices.md` §10.4).
 
 **Acceptance.** Byte-identical `--dump-events` and identical §3 fixture rows against the
 unmemoized binary on both pools; `Layer walks` becomes the miss count and gains a

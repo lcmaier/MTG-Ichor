@@ -8,10 +8,11 @@
 //! board or an empty one, and its Play starts the board. `launch` reads the
 //! command line; this starts the window over it.
 //!
-//! A debug build checks every layer-memo hit against a fresh walk, which is
-//! what to test cards under and costs a prompt about 30 ms on a large board,
-//! with the engine lightly optimized (`Cargo.toml`); `cargo run --release`
-//! costs it a fraction of a millisecond (`engineering-practices.md` §10.4).
+//! A debug build checks layer-memo hits against a fresh walk, which is what to
+//! test cards under: on the large review board a question waits about 40 ms
+//! there, nearly all of it the engine's own checks, with the engine lightly
+//! optimized (`Cargo.toml`); `cargo run --release` has none of them
+//! (`engineering-practices.md` §10.4).
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

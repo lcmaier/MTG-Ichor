@@ -430,7 +430,10 @@ scenario" button at any prompt. The writer:
 - reports what §2 says is played, rather than dropping it silently: the stack,
   a resolution's rows, a delayed trigger, an extra turn. It also reports the
   fields §5.2 lists as waiting (a copy, a token, a face-down permanent). The
-  report goes at the top of the file as comments, and into the window.
+  report goes at the top of the file as comments, and into the window. A
+  token's line is written by its name, which no registry holds, so the loader
+  refuses it, and its report says so and to play what makes the token (the dev
+  GUI audit);
 
 A written board resumes at the start of the step's priority round where it was
 written, with the active player to act (§5.3). **Its randomness is fresh.**
@@ -1513,7 +1516,8 @@ and combat. Commander damage (12) and a player who has left (11), which
 **The first part built** (#227, 2026-10-06, §8's ✅ section): the switch,
 the field, and the four player rows (9–12). Only the parser refuses a typed
 line: one the loader refuses goes in, as any edit the parser reads does, and
-its refusal marks it. The other six rows stay text, which the field writes.
+its refusal marks it. The other six rows stay text, which the field writes;
+their controls are `backlog.md` §2.42's (the owner, at the dev GUI audit).
 
 #### Decision 3 — where a built board is saved, and how a file comes back
 
@@ -1737,6 +1741,20 @@ audit, about 98% of a debug engine call (§7.1). So the audit that ends A6g's
 row looks at what the audit costs the window, and what the window can do about
 it without losing what the audit catches. One answer is already designed:
 SU-4's switch that skips the audit while replaying (§7.1).
+
+**Answered by the dev GUI audit** (2026-10-06; the readings are
+`engineering-practices.md` §10.4's). The audit is 85–98% of what a debug
+window waits at a question, in two parts: the window's own reads at the
+question, the snapshot and each why, about two fifths of it on the large
+review board, and the engine's own work between questions, the rest. The
+window's part now checks each object's characteristics once a question,
+not at every read, which loses nothing: a question's reads hold the game by
+shared reference, so a frame that matched a fresh walk once matches it at
+every later hit
+(`GameState::audit_each_frame_once`, which `GuiSeat::ask` opens). A question
+there waits 41.5 ms where it waited 69.7, the snapshot 1.08 ms where it took
+28.4. The engine's part is spread across its whole turn, and only pausing the
+audit removes it, so a fast-debug launch flag was not built.
 
 ### 7b.3 What SU-3 and the seats PR changed that §7.1–§7.3 name
 
@@ -2357,8 +2375,8 @@ looser than the engine (the owner, 2026-10-03; §8's ✅ section). The brief
 (2026-10-06) split them into up to three PRs: the switch, the field and the
 four player rows, landed below; then history, `this turn:` and `counters:`
 lines, ~260–380; then setup actions with their targets and ability,
-~210–310. Whether the last two are built is the owner's call, since the
-field already writes every row.
+~210–310. The owner left the last two off the route at the dev GUI audit
+(2026-10-06), since the field writes every row: `backlog.md` §2.42.
 
 **The why panel** (§7c, decided 2026-10-05) is three PRs, in the order
 §7c.1's decision 1 set. Each size gives code, then tests, at
@@ -2396,7 +2414,8 @@ the switch off (`main`'s 18.9), 19.1–19.2 µs with it on; a typed line added
 and undone 224–234 µs. The editor's random clicks reach every control:
 3,000 clicks in 1.0 s.
 
-**Left:** the second part, ~260–380, and the third, ~210–310 (above).
+**Left:** nothing on the route; the second part, ~260–380, and the third,
+~210–310, are `backlog.md` §2.42's.
 
 → `plans/archive/setup-architecture-landed.md`, "The editor's advanced
 settings, first part" (the build as sized, sized against built, and what the

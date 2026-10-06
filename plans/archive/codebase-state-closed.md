@@ -3339,3 +3339,27 @@ Closed as sized, in the first PR that reads a debug engine's trace in the window
      traced board where the check runs writes no record from it: ~25.
      **Slotted:** SU-8 (`setup-architecture.md` §8), the first PR that reads a
      debug engine's trace in the window.
+
+### Item 216 — closed 2026-10-06 by the dev GUI audit, #228
+
+Closed by a step in the dev GUI's CI job: Mesa's software Vulkan driver installed, then `UPDATE_SNAPSHOTS=true cargo test --locked --test screenshots`. egui_kittest writes a picture that differs rather than failing, so the step compares nothing, as the item sized it; a render that fails, a board the loader refuses, or a question never reached still fails it. The runner has no GPU, and wgpu draws through Mesa's lavapipe: the first run (2026-10-06) installed the driver in about 9 s and drew every picture in 18.0 s, the job 1 m 55 s in all. Sized at ~5 lines, built at 11 with their comment.
+
+*Original entry:*
+
+216. **The review pictures are drawn by a test no CI step runs.**
+     `devgui/tests/screenshots.rs` draws the dev GUI at the review boards'
+     prompts and compares each picture with its committed PNG, which holds
+     only on the machine that drew it, so CI's dev GUI step leaves the test
+     out, and with it the games it plays to reach each picture. MA-1 (#225)
+     counts Everywhere as one mana source, so no review board offers two
+     spells at once, and the test waited for a priority prompt with three
+     options that never came: it failed on `main` from #225's merge until
+     SU-8's redraw found it and took a prompt with a spell in reach. Eight
+     pictures had moved with MA-1's games.
+     **Reachability (2026-10-06):** reachable — not wrong in any game: a
+     harness, the review's pictures.
+     **Sized:** a CI step running the test with `UPDATE_SNAPSHOTS=true`, which
+     compares nothing and still fails when a review board stops reaching a
+     picture's prompt: ~5 lines, if CI's runner can draw offscreen, which the
+     step's first run says. **Slotted:** A6g's dev GUI audit, the row's last
+     PR.

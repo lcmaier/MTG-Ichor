@@ -231,9 +231,9 @@ jobs:
   # about 75 s on a runner. `--locked` fails rather than re-resolve a
   # dependency, so new code reaches the tree only through a lockfile diff.
   #
-  # The review pictures are not compared here. They are drawn on the owner's
-  # machine, and one drawn by Linux's software renderer differs past
-  # egui_kittest's threshold (a probe: 222 of 8,528 pixels, one over).
+  # The review pictures are drawn here and compared with none. They are drawn
+  # on the owner's machine, and one drawn by Linux's software renderer differs
+  # past egui_kittest's threshold (a probe: 222 of 8,528 pixels, one over).
   devgui:
     runs-on: ubuntu-latest
     defaults:
@@ -264,6 +264,17 @@ jobs:
       # save and `--load`) and the why panel on short boards (about 25 s of
       # debug build: the layer memo's audit runs in it, which is how the
       # random clicks found an engine bug). `tests/screenshots.rs` is the
-      # local check above.
+      # next step.
       - name: Test, without the pictures
         run: cargo test --locked --lib --test headless_game --test random_clicks --test tools --test why_panel
+
+      # `tests/screenshots.rs` plays each review board to its picture's
+      # question (`codebase-state.md` item 216). `UPDATE_SNAPSHOTS=true`
+      # writes a picture that differs rather than failing, so what fails here
+      # is a board that stops reaching its question, as MA-1's games made one
+      # do on `main` for a day. The runner has no GPU, so wgpu draws through
+      # Mesa's software Vulkan driver.
+      - name: The review pictures, drawn and compared with none
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq mesa-vulkan-drivers
+          UPDATE_SNAPSHOTS=true cargo test --locked --test screenshots

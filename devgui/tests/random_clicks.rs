@@ -70,6 +70,8 @@ struct Reached {
     /// Whys asked and answered, and the panel closed.
     whys: usize,
     closed: usize,
+    /// The panel opened or closed, sliding the board.
+    slid: usize,
 }
 
 #[test]
@@ -86,6 +88,7 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
     assert!(reached.pass_only > 0, "full control asked nothing a seat can only pass at");
     assert!(reached.yields > 0 && reached.stops > 0, "yields set {}, stopped {}", reached.yields, reached.stops);
     assert!(reached.whys > 0 && reached.closed > 0, "whys asked {}, the panel closed {}", reached.whys, reached.closed);
+    assert!(reached.slid > 0, "no click met the board sliding beside the why panel");
 }
 
 /// The review boards reach what a dealt game reaches only now and then: a
@@ -205,6 +208,16 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
                         assert_eq!(state.why_view(), None, "the panel closed and still shows");
                         reached.closed += 1;
                     }
+                }
+                // A panel that opened or closed slid the board, which offers
+                // nothing in the beat after; then the person's time goes on.
+                if let Some(now) = state.now
+                    && state.board_settling_for().is_some()
+                {
+                    let board = state.board_view().expect("a board at a question");
+                    assert!(!items(&board).any(|item| item.clickable), "the board offered a click in its beat at {:?}", state.prompt);
+                    reached.slid += 1;
+                    state.tick(now + 2.0 * SETTLE_SECONDS);
                 }
             }
             Some(reply) => return Some(reply),
@@ -356,9 +369,12 @@ fn advanced_control(input: &EditorInput) -> Option<&'static str> {
         EditorInput::Advanced(_) => "the switch",
         EditorInput::TypedLine(_) => "a line typed",
         EditorInput::AddTypedLine => "a line added",
-        EditorInput::Number(BoardNumber::LandsPlayed(_), _) => "lands played",
-        EditorInput::Number(BoardNumber::PlayerCounter(..), _) => "a player counter",
-        EditorInput::Number(BoardNumber::CommanderDamage { .. }, _) => "commander damage",
+        EditorInput::Number(field, _) | EditorInput::NumberTyped(field, _) => match field {
+            BoardNumber::LandsPlayed(_) => "lands played",
+            BoardNumber::PlayerCounter(..) => "a player counter",
+            BoardNumber::CommanderDamage { .. } => "commander damage",
+            _ => return None,
+        },
         EditorInput::LeftTheGame(..) => "left the game",
         _ => return None,
     })
@@ -445,7 +461,7 @@ fn stepped(stepper: &Stepper, rng: &mut StdRng) -> Vec<EditorInput> {
         let near = value.clamp(min, max);
         let typed = rng.random_range(near.saturating_sub(20).max(min)..=near.saturating_add(20).min(max));
         if typed != value {
-            inputs.push(EditorInput::Number(field, typed));
+            inputs.push(EditorInput::NumberTyped(field, typed));
         }
     }
     inputs

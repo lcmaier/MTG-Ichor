@@ -6,9 +6,11 @@
 //! the allocations and bytes one run asks for:
 //! - **snapshot**: `Snapshot::build`, the engine thread's work at each prompt
 //!   before it sends, read with the layer memo warm (the engine has usually
-//!   walked the board by the time it asks) and cold (the epoch just bumped);
-//!   **of which the board text**, `Scenario::write`, which it builds for
-//!   "Save board as scenario";
+//!   walked the board by the time it asks) and cold (the epoch just bumped),
+//!   inside the seat's `audit_each_frame_once`; **of which the board text**,
+//!   `Scenario::write`, which it builds for "Save board as scenario"; and in
+//!   a debug build what the layer memo's audit costs it, read at every hit
+//!   and paused;
 //! - **receive**: `WindowState::receive`, the window's work as a prompt arrives;
 //! - **views**: `board_view` and `prompt_view`, which `app::draw` builds again
 //!   at every repaint, and the header's tools with three entries in their
@@ -42,7 +44,7 @@ use devgui::view_model::WindowState;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::layers::explain;
 use mtgsim::scenario::Scenario;
-use mtgsim::types::ids::ObjectId;
+use mtgsim::state::game_state::GameState;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::why::{OpenQuestion, WhyAbout, why};
@@ -69,12 +71,21 @@ fn main() {
     println!("{}: {objects} objects, a {} prompt of {} options", board.display(), prompt.kind, prompt.options.len());
     let (prompt_kind, asked) = (prompt.kind.clone(), prompt.player);
 
-    reading("snapshot, memo warm", || Snapshot::build(&game.state, 0));
+    // As the seat builds it, every frame audited once in a debug build.
+    let at_the_seat = |state: &GameState| state.audit_each_frame_once(|| Snapshot::build(state, 0));
+    reading("snapshot, memo warm", || at_the_seat(&game.state));
     reading("snapshot, memo cold", || {
         game.state.bump_layer_epoch();
-        Snapshot::build(&game.state, 0)
+        at_the_seat(&game.state)
     });
     reading("  of which the board text", || Scenario::write(&game.state).to_string());
+    if cfg!(debug_assertions) {
+        // What the audit costs it: at every hit, as outside a seat, and none.
+        reading("  audited at every hit", || Snapshot::build(&game.state, 0));
+        game.state.pause_layer_audit();
+        reading("  the audit paused", || Snapshot::build(&game.state, 0));
+        game.state.resume_layer_audit();
+    }
     reading("receive", || {
         let mut state = WindowState::default();
         state.receive(ToWindow::Prompt { snapshot: snapshot.clone(), prompt: prompt.clone(), yielding: None, why: None });
@@ -95,18 +106,24 @@ fn main() {
     // and about the first card in the asked seat's hand, whose question
     // section asks the cast check; and the panel's view, which `app::draw`
     // builds again at every repaint while it is open.
-    assert_eq!(prompt_kind, "PriorityAction", "the board's first question is a priority question");
-    let options: Vec<ChoiceOption> = candidate_priority_actions(&game.state, asked).into_iter().map(ChoiceOption::Action).collect();
-    let context = ChoiceContext::new(ChoiceKind::PriorityAction);
-    let question = OpenQuestion { player: asked, context: &context, options: &options };
-    let steps = |id: &ObjectId| explain(&game.state, *id).map_or(0, |explanation| explanation.steps.len());
-    let busiest = game.state.battlefield_ids_ordered().into_iter().max_by_key(steps).expect("a permanent on the board");
-    reading("why, at a question", || why(&game.state, WhyAbout::Object(busiest), Some(&question)));
-    let in_hand = *game.state.players[asked].hand.first().expect("a card in the asked seat's hand");
-    reading("why of a card in hand, at a question", || why(&game.state, WhyAbout::Object(in_hand), Some(&question)));
-    let busiest_why = why(&game.state, WhyAbout::Object(busiest), Some(&question));
-    (state.why_path, state.why) = (vec![WhyAbout::Object(busiest)], Some(busiest_why));
-    reading("why view, every repaint", || state.why_view());
+    let busiest = game.state.battlefield_ids_ordered().into_iter().max_by_key(|id| {
+        explain(&game.state, *id).map_or(0, |explanation| explanation.steps.len())
+    });
+    let in_hand = game.state.players[asked].hand.first().copied();
+    match (prompt_kind.as_str(), busiest, in_hand) {
+        ("PriorityAction", Some(busiest), Some(in_hand)) => {
+            let options: Vec<ChoiceOption> =
+                candidate_priority_actions(&game.state, asked).into_iter().map(ChoiceOption::Action).collect();
+            let context = ChoiceContext::new(ChoiceKind::PriorityAction);
+            let question = OpenQuestion { player: asked, context: &context, options: &options };
+            let at_the_seat = |about| game.state.audit_each_frame_once(|| why(&game.state, about, Some(&question)));
+            reading("why, at a question", || at_the_seat(WhyAbout::Object(busiest)));
+            reading("why of a card in hand, at a question", || at_the_seat(WhyAbout::Object(in_hand)));
+            (state.why_path, state.why) = (vec![WhyAbout::Object(busiest)], Some(at_the_seat(WhyAbout::Object(busiest))));
+            reading("why view, every repaint", || state.why_view());
+        }
+        _ => println!("the why panel: not read, since it needs a priority question first, a permanent and a card in hand"),
+    }
 
     let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));
     let opened = &editor;

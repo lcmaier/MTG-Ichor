@@ -54,6 +54,57 @@ pub struct LayerMemo {
     /// The debug audits' pause (`GameState::pause_layer_audit`).
     #[cfg(debug_assertions)]
     audit_paused: std::cell::Cell<bool>,
+    /// The frames the memo audit has checked inside
+    /// `GameState::audit_each_frame_once`.
+    #[cfg(debug_assertions)]
+    audit_scope: AuditScope,
+}
+
+/// What the open `GameState::audit_each_frame_once` has checked: every
+/// member's frame once its one pass has run, and each other object's by id.
+/// `None` outside one. A clone starts outside any scope, since a clone can be
+/// written.
+#[cfg(debug_assertions)]
+#[derive(Debug, Default)]
+struct AuditScope(RefCell<Option<Checked>>);
+
+#[cfg(debug_assertions)]
+impl Clone for AuditScope {
+    fn clone(&self) -> AuditScope {
+        AuditScope::default()
+    }
+}
+
+#[cfg(debug_assertions)]
+#[derive(Debug, Default)]
+struct Checked {
+    members: bool,
+    others: crate::types::ids::IdSet<ObjectId>,
+}
+
+/// What the memo audit owes a hit (`compute::audit_memo_hit`).
+#[cfg(debug_assertions)]
+pub(crate) enum AuditOwed {
+    /// The frame served, against a fresh walk: every hit outside a scope, and
+    /// inside one the first on each object the pass does not hold.
+    ThisFrame,
+    /// Every member's stored frame, against one pass: inside a scope, the
+    /// first hit on a member.
+    EveryMember,
+    /// Nothing: the scope has checked this frame.
+    Nothing,
+}
+
+/// Closes the scope [`LayerMemo::open_audit_scope`] opened when it drops,
+/// a read that panics included.
+#[cfg(debug_assertions)]
+pub(crate) struct OpenAuditScope<'m>(&'m LayerMemo);
+
+#[cfg(debug_assertions)]
+impl Drop for OpenAuditScope<'_> {
+    fn drop(&mut self) {
+        *self.0.audit_scope.0.borrow_mut() = None;
+    }
 }
 
 impl LayerMemo {
@@ -66,6 +117,36 @@ impl LayerMemo {
     #[cfg(debug_assertions)]
     pub(crate) fn pause_audit(&self, paused: bool) {
         self.audit_paused.set(paused);
+    }
+
+    /// Opens `GameState::audit_each_frame_once`'s scope, unless one is open.
+    #[cfg(debug_assertions)]
+    pub(crate) fn open_audit_scope(&self) -> Option<OpenAuditScope<'_>> {
+        let mut scope = self.audit_scope.0.borrow_mut();
+        if scope.is_some() {
+            return None;
+        }
+        *scope = Some(Checked::default());
+        Some(OpenAuditScope(self))
+    }
+
+    /// What the audit owes a hit on `id`, marked as checked. `is_member`, the
+    /// pass's membership, is asked only inside a scope.
+    #[cfg(debug_assertions)]
+    pub(crate) fn audit_owed(&self, id: ObjectId, is_member: impl FnOnce() -> bool) -> AuditOwed {
+        if self.audit_scope.0.borrow().is_none() {
+            return AuditOwed::ThisFrame;
+        }
+        // Asked with no borrow held: the membership may read a frame.
+        let member = is_member();
+        let mut scope = self.audit_scope.0.borrow_mut();
+        let Some(checked) = scope.as_mut() else { return AuditOwed::ThisFrame };
+        match member {
+            true if std::mem::replace(&mut checked.members, true) => AuditOwed::Nothing,
+            true => AuditOwed::EveryMember,
+            false if checked.others.insert(id) => AuditOwed::ThisFrame,
+            false => AuditOwed::Nothing,
+        }
     }
 
     /// The frame for `id`, if one was stored at exactly `epoch`.
@@ -393,6 +474,86 @@ mod tests {
         game.resume_layer_audit();
         let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compute_characteristics(&game, bears)));
         assert!(caught.is_err(), "resumed, the audit catches the skipped bump");
+    }
+
+    /// `GameState::audit_each_frame_once` checks each frame once, and loses
+    /// nothing the audit at every hit catches: a frame gone stale before the
+    /// read is caught at its first hit inside, a member's by the one pass.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "stale frame")]
+    fn a_frame_audited_once_still_catches_a_skipped_bump() {
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert_eq!(controller(&game, bears), (Some(0), false));
+        game.battlefield.get_mut(&bears).unwrap().controller = 1;
+        game.audit_each_frame_once(|| compute_characteristics(&game, bears));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "stale frame")]
+    fn a_card_no_pass_holds_is_audited_once_and_still_caught() {
+        let mut game = GameState::new(2, 20);
+        let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert_eq!(controller(&game, card), (Some(0), false));
+        game.objects.get_mut(&card).unwrap().owner = 1;
+        game.audit_each_frame_once(|| compute_characteristics(&game, card));
+    }
+
+    /// The one pass checks every member's frame, not only the one asked for.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "stale frame")]
+    fn the_first_hit_on_a_member_checks_every_members_frame() {
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let other = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+        assert_eq!(controller(&game, bears), (Some(0), false));
+        assert_eq!(controller(&game, other), (Some(0), true));
+        game.battlefield.get_mut(&other).unwrap().controller = 1;
+        game.audit_each_frame_once(|| compute_characteristics(&game, bears));
+    }
+
+    /// Once its read returns, or panics, the scope is closed, and every hit
+    /// is checked again.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_closed_scope_leaves_every_hit_audited() {
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+        game.audit_each_frame_once(|| (compute_characteristics(&game, bears), compute_characteristics(&game, card)));
+        let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            game.audit_each_frame_once(|| {
+                compute_characteristics(&game, bears);
+                panic!("the read fails");
+            })
+        }));
+        assert!(failed.is_err());
+        game.battlefield.get_mut(&bears).unwrap().controller = 1;
+        game.objects.get_mut(&card).unwrap().owner = 1;
+        for id in [bears, card] {
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compute_characteristics(&game, id)));
+            assert!(caught.is_err(), "the scope closed, so the hit on {id} is audited");
+        }
+    }
+
+    /// A clone can be written, so one taken inside a scope starts outside it.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_clone_taken_inside_a_scope_is_audited_at_every_hit() {
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        assert_eq!(controller(&game, bears), (Some(0), false));
+        let mut fork = game.audit_each_frame_once(|| {
+            // A hit: the scope has checked every member's frame.
+            assert_eq!(controller(&game, bears), (Some(0), true));
+            game.clone()
+        });
+        fork.battlefield.get_mut(&bears).unwrap().controller = 1;
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compute_characteristics(&fork, bears)));
+        assert!(caught.is_err(), "the fork's hit is audited");
     }
 
     #[cfg(debug_assertions)]

@@ -344,10 +344,17 @@ struct GuiSeat {
 }
 
 impl GuiSeat {
+    /// The window's reply to `prompt`. Nothing writes the game while its
+    /// question is open, so the snapshot and each why read it with every
+    /// frame audited once (`setup-architecture.md` §7b, decision 5).
+    fn ask(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Reply {
+        game.audit_each_frame_once(|| self.send_and_wait(game, question, prompt))
+    }
+
     /// Send `prompt` and wait for the window's reply: an answer, or at a
     /// priority prompt a yield. "Stop yielding" and a why are carried out
     /// here, and the prompt stays open.
-    fn ask(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Reply {
+    fn send_and_wait(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Reply {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
         if let Some(record) = &self.record {

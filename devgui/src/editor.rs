@@ -155,7 +155,12 @@ pub enum TextItem {
 /// board's card lines.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorInput {
+    /// A number set by its "−" or "+": each click a step of its own.
     Number(BoardNumber, i64),
+    /// A number typed or dragged in its field. Consecutive ones on one field
+    /// are one undo step, as a value typed a digit at a time is one value.
+    NumberTyped(BoardNumber, i64),
+    /// Typed in its field, so consecutive ones are one undo step.
     Seed(u64),
     Active(PlayerId),
     Step(Phase),
@@ -209,6 +214,7 @@ impl EditorInput {
     fn card(&self) -> Option<usize> {
         match *self {
             EditorInput::Number(BoardNumber::Damage(i) | BoardNumber::Copies(i) | BoardNumber::ArrivedTurn(i), _)
+            | EditorInput::NumberTyped(BoardNumber::Damage(i) | BoardNumber::Copies(i) | BoardNumber::ArrivedTurn(i), _)
             | EditorInput::Controller(i, _)
             | EditorInput::Owner(i, _)
             | EditorInput::Flag(i, ..)
@@ -260,6 +266,9 @@ pub struct Editor {
     pub chosen: Option<usize>,
     /// The advanced settings' controls and the typed field, shown.
     pub advanced: bool,
+    /// The field the last input was typed into, which the next one typed
+    /// there joins in one undo step.
+    typing: Option<TypedInto>,
     typed_line: String,
     /// Why the typed field's line was not added: the parser's refusal, or a
     /// line that says nothing the board does not.
@@ -309,6 +318,7 @@ impl Editor {
             picking: None,
             chosen: None,
             advanced: false,
+            typing: None,
             typed_line: String::new(),
             typed_line_refusal: None,
             search: NameSearch::new(names),
@@ -346,6 +356,13 @@ impl Editor {
 
     pub fn input(&mut self, input: EditorInput) {
         self.unsaid = None;
+        let typing = match input {
+            EditorInput::NumberTyped(field, _) => Some(TypedInto::Number(field)),
+            EditorInput::Seed(_) => Some(TypedInto::Seed),
+            _ => None,
+        };
+        let last = std::mem::replace(&mut self.typing, typing);
+        let joins = typing.is_some() && last == typing;
         match input {
             EditorInput::Card(i) => match (self.picking, self.editing) {
                 (Some(reference), Some(edited)) => {
@@ -368,7 +385,10 @@ impl Editor {
                     return;
                 }
                 let chosen = self.chosen.and_then(|i| self.search.name(i)).map(str::to_string);
-                self.edit(|draft| draft.apply(edit, chosen.as_deref()));
+                let steps = self.undo.len();
+                if self.edit(|draft| draft.apply(edit, chosen.as_deref())) && joins {
+                    self.undo.truncate(steps);
+                }
             }
         }
     }
@@ -427,6 +447,13 @@ impl Editor {
     fn check(&mut self) {
         self.refusal = self.board.build(&self.registry).err();
     }
+}
+
+/// A field a value is typed into, which `Editor::input` joins typed edits by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TypedInto {
+    Number(BoardNumber),
+    Seed,
 }
 
 /// Where a card line is listed: its seat and zone. `None` for a line the
@@ -634,7 +661,7 @@ impl Draft {
     /// The edit `input` asks for; `chosen` is the name chosen in the search.
     fn apply(&mut self, input: EditorInput, chosen: Option<&str>) {
         match input {
-            EditorInput::Number(field, value) => self.set_number(field, value),
+            EditorInput::Number(field, value) | EditorInput::NumberTyped(field, value) => self.set_number(field, value),
             EditorInput::Seed(seed) => self.board.seed = seed,
             EditorInput::Active(player) => self.board.active = player,
             EditorInput::Step(step) => self.board.step = step,
@@ -1542,6 +1569,31 @@ mod tests {
         editor.input(EditorInput::Undo);
         assert!(!editor.view().undo.live);
         assert_eq!(editor.text(), "turn 3\nbattlefield: Grizzly Bears | controller 0\n");
+    }
+
+    /// A number typed a digit at a time, or dragged, is one undo step however
+    /// many edits it took, and so is a seed; a click on "+" is a step of its
+    /// own, ends the typing, and so does the next field typed into.
+    #[test]
+    fn a_value_typed_into_its_field_is_one_undo_step() {
+        let mut editor = opened("");
+        let life = |editor: &Editor, on: PlayerId| seat(editor, on).life.value;
+        editor.input(EditorInput::NumberTyped(BoardNumber::Life(0), 2));
+        editor.input(EditorInput::NumberTyped(BoardNumber::Life(0), 25));
+        editor.input(EditorInput::Number(BoardNumber::Life(0), 26));
+        editor.input(EditorInput::NumberTyped(BoardNumber::Life(0), 30));
+        editor.input(EditorInput::NumberTyped(BoardNumber::Life(1), 7));
+        for seed in [1, 17, 1_791_053_453_880_426_900] {
+            editor.input(EditorInput::Seed(seed));
+        }
+        assert_eq!(editor.board().seed, 1_791_053_453_880_426_900, "a clock seed, past what an f64 holds exactly");
+        let mut undone = Vec::new();
+        while editor.view().undo.live {
+            editor.input(EditorInput::Undo);
+            undone.push((editor.board().seed, life(&editor, 0), life(&editor, 1)));
+        }
+        let at = |seed, mine: &str, theirs: &str| (seed, mine.to_string(), theirs.to_string());
+        assert_eq!(undone, [at(0, "30", "7"), at(0, "30", "20"), at(0, "26", "20"), at(0, "25", "20"), at(0, "20", "20")]);
     }
 
     /// The loader's refusal is the check, and it marks the card it names.
