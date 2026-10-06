@@ -73,12 +73,14 @@ impl PlayerState {
         self.counters.get(&kind).copied().unwrap_or(0)
     }
 
-    /// Give this player `n` counters of `kind`.
+    /// Give this player `n` counters of `kind`. No rule caps a count, but the
+    /// type does, so a count past `u32::MAX` stays there.
     pub fn add_counters(&mut self, kind: CounterType, n: u32) {
         if n == 0 {
             return;
         }
-        *self.counters.entry(kind).or_insert(0) += n;
+        let count = self.counters.entry(kind).or_insert(0);
+        *count = count.saturating_add(n);
     }
 
     /// Take up to `n` counters of `kind` off this player; the number actually
@@ -141,6 +143,15 @@ mod tests {
         assert_eq!(player.remove_counters(CounterType::Energy, 7), 5, "CR 701.2");
         assert!(player.counters.is_empty(), "a kind at zero leaves the map");
         assert_eq!(player.remove_counters(CounterType::Poison, 1), 0);
+    }
+
+    /// A scenario's words add, so two can say more than a count holds.
+    #[test]
+    fn test_player_counters_past_what_a_count_holds_stay_at_the_most() {
+        let mut player = PlayerState::new(0, 20);
+        player.add_counters(CounterType::Poison, u32::MAX);
+        player.add_counters(CounterType::Poison, 1);
+        assert_eq!(player.counter_count(CounterType::Poison), u32::MAX);
     }
 
     #[test]

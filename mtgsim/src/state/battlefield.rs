@@ -286,7 +286,8 @@ impl PermanentState {
             .counters
             .entry(counter_type)
             .or_insert(CounterStack { count: 0, timestamp });
-        entry.count += n;
+        // No rule caps a count, but the type does.
+        entry.count = entry.count.saturating_add(n);
         entry.timestamp = timestamp;
     }
 
@@ -331,6 +332,16 @@ mod tests {
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 3);
         e.add_counters(CounterType::PlusOnePlusOne, 2, 2);
         assert_eq!(e.counter_count(CounterType::PlusOnePlusOne), 5);
+    }
+
+    /// A count a scenario set at the most, then a counter put on in play.
+    #[test]
+    fn test_counters_past_what_a_count_holds_stay_at_the_most() {
+        let mut e = make_permanent_state();
+        e.add_counters(CounterType::Charge, u32::MAX, 1);
+        e.add_counters(CounterType::Charge, 1, 2);
+        assert_eq!(e.counter_count(CounterType::Charge), u32::MAX);
+        assert_eq!(e.counters[&CounterType::Charge].timestamp, 2, "CR 613.7c: the put still stamps the kind");
     }
 
     #[test]
