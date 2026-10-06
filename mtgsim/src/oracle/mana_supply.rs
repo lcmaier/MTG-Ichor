@@ -44,11 +44,12 @@ use crate::engine::resolve::ResolutionContext;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controller_or_owner, controls, get_effective_abilities, has_summoning_sickness};
+use crate::oracle::board::permanents_controlled_by;
+use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities, has_summoning_sickness};
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
-use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId, Timestamp};
+use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::triggers::{TriggerEvent, TriggerSubject};
@@ -159,15 +160,17 @@ struct SupplyEntry {
     ways: Vec<EntryWay>,
 }
 
-/// "Sacrifice a [filter]: Add mana" (Krark-Clan Ironworks): used once for
-/// each permanent it can sacrifice (CR 701.21a), itself last.
+/// "Sacrifice a [filter]: Add mana": used once for each permanent it can
+/// sacrifice (CR 701.21a). Krark-Clan Ironworks sacrifices artifacts and is
+/// one, so it can sacrifice itself, last; Ashnod's Altar sacrifices
+/// creatures and is not one unless an effect makes it one.
 #[derive(Debug, Clone, PartialEq)]
 struct SacrificeOutlet {
     permanent: ObjectId,
     /// Outlets of one ability share their fodder, so they are counted once.
     definition: AbilityId,
     needs: u32,
-    /// The player's permanents its filter matches, itself among them.
+    /// The player's permanents its filter matches: itself only if it matches.
     fodder: Vec<ObjectId>,
     /// What one activation can make.
     ways: Vec<ManaBag>,
@@ -180,9 +183,11 @@ struct SacrificeOutlet {
 struct PoolMultiplier {
     permanent: ObjectId,
     input: ManaDemand,
-    /// What one mana left in the pool becomes: itself and what the ability
-    /// adds for it, 2 for Doubling Cube, 3 under Mana Reflection, 4 under
-    /// Nyxbloom Ancient.
+    /// What one mana left in the pool becomes. CR 701.10f doubles a type of
+    /// mana by adding as much again, and the ability taps for mana (CR
+    /// 106.12), so a multiplier on taps multiplies what it adds: the pool's n
+    /// becomes n + n alone (2), n + 2n under Mana Reflection (3), n + 3n
+    /// under Nyxbloom Ancient (4).
     factor: u64,
 }
 
@@ -220,7 +225,7 @@ impl ManaSupply {
         let quiet = watchers.replacements.is_empty()
             && watchers.triggers.is_empty()
             && !game.replacement_effects.iter().any(|row| matches!(row.def.pattern, EventPattern::ProduceMana { .. }));
-        let mine = permanents_of(game, player);
+        let mine = permanents_controlled_by(game, player);
         let mut supply = ManaSupply {
             player,
             entries: Vec::new(),
@@ -324,28 +329,51 @@ impl ManaSupply {
         demand.total() == 0 || self.pays(&demand, &reserved)
     }
 
+    /// Whether this inventory pays `demand` for a payment whose other costs
+    /// reserve `reserved`, tried two ways (§3.3).
+    ///
+    /// First with no pool multiplier. Then with the first one, then the first
+    /// two, in timestamp order: everything else is made before them, since
+    /// mana made after a multiplier is not multiplied, except a sacrifice
+    /// outlet's activations that must come after it (a multiplier is
+    /// sacrificed only once it has added). The mana made after pays what it
+    /// can, and the rest becomes a smaller demand on the mana made before.
+    /// Eight Plains, Krark-Clan Ironworks and Doubling Cube against {14}: 12
+    /// of 14 without the Cube; with it, Ironworks' four colorless come after,
+    /// the {10} left needs {5} before the Cube and its {3}, and eight Plains
+    /// make eight.
     fn pays(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> bool {
-        let leaves_the_entries = !self.entries.iter().any(|e| e.permanent.is_some_and(|p| reserved.reserves(p)))
-            && (self.sacrifice_outlets.is_empty() || reserved.reserves_no_fodder());
-        let plain = if leaves_the_entries {
-            self.plain_split.get_or_init(|| self.split(&ReservedByCosts::default(), &[])).pays(demand)
-        } else {
-            self.split(reserved, &[]).pays(demand)
-        };
-        if plain {
+        if self.pays_without_multipliers(demand, reserved) {
             return true;
         }
-        // Every other entry is used before a pool multiplier, since mana made
-        // after it is not multiplied; what cannot be, comes after and pays as
-        // made.
-        let pool_multipliers: Vec<&PoolMultiplier> =
-            self.pool_multipliers.iter().filter(|d| !reserved.reserves(d.permanent)).collect();
-        (1..=pool_multipliers.len()).any(|used| {
-            let used = &pool_multipliers[..used];
-            let after = self.made_after_multiplying(reserved, used);
-            let asked = used.iter().rev().fold(demand.less(&after), |asked, d| asked.before_multiplying(d.factor, &d.input));
-            self.split(reserved, used).pays(&asked)
-        })
+        let multipliers: Vec<&PoolMultiplier> =
+            self.pool_multipliers.iter().filter(|m| !reserved.reserves(m.permanent)).collect();
+        (1..=multipliers.len()).any(|k| self.pays_with_multipliers(demand, reserved, &multipliers[..k]))
+    }
+
+    /// The plain check. The split depends on the cost only through what the
+    /// payment reserves, so a payment reserving nothing an entry or an outlet
+    /// uses, nearly every one, shares one split, made at the first check.
+    fn pays_without_multipliers(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> bool {
+        let reserves_from_the_supply = self.entries.iter().any(|e| e.permanent.is_some_and(|p| reserved.reserves(p)))
+            || (!self.sacrifice_outlets.is_empty() && !reserved.reserves_no_fodder());
+        if reserves_from_the_supply {
+            return self.split(reserved, &[]).pays(demand);
+        }
+        self.plain_split.get_or_init(|| self.split(&ReservedByCosts::default(), &[])).pays(demand)
+    }
+
+    /// With the pool multipliers `used` activated last, in their order: the
+    /// mana made after them pays first, and what is left is carried back
+    /// through each, the last first, into the demand on what is made before
+    /// them all.
+    fn pays_with_multipliers(&self, demand: &ManaDemand, reserved: &ReservedByCosts, used: &[&PoolMultiplier]) -> bool {
+        let made_after = self.made_after_multiplying(reserved, used);
+        let needed_before = used
+            .iter()
+            .rev()
+            .fold(demand.less(&made_after), |needed, m| needed.before_multiplying(m.factor, &m.input));
+        self.split(reserved, used).pays(&needed_before)
     }
 
     /// What a sacrifice outlet makes after the pool multipliers in `used`: a
@@ -418,7 +446,7 @@ pub struct ManaSource {
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
     let watchers = mana_production_watchers(game);
     let mut sources = Vec::new();
-    for id in permanents_of(game, player_id) {
+    for id in permanents_controlled_by(game, player_id) {
         for ability in get_effective_abilities(game, id).iter() {
             if ability.ability_type != AbilityType::Mana || game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
@@ -488,7 +516,7 @@ impl ManaAbilityWindowOffer {
     pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
         let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
         let mut abilities = Vec::new();
-        for permanent in permanents_of(game, player) {
+        for permanent in permanents_controlled_by(game, player) {
             for ability in get_effective_abilities(game, permanent).iter() {
                 if ability.ability_type != AbilityType::Mana || !offered_in_the_window(game, ability, permanent, player) {
                     continue;
@@ -565,7 +593,7 @@ impl ReservedByCosts {
                 Cost::TapSelf => reserved.tapped = non_mana.source,
                 Cost::SacrificeSelf => reserved.sacrificed = non_mana.source,
                 Cost::Sacrifice(filter, needs) if fodder_read => {
-                    let candidates = permanents_of(game, player)
+                    let candidates = permanents_controlled_by(game, player)
                         .into_iter()
                         .filter(|&id| game.object_matches_filter(id, filter, player).unwrap_or(false))
                         .collect();
@@ -697,31 +725,6 @@ fn add_mana_produced(game: &GameState, effect: &Effect, resolution: &ResolutionC
     }
 }
 
-/// The permanents `player` controls, oldest first (CR 613.7's timestamps,
-/// which never tie), sorting only those (§3.5).
-///
-/// `controls` is asked in the map's order only while it walks no layers,
-/// which it promises while no effect changes control: a walk writes a trace
-/// record, and a record written in hash order would differ by process.
-fn permanents_of(game: &GameState, player: PlayerId) -> Vec<ObjectId> {
-    if game.continuous_effects.summary().any_control_changing {
-        return game.battlefield_ids_ordered().into_iter().filter(|&id| controls(game, id, player)).collect();
-    }
-    // With no effect changing control, a permanent's controller is its
-    // entry's, the base `controls` reads without a layer walk.
-    let mut mine: Vec<(Timestamp, ObjectId)> = game
-        .battlefield
-        .iter()
-        .filter(|&(&id, entry)| {
-            debug_assert_eq!(entry.controller == player, controls(game, id, player));
-            entry.controller == player
-        })
-        .map(|(&id, entry)| (entry.timestamp, id))
-        .collect();
-    mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-    mine.into_iter().map(|(_, id)| id).collect()
-}
-
 /// An ability, by its permanent and its place on that permanent's effective
 /// list, which holds while the layer epoch it was read at does.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -730,17 +733,20 @@ struct AbilityAt {
     index: usize,
 }
 
-/// The abilities on the battlefield that change what a production makes:
-/// static replacement abilities watching one (CR 106.6a, 106.12b) and
-/// triggered mana abilities (CR 605.1b), read off effective ability lists as
-/// the gather and the dispatcher read them (§3.4).
+/// The board's mana production watchers: each ability on the battlefield
+/// that changes what a tap for mana makes, and so an entry's ways. A static
+/// ability whose replacement effect rewrites the production (Mana Reflection
+/// doubles it; CR 106.6a, 106.12b), or a triggered mana ability that adds to
+/// it (Wild Growth's {G}; CR 605.1b). Read off effective ability lists, as
+/// the replacement gather and the trigger dispatcher read them (§3.4).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct ManaProductionWatchers {
     replacements: Vec<AbilityAt>,
     triggers: Vec<AbilityAt>,
 }
 
-/// The board's watchers, from the memo when the layer epoch has not moved.
+/// The board's mana production watchers (`ManaProductionWatchers`), from the
+/// memo when the layer epoch has not moved.
 ///
 /// Every input is a layer-walk input (effective abilities, controllers,
 /// attachments), so the frame memo's epoch argument covers this cache too
@@ -1301,6 +1307,7 @@ mod tests {
 
     use super::*;
     use crate::cards::artifacts::{darksteel_myr, sol_ring};
+    use crate::cards::creatures::grizzly_bears;
     use crate::cards::basic_lands::{forest, island, plains};
     use crate::cards::dual_lands::{badlands, everywhere, tundra};
     use crate::cards::phase_cm_cards::{krark_clan_ironworks, mind_stone};
@@ -1445,6 +1452,35 @@ mod tests {
         put_on_battlefield(&mut game, sol_ring(), 0);
         assert!(covers(&game, &cost(&[], 6)), "Sol Ring's tap, then both sacrificed");
         assert!(!covers(&game, &cost(&[], 7)));
+    }
+
+    /// "Sacrifice a creature: Add {C}{C}" on an artifact, Ashnod's Altar: an
+    /// outlet that is not its own fodder. Two Grizzly Bears are two
+    /// activations, and the Altar is no third.
+    #[test]
+    fn an_outlet_that_is_not_its_own_fodder_counts_only_its_fodder() {
+        let altar = CardDataBuilder::new("Ashnod's Altar")
+            .card_type(CardType::Artifact)
+            .ability(AbilityDef {
+                rules_text: "Sacrifice a creature: Add {C}{C}.".into(),
+                is_characteristic_defining: false,
+                activation_restriction: ActivationRestriction::None,
+                id: AbilityId::UNASSIGNED,
+                instances: Vec::new(),
+                ability_type: AbilityType::Mana,
+                costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+                effect: Effect::Atom(
+                    Primitive::ProduceMana(ManaOutput { mana: vec![(Colorless, AmountExpr::Fixed(2))], special: vec![] }),
+                    EffectRecipient::Implicit,
+                ),
+            })
+            .build();
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, altar, 0);
+        put_on_battlefield(&mut game, grizzly_bears(), 0);
+        put_on_battlefield(&mut game, grizzly_bears(), 0);
+        assert!(covers(&game, &cost(&[], 4)));
+        assert!(!covers(&game, &cost(&[], 5)), "the Altar is not a creature, so not its own fodder");
     }
 
     /// `cost-architecture.md` §3.11's puzzle: Mind Stone's draw sacrifices
@@ -1804,7 +1840,7 @@ mod tests {
         let mut checked = 0;
         for game in &boards {
             let watchers = mana_production_watchers(game);
-            for id in permanents_of(game, 0) {
+            for id in permanents_controlled_by(game, 0) {
                 for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
                     let taps = match mana_ability_cost_of(ability) {
                         ManaAbilityCost::SpendsItsTapOrItself { taps, .. } => taps,
