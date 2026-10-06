@@ -1,8 +1,10 @@
 # Mana — what a player can pay, and what mana abilities make
 
-> **Status:** design, 2026-10-05, for `codebase-state.md` item 162. No code
-> written; reviewed before any build. Every number is from a measurement
-> made 2026-10-05 on `f4df90a` (#223's merge), and §2 says how.
+> **Status:** design, 2026-10-05, for `codebase-state.md` item 162, decided
+> at #224's review the same day: the owner took every recommendation in
+> §7, shape C for item 211 among them. No code written. Every number is
+> from a measurement made 2026-10-05 on `f4df90a` (#223's merge), and §2
+> says how.
 > **Authority:** whether a player can pay a cost at this moment, the
 > existence half of CR 601.2g–h and 602.2b that decides what the priority
 > question offers. What a mana ability makes and how it resolves (CR 106.1b,
@@ -724,7 +726,9 @@ card-by-card hunt runs in each PR's brief.
 
 ## 7. The decisions
 
-The brief named six. A seventh, the route, is the owner's call.
+The brief named six, and a seventh, the route, was the owner's call. **All
+seven were taken as recommended at #224's review** (the owner,
+2026-10-05).
 
 1. **Where the design lives.** This document (§0). `CLAUDE.md`'s row gains
    `mana` (106/605/601.2g–h's existence half, `MA-*`).

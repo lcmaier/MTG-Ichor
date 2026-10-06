@@ -7938,7 +7938,8 @@ the file.
      where today's scan runs 39,617. The build is MA-1 to MA-6 (§6): MA-1
      is this item's offer, with the rewind counter first, and MA-6 its
      solver. The six decisions the design was briefed with, and the route,
-     are its §7, open on the owner's review.
+     are its §7; the owner took every recommendation at #224's review
+     (2026-10-05). MA-1 is next, ahead of SU-8.
 
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
@@ -9258,8 +9259,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      shapes on `close_out.py`'s board. Offered at every priority point, the
      abilities turn 1,749 forced points a game into decisions; the doc
      recommends one "add mana" entry offered to a seat that asks for it
-     (`SeatMode`, A6j's mechanism), built in MA-6. Open on the owner's
-     review.
+     (`SeatMode`, A6j's mechanism), built in MA-6. **Decided (the owner,
+     2026-10-05, at #224's review):** shape C, in MA-6.
 
 212. **~~How cards are cast, activated and paid for has no census, and SU-7
      found three families with no owner.~~ — ✅ CLOSED 2026-10-05 (the
