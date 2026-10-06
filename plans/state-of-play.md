@@ -32,8 +32,8 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
    TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
-then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time), the
-information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, before Phase 8), and a clone during a deep stack (item 183, B10 — before Phase 8).
+then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 after MA-1), the
+information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10), the mana check (`mana-architecture.md` MA-1–MA-6: MA-1 next, MA-3 before TR-7, the rest before Phase 8) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, after MA-1, before Phase 8), and a clone during a deep stack (item 183, B10 — before Phase 8).
 Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
@@ -117,8 +117,8 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 | Numbered items | 272 |
 | …closed, still recorded | 98 |
 | …open — unreachable, and says why | 111 |
-| **…open — reachable, wrong today** | **3** |
-| …open — reachable, not wrong (perf, a name, a harness) | 32 |
+| **…open — reachable, wrong today** | **5** |
+| …open — reachable, not wrong (perf, a name, a harness) | 30 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
 | …open, carrying an explicit `**Sized:**` | 169 of 174 |

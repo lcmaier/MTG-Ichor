@@ -136,8 +136,8 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 
   **A mana ability reads the first one** (item 212's census, 2026-10-05):
   "one mana of the chosen color" is 32 Commander-legal mana abilities, and
-  `codebase-state.md` item 162's design owns them. That design builds this
-  record's mana half or names its slot.
+  `codebase-state.md` item 162's design owns them, and builds the record's
+  mana half in this entry's shape: `mana-architecture.md` §3.10, MA-4.
 
   Four constraints on their shape:
   - **Made before the permanent enters (CR 614.12a),** so the choice travels
@@ -1135,7 +1135,9 @@ mechanic rather than a migration, which is why it is here and not in
   either stack: the window re-enumerates every mana ability once per tap,
   13.5% of instructions (`layers-architecture.md` §12), where an inventory
   taken once per cast and a payability check per tap would do.
-- **Owner** — none yet.
+- **Owner** — `plans/mana-architecture.md` (#224): the window's inventory
+  is MA-1 (§3.8), the solver and its decorator MA-6 (§3.12). The reversal
+  prompt stays main item 72's, with critical-path item 6.
 
 ### 2.19 Any-color mana — "Add one mana of any color"
 
@@ -1177,10 +1179,10 @@ mechanic rather than a migration, which is why it is here and not in
   this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
   "as though it were mana of any color", ATOM-609.4b-001..003 — are a
   different surface (`ManaPool::pay`) and stay where they are.
-- **Owner** — `codebase-state.md` item 162's design, the next PR after
-  item 212's census. It designs the production families once, for resolution
-  and for the affordability check, and sets their build slots before C (the
-  owner, 2026-10-05). The census counts 380 cards with one mana of any color
+- **Owner** — `plans/mana-architecture.md` (#224), item 162's design. It
+  designs the production families once, for resolution and for the
+  affordability check (§3.10), and builds them in MA-3 and MA-4, before C
+  (the owner, 2026-10-05). The census counts 380 cards with one mana of any color
   and 347 more that make a Treasure. (Recorded here on 2026-09-03 when
   `plans/handoffs/pool-five-color-land.md` was closed; its City of Brass
   recommendation is this entry.)
@@ -1484,8 +1486,8 @@ mechanic rather than a migration, which is why it is here and not in
   | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
-  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below |
-  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
+  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224), MA-1 |
+  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; MA-6 |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | with critical-path item 6; classified at birth below |
   | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | with item 6 |
 

@@ -1947,6 +1947,11 @@ section never asked.
     back-stop before Phase 8. **Sized:** T12c's ~150–250 plus the source axis
     and the migration — a phase, not a PR; the design pass sizes it.
 
+    **The existence check's seam (2026-10-05):** `mana-architecture.md` §3.6.
+    An inventory entry carries its restriction and the check takes the
+    cost's purpose; `{S}` is a type bit. The per-unit record, its payment
+    and the source axis stay this item's pass, after MA-1.
+
 ### Found by the RS-0 refactor (2026-08-31)
 
 34. **§9 finding 7's abort condition did not trigger, and the reason is worth
@@ -7817,9 +7822,14 @@ the file.
      default from an example; a seat that supplies none gets the random
      agent's measured least-flexible-first policy.
 
-     **Reachability (2026-09-18):** reachable — not wrong; a cost. 194 window
-     prompts a game at four seats, 60% of inner prompts, and the rewinds the
-     harness does not count.
+     **Reachability (2026-10-05):** reachable — wrong today: the greedy count
+     hides casts a payment covers and offers casts none does. On
+     `close_out.py`'s board, 20 four-seat Commander games, it hides 16 casts
+     and 136 activations (Sol Ring's {C}{C}, Mana Reflection's doubling, Wild
+     Growth's {G}) and offers 1,963 casts and 44 activations no payment
+     covers, where all 448 of the board's rewinds come from
+     (`mana-architecture.md` §2.3). The window's 194 prompts a game at four
+     seats are the solver's, MA-6.
 
      **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
      time — **and that number is the plain bipartite case**, the one row with
@@ -7917,6 +7927,19 @@ the file.
 
      The design prices each family on the priority question. The census
      counted them and measured nothing.
+
+     **Designed (2026-10-05): `plans/mana-architecture.md`, #224, a draft
+     for review.** One inventory a priority point, taken at the first card
+     or ability that reaches the mana check, read by Hall's condition over
+     pip types: exact where each mana's type is its own choice, about 100
+     instructions a cost, and the shapes where it is not enumerated below a
+     cap. Measured on `close_out.py`'s board: 30.3K instructions a decision
+     against today's 45.6K, because the inventory is taken 17,906 times
+     where today's scan runs 39,617. The build is MA-1 to MA-6 (§6): MA-1
+     is this item's offer, with the rewind counter first, and MA-6 its
+     solver. The six decisions the design was briefed with, and the route,
+     are its §7; the owner took every recommendation at #224's review
+     (2026-10-05). MA-1 is next, ahead of SU-8.
 
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
@@ -9221,8 +9244,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      sacrifice an artifact to Krark-Clan Ironworks in response to its
      removal, which 605.3a allows, cannot, since no cost is being paid.
 
-     **Reachability (2026-10-05):** reachable — wrong: a play CR 605.3a allows
-     and the window never offers, with Krark-Clan Ironworks registered.
+     **Reachability (2026-10-05):** reachable — wrong today: a play CR 605.3a
+     allows and the window never offers, with Krark-Clan Ironworks
+     registered.
 
      **Sized:** offering them is a few lines in `can_begin_to_activate`, but
      it changes what the engine asks. Every priority point with an untapped
@@ -9231,6 +9255,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      more: a fixture migration (item 209), and the agent's stream moves.
      **Slotted:** item 162's design doc (the next PR after SU-7), which owns
      the mana abilities' offer and the window together.
+     **Designed (2026-10-05):** `mana-architecture.md` §3.11 prices four
+     shapes on `close_out.py`'s board. Offered at every priority point, the
+     abilities turn 1,749 forced points a game into decisions; the doc
+     recommends one "add mana" entry offered to a seat that asks for it
+     (`SeatMode`, A6j's mechanism), built in MA-6. **Decided (the owner,
+     2026-10-05, at #224's review):** shape C, in MA-6.
 
 212. **~~How cards are cast, activated and paid for has no census, and SU-7
      found three families with no owner.~~ — ✅ CLOSED 2026-10-05 (the
