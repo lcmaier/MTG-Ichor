@@ -10,6 +10,98 @@ fails when a landed section keeps more than 40 lines in the live doc
 (`engineering-practices.md` §4). Later phases are appended by the PR that
 lands them.
 
+#### The editor's advanced settings, first part — ✅ landed 2026-10-06
+
+*Evicted 2026-10-06 from `plans/setup-architecture.md` §8, where the heading and a stub remain.*
+
+### The build as sized (2026-10-03, at SU-3's design; split 2026-10-06, at the brief)
+
+§7b.2's decision 2 sized the ten rows its A leaves as text at ~600–900
+lines, code and tests together, row by row (§8's paragraph): the typeable
+field ~40–60, player counters ~45–65, lands played ~20–30, left the game
+~20–30, commander damage ~50–80, history ~110–160, `this turn:` ~90–130,
+`counters:` lines ~60–90, setup actions ~210–310. SU-3's editor had run 1.5–2.1
+times its sizing, so the brief split the settings into up to three PRs. The
+first is the switch, the field, and the four player rows that
+`four-seats-commander.scenario` and the template use, ~175–265.
+
+**The two decisions the brief left open**, each with a recommendation the
+build took: one Advanced toggle in the editor's header, off by default, each
+control in place of the text it replaces; and a refused typed line leaving
+the board as it was, the field keeping the line with the refusal under it,
+in words (`engineering-practices.md` §10.1, question 6). The second was
+sharpened at the build (below, 1).
+
+### Sized against built
+
+Lines added, `devgui/` with a `src` file's `#[cfg(test)]` module and
+`examples/` counted as tests, read off the PR's last code commit
+(`3e8b67b`). The split between the two parts is by hand, to the nearest five.
+
+| Part | Where | Sized, code and tests | Code, built | Tests, built |
+|---|---|---:|---:|---:|
+| The switch and the typed field, kept across opens | `editor.rs`, `app.rs`, `session.rs` | 40–60 | ~100 | ~85: two unit tests, the random clicks' switch and field, the session's assertion, the picture, `prompt_cost` |
+| The four player rows, with the write rule and the reading they share | `editor.rs`, `app.rs` | 135–205 | ~140 | ~125: four unit tests and their helpers, the random clicks' rows and reach check, the typed line past what a count holds |
+| The engine at a line's extremes (below, 7) | `mtgsim/src/state/`, `scenario/`, `engine/layers/` | — | 24 | 72 |
+| **The first part** | | **175–265** | **262** | **283** |
+
+Code and tests came to 545 lines, 2.1–3.1 times the sizing; the dev GUI's
+code alone, 238, is 0.9–1.4 times it. What the row-by-row sizing left out:
+the field's own state (the line, its refusal, Add live only for a line not
+yet refused, and Enter keeping the focus); the switch kept across opens; the
+reading each count shows, which differs by row; one write rule for every
+player word, which replaced life's own; which words a control shows, an
+exhaustive match; the refusal mark on a player's name; the engine's fix; and
+the tests, which ran about twice the code's share. The band stayed far under
+2,500 at every commit: 367, 420, 433 and 444, then 469, 474 and 545 with
+the engine's fixes, the docs beside.
+
+### What the build changed in the design
+
+1. **Only the parser refuses a typed line.** The brief's recommendation
+   said "the loader's message"; the build reads that as the parser's. A
+   line the loader refuses goes in, as any edit the parser reads does, and
+   the loader's refusal shows under the board and marks it. The editor
+   judges no line itself (§7b.1), and boards are built through refused
+   states: a commander's damage typed before the card is made a commander.
+   A line that says nothing new, a comment or a stated default, stays in the
+   field too, since it would change nothing. A game's fact the board
+   already states is the parser's "stated twice", and its control sits
+   above the field.
+2. **Each count is the loader's reading of the words**, not the first word.
+   The loader sets lands played and commander damage, so the last word
+   stands, and adds counters (`PlayerState::add_counters`), so two
+   `poison 2` words count 4. A click leaves one word at the first one's
+   place, or none at zero, which is the default.
+3. **A refusal of a word a control shows marks the player's name**, since
+   no text shows the word. A refused life word, which nothing marked
+   before, marks it too.
+4. **The counter kinds a player has** are the two `CounterType` groups as a
+   player's, poison and energy (CR 122.1). Any other kind a player line
+   states stays text, as does commander damage naming no one commander.
+5. **Commander damage is counted for each commander on the board**, each
+   named by its card line, so a tag the commander takes later (§7b.1's
+   rule) keeps the count with its commander.
+6. **The typed line goes last in the board's text**, so it renumbers nothing
+   already there, and the board reads it back as it reads any edit.
+7. **A counter count stays at the most a count holds** (the owner, at
+   #227). A player's counter words add, so two could sum past `u32::MAX`
+   and panic the loader in a debug build ("attempt to add with overflow"),
+   and the field reached that by typing, a panic on the window's thread.
+   `PlayerState::add_counters` and `PermanentState::add_counters` saturate
+   now, the permanent's reachable only in play, after a board set its count
+   near the most. Each test failed first on the tree before the fix.
+   `close_out.py`: every row `IDENTICAL`, instructions per decision +0.01%
+   (`fuzz-record.md`). Its siblings, at the owner's word, in one later
+   commit: a history count stays at `u64::MAX` (the loader's sums, the row's
+   add, the writer's sums); a +1/+1 count past `i32::MAX` reads as the most
+   power holds, and a P/T total saturates; and the loader begins only the
+   last rotation's turns, so a turn in the billions loads at once and reads
+   as a small one does. Each failed first; not re-measured, the owner's call
+   for small fixes. Last, the loader builds 99 players at most (`MOST_PLAYERS`), which
+   the editor's Players control now reads, since each seat is built with its
+   state and a typed number in the millions exhausted memory.
+
 #### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 
 *Evicted 2026-10-06 from `plans/setup-architecture.md` §8, where the heading and a stub remain.*

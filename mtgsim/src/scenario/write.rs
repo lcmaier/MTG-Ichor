@@ -238,7 +238,7 @@ impl<'g> Writer<'g> {
                         facts.push(PlayerWord::History { player: p, span, fact, count });
                     }
                 }
-                if game != this + last {
+                if game != this.saturating_add(last) {
                     facts.push(PlayerWord::History { player: p, span: HistorySpan::ThisGame, fact, count: game });
                 }
             }
@@ -276,7 +276,7 @@ impl<'g> Writer<'g> {
                 let (this, last) = (theirs.history.this_turn(turn).count(fact), theirs.history.last_turn(turn).count(fact));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
-                    Some(2) if ended > 0 => this + last,
+                    Some(2) if ended > 0 => this.saturating_add(last),
                     _ => theirs.history.this_game().count(fact),
                 };
                 mine.since_your_last_turn(q, &theirs.history).count(fact) != derived

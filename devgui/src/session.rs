@@ -399,10 +399,11 @@ impl Session {
     }
 
     /// `text` in the editor, in place of its board, which a person keeps
-    /// by saving it first.
+    /// by saving it first. The advanced settings stay as they were.
     fn open(&mut self, text: &str, source: Source, what: &str) {
         match Editor::open(text, source, CardRegistry::default_registry()) {
-            Ok(editor) => {
+            Ok(mut editor) => {
+                editor.advanced = self.editor.advanced;
                 (self.editor, self.mode, self.message) = (editor, Mode::Edit, None);
             }
             Err(refusal) => self.message = Some(Err(format!("cannot open {what}: {refusal}"))),

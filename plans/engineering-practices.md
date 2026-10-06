@@ -1989,6 +1989,12 @@ be its own text read back, and Undo must walk back to the board opened:
 clicks the editor offered that changed nothing, a move past identical lines
 and a second copy of a tagged card (`setup-architecture.md`'s SU-3 archive).
 
+**Since the editor's advanced settings** (#227) the clicks also turn the
+switch, type lines into its field (lines the grammar reads, one it refuses,
+and one that says nothing) and click each player row's control. The run
+fails unless every one of them was clicked, and the state a click must
+change includes the switch and the field: 3,000 clicks in about 1.0 s.
+
 ### 10.4 What one prompt costs the window
 
 `cargo run --release --example prompt_cost`, in `devgui/`, reads what the
@@ -2063,3 +2069,19 @@ owner's machine). The other readings, taken twice interleaved with `main`'s,
 kept every allocation and byte and read within noise, so the tools put no
 work on a prompt: the save is read when a message arrives or a tool is
 clicked, never in a frame.
+
+**Since the editor's advanced settings** (#227) `prompt_cost` reads the
+editor's view with them on, and a line typed, added and undone. Read
+2026-10-06, the owner's machine, release, two sittings interleaved with
+`main`'s:
+
+| | `main` | with the settings |
+|---|---|---|
+| the editor's view, switch off, every repaint | 18.9 µs, 487 allocations | 18.8 µs, 491 |
+| the editor's view, switch on, every repaint | — | 19.1–19.2 µs, 507 |
+| an edit, at a click | 127.9–129.7 µs, 1,660 | 126.6–127.1 µs, 1,660 |
+| a line typed, added and undone, at clicks | — | 224–234 µs, 3,171 |
+
+A typed line parses the board twice where an edit parses once, still well
+inside §10.1's second question. The other readings kept every allocation
+and byte.

@@ -25,6 +25,11 @@ use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::decision::PriorityAction;
 
+/// The most seats a scenario builds. No rule caps players (CR 102.1), but
+/// each seat is built with its state, so a typed number in the millions would
+/// exhaust memory; the board editor's control stops here too.
+pub const MOST_PLAYERS: usize = 99;
+
 /// A scenario built: its board at rest, and its setup actions with every
 /// name resolved. `game.resume(&SetupDriver::new(setup, &seats))` plays it,
 /// the setup actions first.
@@ -78,6 +83,9 @@ impl<'s> Loader<'s> {
         let whole = |message: String| ScenarioError { kind: ScenarioErrorKind::Unreachable, line: None, message };
         if scenario.players < 2 {
             return Err(whole("a game has two players or more (CR 102.1)".to_string()));
+        }
+        if scenario.players > MOST_PLAYERS {
+            return Err(whole(format!("the loader builds {MOST_PLAYERS} players at most, each with its state, not {}", scenario.players)));
         }
         if scenario.active >= scenario.players || scenario.turn == 0 {
             return Err(whole(format!("`turn {}, active {}` names no turn of this game", scenario.turn, scenario.active)));
@@ -413,7 +421,11 @@ impl<'s> Loader<'s> {
         let in_game: Vec<PlayerId> = (0..self.scenario.players).filter(|&p| self.state.in_game(p)).collect();
         let place = in_game.iter().position(|&p| p == active).unwrap_or_default();
         let rows = self.history_counts_by_turn()?;
-        for t in 1..=turn {
+        // The turns before the last rotation leave nothing a board reads: the
+        // rows land on the last three turns, and each player's latest turn and
+        // the end of the active player's turn before it fall in the last N.
+        let rotation = u32::try_from(in_game.len().max(2)).unwrap_or(u32::MAX);
+        for t in turn.saturating_sub(rotation).max(1)..=turn {
             let back = (turn - t) as usize % in_game.len();
             let player = in_game[(place + in_game.len() - back) % in_game.len()];
             self.state.begin_turn(t, player);
@@ -473,8 +485,8 @@ impl<'s> Loader<'s> {
                 }
             };
             match span {
-                HistorySpan::ThisTurn => totals[index].2[0] += count,
-                HistorySpan::LastTurn if turn > 1 => totals[index].2[1] += count,
+                HistorySpan::ThisTurn => totals[index].2[0] = totals[index].2[0].saturating_add(count),
+                HistorySpan::LastTurn if turn > 1 => totals[index].2[1] = totals[index].2[1].saturating_add(count),
                 HistorySpan::LastTurn => {
                     return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, "turn 1 has no last turn: the game began with it"));
                 }
@@ -490,7 +502,7 @@ impl<'s> Loader<'s> {
             rows.push((player, turn, fact, this));
             rows.push((player, turn.saturating_sub(1), fact, last));
             let Some((line, game)) = game else { continue };
-            let earlier = game.checked_sub(this + last).ok_or_else(|| {
+            let earlier = game.checked_sub(this.saturating_add(last)).ok_or_else(|| {
                 ScenarioError::at(ScenarioErrorKind::Unreachable, line, "this game counts fewer than this turn and last turn together")
             })?;
             if earlier > 0 && turn < 3 {

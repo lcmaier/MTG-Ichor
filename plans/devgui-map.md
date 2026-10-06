@@ -5,7 +5,8 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `8bfeb01`, SU-8's last code commit, 2026-10-06.
+§7. Read at `3e8b67b`, the editor's advanced settings' last code commit,
+2026-10-06.
 
 ## 1. What it is
 
@@ -29,7 +30,7 @@ sits in it.
 | The snapshot | `snapshot.rs` | the board copied as plain data at each question, read through the layers, so the window never touches the live game | closely |
 | The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
-| The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3) | closely |
+| The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3); behind its Advanced switch, a line of the file typed in and each player's rows as controls (§11) | closely |
 | The drawing | `app.rs` | lays out what the view model and the editor built, and reports clicks. It decides nothing | against §10.1's checklist, and by running |
 
 The line between them is a gate: only `app.rs`, `main.rs` and
@@ -126,7 +127,8 @@ From `devgui/`, where `cargo run` runs the window:
   here.
 - `tests/random_clicks.rs`: whole games played by seeded random clicks on
   anything the window offers. Every click must change the answer or complete
-  it (§10.3).
+  it (§10.3). The board editor's clicks too, with no game, the advanced
+  settings' among them: each must change the board or what is shown.
 - `tests/tools.rs`: Undo answer, savestates and the menu, the save and
   `--load`, on short boards through the session, with a replay superseded
   at the bridge.
@@ -234,3 +236,28 @@ player's line can be right-clicked too, and its why is that section alone.
   any why once the game is over, from the whole line. The window marks the
   request it waits on, `reading_the_trace`, and takes only that one's answer,
   so a newer request supersedes an older one.
+
+## 11. The board editor's advanced settings
+
+The editor clicks most of a board together, and shows ten kinds of line as
+text: a player's counters, lands played, leaving the game, commander damage,
+history counts, a card's `this turn:` and `counters:` lines, and setup
+actions (`setup-architecture.md` §7b.2, decision 2). The header's
+**Advanced** switch (#227) shows controls for the first four, and a field
+for any line of the file. All of it is `editor.rs`, plain Rust, with
+`app.rs` drawing it.
+
+- **The field** (`Editor::add_typed_line`) puts the line last in the board's
+  text and reads the whole text back, as every click's edit is read back,
+  so Undo takes it out. Only the parser refuses a line: the board stays as
+  it was, and the field keeps the line with the parser's words under it. A
+  line the loader refuses goes in, as any click's edit does, and the
+  refusal shows under the board.
+- **The player rows** (`Editor::player_rows`): a toggle for leaving the
+  game, and counts for lands played, poison, energy, and the commander
+  damage from each commander on the board. Each count is what the loader
+  will make of the words, so it adds poison words and keeps the last
+  commander damage word, and a click leaves one word. `has_control` says
+  which words a control shows; the rest stay text.
+- **Left:** history, `this turn:` and `counters:` lines, then setup actions,
+  if the owner builds them (`setup-architecture.md` §8).

@@ -19,7 +19,7 @@ mod write;
 pub use board::{
     Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupAction, SetupVerb, Targeted,
 };
-pub use build::BuiltScenario;
+pub use build::{BuiltScenario, MOST_PLAYERS};
 pub use error::{ScenarioError, ScenarioErrorKind};
 pub use setup::{SetupActions, SetupDriver};
 pub use text::{position_word, turn_positions};

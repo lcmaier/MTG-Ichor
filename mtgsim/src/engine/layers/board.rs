@@ -1086,9 +1086,10 @@ fn applications_in_layer<'a, 'l: 'a>(
                         // TODO: other P/T-modifying counter kinds (+2/+2, +0/+1)
                         // when `CounterType` grows them — `codebase-state.md`,
                         // "Before card breadth" item 3.
+                        let count = i32::try_from(stack.count).unwrap_or(i32::MAX);
                         let (delta, rank) = match kind {
-                            CounterType::PlusOnePlusOne => (stack.count as i32, 0),
-                            CounterType::MinusOneMinusOne => (-(stack.count as i32), 1),
+                            CounterType::PlusOnePlusOne => (count, 0),
+                            CounterType::MinusOneMinusOne => (-count, 1),
                             _ => continue,
                         };
                         let modification = EffectModification::ModifyPowerToughness {
