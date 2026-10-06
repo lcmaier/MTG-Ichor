@@ -5,8 +5,7 @@ build a board, play every seat of a game on it, and watch the engine answer.
 It names the parts, follows one question from the engine to the window and
 back, and says how each part is reviewed. The rules for GUI code are
 `engineering-practices.md` §10; the window's tools are `setup-architecture.md`
-§7. Read at `3e8b67b`, the editor's advanced settings' last code commit,
-2026-10-06.
+§7. Read at `7b7a8bc`, the dev GUI audit's last code commit, 2026-10-06.
 
 ## 1. What it is
 

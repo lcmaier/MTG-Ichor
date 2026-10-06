@@ -37,6 +37,30 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-06 for the dev GUI audit** (`roadmap-v2.md` A6g's last
+PR). Two engine changes, neither on a release game's path:
+`GameState::audit_each_frame_once`, the layer memo's audit checking each frame
+once inside a read, which is `read()` in a release build and which
+`fuzz_games` never calls; and the writer's report of a token, which no fuzz
+game writes. No pool changed, so the §3 tables stand. `close_out.py` against
+**main** `00a9b44` (#227's merge), one arm, **engine** `18a52c6`, the last
+engine commit.
+
+**Predictions, before any arm ran:** every gameplay and cost row
+`IDENTICAL`, both pools, two seats and four; instructions per decision
+within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, engine vs `main` | none moved | none moved |
+| audit, engine, performance / stress, dispatches agreed | 164,309 / 173,758 | 324,859 / 355,449 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7527 M → 0.7527 M, **−0.01%** |
+
+Every prediction held. The close-out ran in 110 s. What the audit's scope
+does for a debug window is `engineering-practices.md` §10.4's reading, not
+this table's: the release binary `fuzz_games` builds has no audit.
+
 **Measured 2026-10-06 for the editor's advanced settings, first part**
 (`setup-architecture.md` §8's ✅ section). The engine's one change: a counter
 count saturates at `u32::MAX` where its add overflowed, which no game
