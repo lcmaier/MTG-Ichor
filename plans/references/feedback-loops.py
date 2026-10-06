@@ -249,8 +249,10 @@ CLASSES = [
      [("or", [r"o:/with an? \+1\/\+1 counters? on (it|them)[^.]* (have|has) [^.]*indestructible/",
               r"o:/as long as [^.]*\+1\/\+1 counter[^.]*indestructible/",
               r"o:/indestructible as long as [^.]*\+1\/\+1 counter/"])],
-     ("test", "the path, `keldon_warlord_dies_on_the_check_after_pyroclasms_other_victims` (here), and the rule, "
-              "`test_battlegrowth_and_chainbreaker_reach_counter_annihilation`; no registered card carries it")),
+     ("test", "the one card is Voice of the Blessed (indestructible at ten +1/+1 counters), which is not registered, "
+              "and no test builds its board. The next check's read is pinned by "
+              "`keldon_warlord_dies_on_the_check_after_pyroclasms_other_victims` (here), and the annihilation by "
+              "`test_battlegrowth_and_chainbreaker_reach_counter_annihilation`")),
     (3, "departure", "A player's loss, whose objects leave with them (CR 800.4a) before the next check: "
                      "a static that reaches every player's creatures, an Aura on another's permanent",
      ("704.3", "800.4a"),
