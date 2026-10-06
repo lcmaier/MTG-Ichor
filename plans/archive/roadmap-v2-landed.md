@@ -435,7 +435,7 @@ Next after CV-2b, ahead of the rest of A6c (the owner: "probably soon"; movable)
 
 ### Do this
 
-✅ **done 2026-10-06 (PR #TBD)** — **The feedback-loop census** (the owner, 2026-09-29, at CV-2b's design review): every loop in which a write feeds a decision in the same loop, and the printed cards that close each. The loops known today: an entry's writes and CR 616.1's re-gather (the feeds table, `replacement-architecture.md` §3.5); a layer effect and CR 613.8's dependency; a state-based action's result and the next check (CR 704.3); and an event a triggered ability produces and what else triggers (CR 603). For each, the card classes that close it, counted on Scryfall with each query printed beside its number, and each class's disposition: a test, a register row (`engineering-practices.md` §3.4b), or a `backlog.md` line
+✅ **done 2026-10-06 (PR #229)** — **The feedback-loop census** (the owner, 2026-09-29, at CV-2b's design review): every loop in which a write feeds a decision in the same loop, and the printed cards that close each. The loops known today: an entry's writes and CR 616.1's re-gather (the feeds table, `replacement-architecture.md` §3.5); a layer effect and CR 613.8's dependency; a state-based action's result and the next check (CR 704.3); and an event a triggered ability produces and what else triggers (CR 603). For each, the card classes that close it, counted on Scryfall with each query printed beside its number, and each class's disposition: a test, a register row (`engineering-practices.md` §3.4b), or a `backlog.md` line
 
 ### Why here
 

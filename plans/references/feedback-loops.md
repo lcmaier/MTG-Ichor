@@ -1,7 +1,7 @@
 # Where a write feeds a decision in the same pass — the feedback-loop census
 
 > **Status:** run 2026-10-06 against #228's merge, for `roadmap-v2.md` row
-> A6i, which this closes. **Authority:** every count is
+> A6i, which this closes (#229). **Authority:** every count is
 > `plans/references/feedback-loops.py`'s, spliced in between this file's
 > markers by `--write`. The classes, their queries and their dispositions live
 > in the script's tables and change only there. On what exists,
