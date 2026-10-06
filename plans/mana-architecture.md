@@ -76,6 +76,31 @@ has the text.
 | 107.3a | X is announced while casting, as part of 601.2b |
 | 702.51a, 702.66a, 702.126a, 701.67a | Convoke, delve, improvise and waterbend pay a pip with a tapped permanent or an exiled card instead of mana. 702.51b and its siblings: they apply after the total cost is set, so at 601.2h, after the window |
 
+**The rules version.** The engine targets the frozen CR, `tmnt.txt`. The
+Hobbit update (August 2026) adds a criterion to CR 605.1a: an activated
+ability whose cost or effect moves a card to or from a library is not a mana
+ability. Ten cards stop being mana abilities and gain "Activate only as an
+instant": Chromatic Sphere, Selvala, Explorer Returned, Millikin, Deranged
+Assistant, Charmed Pendant, and the five Eggs (Darkwater, Mossfire,
+Shadowblood, Skycloud, Sungrass). Triggered mana abilities (605.1b) are
+unchanged. What it changes here:
+- **Nothing in the algorithm.** The inventory reads the abilities a card
+  marks as mana abilities, the same ones the window offers. A rules version
+  is one predicate where that classification lives (`cost-architecture.md`
+  §3.11), and the inventory follows it.
+- **MA-3's draw inside a mana ability is a frozen-text facility.** The Eggs,
+  Chromatic Sphere and Selvala draw, and under the new text those abilities
+  use the stack. TR-7 tests the frozen loop and needs it. A painland's
+  damage moves no card, so it stays a rider under both texts, and so does
+  the window inside a Signet's activation.
+- **Millikin's and Deranged Assistant's "Mill a card"** is CP-2's single-arm
+  action under either text (in C); the text decides only whether the ability
+  it pays for is a mana ability.
+
+The census's walk finds eight of the ten among its mana abilities. Charmed
+Pendant and Selvala make their mana with "for each", which its production
+pattern does not read as a mana ability, a note for the census's owner.
+
 ---
 
 ## 2. What the engine has, and what it costs
@@ -101,7 +126,9 @@ has the text.
 Callgrind on `main`, the budget's board (`--games 20 --seed 12345 --pool
 performance --players 4 --deck-size 100 --life 40`, `MTGSIM_HASH_SEED=1`):
 7,856,427,581 instructions over 628 decisions a game, so **625,512 a
-decision**, and one point of §3.1's budget is 6,255.
+decision**. **A point is one percent of that, 6,255 instructions a
+decision**: `engineering-practices.md` §3.1's budget lets a PR add 2.5
+points at identical games, and every "points" figure below is this unit.
 
 | What | Share | Calls | Per call | Per decision |
 |---|---:|---:|---:|---:|
@@ -117,7 +144,14 @@ instructions a decision, 7.3 points.** Almost all of it is the scan: one
 `available_mana_sources` for every card that reaches the mana check (33,550
 cards and 6,067 abilities in 20 games). A scan reads about 8.8 permanents the
 player controls and 16 mana abilities, after sorting the whole battlefield by
-timestamp (3,600 instructions a sort).
+timestamp (3,600 instructions a sort). **The sort is the determinism rule**
+(`CLAUDE.md`): the battlefield is a `HashMap` whose hasher is seeded per
+process, and the scan's order reaches a choice twice. The greedy picks
+sources by position, and the window's option list is built from the same
+scan, and a provider answers by index. It sorts every permanent of every
+player to keep the handful the player controls, on every call: item 138's
+lever 6, the timestamp sort behind 42 call sites. §3.5 says what the
+inventory does instead.
 
 The window's scans are a different cost. 6,345 enumerations serve 1,955
 windows. The first in each window costs about 214,000, because the cast's
@@ -231,10 +265,11 @@ that the payment would refuse.
 
 ### 3.3 Where mana is not independent
 
-The theorem needs each mana's type chosen on its own. Five shapes break
-that, and each gets an exact answer below a cap. Above the cap the check
-answers yes: **an over-offer costs a rewind, an under-offer hides a legal
-play** (item 162, 2026-09-30), so the gate leans one way only.
+The theorem needs each mana's type chosen on its own. The shapes below
+break that, and each gets an exact answer. Only an enumeration past its
+stated cost cap answers yes without finishing: **an over-offer costs a
+rewind, an under-offer hides a legal play** (item 162, 2026-09-30), so the
+gate leans one way only.
 
 - **One choice for several mana:** "two mana of any one color" (54
   abilities), or a multiplier over an entry of several types. Mana Reflection
@@ -243,18 +278,64 @@ play** (item 162, 2026-09-30), so the gate leans one way only.
   toward generic otherwise. Identical entries are enumerated as a multiset,
   capped at 4,096 leaves. **About 2,800 instructions a cost where present**:
   274 of the board's inventories.
-- **Alternatives of different sizes**, such as a creature that taps for
-  `{G}{G}` or convokes for one. The entry takes the largest amount over the
-  union of types. That can over-offer; the probe met 4.
+- **Alternatives of different sizes.** On the board this is Sol Ring made a
+  creature by March of the Machines and granted Citanul Hierophants'
+  `{T}: Add {G}`: one tap makes `{C}{C}` *or* `{G}` (4 of the probe's
+  inventories). Merged into one entry, "two mana, C or G", it would pay
+  `{G}{G}`, which no tap of Sol Ring makes. So the entry keeps its
+  alternatives, and the check tries each, as it tries a one-choice entry's
+  types. An alternative another one dominates (no fewer mana, and every type
+  it makes) is dropped first: a green creature that taps for `{G}{G}` or
+  convokes for one green or generic only ever needs the `{G}{G}`. These are
+  rare enough that the enumeration costs nothing measurable on the board.
 - **Mana-fed sources** (175: 128 that tap, once a turn; 47 repeatable). A
-  single-use converter (a Signet, `{1}, {T}: Add {W}{U}`) adds its input to
-  the demand and its output to the supply. Subsets of converters are
-  enumerated (2^k, k ≤ 6), and a subset counts only if mana not from a
-  converter can start the chain. Doubling Cube's output depends on the pool
-  it resolves with, so its entry is taken as doubling the supply after its
-  `{3}`, which may over-offer. A repeatable filter is extra supply of its
-  output types, capped by what can pay it. **About 3,600 a cost where
-  present.**
+  converter's input is extra demand and its output extra supply. The order
+  they are activated in matters, because a converter cannot be paid with its
+  own output. Three rules keep the check exact without enumerating orders
+  where it can:
+  - **A Signet-shaped converter**, one generic in and its mana out (Signets,
+    Odyssey's filter lands), needs no order: a set of them can be activated
+    exactly when the static problem can be solved with at least one of
+    their inputs paid by mana that is not a converter's. Activate first the
+    converters whose outputs pay the others' inputs, and each step finds a
+    mana to spend. That is one more pip kind in Hall's condition, a
+    converter's input only base mana can pay. A Plains, Golgari Signet
+    (`{B}{G}`) and Izzet Signet (`{U}{R}`) against `{W}{B}{G}`: without the
+    rule, each Signet's `{1}` is paid with the other's mana and the check
+    says yes. But the Plains' `{W}` is the only mana that can start either
+    Signet, and the cost needs it, so the board cannot pay; with the rule,
+    the check agrees.
+  - **Identical converters are counted, not subsetted**, and one whose output
+    meets none of the cost's colored pips only adds to the total, so it is
+    used all or not at all.
+  - **Other shapes** (an input of a color, `{W/U}`'s filter lands; an input
+    of two or more; a net loss, Celestial Prism) have their orders
+    enumerated for up to three on a board. Beyond that the check over-offers.
+
+  **The cap is a cost.** Each combination is one Hall check, about 100
+  instructions. The prototype capped subsets at 2^6 = 64, which is 6,400
+  instructions a cost: if every cost on the budget's board met it, 2.9
+  points. That cap was the prototype's choice, not a measurement of decks.
+  With counting and collapsing it binds only past six *distinct* converters
+  whose outputs a cost's colored pips can use, on one player's board. MA-3
+  states it as a cost (64 combinations a cost) and counts how often a fuzz
+  game reaches it. **About 3,600 instructions a cost where present**, from
+  the prototype's subsets.
+- **Doubling Cube** (1 card) doubles the pool it resolves with, so a player
+  taps everything else first, pays its `{3}`, and doubles the rest. Treating
+  that as "every mana counts twice, less six" over-offers. Take two Plains
+  and two Islands. Paying `{3}` leaves one mana, which doubles to two of
+  *one* type, so a cost of `{W}{U}` cannot be paid. Counted as eight mana
+  less six, two are left, and nothing stops them being one W and one U.
+  **It is exact this way:** enumerate which entries' mana pays the `{3}`
+  (as counts per kind of entry), and every unit left then doubles into a
+  one-choice pair, which the first enumeration above answers. It runs only
+  on a board that holds the Cube.
+- **A repeatable filter** (47) has no `{T}` and converts at a loss: Prismite
+  turns `{2}` into one mana of any color, as often as it is paid. It is a
+  converter activated k times, with k enumerated up to half the mana, and
+  its inputs payable only by mana that is not its own output, the base-mana
+  pip again. Counting its output without the mana it eats would over-offer.
 - **Sacrifice-fed sources** (143). The 117 that sacrifice themselves
   (Treasure, Lotus Petal) are ordinary entries. The 26 that sacrifice
   another permanent (Ironworks, Ashnod's Altar) give their output once per
@@ -266,8 +347,9 @@ play** (item 162, 2026-09-30), so the gate leans one way only.
   `{T}` takes its own source's entry out. Chainbreaker with Citanul
   Hierophants' grant cannot tap itself to pay its own `{3}`; today's greedy
   counts it, and it is among the probe's 44. The same rule keeps
-  `cost-architecture.md` §3.11's Mind Stone puzzle out of the offer: an ability whose cost sacrifices its
-  source cannot also feed that source to Ironworks.
+  `cost-architecture.md` §3.11's Mind Stone puzzle out of the offer: an
+  ability whose cost sacrifices its source cannot also feed that source to
+  Ironworks.
 
 **Variable amounts** (60) are evaluated when the inventory is taken. A mana
 ability resolves at once (605.3b), so the board it reads is this one.
@@ -300,10 +382,18 @@ frame memo's has: in debug builds, a live scan beside every hit, compared.
 The answer is a boolean from an exact algorithm, so the order the inventory
 reads the battlefield cannot change it. The probe's sorted and unsorted
 inventories agree to the mana on all 16,475 states it compared. **The
-inventory still reads in timestamp order**, because the window reads the
+entries still come out in timestamp order**, because the window reads the
 same inventory and its option list is order-observable (`CLAUDE.md`'s
-determinism rule). A second, unsorted path for the check alone would save
-about 0.6 points; it is §9's lever, not this design's.
+determinism rule).
+
+**What changes is what gets sorted.** Today's scan sorts every permanent on
+the battlefield, then drops the ones the player does not control. The
+inventory keeps the player's permanents first and sorts only those, about 9
+of the board's 40–60. Timestamps come from one monotonic counter and never
+tie (`battlefield_ordered`'s doc), so the order is exactly the full sort's.
+The probe measured the whole sort at about 2,700 instructions an inventory
+(the sorted and unsorted inventories' difference); sorting nine leaves a
+few hundred of it. That is about 0.5 points saved, an estimate MA-1 measures.
 
 ### 3.6 Item 33's seam: an edge refused (decision 2)
 
@@ -317,22 +407,56 @@ holds any. **About 2,100 instructions a cost where present.**
   Item 33's per-unit record replaces it with the units the purpose may
   spend, which `amount_for` already computes for the special atoms.
 - **What this design builds:** the entry's restriction and the purpose
-  argument. No card reaches them until T12c.
+  argument. No card reaches them until item 33's build (`roadmap-v2.md` B9)
+  makes restricted mana spendable.
 - **What item 33 builds:** the per-unit record, the payment that reads it,
   and the source axis on the generic split.
 
 ### 3.7 X (decision 6)
 
-**A spell with X is offered when X = 0 is payable.** The X pips have no
-demand at the gate. **The bound `ChooseXValue` offers is computed once, at
-601.2b:** the largest X whose total the inventory covers. It is found by
-bisection over [0, the inventory's mana], with the total previewed through
-`cost_determination` at each X, because a reduction can absorb part of X: at
-X = 0 a `{1}` reduction on `{X}{R}` is wasted, and at X = 1 it is not. The
-prompt becomes `(0, bound)`. The random agent's land count goes, because the
-engine bounds it. The why names the bound (§3.13). X in an activated
-ability's cost is CP-1's, and X in an additional cost is CP-2's amount
-shape. Both read this bound when they land.
+**Two questions, answered at two times.**
+- **Is it offered at all?** Asked at every priority point: is some legal X
+  payable? For a plain X spell the smallest legal X is the cheapest, so the
+  check tests that one. That is X = 0, or X = 1 for the 17 cards that print
+  "X can't be 0" (`o:"X can't be 0"` with the census's corpus filter). The X
+  pips have no demand at the gate.
+- **Which X?** Asked once, at 601.2b: `ChooseXValue` offers every legal X,
+  and the player or agent picks. The X = 0 the check tested is not the X
+  that gets cast unless it is the one picked. A learning agent sees Blaze
+  with every X from 0 to its bound, and how it values X = 0 is its policy,
+  as it values any legal but weak play (`backlog.md` §2.22's rule 2).
+
+**The legal set is an intersection, and it need not be an interval.**
+- **Payability gives an interval**, from the minimum to the bound. The bound
+  is the largest X whose total the inventory covers. It is found by bisection
+  over [0, the inventory's mana], with the total previewed through
+  `cost_determination` at each X, because a reduction can absorb part of X:
+  at X = 0 a `{1}` reduction on `{X}{R}` is wasted, and at X = 1 it is not.
+  A larger X never costs less, so this part is always an interval.
+- **Other rules cut it.** A loyalty ability's −X can be no more than the
+  loyalty (CR 606.6). "X can't be 0" sets a minimum. 64 cards name a card
+  with mana value exactly X (`o:"mana value X" -o:"mana value X or less"
+  -o:"mana value X or greater"`). Where that card is a target or a choice
+  (Detonate, Disembowel, Ashiok's −X), X is cut to the values the candidates
+  have; where it is "each" (Dauntless Dismantler), nothing is cut. Tamiyo,
+  Compleated Sage's −X targets a nonland permanent card with
+  mana value X in its controller's graveyard. With cards of mana value 0, 1,
+  4, 6 and 7 there and seven loyalty, its legal set is {0, 1, 4, 6, 7}.
+  Detonate's `{X}{R}` is both: the artifacts' mana values, cut by the bound.
+
+**So `ChooseXValue` gains a set form.** It is a `pick_n` over the legal
+values when the set is not an interval, and today's `(min, max)`
+`pick_number` when it is. The gate is "the set is not empty". The why names
+each cut (§3.13). The random agent's land count goes, because the engine
+bounds it.
+
+**Owners.** MA-2 builds the set shape, the payability interval and the
+printed minimum, with a fixture whose set has a gap. Each other cut lands
+with its surface and reads MA-2's shape:
+- the loyalty −X, with CP-2's counter arms (an amount that can be X);
+- a target's mana value, with the first card that prints it, in C;
+- X in an activated ability's mana cost, CP-1's;
+- X in an additional cost, CP-2's amount shape.
 
 ### 3.8 The window reads the inventory
 
@@ -384,7 +508,8 @@ point.
   five.
 - **Riders.** A mana ability's effect is a sequence. Its `ProduceMana` atoms
   resolve as today, and its other atoms (a painland's damage, Chromatic
-  Sphere's draw) resolve through the general resolver inside the same 605.3b
+  Sphere's draw under the frozen text, §1) resolve through the general
+  resolver inside the same 605.3b
   resolution, each its own proposal through the chokepoint. **About 22,500
   instructions an activation**, the measured cost of a production's own
   proposal (`resolve_mana_effect`, 4,417 calls).
@@ -427,11 +552,17 @@ on the board:
   needs a plain land offered at priority.
 - **Recommended: C.** It keeps the engine CR-complete for every seat that
   asks, and costs nothing where no one does. It follows A6j's precedent:
-  `SeatMode` is how a seat's standing policy reaches the engine, and building
-  an offer the seat would always decline is cost without a decision
-  (`backlog.md` §2.22's rule 2: a bot's seat takes its policy at
-  construction). Built in MA-6, beside the
-  person's-seat solver.
+  `SeatMode` is how a seat's standing policy reaches the engine.
+- **What "declining" means here.** The offer is not a cost the check might
+  refuse: it is the action "add mana now", and any untapped land makes it
+  available, so it is there at nearly every priority point. A seat that
+  never floats mana answers it with `Pass` every time. Under A or B,
+  `fuzz_games`' agent would be asked 1,749 more times a game, and a policy
+  that always answers `Pass` makes each of those an answer the engine
+  could have predicted. Building the offer is the inventory at every
+  point, and asking it is a round trip. Under C that seat never asked, so
+  neither cost is paid (`backlog.md` §2.22's rule 2: a bot's seat takes its
+  policy at construction). Built in MA-6, beside the person's-seat solver.
 
 ### 3.12 The solver: a payment, not existence
 
@@ -459,8 +590,9 @@ gets it under the toggle; `fuzz_games` gets a flag, off by default
 reasons "with item 162's build":
 - **`ManaAbilityWindow`:** the refusals are the inventory's, one
   `CannotPay` per mana ability it did not make an entry of, saying why.
-- **`ChooseXValue`:** the bound (§3.7). "X above N leaves the cost
-  unpayable: N plus the cost's other pips is all the mana this board makes."
+- **`ChooseXValue`:** the bound and each cut (§3.7). "X above N leaves the
+  cost unpayable: N plus the cost's other pips is all the mana this board
+  makes." "X = 2 is not offered: no artifact has mana value 2."
 - **`GenericManaAllocation`:** the clamp. A bucket's maximum is the pool's
   mana of that type less the pips that need it.
 
@@ -471,7 +603,7 @@ The first lands with MA-1, the second and third with MA-2.
 ## 4. The families: algorithm, price, build
 
 **Price** is callgrind instructions per decision on the budget's board,
-12,560 decisions. Where a family is on the board it is measured. Where it is
+12,560 decisions, and a point is §2.2's unit, one percent of `main`'s. Where a family is on the board it is measured. Where it is
 not, its prototype ran on every checked cost of the board's real states
 (33,550 of them), and the number is an upper bound: what the family would
 cost if every cost the check read carried it.
@@ -481,7 +613,8 @@ cost if every cost the check read carried it.
 | The plain check: several mana at once, listed types sharing a `{T}` | 155, 380 | §3.1–3.2 | **30.3K a decision with §3.4 (26.3K the inventory, 3.6K the scan, 0.4K the checks), against 45.6K today: −2.4 points** | MA-1 |
 | Triggered mana and its replacements | 19, 10 | §3.4, memoized | 3.6K (in the line above); 10.9K unmemoized | MA-1 |
 | One choice for several mana: "any one color", a multiplier on a multi-type entry | 54 | §3.3 enumeration | 2,800 a cost where present; bound 9.5K | MA-1 (the multiplier, on the board); MA-3 (the printed form) |
-| Mana-fed: converters and filters | 175 | §3.3 subsets | 3,600 a cost where present; bound 9.6K | MA-1 (Doubling Cube, registered); MA-3 (Signets) |
+| Mana-fed: converters and filters | 175 | §3.3: Signet-shaped exact by a base-mana pip; identical ones counted; other shapes ordered, up to three | 3,600 a cost where present; bound 9.6K | MA-1 (Doubling Cube, registered, exact); MA-3 (Signets) |
+| Alternatives of different sizes | — | §3.3: each alternative tried, dominated ones dropped | not measurable on the board (4 inventories) | MA-1 |
 | Sacrifice-fed, another permanent | 26 | §3.3 count less the cost's own | one candidate count an inventory where present | MA-1 (Ironworks, registered) |
 | Sacrifice-fed, itself | 117 | an ordinary entry | 0 beyond the plain check | MA-1 |
 | Variable amount; the doubled pool | 60; 1 | evaluated at the inventory (605.3b) | one `evaluate_amount` a source | MA-1 |
@@ -489,8 +622,8 @@ cost if every cost the check read carried it.
 | Painland riders | 129 | gate unchanged; the rider through the chokepoint | 0 at the gate; about 22.5K an activation | MA-3 |
 | The chosen color | 32 | the recorded bit; `backlog.md` §2.2's record, its mana half | 0 beyond a read | MA-4 |
 | "Could produce" | 14 | the union, a fixpoint, memoized | one pass over the named set a memo miss | MA-4 |
-| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | the seam in MA-1, the cards in item 33's T12c |
-| X | 527 | X = 0 at the gate; the bound by bisection at 601.2b | 159 a cost; bound 0.4K | MA-2 |
+| Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | the seam in MA-1, the cards in item 33's build (`roadmap-v2.md` B9) |
+| X | 527 | the smallest legal X at the gate; the legal set at 601.2b, the bound by bisection, cut by the other rules (§3.7) | 159 a cost; bound 0.4K | MA-2; each cut with its surface |
 | Hybrid, `{C/W}` | 582, 1 | a two-type pip | 0 beyond the plain check | CP-1, against §3.2 |
 | Mono-hybrid, Phyrexian | 20, 36 | counts enumerated | 1,300 a cost where present; bound 3.6K | CP-1, against §3.2 |
 | Convoke | 104 | §3.9 | 2,600 a cost where present; bound 6.9K | MA-5 |
@@ -570,9 +703,9 @@ card-by-card hunt runs in each PR's brief.
 
 | PR | Shape | Size | Consumer | Closes |
 |---|---|---|---|---|
-| **MA-1, the inventory and the exact check** | §5's five commits: the rewind counter; `oracle::mana_supply` (the inventory, the check, §3.3's shapes for the registered cards, §3.4's memo with its debug audit, §3.6's seam); the gate in `can_cast` and `can_afford_ability_costs`, one inventory a priority point; the window (§3.8); `ManaAbilityWindow`'s typed reason. A property test: every "yes" on a random small board is a payment an exhaustive search finds, and every "no" is not. Pools Krark-Clan Ironworks and Doubling Cube, one card for each path it builds that no pooled card reaches, in its last commit, after the arms read | ~600 engine, ~700 tests, ~100–250 fixtures: 1,400–1,550 | the priority question on the budget's board; SU-7's review board (Grizzly Bears with one Everywhere: now short) | item 162's oracle half, its offer customer |
-| **MA-2, X** | §3.7: X = 0 at the gate, the bound by bisection, `(0, bound)`, the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one) | ~250 engine, ~350 tests, a card: 650–800 | Blaze | `cast-census.md` §8's X row |
-| **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; TR-7's three facilities | `backlog.md` §2.19 |
+| **MA-1, the inventory and the exact check** | §5's five commits: the rewind counter; `oracle::mana_supply` (the inventory sorting only the player's permanents, the check, §3.3's shapes for the registered cards, alternatives of different sizes and Doubling Cube exact, §3.4's memo with its debug audit, §3.6's seam); the gate in `can_cast` and `can_afford_ability_costs`, one inventory a priority point; the window (§3.8); `ManaAbilityWindow`'s typed reason. A property test: every "yes" on a random small board is a payment an exhaustive search finds, and every "no" is not. Pools Krark-Clan Ironworks and Doubling Cube, one card for each path it builds that no pooled card reaches, in its last commit, after the arms read | ~600 engine, ~700 tests, ~100–250 fixtures: 1,400–1,550 | the priority question on the budget's board; SU-7's review board (Grizzly Bears with one Everywhere: now short) | item 162's oracle half, its offer customer |
+| **MA-2, X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one) | ~350 engine, ~450 tests, a card: 800–950 | Blaze | `cast-census.md` §8's X row |
+| **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; TR-7's three facilities | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
 | **MA-6, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
@@ -600,8 +733,10 @@ The brief named six. A seventh, the route, is the owner's call.
    payment and the source axis are item 33's own pass (§3.6).
 3. **The algorithm.** As recommended: one entry per shared cost, amounts as
    capacities. Feasibility is read by Hall's condition over a 64-entry
-   table, about 100 instructions a cost. §3.3's five shapes are enumerated,
-   with a cap above which the check over-offers. On the budget's board the
+   table, about 100 instructions a cost. §3.3's shapes are exact: one-choice
+   entries and alternatives tried, Signet-shaped converters by a base-mana
+   pip, Doubling Cube by its input's split. Only enumerations past a stated
+   cost cap over-offer. On the budget's board the
    exact check is about 2.4 points cheaper than today's greedy, measured,
    because the inventory is taken once per priority point, not once per
    card.
@@ -610,8 +745,11 @@ The brief named six. A seventh, the route, is the owner's call.
 5. **The production shapes.** A spec with four forms; the choice at
    resolution; riders through the resolver; `backlog.md` §2.2's record,
    its mana half built in MA-4 in §2.2's shape; "could produce" with a fixpoint (§3.10).
-6. **X.** As recommended, with one refinement: the bound bisects over the
-   previewed total, because a reduction can absorb part of X (§3.7).
+6. **X.** As recommended, with three refinements (§3.7). The gate tests
+   the smallest legal X, which is 1 on 17 cards. The bound bisects over the
+   previewed total, because a reduction can absorb part of X. And the legal
+   X is a set that other rules cut, so `ChooseXValue` gains a set form for
+   Tamiyo's −X and Detonate.
 7. **The route.** MA-1 before SU-8; the rest in B before C, MA-3 before
    TR-7 (§6).
 
@@ -638,8 +776,8 @@ The brief named six. A seventh, the route, is the owner's call.
 
 - **The timestamp sort is still the largest single lever.**
   `battlefield_ordered`'s sort is 8.97% of the budget's board, item 138's
-  lever 6. A check-only unsorted path would save about 0.6 points of it
-  (§3.5); a maintained order would save most of the 9% everywhere.
+  lever 6. The inventory sorts only the player's own permanents (§3.5),
+  about 0.5 points; a maintained order would save most of the 9% everywhere.
 - **Item 211's verdict did not count as wrong.** "Reachable — wrong:" lacks
   the word `check_state_of_play.py` reads ("wrong today"), so the board
   filed it as not wrong. Corrected in this PR, beside item 162's new
