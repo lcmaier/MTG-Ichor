@@ -18,6 +18,7 @@
 //! **It answers whether a payment exists, never which.** Comparing payments
 //! runs once per payment, on a person's seat (§3.12, item 162's rule).
 
+use std::cell::OnceCell;
 use std::sync::Arc;
 
 use crate::engine::layers::compute_characteristics;
@@ -173,6 +174,9 @@ pub struct ManaSupply {
     entries: Vec<Entry>,
     outlets: Vec<Outlet>,
     doublers: Vec<Doubler>,
+    /// The split for a payment that takes none of what the entries spend and
+    /// uses no doubler, nearly every check: made once, at the first.
+    plain: OnceCell<Pieces>,
 }
 
 /// What a mana cost is paid for besides its mana: the payment's other costs.
@@ -193,7 +197,8 @@ impl ManaSupply {
     pub fn take(game: &GameState, player: PlayerId) -> ManaSupply {
         let watchers = production_watchers(game);
         let mine = permanents_of(game, player);
-        let mut supply = ManaSupply { player, entries: Vec::new(), outlets: Vec::new(), doublers: Vec::new() };
+        let mut supply =
+            ManaSupply { player, entries: Vec::new(), outlets: Vec::new(), doublers: Vec::new(), plain: OnceCell::new() };
         if let Some(state) = game.players.get(player) {
             let mut pool = NO_MANA;
             for (&mana_type, &n) in state.mana_pool.available() {
@@ -279,10 +284,20 @@ impl ManaSupply {
     }
 
     fn pays(&self, demand: &Demand, taken: &Taken) -> bool {
-        let doublers: Vec<&Doubler> = self.doublers.iter().filter(|d| taken.tapped != Some(d.permanent)).collect();
+        let leaves_the_entries = !self.entries.iter().any(|e| e.permanent.is_some_and(|p| taken.takes(p)))
+            && (self.outlets.is_empty() || taken.takes_no_fodder());
+        let plain = if leaves_the_entries {
+            self.plain.get_or_init(|| self.pieces(&Taken::default(), &[])).pay(demand)
+        } else {
+            self.pieces(taken, &[]).pay(demand)
+        };
+        if plain {
+            return true;
+        }
         // Every other entry is used before a doubler, since mana made after
-        // it is not doubled; with no doubler first, the common board.
-        (0..=doublers.len()).any(|used| {
+        // it is not doubled.
+        let doublers: Vec<&Doubler> = self.doublers.iter().filter(|d| !taken.takes(d.permanent)).collect();
+        (1..=doublers.len()).any(|used| {
             let used = &doublers[..used];
             let asked = used.iter().rev().fold(*demand, |asked, d| asked.before_doubling(d.factor, &d.input));
             self.pieces(taken, used).pay(&asked)
@@ -503,6 +518,15 @@ impl Taken {
     fn allows(&self, permanent: Option<ObjectId>, way: &Way) -> bool {
         let Some(permanent) = permanent else { return true };
         !(way.taps && self.tapped == Some(permanent)) && !(way.sacrifices && self.sacrificed == Some(permanent))
+    }
+
+    /// Whether the payment taps or sacrifices `permanent` itself.
+    fn takes(&self, permanent: ObjectId) -> bool {
+        self.tapped == Some(permanent) || self.sacrificed == Some(permanent)
+    }
+
+    fn takes_no_fodder(&self) -> bool {
+        self.sacrificed.is_none() && self.sacrifices.is_empty()
     }
 
     /// How much of `fodder` this payment's own sacrifices leave: each takes
@@ -1035,7 +1059,7 @@ impl Demand {
 }
 
 /// The supply one payment leaves, split by how each mana's type is chosen.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct Pieces {
     /// Mana that is its own choice of type, by the set it can be: §3.2's
     /// table.
@@ -1743,7 +1767,7 @@ mod tests {
                     Doubler { permanent: new_object_id(), input, factor: rng.random_range(2..=3) }
                 })
                 .collect();
-            let supply = ManaSupply { player: 0, entries, outlets: Vec::new(), doublers };
+            let supply = ManaSupply { player: 0, entries, outlets: Vec::new(), doublers, plain: OnceCell::new() };
             let mut demand = Demand { pips: NO_MANA, generic: rng.random_range(0..=6) };
             for _ in 0..rng.random_range(0..=3) {
                 demand.pips[rng.random_range(0..6)] += rng.random_range(1..=3);
