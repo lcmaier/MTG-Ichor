@@ -369,9 +369,12 @@ fn advanced_control(input: &EditorInput) -> Option<&'static str> {
         EditorInput::Advanced(_) => "the switch",
         EditorInput::TypedLine(_) => "a line typed",
         EditorInput::AddTypedLine => "a line added",
-        EditorInput::Number(BoardNumber::LandsPlayed(_), _) => "lands played",
-        EditorInput::Number(BoardNumber::PlayerCounter(..), _) => "a player counter",
-        EditorInput::Number(BoardNumber::CommanderDamage { .. }, _) => "commander damage",
+        EditorInput::Number(field, _) | EditorInput::NumberTyped(field, _) => match field {
+            BoardNumber::LandsPlayed(_) => "lands played",
+            BoardNumber::PlayerCounter(..) => "a player counter",
+            BoardNumber::CommanderDamage { .. } => "commander damage",
+            _ => return None,
+        },
         EditorInput::LeftTheGame(..) => "left the game",
         _ => return None,
     })
@@ -458,7 +461,7 @@ fn stepped(stepper: &Stepper, rng: &mut StdRng) -> Vec<EditorInput> {
         let near = value.clamp(min, max);
         let typed = rng.random_range(near.saturating_sub(20).max(min)..=near.saturating_add(20).min(max));
         if typed != value {
-            inputs.push(EditorInput::Number(field, typed));
+            inputs.push(EditorInput::NumberTyped(field, typed));
         }
     }
     inputs

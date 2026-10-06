@@ -322,10 +322,14 @@ fn facts(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
             ui.separator();
         }
         ui.label("Seed");
-        let mut seed = view.seed;
-        ui.push_id("seed", |ui| ui.add(egui::DragValue::new(&mut seed)));
-        if seed != view.seed {
-            inputs.push(Input::Editor(EditorInput::Seed(seed)));
+        // Text, since a seed is any u64 and a drag value holds an f64, which
+        // rounds a clock's seed; what does not read as one is not sent.
+        let mut seed = view.seed.to_string();
+        ui.add(egui::TextEdit::singleline(&mut seed).id_salt("seed").desired_width(170.0));
+        if let Ok(typed) = seed.trim().parse::<u64>()
+            && typed != view.seed
+        {
+            inputs.push(Input::Editor(EditorInput::Seed(typed)));
         }
     });
     ui.horizontal_wrapped(|ui| {
@@ -515,7 +519,7 @@ fn stepper_ui(ui: &mut egui::Ui, stepper: &Stepper, inputs: &mut Vec<Input>) {
             // Kept as the board says it, even out of the field's range.
             ui.push_id(field, |ui| ui.add(egui::DragValue::new(&mut typed).range(min..=max).clamp_existing_to_range(false)));
             if typed != value {
-                inputs.push(Input::Editor(EditorInput::Number(field, typed)));
+                inputs.push(Input::Editor(EditorInput::NumberTyped(field, typed)));
             }
         }
         None => {
