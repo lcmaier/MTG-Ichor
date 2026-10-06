@@ -658,7 +658,7 @@ fn test_citanul_hierophants_grants_a_mana_ability_to_your_creatures() {
 
 #[test]
 fn test_citanul_hierophants_granted_ability_reaches_mana_enumeration() {
-    use mtgsim::oracle::mana_helpers::available_mana_sources;
+    use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, mtgsim::cards::creatures::grizzly_bears(), 0);

@@ -19,7 +19,7 @@ use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_subtypes, get_effective_supertypes,
     get_effective_toughness, get_effective_types, is_creature,
 };
-use mtgsim::oracle::mana_helpers::available_mana_sources;
+use mtgsim::oracle::mana_supply::available_mana_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature};
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};

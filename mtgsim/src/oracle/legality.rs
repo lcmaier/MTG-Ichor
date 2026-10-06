@@ -1,12 +1,15 @@
 // Read-only legality queries — can a creature attack, block, etc.
 //
 // All functions here are pure reads against `&GameState`. They never mutate.
-// For priority actions, the candidate list is an **overapproximation** —
-// false positives are harmless (engine rejects via rollback), false negatives
-// are bugs. See `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`.
+// The priority question's candidates are the actions each check allows: what
+// it cannot read statically (a target that leaves, a payment the window
+// fails) the engine rejects and reverses (CR 732.1). See
+// `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`.
+
+use std::cell::OnceCell;
 
 use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
-use crate::oracle::mana_helpers::{activatable_abilities, castable_spells};
+use crate::oracle::mana_helpers::{activatable_abilities_with, castable_spells_with};
 use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
 use crate::state::game_state::GameState;
@@ -148,32 +151,21 @@ pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
         .collect()
 }
 
-/// Build the candidate list of priority actions for a player.
+/// Build the candidate list of priority actions for a player: `Pass` first,
+/// then each land [`can_play_land`] allows, each card `can_cast` allows and
+/// each ability `can_activate` allows.
 ///
-/// This is an **overapproximation**: every action returned passes static
-/// legality checks (timing, zone, tap-state) but may fail dynamic checks
-/// (mana affordability, complex cost payability). The engine's execution +
-/// rollback handles false positives.
-///
-/// Always includes `Pass` as the first option.
+/// One inventory of what the player can pay with serves every card and
+/// ability that reaches the mana check, taken at the first
+/// (`mana-architecture.md` §3.1).
 pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<PriorityAction> {
     let mut actions = vec![PriorityAction::Pass];
-
-    // Playable lands — exact (land drop count is static state)
-    for land_id in playable_lands(game, player_id) {
-        actions.push(PriorityAction::PlayLand(land_id));
+    let supply = OnceCell::new();
+    actions.extend(playable_lands(game, player_id).into_iter().map(PriorityAction::PlayLand));
+    actions.extend(castable_spells_with(game, player_id, &supply).into_iter().map(PriorityAction::CastSpell));
+    for (source_id, _ability_index, ability_id) in activatable_abilities_with(game, player_id, &supply) {
+        actions.push(PriorityAction::ActivateAbility(source_id, ability_id));
     }
-
-    // Castable spells — overapproximation (affordability is heuristic)
-    for (spell_id, _sources) in castable_spells(game, player_id) {
-        actions.push(PriorityAction::CastSpell(spell_id));
-    }
-
-    // Activatable abilities — overapproximation (affordability is heuristic)
-    for (_source_id, _ability_index, ability_id) in activatable_abilities(game, player_id) {
-        actions.push(PriorityAction::ActivateAbility(_source_id, ability_id));
-    }
-
     actions
 }
 

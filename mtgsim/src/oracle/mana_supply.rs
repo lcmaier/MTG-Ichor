@@ -316,6 +316,63 @@ impl ManaSupply {
     }
 }
 
+/// A permanent's mana ability that can be activated now, and one type it
+/// makes: the random agent's view of the window's options, to tap first
+/// what makes a pip still owed (`ui::random`).
+#[derive(Debug, Clone)]
+pub struct ManaSource {
+    pub permanent_id: ObjectId,
+    pub ability_id: AbilityId,
+    pub produces: ManaType,
+}
+
+/// Every mana ability of `player_id`'s permanents whose costs can be paid
+/// now, a row for each type it makes on this board, in timestamp order: what
+/// a Forest under Deep Water makes is blue, and a land Wild Growth enchants
+/// makes green besides its own, as the check counts them.
+pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
+    let watchers = production_watchers(game);
+    let mut sources = Vec::new();
+    for id in permanents_of(game, player_id) {
+        for ability in get_effective_abilities(game, id).iter() {
+            if ability.ability_type != AbilityType::Mana || game.can_pay_costs(&ability.costs, player_id, id).is_err() {
+                continue;
+            }
+            for produces in types_made(game, &watchers, ability, id, player_id) {
+                sources.push(ManaSource { permanent_id: id, ability_id: ability.id, produces });
+            }
+        }
+    }
+    sources
+}
+
+/// The types `ability` makes now, after what the board does to its
+/// production; for a shape the inventory does not read, the fixed amounts it
+/// prints.
+fn types_made(
+    game: &GameState,
+    watchers: &ProductionWatchers,
+    ability: &AbilityDef,
+    permanent: ObjectId,
+    player: PlayerId,
+) -> Vec<ManaType> {
+    let taps = match activation_of(ability) {
+        Activation::Once { taps, .. } => Some(taps),
+        Activation::PerSacrifice { .. } => Some(false),
+        Activation::Doubling { .. } | Activation::Unread => None,
+    };
+    let made = match (taps, production_of(game, &ability.effect, permanent, player)) {
+        (Some(taps), Some(base)) => made_by(game, watchers, player, permanent, taps, base),
+        _ => {
+            let Effect::Atom(Primitive::ProduceMana(output), _) = &ability.effect else { return Vec::new() };
+            let fixed = output.mana.iter().filter(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0));
+            return fixed.map(|(mana_type, _)| *mana_type).collect();
+        }
+    };
+    let types = made.iter().fold(Types::default(), |set, m| set.union(Types::of(m)));
+    ALL_TYPES.into_iter().filter(|&t| types.has(slot(t))).collect()
+}
+
 /// The mana abilities CR 601.2g's window offers a player, read once a window
 /// (§3.8). Between its prompts only whether each one's costs can be paid
 /// changes, until the layer epoch moves (a sacrifice), when it is read again.
@@ -348,7 +405,7 @@ impl WindowOffer {
         let mut abilities = Vec::new();
         for permanent in permanents_of(game, player) {
             for ability in get_effective_abilities(game, permanent).iter() {
-                if ability.ability_type != AbilityType::Mana || !makes_fixed_mana(ability) {
+                if ability.ability_type != AbilityType::Mana || !offered_in_the_window(game, ability, permanent, player) {
                     continue;
                 }
                 if !seen.insert((permanent, ability.id.definition())) {
@@ -386,12 +443,21 @@ impl WindowOffer {
     }
 }
 
-/// An ability the window offers: one whose effect adds a fixed amount of
-/// some mana, which is what the window has offered since CR 601.2g's loop
-/// was built.
-fn makes_fixed_mana(ability: &AbilityDef) -> bool {
-    matches!(&ability.effect, Effect::Atom(Primitive::ProduceMana(output), _)
-        if output.mana.iter().any(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0)))
+/// An ability the window offers: what it has always offered, one that makes
+/// a fixed amount of mana, and whatever else the inventory counts, so that a
+/// payment the check found is one the window can make (`cost-architecture.md`
+/// §3.6). Doubling Cube is the one registered card that adds.
+fn offered_in_the_window(game: &GameState, ability: &AbilityDef, permanent: ObjectId, player: PlayerId) -> bool {
+    let makes_fixed_mana = matches!(&ability.effect, Effect::Atom(Primitive::ProduceMana(output), _)
+        if output.mana.iter().any(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0)));
+    makes_fixed_mana
+        || match activation_of(ability) {
+            Activation::Doubling { .. } => true,
+            Activation::Once { .. } | Activation::PerSacrifice { .. } => {
+                production_of(game, &ability.effect, permanent, player).is_some()
+            }
+            Activation::Unread => false,
+        }
 }
 
 /// What a payment's other costs take from the board.
@@ -1378,6 +1444,44 @@ mod tests {
         put_on_battlefield(&mut game, land_making("Fixture: one free green, one restricted", output), 0);
         assert!(covers(&game, &cost(&[Green], 0)));
         assert!(!covers(&game, &cost(&[Green, Green], 0)));
+    }
+
+    /// Each ability's own costs decide: a tapped land and another player's
+    /// are no source, and a tapped Morgue Toad is, since "Sacrifice this
+    /// creature: Add {U}{R}" takes no tap (CR 605.1a).
+    #[test]
+    fn a_source_is_read_by_its_abilitys_own_costs() {
+        let morgue_toad = CardDataBuilder::new("Morgue Toad")
+            .card_type(CardType::Creature)
+            .power_toughness(2, 2)
+            .ability(AbilityDef {
+                rules_text: "Sacrifice this creature: Add {U}{R}.".into(),
+                is_characteristic_defining: false,
+                activation_restriction: ActivationRestriction::None,
+                id: AbilityId::UNASSIGNED,
+                instances: Vec::new(),
+                ability_type: AbilityType::Mana,
+                costs: vec![Cost::SacrificeSelf],
+                effect: Effect::Atom(
+                    Primitive::ProduceMana(ManaOutput {
+                        mana: vec![(Blue, AmountExpr::Fixed(1)), (Red, AmountExpr::Fixed(1))],
+                        special: Vec::new(),
+                    }),
+                    EffectRecipient::Implicit,
+                ),
+            })
+            .build();
+        let mut game = setup_two_player_game();
+        let land = put_on_battlefield(&mut game, forest(), 0);
+        game.battlefield.get_mut(&land).unwrap().tapped = true;
+        put_on_battlefield(&mut game, forest(), 1);
+        assert!(available_mana_sources(&game, 0).is_empty());
+        assert!(!covers(&game, &cost(&[Green], 0)));
+
+        let toad = put_on_battlefield(&mut game, morgue_toad, 0);
+        game.battlefield.get_mut(&toad).unwrap().tapped = true;
+        assert_eq!(available_mana_sources(&game, 0).len(), 2, "a row for each type it makes");
+        assert!(covers(&game, &cost(&[Blue, Red], 0)));
     }
 
     /// A symbol no payment path pays yet is refused, however much mana there

@@ -11,7 +11,7 @@
 use mtgsim::cards::phase_ld_cards::blood_moon;
 use mtgsim::cards::dual_lands::everywhere;
 use mtgsim::oracle::characteristics::get_effective_subtypes;
-use mtgsim::oracle::mana_helpers::available_mana_sources;
+use mtgsim::oracle::mana_supply::available_mana_sources;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx};
 use mtgsim::types::card_types::{LandType, Subtype};
 use mtgsim::types::mana::ManaType;

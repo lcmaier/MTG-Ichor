@@ -109,7 +109,7 @@ fn layer_queries(game: &GameState) -> u64 {
 /// What one `castable_spells` costs in layer queries, and what it offered.
 fn cost_of_the_castability_check(game: &mut GameState, player: PlayerId) -> (u64, Vec<ObjectId>) {
     let before = layer_queries(game);
-    let offered: Vec<ObjectId> = castable_spells(game, player).into_iter().map(|(id, _)| id).collect();
+    let offered: Vec<ObjectId> = castable_spells(game, player);
     (layer_queries(game) - before, offered)
 }
 

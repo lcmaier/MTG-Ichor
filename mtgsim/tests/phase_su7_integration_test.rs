@@ -69,7 +69,7 @@ fn grizzly_bears_is_never_offered_while_the_mana_falls_short() {
     ));
     let (bears, growth) = (find(&game, "Grizzly Bears"), find(&game, "Giant Growth"));
     assert_eq!(can_cast(&game, 0, bears).err(), Some(CannotCast::ManaShort));
-    assert!(!castable_spells(&game, 0).iter().any(|(id, _)| *id == bears));
+    assert!(!castable_spells(&game, 0).contains(&bears));
 
     let answer = at_priority(&game, 0, WhyAbout::Object(bears), None);
     assert_eq!(question_lines(&answer)[0], ("Player 0: You have priority".to_string(), None));
@@ -80,17 +80,19 @@ fn grizzly_bears_is_never_offered_while_the_mana_falls_short() {
     assert!(has(&answer, "Offered to Player 0:", None) && has(&answer, &cast, None), "{answer:#?}");
 }
 
-/// The review board as the tree has it: one Everywhere counts as five
-/// sources (`codebase-state.md` item 162, slotted with item 33's design), so
-/// Grizzly Bears is offered, and the cast is reversed when the mana runs out.
-/// Asked again, the why says both tiers: never offered now, since Everywhere
-/// is tapped and one {G} floats, and offered and then reversed (CR 732.1).
+/// The review board: one Everywhere is one mana, so Grizzly Bears' {1}{G} is
+/// never offered (`codebase-state.md` item 162, MA-1's exact check). A cast
+/// a seat began and could not pay is still reversed, and asked again the why
+/// says both tiers: never offered now, since Everywhere is tapped and one
+/// {G} floats, and offered and then reversed (CR 732.1).
 #[test]
-fn on_the_review_board_the_bears_are_offered_then_reversed() {
+fn on_the_review_board_one_everywhere_does_not_pay_for_the_bears() {
     let text = format!("{MAIN}hand 0: Lightning Bolt\nhand 0: Grizzly Bears\nbattlefield: Everywhere | controller 0\n");
     let game = built(&text);
     let bears = find(&game, "Grizzly Bears");
-    assert!(can_cast(&game, 0, bears).is_ok(), "item 162's loose offer; when it is fixed, this board says the mana is short");
+    assert_eq!(can_cast(&game, 0, bears).err(), Some(CannotCast::ManaShort));
+    let answer = at_priority(&game, 0, WhyAbout::Object(bears), None);
+    assert!(has(&answer, "To cast it: the mana Player 0 can make now does not cover its cost {1}{G}.", Some("601.2h")));
 
     let mut reversed = built(&text.replace("Everywhere | controller 0", "Everywhere | controller 0, tapped"));
     reversed.players[0].mana_pool.add(ManaType::Green, 1);
