@@ -2711,6 +2711,26 @@ named them.
 | **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
 | **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29), sized and slotted among `roadmap-v2.md` B6's copy phases at the docs audit (A6h) |
 
+### 2.42 The board editor's other advanced settings — history, a card's lines, setup actions
+
+**Not a mechanic the engine lacks: a control the dev GUI's editor does not
+draw.** The editor clicks most of a board together, and its Advanced switch
+(#227) shows controls for a player's counters, lands played, leaving the game
+and commander damage, and a field that takes any line of the file.
+`setup-architecture.md` §7b.2's decision 2 designed controls for the six rows
+left as text, in two more parts. The owner left both off the route at the dev
+GUI audit (2026-10-06), since the field already writes every row they would
+control; they are here so a board that needs one by clicking can find them.
+
+| Field | |
+|---|---|
+| **Rules** | CR 103's setup as the scenario grammar says it (`setup-architecture.md` §5.1): history counts (row 13), `this turn:` lines (14) and `counters:` lines (25); setup actions with their targets and ability (31, 32, 34) |
+| **Verdict** | the editor shows these rows as their text, each removable, and the typed field adds any of them; no row has a control |
+| **Size** | history, `this turn:` and `counters:` lines ~260–380 with tests; setup actions with their targets and ability ~210–310 (`setup-architecture.md` §8). The editor's PRs ran 1.5–3.1 times their sizing |
+| **Blocks** | nothing: a board needing one of these rows types it into the field |
+| **Atoms** | none |
+| **Owner** | `setup-architecture.md` §7b.2, decision 2, which designed them |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

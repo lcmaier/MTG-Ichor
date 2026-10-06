@@ -1313,6 +1313,27 @@ caught by asking about the *form* of the claim, not about Magic — which is why
 it belongs here rather than in a rules doc, and why it is worth asking even when
 the answer turns out to be "checked, and it holds".
 
+### 4.2 Naming a phase
+
+The owner, at #225's review (2026-10-06): codes had become what a reader had
+to decode, a roadmap row's ID, a family's letters and a split's suffix at once.
+
+- **A phase has a plain name of a few words**, which comes first wherever it
+  is named: in chat, in its PR's title and in its ✅ heading. A code, where its
+  doc's sequence has one, follows the name (`The why panel's last part: what
+  happened, from the trace (SU-8)`).
+- **No new code families, and no letter suffixes.** A split takes the next code
+  in its doc's sequence, or none; a phase outside every family is named and
+  not coded (`The editor's advanced settings, first part`).
+- **A roadmap row's ID orders work and never names it.** `A6g` says where the
+  dev GUI sat on the route; a PR is named for what it delivers.
+- **The index is generated.** The state-of-play board's "Phases by name" lists
+  every phase the architecture docs name, by name, its code beside it: the
+  landed ones from their ✅ headings, a plain-named one included, and the
+  numbered ones still to build from the docs' headings and sizing tables
+  (`check_state_of_play.py`'s `phase_index`). A phase lands with a ✅ heading,
+  coded or not, or the board cannot see it.
+
 ## 5. The spec database as a gate
 
 `plans/specdb.py` joins the atomic-test corpus to the test suite and the CR, so
@@ -1875,9 +1896,10 @@ everything a drawing function calls runs that often.
    its arithmetic.
 2. **Blocking the UI thread.** Nothing a frame calls waits: `try_recv`, never
    `recv`; no `join`, no `sleep`, no lock held across engine work, no file
-   read. A small write at a click, such as a saved board, is allowed; anything
-   slower is a thread whose result comes back as a message. The engine's
-   thread blocks on `recv` by design, and the UI thread never does.
+   read. A small read or write at a click, such as a board opened or saved, a
+   save `--load` reads, or the folder of boards listed again, is allowed;
+   anything slower is a thread whose result comes back as a message. The
+   engine's thread blocks on `recv` by design, and the UI thread never does.
 3. **What owns state between frames.** A value that survives a frame and can
    change an answer is a field of the plain-Rust state, changed only through
    `Session::input`; drawing takes the state by shared reference and returns
@@ -1917,11 +1939,21 @@ everything a drawing function calls runs that often.
    arrives, `WindowState` drops any input that could answer it and shows
    nothing live; a key's repeat answers nothing; and each prompt's widgets
    take an id from its number, so focus dies with its prompt. A new kind of
-   input goes through `WindowState::input`, where the beat is.
+   input goes through `WindowState::input`, where the beat is. The same beat
+   follows two other moves (the dev GUI audit): the why panel opening or
+   closing slides the board, so a board click is dropped and the board offers
+   nothing for the beat after (`WindowState::board_settling_for`); and the
+   game and the editor switching, or another board opening, replace the
+   window, so every click is dropped (`Session::input`). A control drawn after
+   text that changes width moves under the pointer too, so each header draws
+   its buttons first, each whether or not it can act.
 
 **First applied to the whole crate at A6g's review practices PR**, by a review
 agent given this list, a budget and a stop-and-report rule; the findings are
 in that PR's table, each fixed there or given a `codebase-state.md` item.
+**Applied again at the dev GUI audit** (2026-10-06), over what the ten PRs
+after it added, the same way, with the owner's notes from use; its findings
+are in that PR's table.
 
 ### 10.2 The rule as a gate
 
@@ -1994,6 +2026,13 @@ switch, type lines into its field (lines the grammar reads, one it refuses,
 and one that says nothing) and click each player row's control. The run
 fails unless every one of them was clicked, and the state a click must
 change includes the switch and the field: 3,000 clicks in about 1.0 s.
+
+**Since the dev GUI audit** the games keep the board's beat as they keep the
+prompt's: each time a why opens or closes the panel, the board must offer
+nothing until the beat has passed, and the dealt games must meet it at least
+once. A number typed into an editor's field is `EditorInput::NumberTyped`,
+whose consecutive edits of one field are one undo step, so Undo walking back
+to the board opened checks that join too.
 
 ### 10.4 What one prompt costs the window
 
@@ -2085,3 +2124,55 @@ editor's view with them on, and a line typed, added and undone. Read
 A typed line parses the board twice where an edit parses once, still well
 inside §10.1's second question. The other readings kept every allocation
 and byte.
+
+**The dev GUI audit's reading: what a debug window pays for the layer memo's
+audit** (2026-10-06, the owner's machine, the window's debug build: the engine
+at opt-level 1, its audits on). A question's wait is the whole time from an
+answer to the next question, read by a throwaway probe that played each
+board by rule (`window_by_rule`) to its end or 400 questions; the rest is
+`prompt_cost`, which reads the audit's cost of a snapshot in a debug build.
+The late four-seat board is a dealt game (seed 6, the performance pool)
+played by rule to turn 32, written by "Save board as scenario", its two
+tokens taken out.
+
+| debug | a question's wait | with the audit paused | a snapshot, audited at every read | paused |
+|---|---|---|---|---|
+| the large board: 188 objects, 61 permanents | 69.7 ms | 1.15 ms | 28.4 ms, 203,564 allocations | 0.96 ms, 8,142 |
+| four seats, turn 32: 180 objects, 21 permanents | 5.4 ms | 0.85 ms | 2.56 ms | 0.85 ms |
+| the four-seat sample: 33 objects, 3 permanents | 7.9 ms | 0.40 ms | 0.23 ms | 0.16 ms |
+
+So the audit is 85–98% of what a debug window waits, in two parts. The
+window's own reads at a question, the snapshot and each why, are about two
+fifths of it on the large board: one snapshot there makes 628 memo hits,
+about three an object, and each hit's audit walks the whole board again for
+a permanent. The engine's own work between questions is the rest.
+
+**Decided** (the brief left it open, to decide after the reading): neither a
+sampled audit nor a fast-debug launch flag, but the window's reads audited
+once, which loses nothing. A question's reads hold the game by shared
+reference, so no walk input can change while they run, and an object's
+characteristics that matched a fresh walk once (its frame, in the layers'
+words) match it at every later hit: `GameState::audit_each_frame_once` checks
+the frame the memo holds for every object the board's pass walks against one
+pass, at the first hit on any of them, and each other object's at its first
+hit, and `GuiSeat::ask` opens it for everything the seat reads while its
+question is open. Read again with it:
+
+| debug | a question's wait | a snapshot | a why at a question | a why of a card in hand |
+|---|---|---|---|---|
+| the large board | 41.5 ms (69.7) | 1.08 ms, 8,910 allocations (28.4 ms) | 0.14 ms (1.65) | 0.08 ms (7.29) |
+| four seats, turn 32 | 3.4 ms (5.4) | 1.00 ms (2.56) | 0.02 ms | 0.01 ms |
+| the four-seat sample | 6.9 ms (7.9) | 0.18 ms (0.23) | — | — |
+
+What is left is the engine's own audit between questions, about 40 ms a
+question on the large board, spread across its whole turn: a scope around
+the priority question's options took 8 ms of it. Only pausing the audit
+takes the rest, and the audit with it, so no flag was built; on the largest
+board the tree has, a debug window waits about 40 ms a question.
+
+Release has no audit, and its readings moved nowhere: two sittings
+interleaved with `main`'s, every time within noise and every allocation the
+same, but that `EditorInput`, and `Input` with it, grew from 32 bytes to 40
+with `NumberTyped`, whose second `(BoardNumber, i64)` took the niche the
+tag had. A view holding inputs grows with it: the editor's 2.7 KB a repaint
+on the large board, and one allocation (490 to 491).

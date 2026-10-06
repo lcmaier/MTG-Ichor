@@ -16,14 +16,18 @@ engine comes through. A window cannot stop, since it repaints whenever the
 mouse moves. So the game runs on a thread of its own, and the window plays
 every seat by answering the questions that thread sends it. The window is for
 building and debugging cards, not for play against an opponent, so no agent
-sits in it.
+sits in it. It sees every card, and it is not v1's GUI (`backlog.md` §2.38).
+**Out of scope** (A6g's row, the owner): hidden information, which a
+perfect-information toggle for the tester can show once `backlog.md` §2.9's
+model lands; card art, animation, drag-and-drop; and anything specific to one
+mechanic.
 
 ## 2. The parts
 
 | Part | File | What it does | Reviewed |
 |---|---|---|---|
 | The command line | `launch.rs`, `main.rs` | reads `--seed`, `--players`, `--scenario`, `--edit` and `--load`, and opens the window | `launch.rs` closely, `main.rs` by running |
-| The session | `session.rs` | one game and one board: Play, Reload, Undo answer, Savestate and the menu, `--load`, "Save board as scenario", the editor. Every click lands here first | closely |
+| The session | `session.rs` | one game and one board: Play, Reload, Undo answer, Savestate and the menu, `--load`, "Save board as scenario", the editor. Every click lands here first, and one in the beat after the window was replaced is dropped | closely |
 | The bridge | `bridge.rs` | runs the game on the engine's thread, replaying a line first when a rebuild or a load asks. Its seats carry each question to the window and the answer back, and it writes the game's record, the log and the save, one thread at a time | closely |
 | The save | `save.rs` | the journal beside each log: every line played, where the window was asked, the savestates, each move; the tree Undo answer and the menu read | closely |
 | The why's replay | `why_replay.rs` | a why about the past: the game built again, the window's line replayed into it with the trace sink on, and the why read at the open question from the trace (SU-8) | closely |
@@ -52,7 +56,11 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
    turns them off, so every question reaches you.
 3. **The bridge sends it.** `GuiSeat` copies the board (`Snapshot::build`)
    and the question (`Prompt`), sends both as `ToWindow::Prompt`, wakes the
-   window, and waits.
+   window, and waits. Nothing writes the game while its question is open, so
+   the seat reads it with the layer memo's debug audit checking each frame
+   once (`GameState::audit_each_frame_once`, `engineering-practices.md`
+   §10.4), where a debug build would otherwise walk the board again at every
+   read.
 4. **The window shows it.** `WindowState::receive`, the view model, builds
    what to draw: Lightning Bolt marked clickable, a Pass button. `app.rs`
    draws it.
@@ -91,7 +99,11 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 
 ## 5. Who computes what
 
-From `engineering-practices.md` §10:
+From `engineering-practices.md` §10, and A6g's rule (the owner): **the window
+draws only the engine's generic surfaces**, the layer output,
+`ChoiceKind::subject()`, the options' ids, `ui::display`'s formatters and the
+trace sink, never a case per mechanic. What it cannot draw from them is an
+engine surface to add, not client logic.
 - **A fact only the rules compute**, such as characteristics, the legal
   options or a prompt's subject, is the engine's. The snapshot reads it, and
   the window never computes a rule.
@@ -141,9 +153,12 @@ From `devgui/`, where `cargo run` runs the window:
   whole line.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
-  old beside new.
-- `examples/prompt_cost.rs`: what one question costs the window (§10.4). A PR
-  that touches the snapshot or the view model quotes it before and after.
+  old beside new. CI draws them and compares none, since its renderer is not
+  the owner's machine, so a board that stops reaching its picture's question
+  fails there (`codebase-state.md` item 216).
+- `examples/prompt_cost.rs`: what one question costs the window (§10.4), and
+  in a debug build what the layer memo's audit costs it. A PR that touches
+  the snapshot or the view model quotes it before and after.
 
 ## 8. Reviewing a GUI PR
 
@@ -259,5 +274,6 @@ for any line of the file. All of it is `editor.rs`, plain Rust, with
   will make of the words, so it adds poison words and keeps the last
   commander damage word, and a click leaves one word. `has_control` says
   which words a control shows; the rest stay text.
-- **Left:** history, `this turn:` and `counters:` lines, then setup actions,
-  if the owner builds them (`setup-architecture.md` §8).
+- **Not built:** controls for history, `this turn:` and `counters:` lines,
+  and for setup actions, which the owner left off the route at the dev GUI
+  audit since the field writes every row (`backlog.md` §2.42).
