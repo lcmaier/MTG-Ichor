@@ -17,6 +17,11 @@ use crate::view_model::{
     ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
 };
 
+/// Every scroll area fills its panel's width, so its bar stays at the
+/// panel's edge: one that shrinks to its content follows the widest row on
+/// screen, which under `show_rows` changes as the list scrolls.
+const FILL_THE_WIDTH: [bool; 2] = [false, true];
+
 pub struct DevGui {
     session: Session,
 }
@@ -89,19 +94,22 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader, edit
                     inputs.push(Input::Mode(mode));
                 }
             }
+            // Beside the switch, where the mode's own controls never move it.
+            ui.push_id("open", |ui| {
+                ui.menu_button("Open…", |ui| {
+                    for (i, file) in header.files.iter().enumerate() {
+                        if ui.button(&file.label).clicked() {
+                            inputs.push(Input::Editor(EditorInput::Open(i)));
+                            ui.close();
+                        }
+                    }
+                })
+            });
             ui.separator();
             match editor {
                 Some(view) => editor_header(ui, view, &mut inputs),
                 None => game_header(ui, state, board.as_ref(), header, &mut inputs),
             }
-            ui.menu_button("Open…", |ui| {
-                for (i, file) in header.files.iter().enumerate() {
-                    if ui.button(&file.label).clicked() {
-                        inputs.push(Input::Editor(EditorInput::Open(i)));
-                        ui.close();
-                    }
-                }
-            });
             match header.message {
                 Some(Ok(done)) => {
                     ui.weak(done);
@@ -125,29 +133,46 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         ui.weak("No game yet: the editor's Play starts its board.");
         return;
     }
-    // The game's buttons first, where nothing before them changes width: a
-    // replay's status and a board's line come and go, and a double click's
-    // second half would land on whatever moved under it.
+    // Every button first, each drawn whether or not it can act, where nothing
+    // before it changes width: a replay's status and a board's line come and
+    // go, and a double click's second half would land on whatever moved
+    // under it.
     if header.reloadable && ui.button("Reload").clicked() {
         inputs.push(Input::Reload);
     }
     if let Some(tools) = &header.tools {
         tool_button(ui, &tools.undo, inputs);
         tool_button(ui, &tools.savestate, inputs);
-        ui.menu_button("Savestates", |ui| {
-            if tools.menu.is_empty() {
-                ui.weak(NO_SAVESTATES);
-            }
-            for entry in &tools.menu {
-                if ui.add_enabled(entry.live, egui::Button::new(&entry.label)).clicked() {
-                    inputs.push(entry.input.clone());
-                    ui.close();
+        ui.push_id("savestates", |ui| {
+            ui.menu_button("Savestates", |ui| {
+                if tools.menu.is_empty() {
+                    ui.weak(NO_SAVESTATES);
                 }
-            }
+                for entry in &tools.menu {
+                    if ui.add_enabled(entry.live, egui::Button::new(&entry.label)).clicked() {
+                        inputs.push(entry.input.clone());
+                        ui.close();
+                    }
+                }
+            })
         });
-        if let Some(why) = tools.undo_off {
-            ui.weak(why);
-        }
+    }
+    let mut full_control = state.full_control;
+    if ui.checkbox(&mut full_control, "Full control").changed() {
+        inputs.push(Input::FullControl(full_control));
+    }
+    if header.reloadable && ui.button("Edit the scenario").clicked() {
+        inputs.push(Input::EditTheScenario);
+    }
+    let at_a_board = state.board.is_some();
+    if ui.add_enabled(at_a_board, egui::Button::new("Save board as scenario")).clicked() {
+        inputs.push(Input::SaveBoard);
+    }
+    if ui.add_enabled(at_a_board, egui::Button::new("Edit this board")).clicked() {
+        inputs.push(Input::EditThisBoard);
+    }
+    if let Some(why) = header.tools.as_ref().and_then(|tools| tools.undo_off) {
+        ui.weak(why);
     }
     ui.separator();
     ui.strong(state.status());
@@ -162,21 +187,6 @@ fn game_header(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
     };
     if let Some(failed) = &state.unwritten {
         ui.colored_label(ui.visuals().error_fg_color, failed);
-    }
-    let mut full_control = state.full_control;
-    if ui.checkbox(&mut full_control, "Full control").changed() {
-        inputs.push(Input::FullControl(full_control));
-    }
-    if state.board.is_some() {
-        if ui.button("Save board as scenario").clicked() {
-            inputs.push(Input::SaveBoard);
-        }
-        if ui.button("Edit this board").clicked() {
-            inputs.push(Input::EditThisBoard);
-        }
-    }
-    if header.reloadable && ui.button("Edit the scenario").clicked() {
-        inputs.push(Input::EditTheScenario);
     }
 }
 
@@ -214,7 +224,7 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         ui.separator();
         ui.strong("Log");
         let row_height = ui.text_style_height(&egui::TextStyle::Body);
-        egui::ScrollArea::vertical().stick_to_bottom(true).show_rows(ui, row_height, state.log.len(), |ui, rows| {
+        egui::ScrollArea::vertical().auto_shrink(FILL_THE_WIDTH).stick_to_bottom(true).show_rows(ui, row_height, state.log.len(), |ui, rows| {
             // One text line a row, as `show_rows` counts them; the whole line on hover.
             for line in &state.log[rows] {
                 let response = ui.add(egui::Label::new(&line.text).truncate().sense(egui::Sense::click()));
@@ -235,7 +245,7 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
             ui.weak(if header.playing { state.no_board() } else { "No game yet." });
             return;
         };
-        egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             for seat in &board.seats {
                 // A collapsing header's id is its label, and every seat has a "Creatures".
                 ui.push_id(seat.player.target, |ui| {
@@ -251,7 +261,7 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
 }
 
 fn editor_header(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
-    ui.weak(&view.source);
+    // The buttons before the source, whose words change at the first Save.
     for button in [&view.undo, &view.play, &view.save] {
         edit_button(ui, button, inputs);
     }
@@ -259,6 +269,7 @@ fn editor_header(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
         ui.ctx().copy_text(view.text.to_string());
     }
     edit_button(ui, &view.advanced, inputs);
+    ui.weak(&view.source);
     if let Some(why) = view.unsaid {
         ui.colored_label(ui.visuals().warn_fg_color, why);
     }
@@ -288,7 +299,7 @@ fn editor_panels(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
         }
     });
     egui::CentralPanel::default().show(ui, |ui| {
-        egui::ScrollArea::vertical().id_salt("board").show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("board").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             if !view.comments.is_empty() {
                 egui::CollapsingHeader::new("The file's comments, kept on every save").id_salt("comments").show(ui, |ui| {
                     for line in view.comments {
@@ -363,11 +374,14 @@ fn typed_line(ui: &mut egui::Ui, typed: &TypedLineView, inputs: &mut Vec<Input>)
             // The next line goes in the same field.
             response.request_focus();
         }
+        // A line pasted and entered in one frame is added, though the view
+        // was built before it.
+        let can_enter = typed.add.live || (line != typed.line && !line.trim().is_empty());
         if line != typed.line {
             inputs.push(Input::Editor(EditorInput::TypedLine(line)));
         }
         let added = ui.add_enabled(typed.add.live, egui::Button::new(&typed.add.label)).clicked();
-        if (added || entered) && typed.add.live {
+        if (added && typed.add.live) || (entered && can_enter) {
             inputs.push(Input::Editor(typed.add.input.clone()));
         }
     });
@@ -436,7 +450,7 @@ fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
 
 fn card_panel(ui: &mut egui::Ui, card: &CardEdit, inputs: &mut Vec<Input>) {
     ui.monospace(&card.text);
-    egui::ScrollArea::vertical().id_salt("card").show(ui, |ui| {
+    egui::ScrollArea::vertical().id_salt("card").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
         for row in &card.rows {
             ui.horizontal_wrapped(|ui| {
                 if !row.label.is_empty() {
@@ -480,7 +494,7 @@ fn search_panel(ui: &mut egui::Ui, search: &SearchView, inputs: &mut Vec<Input>)
     };
     // One button a row, as `show_rows` counts them; a long name truncated.
     let row_height = ui.spacing().interact_size.y;
-    egui::ScrollArea::vertical().id_salt("results").show_rows(ui, row_height, search.results.len(), |ui, rows| {
+    egui::ScrollArea::vertical().id_salt("results").auto_shrink(FILL_THE_WIDTH).show_rows(ui, row_height, search.results.len(), |ui, rows| {
         for result in &search.results[rows] {
             if ui.add(egui::Button::selectable(result.on, result.label.as_str()).truncate()).clicked() && result.live {
                 inputs.push(Input::Editor(result.input.clone()));
@@ -627,7 +641,7 @@ fn why_panel(ui: &mut egui::Ui, why: &WhyView, inputs: &mut Vec<Input>) {
     if let Some(note) = why.note {
         ui.weak(note);
     }
-    egui::ScrollArea::vertical().id_salt("why").show(ui, |ui| {
+    egui::ScrollArea::vertical().id_salt("why").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
         for section in &why.sections {
             ui.separator();
             ui.strong(&section.heading);
@@ -763,9 +777,10 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
 }
 
 /// The shortcut keys pressed this frame, taken out of egui's input so that a
-/// focused button does not act on them too; none while a field is typed into.
+/// focused button does not act on them too; none while a field is typed
+/// into, or while a menu is open, whose keys they are: Escape closes it.
 fn keys(ctx: &egui::Context) -> Vec<Input> {
-    if ctx.egui_wants_keyboard_input() {
+    if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) {
         return Vec::new();
     }
     ctx.input_mut(|input| {
