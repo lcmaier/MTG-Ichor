@@ -148,6 +148,13 @@ CLASSES = [
                   "`kaito_cast_beside_oath_of_gideon_is_its_controllers_order`, "
                   "`kaito_enters_tapped_under_an_opponents_creatures_enter_tapped`. The feeds table's last row "
                   "(`Condition::reads_entry_state`) is what makes the order a question")),
+    (1, "control", "A change of who an entering object enters under (CR 616.1b), beside an entry effect keyed on "
+                   "its controller",
+     ("616.1b", "616.1f"),
+     [r"o:/would enter (the battlefield )?under [^.]*control[^.]*instead/"],
+     ("test", "`test_the_controller_settled_by_cr_616_1b_is_what_later_filters_read`: a Kismet-shaped "
+              "enchantment taps what its controller's opponents control, and reads the controller the change "
+              "settled")),
     (1, "status", "A status every entering object of a kind gets: enters tapped, or untapped",
      ("614.1c", "110.5b"),
      [r"o:/(creatures|artifacts|lands|permanents|planeswalkers|enchantments)[^.]* enter (the battlefield )?(tapped|untapped)/"],
@@ -204,6 +211,18 @@ CLASSES = [
      [("or", [r"o:/lands?[^.]* (are|is) (an? )?(plains|islands?|swamps?|mountains?|forests?)\b/",
               r"o:/lands?[^.]* (are|is) every basic land type/"])],
      ("test", "`test_urborg_and_blood_moon_in_both_orders`")),
+    (2, "supertypes", "A supertype change (lands made basic, permanents made legendary or snow), beside an effect "
+                      "whose set reads it: Blood Moon's \"nonbasic\"",
+     ("613.8a", "205.4"),
+     [r"o:/(^|\. )(all |each )?(nonland )?(lands?|permanents?|enchanted (land|permanent))[^.]* (are|is) (basic|legendary|snow)\b/"],
+     ("test", "`test_purifier_clause_and_blood_moon_in_both_orders`: Rootpath Purifier's battlefield clause makes "
+              "lands basic, and Blood Moon stops applying to them, by the card's ruling")),
+    (2, "subtypes", "A creature-type change over a set (Conspiracy, Arcane Adaptation), beside a layer 4 effect whose "
+                    "set is chosen by creature type: Dralnu's Crusade's \"All Goblins are ... Zombies\"",
+     ("613.8a", "205.3m"),
+     [r"o:/(creatures?|permanents?)[^.]* (are|is) (every creature type|the chosen (creature )?type)|in addition to (its|their) other creature types/"],
+     ("test", "no test builds a creature-type pair; the subtypes channel's dependency is pinned on land types by "
+              "`test_urborg_and_blood_moon_in_both_orders`, through the same exact test")),
     (2, "lose-all", "An ability removal beside a static whose existence it ends (CR 604.2)",
      ("613.8a", "604.2"),
      [r"o:/lose(s)? all (other )?abilities/"],
@@ -225,6 +244,13 @@ CLASSES = [
      ["t:/creature|planeswalker/",
       r"o:/\b(creatures|[a-z]+s)( you control)? get \+\d+\/\+\d+(?![^.]*until)/"],
      ("test", "here: `an_animated_glorious_anthem_dies_and_the_next_check_takes_what_it_held_up`")),
+    (3, "indestructible", "A creature or planeswalker that gives others indestructible, whose lethal damage waits "
+                          "out the check that removes the giver",
+     ("704.3", "704.5g", "702.12b"),
+     ["t:/creature|planeswalker/", r"o:/other [^.]*(have|has) [^.]*indestructible/"],
+     ("test", "no registered card gives it. The next check's read is pinned by "
+              "`keldon_warlord_dies_on_the_check_after_pyroclasms_other_victims` (here), and losing indestructible "
+              "with lethal damage marked by `test_losing_indestructible_with_lethal_damage_marked_dies_to_the_sba`")),
     (3, "count", "A power or toughness that counts creatures or permanents, which falls when others die",
      ("704.3", "604.3"),
      ["t:/creature/",
@@ -299,11 +325,59 @@ CLASSES = [
      ("test", "the path (here, as `dies`) and the arm, `entering_tapped_is_not_becoming_tapped`; no registered "
               "card on either side"),
      ["o:/" + TRIG + r"[^.]*\b(tap|untap) (target|another|up to|all|each)/"]),
+    (4, "damage", "Damage dealt to a creature, a permanent or a player (enrage, \"whenever this deals damage\")",
+     ("603.2", "120.3"),
+     [r"o:/whenever [^.,]*(is dealt damage|deals (combat )?damage)/"],
+     ("test", "the path (here, as `dies`) and the arm, `damage_triggers_still_fire_when_the_creature_regenerates`; "
+              "no registered trigger deals damage"),
+     ["o:/" + TRIG + r"[^.]*deals? (\d+|x|that much) damage to/"]),
+    (4, "shuffle", "A library shuffled", ("603.2", "701.24a"),
+     [r"o:/whenever [^.,]*shuffles?\b/"],
+     ("test", "the path (here, as `dies`) and the arm, "
+              "`cosis_trickster_sees_an_opponents_shuffle_even_of_an_empty_library`; no registered trigger shuffles"),
+     ["o:/" + TRIG + r"[^.]*\bshuffles?\b/"]),
+    (4, "graveyard", "A card put into a graveyard from a hand or a library: a discard, a mill", ("603.2", "701.9a"),
+     [r"o:/whenever [^.,]*(discards?|mills?|(is|are) put into (a|your|an opponent's) graveyard from (anywhere|your library|a library))/"],
+     ("test", "the path (here, as `dies`) and the arm, "
+              "`a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step`'s discard watcher; no "
+              "registered trigger discards or mills"),
+     ["o:/" + TRIG + r"[^.]*\b(discards?|mills?)\b/"]),
+    (4, "returns", "A permanent returned to the battlefield by a trigger (flicker, reanimation), entering where "
+                   "`enter`'s watchers see it",
+     ("603.2", "603.6a"),
+     None,
+     ("owned", "TR-3b, the second half of delayed, reflexive, and \"until\": `Primitive::ReturnToBattlefield` is "
+               "unimplemented until it"),
+     ["o:/" + TRIG + r"[^.]*\breturns? [^.]* to the battlefield/"], "producers"),
     (4, "counters-put", "Counters put on a permanent or a player", ("603.2", "122.6"),
      [r"o:/whenever (one or more )?[^.]*counters? (is|are) put on/"],
      ("owned", "TR-5b, combat's shapes, targeting, counters, prevention, the multiplier's second half "
                "(`triggers-architecture.md` §12): `CountersPutOn` is unbuilt"),
      ["o:/" + TRIG + r"[^.]*\bput (a|an|one|two|three|x|that many) [^.]*counters? on/"], "watchers"),
+    (4, "token-created", "A token created, watched as a creation rather than an entry", ("603.2", "111.1"),
+     [r"o:/whenever (you|a player|an opponent) creates? (a|one or more) [^.]*tokens?/"],
+     ("owned", "TR-5b: `CreatesToken` is unbuilt. The producers are `enter`'s, whose arm is built"),
+     None, "watchers"),
+    (4, "scry", "A player scrying", ("603.2", "701.22a"),
+     [r"o:/whenever you scry/"],
+     ("owned", "TR-5b: `Scries` is unbuilt; `Primitive::Scry` is RE-8's"),
+     ["o:/" + TRIG + r"[^.]*\bscry \d/"], "watchers"),
+    (4, "control-change", "A change of control", ("603.2", "613.1b"),
+     [r"o:/whenever [^.,]*gains? control of/"],
+     ("owned", "TR-4, the look-back list, the frame, unattach, control: `ControlChanges` is unbuilt"),
+     ["o:/" + TRIG + r"[^.]*\bgains? control of/"], "watchers"),
+    (4, "attach", "An Aura or Equipment becoming attached or unattached", ("603.2e", "701.3a"),
+     [r"o:/whenever [^.,]*becomes (attached|unattached)/"],
+     ("owned", "TR-4: `BecomesAttached` and `BecomesUnattached` are unbuilt"),
+     ["o:/" + TRIG + r"[^.]*\battach (it|that|this|them)\b/"], "watchers"),
+    (4, "countered", "A spell countered", ("603.2", "701.6a"),
+     [r"o:/whenever [^.,]*(is countered|counters a spell)/"],
+     ("owned", "TR-4: `IsCountered` is unbuilt"),
+     ["o:/" + TRIG + r"[^.]*\bcounter (target|that|it)\b/"], "watchers"),
+    (4, "player-loses", "A player losing the game", ("603.2", "104.3e"),
+     [r"o:/whenever (a player|an opponent|another player) loses the game/"],
+     ("owned", "TR-4: `PlayerLoses` is unbuilt"),
+     ["o:/" + TRIG + r"[^.]*\bloses the game/"], "watchers"),
     (4, "cast", "A spell cast while something resolves: cascade, discover, \"you may cast\"", ("603.2", "702.85a", "701.57a"),
      [r"o:/whenever (you|a player|an opponent) casts?\b/"],
      ("owned", "`permission-architecture.md`, its \"cast while something resolves\" family"),
@@ -332,6 +406,11 @@ CLASSES = [
 
 # Shapes the CR allows that print nothing. `(loop, id, shape, rules, phrasing 1, phrasing 2, why)`.
 SEARCHED = [
+    (1, "back-face", "A card that enters with its back face up as a replacement (CR 616.1d)", ("616.1d",),
+     [r"o:/enters? (the battlefield )?transformed/"],
+     [r"o:/(would enter|enters?) [^.]*(transformed|back face up)[^.]*instead/"],
+     "the one hit, Corruption of Towashi, is a trigger on a transformed entry; a transformed entry is an "
+     "instruction's (\"return it transformed\"), and CV-5 (double-faced cards) builds 616.1d's step"),
     (1, "copy-by-counters", "A copy that becomes applicable once the entry carries counters (CR 616.2), "
                             "which would put a multiplier between two copies (`codebase-state.md` item 189)",
      ("616.2", "707.9e"),
@@ -355,7 +434,7 @@ SEARCHED = [
      [r"o:/(white|blue|black|red|green|colorless|multicolored|non(white|blue|black|red|green)) (creatures|permanents)[^.]* (is|are) (white|blue|black|red|green|colorless)\b/"],
      [r"o:/(each|all) (white|blue|black|red|green|non(white|blue|black|red|green)|colorless|multicolored) [^.]*(becomes?|is|are) [^.]*(white|blue|black|red|green|colorless)\b/"],
      "every printed color setter names its set by type or controller"),
-    (2, "control", "A control change over a set chosen by who controls it (layer 2)", ("613.8a", "613.1b"),
+    (2, "set-control", "A control change over a set chosen by who controls it (layer 2)", ("613.8a", "613.1b"),
      [r"o:/you control (all|each) [^.]*(your opponents control|opponents control|you don't control)(?![^.]*(until|this turn))/"],
      ["-t:/instant|sorcery/", r"o:/(gain|gains) control of (all|each) (?![^.]*(until|this turn))/"],
      "every printed control change names a fixed object or locks its set as it resolves (CR 611.2c)"),
@@ -517,7 +596,7 @@ def term_holds(term, card):
     neg, field, pat = m.groups()
     # Scryfall's regexes are newline-sensitive in a negated bracket too:
     # `[^.]` stops at the end of a paragraph there and not in Python.
-    pat = pat.replace("[^.]", "[^.\n]").replace("[^,.]", "[^,.\n]")
+    pat = pat.replace("[^.]", "[^.\n]").replace("[^,.]", "[^,.\n]").replace("[^.,]", "[^.,\n]")
     text = oracle(card) if field == "o" else card.get("type", "")
     hit = re.search(pat, text, re.I | re.M) is not None
     return hit != bool(neg)
@@ -605,6 +684,9 @@ def audit_dispositions():
     register = open(PRACTICES, encoding="utf-8").read()
     backlog = open(BACKLOG, encoding="utf-8").read()
     bad = []
+    # `--names` and `--check` find a row by its id, so an id names one row.
+    ids = [r[1] for r in CLASSES] + [s[1] for s in SEARCHED] + [r[0] for r in RESIDUAL] + [d[0] for d in DETAILS]
+    bad += ["two rows share the id `%s`" % i for i in sorted(set(ids)) if ids.count(i) > 1]
     for row in CLASSES:
         kind, text = row[5]
         if kind == "test":
