@@ -643,7 +643,24 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
 6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `PermanentState` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **~~Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential~~ — ✅ closed 2026-09-12 (RE-6).** The four loops are `GameAction::PlayerLoses` members of the CR 704.3 batch, deduped per player by the same subject-keyed collapse that dedupes the zone changes (CR 704.7), so `ATOM-704.7-001`'s board is a test (partial — the Archangel stands in for Lich's Mirror). The `!player_lost[i]` guard is now the gate ahead of the proposal, for CR 800.4k's reason and not by accident. *Original entry:* it wrote `player_lost[i]` and emitted `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once — could not be expressed at all. They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
 
-   **Reachability (2026-09-04):** unreachable — the one wrong part is fixed and
+   **Found by the feedback-loop census (2026-10-06): the sweeps also read
+   late.** The four sweeps run after the check's batch has performed, so each
+   reads what CR 704.3 shows only to the next check: a token that died in the
+   batch ceases to exist in the same check, and counters are annihilated on
+   what the batch left. CR 117.5 places nothing between two checks, so the
+   outcome is the CR's wherever a sweep's condition reads nothing the batch
+   changed. 704.5n's and 704.5p's do: whether a host or an attachment is a
+   creature. When a creature that animates an attachment dies in the batch,
+   the CR detaches the attachment at this check and puts an Aura into the
+   graveyard at the next (704.5m); the engine reads the attachment as no
+   longer a creature and leaves it attached. Routing the sweeps through the
+   batch decides them against the pre-batch board, which closes both
+   (`plans/references/feedback-loops.md` §4).
+
+   **Reachability (2026-10-06):** unreachable. Re-derived at the census: the
+   timing case needs a creature that animates an attached Aura or Equipment
+   and dies in the check where the attachment first is one, and no registered
+   pair has that. The 2026-09-04 reading stands: the one wrong part is fixed and
    the three that remain are right today. The CR 704.5d sweep's `HashMap` order
    is closed above (83333e9), so what is left of this item is the *routing*, and
    re-deriving it a day later changes none of the 2026-09-03 verdicts:
@@ -8679,6 +8696,16 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      reachable on registered cards since RE-5; RG fixed it. The other sites
      are still owed. Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`, traces B and C.
 
+     **The loops' elisions, read (A6i, 2026-10-06).** The feedback-loop
+     census sets each loop's skipped work beside its guard
+     (`plans/references/feedback-loops.md` §2–§5): loop 1's ordering elision
+     is the feeds table above; loop 2's pre-check is exhaustive over filter
+     and condition leaves and not over amounts (item 217); loop 3 skips
+     nothing, and reads some results one check early (item 6); loop 4's gate
+     is TR-1b's audit, and its ordering elision `triggers-architecture.md`
+     §5.2. The forced choices and the fast-path gates outside the loops stay
+     owed.
+
 ### Found by CV-2a's review (2026-09-28)
 
 186. **~~CR 306.5b's loyalty is seeded into the entry rather than gathered, so
@@ -8793,7 +8820,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      that one exception, and the take-back would remove one, leaving a
      counter the rule says should not be there.
 
-     **Reachability (2026-09-29):** unreachable. A copy applies at CR
+     **Reachability (2026-10-06):** unreachable. A copy applies at CR
      616.1c's step, ahead of every 616.1e effect applicable beside it, so a
      multiplier comes between two copies only if the second copy becomes
      applicable through the multiplier's own write (CR 616.2). That needs a
@@ -8809,9 +8836,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `Amount` arm's entry leg scales as it scales the row, and a fixture copy
      made applicable at two counters. A halving and a plus each need their
      own reading of the share, which is why it is not built blind.
-     **Slotted:** the feedback-loop census (`roadmap-v2.md` A6i), whose first
-     loop this is. If it finds a printed copy effect a counter write makes
-     applicable, the fix lands with that card.
+     **Slotted:** CV-1b (indefinite-duration copies), as a fixture. The
+     feedback-loop census, its slot until 2026-10-06, searched two phrasings
+     and found no printed copy that a counter write on the entering object
+     makes applicable: every counter or power such a copy reads belongs to the
+     donor or to the copy's own exception (`plans/references/feedback-loops.md`
+     §6, `copy-by-counters`). CR 616.2 allows the shape all the same, so no
+     card will bring the fix, and CV-1b is the next copy phase on the route.
 
 ### Found by the CV-2b review (2026-09-29)
 
@@ -9354,3 +9385,25 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      fails the job; its first run drew all 21 in 18 s.
      **Reachability (2026-10-06):** closed — the dev GUI audit, #228.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 216".
+
+### Found by the feedback-loop census (2026-10-06)
+
+217. **`amount_reads` ends in a wildcard, where `condition_reads` lists
+     every arm.** CR 613.8a(b)'s static pre-check (`engine/layers/board.rs`)
+     reads what each application reads off three tables. `filter_reads` and
+     `condition_reads` match their enums exhaustively, so a new leaf is a
+     compile error until its channels are named, and `amount_reads` closes
+     with `_ => {}`. A new `AmountExpr` leaf that the walk's `evaluate_amount`
+     learns to answer, such as "the greatest power among creatures you
+     control" (`cost-architecture.md` §3.9's leaves), would read no channel:
+     the pre-check would call it independent and the exact test would never
+     run. That is a wrong order, not a wrong value, so a test of the leaf's
+     own answer passes.
+     **Reachability (2026-10-06):** unreachable — every arm the wildcard
+     covers reads nothing (`Fixed`) or is one `evaluate_amount` refuses (`X`,
+     `SourcePower`, `Multiply` and the resolution-time reads), so no layer
+     row carries one.
+     **Sized:** ~10 lines, the wildcard replaced by those arms, listed. Slot:
+     the first PR that gives `evaluate_amount` a new arm. The census's
+     `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
+     first printed customer, and none prints as a static yet.

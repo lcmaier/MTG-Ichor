@@ -743,6 +743,10 @@ Storage: `GameState.next_timestamp: Timestamp` — monotonic counter, never rewo
 
 ## 9. Dependency Resolution (CR 613.8)
 
+**The printed cards that make one effect depend on another**, each class
+counted beside its query and given a disposition, are
+`plans/references/feedback-loops.md` §3.
+
 Adopted from `design_doc.md:636-664`, adjusted for `CharacteristicCategory`:
 
 > **Hybrid algorithm:** structural analysis eliminates most pairs cheaply; hypothetical check runs only on candidates.

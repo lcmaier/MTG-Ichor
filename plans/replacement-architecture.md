@@ -914,6 +914,10 @@ of a different kind (`CreateTokens` → `EnterBattlefield`). That parameter is t
 whole of §3.2d's lineage rule, and the reason two Teferi's Ageless Insights draw
 four cards instead of hanging.
 
+**The printed cards that close this loop** (CR 616.1f's re-gather), each class
+counted beside its query and given a disposition, are
+`plans/references/feedback-loops.md` §2.
+
 ```
 fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction>
     # `riders` collects every applied effect's `then` half, in application
