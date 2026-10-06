@@ -433,7 +433,7 @@ application applies what it would do to the object. The band stayed under
 11. **The layers doc's line went to §9**, beside LI-2's loop, not §13b, LI's
     landed plan (decision 5, amended).
 
-#### SU-5 — the tools — ✅ landed 2026-10-04
+#### SU-5 — save, undo and savestates in the dev GUI — ✅ landed 2026-10-04
 
 *Evicted 2026-10-04 from `plans/setup-architecture.md` §8, where the heading and a stub remain, with the split into SU-4 and SU-5 that was sized beside it.*
 
@@ -592,7 +592,7 @@ model words; and a writer's count for the window. The band stayed under
    be made says so, each with its own hint, where the window's one heading
    said the scenario did not load.
 
-#### SU-4 — the replay — ✅ landed 2026-10-03
+#### SU-4 — the engine's replay of a decision log — ✅ landed 2026-10-03
 
 *Evicted 2026-10-03 from `plans/setup-architecture.md` §8, where the heading and a stub remain; SU-5's sizing stays there.*
 

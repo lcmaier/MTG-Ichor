@@ -113,7 +113,7 @@ are recorded in `codebase-state.md`: counter annihilation and attachment SBAs
 have no `GameAction` variant to propose through (RB item 5 gives counters one),
 and the CR 601.2a announcement above.
 
-### Phase RB — the pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
+### Phase RB — the replacement pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
 
 *Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -649,7 +649,7 @@ modified under it. A behaviour change cascades where RC-1's deletion did not, so
 the claim that can be checked is the *first* divergence per game — not the
 whole-stream diff, which is noise past that point.
 
-#### RC-4 — the overlay — ✅ landed 2026-09-02
+#### RC-4 — the CR 614.12 look-ahead as an overlay — ✅ landed 2026-09-02
 
 *Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -2132,7 +2132,7 @@ attacked, which is where it will move.
 rounds identical to its threaded run; three shell `fuzz_games` runs at one
 seed identical line for line outside `=== Timing ===`.
 
-#### RD-3 — sources — ✅ landed 2026-09-09
+#### RD-3 — damage matched by its source — ✅ landed 2026-09-09
 
 *Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -2715,7 +2715,7 @@ on the unit that does print consumably.
 
 ---
 
-#### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g) — ✅ landed 2026-09-11
+#### RE-2 — the draw as a replaceable event (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g) — ✅ landed 2026-09-11
 
 *Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -2847,7 +2847,7 @@ falls through to `false` at one `_` arm; `DrawCard`'s producers are two
   The behaviour is right — CR 103.4's opening hands cannot meet a replacement —
   but the comment claims a route the code does not take.
 
-#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
+#### RE-3 — life gain and loss as replaceable events (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
 
 *Evicted 2026-09-12 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -3579,7 +3579,7 @@ reached in a measured game.
 card, and the path it opens is walked unforced in every four-player game with a
 departure, which the "Turns after a departure" row of 20.8 says is most of them.
 
-#### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52) — ✅ landed 2026-09-13
+#### RE-4 — token creation as one replaceable event (CR 614.16's token half, 111.5, 616.1g; items 46 and 52) — ✅ landed 2026-09-13
 
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -4274,7 +4274,7 @@ Divine Visitation beside Parallel Lives — prompts 11.28 → 11.27, gathers
 −0.1%, +1.4% at four — flat. Both `fuzz-record.md` tables re-recorded from
 this run.
 
-#### RE-8 — the producers (CR 701.9, 701.9b, 701.22) — ✅ landed 2026-09-14
+#### RE-8 — discard and scry as events (CR 701.9, 701.9b, 701.22) — ✅ landed 2026-09-14
 
 *Evicted 2026-09-14 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 
@@ -5120,7 +5120,7 @@ had named for the cost gate. The block is in `plans/fuzz-record.md`; its
 reachability rows, unchanged by the review, show both cards cast and
 resolved in a fifth to a half of the games, and one Nexus countered.
 
-#### RE-9 — mana (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
+#### RE-9 — mana production as a replaceable event (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
 
 *Evicted 2026-09-15 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
 

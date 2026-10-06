@@ -204,7 +204,7 @@ Named here so the design session starts from them; none is answered.
 
 | PR | Shape | Size | Risk |
 |---|---|---|---|
-| **PM-0, the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with RS-2's reasons designed beside it | docs | low |
+| **PM-0, who may cast, play or activate: the design** | §5 answered, and the build split and sized against the census's families. Reviewed before any build, with RS-2's reasons designed beside it | docs | low |
 | **PM-1 onward** | sized by PM-0. The first carries CR 903.8's command zone, since B2 needs it | — | — |
 
 **Slot** (the owner, 2026-10-05): PM-0 beside RS-2, which is "beside A,
