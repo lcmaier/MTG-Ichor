@@ -102,6 +102,39 @@ fn on_the_review_board_one_everywhere_does_not_pay_for_the_bears() {
     assert!(has(&answer, "Offered to Player 0, then reversed:", None), "{answer:#?}");
 }
 
+/// CR 601.2g's window offers the mana abilities whose costs can be paid, and
+/// says of the rest which cost cannot (`mana-architecture.md` §3.13): a
+/// tapped Mountain, and a creature the Hierophants' grant cannot tap the turn
+/// it arrived (CR 302.6).
+#[test]
+fn the_window_says_why_each_mana_ability_is_not_offered() {
+    let game = built(&format!(
+        "{MAIN}hand 0: Grizzly Bears\n\
+         battlefield: Mountain | controller 0, tapped\n\
+         battlefield: Forest | controller 0\n\
+         battlefield: Citanul Hierophants | controller 0, arrived this turn\n"
+    ));
+    let bears = find(&game, "Grizzly Bears");
+    let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::WindowOffer::take(&game, 0)
+        .options(&game)
+        .into_iter()
+        .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
+        .collect();
+    let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);
+    let context = ChoiceContext { kind: ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost }, rejected: None };
+    let asked = |name: &str| why(&game, WhyAbout::Object(find(&game, name)), Some(&OpenQuestion { player: 0, context: &context, options: &options }));
+
+    let mountain = asked("Mountain");
+    let tapped = "To activate “{T}: Add {R}.”: it is already tapped, so it can't be tapped to pay {T}.";
+    assert!(has(&mountain, tapped, Some("118.3")), "{mountain:#?}");
+    let hierophants = asked("Citanul Hierophants");
+    let sick = "To activate “{T}: Add {G}.”: it has not been under Player 0's control since their most recent turn began, \
+                so it can't pay {T} or {Q}.";
+    assert!(has(&hierophants, sick, Some("302.6")), "{hierophants:#?}");
+    let forest = asked("Forest");
+    assert!(has(&forest, "Offered to Player 0:", None) && !has(&forest, "Never offered to Player 0:", None), "{forest:#?}");
+}
+
 /// CR 117.1a: a creature spell waits for its caster's main phase with the
 /// stack empty, a spell with flash does not, and the cast refuses what the
 /// enumeration does, with the same reason.
