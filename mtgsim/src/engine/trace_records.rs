@@ -19,7 +19,7 @@ use crate::engine::replacement::EventSubject;
 use crate::engine::targeting::TargetInstance;
 use crate::events::event::EventSeq;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::state::trace::{render_debug, Record};
+use crate::state::trace::{render_debug, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerTier};
 use crate::types::zones::Zone;
@@ -34,7 +34,7 @@ pub(crate) fn batch(
     groups: &[(EventSubject, Vec<usize>)],
     inherited: usize,
 ) -> Record {
-    let mut r = Record::new("batch");
+    let mut r = Record::new(RecordKind::Batch);
     r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.field_u64("inherited", inherited as u64);
@@ -61,7 +61,7 @@ pub(crate) fn batch(
 /// its event as decided, or `null` for one CR 614.6 dropped. `decided` is
 /// rendered ahead of the perform loop, which consumes the decisions.
 pub(crate) fn batch_end(game: &GameState, decided: &[Option<String>], riders: usize) -> Record {
-    let mut r = Record::new("batch_end");
+    let mut r = Record::new(RecordKind::BatchEnd);
     r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.key("members").begin_array();
@@ -118,7 +118,7 @@ pub(crate) fn layer_walk(
     frames_before: u64,
     frame: &EffectiveCharacteristics,
 ) -> Record {
-    let mut r = Record::new("layer_walk");
+    let mut r = Record::new(RecordKind::LayerWalk);
     r.field_u64("object", id.raw());
     r.field_str("membership", kind.name());
     r.field_u64("epoch", game.layer_epoch());
@@ -145,7 +145,7 @@ pub(crate) fn decision(
     ctx: &ChoiceContext,
     options: &[ChoiceOption],
 ) -> Record {
-    let mut r = Record::new("decision");
+    let mut r = Record::new(RecordKind::Decision);
     r.field_u64("player", player as u64);
     r.field_str("prompt", prompt);
     r.field_str("choice", ctx.kind.as_str());
@@ -170,7 +170,7 @@ pub(crate) fn trigger(
     refused_by: Option<&str>,
     mana: bool,
 ) -> Record {
-    let mut r = Record::new("trigger");
+    let mut r = Record::new(RecordKind::Trigger);
     r.field_u64("record", record.0 as u64);
     r.field_u64("source", identity.source.id.raw());
     r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
@@ -194,7 +194,7 @@ pub(crate) fn pending(
     targets: &[TargetInstance],
 ) -> Record {
     let TriggerOrigin::Object(identity) = entry.origin;
-    let mut r = Record::new("pending");
+    let mut r = Record::new(RecordKind::Pending);
     r.field_u64("seq", entry.seq.0);
     r.field_u64("tier", match entry.tier() { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
@@ -238,7 +238,7 @@ pub(crate) fn priority_rejected(
     error: &str,
     retry: usize,
 ) -> Record {
-    let mut r = Record::new("priority_rejected");
+    let mut r = Record::new(RecordKind::PriorityRejected);
     r.field_u64("player", player as u64);
     r.field_str("action", &render_debug(action));
     r.field_str("error", error);

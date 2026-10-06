@@ -8,7 +8,7 @@ use crate::events::event::{CounterSubject, DamageTarget};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::state::trace::{render_debug, Record};
+use crate::state::trace::{render_debug, Record, RecordKind};
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
@@ -736,7 +736,7 @@ impl IterationTrace {
     }
 
     fn record(self, game: &GameState, members: &[Member]) -> Record {
-        let mut r = Record::new("pipeline");
+        let mut r = Record::new(RecordKind::Pipeline);
         r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
