@@ -1159,10 +1159,10 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         // Layer 7c
         Resolved::ModifyPt(dp, dt) => {
             if let (Some(dp), Some(p)) = (dp, chars.power.as_mut()) {
-                *p += dp;
+                *p = p.saturating_add(*dp);
             }
             if let (Some(dt), Some(t)) = (dt, chars.toughness.as_mut()) {
-                *t += dt;
+                *t = t.saturating_add(*dt);
             }
             return;
         }
@@ -1389,6 +1389,19 @@ mod tests {
         let chars = compute_characteristics(&game, id).unwrap();
         assert_eq!(chars.power, Some(4));
         assert_eq!(chars.toughness, Some(4));
+    }
+
+    /// A count past what power holds gives the most it holds, not a wrap.
+    #[test]
+    fn test_counters_past_what_power_holds_give_the_most() {
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Grizzly Bears").card_type(CardType::Creature).power_toughness(2, 2).build();
+        let id = game.add_object(GameObject::new(data, 0, Zone::Battlefield));
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        game.add_counters(id, CounterType::PlusOnePlusOne, u32::MAX);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        assert_eq!((chars.power, chars.toughness), (Some(i32::MAX), Some(i32::MAX)));
     }
 
     // COVERS-PARTIAL: ATOM-122.1a-002

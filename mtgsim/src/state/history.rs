@@ -27,10 +27,11 @@ impl TurnSummary {
         self.counts[fact.slot()]
     }
 
-    /// Add `n` to `fact`'s count and return the new count.
+    /// Add `n` to `fact`'s count and return the new count, which stays at
+    /// `u64::MAX` past it.
     pub(crate) fn add(&mut self, fact: TurnFact, n: u64) -> u64 {
         let count = &mut self.counts[fact.slot()];
-        *count += n;
+        *count = count.saturating_add(n);
         *count
     }
 

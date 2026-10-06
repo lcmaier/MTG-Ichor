@@ -182,6 +182,46 @@ fn history_rows_and_since_your_last_turn() {
     assert!(refused("turn 2\nplayer 0 this game: cards drawn 1").message.contains("no turn before last"));
 }
 
+/// Counts past what a row holds stay at the most, loaded and written again.
+#[test]
+fn history_counts_past_what_a_row_holds_stay_at_the_most() {
+    let most = u64::MAX;
+    let game = load(&format!(
+        "turn 3\nplayer 0 this turn: spells cast {most}, spells cast 1\n\
+         player 0 last turn: spells cast {most}, spells cast 1\nplayer 0 this game: spells cast {most}"
+    ));
+    let history = &game.state.players[0].history;
+    assert_eq!((history.this_turn(3).count(TurnFact::SpellsCast), history.this_game().count(TurnFact::SpellsCast)), (most, most));
+    let written = Scenario::write(&game.state).to_string();
+    assert!(written.contains(&format!("player 0 this turn: spells cast {most}")), "{written}");
+}
+
+/// A turn in the billions loads at once and reads as a small one does, turn
+/// for turn: the history, "since your last turn" and summoning sickness.
+#[test]
+fn a_turn_in_the_billions_reads_as_a_small_one() {
+    let board = |turn: u32| {
+        load(&format!(
+            "players 4\nturn {turn}\nactive 1\nplayer 0 last turn: cards drawn 2\nplayer 2 this turn: life lost 1\n\
+             player 3 this game: life lost 4\nbattlefield: Grizzly Bears | controller 0, arrived turn {}\n\
+             battlefield: Wall of Stone | controller 3, arrived turn {}",
+            turn - 1,
+            turn - 3,
+        ))
+    };
+    let reads = |game: &Game, turn: u32| {
+        let history = |p: usize| &game.state.players[p].history;
+        let mut counts = Vec::new();
+        for (p, fact) in (0..4).flat_map(|p| [(p, TurnFact::CardsDrawn), (p, TurnFact::LifeLost)]) {
+            counts.push([history(p).this_turn(turn).count(fact), history(p).last_turn(turn).count(fact), history(p).this_game().count(fact)]);
+            counts.extend((0..4).map(|q| [history(p).since_your_last_turn(q, history(q)).count(fact), 0, 0]));
+        }
+        let sick: Vec<bool> = game.state.battlefield_ids_ordered().into_iter().map(|id| has_summoning_sickness(&game.state, id)).collect();
+        (counts, sick)
+    };
+    assert_eq!(reads(&board(4_000_000_000), 4_000_000_000), reads(&board(4), 4));
+}
+
 #[test]
 fn this_turns_abilities() {
     let game = load(
