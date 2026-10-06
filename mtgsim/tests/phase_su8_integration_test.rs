@@ -11,6 +11,8 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::events::event::{DamageTarget, EventSeq};
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
+use mtgsim::state::game::Game;
+use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::trace::{FieldValue, RecordKind, TraceRecord};
 use mtgsim::test_support::{
@@ -24,6 +26,7 @@ use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::random::RandomDecisionProvider;
 use mtgsim::ui::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
 
 /// Every line of `answer`'s section headed `heading`, as its text and rule.
@@ -350,4 +353,33 @@ fn an_ordering_says_what_another_ability_answered() {
     assert!(said.contains(&refused), "{said:#?}");
     let now = lines(&why(&game, WhyAbout::Object(second), Some(&question)), "At this question");
     assert!(!now.contains(&refused), "the seat has no trace to read: {now:#?}");
+}
+
+/// Breadth: a seeded random game over decks of every registered card, traced
+/// from its setup, and every event it performed answers a why read from its
+/// trace, each with both sections: every record shape a whole game writes.
+#[test]
+fn every_event_of_a_random_game_answers_from_its_trace() {
+    let registry = CardRegistry::default_registry();
+    let deck: Vec<_> = registry.card_names().iter().cycle().take(60).filter_map(|name| registry.create(name).ok()).collect();
+    let mut game = Game::new(GameConfig::test(), vec![deck; 2]).expect("game creation");
+    let trace = install_trace(&mut game.state, "a random game");
+    game.reseed(7);
+    let dp = RandomDecisionProvider::seeded(7);
+    game.setup(&dp).expect("setup");
+    for _ in 0..6 {
+        if game.is_over() {
+            break;
+        }
+        game.run_turn(&dp).expect("turn");
+    }
+
+    let records = trace.records();
+    let events: Vec<EventSeq> =
+        records.iter().filter(|r| r.kind == RecordKind::Event).filter_map(|r| r.u64("index")).map(|i| EventSeq(i as usize)).collect();
+    assert!(events.len() > 50, "a game's worth of events, {}", events.len());
+    for event in events {
+        let answer = why_from_trace(&game.state, WhyAbout::Event(event), None, &records);
+        assert!(!answer.title.is_empty() && answer.sections.len() == 2, "{event:?}: {answer:#?}");
+    }
 }
