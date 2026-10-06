@@ -1277,9 +1277,10 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     // being cast; rather, they cause regeneration shields to **not be
     // applied**."
     //
-    // Both halves asserted, because only the second one distinguishes this
-    // reading from the naive one: the shield is still in the registry
-    // afterwards, unspent.
+    // Both halves asserted, because only the first one distinguishes this
+    // reading from the naive one: the shield is still in the registry once
+    // the "can't" has resolved, unspent. Once the bear has died it goes, as
+    // a row about an object that moved does (CR 400.7).
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
@@ -1301,6 +1302,11 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         &dp,
     )
     .unwrap();
+    assert_eq!(
+        game.replacement_effects.len(),
+        1,
+        "the shield is withheld, not removed — CR 701.19c blocks application, not creation"
+    );
 
     game.execute_action(
         GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
@@ -1309,11 +1315,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     .unwrap();
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
-    assert_eq!(
-        game.replacement_effects.len(),
-        1,
-        "the shield was withheld, not spent — CR 701.19c blocks application, not creation"
-    );
+    assert!(game.replacement_effects.is_empty(), "the shield was about the bear (CR 400.7)");
 }
 
 #[test]
@@ -2310,6 +2312,7 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
         &test_ctx(),
     )
     .unwrap();
+    assert_eq!(game.replacement_effects.len(), 1, "the destroyed creature's shield is spent");
     game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
         .unwrap();
 
@@ -2323,10 +2326,9 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
         zone_changes(&game),
         vec![(sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed)],
     );
-    assert_eq!(
-        game.replacement_effects.len(),
-        1,
-        "and the sacrificed creature's shield is still unspent"
+    assert!(
+        game.replacement_effects.is_empty(),
+        "and the sacrificed creature's shield, unspent, went with it (CR 400.7)"
     );
 }
 

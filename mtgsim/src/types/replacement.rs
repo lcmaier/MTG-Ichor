@@ -710,6 +710,35 @@ impl DestructionSourcePattern {
 }
 
 impl EventPattern {
+    /// CR 609.7a's chosen source, when a resolution has written one in: the
+    /// one object a pattern names by identity, so the one CR 400.7 can strand.
+    /// Matched exhaustively, so an arm that grows an object of its own says
+    /// whether a move must end it.
+    pub fn chosen_source(&self) -> Option<ObjectId> {
+        match self {
+            EventPattern::DealDamage { source, .. } => source.as_ref().and_then(|s| s.object),
+            EventPattern::DrawCards { .. }
+            | EventPattern::GainLife
+            | EventPattern::LoseLife { .. }
+            | EventPattern::ZoneChange { .. }
+            | EventPattern::Scry
+            | EventPattern::DrawCard { .. }
+            | EventPattern::EnterBattlefield { .. }
+            | EventPattern::Destroy { .. }
+            | EventPattern::AddCounters { .. }
+            | EventPattern::RemoveCounters { .. }
+            | EventPattern::Untap
+            | EventPattern::Tap
+            | EventPattern::BeginTurn
+            | EventPattern::BeginPhase { .. }
+            | EventPattern::BeginStep { .. }
+            | EventPattern::PlayerLoses
+            | EventPattern::PlayerWins
+            | EventPattern::ProduceMana { .. }
+            | EventPattern::CreateTokens { .. } => None,
+        }
+    }
+
     /// Does any field of this pattern constrain the event's **amount**?
     ///
     /// The premise `pipeline::ordering_cannot_change_outcome` needs for its

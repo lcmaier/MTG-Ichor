@@ -89,6 +89,16 @@ pub trait DurationRow {
 
     /// See [`DurationRow::SortKey`].
     fn sort_key(&self) -> Self::SortKey;
+
+    /// CR 400.7 — does this row refer to `object` by identity, so that its
+    /// move must end the reference? An affected set captured as the effect
+    /// began (CR 611.2c), or the source CR 609.7a had a player choose.
+    fn names(&self, object: ObjectId) -> bool;
+
+    /// CR 400.7 — stop referring to `object`, which has become a new object.
+    /// Returns whether the row is still about anything, object or player; one
+    /// that is not is dropped, since nothing it was about exists.
+    fn forget(&mut self, object: ObjectId) -> bool;
 }
 
 /// A `Vec` of rows kept in `(sort_key, id)` order, plus the id counter and the
@@ -188,6 +198,32 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// Remove every row created by a given source object.
     pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<Arc<T>> {
         self.retain(|r| r.source() != source)
+    }
+
+    /// CR 400.7 — `object` has moved and "becomes a new object with no memory
+    /// of, or relation to, its previous existence": every row that names it
+    /// stops naming it, and a row left about nothing is dropped. A row
+    /// `spares` accepts is left as it is, for the rule's own exceptions.
+    /// Returns whether a row changed.
+    ///
+    /// Beside [`Self::remove_by_source`], never instead of it: that one ends
+    /// the rows an object's static abilities generate, and this one the rows
+    /// that are *about* it (`copy-effects-architecture.md` §5.3).
+    ///
+    /// Scans first, so a move no row cares about, which is nearly every move,
+    /// copies no row and leaves [`Self::generation`] alone. Forgetting an
+    /// object changes no row's key, so the order needs no re-sort.
+    pub fn forget(&mut self, object: ObjectId, spares: impl Fn(&T) -> bool) -> bool
+    where
+        T: Clone,
+    {
+        let names = |row: &T| row.names(object) && !spares(row);
+        if !self.rows.iter().any(|row| names(row)) {
+            return false;
+        }
+        self.rows.retain_mut(|row| !names(row) || Arc::make_mut(row).forget(object));
+        self.generation += 1;
+        true
     }
 
     /// Remove every row failing `keep`, returning them; order preserved.
@@ -308,11 +344,28 @@ mod tests {
         /// Only the keyed tests read this; `sort_key` is `()` regardless, so a
         /// registry of `Row` is a plain append-only log.
         rank: u8,
+        /// The objects the row is about, for the CR 400.7 tests; `about_a_player`
+        /// is the half that survives their going.
+        named: Vec<ObjectId>,
+        about_a_player: bool,
     }
 
     impl Row {
         fn new(source: ObjectId, duration: Duration) -> Self {
-            Row { id: 0, source, duration, controller: 0, created_on_turn: 1, rank: 0 }
+            Row {
+                id: 0,
+                source,
+                duration,
+                controller: 0,
+                created_on_turn: 1,
+                rank: 0,
+                named: Vec::new(),
+                about_a_player: false,
+            }
+        }
+
+        fn about(named: &[ObjectId]) -> Self {
+            Row { named: named.to_vec(), ..Row::new(new_object_id(), Duration::Indefinite) }
         }
     }
 
@@ -337,6 +390,13 @@ mod tests {
             self.created_on_turn
         }
         fn sort_key(&self) -> Self::SortKey {}
+        fn names(&self, object: ObjectId) -> bool {
+            self.named.contains(&object)
+        }
+        fn forget(&mut self, object: ObjectId) -> bool {
+            self.named.retain(|&id| id != object);
+            !self.named.is_empty() || self.about_a_player
+        }
     }
 
     /// The same row with a real key, standing in for `ContinuousEffect`'s
@@ -367,6 +427,50 @@ mod tests {
         fn sort_key(&self) -> u8 {
             self.0.rank
         }
+        fn names(&self, object: ObjectId) -> bool {
+            self.0.names(object)
+        }
+        fn forget(&mut self, object: ObjectId) -> bool {
+            self.0.forget(object)
+        }
+    }
+
+    /// CR 400.7: a move ends every row's reference to the mover. A row about
+    /// two objects keeps applying to the one that stayed, a row about the
+    /// mover alone goes, a row with a player half keeps that half, and a row
+    /// the caller spares is untouched.
+    #[test]
+    fn forgetting_an_object_prunes_what_named_it_and_drops_what_named_only_it() {
+        let mut reg: DurationRegistry<Row> = DurationRegistry::new();
+        let (mover, stayer) = (new_object_id(), new_object_id());
+        let both = reg.add(Row::about(&[mover, stayer]));
+        let alone = reg.add(Row::about(&[mover]));
+        let with_a_player = reg.add(Row { about_a_player: true, ..Row::about(&[mover]) });
+        let spared = reg.add(Row { rank: 1, ..Row::about(&[mover]) });
+        let g0 = reg.generation();
+
+        assert!(reg.forget(mover, |row| row.rank == 1));
+        assert_eq!(reg.generation(), g0 + 1);
+        let ids: Vec<RowId> = reg.iter().map(|r| r.id).collect();
+        assert_eq!(ids, vec![both, with_a_player, spared], "the row about the mover alone is dropped");
+        assert!(!ids.contains(&alone));
+        let named = |id: RowId| reg.iter().find(|r| r.id == id).map(|r| r.named.clone()).unwrap_or_default();
+        assert_eq!(named(both), vec![stayer]);
+        assert!(named(with_a_player).is_empty());
+        assert_eq!(named(spared), vec![mover], "spared: CR 400.7a and 400.7c's exceptions");
+    }
+
+    /// The common move names no row: nothing is copied and the generation,
+    /// which the layer memo reads, does not move.
+    #[test]
+    fn forgetting_an_object_no_row_names_changes_nothing() {
+        let mut reg: DurationRegistry<Row> = DurationRegistry::new();
+        reg.add(Row::about(&[new_object_id()]));
+        let fork = reg.clone();
+        let g0 = reg.generation();
+        assert!(!reg.forget(new_object_id(), |_| false));
+        assert_eq!(reg.generation(), g0);
+        assert!(Arc::ptr_eq(&reg.rows[0], &fork.rows[0]), "no row copied");
     }
 
     #[test]

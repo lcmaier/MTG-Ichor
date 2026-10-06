@@ -56,6 +56,7 @@ impl GameState {
         // Clean up zone-specific state for the old zone (before removal,
         // so we can still read the departing entity's state)
         self.cleanup_zone_state(id, from);
+        self.break_references_to(id, from, Some(to));
 
         self.remove_from_zone_collection(id, from)?;
 
@@ -95,6 +96,7 @@ impl GameState {
     pub(crate) fn remove_from_game(&mut self, id: ObjectId) -> Result<(), String> {
         let from = self.get_object(id)?.zone;
         self.cleanup_zone_state(id, from);
+        self.break_references_to(id, from, None);
         self.remove_from_zone_collection(id, from)?;
         // A spell or ability on the stack keeps its entry beside the object;
         // `remove_from_zone_collection` drops it for the stack arm, and a
@@ -429,6 +431,29 @@ impl GameState {
                 Ok(())
             }
         }
+    }
+
+    /// CR 400.7 — "an object that moves from one zone to another becomes a new
+    /// object with no memory of, or relation to, its previous existence", so
+    /// every effect that referred to `id` as it was stops referring to it.
+    /// `to` is `None` for an object leaving the game (CR 800.4a).
+    ///
+    /// The registries' half of the rule; a target's is its epoch, compared at
+    /// CR 608.2b, and an attachment's is `cleanup_zone_state`.
+    /// The source's half — the rows its own static abilities generate — is
+    /// `remove_by_source`, there too.
+    ///
+    /// A permanent spell becoming the permanent keeps two kinds (CR 400.7a,
+    /// 400.7c): every continuous effect, since each changes characteristics or
+    /// control, and a prevention effect watching damage from it. Nothing else
+    /// carries over, a restriction included.
+    fn break_references_to(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) {
+        let becomes_permanent = from == Zone::Stack && to == Some(Zone::Battlefield);
+        if !becomes_permanent {
+            self.continuous_effects.forget(id);
+        }
+        self.replacement_effects.forget(id, |row| becomes_permanent && row.prevents_damage_from(id));
+        self.restrictions.forget(id, |_| false);
     }
 
     /// Clean up zone-specific state when leaving a zone.

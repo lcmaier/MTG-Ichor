@@ -370,6 +370,27 @@ impl ObjectSet {
             ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::EMPTY,
         }
     }
+
+    /// CR 400.7 — does this set name `object` by identity? Only a `Fixed` set
+    /// does, captured as its effect began (CR 611.2c); the other three arms
+    /// read the board each time they are asked, so a move leaves nothing of
+    /// theirs behind.
+    pub fn names(&self, object: ObjectId) -> bool {
+        matches!(self, ObjectSet::Fixed(ids) if ids.contains(&object))
+    }
+
+    /// CR 400.7 — stop naming `object`, which has become a new object.
+    /// Returns whether the set still names any object, which only a `Fixed`
+    /// set left empty does not.
+    pub fn forget(&mut self, object: ObjectId) -> bool {
+        match self {
+            ObjectSet::Fixed(ids) => {
+                ids.retain(|&id| id != object);
+                !ids.is_empty()
+            }
+            ObjectSet::SourceOnly | ObjectSet::Filter { .. } | ObjectSet::Host => true,
+        }
+    }
 }
 
 /// Which **players** a replacement or prevention effect applies to — CR 614.1's
@@ -419,6 +440,17 @@ impl PlayerSet {
             PlayerSet::Opponents => player != controller,
             PlayerSet::Everyone => true,
             PlayerSet::Fixed(ids) => ids.contains(&player),
+        }
+    }
+
+    /// Can this set contain a player at all? What keeps a row whose object
+    /// half CR 400.7 emptied: "prevent all damage that would be dealt to you
+    /// and target creature" still protects you once the creature is gone.
+    pub fn names_a_player(&self) -> bool {
+        match self {
+            PlayerSet::Nobody => false,
+            PlayerSet::Fixed(ids) => !ids.is_empty(),
+            PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone => true,
         }
     }
 }

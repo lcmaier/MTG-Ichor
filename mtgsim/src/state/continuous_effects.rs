@@ -37,6 +37,12 @@ impl DurationRow for ContinuousEffect {
     fn sort_key(&self) -> Self::SortKey {
         (self.layer, self.timestamp)
     }
+    fn names(&self, object: ObjectId) -> bool {
+        self.affected_objects.names(object)
+    }
+    fn forget(&mut self, object: ObjectId) -> bool {
+        self.affected_objects.forget(object)
+    }
 }
 
 /// Cheap, registry-wide facts that let `compute_characteristics` skip work it
@@ -483,6 +489,16 @@ impl ContinuousEffectRegistry {
     /// Used when a permanent leaves the battlefield (CR 611.3b).
     pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<Arc<ContinuousEffect>> {
         self.mutating(|rows| rows.remove_by_source(source))
+    }
+
+    /// CR 400.7 — [`DurationRegistry::forget`], through [`Self::mutating`] only
+    /// when a row names `object`, so the summary is rebuilt for a write and
+    /// not for every move. Returns whether a row changed.
+    pub fn forget(&mut self, object: ObjectId) -> bool {
+        if !self.effects.iter().any(|row| row.names(object)) {
+            return false;
+        }
+        self.mutating(|rows| rows.forget(object, |_| false))
     }
 
     /// All effects in a layer, already in application order (CR 613.7).
