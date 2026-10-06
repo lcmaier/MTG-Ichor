@@ -98,7 +98,9 @@ the engine's fixes, the docs beside.
    power holds, and a P/T total saturates; and the loader begins only the
    last rotation's turns, so a turn in the billions loads at once and reads
    as a small one does. Each failed first; not re-measured, the owner's call
-   for small fixes.
+   for small fixes. Last, the loader builds 99 players at most (`MOST_PLAYERS`), which
+   the editor's Players control now reads, since each seat is built with its
+   state and a typed number in the millions exhausted memory.
 
 #### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 
