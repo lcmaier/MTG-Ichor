@@ -30,6 +30,12 @@ const LIFE_LIMIT: i64 = 99_999;
 /// The latest turn typed: the loader begins every turn up to it.
 const TURN_LIMIT: i64 = 999;
 const PLAYER_LIMIT: i64 = 99;
+/// The most lands played, counters of a kind or commander damage typed.
+const COUNT_LIMIT: i64 = 999;
+/// The kinds `CounterType` groups as a player's (CR 122.1), each a control
+/// in the advanced settings; another kind a player line states is shown as
+/// its text.
+const PLAYER_COUNTERS: [CounterType; 2] = [CounterType::Poison, CounterType::Energy];
 
 /// A seat's zone, as the editor lists a card under one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,7 +123,7 @@ pub enum Direction {
     Bottom,
 }
 
-/// A number the editor sets: a game's fact, a player's life, or a count on
+/// A number the editor sets: a game's fact, a player's count, or a count on
 /// the card line it names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BoardNumber {
@@ -125,13 +131,19 @@ pub enum BoardNumber {
     StartingLife,
     Turn,
     Life(PlayerId),
+    LandsPlayed(PlayerId),
+    PlayerCounter(PlayerId, CounterType),
+    /// The combat damage the player has taken from the commander on card
+    /// line `from` (CR 903.10a).
+    CommanderDamage { player: PlayerId, from: usize },
     Damage(usize),
     Copies(usize),
     ArrivedTurn(usize),
 }
 
-/// A word or line the editor shows as its text, which it can remove but has
-/// no control for: §7b.2's decision 2 leaves those to the advanced settings.
+/// A word or line the editor shows as its text, which it can remove: one the
+/// advanced settings have no control for, or any while they are off
+/// (§7b.2's decision 2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextItem {
     PlayerWord(usize),
@@ -152,6 +164,8 @@ pub enum EditorInput {
     Put(PlayerId, Zone),
     /// A seat's library shuffled from the seed, or listed top first.
     Shuffled(PlayerId, bool),
+    /// The player has left the game (CR 800.4a), or is in it.
+    LeftTheGame(PlayerId, bool),
     RemoveText(TextItem),
     /// A click on a card: edit it, or name it in the reference being picked.
     Card(usize),
@@ -177,6 +191,12 @@ pub enum EditorInput {
     Search(String),
     /// A name chosen, by its place in the list searched.
     Choose(usize),
+    /// The advanced settings shown, or hidden (§7b.2's decision 2).
+    Advanced(bool),
+    /// The typed field's line, as typed.
+    TypedLine(String),
+    /// The typed field's line added to the board.
+    AddTypedLine,
     /// The session's: save the board to its file, then play it.
     Play,
     /// The session's: save the board to its file.
@@ -239,6 +259,12 @@ pub struct Editor {
     pub picking: Option<Reference>,
     /// The name chosen in the search, by its place in the list searched.
     pub chosen: Option<usize>,
+    /// The advanced settings' controls and the typed field, shown.
+    pub advanced: bool,
+    typed_line: String,
+    /// Why the typed field's line was not added: the parser's refusal, or a
+    /// line that says nothing the board does not.
+    typed_line_refusal: Option<String>,
     search: NameSearch,
     /// How many of the names searched are registered; the rest are in
     /// development.
@@ -283,6 +309,9 @@ impl Editor {
             editing: None,
             picking: None,
             chosen: None,
+            advanced: false,
+            typed_line: String::new(),
+            typed_line_refusal: None,
             search: NameSearch::new(names),
             registered,
             registry,
@@ -320,7 +349,9 @@ impl Editor {
         self.unsaid = None;
         match input {
             EditorInput::Card(i) => match (self.picking, self.editing) {
-                (Some(reference), Some(edited)) => self.edit(|draft| draft.set_reference(edited, reference, i)),
+                (Some(reference), Some(edited)) => {
+                    self.edit(|draft| draft.set_reference(edited, reference, i));
+                }
                 _ if listed_at(&self.board, i).is_some() => (self.editing, self.picking) = (Some(i), None),
                 _ => {}
             },
@@ -328,6 +359,9 @@ impl Editor {
             EditorInput::Pick(reference) => self.picking = reference.filter(|_| self.editing.is_some()),
             EditorInput::Search(query) => self.search.set_query(query),
             EditorInput::Choose(i) => self.chosen = self.search.name(i).map(|_| i),
+            EditorInput::Advanced(on) => self.advanced = on,
+            EditorInput::TypedLine(line) => (self.typed_line, self.typed_line_refusal) = (line, None),
+            EditorInput::AddTypedLine => self.add_typed_line(),
             EditorInput::Undo => self.step_back(),
             EditorInput::Play | EditorInput::Save | EditorInput::Open(_) => {}
             edit => {
@@ -341,8 +375,8 @@ impl Editor {
     }
 
     /// An edit made to a copy of the board. The copy, renumbered through
-    /// its text, replaces the board if it differs.
-    fn edit(&mut self, change: impl FnOnce(&mut Draft)) {
+    /// its text, replaces the board if it differs; whether it did.
+    fn edit(&mut self, change: impl FnOnce(&mut Draft)) -> bool {
         let mut draft = Draft { board: self.board.clone(), edited: self.editing };
         change(&mut draft);
         self.picking = None;
@@ -356,8 +390,28 @@ impl Editor {
                 self.text = text;
                 self.editing = draft.edited;
                 self.check();
+                return true;
             }
             Err(refusal) => self.unsaid = Some(format!("{unsaid}: {}.", refusal.message)),
+        }
+        false
+    }
+
+    /// The typed field's line, put last in the board's text, which is read
+    /// and made an edit: the field empties. A line the parser refuses, or
+    /// one that says nothing the board does not, leaves the board as it was
+    /// and stays in the field with why.
+    fn add_typed_line(&mut self) {
+        match Scenario::parse(&format!("{}{}\n", self.text, self.typed_line)) {
+            Err(refusal) => self.typed_line_refusal = Some(format!("Not added: {}.", refusal.message)),
+            Ok(board) => {
+                if self.edit(|draft| draft.board = board) {
+                    self.typed_line.clear();
+                } else {
+                    let says_nothing = "Not added: the line says nothing the board does not.".to_string();
+                    self.typed_line_refusal = Some(self.unsaid.take().unwrap_or(says_nothing));
+                }
+            }
         }
     }
 
@@ -530,12 +584,37 @@ fn references(board: &Scenario) -> Vec<(At, Among, &NamedCard)> {
 }
 
 /// The one card line `reference` names among `among`'s, a line of one copy.
-fn named_line(board: &Scenario, reference: &NamedCard, among: Among) -> Option<usize> {
-    let mut named = board.cards.iter().enumerate().filter(|(_, line)| is_among(&line.value, among) && names(reference, &line.value.card));
+fn named_line(cards: &[LineNumbered<CardLine>], reference: &NamedCard, among: Among) -> Option<usize> {
+    let mut named = cards.iter().enumerate().filter(|(_, line)| is_among(&line.value, among) && names(reference, &line.value.card));
     match (named.next(), named.next()) {
         (Some((i, line)), None) if line.value.copies == 1 => Some(i),
         _ => None,
     }
+}
+
+/// Does an advanced setting show `word` as a control? A counter of a kind
+/// in `PLAYER_COUNTERS`, lands played, leaving, and commander damage naming
+/// one commander on the board.
+fn has_control(cards: &[LineNumbered<CardLine>], word: &PlayerWord) -> bool {
+    match word {
+        PlayerWord::Counter { kind, .. } => PLAYER_COUNTERS.contains(kind),
+        PlayerWord::LandsPlayed { .. } | PlayerWord::LeftTheGame { .. } => true,
+        PlayerWord::CommanderDamage { from, .. } => named_line(cards, from, Among::Commanders).is_some(),
+        PlayerWord::Life { .. } | PlayerWord::History { .. } => false,
+    }
+}
+
+/// `player`'s words that `is` matches replaced by `word` at the first one's
+/// place, or beside the player's other words; or gone, for `None`.
+fn set_player_word(words: &mut Vec<LineNumbered<PlayerWord>>, player: PlayerId, is: impl Fn(&PlayerWord) -> bool, word: Option<PlayerWord>) {
+    let at = words.iter().position(|w| is(&w.value));
+    words.retain(|w| !is(&w.value));
+    let Some(word) = word else { return };
+    let seat = |w: &LineNumbered<PlayerWord>| player_of(&w.value);
+    let beside = words.iter().rposition(|w| seat(w) == player).map(|i| i + 1);
+    let before_later = words.iter().position(|w| seat(w) > player);
+    let at = at.or(beside).or(before_later).unwrap_or(words.len()).min(words.len());
+    words.insert(at, LineNumbered { line: 0, value: word });
 }
 
 /// A board being edited, and where the card being edited is as lines move.
@@ -576,6 +655,10 @@ impl Draft {
                     }
                 }
             }
+            EditorInput::LeftTheGame(player, on) => {
+                let left = PlayerWord::LeftTheGame { player };
+                set_player_word(&mut self.board.player_words, player, |word| *word == left, on.then(|| left.clone()));
+            }
             EditorInput::RemoveText(item) => self.remove_text(item),
             EditorInput::Controller(i, player) => {
                 let owned_by = owner(self.line(i)).unwrap_or(player);
@@ -609,13 +692,16 @@ impl Draft {
             EditorInput::Zone(i, zone) => self.move_to(i, zone),
             EditorInput::Move(i, direction) => self.step(i, direction),
             EditorInput::Remove(i) => self.remove(i),
-            // The selection's, the search's and the session's.
+            // The selection's, the search's, the typed field's and the session's.
             EditorInput::Card(_)
             | EditorInput::Close
             | EditorInput::Pick(_)
             | EditorInput::Undo
             | EditorInput::Search(_)
             | EditorInput::Choose(_)
+            | EditorInput::Advanced(_)
+            | EditorInput::TypedLine(_)
+            | EditorInput::AddTypedLine
             | EditorInput::Play
             | EditorInput::Save
             | EditorInput::Open(_) => {}
@@ -628,7 +714,28 @@ impl Draft {
             BoardNumber::Players => self.board.players = usize::try_from(value).unwrap_or(2),
             BoardNumber::StartingLife => self.board.starting_life = value,
             BoardNumber::Turn => self.board.turn = count(value),
-            BoardNumber::Life(player) => self.set_life(player, value),
+            BoardNumber::Life(player) => {
+                let life = (value != self.board.starting_life).then_some(PlayerWord::Life { player, life: value });
+                set_player_word(&mut self.board.player_words, player, |w| matches!(w, PlayerWord::Life { player: p, .. } if *p == player), life);
+            }
+            BoardNumber::LandsPlayed(player) => {
+                let lands = (value > 0).then(|| PlayerWord::LandsPlayed { player, count: count(value) });
+                set_player_word(&mut self.board.player_words, player, |w| matches!(w, PlayerWord::LandsPlayed { player: p, .. } if *p == player), lands);
+            }
+            BoardNumber::PlayerCounter(player, kind) => {
+                let counter = (value > 0).then(|| PlayerWord::Counter { player, kind, count: count(value) });
+                let is_kind = |w: &PlayerWord| matches!(w, PlayerWord::Counter { player: p, kind: k, .. } if *p == player && *k == kind);
+                set_player_word(&mut self.board.player_words, player, is_kind, counter);
+            }
+            BoardNumber::CommanderDamage { player, from } => {
+                let Some(commander) = self.board.cards.get(from).filter(|line| is_among(&line.value, Among::Commanders)) else { return };
+                let damage = (value > 0).then(|| PlayerWord::CommanderDamage { player, damage: count(value), from: commander.value.card.clone() });
+                let cards = &self.board.cards;
+                let is_from = |w: &PlayerWord| {
+                    matches!(w, PlayerWord::CommanderDamage { player: p, from: named, .. } if *p == player && named_line(cards, named, Among::Commanders) == Some(from))
+                };
+                set_player_word(&mut self.board.player_words, player, is_from, damage);
+            }
             BoardNumber::Damage(i) => {
                 let damage = (value > 0).then(|| CardWord::Damage(count(value)));
                 set_word(&mut self.line_mut(i).words, |w| matches!(w, CardWord::Damage(_)), damage);
@@ -639,23 +746,6 @@ impl Draft {
                 set_word(&mut self.line_mut(i).words, |w| matches!(w, CardWord::Arrived(_)), arrived);
             }
         }
-    }
-
-    /// `player`'s life word, which says nothing when it is the starting life:
-    /// at its old place, or beside the player's other words.
-    fn set_life(&mut self, player: PlayerId, life: i64) {
-        let words = &mut self.board.player_words;
-        let is_life = |word: &LineNumbered<PlayerWord>| matches!(word.value, PlayerWord::Life { player: p, .. } if p == player);
-        let at = words.iter().position(is_life);
-        words.retain(|word| !is_life(word));
-        if life == self.board.starting_life {
-            return;
-        }
-        let seat = |word: &LineNumbered<PlayerWord>| player_of(&word.value);
-        let beside = words.iter().rposition(|w| seat(w) == player).map(|i| i + 1);
-        let before_later = words.iter().position(|w| seat(w) > player);
-        let at = at.or(beside).or(before_later).unwrap_or(words.len()).min(words.len());
-        words.insert(at, LineNumbered { line: 0, value: PlayerWord::Life { player, life } });
     }
 
     fn remove_text(&mut self, item: TextItem) {
@@ -853,7 +943,7 @@ impl Draft {
             let tag = self.unused_tag(name);
             let named_only_it: Vec<At> = references(&self.board)
                 .into_iter()
-                .filter(|(_, kind, reference)| reference.tag.is_none() && named_line(&self.board, reference, *kind) == Some(i))
+                .filter(|(_, kind, reference)| reference.tag.is_none() && named_line(&self.board.cards, reference, *kind) == Some(i))
                 .map(|(at, ..)| at)
                 .collect();
             for at in named_only_it {
@@ -1014,9 +1104,15 @@ pub struct ZoneEdit {
 pub struct SeatEdit {
     pub seat: PlayerId,
     pub title: String,
+    /// The loader's refusal names a line of the player's that a control
+    /// shows, rather than its text.
+    pub refused: bool,
     pub life: Stepper,
     /// The player's other words, as text.
     pub words: Vec<TextLine>,
+    /// The advanced settings' controls for the player's words, while they
+    /// show.
+    pub rows: Vec<ControlRow>,
     pub zones: Vec<ZoneEdit>,
 }
 
@@ -1040,6 +1136,16 @@ fn row(label: &'static str, buttons: Vec<EditButton>) -> ControlRow {
 pub struct CardEdit {
     pub text: String,
     pub rows: Vec<ControlRow>,
+}
+
+/// The typed field: a line of the file, added to the board as an edit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypedLineView<'e> {
+    pub line: &'e str,
+    /// Live while the field holds a line not yet refused as it stands.
+    pub add: EditButton,
+    /// Why the line was not added.
+    pub refusal: Option<&'e str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1072,6 +1178,10 @@ pub struct EditorView<'e> {
     pub undo: EditButton,
     pub play: EditButton,
     pub save: EditButton,
+    /// The switch that shows the advanced settings.
+    pub advanced: EditButton,
+    /// While they show.
+    pub typed_line: Option<TypedLineView<'e>>,
     pub search: SearchView<'e>,
 }
 
@@ -1115,6 +1225,12 @@ impl Editor {
             undo: action("Undo", EditorInput::Undo, !self.undo.is_empty()),
             play: action("Play this board", EditorInput::Play, self.refusal.is_none()),
             save: action("Save", EditorInput::Save, true),
+            advanced: EditButton { label: "Advanced".to_string(), input: EditorInput::Advanced(!self.advanced), live: true, on: self.advanced },
+            typed_line: self.advanced.then(|| TypedLineView {
+                line: &self.typed_line,
+                add: action("Add", EditorInput::AddTypedLine, !self.typed_line.trim().is_empty() && self.typed_line_refusal.is_none()),
+                refusal: self.typed_line_refusal.as_deref(),
+            }),
             search: SearchView {
                 query: self.search.query(),
                 results: self.search.matches().iter().map(|&i| self.search_result(i)).collect(),
@@ -1146,9 +1262,9 @@ impl Editor {
             PlayerWord::Life { player, life } if player == seat => Some(life),
             _ => None,
         });
-        let words = board.player_words.iter().enumerate().filter(|(_, word)| {
-            player_of(&word.value) == seat && !matches!(word.value, PlayerWord::Life { .. })
-        });
+        let as_control = |word: &PlayerWord| matches!(word, PlayerWord::Life { .. }) || (self.advanced && has_control(&board.cards, word));
+        let (controlled, words): (Vec<_>, Vec<_>) =
+            board.player_words.iter().enumerate().filter(|(_, word)| player_of(&word.value) == seat).partition(|(_, word)| as_control(&word.value));
         let title = if seat < board.players {
             format!("Player {seat}")
         } else {
@@ -1157,12 +1273,50 @@ impl Editor {
         SeatEdit {
             seat,
             title,
+            refused: controlled.iter().any(|(_, word)| refused(word.line)),
             life: stepper("Life", BoardNumber::Life(seat), life.unwrap_or(board.starting_life), (-LIFE_LIMIT, LIFE_LIMIT), true),
             words: words
+                .into_iter()
                 .map(|(i, word)| TextLine { text: word.value.to_string(), remove: EditorInput::RemoveText(TextItem::PlayerWord(i)), refused: refused(word.line) })
                 .collect(),
+            rows: if self.advanced { self.player_rows(seat) } else { Vec::new() },
             zones: Zone::ALL.into_iter().map(|zone| self.zone_edit(seat, zone, refused)).collect(),
         }
+    }
+
+    /// The advanced settings' rows for `seat`'s words, each control showing
+    /// what the loader makes of them: it sets lands played and commander
+    /// damage, so the last word stands, and adds counters.
+    fn player_rows(&self, seat: PlayerId) -> Vec<ControlRow> {
+        let board = &self.board;
+        let words = || board.player_words.iter().map(|word| &word.value).filter(move |word| player_of(word) == seat);
+        let left = words().any(|word| *word == PlayerWord::LeftTheGame { player: seat });
+        let left = EditButton { label: "left the game".to_string(), input: EditorInput::LeftTheGame(seat, !left), live: true, on: left };
+        let lands = words().rev().find_map(|word| if let PlayerWord::LandsPlayed { count, .. } = word { Some(*count) } else { None });
+        let mut counts = vec![stepper("lands played", BoardNumber::LandsPlayed(seat), lands.unwrap_or(0).into(), (0, COUNT_LIMIT), true)];
+        for kind in PLAYER_COUNTERS {
+            let of_kind = words().filter_map(|word| match word {
+                PlayerWord::Counter { kind: k, count, .. } if *k == kind => Some(*count),
+                _ => None,
+            });
+            counts.push(stepper(kind.name(), BoardNumber::PlayerCounter(seat, kind), of_kind.fold(0, u32::saturating_add).into(), (0, COUNT_LIMIT), true));
+        }
+        let mut rows = vec![ControlRow { steppers: counts, ..row("", vec![left]) }];
+        let commanders = board.cards.iter().enumerate().filter(|(_, line)| is_among(&line.value, Among::Commanders) && line.value.copies == 1);
+        let damage: Vec<Stepper> = commanders
+            .map(|(from, line)| {
+                let taken = words().rev().find_map(|word| match word {
+                    PlayerWord::CommanderDamage { damage, from: named, .. } if named_line(&board.cards, named, Among::Commanders) == Some(from) => Some(*damage),
+                    _ => None,
+                });
+                let field = BoardNumber::CommanderDamage { player: seat, from };
+                stepper(&format!("from {}", line.value.card), field, taken.unwrap_or(0).into(), (0, COUNT_LIMIT), true)
+            })
+            .collect();
+        if !damage.is_empty() {
+            rows.push(ControlRow { steppers: damage, ..row("Commander damage", Vec::new()) });
+        }
+        rows
     }
 
     fn zone_edit(&self, seat: PlayerId, zone: Zone, refused: &dyn Fn(usize) -> bool) -> ZoneEdit {
@@ -1359,6 +1513,21 @@ mod tests {
         editor.editing.unwrap()
     }
 
+    fn seat(editor: &Editor, seat: PlayerId) -> SeatEdit {
+        editor.view().seats.into_iter().find(|shown| shown.seat == seat).unwrap()
+    }
+
+    /// The advanced settings' count labeled `label` on `seat`.
+    fn count(editor: &Editor, on: PlayerId, label: &str) -> Stepper {
+        let steppers = seat(editor, on).rows.into_iter().flat_map(|row| row.steppers);
+        steppers.into_iter().find(|stepper| stepper.label == label).unwrap_or_else(|| panic!("player {on} has no {label}"))
+    }
+
+    fn typed(editor: &Editor) -> (String, bool, Option<String>) {
+        let typed = editor.view().typed_line.unwrap();
+        (typed.line.to_string(), typed.add.live, typed.refusal.map(str::to_string))
+    }
+
     /// A click edits a copy, renumbered through its text: the file's comment
     /// lines are kept for the save but number nothing, and undo walks back.
     #[test]
@@ -1502,6 +1671,116 @@ mod tests {
         assert!(editor.text().ends_with("command: Isamaru, Hound of Konda [b] | owner 2, commander\n"));
         editor.input(EditorInput::Flag(0, Flag::Commander, false));
         assert!(!editor.text().contains("commander damage"), "{}", editor.text());
+    }
+
+    /// Off, a player's words but life are text. On, each the advanced
+    /// settings have a control for leaves the text, and the typed field shows.
+    #[test]
+    fn the_advanced_switch_shows_controls_in_place_of_the_text() {
+        let mut editor = opened("players 3\nplayer 1: left the game, poison 2, flying 1\nplayer 1 this turn: spells cast 1");
+        let texts = |editor: &Editor| seat(editor, 1).words.into_iter().map(|word| word.text).collect::<Vec<_>>();
+        assert_eq!(texts(&editor).len(), 4);
+        assert!(seat(&editor, 1).rows.is_empty() && editor.view().typed_line.is_none());
+        let switch = editor.view().advanced.input;
+        editor.input(switch);
+        assert_eq!(texts(&editor), ["player 1: flying 1", "player 1 this turn: spells cast 1"]);
+        assert!(seat(&editor, 1).rows[0].buttons[0].on, "left the game");
+        assert_eq!(count(&editor, 1, "poison").value, "2");
+        assert!(editor.view().typed_line.is_some());
+    }
+
+    /// A typed line goes last in the board's text and is made an edit, which
+    /// Undo takes back. One the parser refuses, or that says nothing new,
+    /// leaves the board and stays in the field with why, until it changes.
+    #[test]
+    fn a_typed_line_is_added_as_an_edit_and_a_refused_one_stays_in_the_field() {
+        let mut editor = opened("turn 3\nbattlefield: Grizzly Bears | controller 0");
+        editor.input(EditorInput::Advanced(true));
+        assert_eq!(typed(&editor), (String::new(), false, None), "nothing to add yet");
+        editor.input(EditorInput::TypedLine("player 1: poison 3".to_string()));
+        editor.input(EditorInput::AddTypedLine);
+        let with_poison = "turn 3\nplayer 1: poison 3\nbattlefield: Grizzly Bears | controller 0\n";
+        assert_eq!((editor.text(), typed(&editor)), (with_poison, (String::new(), false, None)));
+        for (line, says) in [
+            ("player 1: poison three", "`poison three` is not a word a player line has"),
+            ("turn 4", "`turn` is stated twice"),
+            ("# a comment", "the line says nothing the board does not"),
+        ] {
+            editor.input(EditorInput::TypedLine(line.to_string()));
+            editor.input(EditorInput::AddTypedLine);
+            let (kept, live, refusal) = typed(&editor);
+            assert!(kept == line && !live && refusal.as_deref().is_some_and(|why| why.contains(says)), "{line}: {refusal:?}");
+            assert_eq!(editor.text(), with_poison);
+        }
+        editor.input(EditorInput::TypedLine("# a comment, typed again".to_string()));
+        assert_eq!(typed(&editor).2, None, "a changed line is not refused yet");
+        editor.input(EditorInput::Undo);
+        assert_eq!(editor.text(), "turn 3\nbattlefield: Grizzly Bears | controller 0\n");
+    }
+
+    /// The loader adds a player's counters, so the count is their sum; a
+    /// click leaves one word of the kind, and zero none.
+    #[test]
+    fn a_player_counter_counts_what_the_loader_adds() {
+        let mut editor = opened("player 1: poison 2, poison 1\nplayer 1: energy 4, flying 1");
+        editor.input(EditorInput::Advanced(true));
+        assert_eq!((count(&editor, 1, "poison").value, count(&editor, 1, "energy").value), ("3".to_string(), "4".to_string()));
+        editor.input(count(&editor, 1, "poison").raise.unwrap());
+        assert_eq!(editor.text(), "player 1: poison 4, energy 4, flying 1\n");
+        editor.input(EditorInput::Number(count(&editor, 1, "energy").typed.unwrap().field, 0));
+        assert_eq!(editor.text(), "player 1: poison 4, flying 1\n");
+    }
+
+    /// The loader sets lands played, so the last word stands; zero is where
+    /// a turn starts, and says nothing.
+    #[test]
+    fn lands_played_counts_the_last_word_and_zero_says_nothing() {
+        let mut editor = opened("player 0: life 14, lands played 2, lands played 1");
+        editor.input(EditorInput::Advanced(true));
+        assert_eq!(count(&editor, 0, "lands played").value, "1");
+        editor.input(count(&editor, 0, "lands played").lower.unwrap());
+        assert_eq!(editor.text(), "player 0: life 14\n");
+        editor.input(count(&editor, 1, "lands played").raise.unwrap());
+        assert_eq!(editor.text(), "player 0: life 14\nplayer 1: lands played 1\n");
+    }
+
+    /// Leaving the game is a toggle; the loader's refusal of it marks the
+    /// player, since no text shows the word.
+    #[test]
+    fn leaving_the_game_is_a_toggle_and_its_refusal_marks_the_player() {
+        let mut editor = opened("players 3\nhand 0: Forest");
+        editor.input(EditorInput::Advanced(true));
+        let left = |editor: &Editor, on: PlayerId| seat(editor, on).rows[0].buttons[0].clone();
+        editor.input(left(&editor, 2).input);
+        assert_eq!(editor.text(), "players 3\nplayer 2: left the game\nhand 0: Forest\n");
+        assert!(left(&editor, 2).on && editor.refusal().is_none(), "{:?}", editor.refusal());
+        editor.input(left(&editor, 0).input);
+        assert!(editor.refusal().is_some_and(|refusal| refusal.message.contains("player 0 has left")), "{:?}", editor.refusal());
+        assert!(seat(&editor, 0).refused && !seat(&editor, 2).refused);
+        editor.input(left(&editor, 0).input);
+        assert_eq!(editor.text(), "players 3\nplayer 2: left the game\nhand 0: Forest\n");
+    }
+
+    /// Each player has a count for each commander on the board, read from
+    /// the word naming it, and a click writes its name and tag; a word naming
+    /// no commander stays text.
+    #[test]
+    fn commander_damage_has_a_count_for_each_commander() {
+        let mut editor = opened(
+            "players 3\nplayer 1: commander damage 5 from Isamaru, Hound of Konda\nplayer 2: commander damage 3 from Grizzly Bears\n\
+             command: Isamaru, Hound of Konda | owner 0, commander\nbattlefield: Thalia, Guardian of Thraben | controller 2, commander\n\
+             battlefield: Grizzly Bears | controller 2",
+        );
+        editor.input(EditorInput::Advanced(true));
+        assert_eq!(count(&editor, 1, "from Isamaru, Hound of Konda").value, "5");
+        editor.input(EditorInput::Number(count(&editor, 1, "from Thalia, Guardian of Thraben").typed.unwrap().field, 21));
+        let damage = "player 1: commander damage 5 from Isamaru, Hound of Konda\nplayer 1: commander damage 21 from Thalia, Guardian of Thraben\n";
+        assert!(editor.text().contains(damage), "{}", editor.text());
+        assert_eq!(seat(&editor, 2).words.into_iter().map(|word| word.text).collect::<Vec<_>>(), ["player 2: commander damage 3 from Grizzly Bears"]);
+        let second = put(&mut editor, "Isamaru, Hound of Konda", 2, Zone::Command);
+        editor.input(EditorInput::Flag(second, Flag::Commander, true));
+        assert_eq!(count(&editor, 1, "from Isamaru, Hound of Konda [a]").value, "5", "the tag the word took names its commander");
+        assert_eq!(count(&editor, 1, "from Isamaru, Hound of Konda [b]").value, "0");
     }
 
     /// The search lists every name a scenario can use, the cards in

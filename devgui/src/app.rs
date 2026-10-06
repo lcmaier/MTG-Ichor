@@ -9,7 +9,7 @@ use std::time::Duration;
 use eframe::egui;
 
 use crate::boards::{Folders, ListedFile};
-use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed};
+use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed, TypedLineView};
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
@@ -258,6 +258,7 @@ fn editor_header(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
     if ui.button("Copy as text").clicked() {
         ui.ctx().copy_text(view.text.to_string());
     }
+    edit_button(ui, &view.advanced, inputs);
     if let Some(why) = view.unsaid {
         ui.colored_label(ui.visuals().warn_fg_color, why);
     }
@@ -296,6 +297,9 @@ fn editor_panels(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
                 });
             }
             facts(ui, view, inputs);
+            if let Some(typed) = &view.typed_line {
+                typed_line(ui, typed, inputs);
+            }
             ui.separator();
             for seat in &view.seats {
                 ui.push_id(("seat", seat.seat), |ui| seat_edit(ui, seat, inputs));
@@ -342,14 +346,58 @@ fn facts(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) {
     });
 }
 
+/// The typed field and its Add, which Enter presses too, with why the line
+/// in it was not added.
+fn typed_line(ui: &mut egui::Ui, typed: &TypedLineView, inputs: &mut Vec<Input>) {
+    ui.horizontal(|ui| {
+        ui.label("A line of the file");
+        let mut line = typed.line.to_string();
+        let field = egui::TextEdit::singleline(&mut line).id_salt("typed line").desired_width(420.0).hint_text("player 1: poison 3");
+        let response = ui.add(field);
+        let entered = response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+        if entered {
+            // The next line goes in the same field.
+            response.request_focus();
+        }
+        if line != typed.line {
+            inputs.push(Input::Editor(EditorInput::TypedLine(line)));
+        }
+        let added = ui.add_enabled(typed.add.live, egui::Button::new(&typed.add.label)).clicked();
+        if (added || entered) && typed.add.live {
+            inputs.push(Input::Editor(typed.add.input.clone()));
+        }
+    });
+    if let Some(refusal) = typed.refusal {
+        ui.colored_label(ui.visuals().error_fg_color, refusal);
+    }
+}
+
 fn seat_edit(ui: &mut egui::Ui, seat: &SeatEdit, inputs: &mut Vec<Input>) {
     ui.horizontal_wrapped(|ui| {
-        ui.strong(&seat.title);
+        if seat.refused {
+            ui.colored_label(ui.visuals().error_fg_color, &seat.title);
+        } else {
+            ui.strong(&seat.title);
+        }
         stepper_ui(ui, &seat.life, inputs);
         for word in &seat.words {
             text_line(ui, word, inputs);
         }
     });
+    for row in &seat.rows {
+        ui.horizontal_wrapped(|ui| {
+            if !row.label.is_empty() {
+                ui.label(row.label);
+            }
+            for button in &row.buttons {
+                edit_button(ui, button, inputs);
+            }
+            // Each whole, wherever the row wraps.
+            for stepper in &row.steppers {
+                ui.horizontal(|ui| stepper_ui(ui, stepper, inputs));
+            }
+        });
+    }
     for zone in &seat.zones {
         ui.horizontal_wrapped(|ui| {
             ui.label(&zone.title);

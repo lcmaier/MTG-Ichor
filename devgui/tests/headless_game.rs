@@ -357,12 +357,15 @@ fn play_saves_the_board_in_its_folder_and_logs_its_games_beside_it() {
 }
 
 /// "Edit this board" opens the board the game is at, the writer's report
-/// above it, and its first save names it for the game's start and turn.
+/// above it, the advanced settings as they were, and its first save names
+/// it for the game's start and turn.
 #[test]
 fn edit_this_board_opens_the_board_the_game_is_at() {
     let (mut session, folders, _) = session_with("devgui-session-edit-board", BOLT_IN_HAND, scenario_game);
     next_prompt(&mut session);
+    session.input(Input::Editor(EditorInput::Advanced(true)));
     session.input(Input::EditThisBoard);
+    assert!(session.editor.advanced, "the advanced settings stay on");
     assert_eq!(session.mode, Mode::Edit);
     assert_eq!(session.editor.source, Source::Game { start: "devgui-session-edit-board".to_string(), turn: 1 });
     assert!(session.editor.comments[0].starts_with("# From "), "{:?}", session.editor.comments);
