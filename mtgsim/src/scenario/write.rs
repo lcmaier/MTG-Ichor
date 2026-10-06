@@ -394,8 +394,12 @@ impl<'g> Writer<'g> {
         } = &self.state.objects[&id];
         let obj = &self.state.objects[&id];
         let card = self.named_card(obj);
-        if *is_token || *is_copy {
-            self.report(format!("{card}, a token or a copy, whose word waits (§5.2)"));
+        // Its line names it as a card, and no registry holds a token's name.
+        if *is_token {
+            self.report(format!("that {card} is a token (§5.2): the loader refuses its line, so remove it and play what makes the token"));
+        }
+        if *is_copy {
+            self.report(format!("that {card} is a copy (§5.2)"));
         }
         let mut words = Vec::new();
         let kind = match zone {
@@ -595,6 +599,23 @@ mod tests {
     fn tags_run_past_z() {
         let tags: Vec<String> = [0, 25, 26, 27, 701, 702].into_iter().map(tag_letters).collect();
         assert_eq!(tags, ["a", "z", "aa", "ab", "zz", "aaa"]);
+    }
+
+    /// A token's word waits (§5.2), so its line names it as a card, which the
+    /// loader refuses; the report says so, and what to do.
+    #[test]
+    fn a_token_is_reported_with_the_refusal_its_line_meets() {
+        let mut game = setup_two_player_game();
+        let token = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+        game.objects.get_mut(&token).unwrap().is_token = true;
+        let name = game.objects[&token].card_data.name.clone();
+
+        let written = Scenario::write(&game);
+        let report = format!("that {name} is a token (§5.2): the loader refuses its line, so remove it and play what makes the token");
+        assert_eq!(written.unwritten, [report]);
+        let text = written.to_string();
+        let refused = Scenario::parse(&text).and_then(|board| board.build(&crate::cards::registry::CardRegistry::default_registry()).map(|_| ()));
+        assert!(refused.is_err_and(|refusal| refusal.message.contains(&name)), "{text}");
     }
 
     /// CR 509.1g: a creature stays blocking until combat ends, after the
