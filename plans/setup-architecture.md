@@ -2381,14 +2381,19 @@ loader's refusal of a word a control shows marks the player's name.
 **What moved on the way in.** Only the parser refuses a typed line: one the
 loader refuses goes in, as any edit the parser reads does, and its refusal
 marks it (decision 2, amended where it stands). Life's write rule became
-every player word's. It landed at +238 code and +206 tests, all in the dev
-GUI, against ~175–265 sized with tests: 1.7–2.5 times, about SU-3's rate.
+every player word's. Two typed counter words could sum past `u32::MAX` and
+panic the loader on the window's thread, so a counter count now stays at the
+most a count holds, a player's and a permanent's (the owner, at #227). It
+landed at +244 code and +230 tests, all but +6 and +19 in the dev GUI,
+against ~175–265 sized with tests: 1.8–2.7 times, past SU-3's rate.
 
-**Measured.** No engine file changed, so no arms ran. `prompt_cost` on the
-large board in release, interleaved with `main`'s: the editor's view 18.8 µs
-a repaint with the switch off (`main`'s 18.9), 19.1–19.2 µs with it on; a
-typed line added and undone 224–234 µs. The editor's random clicks reach
-every control: 3,000 clicks in 1.0 s.
+**Measured.** `close_out.py` against #226's merge, one arm, the engine fix:
+every gameplay and cost row `IDENTICAL`, both pools, two seats and four, and
+instructions per decision +0.01%. `prompt_cost` on the large board in
+release, interleaved with `main`'s: the editor's view 18.8 µs a repaint with
+the switch off (`main`'s 18.9), 19.1–19.2 µs with it on; a typed line added
+and undone 224–234 µs. The editor's random clicks reach every control:
+3,000 clicks in 1.0 s.
 
 **Left:** the second part, ~260–380, and the third, ~210–310 (above).
 

@@ -41,18 +41,20 @@ Lines added, `devgui/` with a `src` file's `#[cfg(test)]` module and
 | Part | Where | Sized, code and tests | Code, built | Tests, built |
 |---|---|---:|---:|---:|
 | The switch and the typed field, kept across opens | `editor.rs`, `app.rs`, `session.rs` | 40–60 | ~100 | ~85: two unit tests, the random clicks' switch and field, the session's assertion, the picture, `prompt_cost` |
-| The four player rows, with the write rule and the reading they share | `editor.rs`, `app.rs` | 135–205 | ~140 | ~120: four unit tests and their helpers, the random clicks' rows and reach check |
-| **The first part** | | **175–265** | **238** | **206** |
+| The four player rows, with the write rule and the reading they share | `editor.rs`, `app.rs` | 135–205 | ~140 | ~125: four unit tests and their helpers, the random clicks' rows and reach check, the typed line past what a count holds |
+| A counter count kept at the most a count holds (below, 7) | `mtgsim/src/state/player.rs`, `battlefield.rs` | — | 6 | 19 |
+| **The first part** | | **175–265** | **244** | **230** |
 
-Code and tests came to 444 lines, 1.7–2.5 times the sizing; code alone, 238,
-is 0.9–1.4 times it. What the row-by-row sizing left out: the field's own
-state (the line, its refusal, Add live only for a line not yet refused, and
-Enter keeping the focus); the switch kept across opens; the reading each
-count shows, which differs by row; one write rule for every player word,
-which replaced life's own; which words a control shows, an exhaustive match;
-the refusal mark on a player's name; and the tests, which ran about twice the
-code's share. The band stayed far under 2,500 at every commit: 367, 420, 433
-and 444, the docs beside.
+Code and tests came to 474 lines, 1.8–2.7 times the sizing; the dev GUI's
+code alone, 238, is 0.9–1.4 times it. What the row-by-row sizing left out:
+the field's own state (the line, its refusal, Add live only for a line not
+yet refused, and Enter keeping the focus); the switch kept across opens; the
+reading each count shows, which differs by row; one write rule for every
+player word, which replaced life's own; which words a control shows, an
+exhaustive match; the refusal mark on a player's name; the engine's fix; and
+the tests, which ran about twice the code's share. The band stayed far under
+2,500 at every commit: 367, 420, 433 and 444, then 469 and 474 with the fix,
+the docs beside.
 
 ### What the build changed in the design
 
@@ -82,12 +84,15 @@ and 444, the docs beside.
    rule) keeps the count with its commander.
 6. **The typed line goes last in the board's text**, so it renumbers nothing
    already there, and the board reads it back as it reads any edit.
-
-**Found while building:** a board whose counts of one kind sum past
-`u32::MAX` panics the loader in a debug build (`PlayerState::add_counters`,
-an unchecked add). Opening such a file reaches it, and so does typing two
-such lines into the field, a panic on the window's thread. No control can
-reach it. Put to the owner at #227.
+7. **A counter count stays at the most a count holds** (the owner, at
+   #227). A player's counter words add, so two could sum past `u32::MAX`
+   and panic the loader in a debug build ("attempt to add with overflow"),
+   and the field reached that by typing, a panic on the window's thread.
+   `PlayerState::add_counters` and `PermanentState::add_counters` saturate
+   now, the permanent's reachable only in play, after a board set its count
+   near the most. Each test failed first on the tree before the fix.
+   `close_out.py`: every row `IDENTICAL`, instructions per decision +0.01%
+   (`fuzz-record.md`).
 
 #### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 

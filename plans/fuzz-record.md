@@ -37,6 +37,25 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-06 for the editor's advanced settings, first part**
+(`setup-architecture.md` §8's ✅ section). The engine's one change: a counter
+count saturates at `u32::MAX` where its add overflowed, which no game
+reaches, so no pool changed and the §3 tables stand. `close_out.py` against
+**main** `f5a5f20` (#226's merge), one arm, **engine** `62f1fa5`, the fix.
+
+**Expected, though not written down before the arms ran:** every gameplay and
+cost row `IDENTICAL`, both pools, two seats and four; instructions per
+decision within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, engine vs `main` | none moved | none moved |
+| audit, engine, performance / stress, dispatches agreed | 164,309 / 173,758 | 324,859 / 355,449 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7520 M → 0.7521 M, **+0.01%** |
+
+As expected. The close-out ran in 106 s.
+
 **Measured 2026-10-06 for SU-8** (what happened, from the trace;
 `setup-architecture.md` §8's ✅ section). The sink writes nothing unless
 `--trace` asks, so no game moves and no pool changed: the §3 tables stand.
