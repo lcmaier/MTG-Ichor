@@ -277,36 +277,6 @@ pub fn castable_spells(
         .collect()
 }
 
-/// Enumerate currently-activatable mana abilities for a player.
-///
-/// Returns `(permanent_id, ability_id)` for every mana ability on a permanent
-/// the player controls whose costs (typically tap) can be paid right now.
-/// Deduplicated by the permanent and the ability's definition — a single
-/// ability that produces mana in multiple color modes (e.g. Cavern of Souls'
-/// "add any color") appears once, and so do two grants of one mana ability
-/// (two Citanul Hierophants), which are one choice in outcome; the handle is
-/// the first instance's. Mode selection, when applicable, is a follow-up
-/// choice inside the ability's activation (future work; no such cards in the
-/// current pool).
-///
-/// Used by the 601.2g / 602.1b mana-ability-window loop in `cast_spell` and
-/// `activate_ability`. The caller prompts the DP to pick one option to
-/// activate (or decline), then loops until the pool covers the cost.
-pub fn enumerate_activatable_mana_abilities(
-    game: &GameState,
-    player_id: PlayerId,
-) -> Vec<(ObjectId, AbilityId)> {
-    let mut seen: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
-        crate::types::ids::IdSet::default();
-    let mut result = Vec::new();
-    for src in available_mana_sources(game, player_id) {
-        if seen.insert((src.permanent_id, src.ability_id.definition())) {
-            result.push((src.permanent_id, src.ability_id));
-        }
-    }
-    result
-}
-
 /// Color-sensitive subtraction of pool mana from a mana cost.
 ///
 /// For each colored symbol in the cost, if the pool has that color available

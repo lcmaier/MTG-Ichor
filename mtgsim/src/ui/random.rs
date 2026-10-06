@@ -421,14 +421,14 @@ mod tests {
     use super::*;
     use crate::cards::basic_lands::forest;
     use crate::cards::dual_lands::everywhere;
-    use crate::oracle::mana_helpers::enumerate_activatable_mana_abilities;
+    use crate::oracle::mana_supply::WindowOffer;
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::test_support::setup_two_player_game as setup_basic_game;
 
     /// The window's options for player 0, as `ask_activate_mana_ability`
     /// builds them, and what each produces.
     fn window_options(game: &GameState) -> (Vec<ChoiceOption>, Vec<ManaType>) {
-        let legal = enumerate_activatable_mana_abilities(game, 0);
+        let legal = WindowOffer::take(game, 0).options(game);
         let produces: std::collections::HashMap<_, _> = available_mana_sources(game, 0)
             .into_iter()
             .map(|s| ((s.permanent_id, s.ability_id), s.produces))

@@ -27,11 +27,11 @@ use crate::engine::resolve::ResolutionContext;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controller_or_owner, controls, get_effective_abilities};
+use crate::oracle::characteristics::{controller_or_owner, controls, get_effective_abilities, has_summoning_sickness};
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
-use crate::types::ids::{AbilityId, ObjectId, PlayerId, Timestamp};
+use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId, Timestamp};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::triggers::{TriggerEvent, TriggerSubject};
@@ -314,6 +314,84 @@ impl ManaSupply {
         }
         pieces
     }
+}
+
+/// The mana abilities CR 601.2g's window offers a player, read once a window
+/// (§3.8). Between its prompts only whether each one's costs can be paid
+/// changes, until the layer epoch moves (a sacrifice), when it is read again.
+pub struct WindowOffer {
+    player: PlayerId,
+    epoch: u64,
+    abilities: Vec<OfferedAbility>,
+}
+
+/// A mana ability the window may offer: its permanent and the first instance
+/// of its definition there, since two grants of one ability are one choice.
+struct OfferedAbility {
+    permanent: ObjectId,
+    ability: AbilityId,
+    paid: Payable,
+}
+
+/// How the window re-asks whether an ability's costs can be paid.
+enum Payable {
+    /// {T} alone: while the permanent is untapped, since whether it is
+    /// summoning-sick (CR 302.6) moves only with the epoch.
+    WhileUntapped { sick: bool },
+    /// Anything else, asked whole each time.
+    Costs(Vec<Cost>),
+}
+
+impl WindowOffer {
+    pub fn take(game: &GameState, player: PlayerId) -> WindowOffer {
+        let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
+        let mut abilities = Vec::new();
+        for permanent in permanents_of(game, player) {
+            for ability in get_effective_abilities(game, permanent).iter() {
+                if ability.ability_type != AbilityType::Mana || !makes_fixed_mana(ability) {
+                    continue;
+                }
+                if !seen.insert((permanent, ability.id.definition())) {
+                    continue;
+                }
+                let paid = match ability.costs.as_slice() {
+                    [Cost::TapSelf] => Payable::WhileUntapped { sick: has_summoning_sickness(game, permanent) },
+                    costs => Payable::Costs(costs.to_vec()),
+                };
+                abilities.push(OfferedAbility { permanent, ability: ability.id, paid });
+            }
+        }
+        WindowOffer { player, epoch: game.layer_epoch(), abilities }
+    }
+
+    /// Whether the board this offer was read from is still the board.
+    pub fn is_current(&self, game: &GameState) -> bool {
+        game.layer_epoch() == self.epoch
+    }
+
+    /// The abilities offered now, in timestamp order and then the order of
+    /// each permanent's abilities: the order the agent's answer is a position
+    /// in (`CLAUDE.md`'s determinism rule).
+    pub fn options(&self, game: &GameState) -> Vec<(ObjectId, AbilityId)> {
+        self.abilities
+            .iter()
+            .filter(|offered| match &offered.paid {
+                Payable::WhileUntapped { sick } => {
+                    !sick && game.battlefield.get(&offered.permanent).is_some_and(|entry| !entry.tapped)
+                }
+                Payable::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
+            })
+            .map(|offered| (offered.permanent, offered.ability))
+            .collect()
+    }
+}
+
+/// An ability the window offers: one whose effect adds a fixed amount of
+/// some mana, which is what the window has offered since CR 601.2g's loop
+/// was built.
+fn makes_fixed_mana(ability: &AbilityDef) -> bool {
+    matches!(&ability.effect, Effect::Atom(Primitive::ProduceMana(output), _)
+        if output.mana.iter().any(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0)))
 }
 
 /// What a payment's other costs take from the board.
@@ -1351,6 +1429,33 @@ mod tests {
         ManaSupply::take(&game, 0);
         game.battlefield.remove(&reflection);
         ManaSupply::take(&game, 0);
+    }
+
+    /// The window's offer is read once: a tap, which moves no epoch, is seen
+    /// by re-asking the costs, and a sacrifice moves the board, after which
+    /// the offer is stale and read again (§3.8).
+    #[test]
+    fn the_window_offer_rechecks_costs_and_is_read_again_when_the_board_moves() {
+        use crate::engine::actions::ZoneChangeCause;
+        use crate::test_support::test_ctx;
+
+        let mut game = setup_two_player_game();
+        let land = put_on_battlefield(&mut game, plains(), 0);
+        put_on_battlefield(&mut game, everywhere(), 0);
+        let ironworks = put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
+        put_on_battlefield_this_turn(&mut game, citanul_hierophants(), 0);
+        let offer = WindowOffer::take(&game, 0);
+        let options = offer.options(&game);
+        assert_eq!(options.len(), 7, "a Plains, Everywhere's five, Ironworks; not a creature this turn's");
+        assert_eq!(options[0].0, land, "timestamp order");
+
+        game.battlefield.get_mut(&land).unwrap().tapped = true;
+        assert!(offer.is_current(&game), "a tap reads no layer");
+        assert_eq!(offer.options(&game).len(), 6);
+
+        game.change_zone(ironworks, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+        assert!(!offer.is_current(&game));
+        assert_eq!(WindowOffer::take(&game, 0).options(&game).len(), 5);
     }
 
     /// Two retypes on one production leave either type, in its player's
