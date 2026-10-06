@@ -2338,19 +2338,23 @@ this design's resolution. SU-1 to SU-5 ran 1.0–2.5× their code estimates.
 - item 210's fix, ~5–10;
 - **every question kind's line, ~80–140** (`codebase-state.md` item 212's
   census, the owner, 2026-10-05). `ui::why::refusals` matches every
-  `ChoiceKind` without a wildcard. Each kind says what it ranges over, so a
-  why asked about anything else says the question does not range over it. Two
-  kinds are answered from the trace: `ChooseReplacementEffect`'s candidates,
-  from the `pipeline` record, and `OrderTriggers`', from the `trigger`
-  records. Three get a reason from their own filter:
+  `ChoiceKind` without a wildcard. Four kinds already answer: the priority
+  question and the two declarations (SU-7), and CR 601.2g's mana window, which
+  MA-1 built (`mana-architecture.md` §3.13; amended 2026-10-06, since this
+  line had it landing with item 162's build). Each kind says what it ranges
+  over, so a why asked about anything else says the question does not range
+  over it. Two kinds are answered from the trace: `ChooseReplacementEffect`'s
+  candidates, from the `pipeline` record, and `OrderTriggers`', from the
+  `trigger` records. Three get a reason from their own filter:
   `ChooseEnteringController` (CR 800.4a), `ChooseAuxiliaryZoneChange` (CR
   614.13a and 101.2) and `ChooseCopySource` (the copy effect's filter). The
   other filtered kinds' reasons land with their owners: `SelectRecipients`
-  with RS-2; `ManaAbilityWindow`, `ChooseXValue` and `GenericManaAllocation`
-  with item 162's build; `ChooseSacrificeForCost` with
-  `cost-architecture.md` CP-2. `plans/references/cast-census.md` §9 has the
-  table, read off the enum and asserted against it. `refusals`' doc comment
-  still cites item 212, now closed, and this PR rewrites it.
+  with RS-2; `ChooseXValue` and `GenericManaAllocation` with MA-2
+  (`mana-architecture.md` §3.13); `ChooseSacrificeForCost` with
+  `cost-architecture.md` CP-2. The rest say only what they range over.
+  `plans/references/cast-census.md` §9 has the table, read off the enum and
+  asserted against it. `refusals`' doc comment still cites item 212, now
+  closed, and this PR rewrites it.
 
 **The dev GUI, ~110–180.**
 - the replay thread for a question about then, with its stop and its
