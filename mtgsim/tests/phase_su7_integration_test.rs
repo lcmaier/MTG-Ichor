@@ -106,6 +106,7 @@ fn on_the_review_board_one_everywhere_does_not_pay_for_the_bears() {
 /// says of the rest which cost cannot (`mana-architecture.md` §3.13): a
 /// tapped Mountain, and a creature the Hierophants' grant cannot tap the turn
 /// it arrived (CR 302.6).
+// COVERS-PARTIAL: ATOM-118.3-002
 #[test]
 fn the_window_says_why_each_mana_ability_is_not_offered() {
     let game = built(&format!(
