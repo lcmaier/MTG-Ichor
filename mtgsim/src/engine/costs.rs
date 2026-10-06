@@ -173,6 +173,11 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
     ) -> Result<(), CannotPay> {
+        // One cost has one order, and a mana ability's {T} alone is the
+        // common list: asked without building the ordered one.
+        if let [cost] = costs {
+            return self.check_cost_resource(cost, player_id, source_id);
+        }
         for cost in ordered_for_payment(costs) {
             self.check_cost_resource(cost, player_id, source_id)?;
         }

@@ -197,6 +197,11 @@ impl ManaSupply {
     /// order.
     pub fn take(game: &GameState, player: PlayerId) -> ManaSupply {
         let watchers = production_watchers(game);
+        // Nothing on the board or in the registry changes a production, as on
+        // nearly every board: each tap makes what it prints.
+        let quiet = watchers.replacements.is_empty()
+            && watchers.triggers.is_empty()
+            && !game.replacement_effects.iter().any(|row| matches!(row.def.pattern, EventPattern::ProduceMana { .. }));
         let mine = permanents_of(game, player);
         let mut supply =
             ManaSupply { player, entries: Vec::new(), outlets: Vec::new(), doublers: Vec::new(), plain: OnceCell::new() };
@@ -220,9 +225,15 @@ impl ManaSupply {
                             continue;
                         }
                         let Some(base) = production_of(game, &ability.effect, id, player) else { continue };
-                        for makes in made_by(game, &watchers, player, id, taps, base) {
-                            let way = Way { makes, taps, sacrifices };
-                            if sacrifices && !taps { alone.push(way) } else { ways.push(way) }
+                        let into = if sacrifices && !taps { &mut alone } else { &mut ways };
+                        if quiet {
+                            into.push(Way { makes: base, taps, sacrifices });
+                        } else {
+                            into.extend(made_by(game, &watchers, player, id, taps, base).into_iter().map(|makes| Way {
+                                makes,
+                                taps,
+                                sacrifices,
+                            }));
                         }
                     }
                     Activation::PerSacrifice { filter, needs } => {
@@ -235,7 +246,7 @@ impl ManaSupply {
                             continue;
                         }
                         let Some(base) = production_of(game, &ability.effect, id, player) else { continue };
-                        let ways = made_by(game, &watchers, player, id, false, base);
+                        let ways = if quiet { vec![base] } else { made_by(game, &watchers, player, id, false, base) };
                         supply.outlets.push(Outlet { permanent: id, definition: ability.id.definition(), needs, fodder, ways });
                     }
                     Activation::Doubling { input } => {
@@ -261,14 +272,16 @@ impl ManaSupply {
                     Activation::Unread => {}
                 }
             }
-            let tapped: Vec<Way> = ways.iter().filter(|w| !w.sacrifices).cloned().collect();
-            for t in &tapped {
-                for s in &alone {
-                    ways.push(Way { makes: sum(&t.makes, &s.makes), taps: true, sacrifices: true });
+            if !alone.is_empty() {
+                let tapped: Vec<Way> = ways.iter().filter(|w| !w.sacrifices).cloned().collect();
+                for t in &tapped {
+                    for s in &alone {
+                        ways.push(Way { makes: sum(&t.makes, &s.makes), taps: true, sacrifices: true });
+                    }
                 }
+                ways.extend(alone);
             }
-            ways.extend(alone);
-            let ways = undominated(ways);
+            let ways = if ways.len() > 1 { undominated(ways) } else { ways };
             if !ways.is_empty() {
                 supply.entries.push(Entry { permanent: Some(id), ways });
             }
@@ -664,10 +677,15 @@ fn permanents_of(game: &GameState, player: PlayerId) -> Vec<ObjectId> {
     if game.continuous_effects.summary().any_control_changing {
         return game.battlefield_ids_ordered().into_iter().filter(|&id| controls(game, id, player)).collect();
     }
+    // With no effect changing control, a permanent's controller is its
+    // entry's, the base `controls` reads without a layer walk.
     let mut mine: Vec<(Timestamp, ObjectId)> = game
         .battlefield
         .iter()
-        .filter(|&(&id, _)| controls(game, id, player))
+        .filter(|&(&id, entry)| {
+            debug_assert_eq!(entry.controller == player, controls(game, id, player));
+            entry.controller == player
+        })
         .map(|(&id, entry)| (entry.timestamp, id))
         .collect();
     mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
