@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::engine::restriction::{is_prohibited, Query};
+use crate::engine::restriction::{is_prohibited, prohibition, ProhibitedBy, Prohibition, Query};
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
@@ -397,7 +397,7 @@ pub(crate) fn apply_replacements(
             // CR 614.17: a "can't" is checked ahead of the pipeline and wins (CR 101.2);
             // never a `ReplacementDef`, or a player could decline it. Re-asked every
             // iteration because CR 614.17c lets a self-replacement change the event's type.
-            let blocked = is_prohibited(
+            let prohibited = prohibition(
                 game,
                 &Query::Event {
                     action: event,
@@ -408,6 +408,10 @@ pub(crate) fn apply_replacements(
                     lookahead: Some(&frame),
                 },
             );
+            if let (Some(t), Some(prohibited)) = (&mut trace, prohibited) {
+                t.prohibited.push((m.index, prohibited));
+            }
+            let blocked = prohibited.is_some();
             let mut any = false;
             for c in gather(game, event, ctx, blocked, &frame)
                 .into_iter()
@@ -626,8 +630,9 @@ pub(crate) fn apply_replacements(
 
 /// The trace sink's view of one CR 616.1 iteration — what the hand-authored
 /// pages record per step: the candidates and their verdicts, whether the
-/// look-ahead frame was consulted, the bucket, the chooser, the choice or
-/// its suppression, the rewrite, and what each member became.
+/// look-ahead frame was consulted, each member a "can't" stopped, the bucket,
+/// the chooser, the choice or its suppression, the rewrite, and what each
+/// member became.
 ///
 /// Accumulated rather than written in one place because an iteration has
 /// three exits — nothing gathered, an optional declined, an effect applied —
@@ -640,6 +645,9 @@ struct IterationTrace {
     frame_computed: bool,
     /// One row per applicable effect the gather found this iteration.
     candidates: Vec<CandidateRow>,
+    /// Each member a "can't" stopped (CR 614.17), by batch index, and the
+    /// restriction that did.
+    prohibited: Vec<(usize, Prohibition)>,
     chooser: Option<PlayerId>,
     decided: Decided,
     choice: Option<String>,
@@ -708,6 +716,7 @@ impl IterationTrace {
             subject: render_debug(subject),
             frame_computed: false,
             candidates: Vec::new(),
+            prohibited: Vec::new(),
             chooser: None,
             decided: Decided::None,
             choice: None,
@@ -750,6 +759,21 @@ impl IterationTrace {
             r.field_str("class", &c.class);
             r.field_usizes("members", &c.members);
             r.field_bool("bucket", c.bucket);
+            r.end();
+        }
+        r.end();
+        r.key("prohibited").begin_array();
+        for (i, prohibition) in &self.prohibited {
+            let (by, words) = match prohibition.by {
+                ProhibitedBy::Keyword(keyword) => ("keyword", Some(crate::ui::display::keyword_name(keyword))),
+                ProhibitedBy::StaticAbility(words) => ("static_ability", Some(words)),
+                ProhibitedBy::RegisteredEffect => ("registered_effect", None),
+            };
+            r.begin_object();
+            r.field_u64("i", *i as u64);
+            r.field_u64("source", prohibition.source.raw());
+            r.field_str("by", by);
+            r.field_opt_str("words", words);
             r.end();
         }
         r.end();

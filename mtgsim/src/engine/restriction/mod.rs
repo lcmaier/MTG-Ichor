@@ -29,4 +29,4 @@
 
 mod predicate;
 
-pub(crate) use predicate::{is_prohibited, Query};
+pub(crate) use predicate::{is_prohibited, prohibition, ProhibitedBy, Prohibition, Query};

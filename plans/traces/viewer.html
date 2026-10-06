@@ -214,8 +214,10 @@
         const cands = r.candidates.length ? r.candidates.map(c => `${named(c.id)}${c.bucket ? "" : " <small>(below the ladder)</small>"} over [${c.members.join(", ")}]`).join("; ") : "nothing gathered";
         const verdict = r.decided === "none" ? "" : ` → ${r.decided}${r.optional ? ", " + r.optional : ""}: ${named(r.choice)}${r.rewrite ? " with " + named(r.rewrite) : ""}`;
         const results = r.results.map(m => m.event == null ? `${m.i}: <em>does not happen</em>` : `${m.i}: ${named(short(m.event))}`).join(", ");
+        // A trace written before SU-8 has no `prohibited`.
+        const cants = (r.prohibited || []).map(p => `${p.i}: <em>can't</em>, ${named("#" + p.source)}'s ${esc(p.words || p.by)}`).join(", ");
         return `iteration ${r.iteration} on ${named(r.subject)}` + (r.chooser != null ? `, chooser P${r.chooser}` : "") +
-          `: ${cands}${verdict}<br><small>${results}</small>`;
+          `: ${cands}${verdict}` + (cants ? `<br><small>${cants}</small>` : "") + `<br><small>${results}</small>`;
       }
       case "layer_walk": {
         const pt = r.power == null ? "" : ` ${r.power}/${r.toughness}`;
