@@ -472,7 +472,7 @@ fn copy_refusal(game: &GameState, source: ObjectId, id: ObjectId) -> WhyLine {
 /// did with `id`'s effects, each of which gets one chance at an event.
 fn applied_already(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
     let Some(batch) = game.events.current_stamp().batch else { return Vec::new() };
-    let iterations = trace.iter().filter(|r| r.kind == RecordKind::Pipeline && r.u64("batch") == Some(batch.0));
+    let iterations = trace.iter().filter(|r| r.kind == RecordKind::ReplacementPipeline && r.u64("batch") == Some(batch.0));
     iterations
         .filter_map(|record| {
             let mine = record.items("candidates").iter().find(|c| c.get("source").and_then(|s| s.as_u64()) == Some(id.raw()))?;

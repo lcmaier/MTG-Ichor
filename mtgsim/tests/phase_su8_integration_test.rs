@@ -86,7 +86,7 @@ fn the_iteration_a_cant_stopped_names_it() {
     assert!(game.battlefield.contains_key(&creature), "indestructible: lethal damage destroys nothing");
 
     let records = trace.records();
-    let stopped: Vec<&FieldValue> = records.iter().filter(|r| r.kind == RecordKind::Pipeline).flat_map(|r| r.items("prohibited")).collect();
+    let stopped: Vec<&FieldValue> = records.iter().filter(|r| r.kind == RecordKind::ReplacementPipeline).flat_map(|r| r.items("prohibited")).collect();
     let [named] = stopped.as_slice() else { panic!("one member stopped, found {stopped:?}") };
     let field = |key: &str| named.get(key).cloned();
     assert_eq!(field("i"), Some(FieldValue::Number(0)), "the batch's one proposal, the destruction");

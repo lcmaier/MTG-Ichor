@@ -59,7 +59,7 @@ fn record_lines(game: &GameState, record: &TraceRecord, index: u64) -> Vec<WhyLi
         RecordKind::Batch => {
             record.items("members").iter().map(|m| linked(game, 0, format!("Proposed: {}", text(m, "action")))).collect()
         }
-        RecordKind::Pipeline => iteration_lines(game, record),
+        RecordKind::ReplacementPipeline => iteration_lines(game, record),
         RecordKind::Event if record.u64("index") != Some(index) => {
             vec![linked(game, 0, format!("Performed beside it: {}", record.str("text").unwrap_or_default()))]
         }

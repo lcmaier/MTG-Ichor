@@ -221,8 +221,11 @@ pub enum RecordKind {
     Event,
     /// The proposals entering a batch, and their CR 616.1 subject groups.
     Batch,
-    /// One CR 616.1 iteration.
-    Pipeline,
+    /// One pass of the replacement pipeline over an event: the replacement
+    /// and prevention effects that applied to it, the one chosen, any "can't"
+    /// that stopped it, and what each proposal became (CR 616.1). Written as
+    /// `pipeline`, the name the trace's readers know it by.
+    ReplacementPipeline,
     /// What each of a batch's proposals became.
     BatchEnd,
     /// One top-level layer walk.
@@ -244,7 +247,7 @@ impl RecordKind {
         RecordKind::Fork,
         RecordKind::Event,
         RecordKind::Batch,
-        RecordKind::Pipeline,
+        RecordKind::ReplacementPipeline,
         RecordKind::BatchEnd,
         RecordKind::LayerWalk,
         RecordKind::Decision,
@@ -261,7 +264,7 @@ impl RecordKind {
             RecordKind::Fork => "fork",
             RecordKind::Event => "event",
             RecordKind::Batch => "batch",
-            RecordKind::Pipeline => "pipeline",
+            RecordKind::ReplacementPipeline => "pipeline",
             RecordKind::BatchEnd => "batch_end",
             RecordKind::LayerWalk => "layer_walk",
             RecordKind::Decision => "decision",

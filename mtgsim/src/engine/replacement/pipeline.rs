@@ -745,7 +745,7 @@ impl IterationTrace {
     }
 
     fn record(self, game: &GameState, members: &[Member]) -> Record {
-        let mut r = Record::new(RecordKind::Pipeline);
+        let mut r = Record::new(RecordKind::ReplacementPipeline);
         r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
