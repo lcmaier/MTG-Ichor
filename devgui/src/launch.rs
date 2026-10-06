@@ -10,6 +10,7 @@
 
 use std::path::PathBuf;
 
+use mtgsim::scenario::MOST_PLAYERS;
 use mtgsim::state::decision_log::GameStart;
 
 use crate::bridge::{GameSetup, Pool};
@@ -66,8 +67,9 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Start, Strin
             }
             "--players" => {
                 let text = value()?;
-                players = Some(text.parse::<usize>().ok().filter(|n| *n >= 2).ok_or_else(|| {
-                    format!("--players takes the number of seats, 2 or more, not {text}")
+                // The loader's cap: a seat each is dealt and built.
+                players = Some(text.parse::<usize>().ok().filter(|n| (2..=MOST_PLAYERS).contains(n)).ok_or_else(|| {
+                    format!("--players takes the number of seats, 2 to {MOST_PLAYERS}, not {text}")
                 })?);
             }
             "--scenario" => scenario = Some(PathBuf::from(value()?)),
@@ -187,8 +189,10 @@ mod tests {
         assert_eq!(refused("--pool weird"), "--pool is performance or stress, not weird");
         assert_eq!(refused("--seeds 7"), "--seeds is not a flag the dev GUI takes");
         assert_eq!(refused("--pool stress --scenario board.scenario"), "--pool picks a dealt game's cards, and a scenario names its own");
-        assert_eq!(refused("--players 1"), "--players takes the number of seats, 2 or more, not 1");
-        assert_eq!(refused("--players four"), "--players takes the number of seats, 2 or more, not four");
+        assert_eq!(refused("--players 1"), "--players takes the number of seats, 2 to 99, not 1");
+        assert_eq!(refused("--players four"), "--players takes the number of seats, 2 to 99, not four");
+        assert_eq!(refused("--players 100000000"), "--players takes the number of seats, 2 to 99, not 100000000");
+        assert_eq!(launched("--players 99").players, 99);
         assert_eq!(refused("--players 4 --scenario board.scenario"), "--players deals a game's seats, and a scenario states its own");
         assert!(refused("--edit --seed 3").starts_with("--edit opens a board in the editor"));
     }

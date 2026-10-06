@@ -16,12 +16,13 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use devgui::bridge::{Play, Record, Writer, locked, spawn_game};
+use devgui::bridge::{GameSetup, Play, Record, Writer, locked, spawn_game};
 use devgui::launch::Start;
 use devgui::save::{self, Save};
 use devgui::session::Session;
 use devgui::view_model::{Input, NO_EARLIER_QUESTION, Refusal};
 use games::{dealt, play};
+use mtgsim::state::decision_log::GameStart;
 use sessions::{BOLT_IN_HAND, next_prompt, scenario_game, session_with};
 use window_by_rule::{inputs_by_rule, play_by_rule};
 
@@ -287,6 +288,34 @@ fn a_load_that_diverges_says_where_and_plays_on_from_the_answer_before() {
     let diverged = session.state.diverged.clone().expect("the divergence, said");
     assert!(diverged.contains("it chose player 7, which is not offered"), "{diverged}");
     assert_eq!(question(&session), target, "Bolt's target asked again");
+}
+
+/// Reload after `--load` plays the seed the loaded record played when
+/// `--seed` gave it, as the game's own Reload did, and otherwise reads the
+/// file's seed again, edits and all (`codebase-state.md` item 200).
+#[test]
+fn reload_after_a_load_keeps_a_seed_the_flag_gave() {
+    let text = format!("seed 5\n{BOLT_IN_HAND}");
+    let (mut session, _, file) = session_with("devgui-tools-load-seed", &text, |file| {
+        Start::Game(GameSetup { seed: Some(9), scenario: Some(file.to_path_buf()), ..dealt(0) })
+    });
+    let reloaded_seed = |session: &mut Session| {
+        let log = session.log_path.clone().unwrap();
+        let mut loaded = loaded(&save::path_for(&log));
+        next_prompt(&mut loaded);
+        loaded.input(Input::Reload);
+        match &loaded.start {
+            Some(GameStart::Scenario { seed, .. }) => *seed,
+            other => panic!("{other:?}"),
+        }
+    };
+    next_prompt(&mut session);
+    assert_eq!(reloaded_seed(&mut session), 9, "the flag's");
+    session.setup = Some(GameSetup { seed: None, ..session.setup.clone().unwrap() });
+    session.input(Input::Reload);
+    next_prompt(&mut session);
+    std::fs::write(&file, text.replace("seed 5", "seed 7")).unwrap();
+    assert_eq!(reloaded_seed(&mut session), 7, "the file's own, read again");
 }
 
 /// A file `--load` cannot read as a record is refused in the window, naming

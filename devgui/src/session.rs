@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::GameStart;
 
 use crate::boards::{Folders, ListedFile, start_name};
@@ -443,11 +444,16 @@ impl Session {
 }
 
 /// How a loaded record's game began, for Reload and the names the window
-/// gives: a scenario's file, read again as Reload reads it, or a dealt
-/// game's seed and seats, whose pool the record does not say.
+/// gives: a scenario's file, read again as Reload reads it, at the seed the
+/// record played if `--seed` gave it, which the file's text does not say; or
+/// a dealt game's seed and seats, whose pool the record does not say.
 fn loaded_setup(start: &GameStart) -> GameSetup {
     match start {
-        GameStart::Scenario { path, .. } => GameSetup { seed: None, pool: Pool::Performance, players: 2, scenario: Some(PathBuf::from(path)) },
+        GameStart::Scenario { path, seed, text } => {
+            let own = Scenario::parse(text).map_or(0, |scenario| scenario.seed);
+            let seed = (*seed != own).then_some(*seed);
+            GameSetup { seed, pool: Pool::Performance, players: 2, scenario: Some(PathBuf::from(path)) }
+        }
         GameStart::Dealt { seed, decks, .. } => GameSetup { seed: Some(*seed), pool: Pool::Performance, players: decks.len(), scenario: None },
     }
 }
