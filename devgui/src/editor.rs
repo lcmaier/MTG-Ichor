@@ -16,8 +16,8 @@ use std::path::PathBuf;
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::{
-    Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, ScenarioError, Targeted,
-    position_word, tag_letters, turn_positions,
+    Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, MOST_PLAYERS, NamedCard, PlayerWord, Scenario, ScenarioError,
+    Targeted, position_word, tag_letters, turn_positions,
 };
 use mtgsim::state::game_state::Phase;
 use mtgsim::types::effects::CounterType;
@@ -29,7 +29,6 @@ use crate::search::NameSearch;
 const LIFE_LIMIT: i64 = 99_999;
 /// The latest turn typed: the loader begins every turn up to it.
 const TURN_LIMIT: i64 = 999;
-const PLAYER_LIMIT: i64 = 99;
 /// The most lands played, counters of a kind or commander damage typed.
 const COUNT_LIMIT: i64 = 999;
 /// The kinds `CounterType` groups as a player's (CR 122.1), each a control
@@ -1210,7 +1209,7 @@ impl Editor {
             comments: &self.comments,
             text: &self.text,
             facts: vec![
-                stepper("Players", BoardNumber::Players, board.players as i64, (2, PLAYER_LIMIT), false),
+                stepper("Players", BoardNumber::Players, board.players as i64, (2, MOST_PLAYERS as i64), false),
                 stepper("Starting life", BoardNumber::StartingLife, board.starting_life, (-LIFE_LIMIT, LIFE_LIMIT), true),
                 stepper("Turn", BoardNumber::Turn, i64::from(board.turn), (1, TURN_LIMIT), true),
             ],
