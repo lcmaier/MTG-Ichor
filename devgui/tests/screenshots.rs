@@ -101,8 +101,11 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
-    results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
-    results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
+    results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
+    results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
+    // Taller, to reach the third seat's commander damage.
+    let refused_line = [EditorInput::Advanced(true), EditorInput::TypedLine("player 0: poison three".to_string()), EditorInput::AddTypedLine];
+    results.add(editor_picture("four-seats-commander.scenario", &[], &refused_line, 1050.0, "editor_advanced"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
     assert!(missing.is_empty(), "the review boards no longer reach {missing:?}");
 }
@@ -306,10 +309,10 @@ fn game_window<'a>(state: &'a WindowState, (line, log): &'a (String, PathBuf), s
     })
 }
 
-/// The editor on a sample, after a click on each named step or card, and
-/// "bear" typed into the search with Grizzly Bears chosen. The session reads
-/// the file and writes nothing.
-fn editor_picture(sample: &str, clicks: &[&str], name: &str) -> SnapshotResult {
+/// The editor on a sample, after a click on each named step or card, then
+/// `inputs`, and "bear" typed into the search with Grizzly Bears chosen. The
+/// session reads the file and writes nothing.
+fn editor_picture(sample: &str, clicks: &[&str], inputs: &[EditorInput], height: f32, name: &str) -> SnapshotResult {
     // As `cargo run -- --edit ../mtgsim/scenarios/<sample>` names it, from `devgui/`.
     let path = Path::new("../mtgsim/scenarios").join(sample);
     let mut session = Session::start(Start::Edit(Some(path)), Folders::default(), Arc::new(|| {}));
@@ -321,12 +324,15 @@ fn editor_picture(sample: &str, clicks: &[&str], name: &str) -> SnapshotResult {
         let input = step.or(card).unwrap_or_else(|| panic!("{sample} shows no {clicked}"));
         session.input(Input::Editor(input));
     }
+    for input in inputs {
+        session.input(Input::Editor(input.clone()));
+    }
     session.input(Input::Editor(EditorInput::Search("bear".to_string())));
     let bears = session.editor.view().search.results.into_iter().find(|result| result.label == "Grizzly Bears").map(|result| result.input);
     session.input(Input::Editor(bears.unwrap_or_else(|| panic!("no Grizzly Bears to choose"))));
     let view = session.editor.view();
     let header = SessionHeader { mode: Mode::Edit, line: "", log: None, playing: false, reloadable: false, message: None, files: &session.files, tools: None };
-    let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
+    let mut harness = Harness::builder().with_size([1280.0, height]).build_ui(|ui| {
         draw(ui, &WindowState::default(), &header, Some(&view));
     });
     harness.run();
