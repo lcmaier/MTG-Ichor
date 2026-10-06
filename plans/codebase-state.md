@@ -9298,9 +9298,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        but the Cube's (Signets, filters: MA-3), by life, counters or {Q}; a
        triggered mana ability whose amount is "that much" or whose type is
        "any type that land produced" (MA-3, MA-4); a watcher that functions
-       off the battlefield (no printed producer); two doublers of different
-       shapes, tried in timestamp order only; the pool's restricted units, which
-       a doubler copies free (item 33).
+       off the battlefield (no printed producer); two pool multipliers of
+       different shapes, tried in timestamp order only; the pool's restricted
+       units, which a pool multiplier copies free (item 33).
      - **Read loosely, so over-offered:** a permanent that sacrifices itself
        for mana and is also what the cost's own sacrifice must take
        (Treasure, MA-3); two outlets of different abilities sharing fodder,

@@ -31,7 +31,7 @@ mod lookahead;
 mod pipeline;
 
 pub(crate) use gather::{
-    applies_to_production, chooser_for, gather, pattern_watches, replacement_of, set_affects, subject_of,
+    applies_to_mana_production, chooser_for, gather, pattern_watches, replacement_of, set_affects, subject_of,
     EventSubject,
 };
 pub use gather::CounterEffectKind;

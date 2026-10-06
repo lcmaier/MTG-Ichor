@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::oracle::mana_supply::ProductionWatchers;
+use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::types::ids::{IdMap, ObjectId};
 
 /// Per-object frames, each stamped with the epoch it was computed at.
@@ -50,7 +50,7 @@ pub struct LayerMemo {
     /// were found at (`oracle::mana_supply`, `mana-architecture.md` §3.4):
     /// one scan per epoch for every player's inventory. Shared, so a fork
     /// copies nothing for it.
-    production_watchers: RefCell<Option<(u64, Arc<ProductionWatchers>)>>,
+    mana_production_watchers: RefCell<Option<(u64, Arc<ManaProductionWatchers>)>>,
     /// The debug audits' pause (`GameState::pause_layer_audit`).
     #[cfg(debug_assertions)]
     audit_paused: std::cell::Cell<bool>,
@@ -98,16 +98,16 @@ impl LayerMemo {
     }
 
     /// The production watchers found at exactly `epoch`.
-    pub(crate) fn production_watchers(&self, epoch: u64) -> Option<Arc<ProductionWatchers>> {
-        self.production_watchers
+    pub(crate) fn mana_production_watchers(&self, epoch: u64) -> Option<Arc<ManaProductionWatchers>> {
+        self.mana_production_watchers
             .borrow()
             .as_ref()
             .filter(|(stored, _)| *stored == epoch)
             .map(|(_, found)| Arc::clone(found))
     }
 
-    pub(crate) fn insert_production_watchers(&self, epoch: u64, found: Arc<ProductionWatchers>) {
-        *self.production_watchers.borrow_mut() = Some((epoch, found));
+    pub(crate) fn insert_mana_production_watchers(&self, epoch: u64, found: Arc<ManaProductionWatchers>) {
+        *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
     }
 }
 

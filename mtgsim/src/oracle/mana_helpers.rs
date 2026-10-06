@@ -6,7 +6,7 @@
 use std::cell::OnceCell;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
-use crate::oracle::mana_supply::{ManaSupply, Payment};
+use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
@@ -25,11 +25,11 @@ fn mana_payable(
     game: &GameState,
     player_id: PlayerId,
     cost: &ManaCost,
-    payment: &Payment<'_>,
+    non_mana: &NonManaCosts<'_>,
     supply: &OnceCell<ManaSupply>,
 ) -> bool {
     game.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(cost))
-        || supply.get_or_init(|| ManaSupply::take(game, player_id)).covers(game, cost, payment)
+        || supply.get_or_init(|| ManaSupply::read(game, player_id)).covers(game, cost, non_mana)
 }
 
 /// Why a card is not offered to cast at a priority question.
@@ -165,8 +165,8 @@ fn can_cast_with(
     let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
     // The mandatory sacrifices are paid at 601.2h, after the window, so what
     // they take is not there to make mana with.
-    let payment = Payment { source: None, other_costs: &mandatory_non_mana };
-    if !mana_payable(game, player_id, &mana_cost, &payment, supply) {
+    let non_mana = NonManaCosts { source: None, costs: &mandatory_non_mana };
+    if !mana_payable(game, player_id, &mana_cost, &non_mana, supply) {
         return Err(CannotCast::ManaShort);
     }
     Ok(())
@@ -332,7 +332,7 @@ pub fn can_activate(
 /// once a source rather than once an ability.
 ///
 /// The mana is asked last, as a card's is: a tapped source is refused for
-/// being tapped before anything takes an inventory (`mana-architecture.md`
+/// being tapped before anything reads an inventory (`mana-architecture.md`
 /// §3.1).
 fn can_activate_as_its_controller(
     game: &GameState,
@@ -366,8 +366,8 @@ fn can_activate_as_its_controller(
         .filter_map(|c| if let Cost::Mana(mana) = c { Some(mana.symbols.iter().copied()) } else { None })
         .flatten()
         .collect();
-    let payment = Payment { source: Some(source_id), other_costs: &other_costs };
-    if !symbols.is_empty() && !mana_payable(game, player_id, &ManaCost::from_symbols(symbols), &payment, supply) {
+    let non_mana = NonManaCosts { source: Some(source_id), costs: &other_costs };
+    if !symbols.is_empty() && !mana_payable(game, player_id, &ManaCost::from_symbols(symbols), &non_mana, supply) {
         return Err(CannotActivate::ManaShort);
     }
     Ok(())

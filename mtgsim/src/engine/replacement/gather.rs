@@ -581,7 +581,7 @@ pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, O
 /// production nobody has proposed: `oracle::mana_supply` reads what a tap
 /// would make before the window opens. The cause is the producing ability's
 /// controller, as `resolve_mana_effect`'s resolution makes it.
-pub(crate) fn applies_to_production(
+pub(crate) fn applies_to_mana_production(
     game: &GameState,
     def: &ReplacementDef,
     source: ObjectId,

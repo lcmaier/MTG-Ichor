@@ -1,7 +1,7 @@
 //! What a player can pay with, and whether it pays a cost: the check behind
 //! the priority question's offer (`mana-architecture.md` §3).
 //!
-//! **The inventory**, [`ManaSupply`], is taken once per player per priority
+//! **The inventory**, [`ManaSupply`], is read once per player per priority
 //! point, at the first card or ability that reaches the mana check. An entry
 //! is one use of what a permanent's mana abilities share, its {T} or the
 //! permanent itself, with what each way of using it makes once the board's
@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::replacement::{applies_to_production, replacement_of};
+use crate::engine::replacement::{applies_to_mana_production, replacement_of};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
@@ -39,53 +39,53 @@ use crate::types::triggers::{TriggerEvent, TriggerSubject};
 use crate::types::zones::Zone;
 
 /// Mana by type, in [`ManaType`]'s order: W, U, B, R, G, C (CR 106.1b).
-type Bag = [u64; 6];
+type ManaBag = [u64; 6];
 
-const NO_MANA: Bag = [0; 6];
+const NO_MANA: ManaBag = [0; 6];
 
-const ALL_TYPES: [ManaType; 6] =
+const ALL_MANA_TYPES: [ManaType; 6] =
     [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless];
 
 fn slot(mana_type: ManaType) -> usize {
     mana_type as usize
 }
 
-fn sum(a: &Bag, b: &Bag) -> Bag {
+fn sum(a: &ManaBag, b: &ManaBag) -> ManaBag {
     std::array::from_fn(|t| a[t] + b[t])
 }
 
 /// Whether `a` holds at least `b`'s mana of every type.
-fn holds(a: &Bag, b: &Bag) -> bool {
+fn holds(a: &ManaBag, b: &ManaBag) -> bool {
     (0..6).all(|t| a[t] >= b[t])
 }
 
 /// A set of the six types, a bit each.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-struct Types(u8);
+struct ManaTypes(u8);
 
-impl Types {
-    fn one(slot: usize) -> Types {
-        Types(1 << slot)
+impl ManaTypes {
+    fn one(slot: usize) -> ManaTypes {
+        ManaTypes(1 << slot)
     }
 
-    fn of(made: &Bag) -> Types {
-        Types((0..6).filter(|&t| made[t] > 0).fold(0, |set, t| set | 1 << t))
+    fn of(made: &ManaBag) -> ManaTypes {
+        ManaTypes((0..6).filter(|&t| made[t] > 0).fold(0, |set, t| set | 1 << t))
     }
 
     fn has(self, slot: usize) -> bool {
         self.0 & (1 << slot) != 0
     }
 
-    fn meets(self, other: Types) -> bool {
+    fn meets(self, other: ManaTypes) -> bool {
         self.0 & other.0 != 0
     }
 
-    fn union(self, other: Types) -> Types {
-        Types(self.0 | other.0)
+    fn union(self, other: ManaTypes) -> ManaTypes {
+        ManaTypes(self.0 | other.0)
     }
 
     /// Every nonempty subset.
-    fn subsets(self) -> impl Iterator<Item = Types> {
+    fn subsets(self) -> impl Iterator<Item = ManaTypes> {
         let all = self.0;
         let mut next = all;
         std::iter::from_fn(move || {
@@ -94,15 +94,15 @@ impl Types {
             }
             let current = next;
             next = (next - 1) & all;
-            Some(Types(current))
+            Some(ManaTypes(current))
         })
     }
 }
 
 /// One way of using an entry, and what it makes.
 #[derive(Debug, Clone, PartialEq)]
-struct Way {
-    makes: Bag,
+struct EntryWay {
+    makes: ManaBag,
     /// It taps the permanent, so a cost that taps the same permanent rules it
     /// out.
     taps: bool,
@@ -111,11 +111,11 @@ struct Way {
     sacrifices: bool,
 }
 
-impl Way {
+impl EntryWay {
     /// Never worse than `other`: at least its mana of every type, for no more
     /// of the permanent. The second half keeps a way a cost's exclusion could
     /// leave alone (§3.3).
-    fn dominates(&self, other: &Way) -> bool {
+    fn dominates(&self, other: &EntryWay) -> bool {
         holds(&self.makes, &other.makes)
             && (!self.taps || other.taps)
             && (!self.sacrifices || other.sacrifices)
@@ -123,8 +123,8 @@ impl Way {
 }
 
 /// `ways` less every way another dominates, in their order.
-fn undominated(ways: Vec<Way>) -> Vec<Way> {
-    let mut kept: Vec<Way> = Vec::new();
+fn undominated(ways: Vec<EntryWay>) -> Vec<EntryWay> {
+    let mut kept: Vec<EntryWay> = Vec::new();
     for way in ways {
         if kept.iter().any(|k| k.dominates(&way)) {
             continue;
@@ -137,16 +137,16 @@ fn undominated(ways: Vec<Way>) -> Vec<Way> {
 
 /// One use of what a permanent's mana abilities share, or the pool's mana.
 #[derive(Debug, Clone, PartialEq)]
-struct Entry {
+struct SupplyEntry {
     /// `None` for the pool.
     permanent: Option<ObjectId>,
-    ways: Vec<Way>,
+    ways: Vec<EntryWay>,
 }
 
 /// "Sacrifice a [filter]: Add mana" (Krark-Clan Ironworks): used once for
 /// each permanent it can sacrifice (CR 701.21a), itself last.
 #[derive(Debug, Clone, PartialEq)]
-struct Outlet {
+struct SacrificeOutlet {
     permanent: ObjectId,
     /// Outlets of one ability share their fodder, so they are counted once.
     definition: AbilityId,
@@ -154,17 +154,19 @@ struct Outlet {
     /// The player's permanents its filter matches, itself among them.
     fodder: Vec<ObjectId>,
     /// What one activation can make.
-    ways: Vec<Bag>,
+    ways: Vec<ManaBag>,
 }
 
-/// "{cost}, {T}: Double the amount of each type of unspent mana you have"
-/// (Doubling Cube).
+/// A mana ability that adds the unspent mana in the pool again, for an input
+/// paid first: Doubling Cube's "{3}, {T}: Double the amount of each type of
+/// unspent mana you have".
 #[derive(Debug, Clone, PartialEq)]
-struct Doubler {
+struct PoolMultiplier {
     permanent: ObjectId,
-    input: Demand,
-    /// What one mana left in the pool becomes: itself and what the doubling
-    /// adds for it, 2, or 3 under Mana Reflection.
+    input: ManaDemand,
+    /// What one mana left in the pool becomes: itself and what the ability
+    /// adds for it, 2 for Doubling Cube, 3 under Mana Reflection, 4 under
+    /// Nyxbloom Ancient.
     factor: u64,
 }
 
@@ -172,12 +174,12 @@ struct Doubler {
 #[derive(Debug, Clone)]
 pub struct ManaSupply {
     player: PlayerId,
-    entries: Vec<Entry>,
-    outlets: Vec<Outlet>,
-    doublers: Vec<Doubler>,
-    /// The split for a payment that takes none of what the entries spend and
-    /// uses no doubler, nearly every check: made once, at the first.
-    plain: OnceCell<Pieces>,
+    entries: Vec<SupplyEntry>,
+    sacrifice_outlets: Vec<SacrificeOutlet>,
+    pool_multipliers: Vec<PoolMultiplier>,
+    /// The split for a payment that reserves none of what the entries spend
+    /// and uses no pool multiplier, nearly every check: made once, at the first.
+    plain_split: OnceCell<SplitSupply>,
 }
 
 /// What a mana cost is paid for besides its mana: the payment's other costs.
@@ -185,58 +187,64 @@ pub struct ManaSupply {
 /// make mana with: a cost's own {T} rules out its source's tap, its own
 /// sacrifice the source as anything's fodder (§3.3).
 #[derive(Debug, Clone, Copy)]
-pub struct Payment<'a> {
+pub struct NonManaCosts<'a> {
     /// The permanent whose ability is activated; `None` for a spell.
     pub source: Option<ObjectId>,
-    pub other_costs: &'a [Cost],
+    pub costs: &'a [Cost],
 }
 
 impl ManaSupply {
     /// What `player` can pay with now: the pool, and every mana ability of a
     /// permanent they control whose other costs can be paid, in timestamp
     /// order.
-    pub fn take(game: &GameState, player: PlayerId) -> ManaSupply {
-        let watchers = production_watchers(game);
+    pub fn read(game: &GameState, player: PlayerId) -> ManaSupply {
+        let watchers = mana_production_watchers(game);
         // Nothing on the board or in the registry changes a production, as on
         // nearly every board: each tap makes what it prints.
         let quiet = watchers.replacements.is_empty()
             && watchers.triggers.is_empty()
             && !game.replacement_effects.iter().any(|row| matches!(row.def.pattern, EventPattern::ProduceMana { .. }));
         let mine = permanents_of(game, player);
-        let mut supply =
-            ManaSupply { player, entries: Vec::new(), outlets: Vec::new(), doublers: Vec::new(), plain: OnceCell::new() };
+        let mut supply = ManaSupply {
+            player,
+            entries: Vec::new(),
+            sacrifice_outlets: Vec::new(),
+            pool_multipliers: Vec::new(),
+            plain_split: OnceCell::new(),
+        };
         if let Some(state) = game.players.get(player) {
             let mut pool = NO_MANA;
             for (&mana_type, &n) in state.mana_pool.available() {
                 pool[slot(mana_type)] += n;
             }
             if pool.iter().any(|&n| n > 0) {
-                supply.entries.push(Entry { permanent: None, ways: vec![Way { makes: pool, taps: false, sacrifices: false }] });
+                let way = EntryWay { makes: pool, taps: false, sacrifices: false };
+                supply.entries.push(SupplyEntry { permanent: None, ways: vec![way] });
             }
         }
         for &id in &mine {
-            let mut ways: Vec<Way> = Vec::new();
+            let mut ways: Vec<EntryWay> = Vec::new();
             // Sacrificing it for mana leaves its {T} free to use first.
-            let mut alone: Vec<Way> = Vec::new();
+            let mut alone: Vec<EntryWay> = Vec::new();
             for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
-                match activation_of(ability) {
-                    Activation::Once { taps, sacrifices } => {
+                match mana_ability_cost_of(ability) {
+                    ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices } => {
                         if game.can_pay_costs(&ability.costs, player, id).is_err() {
                             continue;
                         }
-                        let Some(base) = production_of(game, &ability.effect, id, player) else { continue };
+                        let Some(base) = mana_production_of(game, &ability.effect, id, player) else { continue };
                         let into = if sacrifices && !taps { &mut alone } else { &mut ways };
                         if quiet {
-                            into.push(Way { makes: base, taps, sacrifices });
+                            into.push(EntryWay { makes: base, taps, sacrifices });
                         } else {
-                            into.extend(made_by(game, &watchers, player, id, taps, base).into_iter().map(|makes| Way {
+                            into.extend(mana_made_by(game, &watchers, player, id, taps, base).into_iter().map(|makes| EntryWay {
                                 makes,
                                 taps,
                                 sacrifices,
                             }));
                         }
                     }
-                    Activation::PerSacrifice { filter, needs } => {
+                    ManaAbilityCost::SacrificesOthers { filter, needs } => {
                         let fodder: Vec<ObjectId> = mine
                             .iter()
                             .copied()
@@ -245,45 +253,47 @@ impl ManaSupply {
                         if fodder.len() < needs as usize {
                             continue;
                         }
-                        let Some(base) = production_of(game, &ability.effect, id, player) else { continue };
-                        let ways = if quiet { vec![base] } else { made_by(game, &watchers, player, id, false, base) };
-                        supply.outlets.push(Outlet { permanent: id, definition: ability.id.definition(), needs, fodder, ways });
+                        let Some(base) = mana_production_of(game, &ability.effect, id, player) else { continue };
+                        let ways = if quiet { vec![base] } else { mana_made_by(game, &watchers, player, id, false, base) };
+                        let definition = ability.id.definition();
+                        supply.sacrifice_outlets.push(SacrificeOutlet { permanent: id, definition, needs, fodder, ways });
                     }
-                    Activation::Doubling { input } => {
-                        let Some(input) = Demand::of(input) else { continue };
+                    ManaAbilityCost::MultipliesThePool { input } => {
+                        let Some(input) = ManaDemand::of(input) else { continue };
                         if game.can_pay_costs(&[Cost::TapSelf], player, id).is_err() {
                             continue;
                         }
-                        // One mana left in the pool, doubled: the doubling is a tap
-                        // for mana (CR 106.12), so a multiplier on taps scales it.
+                        // One mana left in the pool, and what the ability adds for it,
+                        // which is a tap for mana (CR 106.12): a multiplier on taps
+                        // scales it.
                         let mut unit = NO_MANA;
                         unit[slot(ManaType::Colorless)] = 1;
-                        let made = rewritten(game, &watchers, player, id, true, unit);
-                        // A retype would make the doubled mana all one type, which no
-                        // printed doubler meets; the check does not read it.
-                        if made.iter().any(|m| Types::of(m) != Types::one(slot(ManaType::Colorless))) {
+                        let made = mana_after_replacements(game, &watchers, player, id, true, unit);
+                        // A retype would make the added mana all one type, which no
+                        // printed pool multiplier meets; the check does not read it.
+                        if made.iter().any(|m| ManaTypes::of(m) != ManaTypes::one(slot(ManaType::Colorless))) {
                             continue;
                         }
                         let added = made.iter().map(|m| m[slot(ManaType::Colorless)]).max().unwrap_or(0);
                         if added > 0 {
-                            supply.doublers.push(Doubler { permanent: id, input, factor: 1 + added });
+                            supply.pool_multipliers.push(PoolMultiplier { permanent: id, input, factor: 1 + added });
                         }
                     }
-                    Activation::Unread => {}
+                    ManaAbilityCost::NotCounted => {}
                 }
             }
             if !alone.is_empty() {
-                let tapped: Vec<Way> = ways.iter().filter(|w| !w.sacrifices).cloned().collect();
+                let tapped: Vec<EntryWay> = ways.iter().filter(|w| !w.sacrifices).cloned().collect();
                 for t in &tapped {
                     for s in &alone {
-                        ways.push(Way { makes: sum(&t.makes, &s.makes), taps: true, sacrifices: true });
+                        ways.push(EntryWay { makes: sum(&t.makes, &s.makes), taps: true, sacrifices: true });
                     }
                 }
                 ways.extend(alone);
             }
             let ways = if ways.len() > 1 { undominated(ways) } else { ways };
             if !ways.is_empty() {
-                supply.entries.push(Entry { permanent: Some(id), ways });
+                supply.entries.push(SupplyEntry { permanent: Some(id), ways });
             }
         }
         supply
@@ -292,46 +302,49 @@ impl ManaSupply {
     /// Whether this inventory pays `cost` for `payment`. A symbol no payment
     /// path pays yet is refused, as `ManaPool::pay` refuses it (§3.2): the
     /// offer must agree with the payment (`cost-architecture.md` §3.6).
-    pub fn covers(&self, game: &GameState, cost: &ManaCost, payment: &Payment<'_>) -> bool {
-        let Some(demand) = Demand::of(cost) else { return false };
-        demand.total() == 0 || self.pays(&demand, &Taken::of(game, self.player, payment, !self.outlets.is_empty()))
+    pub fn covers(&self, game: &GameState, cost: &ManaCost, non_mana: &NonManaCosts<'_>) -> bool {
+        let Some(demand) = ManaDemand::of(cost) else { return false };
+        let reserved = ReservedByCosts::of(game, self.player, non_mana, !self.sacrifice_outlets.is_empty());
+        demand.total() == 0 || self.pays(&demand, &reserved)
     }
 
-    fn pays(&self, demand: &Demand, taken: &Taken) -> bool {
-        let leaves_the_entries = !self.entries.iter().any(|e| e.permanent.is_some_and(|p| taken.takes(p)))
-            && (self.outlets.is_empty() || taken.takes_no_fodder());
+    fn pays(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> bool {
+        let leaves_the_entries = !self.entries.iter().any(|e| e.permanent.is_some_and(|p| reserved.reserves(p)))
+            && (self.sacrifice_outlets.is_empty() || reserved.reserves_no_fodder());
         let plain = if leaves_the_entries {
-            self.plain.get_or_init(|| self.pieces(&Taken::default(), &[])).pay(demand)
+            self.plain_split.get_or_init(|| self.split(&ReservedByCosts::default(), &[])).pays(demand)
         } else {
-            self.pieces(taken, &[]).pay(demand)
+            self.split(reserved, &[]).pays(demand)
         };
         if plain {
             return true;
         }
-        // Every other entry is used before a doubler, since mana made after
-        // it is not doubled; what cannot be, comes after and pays as made.
-        let doublers: Vec<&Doubler> = self.doublers.iter().filter(|d| !taken.takes(d.permanent)).collect();
-        (1..=doublers.len()).any(|used| {
-            let used = &doublers[..used];
-            let after = self.made_after_doubling(taken, used);
-            let asked = used.iter().rev().fold(demand.less(&after), |asked, d| asked.before_doubling(d.factor, &d.input));
-            self.pieces(taken, used).pay(&asked)
+        // Every other entry is used before a pool multiplier, since mana made
+        // after it is not multiplied; what cannot be, comes after and pays as
+        // made.
+        let pool_multipliers: Vec<&PoolMultiplier> =
+            self.pool_multipliers.iter().filter(|d| !reserved.reserves(d.permanent)).collect();
+        (1..=pool_multipliers.len()).any(|used| {
+            let used = &pool_multipliers[..used];
+            let after = self.made_after_multiplying(reserved, used);
+            let asked = used.iter().rev().fold(demand.less(&after), |asked, d| asked.before_multiplying(d.factor, &d.input));
+            self.split(reserved, used).pays(&asked)
         })
     }
 
-    /// What an outlet makes after the doublers in `used`: a doubler it can
-    /// sacrifice is sacrificed after its doubling, and so is the last outlet
+    /// What a sacrifice outlet makes after the pool multipliers in `used`: a
+    /// multiplier it can sacrifice is sacrificed after it adds, and so is the last outlet
     /// of the ability, which must still be there to do it (Krark-Clan
     /// Ironworks beside Doubling Cube).
-    fn made_after_doubling(&self, taken: &Taken, used: &[&Doubler]) -> Bag {
+    fn made_after_multiplying(&self, reserved: &ReservedByCosts, used: &[&PoolMultiplier]) -> ManaBag {
         let mut after = NO_MANA;
-        for outlet in self.outlets_counted() {
+        for outlet in self.sacrifice_outlets_counted() {
             let late = used.iter().filter(|d| outlet.fodder.contains(&d.permanent)).count() as u64;
             if late == 0 {
                 continue;
             }
             let last = u64::from(outlet.fodder.contains(&outlet.permanent));
-            let activations = (late + last).min(taken.fodder_left(&outlet.fodder)) / u64::from(outlet.needs.max(1));
+            let activations = (late + last).min(reserved.fodder_left(&outlet.fodder)) / u64::from(outlet.needs.max(1));
             // Its first way, which is every printed outlet's only one.
             if let Some(made) = outlet.ways.first() {
                 after = std::array::from_fn(|t| after[t] + made[t] * activations);
@@ -341,31 +354,31 @@ impl ManaSupply {
     }
 
     /// One outlet of each ability: outlets of one ability share their fodder.
-    fn outlets_counted(&self) -> impl Iterator<Item = &Outlet> {
-        self.outlets.iter().enumerate().filter_map(|(i, outlet)| {
-            (!self.outlets[..i].iter().any(|earlier| earlier.definition == outlet.definition)).then_some(outlet)
+    fn sacrifice_outlets_counted(&self) -> impl Iterator<Item = &SacrificeOutlet> {
+        self.sacrifice_outlets.iter().enumerate().filter_map(|(i, outlet)| {
+            (!self.sacrifice_outlets[..i].iter().any(|earlier| earlier.definition == outlet.definition)).then_some(outlet)
         })
     }
 
     /// The supply this payment leaves, split by how each mana's type is
     /// chosen.
-    fn pieces(&self, taken: &Taken, doubling: &[&Doubler]) -> Pieces {
-        let mut pieces = Pieces::default();
+    fn split(&self, reserved: &ReservedByCosts, multiplying: &[&PoolMultiplier]) -> SplitSupply {
+        let mut pieces = SplitSupply::default();
         for entry in &self.entries {
-            let doubles = doubling.iter().any(|d| Some(d.permanent) == entry.permanent);
-            let ways: Vec<Bag> = entry
+            let multiplies = multiplying.iter().any(|d| Some(d.permanent) == entry.permanent);
+            let ways: Vec<ManaBag> = entry
                 .ways
                 .iter()
-                .filter(|w| taken.allows(entry.permanent, w) && !(w.taps && doubles))
+                .filter(|w| reserved.allows(entry.permanent, w) && !(w.taps && multiplies))
                 .map(|w| w.makes)
                 .collect();
             pieces.add(&ways, 1);
         }
-        for outlet in self.outlets_counted() {
-            // Less what is sacrificed after a doubler (`made_after_doubling`).
-            let late = doubling.iter().filter(|d| outlet.fodder.contains(&d.permanent)).count() as u64;
+        for outlet in self.sacrifice_outlets_counted() {
+            // Less what is sacrificed after a pool multiplier (`made_after_multiplying`).
+            let late = multiplying.iter().filter(|d| outlet.fodder.contains(&d.permanent)).count() as u64;
             let last = u64::from(late > 0 && outlet.fodder.contains(&outlet.permanent));
-            let activations = taken.fodder_left(&outlet.fodder).saturating_sub(late + last) / u64::from(outlet.needs.max(1));
+            let activations = reserved.fodder_left(&outlet.fodder).saturating_sub(late + last) / u64::from(outlet.needs.max(1));
             pieces.add(&outlet.ways, activations);
         }
         pieces
@@ -387,14 +400,14 @@ pub struct ManaSource {
 /// a Forest under Deep Water makes is blue, and a land Wild Growth enchants
 /// makes green besides its own, as the check counts them.
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
-    let watchers = production_watchers(game);
+    let watchers = mana_production_watchers(game);
     let mut sources = Vec::new();
     for id in permanents_of(game, player_id) {
         for ability in get_effective_abilities(game, id).iter() {
             if ability.ability_type != AbilityType::Mana || game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
             }
-            for produces in types_made(game, &watchers, ability, id, player_id) {
+            for produces in mana_types_made(game, &watchers, ability, id, player_id) {
                 sources.push(ManaSource { permanent_id: id, ability_id: ability.id, produces });
             }
         }
@@ -405,49 +418,49 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
 /// The types `ability` makes now, after what the board does to its
 /// production; for a shape the inventory does not read, the fixed amounts it
 /// prints.
-fn types_made(
+fn mana_types_made(
     game: &GameState,
-    watchers: &ProductionWatchers,
+    watchers: &ManaProductionWatchers,
     ability: &AbilityDef,
     permanent: ObjectId,
     player: PlayerId,
 ) -> Vec<ManaType> {
-    let taps = match activation_of(ability) {
-        Activation::Once { taps, .. } => Some(taps),
-        Activation::PerSacrifice { .. } => Some(false),
-        Activation::Doubling { .. } | Activation::Unread => None,
+    let taps = match mana_ability_cost_of(ability) {
+        ManaAbilityCost::SpendsItsTapOrItself { taps, .. } => Some(taps),
+        ManaAbilityCost::SacrificesOthers { .. } => Some(false),
+        ManaAbilityCost::MultipliesThePool { .. } | ManaAbilityCost::NotCounted => None,
     };
-    let made = match (taps, production_of(game, &ability.effect, permanent, player)) {
-        (Some(taps), Some(base)) => made_by(game, watchers, player, permanent, taps, base),
+    let made = match (taps, mana_production_of(game, &ability.effect, permanent, player)) {
+        (Some(taps), Some(base)) => mana_made_by(game, watchers, player, permanent, taps, base),
         _ => {
             let Effect::Atom(Primitive::ProduceMana(output), _) = &ability.effect else { return Vec::new() };
             let fixed = output.mana.iter().filter(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0));
             return fixed.map(|(mana_type, _)| *mana_type).collect();
         }
     };
-    let types = made.iter().fold(Types::default(), |set, m| set.union(Types::of(m)));
-    ALL_TYPES.into_iter().filter(|&t| types.has(slot(t))).collect()
+    let types = made.iter().fold(ManaTypes::default(), |set, m| set.union(ManaTypes::of(m)));
+    ALL_MANA_TYPES.into_iter().filter(|&t| types.has(slot(t))).collect()
 }
 
 /// The mana abilities CR 601.2g's window offers a player, read once a window
 /// (§3.8). Between its prompts only whether each one's costs can be paid
 /// changes, until the layer epoch moves (a sacrifice), when it is read again.
-pub struct WindowOffer {
+pub struct ManaAbilityWindowOffer {
     player: PlayerId,
     epoch: u64,
-    abilities: Vec<OfferedAbility>,
+    abilities: Vec<OfferedManaAbility>,
 }
 
 /// A mana ability the window may offer: its permanent and the first instance
 /// of its definition there, since two grants of one ability are one choice.
-struct OfferedAbility {
+struct OfferedManaAbility {
     permanent: ObjectId,
     ability: AbilityId,
-    paid: Payable,
+    paid: CostRecheck,
 }
 
 /// How the window re-asks whether an ability's costs can be paid.
-enum Payable {
+enum CostRecheck {
     /// {T} alone: while the permanent is untapped, since whether it is
     /// summoning-sick (CR 302.6) moves only with the epoch.
     WhileUntapped { sick: bool },
@@ -455,8 +468,8 @@ enum Payable {
     Costs(Vec<Cost>),
 }
 
-impl WindowOffer {
-    pub fn take(game: &GameState, player: PlayerId) -> WindowOffer {
+impl ManaAbilityWindowOffer {
+    pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
         let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
         let mut abilities = Vec::new();
         for permanent in permanents_of(game, player) {
@@ -468,13 +481,13 @@ impl WindowOffer {
                     continue;
                 }
                 let paid = match ability.costs.as_slice() {
-                    [Cost::TapSelf] => Payable::WhileUntapped { sick: has_summoning_sickness(game, permanent) },
-                    costs => Payable::Costs(costs.to_vec()),
+                    [Cost::TapSelf] => CostRecheck::WhileUntapped { sick: has_summoning_sickness(game, permanent) },
+                    costs => CostRecheck::Costs(costs.to_vec()),
                 };
-                abilities.push(OfferedAbility { permanent, ability: ability.id, paid });
+                abilities.push(OfferedManaAbility { permanent, ability: ability.id, paid });
             }
         }
-        WindowOffer { player, epoch: game.layer_epoch(), abilities }
+        ManaAbilityWindowOffer { player, epoch: game.layer_epoch(), abilities }
     }
 
     /// Whether the board this offer was read from is still the board.
@@ -489,10 +502,10 @@ impl WindowOffer {
         self.abilities
             .iter()
             .filter(|offered| match &offered.paid {
-                Payable::WhileUntapped { sick } => {
+                CostRecheck::WhileUntapped { sick } => {
                     !sick && game.battlefield.get(&offered.permanent).is_some_and(|entry| !entry.tapped)
                 }
-                Payable::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
+                CostRecheck::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
             })
             .map(|offered| (offered.permanent, offered.ability))
             .collect()
@@ -507,39 +520,40 @@ fn offered_in_the_window(game: &GameState, ability: &AbilityDef, permanent: Obje
     let makes_fixed_mana = matches!(&ability.effect, Effect::Atom(Primitive::ProduceMana(output), _)
         if output.mana.iter().any(|(_, amount)| matches!(amount, AmountExpr::Fixed(n) if *n > 0)));
     makes_fixed_mana
-        || match activation_of(ability) {
-            Activation::Doubling { .. } => true,
-            Activation::Once { .. } | Activation::PerSacrifice { .. } => {
-                production_of(game, &ability.effect, permanent, player).is_some()
+        || match mana_ability_cost_of(ability) {
+            ManaAbilityCost::MultipliesThePool { .. } => true,
+            ManaAbilityCost::SpendsItsTapOrItself { .. } | ManaAbilityCost::SacrificesOthers { .. } => {
+                mana_production_of(game, &ability.effect, permanent, player).is_some()
             }
-            Activation::Unread => false,
+            ManaAbilityCost::NotCounted => false,
         }
 }
 
-/// What a payment's other costs take from the board.
+/// What a payment's costs besides its mana reserve for themselves: a {T} its
+/// source's tap, a sacrifice its permanents.
 #[derive(Default)]
-struct Taken {
+struct ReservedByCosts {
     tapped: Option<ObjectId>,
     sacrificed: Option<ObjectId>,
     /// Each other sacrifice: the permanents it may take, and how many.
     sacrifices: Vec<(Vec<ObjectId>, u32)>,
 }
 
-impl Taken {
+impl ReservedByCosts {
     /// `fodder_read` is whether anything reads a sacrifice's candidates:
     /// without an outlet nothing does, and they are not looked up.
-    fn of(game: &GameState, player: PlayerId, payment: &Payment<'_>, fodder_read: bool) -> Taken {
-        let mut taken = Taken { tapped: None, sacrificed: None, sacrifices: Vec::new() };
-        for cost in payment.other_costs {
+    fn of(game: &GameState, player: PlayerId, non_mana: &NonManaCosts<'_>, fodder_read: bool) -> ReservedByCosts {
+        let mut reserved = ReservedByCosts { tapped: None, sacrificed: None, sacrifices: Vec::new() };
+        for cost in non_mana.costs {
             match cost {
-                Cost::TapSelf => taken.tapped = payment.source,
-                Cost::SacrificeSelf => taken.sacrificed = payment.source,
+                Cost::TapSelf => reserved.tapped = non_mana.source,
+                Cost::SacrificeSelf => reserved.sacrificed = non_mana.source,
                 Cost::Sacrifice(filter, needs) if fodder_read => {
                     let candidates = permanents_of(game, player)
                         .into_iter()
                         .filter(|&id| game.object_matches_filter(id, filter, player).unwrap_or(false))
                         .collect();
-                    taken.sacrifices.push((candidates, *needs));
+                    reserved.sacrifices.push((candidates, *needs));
                 }
                 // The mana is the cost being checked, and the rest take nothing
                 // a mana ability the inventory reads makes mana from.
@@ -553,20 +567,20 @@ impl Taken {
                 | Cost::AddCounters(..) => {}
             }
         }
-        taken
+        reserved
     }
 
-    fn allows(&self, permanent: Option<ObjectId>, way: &Way) -> bool {
+    fn allows(&self, permanent: Option<ObjectId>, way: &EntryWay) -> bool {
         let Some(permanent) = permanent else { return true };
         !(way.taps && self.tapped == Some(permanent)) && !(way.sacrifices && self.sacrificed == Some(permanent))
     }
 
     /// Whether the payment taps or sacrifices `permanent` itself.
-    fn takes(&self, permanent: ObjectId) -> bool {
+    fn reserves(&self, permanent: ObjectId) -> bool {
         self.tapped == Some(permanent) || self.sacrificed == Some(permanent)
     }
 
-    fn takes_no_fodder(&self) -> bool {
+    fn reserves_no_fodder(&self) -> bool {
         self.sacrificed.is_none() && self.sacrifices.is_empty()
     }
 
@@ -587,18 +601,18 @@ impl Taken {
 
 /// How a mana ability's cost is paid, which decides how often the inventory
 /// can use it (§3.3).
-enum Activation<'a> {
+enum ManaAbilityCost<'a> {
     /// {T}, a sacrifice of itself, or both: once.
-    Once { taps: bool, sacrifices: bool },
+    SpendsItsTapOrItself { taps: bool, sacrifices: bool },
     /// "Sacrifice a [filter]": once for each permanent it can sacrifice.
-    PerSacrifice { filter: &'a ObjectFilter, needs: u32 },
-    Doubling { input: &'a ManaCost },
+    SacrificesOthers { filter: &'a ObjectFilter, needs: u32 },
+    MultipliesThePool { input: &'a ManaCost },
     /// A cost this phase does not read: a converter fed by other mana
     /// (MA-3), life, counters, an untap, or nothing at all.
-    Unread,
+    NotCounted,
 }
 
-fn activation_of(ability: &AbilityDef) -> Activation<'_> {
+fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
     let (mut taps, mut sacrifices, mut sacrifice, mut mana, mut other) = (false, false, None, None, false);
     for cost in &ability.costs {
         match cost {
@@ -617,41 +631,41 @@ fn activation_of(ability: &AbilityDef) -> Activation<'_> {
         }
     }
     match (sacrifice, mana, other) {
-        (None, None, false) if taps || sacrifices => Activation::Once { taps, sacrifices },
-        (Some((filter, needs)), None, false) if !taps && !sacrifices => Activation::PerSacrifice { filter, needs },
-        (None, Some(input), false) if taps && !sacrifices && doubles_the_pool(&ability.effect) => {
-            Activation::Doubling { input }
+        (None, None, false) if taps || sacrifices => ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices },
+        (Some((filter, needs)), None, false) if !taps && !sacrifices => ManaAbilityCost::SacrificesOthers { filter, needs },
+        (None, Some(input), false) if taps && !sacrifices && multiplies_the_pool(&ability.effect) => {
+            ManaAbilityCost::MultipliesThePool { input }
         }
-        _ => Activation::Unread,
+        _ => ManaAbilityCost::NotCounted,
     }
 }
 
 /// Doubling Cube's effect: each type's unspent mana, added again.
-fn doubles_the_pool(effect: &Effect) -> bool {
+fn multiplies_the_pool(effect: &Effect) -> bool {
     let Effect::Atom(Primitive::ProduceMana(output), _) = effect else { return false };
     output.special.is_empty()
-        && output.mana.len() == ALL_TYPES.len()
-        && ALL_TYPES
+        && output.mana.len() == ALL_MANA_TYPES.len()
+        && ALL_MANA_TYPES
             .iter()
             .all(|t| output.mana.iter().any(|(made, amount)| made == t && *amount == AmountExpr::UnspentMana(*t)))
 }
 
 /// What a mana ability's effect adds for `player`, before any replacement
 /// effect: `None` when it adds nothing a payment can spend now.
-fn production_of(game: &GameState, effect: &Effect, source: ObjectId, player: PlayerId) -> Option<Bag> {
+fn mana_production_of(game: &GameState, effect: &Effect, source: ObjectId, player: PlayerId) -> Option<ManaBag> {
     let mut resolution = ResolutionContext::untargeted(source, player);
     resolution.ability_source = game.object_ref(source);
     let mut made = NO_MANA;
-    produce(game, effect, &resolution, &mut made)?;
+    add_mana_produced(game, effect, &resolution, &mut made)?;
     made.iter().any(|&n| n > 0).then_some(made)
 }
 
-fn produce(game: &GameState, effect: &Effect, resolution: &ResolutionContext, made: &mut Bag) -> Option<()> {
+fn add_mana_produced(game: &GameState, effect: &Effect, resolution: &ResolutionContext, made: &mut ManaBag) -> Option<()> {
     match effect {
         Effect::Atom(Primitive::ProduceMana(output), _) => {
             for (mana_type, amount) in &output.mana {
                 // The pool at resolution, after the window's other activations:
-                // not a number the inventory can take now.
+                // not a number the inventory can read now.
                 if matches!(amount, AmountExpr::UnspentMana(_)) {
                     return None;
                 }
@@ -661,7 +675,7 @@ fn produce(game: &GameState, effect: &Effect, resolution: &ResolutionContext, ma
             // item 33's pass, so it is not counted (§3.6).
             Some(())
         }
-        Effect::Sequence(effects) => effects.iter().try_for_each(|effect| produce(game, effect, resolution, made)),
+        Effect::Sequence(effects) => effects.iter().try_for_each(|effect| add_mana_produced(game, effect, resolution, made)),
         // `resolve_mana_effect` refuses the rest, so the activation would fail.
         _ => None,
     }
@@ -695,7 +709,7 @@ fn permanents_of(game: &GameState, player: PlayerId) -> Vec<ObjectId> {
 /// An ability, by its permanent and its place on that permanent's effective
 /// list, which holds while the layer epoch it was read at does.
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Located {
+struct AbilityAt {
     permanent: ObjectId,
     index: usize,
 }
@@ -705,9 +719,9 @@ struct Located {
 /// triggered mana abilities (CR 605.1b), read off effective ability lists as
 /// the gather and the dispatcher read them (§3.4).
 #[derive(Debug, Clone, Default, PartialEq)]
-pub(crate) struct ProductionWatchers {
-    replacements: Vec<Located>,
-    triggers: Vec<Located>,
+pub(crate) struct ManaProductionWatchers {
+    replacements: Vec<AbilityAt>,
+    triggers: Vec<AbilityAt>,
 }
 
 /// The board's watchers, from the memo when the layer epoch has not moved.
@@ -716,26 +730,26 @@ pub(crate) struct ProductionWatchers {
 /// attachments), so the frame memo's epoch argument covers this cache too
 /// (`layers-architecture.md` §12, "7a"). A row's "as long as" and the
 /// registry's resolution-made effects are not, and are read live.
-fn production_watchers(game: &GameState) -> Arc<ProductionWatchers> {
+fn mana_production_watchers(game: &GameState) -> Arc<ManaProductionWatchers> {
     let epoch = game.layer_epoch();
-    if let Some(found) = game.layer_memo.production_watchers(epoch) {
+    if let Some(found) = game.layer_memo.mana_production_watchers(epoch) {
         #[cfg(debug_assertions)]
         if game.layer_memo.audited() {
-            audit_watchers(game, &found);
+            audit_mana_production_watchers(game, &found);
         }
         return found;
     }
-    let found = Arc::new(scan_watchers(game));
-    game.layer_memo.insert_production_watchers(epoch, Arc::clone(&found));
+    let found = Arc::new(scan_mana_production_watchers(game));
+    game.layer_memo.insert_mana_production_watchers(epoch, Arc::clone(&found));
     found
 }
 
-fn scan_watchers(game: &GameState) -> ProductionWatchers {
-    let mut found = ProductionWatchers::default();
+fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
+    let mut found = ManaProductionWatchers::default();
     for permanent in game.battlefield_ids_ordered() {
         let Some(chars) = compute_characteristics(game, permanent) else { continue };
         for (index, ability) in chars.abilities.iter().enumerate() {
-            let at = Located { permanent, index };
+            let at = AbilityAt { permanent, index };
             if let Effect::Triggered(def) = &ability.effect {
                 if is_mana_ability(def) {
                     found.triggers.push(at);
@@ -755,9 +769,9 @@ fn scan_watchers(game: &GameState) -> ProductionWatchers {
 /// against a fresh scan, whose own reads are un-counted so a debug build's
 /// rows are a release build's.
 #[cfg(debug_assertions)]
-fn audit_watchers(game: &GameState, served: &ProductionWatchers) {
+fn audit_mana_production_watchers(game: &GameState, served: &ManaProductionWatchers) {
     let counts = game.diagnostics.clone();
-    let fresh = scan_watchers(game);
+    let fresh = scan_mana_production_watchers(game);
     game.diagnostics.rewind_to(&counts);
     debug_assert_eq!(
         &fresh,
@@ -771,43 +785,43 @@ fn audit_watchers(game: &GameState, served: &ProductionWatchers) {
 /// What a production by `producer` for `player` can come to: through the
 /// replacement effects that apply to it, and with what the triggered mana
 /// abilities it sets off add (CR 605.1b, 605.4a).
-fn made_by(
+fn mana_made_by(
     game: &GameState,
-    watchers: &ProductionWatchers,
+    watchers: &ManaProductionWatchers,
     player: PlayerId,
     producer: ObjectId,
     tapped: bool,
-    base: Bag,
-) -> Vec<Bag> {
-    let rewritten = rewritten(game, watchers, player, producer, tapped, base);
+    base: ManaBag,
+) -> Vec<ManaBag> {
+    let mana_after_replacements = mana_after_replacements(game, watchers, player, producer, tapped, base);
     if watchers.triggers.is_empty() {
-        return rewritten;
+        return mana_after_replacements;
     }
-    let mut out: Vec<Bag> = Vec::new();
-    for made in rewritten {
+    let mut out: Vec<ManaBag> = Vec::new();
+    for made in mana_after_replacements {
         let mut ways = vec![made];
         for &at in &watchers.triggers {
-            let added = trigger_adds(game, watchers, at, player, producer, tapped, &made);
+            let added = mana_trigger_adds(game, watchers, at, player, producer, tapped, &made);
             if !added.is_empty() {
                 ways = ways.iter().flat_map(|way| added.iter().map(move |a| sum(way, a))).collect();
             }
         }
         out.extend(ways);
     }
-    undominated_bags(out)
+    undominated_mana_bags(out)
 }
 
 /// What a production can become under the replacement effects that apply to
 /// it, the board's and the registry's.
-fn rewritten(
+fn mana_after_replacements(
     game: &GameState,
-    watchers: &ProductionWatchers,
+    watchers: &ManaProductionWatchers,
     player: PlayerId,
     producer: ObjectId,
     tapped: bool,
-    base: Bag,
-) -> Vec<Bag> {
-    let mut rewrites: Vec<ProductionRewrite> = Vec::new();
+    base: ManaBag,
+) -> Vec<ManaBag> {
+    let mut rewrites: Vec<ManaRewrite> = Vec::new();
     for &at in &watchers.replacements {
         let abilities = get_effective_abilities(game, at.permanent);
         let Some((def, condition)) = abilities.get(at.index).and_then(replacement_of) else { continue };
@@ -815,34 +829,34 @@ fn rewritten(
             continue;
         }
         let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
-        if applies_to_production(game, def, at.permanent, controller, player, producer, tapped) {
-            rewrites.push(ProductionRewrite::of(def));
+        if applies_to_mana_production(game, def, at.permanent, controller, player, producer, tapped) {
+            rewrites.push(ManaRewrite::of(def));
         }
     }
     for row in game.replacement_effects.iter() {
-        if applies_to_production(game, &row.def, row.source, row.controller, player, producer, tapped) {
-            rewrites.push(ProductionRewrite::of(&row.def));
+        if applies_to_mana_production(game, &row.def, row.source, row.controller, player, producer, tapped) {
+            rewrites.push(ManaRewrite::of(&row.def));
         }
     }
     if rewrites.is_empty() {
         return vec![base];
     }
-    fold(base, &rewrites)
+    fold_mana_rewrites(base, &rewrites)
 }
 
 /// What the triggered mana ability at `at` adds to `player`'s pool when a
 /// production by `producer` that made `made` sets it off: nothing when no arm
 /// matches the production (the dispatcher's predicates), its intervening "if"
 /// fails (CR 603.4), or its mana is another player's.
-fn trigger_adds(
+fn mana_trigger_adds(
     game: &GameState,
-    watchers: &ProductionWatchers,
-    at: Located,
+    watchers: &ManaProductionWatchers,
+    at: AbilityAt,
     player: PlayerId,
     producer: ObjectId,
     tapped: bool,
-    made: &Bag,
-) -> Vec<Bag> {
+    made: &ManaBag,
+) -> Vec<ManaBag> {
     let abilities = get_effective_abilities(game, at.permanent);
     let Some(Effect::Triggered(def)) = abilities.get(at.index).map(|ability| &ability.effect) else {
         return Vec::new();
@@ -874,7 +888,7 @@ fn trigger_adds(
     }
     // CR 106.12: the trigger's source was not tapped, so a "tapped for mana"
     // replacement does not see its mana (Mana Reflection's ruling).
-    rewritten(game, watchers, player, at.permanent, false, adds)
+    mana_after_replacements(game, watchers, player, at.permanent, false, adds)
 }
 
 /// The mana a triggered mana ability's effect gives `player`, as
@@ -888,7 +902,7 @@ fn trigger_mana(
     controller: PlayerId,
     host: Option<ObjectId>,
     player: PlayerId,
-    adds: &mut Bag,
+    adds: &mut ManaBag,
 ) -> bool {
     match effect {
         Effect::Atom(Primitive::ProduceMana(output), recipient) => {
@@ -918,14 +932,14 @@ fn trigger_mana(
 /// What one replacement effect does to a production, read as the pipeline's
 /// production arms apply it (CR 106.6a, 106.12b).
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct ProductionRewrite {
-    kind: RewriteKind,
+struct ManaRewrite {
+    kind: ManaRewriteKind,
     /// "You may": declining is the player's (CR 614.5's one opportunity).
     optional: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum RewriteKind {
+enum ManaRewriteKind {
     Multiply(u64),
     Retype(usize),
     SetTo(usize, u64),
@@ -934,13 +948,13 @@ enum RewriteKind {
     Nothing,
 }
 
-impl ProductionRewrite {
-    fn of(def: &ReplacementDef) -> ProductionRewrite {
+impl ManaRewrite {
+    fn of(def: &ReplacementDef) -> ManaRewrite {
         let kind = match &def.rewrite {
-            Rewrite::Amount(AmountRewrite::Multiplier(n)) => RewriteKind::Multiply(*n),
+            Rewrite::Amount(AmountRewrite::Multiplier(n)) => ManaRewriteKind::Multiply(*n),
             Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type, amount }) => match amount {
-                TemplateAmount::ReplacedAmount => RewriteKind::Retype(slot(*mana_type)),
-                TemplateAmount::Fixed(n) => RewriteKind::SetTo(slot(*mana_type), *n),
+                TemplateAmount::ReplacedAmount => ManaRewriteKind::Retype(slot(*mana_type)),
+                TemplateAmount::Fixed(n) => ManaRewriteKind::SetTo(slot(*mana_type), *n),
             },
             Rewrite::Prevent
             | Rewrite::Instead(_)
@@ -949,48 +963,48 @@ impl ProductionRewrite {
             | Rewrite::EnterAfterMoving(_)
             | Rewrite::EnterUnderControlOf(_)
             | Rewrite::EnterAsCopy(_)
-            | Rewrite::Retarget(_) => RewriteKind::Nothing,
+            | Rewrite::Retarget(_) => ManaRewriteKind::Nothing,
         };
-        ProductionRewrite { kind, optional: def.optional }
+        ManaRewrite { kind, optional: def.optional }
     }
 }
 
-impl RewriteKind {
-    fn apply(self, made: Bag) -> Option<Bag> {
+impl ManaRewriteKind {
+    fn apply(self, made: ManaBag) -> Option<ManaBag> {
         match self {
-            RewriteKind::Multiply(n) => Some(made.map(|m| m.saturating_mul(n))),
-            RewriteKind::Retype(t) => {
+            ManaRewriteKind::Multiply(n) => Some(made.map(|m| m.saturating_mul(n))),
+            ManaRewriteKind::Retype(t) => {
                 let mut out = NO_MANA;
                 out[t] = made.iter().sum();
                 Some(out)
             }
-            RewriteKind::SetTo(t, n) => {
+            ManaRewriteKind::SetTo(t, n) => {
                 let mut out = NO_MANA;
                 out[t] = n;
                 Some(out)
             }
-            RewriteKind::Nothing => None,
+            ManaRewriteKind::Nothing => None,
         }
     }
 }
 
 /// Past this many effects on one production, orders are not tried one by
 /// one; the check leans yes instead (§3.3).
-const MAX_ORDERED_REWRITES: usize = 6;
+const MAX_ORDERED_MANA_REWRITES: usize = 6;
 
 /// Every production `rewrites` can make of `base`: in every order its player
 /// may choose (CR 616.1), each applied once (CR 614.5) and an optional one
 /// declinable, less the dominated.
-fn fold(base: Bag, rewrites: &[ProductionRewrite]) -> Vec<Bag> {
-    if rewrites.len() > MAX_ORDERED_REWRITES {
-        return most_of_every_type(base, rewrites);
+fn fold_mana_rewrites(base: ManaBag, rewrites: &[ManaRewrite]) -> Vec<ManaBag> {
+    if rewrites.len() > MAX_ORDERED_MANA_REWRITES {
+        return most_mana_of_every_type(base, rewrites);
     }
     let mut out = Vec::new();
-    apply_in_every_order(base, rewrites, 0, &mut out);
-    undominated_bags(out)
+    apply_mana_rewrites_in_every_order(base, rewrites, 0, &mut out);
+    undominated_mana_bags(out)
 }
 
-fn apply_in_every_order(made: Bag, rewrites: &[ProductionRewrite], applied: u32, out: &mut Vec<Bag>) {
+fn apply_mana_rewrites_in_every_order(made: ManaBag, rewrites: &[ManaRewrite], applied: u32, out: &mut Vec<ManaBag>) {
     let mut last = true;
     for (i, rewrite) in rewrites.iter().enumerate() {
         if applied & (1 << i) != 0 {
@@ -998,12 +1012,12 @@ fn apply_in_every_order(made: Bag, rewrites: &[ProductionRewrite], applied: u32,
         }
         last = false;
         match rewrite.kind.apply(made) {
-            Some(next) => apply_in_every_order(next, rewrites, applied | 1 << i, out),
+            Some(next) => apply_mana_rewrites_in_every_order(next, rewrites, applied | 1 << i, out),
             // Nothing after it applies to a production.
             None => out.push(NO_MANA),
         }
         if rewrite.optional {
-            apply_in_every_order(made, rewrites, applied | 1 << i, out);
+            apply_mana_rewrites_in_every_order(made, rewrites, applied | 1 << i, out);
         }
     }
     if last {
@@ -1013,21 +1027,21 @@ fn apply_in_every_order(made: Bag, rewrites: &[ProductionRewrite], applied: u32,
 
 /// An outcome no order can beat, of each type an order could leave: the
 /// most mana any order makes.
-fn most_of_every_type(base: Bag, rewrites: &[ProductionRewrite]) -> Vec<Bag> {
+fn most_mana_of_every_type(base: ManaBag, rewrites: &[ManaRewrite]) -> Vec<ManaBag> {
     let mut most: u64 = base.iter().sum();
-    let mut types = Types::of(&base);
+    let mut types = ManaTypes::of(&base);
     for rewrite in rewrites {
         match rewrite.kind {
-            RewriteKind::SetTo(t, n) => {
+            ManaRewriteKind::SetTo(t, n) => {
                 most = most.max(n);
-                types = types.union(Types::one(t));
+                types = types.union(ManaTypes::one(t));
             }
-            RewriteKind::Retype(t) => types = types.union(Types::one(t)),
-            RewriteKind::Multiply(_) | RewriteKind::Nothing => {}
+            ManaRewriteKind::Retype(t) => types = types.union(ManaTypes::one(t)),
+            ManaRewriteKind::Multiply(_) | ManaRewriteKind::Nothing => {}
         }
     }
     for rewrite in rewrites {
-        if let RewriteKind::Multiply(n) = rewrite.kind {
+        if let ManaRewriteKind::Multiply(n) = rewrite.kind {
             most = most.saturating_mul(n.max(1));
         }
     }
@@ -1041,8 +1055,8 @@ fn most_of_every_type(base: Bag, rewrites: &[ProductionRewrite]) -> Vec<Bag> {
         .collect()
 }
 
-fn undominated_bags(bags: Vec<Bag>) -> Vec<Bag> {
-    let mut kept: Vec<Bag> = Vec::new();
+fn undominated_mana_bags(bags: Vec<ManaBag>) -> Vec<ManaBag> {
+    let mut kept: Vec<ManaBag> = Vec::new();
     for bag in bags {
         if kept.iter().any(|k| holds(k, &bag)) {
             continue;
@@ -1055,16 +1069,16 @@ fn undominated_bags(bags: Vec<Bag>) -> Vec<Bag> {
 
 /// A cost's pips, by type, and its generic mana.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct Demand {
-    pips: Bag,
+struct ManaDemand {
+    pips: ManaBag,
     generic: u64,
 }
 
-impl Demand {
+impl ManaDemand {
     /// `None` for a symbol no payment path pays yet: hybrid and its kin are
     /// CP-1's, {S} item 33's, {X} MA-2's.
-    fn of(cost: &ManaCost) -> Option<Demand> {
-        let mut demand = Demand::default();
+    fn of(cost: &ManaCost) -> Option<ManaDemand> {
+        let mut demand = ManaDemand::default();
         for symbol in &cost.symbols {
             match symbol {
                 ManaSymbol::Colored(mana_type) => demand.pips[slot(*mana_type)] += 1,
@@ -1085,13 +1099,13 @@ impl Demand {
         self.pips.iter().sum::<u64>() + self.generic
     }
 
-    fn kinds(&self) -> Types {
-        Types::of(&self.pips)
+    fn kinds(&self) -> ManaTypes {
+        ManaTypes::of(&self.pips)
     }
 
     /// The demand left once `made` has paid what it can: a mana pays a pip
     /// of its own type first, since generic takes any.
-    fn less(&self, made: &Bag) -> Demand {
+    fn less(&self, made: &ManaBag) -> ManaDemand {
         let mut left = *self;
         let mut spare = 0;
         for t in 0..6 {
@@ -1103,50 +1117,51 @@ impl Demand {
         left
     }
 
-    /// What must be made before a doubler for this demand to be met after it.
+    /// What must be made before a pool multiplier for this demand to be met
+    /// after it.
     ///
     /// Every mana left in the pool becomes `factor` of its own type, so a pip
     /// of a type needs `ceil(n / factor)` of that type left, and the whole
-    /// demand `ceil(total / factor)` left of any; the doubler's input is paid
+    /// demand `ceil(total / factor)` left of any; the multiplier's input is paid
     /// first, from what was made (§3.3). One Hall check at the end is then
     /// exact, with no enumeration of how the input was paid.
-    fn before_doubling(&self, factor: u64, input: &Demand) -> Demand {
-        let pips: Bag = std::array::from_fn(|t| self.pips[t].div_ceil(factor) + input.pips[t]);
+    fn before_multiplying(&self, factor: u64, input: &ManaDemand) -> ManaDemand {
+        let pips: ManaBag = std::array::from_fn(|t| self.pips[t].div_ceil(factor) + input.pips[t]);
         let per_type: u64 = self.pips.iter().map(|n| n.div_ceil(factor)).sum();
         let needed = per_type.max(self.total().div_ceil(factor)) + input.total();
-        Demand { pips, generic: needed - pips.iter().sum::<u64>() }
+        ManaDemand { pips, generic: needed - pips.iter().sum::<u64>() }
     }
 }
 
 /// The supply one payment leaves, split by how each mana's type is chosen.
 #[derive(Debug, Clone, Default)]
-struct Pieces {
+struct SplitSupply {
     /// Mana that is its own choice of type, by the set it can be: §3.2's
     /// table.
-    free: Vec<(Types, u64)>,
+    free: Vec<(ManaTypes, u64)>,
     /// Entries with ways of more than one mana, several of one chosen type or
     /// ways of different sizes, with how many such entries.
-    choices: Vec<(Vec<Bag>, u64)>,
+    choices: Vec<(Vec<ManaBag>, u64)>,
 }
 
 /// Past this many leaves the check stops trying and leans yes: an
 /// over-offer costs a rewind, an under-offer hides a legal play (§3.3).
-const MAX_LEAVES: usize = 4096;
+const MAX_CHOICE_LEAVES: usize = 4096;
 
-impl Pieces {
-    fn add(&mut self, ways: &[Bag], copies: u64) {
+impl SplitSupply {
+    fn add(&mut self, ways: &[ManaBag], copies: u64) {
         if copies == 0 || ways.is_empty() {
             return;
         }
         if let [made] = ways {
             for t in (0..6).filter(|&t| made[t] > 0) {
-                self.add_free(Types::one(t), made[t] * copies);
+                self.add_free(ManaTypes::one(t), made[t] * copies);
             }
             return;
         }
         // One mana of any type in a set: a dual, Everywhere.
         if ways.iter().all(|way| way.iter().sum::<u64>() == 1) {
-            let types = ways.iter().fold(Types::default(), |set, way| set.union(Types::of(way)));
+            let types = ways.iter().fold(ManaTypes::default(), |set, way| set.union(ManaTypes::of(way)));
             self.add_free(types, copies);
             return;
         }
@@ -1156,25 +1171,25 @@ impl Pieces {
         }
     }
 
-    fn add_free(&mut self, types: Types, n: u64) {
+    fn add_free(&mut self, types: ManaTypes, n: u64) {
         match self.free.iter_mut().find(|(known, _)| *known == types) {
             Some((_, have)) => *have += n,
             None => self.free.push((types, n)),
         }
     }
 
-    fn pay(&self, demand: &Demand) -> bool {
+    fn pays(&self, demand: &ManaDemand) -> bool {
         let asked = demand.kinds();
-        let groups: Vec<(Vec<Bag>, u64)> =
+        let groups: Vec<(Vec<ManaBag>, u64)> =
             self.choices.iter().map(|(ways, copies)| (views(ways, asked), *copies)).collect();
         let first_copies = groups.first().map_or(0, |(_, copies)| *copies);
-        Search { pieces: self, groups: &groups, demand, leaves: 0 }.from(0, 0, first_copies, NO_MANA)
+        ChoiceSearch { pieces: self, groups: &groups, demand, leaves: 0 }.from(0, 0, first_copies, NO_MANA)
     }
 
     /// Gale's condition (Hall's, for b-matchings): every set of the asked pip
     /// kinds asks for no more mana than the supply that can pay one of them,
     /// and the whole demand for no more than all of it (§3.2).
-    fn feasible(&self, extra: &Bag, demand: &Demand) -> bool {
+    fn feasible(&self, extra: &ManaBag, demand: &ManaDemand) -> bool {
         let total = self.free.iter().map(|(_, n)| n).sum::<u64>() + extra.iter().sum::<u64>();
         if total < demand.total() {
             return false;
@@ -1190,23 +1205,23 @@ impl Pieces {
 
 /// Every way of spreading each group's copies over its ways, as a multiset,
 /// ending in one Hall check each.
-struct Search<'a> {
-    pieces: &'a Pieces,
-    groups: &'a [(Vec<Bag>, u64)],
-    demand: &'a Demand,
+struct ChoiceSearch<'a> {
+    pieces: &'a SplitSupply,
+    groups: &'a [(Vec<ManaBag>, u64)],
+    demand: &'a ManaDemand,
     leaves: usize,
 }
 
-impl Search<'_> {
+impl ChoiceSearch<'_> {
     /// From `group`'s `way` on, with `left` of its copies still to place and
     /// `extra` the mana the choices so far make.
-    fn from(&mut self, group: usize, way: usize, left: u64, extra: Bag) -> bool {
+    fn from(&mut self, group: usize, way: usize, left: u64, extra: ManaBag) -> bool {
         let groups = self.groups;
         let Some((ways, _)) = groups.get(group) else {
             self.leaves += 1;
             return self.pieces.feasible(&extra, self.demand);
         };
-        if self.leaves >= MAX_LEAVES {
+        if self.leaves >= MAX_CHOICE_LEAVES {
             return true;
         }
         if way + 1 == ways.len() {
@@ -1229,12 +1244,12 @@ impl Search<'_> {
 /// generic, as a copy of the last way does. Twenty such Everywheres are then
 /// a few choices a cost, not thousands. Ways of different sizes are every
 /// count, since a bigger way's copies pay more generic than the last's.
-fn useful_copies(ways: &[Bag], way: usize, demand: &Demand) -> u64 {
-    let size = |view: &Bag| view.iter().sum::<u64>();
+fn useful_copies(ways: &[ManaBag], way: usize, demand: &ManaDemand) -> u64 {
+    let size = |view: &ManaBag| view.iter().sum::<u64>();
     let view = &ways[way];
     match (0..6).find(|&t| view[t] > 0) {
         Some(t)
-            if Types::of(view) == Types::one(t)
+            if ManaTypes::of(view) == ManaTypes::one(t)
                 && demand.pips[t] > 0
                 && ways.iter().all(|other| size(other) == size(view)) =>
         {
@@ -1248,7 +1263,7 @@ fn useful_copies(ways: &[Bag], way: usize, demand: &Demand) -> u64 {
 /// `ways` as a cost of `asked` kinds tells them apart: each asked type's mana,
 /// and every other type's in one unasked slot, since any of it pays only
 /// generic. Equal views are kept once and dominated ones dropped.
-fn views(ways: &[Bag], asked: Types) -> Vec<Bag> {
+fn views(ways: &[ManaBag], asked: ManaTypes) -> Vec<ManaBag> {
     let other = (0..6).find(|&t| !asked.has(t));
     let seen = ways.iter().map(|way| {
         let mut view = NO_MANA;
@@ -1260,7 +1275,7 @@ fn views(ways: &[Bag], asked: Types) -> Vec<Bag> {
         }
         view
     });
-    undominated_bags(seen.collect())
+    undominated_mana_bags(seen.collect())
 }
 
 #[cfg(test)]
@@ -1294,7 +1309,7 @@ mod tests {
 
     /// Whether player 0 can pay `cost` for a spell with no other costs.
     fn covers(game: &GameState, cost: &ManaCost) -> bool {
-        ManaSupply::take(game, 0).covers(game, cost, &Payment { source: None, other_costs: &[] })
+        ManaSupply::read(game, 0).covers(game, cost, &NonManaCosts { source: None, costs: &[] })
     }
 
     /// The costs of `id`'s first activated ability besides its mana: what its
@@ -1397,12 +1412,12 @@ mod tests {
         put_on_battlefield_this_turn(&mut game, citanul_hierophants(), 0);
         put_on_battlefield(&mut game, sol_ring(), 0);
         let other = other_costs(&game, breaker);
-        let ability = Payment { source: Some(breaker), other_costs: &other };
-        let supply = ManaSupply::take(&game, 0);
-        assert!(supply.covers(&game, &cost(&[], 3), &Payment { source: None, other_costs: &[] }), "a spell may tap it");
+        let ability = NonManaCosts { source: Some(breaker), costs: &other };
+        let supply = ManaSupply::read(&game, 0);
+        assert!(supply.covers(&game, &cost(&[], 3), &NonManaCosts { source: None, costs: &[] }), "a spell may tap it");
         assert!(!supply.covers(&game, &cost(&[], 3), &ability));
         put_on_battlefield(&mut game, plains(), 0);
-        assert!(ManaSupply::take(&game, 0).covers(&game, &cost(&[], 3), &ability));
+        assert!(ManaSupply::read(&game, 0).covers(&game, &cost(&[], 3), &ability));
     }
 
     /// Krark-Clan Ironworks makes {C}{C} for each artifact it can sacrifice,
@@ -1424,8 +1439,8 @@ mod tests {
         let stone = put_on_battlefield(&mut game, mind_stone(), 0);
         let other = other_costs(&game, stone);
         let paying = |game: &GameState, generic| {
-            let ability = Payment { source: Some(stone), other_costs: &other };
-            ManaSupply::take(game, 0).covers(game, &cost(&[], generic), &ability)
+            let ability = NonManaCosts { source: Some(stone), costs: &other };
+            ManaSupply::read(game, 0).covers(game, &cost(&[], generic), &ability)
         };
         assert!(!paying(&game, 1), "its own mana needs the tap its cost takes");
         put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
@@ -1441,9 +1456,9 @@ mod tests {
         put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
         put_on_battlefield(&mut game, darksteel_myr(), 0);
         let sacrifice = [Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)];
-        let spell = Payment { source: None, other_costs: &sacrifice };
-        let supply = ManaSupply::take(&game, 0);
-        assert!(supply.covers(&game, &cost(&[], 4), &Payment { source: None, other_costs: &[] }));
+        let spell = NonManaCosts { source: None, costs: &sacrifice };
+        let supply = ManaSupply::read(&game, 0);
+        assert!(supply.covers(&game, &cost(&[], 4), &NonManaCosts { source: None, costs: &[] }));
         assert!(supply.covers(&game, &cost(&[], 2), &spell));
         assert!(!supply.covers(&game, &cost(&[], 3), &spell), "the Myr goes to the spell, not to Ironworks");
     }
@@ -1488,22 +1503,22 @@ mod tests {
     /// pip needs would never try.
     #[test]
     fn copies_of_ways_of_different_sizes_are_counted_every_way() {
-        let entry = |_| Entry {
+        let entry = |_| SupplyEntry {
             permanent: Some(new_object_id()),
             ways: vec![
-                Way { makes: [3, 0, 0, 0, 0, 0], taps: true, sacrifices: false },
-                Way { makes: [0, 1, 0, 0, 0, 0], taps: true, sacrifices: false },
+                EntryWay { makes: [3, 0, 0, 0, 0, 0], taps: true, sacrifices: false },
+                EntryWay { makes: [0, 1, 0, 0, 0, 0], taps: true, sacrifices: false },
             ],
         };
         let supply = ManaSupply {
             player: 0,
             entries: (0..2).map(entry).collect(),
-            outlets: Vec::new(),
-            doublers: Vec::new(),
-            plain: OnceCell::new(),
+            sacrifice_outlets: Vec::new(),
+            pool_multipliers: Vec::new(),
+            plain_split: OnceCell::new(),
         };
-        let demand = Demand { pips: [1, 0, 0, 0, 0, 0], generic: 5 };
-        assert!(supply.pays(&demand, &Taken::default()));
+        let demand = ManaDemand { pips: [1, 0, 0, 0, 0, 0], generic: 5 };
+        assert!(supply.pays(&demand, &ReservedByCosts::default()));
         assert!(pays_by_search(&supply, &demand));
     }
 
@@ -1652,21 +1667,21 @@ mod tests {
         assert!(!covers(&game, &cost(&[White, White, White], 0)));
     }
 
-    /// The watcher scan is taken once a layer epoch, for every player's
+    /// The watcher scan is read once a layer epoch, for every player's
     /// inventory, and again once the board moves.
     #[test]
     fn the_watcher_scan_is_taken_once_an_epoch() {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, mana_reflection(), 0);
-        ManaSupply::take(&game, 0);
+        ManaSupply::read(&game, 0);
         let epoch = game.layer_epoch();
-        let first = game.layer_memo.production_watchers(epoch).unwrap();
-        ManaSupply::take(&game, 1);
-        assert!(Arc::ptr_eq(&first, &game.layer_memo.production_watchers(epoch).unwrap()), "one scan");
+        let first = game.layer_memo.mana_production_watchers(epoch).unwrap();
+        ManaSupply::read(&game, 1);
+        assert!(Arc::ptr_eq(&first, &game.layer_memo.mana_production_watchers(epoch).unwrap()), "one scan");
         put_on_battlefield(&mut game, plains(), 0);
-        assert!(game.layer_memo.production_watchers(game.layer_epoch()).is_none(), "the board moved");
-        ManaSupply::take(&game, 0);
-        assert!(game.layer_memo.production_watchers(game.layer_epoch()).is_some());
+        assert!(game.layer_memo.mana_production_watchers(game.layer_epoch()).is_none(), "the board moved");
+        ManaSupply::read(&game, 0);
+        assert!(game.layer_memo.mana_production_watchers(game.layer_epoch()).is_some());
     }
 
     /// The memo's debug mode: a write that changes what the scan finds and
@@ -1677,9 +1692,9 @@ mod tests {
     fn a_skipped_bump_is_caught_by_the_watcher_audit() {
         let mut game = setup_two_player_game();
         let reflection = put_on_battlefield(&mut game, mana_reflection(), 0);
-        ManaSupply::take(&game, 0);
+        ManaSupply::read(&game, 0);
         game.battlefield.remove(&reflection);
-        ManaSupply::take(&game, 0);
+        ManaSupply::read(&game, 0);
     }
 
     /// The window's offer is read once: a tap, which moves no epoch, is seen
@@ -1695,7 +1710,7 @@ mod tests {
         put_on_battlefield(&mut game, everywhere(), 0);
         let ironworks = put_on_battlefield(&mut game, krark_clan_ironworks(), 0);
         put_on_battlefield_this_turn(&mut game, citanul_hierophants(), 0);
-        let offer = WindowOffer::take(&game, 0);
+        let offer = ManaAbilityWindowOffer::read(&game, 0);
         let options = offer.options(&game);
         assert_eq!(options.len(), 7, "a Plains, Everywhere's five, Ironworks; not a creature this turn's");
         assert_eq!(options[0].0, land, "timestamp order");
@@ -1706,29 +1721,29 @@ mod tests {
 
         game.change_zone(ironworks, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
         assert!(!offer.is_current(&game));
-        assert_eq!(WindowOffer::take(&game, 0).options(&game).len(), 5);
+        assert_eq!(ManaAbilityWindowOffer::read(&game, 0).options(&game).len(), 5);
     }
 
     /// Two retypes on one production leave either type, in its player's
     /// order (CR 616.1); a multiplier commutes with both.
     #[test]
     fn a_production_is_rewritten_in_every_order() {
-        let rewrite = |kind| ProductionRewrite { kind, optional: false };
+        let rewrite = |kind| ManaRewrite { kind, optional: false };
         let rewrites = [
-            rewrite(RewriteKind::Retype(slot(Blue))),
-            rewrite(RewriteKind::Multiply(2)),
-            rewrite(RewriteKind::Retype(slot(Colorless))),
+            rewrite(ManaRewriteKind::Retype(slot(Blue))),
+            rewrite(ManaRewriteKind::Multiply(2)),
+            rewrite(ManaRewriteKind::Retype(slot(Colorless))),
         ];
         let mut green = NO_MANA;
         green[slot(Green)] = 1;
-        let mut made = fold(green, &rewrites);
+        let mut made = fold_mana_rewrites(green, &rewrites);
         made.sort();
         assert_eq!(made, vec![[0, 0, 0, 0, 0, 2], [0, 2, 0, 0, 0, 0]]);
 
-        let declinable = ProductionRewrite { optional: true, ..rewrites[0] };
-        assert_eq!(fold(green, &[declinable]).len(), 2, "applied, or declined");
-        let past_the_cap = vec![rewrite(RewriteKind::Multiply(2)); MAX_ORDERED_REWRITES + 1];
-        assert_eq!(fold(green, &past_the_cap), vec![[0, 0, 0, 0, 128, 0]]);
+        let declinable = ManaRewrite { optional: true, ..rewrites[0] };
+        assert_eq!(fold_mana_rewrites(green, &[declinable]).len(), 2, "applied, or declined");
+        let past_the_cap = vec![rewrite(ManaRewriteKind::Multiply(2)); MAX_ORDERED_MANA_REWRITES + 1];
+        assert_eq!(fold_mana_rewrites(green, &past_the_cap), vec![[0, 0, 0, 0, 128, 0]]);
     }
 
     /// The inventory's reading of a tap, against the engine making it: on each
@@ -1772,17 +1787,17 @@ mod tests {
 
         let mut checked = 0;
         for game in &boards {
-            let watchers = production_watchers(game);
+            let watchers = mana_production_watchers(game);
             for id in permanents_of(game, 0) {
                 for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
-                    let taps = match activation_of(ability) {
-                        Activation::Once { taps, .. } => taps,
-                        Activation::PerSacrifice { .. } => false,
-                        Activation::Doubling { .. } | Activation::Unread => continue,
+                    let taps = match mana_ability_cost_of(ability) {
+                        ManaAbilityCost::SpendsItsTapOrItself { taps, .. } => taps,
+                        ManaAbilityCost::SacrificesOthers { .. } => false,
+                        ManaAbilityCost::MultipliesThePool { .. } | ManaAbilityCost::NotCounted => continue,
                     };
-                    let base = production_of(game, &ability.effect, id, 0).unwrap();
-                    let mut predicted = made_by(game, &watchers, 0, id, taps, base);
-                    let mut made: Vec<Bag> = Vec::new();
+                    let base = mana_production_of(game, &ability.effect, id, 0).unwrap();
+                    let mut predicted = mana_made_by(game, &watchers, 0, id, taps, base);
+                    let mut made: Vec<ManaBag> = Vec::new();
                     for seed in 0..16 {
                         let mut fork = game.clone();
                         let before = pool(&fork);
@@ -1804,33 +1819,33 @@ mod tests {
         assert!(checked >= 10, "{checked} abilities checked");
     }
 
-    /// Every way of using every entry, then each doubler in turn with its
+    /// Every way of using every entry, then each pool multiplier in turn with its
     /// input paid every way it can be: the answer the check must agree with.
-    fn pays_by_search(supply: &ManaSupply, demand: &Demand) -> bool {
+    fn pays_by_search(supply: &ManaSupply, demand: &ManaDemand) -> bool {
         let mut made = vec![NO_MANA];
         for entry in &supply.entries {
             made = made.iter().flat_map(|m| entry.ways.iter().map(move |w| sum(m, &w.makes))).collect();
         }
-        made.iter().any(|pool| pays_after(*pool, &supply.doublers, demand))
+        made.iter().any(|pool| pays_after(*pool, &supply.pool_multipliers, demand))
     }
 
-    fn pays_after(pool: Bag, doublers: &[Doubler], demand: &Demand) -> bool {
+    fn pays_after(pool: ManaBag, pool_multipliers: &[PoolMultiplier], demand: &ManaDemand) -> bool {
         if (0..6).all(|t| pool[t] >= demand.pips[t]) && pool.iter().sum::<u64>() >= demand.total() {
             return true;
         }
-        let Some((doubler, rest)) = doublers.split_first() else { return false };
+        let Some((multiplier, rest)) = pool_multipliers.split_first() else { return false };
         let pips_paid = (0..6).try_fold(pool, |mut left, t| {
-            left[t] = left[t].checked_sub(doubler.input.pips[t])?;
+            left[t] = left[t].checked_sub(multiplier.input.pips[t])?;
             Some(left)
         });
         let Some(pips_paid) = pips_paid else { return false };
-        spend(pips_paid, 0, doubler.input.generic)
+        spend(pips_paid, 0, multiplier.input.generic)
             .into_iter()
-            .any(|left| pays_after(left.map(|n| n * doubler.factor), rest, demand))
+            .any(|left| pays_after(left.map(|n| n * multiplier.factor), rest, demand))
     }
 
     /// Every pool left by spending `n` generic from `pool`'s types `t` on.
-    fn spend(pool: Bag, t: usize, n: u64) -> Vec<Bag> {
+    fn spend(pool: ManaBag, t: usize, n: u64) -> Vec<ManaBag> {
         if n == 0 {
             return vec![pool];
         }
@@ -1846,7 +1861,7 @@ mod tests {
             .collect()
     }
 
-    fn one(t: usize, n: u64) -> Bag {
+    fn one(t: usize, n: u64) -> ManaBag {
         let mut made = NO_MANA;
         made[t] = n;
         made
@@ -1854,9 +1869,9 @@ mod tests {
 
     /// A random entry of one of §3.3's shapes: one mana of a set of types,
     /// several of one chosen type, or ways of different sizes.
-    fn random_entry(rng: &mut StdRng) -> Entry {
+    fn random_entry(rng: &mut StdRng) -> SupplyEntry {
         let ways = rng.random_range(1..=3);
-        let makes: Vec<Bag> = match rng.random_range(0..3) {
+        let makes: Vec<ManaBag> = match rng.random_range(0..3) {
             0 => (0..ways).map(|_| one(rng.random_range(0..6), 1)).collect(),
             1 => {
                 let n = rng.random_range(2..=3);
@@ -1869,8 +1884,8 @@ mod tests {
                 })
                 .collect(),
         };
-        let ways = makes.into_iter().map(|makes| Way { makes, taps: false, sacrifices: false }).collect();
-        Entry { permanent: Some(new_object_id()), ways: undominated(ways) }
+        let ways = makes.into_iter().map(|makes| EntryWay { makes, taps: false, sacrifices: false }).collect();
+        SupplyEntry { permanent: Some(new_object_id()), ways: undominated(ways) }
     }
 
     /// The property MA-1 rests on: on small random boards, Hall's condition
@@ -1880,29 +1895,35 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(162);
         let (mut yes, mut no) = (0, 0);
         for _ in 0..3000 {
-            let mut entries: Vec<Entry> = (0..rng.random_range(0..=5)).map(|_| random_entry(&mut rng)).collect();
+            let mut entries: Vec<SupplyEntry> = (0..rng.random_range(0..=5)).map(|_| random_entry(&mut rng)).collect();
             // Copies of one entry, which the check counts as a group.
             if let Some(copied) = entries.first().cloned().filter(|_| rng.random_bool(0.4)) {
                 for _ in 0..rng.random_range(1..=2) {
-                    entries.push(Entry { permanent: Some(new_object_id()), ..copied.clone() });
+                    entries.push(SupplyEntry { permanent: Some(new_object_id()), ..copied.clone() });
                 }
             }
-            let doublers = (0..rng.random_range(0..=2))
+            let pool_multipliers = (0..rng.random_range(0..=2))
                 .map(|_| {
-                    let mut input = Demand { pips: NO_MANA, generic: rng.random_range(1..=3) };
+                    let mut input = ManaDemand { pips: NO_MANA, generic: rng.random_range(1..=3) };
                     if rng.random_bool(0.3) {
                         input.pips[rng.random_range(0..6)] = 1;
                     }
-                    Doubler { permanent: new_object_id(), input, factor: rng.random_range(2..=3) }
+                    PoolMultiplier { permanent: new_object_id(), input, factor: rng.random_range(2..=3) }
                 })
                 .collect();
-            let supply = ManaSupply { player: 0, entries, outlets: Vec::new(), doublers, plain: OnceCell::new() };
-            let mut demand = Demand { pips: NO_MANA, generic: rng.random_range(0..=6) };
+            let supply = ManaSupply {
+                player: 0,
+                entries,
+                sacrifice_outlets: Vec::new(),
+                pool_multipliers,
+                plain_split: OnceCell::new(),
+            };
+            let mut demand = ManaDemand { pips: NO_MANA, generic: rng.random_range(0..=6) };
             for _ in 0..rng.random_range(0..=3) {
                 demand.pips[rng.random_range(0..6)] += rng.random_range(1..=3);
             }
             let expected = pays_by_search(&supply, &demand);
-            assert_eq!(supply.pays(&demand, &Taken::default()), expected, "{supply:#?}\n{demand:?}");
+            assert_eq!(supply.pays(&demand, &ReservedByCosts::default()), expected, "{supply:#?}\n{demand:?}");
             if expected { yes += 1 } else { no += 1 }
         }
         assert!(yes > 500 && no > 500, "both answers, often: {yes} yes, {no} no");

@@ -156,7 +156,7 @@ pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// each ability `can_activate` allows.
 ///
 /// One inventory of what the player can pay with serves every card and
-/// ability that reaches the mana check, taken at the first
+/// ability that reaches the mana check, read at the first
 /// (`mana-architecture.md` §3.1).
 pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<PriorityAction> {
     let mut actions = vec![PriorityAction::Pass];

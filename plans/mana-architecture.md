@@ -474,7 +474,7 @@ with its surface and reads MA-2's shape:
 
 ### 3.8 The window reads the inventory
 
-The window takes its offer once (`WindowOffer`, as built in MA-1): the
+The window reads its offer once (`ManaAbilityWindowOffer`, as built in MA-1): the
 player's mana abilities in timestamp order, one per definition. Each prompt
 re-asks only each ability's costs, a `{T}`-only one by its tapped flag, since
 its summoning sickness moves only with the epoch; the offer is read again
@@ -802,7 +802,7 @@ after the board's replacement effects and triggered mana (§3.4), whose
 watchers are memoized per layer epoch with a debug audit. `can_cast` and
 `can_activate` ask it where `find_mana_sources` stood, which is gone, and
 `can_cast` returns `Ok(())`. CR 601.2g's window reads its offer once a window
-(`WindowOffer`) and offers what the check counts, the Cube included, and the
+(`ManaAbilityWindowOffer`) and offers what the check counts, the Cube included, and the
 why names the cost that keeps a mana ability out of it. "Actions reversed"
 counts what the engine rewinds. Ironworks and the Cube are pooled.
 

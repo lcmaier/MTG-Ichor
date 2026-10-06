@@ -27,7 +27,7 @@ use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::{
     can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, remaining_cost_after_pool, CannotActivate,
 };
-use crate::oracle::mana_supply::WindowOffer;
+use crate::oracle::mana_supply::ManaAbilityWindowOffer;
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
@@ -516,7 +516,7 @@ impl GameState {
     /// extracted to build the `remaining_cost` context the DP sees.
     ///
     /// # The offer is read once
-    /// `WindowOffer` lists the player's mana abilities when the window opens
+    /// `ManaAbilityWindowOffer` lists the player's mana abilities when the window opens
     /// and is read again only when the layer epoch moves, a sacrifice for
     /// mana: between prompts, only whether each ability's costs can be paid
     /// changes (`mana-architecture.md` §3.8).
@@ -565,10 +565,10 @@ impl GameState {
         let mut failed: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
             crate::types::ids::IdSet::default();
 
-        let mut offer = WindowOffer::take(self, player_id);
+        let mut offer = ManaAbilityWindowOffer::read(self, player_id);
         loop {
             if !offer.is_current(self) {
-                offer = WindowOffer::take(self, player_id);
+                offer = ManaAbilityWindowOffer::read(self, player_id);
             }
             let legal: Vec<(ObjectId, AbilityId)> =
                 offer.options(self).into_iter().filter(|k| !failed.contains(k)).collect();

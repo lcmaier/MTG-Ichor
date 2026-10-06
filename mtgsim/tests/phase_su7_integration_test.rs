@@ -116,7 +116,7 @@ fn the_window_says_why_each_mana_ability_is_not_offered() {
          battlefield: Citanul Hierophants | controller 0, arrived this turn\n"
     ));
     let bears = find(&game, "Grizzly Bears");
-    let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::WindowOffer::take(&game, 0)
+    let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(&game, 0)
         .options(&game)
         .into_iter()
         .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
