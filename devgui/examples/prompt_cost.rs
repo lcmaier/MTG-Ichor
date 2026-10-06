@@ -14,8 +14,9 @@
 //!   at every repaint, and the header's tools with three entries in their
 //!   menu (`setup-architecture.md` §7.3);
 //! - **the editor** on the same board: its view, built again at every repaint
-//!   in the editor, and one edit at a click, which writes the board, reads it
-//!   back and has the loader check it (`setup-architecture.md` §7b);
+//!   in the editor, with the advanced settings off and on; one edit at a
+//!   click, which writes the board, reads it back and has the loader check
+//!   it; and a line typed, added and undone (`setup-architecture.md` §7b);
 //! - **the why panel**: the seat's answer at the priority question about the
 //!   permanent the layers did most to and about a card in hand, each with the
 //!   question's section, and the panel's view at every repaint
@@ -114,6 +115,14 @@ fn main() {
     reading("an edit, at a click", || {
         life = 1 - life;
         editor.input(EditorInput::Number(BoardNumber::Life(0), 10 + life));
+    });
+    editor.input(EditorInput::Advanced(true));
+    let advanced = &editor;
+    reading("editor view, advanced on, every repaint", || advanced.view());
+    reading("a line typed, added and undone, at clicks", || {
+        editor.input(EditorInput::TypedLine("player 1: poison 3".to_string()));
+        editor.input(EditorInput::AddTypedLine);
+        editor.input(EditorInput::Undo);
     });
 }
 
