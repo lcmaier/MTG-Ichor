@@ -118,7 +118,7 @@ fn counterspell_is_not_offered_an_activated_ability_on_the_stack() {
     // CR 601.2c, asked by the oracle: with no legal target, the spell is not
     // castable, so the harness is never offered the cast in the first place.
     assert!(
-        !castable_spells(&game, 0).iter().any(|(id, _)| *id == counter),
+        !castable_spells(&game, 0).contains(&counter),
         "an ability on the stack is not a spell to counter, so Counterspell has \
          no legal target and CR 601.2c forbids the cast",
     );

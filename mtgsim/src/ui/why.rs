@@ -28,8 +28,8 @@ use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
-    cannot_activate, cannot_cast, cannot_play_land, color_name, combat_refusal, keyword_name, named, option_label,
-    player_name, rejection_words, type_line, Declaring,
+    cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, keyword_name, named,
+    option_label, player_name, rejection_words, type_line, Declaring,
 };
 
 /// What a why is about: an object, or a player.
@@ -193,10 +193,10 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 }
 
 /// Why each thing `about` could be at this question is not offered, from the
-/// check the options were built by. The priority question and the two
-/// declarations have such checks; at every other question the options come
-/// from a filter of the question's own, with no typed reason yet
-/// (`codebase-state.md` item 212), and a target's are RS-2's.
+/// check the options were built by. The priority question, the two
+/// declarations and CR 601.2g's window have such checks; at every other
+/// question the options come from a filter of the question's own, with no
+/// typed reason yet (`codebase-state.md` item 212), and a target's are RS-2's.
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<WhyLine> {
     match (&question.context.kind, about) {
         (ChoiceKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
@@ -217,6 +217,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion) -> Vec<W
             }
         }
         (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
+        (ChoiceKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
         (
             ChoiceKind::PriorityAction
             | ChoiceKind::DeclareAttackers
@@ -305,6 +306,39 @@ fn priority_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) ->
             }
         }
     }
+}
+
+/// In CR 601.2g's window: each of the permanent's mana abilities the window
+/// does not offer, with the cost that cannot be paid (`mana-architecture.md`
+/// §3.13). Two grants of one ability are one option, so an ability is
+/// offered when any instance of its definition is.
+fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Vec<WhyLine> {
+    let player = question.player;
+    if !game.battlefield.contains_key(&id) {
+        return Vec::new();
+    }
+    let abilities = get_effective_abilities(game, id);
+    let mana: Vec<&AbilityDef> = abilities.iter().filter(|ability| ability.ability_type == AbilityType::Mana).collect();
+    let Some(first) = mana.first() else {
+        return vec![WhyLine::under("It has no mana ability.")];
+    };
+    if let Err(reason) = can_activate_its_abilities(game, player, id) {
+        return vec![refusal("To activate its mana abilities", cannot_activate(game, player, id, first, &reason))];
+    }
+    let offered = |ability: AbilityId| {
+        question.options.iter().any(|option| {
+            matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(source, offered))
+                if *source == id && offered.definition() == ability.definition())
+        })
+    };
+    mana.iter()
+        .filter(|ability| !offered(ability.id))
+        .filter_map(|ability| {
+            let reason = game.can_pay_costs(&ability.costs, player, id).err()?;
+            let action = format!("To activate “{}”", ability.rules_text.words);
+            Some(refusal(action, cannot_pay(game, player, id, &reason)))
+        })
+        .collect()
 }
 
 /// At a declare-blockers question: for an attacker, which of the defending

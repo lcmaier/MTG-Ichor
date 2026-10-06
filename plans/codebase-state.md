@@ -7822,14 +7822,14 @@ the file.
      default from an example; a seat that supplies none gets the random
      agent's measured least-flexible-first policy.
 
-     **Reachability (2026-10-05):** reachable — wrong today: the greedy count
-     hides casts a payment covers and offers casts none does. On
-     `close_out.py`'s board, 20 four-seat Commander games, it hides 16 casts
-     and 136 activations (Sol Ring's {C}{C}, Mana Reflection's doubling, Wild
-     Growth's {G}) and offers 1,963 casts and 44 activations no payment
-     covers, where all 448 of the board's rewinds come from
-     (`mana-architecture.md` §2.3). The window's 194 prompts a game at four
-     seats are the solver's, MA-6.
+     **Reachability (2026-10-05):** reachable — not wrong in any game: the
+     offer is exact since MA-1 (#225). "Actions reversed" fell from 22.4 a
+     game to 0.0 on `close_out.py`'s board; with Krark-Clan Ironworks and
+     Doubling Cube pooled it reads 2.3, and each of the 64 reversals read in
+     traces is a payment the random agent did not make, none an offer no
+     payment covers (item 214). What is left is the solver, a person's seat's
+     convenience (MA-6), and what the check does not read yet, item 213,
+     unreachable on the registered cards.
 
      **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
      time — **and that number is the plain bipartite case**, the one row with
@@ -7939,7 +7939,21 @@ the file.
      is this item's offer, with the rewind counter first, and MA-6 its
      solver. The six decisions the design was briefed with, and the route,
      are its §7; the owner took every recommendation at #224's review
-     (2026-10-05). MA-1 is next, ahead of SU-8.
+     (2026-10-05).
+
+     **The offer customer landed (2026-10-05): MA-1, #225.**
+     `oracle::mana_supply` takes the inventory once a priority point and
+     answers by Hall's condition; `find_mana_sources` is gone, and CR
+     601.2g's window offers what the check counts, Doubling Cube included,
+     reading its options once a window. Four things the design did not have,
+     each in `mana-architecture.md`'s MA-1 stub: retypes are read (§3.4's
+     claim that ignoring one only over-offers was wrong: a Forest under Deep
+     Water makes {U}); the Cube is a transform of the demand rather than an
+     enumeration; what Ironworks sacrifices after the Cube's doubling pays
+     undoubled; and the random agent's window view reads each ability's
+     production on the board, without which it declined windows a payment
+     covered (Wild Growth's {G}). The solver customer is MA-6's. Trace page:
+     `plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html`.
 
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
@@ -9272,3 +9286,78 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      for item 162.
      **Reachability (2026-10-05):** closed — the census.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 212".
+
+### Found by MA-1, the exact mana check (2026-10-05)
+
+213. **What the inventory reads one way or not at all.** `oracle::mana_supply`
+     (MA-1, #225) is exact for the pool, a permanent's {T} and its own
+     sacrifice, Krark-Clan Ironworks' outlets, Doubling Cube's doubling, and
+     every production a registered replacement effect or triggered mana
+     ability changes. The shapes no registered card has are each read one
+     way, named here with the way it errs and its owner:
+     - **Not read, so under-offered:** a mana ability fed by mana in any shape
+       but the Cube's (Signets, filters: MA-3), by life, counters or {Q}; a
+       triggered mana ability whose amount is "that much" or whose type is
+       "any type that land produced" (MA-3, MA-4); a watcher that functions
+       off the battlefield (no printed producer); two pool multipliers of
+       different shapes, tried in timestamp order only; the pool's restricted
+       units, which a pool multiplier copies free (item 33).
+     - **Read loosely, so over-offered:** a permanent that sacrifices itself
+       for mana and is also what the cost's own sacrifice must take
+       (Treasure, MA-3); two outlets of different abilities sharing fodder,
+       each counted with all of it; a watcher limited to one use or once a
+       turn, applied to every tap; a check past 4,096 leaves or six effects on
+       one production, which leans yes by design (`mana-architecture.md`
+       §3.3).
+     **Reachability (2026-10-05):** unreachable — no registered card has one
+     of these shapes; the two MA-1 pools, Ironworks and the Cube, are read
+     exactly, together and apart.
+     **Sized:** with MA-7 (`mana-architecture.md` §6, the owner, 2026-10-06),
+     which reads every cost per `Cost` arm; the converters and Treasure stay
+     MA-3's, about 60 lines of the inventory.
+
+214. **The random agent does not pay through Doubling Cube.** MA-1's check
+     counts a payment the Cube's doubling makes, and the window offers the
+     Cube once the pool can pay its `{3}` (`mana-architecture.md` §3.8), whose
+     units the player chooses. `ui::random`'s window policy reads only what
+     each offered source makes now: on a Blood Moon board where the Cube is
+     the only route to a second `{W}`, it taps the one Plains and declines, so
+     the cast is reversed (CR 732.1) and offered again at the next priority
+     question. Elsewhere it activates the Cube with mana the spell needed. On
+     `close_out.py`'s board with the Cube pooled, 46 reversals in 20 games, 42
+     of them declines and 28 in one game (`fuzz-record.md`, MA-1's block).
+     **Reachability (2026-10-05):** reachable — not wrong: the engine offers
+     and rewinds as CR 601.2g–h and 732.1 say, and the price is the agent's
+     stream, 2.3 re-asks a game on the budget's board.
+     **Sized:** a doubler-aware preference in `ui/random.rs`, ~40–80 lines
+     with a test on the Humility board: keep the owed pip's mana, tap toward
+     the doubler's `{3}`, activate it, and pay the `{3}` with the other
+     units. Slot: MA-2's first commit (B12), or its own PR sooner.
+
+215. **What MA-1's review left for a hygiene pass.** Three cleanups the
+     owner's review of #225 found, each changing no answer:
+     - **The inventory a priority point shares is a bare
+       `&OnceCell<ManaSupply>`** in three signatures, each `_with` function
+       with a one-line twin that hands it an empty cell (`mana_helpers.rs`).
+       The recommended shape is the checks as methods on one value holding
+       the cell, `PlayerChecks::new(game, p).can_cast(card)`, which removes
+       the three pairs; about 30 call sites, most in tests.
+     - **The watcher memo's debug audit restores every counter by hand**
+       (`Diagnostics::rewind_to`), as the frame memo's restores four
+       (`rewind_layer_work`). Auditing a clone of the game instead, in debug
+       builds only, removes both, provided the trace sink does not follow the
+       clone.
+     - **Helpers built more than once.** The permanents a player controls
+       are still built inline in `legality.rs` (`legal_blockers`),
+       `engine/costs.rs`, `engine/turns.rs` and `ui/why.rs`, beside
+       `oracle::board::permanents_controlled_by`. The first run of
+       `plans/similar_functions.py` lists about eight engine candidates:
+       `static_replacement` in three card files, `intrinsic_mana_ability`
+       beside `mana_ability_single`, `ManaPool::can_pay` beside
+       `can_pay_with_context`, and two pairs of prompt wrappers in
+       `ui/ask.rs`.
+     **Reachability (2026-10-06):** reachable — not wrong: each is the shape
+     of code that answers correctly.
+     **Sized:** about 150–250 lines in all. Slot: the hygiene pass of item
+     6's close audit (`roadmap-v2.md` A6e), which asks the third question at
+     every spine close since this review (`engineering-practices.md` §9).

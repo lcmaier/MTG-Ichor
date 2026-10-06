@@ -1132,12 +1132,12 @@ mechanic rather than a migration, which is why it is here and not in
   the GPU get half the work per game, and the engine, no slower, becomes the
   tighter constraint. That is another operating point, not a re-base
   (`engineering-practices.md` §3.1). The engine's own lever applies under
-  either stack: the window re-enumerates every mana ability once per tap,
-  13.5% of instructions (`layers-architecture.md` §12), where an inventory
-  taken once per cast and a payability check per tap would do.
-- **Owner** — `plans/mana-architecture.md` (#224): the window's inventory
-  is MA-1 (§3.8), the solver and its decorator MA-6 (§3.12). The reversal
-  prompt stays main item 72's, with critical-path item 6.
+  either stack: the window read every mana ability again at each tap,
+  13.5% of instructions (`layers-architecture.md` §12), and since MA-1
+  (#225) reads them once a window and re-asks only their costs.
+- **Owner** — `plans/mana-architecture.md` (#224): the solver and its
+  decorator are MA-6 (§3.12); the window's inventory landed in MA-1 (§3.8).
+  The reversal prompt stays main item 72's, with critical-path item 6.
 
 ### 2.19 Any-color mana — "Add one mana of any color"
 

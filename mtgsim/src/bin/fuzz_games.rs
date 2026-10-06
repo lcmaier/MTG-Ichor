@@ -422,6 +422,7 @@ struct GameStats {
     mana_productions: u64,
     decisions: u64,
     priority_decisions: u64,
+    actions_reversed: u64,
     triggers_placed: u64,
     trigger_dispatch: TriggerDispatchWork,
     /// `--audit`: dispatches answered twice and the triggers both answers
@@ -667,6 +668,7 @@ struct AggregateStats {
     total_mana_productions: u64,
     total_decisions: u64,
     total_priority_decisions: u64,
+    total_actions_reversed: u64,
     total_triggers_placed: u64,
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
@@ -707,6 +709,7 @@ impl AggregateStats {
         self.total_mana_productions += game.mana_productions;
         self.total_decisions += game.decisions;
         self.total_priority_decisions += game.priority_decisions;
+        self.total_actions_reversed += game.actions_reversed;
         self.total_triggers_placed += game.triggers_placed;
         self.total_trigger_dispatch.windows += game.trigger_dispatch.windows;
         self.total_trigger_dispatch.candidates += game.trigger_dispatch.candidates;
@@ -1017,6 +1020,7 @@ fn run_one_game(
                 s.mana_productions = c.mana_productions();
                 s.decisions = c.decisions();
                 s.priority_decisions = c.priority_decisions();
+                s.actions_reversed = c.actions_reversed();
                 s.triggers_placed = c.triggers_placed();
                 s.trigger_dispatch = c.trigger_dispatch();
                 let (dispatches, triggers) = game.state.dispatch_audit_counts().unwrap_or((0, 0));
@@ -1551,6 +1555,9 @@ fn main() {
         // the first one's priority share, `backlog.md` §2.22's B boundary.
         println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
         println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
+        // Priority actions offered, begun and reversed (CR 732.1), per game:
+        // an over-offer's price, each one a re-ask the seat did not need.
+        println!("  Actions reversed: {:>8.1}", agg_stats.avg(agg_stats.total_actions_reversed));
         // Triggered abilities put onto the stack (CR 603.3), per game: the
         // dispatcher matched and the drain placed. Zero on a pool with no
         // trigger source, which is what the pools were before TR-1.

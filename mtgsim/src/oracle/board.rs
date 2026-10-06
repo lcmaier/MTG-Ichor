@@ -1,14 +1,31 @@
 // Read-only board state queries.
 
+use crate::oracle::characteristics::controls;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, PlayerId, Timestamp};
 
-/// Get all object IDs on the battlefield controlled by a player.
+/// The permanents `player_id` controls, oldest first (CR 613.7's timestamps,
+/// which never tie), sorting only those (`mana-architecture.md` §3.5).
+///
+/// With no effect changing control, a permanent's controller is its
+/// battlefield entry's, which `controls` reads without a layer walk. Only
+/// then is the map walked in its own order: a layer walk writes a trace
+/// record, and a record written in hash order would differ by process.
 pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered().into_iter()
-        .filter(|(id, _)| crate::oracle::characteristics::controls(game, *id, player_id))
-        .map(|(id, _)| id)
-        .collect()
+    if game.continuous_effects.summary().any_control_changing {
+        return game.battlefield_ids_ordered().into_iter().filter(|&id| controls(game, id, player_id)).collect();
+    }
+    let mut mine: Vec<(Timestamp, ObjectId)> = game
+        .battlefield
+        .iter()
+        .filter(|&(&id, entry)| {
+            debug_assert_eq!(entry.controller == player_id, controls(game, id, player_id));
+            entry.controller == player_id
+        })
+        .map(|(&id, entry)| (entry.timestamp, id))
+        .collect();
+    mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+    mine.into_iter().map(|(_, id)| id).collect()
 }
 
 #[cfg(test)]

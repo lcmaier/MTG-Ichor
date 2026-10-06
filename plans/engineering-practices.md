@@ -643,6 +643,22 @@ AI use case at all, as derived in `plans/references/ai-performance-floors.md`.
 | **2. Full-state clone ≤ 10 µs** at item 143's checkpoints | Portable form: ≤ 1/6 of one decision's engine CPU. CI proxy: ≤ 64 allocations per clone | `tests/clone_bound_test.rs`, CI's release step, for the allocations; the readiness pass for the time | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is unread, and back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10) |
 | **3. ≤ 128 KB per state** | Deep clone size, bounded by the board's high-water mark and never by the turn count | The same test, exact bytes with the hash seed pinned | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's |
 
+**The latest readings, on the board** (the owner, 2026-10-06, at #225's
+review). `check_state_of_play.py` renders this table onto
+`state-of-play.md` with each floor's room, so every pull request sees how
+close the engine is; a reading is replaced in place when it is taken again,
+and the dated record of every reading stays in `fuzz-record.md`. The
+"Standing" column above keeps the history and the reasons.
+
+<!-- floors: begin -->
+| Floor | Limit | Reading | Read on | Where |
+|---|---|---|---|---|
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
+| 2. Allocations per clone | ≤ 64 | 39 | 2026-10-05 | `clone_bound_test` in release, 207 checkpoints over 24 Commander games |
+| 2. Microseconds per clone | ≤ 10 | 6.9 | 2026-10-06 | the same checkpoints, the median of nine clones at each, the worst checkpoint of three runs |
+| 3. Kilobytes per clone | ≤ 128 | 100.0 | 2026-10-05 | the same checkpoints, `performance` 12347 at turn 150 |
+<!-- floors: end -->
+
 **Floor 1 is read under a named stack, as it is read on a named board.** Its
 denominator is what reaches the agent, and which prompts reach the agent is
 the seat's middleware, not the engine: `backlog.md` §2.22's default bot stack
@@ -1699,7 +1715,14 @@ needs the close-out and readiness.
    deleted; **clippy counted before it is decided** (`cargo clippy
    --all-targets`, the count deciding which lints go to `-D` and which are
    allowed with a reason each); the toolchain pin measured; the four checks
-   in `ci.yml`, each with a comment giving its reason.
+   in `ci.yml`, each with a comment giving its reason. **Helpers built more
+   than once** (the owner, 2026-10-06, at #225's review, which found the
+   permanents a player controls built in six places, one of them a helper
+   the engine never called): `plans/similar_functions.py` lists functions
+   whose tokens nearly match, and a grep per common board query (a player's
+   permanents, creatures, opponents, untapped lands) finds the copies
+   written differently, which no token scan sees. Each copy is routed to one
+   helper or kept with its reason.
 4. **Readiness.** Is the engine on track for the harness use case? **Its first
    duty is the ratchet's re-reading** (§3.1): decisions per core-second on
    both boards at four seats and one thread, recorded as a dated reading

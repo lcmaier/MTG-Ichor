@@ -69,7 +69,7 @@ fn grizzly_bears_is_never_offered_while_the_mana_falls_short() {
     ));
     let (bears, growth) = (find(&game, "Grizzly Bears"), find(&game, "Giant Growth"));
     assert_eq!(can_cast(&game, 0, bears).err(), Some(CannotCast::ManaShort));
-    assert!(!castable_spells(&game, 0).iter().any(|(id, _)| *id == bears));
+    assert!(!castable_spells(&game, 0).contains(&bears));
 
     let answer = at_priority(&game, 0, WhyAbout::Object(bears), None);
     assert_eq!(question_lines(&answer)[0], ("Player 0: You have priority".to_string(), None));
@@ -80,17 +80,19 @@ fn grizzly_bears_is_never_offered_while_the_mana_falls_short() {
     assert!(has(&answer, "Offered to Player 0:", None) && has(&answer, &cast, None), "{answer:#?}");
 }
 
-/// The review board as the tree has it: one Everywhere counts as five
-/// sources (`codebase-state.md` item 162, slotted with item 33's design), so
-/// Grizzly Bears is offered, and the cast is reversed when the mana runs out.
-/// Asked again, the why says both tiers: never offered now, since Everywhere
-/// is tapped and one {G} floats, and offered and then reversed (CR 732.1).
+/// The review board: one Everywhere is one mana, so Grizzly Bears' {1}{G} is
+/// never offered (`codebase-state.md` item 162, MA-1's exact check). A cast
+/// a seat began and could not pay is still reversed, and asked again the why
+/// says both tiers: never offered now, since Everywhere is tapped and one
+/// {G} floats, and offered and then reversed (CR 732.1).
 #[test]
-fn on_the_review_board_the_bears_are_offered_then_reversed() {
+fn on_the_review_board_one_everywhere_does_not_pay_for_the_bears() {
     let text = format!("{MAIN}hand 0: Lightning Bolt\nhand 0: Grizzly Bears\nbattlefield: Everywhere | controller 0\n");
     let game = built(&text);
     let bears = find(&game, "Grizzly Bears");
-    assert!(can_cast(&game, 0, bears).is_ok(), "item 162's loose offer; when it is fixed, this board says the mana is short");
+    assert_eq!(can_cast(&game, 0, bears).err(), Some(CannotCast::ManaShort));
+    let answer = at_priority(&game, 0, WhyAbout::Object(bears), None);
+    assert!(has(&answer, "To cast it: the mana Player 0 can make now does not cover its cost {1}{G}.", Some("601.2h")));
 
     let mut reversed = built(&text.replace("Everywhere | controller 0", "Everywhere | controller 0, tapped"));
     reversed.players[0].mana_pool.add(ManaType::Green, 1);
@@ -98,6 +100,40 @@ fn on_the_review_board_the_bears_are_offered_then_reversed() {
     let answer = at_priority(&reversed, 0, WhyAbout::Object(bears), Some(Rejection::Reversed(PriorityAction::CastSpell(bears))));
     assert!(has(&answer, "To cast it: the mana Player 0 can make now does not cover its cost {1}{G}.", Some("601.2h")));
     assert!(has(&answer, "Offered to Player 0, then reversed:", None), "{answer:#?}");
+}
+
+/// CR 601.2g's window offers the mana abilities whose costs can be paid, and
+/// says of the rest which cost cannot (`mana-architecture.md` §3.13): a
+/// tapped Mountain, and a creature the Hierophants' grant cannot tap the turn
+/// it arrived (CR 302.6).
+// COVERS-PARTIAL: ATOM-118.3-002
+#[test]
+fn the_window_says_why_each_mana_ability_is_not_offered() {
+    let game = built(&format!(
+        "{MAIN}hand 0: Grizzly Bears\n\
+         battlefield: Mountain | controller 0, tapped\n\
+         battlefield: Forest | controller 0\n\
+         battlefield: Citanul Hierophants | controller 0, arrived this turn\n"
+    ));
+    let bears = find(&game, "Grizzly Bears");
+    let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(&game, 0)
+        .options(&game)
+        .into_iter()
+        .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
+        .collect();
+    let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);
+    let context = ChoiceContext { kind: ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost }, rejected: None };
+    let asked = |name: &str| why(&game, WhyAbout::Object(find(&game, name)), Some(&OpenQuestion { player: 0, context: &context, options: &options }));
+
+    let mountain = asked("Mountain");
+    let tapped = "To activate “{T}: Add {R}.”: it is already tapped, so it can't be tapped to pay {T}.";
+    assert!(has(&mountain, tapped, Some("118.3")), "{mountain:#?}");
+    let hierophants = asked("Citanul Hierophants");
+    let sick = "To activate “{T}: Add {G}.”: it has not been under Player 0's control since their most recent turn began, \
+                so it can't pay {T} or {Q}.";
+    assert!(has(&hierophants, sick, Some("302.6")), "{hierophants:#?}");
+    let forest = asked("Forest");
+    assert!(has(&forest, "Offered to Player 0:", None) && !has(&forest, "Never offered to Player 0:", None), "{forest:#?}");
 }
 
 /// CR 117.1a: a creature spell waits for its caster's main phase with the

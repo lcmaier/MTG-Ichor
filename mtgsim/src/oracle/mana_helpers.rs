@@ -1,10 +1,12 @@
-// Mana helper queries — shared utilities for finding lands to tap and
-// determining which spells a player can afford to cast.
-//
-// Used by CLI (show affordable spells), Random DP (auto-tap), and future AI.
+// The checks the priority question builds its options by: whether a card can
+// be cast and an ability activated now (CR 601.3, 602.2), each refusal a
+// typed reason the why panel words. The mana half asks `oracle::mana_supply`.
 // All functions are read-only queries over &GameState.
 
+use std::cell::OnceCell;
+
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
@@ -15,122 +17,19 @@ use crate::types::zones::Zone;
 use crate::engine::costs::CannotPay;
 use crate::engine::put_on_stack::SorceryTiming;
 
-/// A mana source: a permanent with a mana ability that can currently be activated.
-///
-/// Note: mana abilities don't always require tapping (rule 605.1a/605.1b).
-/// A tapped creature with "Sacrifice this creature: Add {U}{R}" is a valid
-/// mana source. We check each ability's specific costs, not just tap state.
-#[derive(Debug, Clone)]
-pub struct ManaSource {
-    pub permanent_id: ObjectId,
-    pub ability_id: AbilityId,
-    pub produces: ManaType,
-}
-
-/// Find a set of mana sources (lands, mana rocks, mana dorks, etc.) whose
-/// mana abilities can pay a given mana cost.
-///
-/// Uses a greedy algorithm:
-/// 1. Identify all available mana sources controlled by the player.
-/// 2. Reserve sources that produce colors needed for specific (colored) requirements.
-/// 3. Assign remaining sources to cover generic costs.
-///
-/// Returns `None` if insufficient mana sources exist.
-/// Returns `Some(vec![])` if the cost is zero.
-pub fn find_mana_sources(
+/// Whether `player_id` can pay the mana `cost` asks, for `payment`: from the
+/// pool alone, or from all they can make, the inventory `supply` holds once
+/// a check needs it. The priority question's every check shares one
+/// (`mana-architecture.md` §3.1).
+fn mana_payable(
     game: &GameState,
     player_id: PlayerId,
-    mana_cost: &ManaCost,
-) -> Option<Vec<ManaSource>> {
-    if mana_cost.symbols.is_empty() {
-        return Some(Vec::new());
-    }
-
-    let mut available = available_mana_sources(game, player_id);
-
-    let mut color_needs: Vec<ManaType> = Vec::new();
-    let mut generic_need: u64 = 0;
-
-    for sym in &mana_cost.symbols {
-        match sym {
-            ManaSymbol::Colored(mt) => color_needs.push(*mt),
-            ManaSymbol::Colorless => color_needs.push(ManaType::Colorless),
-            ManaSymbol::Generic => generic_need += 1,
-            // Hybrid/Phyrexian/X not handled by auto-tap yet
-            _ => return None,
-        }
-    }
-
-    let mut tapped: Vec<ManaSource> = Vec::new();
-
-    // Phase 1: reserve a source for each colored requirement. Greedy, with no
-    // preference among producers: a dual taken for a pip a basic could have
-    // paid can make a payable cost read as unpayable. The solver half of the
-    // payment oracle is `backlog.md` §2.18's.
-    for needed_color in &color_needs {
-        let idx = available.iter().position(|s| s.produces == *needed_color)?;
-        tapped.push(available.remove(idx));
-    }
-
-    // Phase 2: Assign remaining sources to cover generic cost.
-    for _ in 0..generic_need {
-        let source = available.pop()?;
-        tapped.push(source);
-    }
-
-    Some(tapped)
-}
-
-/// Get all mana sources controlled by a player whose costs can currently be paid.
-///
-/// A mana source is a permanent with at least one mana ability whose costs
-/// can be paid right now. Mana abilities don't always require tapping
-/// (rule 605.1a/605.1b) — e.g. "Sacrifice this creature: Add {U}{R}" can
-/// be activated even if the creature is tapped. We check each ability's
-/// cost vector individually.
-pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
-    let mut sources = Vec::new();
-
-    // Ordered, not raw `battlefield.iter()`: this list is consumed positionally
-    // by `find_mana_sources`, so its order decides *which* land gets tapped.
-    for (id, _entry) in game.battlefield_ordered() {
-        // Effective controller, not printed: a Mind-Controlled land taps for
-        // its new controller's mana (CR 613.1b).
-        if !crate::oracle::characteristics::controls(game, id, player_id) {
-            continue;
-        }
-
-        // Effective abilities, not printed: a Blood-Mooned land's intrinsic
-        // {T}: Add {R} exists nowhere in its CardData (CR 305.7).
-        for ability in crate::oracle::characteristics::get_effective_abilities(game, id).iter() {
-            if ability.ability_type != AbilityType::Mana {
-                continue;
-            }
-
-            if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
-                continue;
-            }
-
-            if let crate::types::effects::Effect::Atom(
-                crate::types::effects::Primitive::ProduceMana(output),
-                _,
-            ) = &ability.effect
-            {
-                for (mana_type, amount_expr) in &output.mana {
-                    if let crate::types::effects::AmountExpr::Fixed(amount) = amount_expr
-                        && *amount > 0 {
-                        sources.push(ManaSource {
-                            permanent_id: id,
-                            ability_id: ability.id,
-                            produces: *mana_type,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    sources
+    cost: &ManaCost,
+    non_mana: &NonManaCosts<'_>,
+    supply: &OnceCell<ManaSupply>,
+) -> bool {
+    game.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(cost))
+        || supply.get_or_init(|| ManaSupply::read(game, player_id)).covers(game, cost, non_mana)
 }
 
 /// Why a card is not offered to cast at a priority question.
@@ -207,9 +106,19 @@ pub fn can_begin_to_cast(game: &GameState, player_id: PlayerId, card_id: ObjectI
 }
 
 /// Is `card_id` offered to `player_id` to cast: CR 601.3's start, then what
-/// CR 601.2c and 601.2h would refuse. `Ok` holds the mana sources the cast
-/// would tap beyond the pool, as [`find_mana_sources`] picks them.
-pub fn can_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<Vec<ManaSource>, CannotCast> {
+/// CR 601.2c and 601.2h would refuse, the mana last.
+pub fn can_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotCast> {
+    can_cast_with(game, player_id, card_id, &OnceCell::new())
+}
+
+/// [`can_cast`], paying from `supply`, the inventory a priority point's
+/// checks share.
+fn can_cast_with(
+    game: &GameState,
+    player_id: PlayerId,
+    card_id: ObjectId,
+    supply: &OnceCell<ManaSupply>,
+) -> Result<(), CannotCast> {
     can_begin_to_cast(game, player_id, card_id)?;
     let Some(obj) = game.objects.get(&card_id) else {
         return Err(CannotCast::NotInHand);
@@ -251,60 +160,33 @@ pub fn can_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Res
     // otherwise offer spells the cast then rolls back, and an
     // Electromancer would withhold ones the player can afford.
     let Some(printed) = &obj.card_data.mana_cost else {
-        return Ok(Vec::new());
+        return Ok(());
     };
     let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
-    let pool = &game.players[player_id].mana_pool;
-    if pool.can_pay(&mana_cost) {
-        return Ok(Vec::new());
+    // The mandatory sacrifices are paid at 601.2h, after the window, so what
+    // they take is not there to make mana with.
+    let non_mana = NonManaCosts { source: None, costs: &mandatory_non_mana };
+    if !mana_payable(game, player_id, &mana_cost, &non_mana, supply) {
+        return Err(CannotCast::ManaShort);
     }
-    let remaining = remaining_cost_after_pool(&mana_cost, pool);
-    find_mana_sources(game, player_id, &remaining).ok_or(CannotCast::ManaShort)
+    Ok(())
 }
 
-/// The cards in `player_id`'s hand that [`can_cast`] offers, each with the
-/// mana sources it would tap.
-pub fn castable_spells(
+/// The cards in `player_id`'s hand that [`can_cast`] offers.
+pub fn castable_spells(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
+    castable_spells_with(game, player_id, &OnceCell::new())
+}
+
+/// [`castable_spells`], paying from `supply`.
+pub(crate) fn castable_spells_with(
     game: &GameState,
     player_id: PlayerId,
-) -> Vec<(ObjectId, Vec<ManaSource>)> {
+    supply: &OnceCell<ManaSupply>,
+) -> Vec<ObjectId> {
     let Some(player) = game.players.get(player_id) else {
         return Vec::new();
     };
-    player.hand
-        .iter()
-        .filter_map(|&card_id| can_cast(game, player_id, card_id).ok().map(|sources| (card_id, sources)))
-        .collect()
-}
-
-/// Enumerate currently-activatable mana abilities for a player.
-///
-/// Returns `(permanent_id, ability_id)` for every mana ability on a permanent
-/// the player controls whose costs (typically tap) can be paid right now.
-/// Deduplicated by the permanent and the ability's definition — a single
-/// ability that produces mana in multiple color modes (e.g. Cavern of Souls'
-/// "add any color") appears once, and so do two grants of one mana ability
-/// (two Citanul Hierophants), which are one choice in outcome; the handle is
-/// the first instance's. Mode selection, when applicable, is a follow-up
-/// choice inside the ability's activation (future work; no such cards in the
-/// current pool).
-///
-/// Used by the 601.2g / 602.1b mana-ability-window loop in `cast_spell` and
-/// `activate_ability`. The caller prompts the DP to pick one option to
-/// activate (or decline), then loops until the pool covers the cost.
-pub fn enumerate_activatable_mana_abilities(
-    game: &GameState,
-    player_id: PlayerId,
-) -> Vec<(ObjectId, AbilityId)> {
-    let mut seen: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
-        crate::types::ids::IdSet::default();
-    let mut result = Vec::new();
-    for src in available_mana_sources(game, player_id) {
-        if seen.insert((src.permanent_id, src.ability_id.definition())) {
-            result.push((src.permanent_id, src.ability_id));
-        }
-    }
-    result
+    player.hand.iter().copied().filter(|&card_id| can_cast_with(game, player_id, card_id, supply).is_ok()).collect()
 }
 
 /// Color-sensitive subtraction of pool mana from a mana cost.
@@ -443,22 +325,28 @@ pub fn can_activate(
     ability: &AbilityDef,
 ) -> Result<(), CannotActivate> {
     can_activate_its_abilities(game, player_id, source_id)?;
-    can_activate_as_its_controller(game, player_id, source_id, ability)
+    can_activate_as_its_controller(game, player_id, source_id, ability, &OnceCell::new())
 }
 
 /// [`can_activate`] past the controller's check, which the enumeration asks
 /// once a source rather than once an ability.
+///
+/// The mana is asked last, as a card's is: a tapped source is refused for
+/// being tapped before anything reads an inventory (`mana-architecture.md`
+/// §3.1).
 fn can_activate_as_its_controller(
     game: &GameState,
     player_id: PlayerId,
     source_id: ObjectId,
     ability: &AbilityDef,
+    supply: &OnceCell<ManaSupply>,
 ) -> Result<(), CannotActivate> {
     can_begin_to_activate(game, player_id, ability)?;
 
-    // Single-pass check: non-mana costs via engine, mana costs via
-    // pool + available sources. No double-check.
-    can_afford_ability_costs(game, player_id, source_id, &ability.costs)?;
+    let other_costs: Vec<Cost> = ability.costs.iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect();
+    for cost in &other_costs {
+        game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
+    }
 
     // CR 602.2b routes an activation through 601.2c, so an ability
     // that *requires* a target and has none is no more activatable
@@ -471,18 +359,32 @@ fn can_activate_as_its_controller(
     if !every_instance_has_a_choice(game, &ability.instances, player_id) {
         return Err(CannotActivate::NoLegalTarget);
     }
+
+    let symbols: Vec<ManaSymbol> = ability
+        .costs
+        .iter()
+        .filter_map(|c| if let Cost::Mana(mana) = c { Some(mana.symbols.iter().copied()) } else { None })
+        .flatten()
+        .collect();
+    let non_mana = NonManaCosts { source: Some(source_id), costs: &other_costs };
+    if !symbols.is_empty() && !mana_payable(game, player_id, &ManaCost::from_symbols(symbols), &non_mana, supply) {
+        return Err(CannotActivate::ManaShort);
+    }
     Ok(())
 }
 
 /// Non-mana activated abilities the player can currently pay for: each
-/// ability on a permanent they control that [`can_activate`] offers.
-///
-/// For abilities with a mana cost component, checks both pool mana and
-/// available mana sources (lands to tap), mirroring `castable_spells`.
-/// Returns (source_permanent_id, ability_index, ability_id).
-pub fn activatable_abilities(
+/// ability on a permanent they control that [`can_activate`] offers, as
+/// `(source_permanent_id, ability_index, ability_id)`.
+pub fn activatable_abilities(game: &GameState, player_id: PlayerId) -> Vec<(ObjectId, usize, AbilityId)> {
+    activatable_abilities_with(game, player_id, &OnceCell::new())
+}
+
+/// [`activatable_abilities`], paying from `supply`.
+pub(crate) fn activatable_abilities_with(
     game: &GameState,
     player_id: PlayerId,
+    supply: &OnceCell<ManaSupply>,
 ) -> Vec<(ObjectId, usize, AbilityId)> {
     let mut result = Vec::new();
 
@@ -499,7 +401,7 @@ pub fn activatable_abilities(
         let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
 
         for (idx, ability) in abilities.iter().enumerate() {
-            if can_activate_as_its_controller(game, player_id, id, ability).is_ok() {
+            if can_activate_as_its_controller(game, player_id, id, ability, supply).is_ok() {
                 result.push((id, idx, ability.id));
             }
         }
@@ -604,43 +506,6 @@ fn every_instance_has_a_choice(
     true
 }
 
-/// Check if an ability's costs can be met right now.
-///
-/// Single authoritative check for all cost types:
-/// - **Mana costs:** pool mana is subtracted first; `find_mana_sources` checks
-///   whether available mana sources (lands, mana rocks, mana dorks, etc.) can
-///   cover the remainder.
-/// - **Non-mana costs:** delegated to `game.can_pay_costs` which is the
-///   engine's authoritative per-variant checker. Unknown/unimplemented cost
-///   variants return `Err` there (conservative rejection, not silent pass).
-fn can_afford_ability_costs(
-    game: &GameState,
-    player_id: PlayerId,
-    source_id: ObjectId,
-    costs: &[crate::types::costs::Cost],
-) -> Result<(), CannotActivate> {
-    let pool = &game.players[player_id].mana_pool;
-
-    for cost in costs {
-        match cost {
-            crate::types::costs::Cost::Mana(mana_cost) => {
-                if pool.can_pay(mana_cost) {
-                    continue;
-                }
-                let remaining = remaining_cost_after_pool(mana_cost, pool);
-                if find_mana_sources(game, player_id, &remaining).is_none() {
-                    return Err(CannotActivate::ManaShort);
-                }
-            }
-            other => {
-                game.can_pay_costs(std::slice::from_ref(other), player_id, source_id)
-                    .map_err(CannotActivate::Cost)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -652,7 +517,6 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
-    use crate::test_support::place_forest;
 
     fn place_mountain(game: &mut GameState, player_id: PlayerId) -> (ObjectId, AbilityId) {
         let mountain = CardDataBuilder::new("Mountain")
@@ -667,73 +531,6 @@ mod tests {
         let entry = PermanentState::new(id, player_id, 0);
         game.insert_battlefield_entity(id, entry);
         (id, ability_id)
-    }
-
-    #[test]
-    fn test_find_mana_sources_zero_cost() {
-        let game = GameState::new(2, 20);
-        let result = find_mana_sources(&game, 0, &ManaCost::zero());
-        assert_eq!(result.unwrap().len(), 0);
-    }
-
-    #[test]
-    fn test_find_mana_sources_single_green() {
-        let mut game = GameState::new(2, 20);
-        place_forest(&mut game, 0);
-        let cost = ManaCost::build(&[ManaType::Green], 0); // {G}
-        let result = find_mana_sources(&game, 0, &cost);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_find_mana_sources_colored_plus_generic() {
-        let mut game = GameState::new(2, 20);
-        place_forest(&mut game, 0);
-        place_forest(&mut game, 0);
-        let cost = ManaCost::build(&[ManaType::Green], 1); // {1}{G}
-        let result = find_mana_sources(&game, 0, &cost);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_find_mana_sources_insufficient() {
-        let mut game = GameState::new(2, 20);
-        place_forest(&mut game, 0);
-        let cost = ManaCost::build(&[ManaType::Red], 0); // {R} — no mountains
-        let result = find_mana_sources(&game, 0, &cost);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_find_mana_sources_generic_with_any_color() {
-        let mut game = GameState::new(2, 20);
-        place_mountain(&mut game, 0);
-        // {1} — any color pays for generic
-        let cost = ManaCost::from_symbols(vec![ManaSymbol::Generic]);
-        let result = find_mana_sources(&game, 0, &cost);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_available_mana_sources_skips_tapped() {
-        let mut game = GameState::new(2, 20);
-        let (id, _) = place_forest(&mut game, 0);
-        game.battlefield.get_mut(&id).unwrap().tapped = true;
-
-        let sources = available_mana_sources(&game, 0);
-        assert!(sources.is_empty());
-    }
-
-    #[test]
-    fn test_available_mana_sources_skips_opponent() {
-        let mut game = GameState::new(2, 20);
-        place_forest(&mut game, 1); // opponent's forest
-
-        let sources = available_mana_sources(&game, 0);
-        assert!(sources.is_empty());
     }
 
     #[test]
@@ -769,7 +566,7 @@ mod tests {
 
         let castable = castable_spells(&game, 0);
         assert_eq!(castable.len(), 1);
-        assert_eq!(castable[0].0, card_id);
+        assert_eq!(castable[0], card_id);
     }
 
     #[test]
@@ -803,49 +600,6 @@ mod tests {
 
         let castable = castable_spells(&game, 0);
         assert!(castable.is_empty());
-    }
-
-    #[test]
-    fn test_available_mana_sources_sacrifice_ability_on_tapped_creature() {
-        // A tapped creature with "Sacrifice: Add {U}{R}" should still be a valid source
-        use crate::objects::card_data::AbilityType;
-        use crate::types::costs::Cost;
-        use crate::types::effects::{AmountExpr, ManaOutput, Primitive, Effect, EffectRecipient};
-
-        let mut game = GameState::new(2, 20);
-
-        let card = CardDataBuilder::new("Morgue Toad")
-            .card_type(CardType::Creature)
-            .power_toughness(2, 2)
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::SacrificeSelf],
-                effect: Effect::Atom(
-                    Primitive::ProduceMana(ManaOutput {
-                        mana: vec![
-                            (ManaType::Blue, AmountExpr::Fixed(1)),
-                            (ManaType::Red, AmountExpr::Fixed(1)),
-                        ],
-                        special: vec![],
-                    }),
-                    EffectRecipient::Implicit,
-                ),
-            })
-            .build();
-        let obj = GameObject::new(card, 0, Zone::Battlefield);
-        let id = game.add_object(obj);
-        let mut entry = PermanentState::new(id, 0, 0);
-        entry.tapped = true; // tapped — but ability doesn't require tap
-        game.insert_battlefield_entity(id, entry);
-
-        let sources = available_mana_sources(&game, 0);
-        // Should find 2 sources (one for U, one for R) despite being tapped
-        assert_eq!(sources.len(), 2);
     }
 
     #[test]

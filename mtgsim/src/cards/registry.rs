@@ -54,7 +54,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 101] = [
+const PERFORMANCE_POOL: [&str; 103] = [
     "Plains",
     "Island",
     "Swamp",
@@ -212,10 +212,9 @@ const PERFORMANCE_POOL: [&str; 101] = [
     // sitting, so between two cards that open the same path the cheaper board
     // wins. Altar's Reap stays registered: it is CR 601.2h's own example.
     //
-    // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
-    // Stone are registered and stay out too: the Familiar and the Inspector
-    // open the path Thalia already opens, and the Ironworks pair's window is
-    // CR 605.3a's, a `--no-auto-pay` measurement rather than a slot.
+    // Thunderscape Familiar, Foundry Inspector and Mind Stone are registered
+    // and stay out too: the Familiar and the Inspector open the path Thalia
+    // already opens, and Mind Stone's puzzle is a test's board.
     "Bone Splinters",
     // The pool's static ability that watches a *damage* event, so the card
     // that opens the gather sweep on something combat proposes several times
@@ -469,6 +468,15 @@ const PERFORMANCE_POOL: [&str; 101] = [
     // over its controller's own creatures only, since the pool has no
     // planeswalker; the tests carry that path.
     "Spark Double",
+    // MA-1's two paths no pooled card reaches (`mana-architecture.md` §3.3):
+    // mana once for each permanent an outlet can sacrifice, with the cost's
+    // own sacrifices taken first and the window's sacrifice prompt, and a
+    // mana ability fed by mana, whose doubling the check reads as a transform
+    // of the demand and the window now offers. Colorless, so every deck holds
+    // them; the Cube beside Ironworks is the board where what is sacrificed
+    // after the doubling pays undoubled.
+    "Krark-Clan Ironworks",
+    "Doubling Cube",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is

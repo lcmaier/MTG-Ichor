@@ -31,7 +31,8 @@ mod lookahead;
 mod pipeline;
 
 pub(crate) use gather::{
-    chooser_for, gather, pattern_watches, set_affects, subject_of, EventSubject,
+    applies_to_mana_production, chooser_for, gather, pattern_watches, replacement_of, set_affects, subject_of,
+    EventSubject,
 };
 pub use gather::CounterEffectKind;
 pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};

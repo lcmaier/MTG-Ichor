@@ -37,6 +37,115 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-05 for MA-1** (the inventory and the exact mana check;
+`mana-architecture.md` §10's ✅ section). Its gate offers a card or ability
+exactly when a payment covers it, where `find_mana_sources`' greedy count
+offered what none did and hid what one did, so the agent's stream moves; its
+last commit pools Krark-Clan Ironworks and Doubling Cube. **Both §3 columns
+are a new baseline, and so is the ratchet.** `close_out.py` against **main**
+`a1815e3` (#224's merge), with `mana-architecture.md` §5's arms: **counter**
+`66a0c6c`, **inert** `ced375f`, **window** `c6cae27`, **cost** (a throwaway
+patch on `eabdc9e`: today's greedy answers, read as counts per type, the exact
+check run black-boxed), **shipped** `eabdc9e` and **pooled** `2e16467`.
+
+**Predictions, before any arm ran** (the PR body): counter and inert
+`IDENTICAL`, "Actions reversed" 22.4 a game on the budget board; window
+`IDENTICAL`, −0.6 points; cost `IDENTICAL`, −3.0 points (−0.6 the window's,
+−2.4 the gate's; −2 to −4); shipped differs, "Actions reversed" 0–1 and about
+30 fewer decisions a game at first order.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, counter, inert, window and cost vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL**, each | **IDENTICAL** / **IDENTICAL**, each |
+| `Memo hits`, `main` → cost, performance / stress | 68,817 → 65,502 / 78,652 → 76,206 | 179,631 → 175,387 / 233,500 → 231,116 |
+| instructions / decision, window vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6257 M → 0.6181 M, **−1.22%** |
+| instructions / decision, cost vs `main`, the budget's reading | | 0.6256 M → 0.6133 M, **−1.96%** |
+| "Actions reversed" / `Decisions` / `Priority decisions` a game, the budget board: counter → shipped → pooled | | 22.4 / 628 / 225 → 0.0 / 547 / 196 → 2.3 / 592 / 207 |
+| instructions, the budget board: `main` → shipped → pooled (the games differ: not a budget reading) | | 7,857.8 M → 7,299.6 M → 8,914.0 M; a decision 0.6256 M → 0.6672 M → 0.7529 M |
+
+Every counter prediction held. The instruction readings, per function
+(`callgrind_annotate --inclusive=yes`, joined by name):
+- **The window, −1.22 against −0.6.** The warm re-reads it drops saved 8.3K
+  a decision, not §3.8's 4.5K: 3,669 prompts after the first of 1,928
+  windows, about 28K each (`run_mana_ability_window` 765.1 M → 661.3 M).
+- **The cost arm, −1.96 against −3.0**, at the range's edge (the design's
+  −2.3 was the gate's share alone). Against the window arm the gate's share
+  is about −0.75. `candidate_priority_actions` 1,472.1 M → 1,378.6 M, −1.19
+  points: the inventory (`ManaSupply::take`, 363.3 M, 28.9K a decision) and
+  the check (`covers`, 57.8 M, 4.6K) replace `find_mana_sources` (529.0 M,
+  42.1K), which the design priced at 30.3K against 45.6K. Then +0.37 in the
+  random agent's view, `ask_activate_mana_ability` 57.1 M → 86.0 M, which
+  reads each ability's production on the board at each of 5,597 window
+  prompts. Not priced. The arm's first reading, on `d495df4` with a greedy
+  over the per-ability list, was +0.72 (the archive's MA-1, item 9).
+- **Shipped.** "Actions reversed" 22.4 → 0.0. `Priority decisions` fell 29 a
+  game, as first order said (−31); `Decisions` fell 81, the other 52 being
+  the reversed casts' own window prompts, which the first-order count left
+  out.
+- **Pooled is a new board, not a cost.** +1,614 M over shipped, games running
+  longer (89.7 turns against 80.5, the longest 177; lands played 46.9 →
+  50.4), most of it in the walks, gathers and state-based checks of those
+  boards (`check_state_based_actions` +584 M, `gather` +576 M); the inventory
+  and the check +111 M of it.
+
+**"Actions reversed" reads 2.3 a game on the pooled budget board, 0.1 and 0.2
+on the §3 columns below, and none of them is an over-offer.** Each of the 64
+read in `--trace` output (that board's 46, and 18 in 50 two-seat games a pool)
+is a payment the random agent did not make:
+- 42 are on Blood Moon boards, where only the Cube's doubling makes a second
+  `{W}`. The agent declines once no offered source makes one, and the same
+  spells are offered and reversed again, 28 times in one game.
+- 18 activate the Cube with mana the spell needed.
+- 2 tap an Everywhere for the wrong color.
+- 2 tap Mind Stone for its own `{1}`.
+
+`codebase-state.md` item 214.
+
+**The ratchet re-bases** (`mana-architecture.md` §5): the next PR's `main`
+reads 0.7529 M instructions a decision on the budget board, and floor 1's
+next reading is a new operating point, fewer decisions a game, not compared
+across this PR (§3.1). Floors 2 and 3 (`clone_bound_test`, release):
+≤ 39 allocations and ≤ 100.0 KB a clone over 207 readings, from ≤ 39 and
+≤ 90.7 KB over 210, the bytes' high-water at `performance` 12347's turn 150.
+Reachability, pooled, 200 games: Ironworks cast in 63% of games at two seats
+and 50% at four, the Cube in 70% and 50% (`--require`, 1.4 and 2.8 copies a
+deck).
+
+**§3 fixture rows, pooled, two seats, 50 games / seed 12345.** A new baseline
+for both columns; the first-strike block below holds the last one.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 19 (38.0%) |
+| Wins by effect | 0 | 2 |
+| Avg turns | 27.8 | 30.9 |
+| Spells cast | 22.1 | 23.3 |
+| Lands played | 16.6 | 18.0 |
+| Combat w/ atk | 10.4 | 10.5 |
+| Creatures died | 6.6 | 6.4 |
+| Damage events | 21.1 | 22.1 |
+| Total damage | 63.6 | 56.7 |
+| Life changes | 15.3 | 16.8 |
+| **Layer walks** | **338** | **456** |
+| **Board walks** | **205** | **267** |
+| **Memo hits** | **51,229** | **77,148** |
+| **Layer frames** | **3,773** | **5,508** |
+| **Frames/walk** | **11.18** | **12.08** |
+| **Dependency checks** | **4** | **9** |
+| **Replacement gathers** | **972** | **1177** |
+| **Restriction queries** | **974** | **1179** |
+| Mana productions | 68 | 102 |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.56 | 2.58 |
+| Max batch depth | 5 | 5 |
+| Decisions | 190 | 298 |
+| Priority decisions | 69 | 115 |
+| Actions reversed | 0.1 | 0.2 |
+| Triggers placed | 1.7 | 1.5 |
+| Windows past gate | 29.3 | 42.5 |
+| Candidate visits | 50.2 | 59.0 |
+| Trigger matches | 3.0 | 2.2 |
+
 **Measured 2026-10-05 for SU-7** (why an option is not offered;
 `setup-architecture.md` §8's ✅ section). Its engine change gives each check
 the priority question and the declarations build their options by a typed

@@ -337,16 +337,61 @@ impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
     }
 }
 
-/// Play seeded random games until the engine rejects an action a priority
-/// prompt offered; every rejection has to sit between the `decision` that
-/// offered it and a `decision` for the same player that says it was rejected
+/// The random agent, but it declines the first mana window it is asked in:
+/// a seat that does not pay, which is a rejection no offer can see coming.
+struct DeclinesItsFirstWindow {
+    agent: RandomDecisionProvider,
+    declined: std::cell::Cell<bool>,
+}
+
+impl DecisionProvider for DeclinesItsFirstWindow {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        if matches!(context.kind, ChoiceKind::ManaAbilityWindow { .. }) && !self.declined.replace(true) {
+            return Vec::new();
+        }
+        self.agent.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.agent.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.agent.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.agent.choose_ordering(game, player, context, items)
+    }
+}
+
+/// Play seeded random games in which a seat fails to pay once; every
+/// rejection has to sit between the `decision` that offered it and a
+/// `decision` for the same player that says it was rejected
 /// (`codebase-state.md` item 193). Whether the re-ask offers it again is the
 /// board's to say, not the record's: a reversed cast leaves its lands tapped.
 ///
-/// Rejections are what the re-ask exists for — the candidate list is an
-/// overapproximation by contract — so a handful of seeds reach one. The
-/// property is asserted for every rejection found, and the test fails if the
-/// sweep found none, because then it proved nothing.
+/// Since MA-1 the priority question offers what a payment covers, so a
+/// rejection comes from a seat that fails to make the payment, here by
+/// declining its first window that owes mana. The property is asserted for
+/// every rejection found, and the test fails if the sweep found none,
+/// because then it proved nothing.
 #[test]
 fn a_re_ask_is_explained_by_the_rejection_between_two_decisions() {
     let registry = CardRegistry::default_registry();
@@ -363,7 +408,8 @@ fn a_re_ask_is_explained_by_the_rejection_between_two_decisions() {
         let mut game = Game::new(GameConfig::test(), vec![deck.clone(); 2]).expect("game");
         game.reseed(seed);
         let trace = install_trace(&mut game.state, &format!("re-ask seed {seed}"));
-        let dp = EveryPriorityPoint(ManaWindowStop::new(RandomDecisionProvider::seeded(seed)));
+        let agent = DeclinesItsFirstWindow { agent: RandomDecisionProvider::seeded(seed), declined: std::cell::Cell::new(false) };
+        let dp = EveryPriorityPoint(ManaWindowStop::new(agent));
         game.setup(&dp).expect("setup");
         let mut turns = 0;
         while !game.is_over() && turns < 12 {

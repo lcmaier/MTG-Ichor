@@ -433,18 +433,18 @@ fn test_castable_spells_reads_the_modified_cost() {
     let bolt_id = put_in_hand(&mut game, bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     assert!(
-        !castable_spells(&game, 0).iter().any(|(id, _)| *id == bolt_id),
+        !castable_spells(&game, 0).contains(&bolt_id),
         "{{1}}{{R}} is not payable from {{R}}"
     );
     game.players[0].mana_pool.add(ManaType::Red, 1);
-    assert!(castable_spells(&game, 0).iter().any(|(id, _)| *id == bolt_id));
+    assert!(castable_spells(&game, 0).contains(&bolt_id));
 
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
     let lesson = put_in_hand(&mut game, phase_cm_cards::ember_lesson(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     assert!(
-        castable_spells(&game, 0).iter().any(|(id, _)| *id == lesson),
+        castable_spells(&game, 0).contains(&lesson),
         "{{1}}{{R}} less {{1}} is payable from {{R}}"
     );
 }
@@ -610,7 +610,7 @@ fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
     let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     assert!(
-        castable_spells(&game, 0).iter().any(|(id, _)| *id == enforcer),
+        castable_spells(&game, 0).contains(&enforcer),
         "{{7}} less four artifacts is {{3}}, and {{3}} is in the pool"
     );
 
@@ -618,7 +618,7 @@ fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
     let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     assert!(
-        !castable_spells(&game, 0).iter().any(|(id, _)| *id == enforcer),
+        !castable_spells(&game, 0).contains(&enforcer),
         "no artifacts: {{7}} is not payable from {{3}}"
     );
 }
@@ -779,7 +779,7 @@ fn test_altars_reap_is_uncastable_and_unoffered_with_no_creature() {
 
     let offered = castable_spells(&game, 0);
     assert!(
-        !offered.iter().any(|(id, _)| *id == reap),
+        !offered.contains(&reap),
         "offered a spell whose mandatory cost cannot be paid",
     );
 

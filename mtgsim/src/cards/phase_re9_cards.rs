@@ -357,9 +357,9 @@ pub fn pale_moon() -> Arc<CardData> {
 /// player's pool when the ability resolves — after the {3} is paid, since an
 /// activation pays its costs before the ability resolves (CR 602.2, 605.3b).
 /// The output lists all six types; the performer adds nothing for a type at
-/// zero. Registered and unpooled: `available_mana_sources` enumerates fixed
-/// amounts only, so the random agent never reaches for it, and a card that
-/// doubles a pool would move the gameplay rows by design.
+/// zero. Pooled since MA-1, whose check reads the doubling as a transform of
+/// the demand (`mana-architecture.md` §3.3) and whose window offers it once
+/// the pool can pay its {3}; no window had offered it before.
 ///
 /// # The rulings, and where each is tested
 ///

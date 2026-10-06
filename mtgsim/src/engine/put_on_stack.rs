@@ -25,9 +25,9 @@ use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::{
-    can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, enumerate_activatable_mana_abilities,
-    remaining_cost_after_pool, CannotActivate,
+    can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, remaining_cost_after_pool, CannotActivate,
 };
+use crate::oracle::mana_supply::ManaAbilityWindowOffer;
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
@@ -515,11 +515,17 @@ impl GameState {
     /// are paid in 601.2h, which has no activation window. The mana component is
     /// extracted to build the `remaining_cost` context the DP sees.
     ///
+    /// # The offer is read once
+    /// `ManaAbilityWindowOffer` lists the player's mana abilities when the window opens
+    /// and is read again only when the layer epoch moves, a sacrifice for
+    /// mana: between prompts, only whether each ability's costs can be paid
+    /// changes (`mana-architecture.md` §3.8).
+    ///
     /// # Termination
     /// A DP-correctness property, not an engine invariant: the CR places no cap
     /// on how many mana abilities a player may activate during 601.2g, and the
     /// engine imposes none. The loop returns when `ask_activate_mana_ability`
-    /// returns `None` or when `enumerate_activatable_mana_abilities` is empty
+    /// returns `None` or when the offer is empty
     /// after the failure blacklist. That **blacklist** guards against enumeration
     /// over-approximation or TOCTOU bugs: an ability that fails to activate after
     /// enumeration said it was legal is blacklisted for the rest of the window,
@@ -559,12 +565,13 @@ impl GameState {
         let mut failed: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
             crate::types::ids::IdSet::default();
 
+        let mut offer = ManaAbilityWindowOffer::read(self, player_id);
         loop {
+            if !offer.is_current(self) {
+                offer = ManaAbilityWindowOffer::read(self, player_id);
+            }
             let legal: Vec<(ObjectId, AbilityId)> =
-                enumerate_activatable_mana_abilities(self, player_id)
-                    .into_iter()
-                    .filter(|k| !failed.contains(k))
-                    .collect();
+                offer.options(self).into_iter().filter(|k| !failed.contains(k)).collect();
             if legal.is_empty() {
                 return; // caller's pay_costs will fail and roll back
             }

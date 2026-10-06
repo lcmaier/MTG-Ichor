@@ -2,9 +2,10 @@
 
 > **Status:** design, 2026-10-05, for `codebase-state.md` item 162, decided
 > at #224's review the same day: the owner took every recommendation in
-> §7, shape C for item 211 among them. No code written. Every number is
-> from a measurement made 2026-10-05 on `f4df90a` (#223's merge), and §2
-> says how.
+> §7, shape C for item 211 among them. MA-1 landed 2026-10-05 (§10); §3.3,
+> §3.4 and §3.8 say where it built otherwise than designed. Every number in
+> §2 to §6 is from a measurement made 2026-10-05 on `f4df90a` (#223's
+> merge), and §2 says how.
 > **Authority:** whether a player can pay a cost at this moment, the
 > existence half of CR 601.2g–h and 602.2b that decides what the priority
 > question offers. What a mana ability makes and how it resolves (CR 106.1b,
@@ -241,6 +242,26 @@ when the condition holds. It is the flow item 162 and `backlog.md` §2.22
 named, with its feasibility read in closed form instead of by augmenting
 paths.
 
+**The alternatives, and why not** (the owner asked at #225's review):
+- **Flow by augmenting paths** gives the same answer with more work. It is
+  kept for MA-6's solver, which needs the payment, not only its existence.
+- **A linear program, or any convex relaxation**, is exact where the
+  closed form already is: the transportation polytope's vertices are
+  integral. It is wrong where the closed form needs help. A relaxation
+  splits a one-choice entry's mana across types, half a `{W}{W}` and half
+  a `{U}{U}`, and so pays `{W}{U}` from Mana Reflection on an Everywhere,
+  which no tap makes.
+- **Integer programming** is exact, but it is a solver call per check
+  against about 100 instructions a cost, and floating point at a decision
+  site is a determinism risk.
+- **Restricted mana** needs none of them. A restriction names what the
+  mana may pay for, a spell's types or an ability's source, which is the
+  whole cost, so the purpose filters the supply before Hall's condition and
+  the check stays exact (§3.6). A grant (Cavern of Souls' "can't be
+  countered") changes nothing about whether a payment exists. Hall's
+  theorem holds for any bipartite graph, so a restriction naming part of a
+  cost would only narrow what that mana reaches.
+
 **How it runs.** The inventory keeps one table: for each of the 64 type
 sets (128 once `{S}` needs a seventh bit), how much mana reaches it, built once with a subset-sum transform (384
 additions). A generic pip accepts every type, so it enters only the total. A
@@ -324,15 +345,21 @@ gate leans one way only.
   game reaches it. **About 3,600 instructions a cost where present**, from
   the prototype's subsets.
 - **Doubling Cube** (1 card) doubles the pool it resolves with, so a player
-  taps everything else first, pays its `{3}`, and doubles the rest. Treating
-  that as "every mana counts twice, less six" over-offers. Take two Plains
-  and two Islands. Paying `{3}` leaves one mana, which doubles to two of
-  *one* type, so a cost of `{W}{U}` cannot be paid. Counted as eight mana
-  less six, two are left, and nothing stops them being one W and one U.
-  **It is exact this way:** enumerate which entries' mana pays the `{3}`
-  (as counts per kind of entry), and every unit left then doubles into a
-  one-choice pair, which the first enumeration above answers. It runs only
-  on a board that holds the Cube.
+  taps everything else first, pays its `{3}`, and doubles the rest; mana
+  made after it is not doubled. Treating that as "every mana counts twice,
+  less six" over-offers, because each mana left doubles into two of *its
+  own* type. Four Plains, three Islands and the Cube against
+  `{W}{W}{W}{W}{W}{U}{U}{U}`: counted twice less six, the board is eight
+  mana and seems to pay. But five white needs three white left after the
+  `{3}` and three blue two blue, five mana kept of seven, leaving two for a
+  `{3}`.
+  **It is exact as a transform of the demand** (as built in MA-1): a pip of
+  a type needs `ceil(n / f)` of that type left after the input, the whole
+  cost `ceil(total / f)` left of any, with `f` two, or three under Mana
+  Reflection, and the input is paid first; one Hall check (§3.2) on the
+  mana made before the Cube answers. What Krark-Clan Ironworks sacrifices
+  after the doubling, the Cube itself and then the last Ironworks, pays as
+  made. It runs only on a board that holds the Cube.
 - **A repeatable filter** (47) has no `{T}` and converts at a loss: Prismite
   turns `{2}` into one mana of any color, as often as it is paid. It is a
   converter activated k times, with k enumerated up to half the mana, and
@@ -367,14 +394,19 @@ took.
   types a one-choice entry.
 - Triggered mana is an entry of its own, tied to its host's tap and not
   multiplied (Mana Reflection's ruling).
-- A retype narrows an entry's types. Ignoring one can over-offer
-  but never under-offer, so the first build may read the multiplier and the
-  trigger and leave the narrowing for its first card.
+- A retype changes an entry's types. Ignoring one errs both ways: a Forest
+  under Deep Water would offer the `{G}` it no longer makes and hide the
+  `{U}` it now does. Two retypes on one tap are its player's order (CR
+  616.1), so the tap makes either type. Deep Water and Pale Moon are
+  registered, so MA-1 reads them.
 
-**They are read once per layer epoch, for every player at once.** Each input
-is a layer-walk input: effective abilities, attachments and controllers. So
-the epoch argument the frame memo stands on (`layers-architecture.md` §12,
-"7a") covers this cache too, and it is exact. On the board the scan costs
+**The board's are read once per layer epoch, for every player at once.**
+Each input is a layer-walk input: effective abilities, attachments and
+controllers. So the epoch argument the frame memo stands on
+(`layers-architecture.md` §12, "7a") covers this cache too, and it is exact.
+A resolution's, in the replacement registry (Deep Water's, Pale Moon's),
+are read at each inventory, since making one moves no layer input, and so
+is a static ability's "as long as". On the board the scan costs
 8,900 instructions and runs 5,099 times, against 17,906 times live: **3,600
 a decision, against about 10,900 unmemoized**. A cache needs an audit, as the
 frame memo's has: in debug builds, a live scan beside every hit, compared.
@@ -462,16 +494,22 @@ with its surface and reads MA-2's shape:
 
 ### 3.8 The window reads the inventory
 
-The window takes the inventory once. After each activation it drops the
-activated permanent's entries, and it rescans only when the layer epoch moved
-(a sacrifice) or a life payment changed what can be paid. **The option order
-stays timestamp, then ability**, so the agent's stream does not move.
+The window reads its offer once (`ManaAbilityWindowOffer`, as built in MA-1): the
+player's mana abilities in timestamp order, one per definition. Each prompt
+re-asks only each ability's costs, a `{T}`-only one by its tapped flag, since
+its summoning sickness moves only with the epoch; the offer is read again
+when the epoch moves (a sacrifice). **The option order stays timestamp, then
+ability**, so the agent's stream does not move. It offers what it always has
+and whatever else the check counts, so a payment the check found is one the
+window can make: Doubling Cube, which no window had offered.
 - **Saves:** the warm re-enumerations, about 4,500 instructions a decision
   (0.7 points). The cold first scan stays: the cast's move to the stack
   invalidated those frames for every reader.
 - **Not this design's:** the random agent's preference (`mana_window_preference`,
   3,800 a decision) scans again for itself. Handing it the inventory through
-  the prompt is a harness change.
+  the prompt is a harness change. Its scan reads each ability's production on
+  the board, as the check does (`available_mana_sources`), or it declines a
+  window a payment covers: a land Wild Growth enchants makes the `{G}` it owes.
 
 ### 3.9 Paying with permanents or cards
 
@@ -657,43 +695,13 @@ production text from its first "add", first pattern wins:
 
 ## 5. Measuring MA-1: a change that moves the agent's stream
 
-MA-1 changes what the priority question offers, so `new` against `main`
-reads a different game, and §3.1's budget, at identical counters, cannot be
-read off it (`cost-architecture.md` §6's CM-4 note, item 138). The PR's
-commits are ordered so that each arm answers one question:
-
-1. **The rewind counter, first.** A `Diagnostics` cell counted where
-   `run_priority_round` takes an `Err` (`engine/priority.rs`), the row
-   "Actions reversed" (CR 732.1's word) in `fuzz_games`, and its `ROWS` entry
-   in `plans/fuzz_ab.py`. Arm *counter*: **IDENTICAL** on every gameplay row,
-   and the new row reads 22.4 a game on the budget's board.
-2. **The inventory and the check, unused by the gate.** Arm *inert*:
-   **IDENTICAL**.
-3. **The window reads the inventory** (§3.8). Arm *window*: **IDENTICAL**,
-   about −0.7 points.
-4. **The cost arm**, a throwaway patch on commit 3 in a `C:/w/arms`
-   worktree, never a commit. The gate takes the inventory once per candidate
-   list and answers with today's greedy, run over the inventory's per-ability
-   list so its answers are today's. It also runs the exact check,
-   black-boxed. Counters **IDENTICAL**. Instructions are the budget's
-   reading, **predicted −2.3 points**: the new check's 30.3K plus the old
-   greedy's few hundred a cost, against 45.6K. A cost arm that ran the old
-   scans as well would read +5% and fail the budget for a reason that
-   ships nowhere.
-5. **The behavior commit**: the gate answers with the exact check, and
-   `find_mana_sources` goes. Arm *shipped*: **differ**, predicted:
-   "Actions reversed" falls from 22.4 to 0 on the budget's board, and about
-   30 fewer decisions a game before the stream moves (317 prompts forced, 448
-   re-asks gone and 134 points gained, over 20 games). Every other row moves
-   with the games.
-
-**Fixtures.** Scripted answers are positions (item 209). A test whose board
-offered an over-offered card ahead of its answer renumbers. SU-7's test
-`phase_su7_integration_test.rs:93` flips on purpose: "item 162's loose
-offer; when it is fixed, this board says the mana is short". Count with
-`cargo test --no-fail-fast` on commit 5, as A6j did. **The ratchet** re-bases
-on commit 5 (item 138: a change that moves the stream re-bases it), and the
-`fuzz-record.md` block says so.
+Moved to `plans/archive/mana-architecture-landed.md`, "MA-1", when it
+landed: five commits, each an arm that answers one question, read in
+`fuzz-record.md`'s MA-1 block. What carries to MA-2 to MA-6: a change that
+moves what the priority question offers reads the budget off a cost arm
+(today's answers, the new machinery run black-boxed), and "Actions
+reversed" (CR 732.1's word) prices an offer no payment covers, each one a
+re-ask that moves the agent's stream.
 
 ---
 
@@ -705,7 +713,8 @@ card-by-card hunt runs in each PR's brief.
 
 | PR | Shape | Size | Consumer | Closes |
 |---|---|---|---|---|
-| **MA-1, the inventory and the exact check** | §5's five commits: the rewind counter; `oracle::mana_supply` (the inventory sorting only the player's permanents, the check, §3.3's shapes for the registered cards, alternatives of different sizes and Doubling Cube exact, §3.4's memo with its debug audit, §3.6's seam); the gate in `can_cast` and `can_afford_ability_costs`, one inventory a priority point; the window (§3.8); `ManaAbilityWindow`'s typed reason. A property test: every "yes" on a random small board is a payment an exhaustive search finds, and every "no" is not. Pools Krark-Clan Ironworks and Doubling Cube, one card for each path it builds that no pooled card reaches, in its last commit, after the arms read | ~600 engine, ~700 tests, ~100–250 fixtures: 1,400–1,550 | the priority question on the budget's board; SU-7's review board (Grizzly Bears with one Everywhere: now short) | item 162's oracle half, its offer customer |
+| **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
+| **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
 | **MA-2, X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one) | ~350 engine, ~450 tests, a card: 800–950 | Blaze | `cast-census.md` §8's X row |
 | **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; TR-7's three facilities | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
@@ -713,9 +722,14 @@ card-by-card hunt runs in each PR's brief.
 | **MA-6, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
 
 **Ordering.**
-- **MA-1 before SU-8** is recommended (decision 7). It removes the wrong
-  offer SU-7's click script met on the review board, and it hands SU-8 the
-  inventory its `ManaAbilityWindow` line reads.
+- **MA-1 landed before SU-8** (decision 7). It removed the wrong offer
+  SU-7's click script met on the review board, and wrote the why's
+  `ManaAbilityWindow` line SU-8 would have read off its inventory.
+- **MA-7 first** (the owner, 2026-10-06, at #225's review): it widens the
+  check that MA-2 to MA-6 extend. It is not urgent for today's games: the
+  choice search never passed 6 leaves in about 150,000 checks over the four
+  fuzz boards (2026-10-06). It is the guarantee for v1's Commander boards,
+  where Nyxbloom Ancient and many lands do meet.
 - **MA-2 to MA-6** go in `roadmap-v2.md` B, before C. **MA-3 before TR-7**,
   whose loop needs any-color mana, a draw inside a mana ability, and a window
   inside a mana ability's activation.
@@ -796,3 +810,46 @@ seven were taken as recommended at #224's review** (the owner,
   Shape C's window at priority pays for nothing, so MA-6 makes that field an
   `Option` or adds a kind, and decides which with `ChoiceKind::subject()`'s
   match (A4j).
+
+---
+
+## 10. Landed
+
+### MA-1 — the inventory and the exact check — ✅ landed 2026-10-05
+
+**What shipped.** #225, §6's first PR. `oracle::mana_supply` takes the
+inventory once a priority point, through a lazily filled cell
+`candidate_priority_actions` hands down, and answers by Hall's condition over
+the six types (§3.2). One-choice mana and ways of different sizes are tried a
+choice at a time; Krark-Clan Ironworks counts once per artifact it can
+sacrifice; Doubling Cube is a transform of the demand; a cost's own `{T}` and
+sacrifices come out of what it can make; and each tap's production is read
+after the board's replacement effects and triggered mana (§3.4), whose
+watchers are memoized per layer epoch with a debug audit. `can_cast` and
+`can_activate` ask it where `find_mana_sources` stood, which is gone, and
+`can_cast` returns `Ok(())`. CR 601.2g's window reads its offer once a window
+(`ManaAbilityWindowOffer`) and offers what the check counts, the Cube included, and the
+why names the cost that keeps a mana ability out of it. "Actions reversed"
+counts what the engine rewinds. Ironworks and the Cube are pooled.
+
+**What moved on the way in.** Four things the design did not have, each
+amended where it stands: retypes are read (§3.4: ignoring one errs both
+ways, since a Forest under Deep Water makes `{U}`); the Cube is a transform
+of the demand (§3.3); what Ironworks sacrifices after the Cube's doubling
+pays undoubled (§3.3); and the random agent's window view reads each
+ability's production on the board (§3.8), without which it declined windows
+a payment covered. `codebase-state.md` item 213 lists what the inventory
+still reads one way. It landed at 1,583 code and 903 tests, against ~600 and
+~800–950 sized.
+
+**Measured.** `close_out.py` with six arms against #224's merge. Counter,
+inert, window and cost `IDENTICAL` on every gameplay row, both pools, two
+seats and four. The budget's reading, the cost arm, −1.96% instructions a
+decision against −3.0 predicted; the window −1.22% against −0.6. Shipped:
+"Actions reversed" 22.4 a game → 0.0 on the budget board, `Decisions` 628 →
+547. Pooled, the new baseline: 2.3 a game, every one read a payment the
+random agent did not make, none an over-offer (item 214).
+
+→ `plans/archive/mana-architecture-landed.md`, "MA-1" (as sized, sized
+against built, what the build changed); `fuzz-record.md`, MA-1's block;
+`plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html`, six boards.

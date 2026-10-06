@@ -549,7 +549,7 @@ fn test_blood_moon_removed_restores_printed_abilities() {
 // COVERS: COMP-305.7+305.6-001
 #[test]
 fn test_activating_blood_mooned_land_produces_red() {
-    use mtgsim::oracle::mana_helpers::available_mana_sources;
+    use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::dual_land_ub(), 0);
@@ -902,7 +902,7 @@ fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
 /// that was legally tapping for mana a moment earlier.
 #[test]
 fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
-    use mtgsim::oracle::mana_helpers::available_mana_sources;
+    use mtgsim::oracle::mana_supply::available_mana_sources;
 
     let mut game = setup_two_player_game();
 

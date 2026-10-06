@@ -186,7 +186,13 @@ fn a_setup_action_is_refused_in_play_naming_its_line() {
             "player 1 holds priority, and the engine does not offer this",
         ),
         (format!("{bolt}then: player 0 activates Mind Stone"), "Mind Stone is not on the battlefield"),
-        ("battlefield: Mind Stone | controller 0\nthen: player 0 activates Mind Stone".to_string(), "rewound it"),
+        // Its own {T} is the cost's, so its {C} cannot pay the {1}
+        // (`cost-architecture.md` §3.11): refused at the offer, where the
+        // greedy count offered it and the engine rewound it.
+        (
+            "battlefield: Mind Stone | controller 0\nthen: player 0 activates Mind Stone".to_string(),
+            "the engine does not offer this",
+        ),
         (
             "hand 0: Giant Growth\nbattlefield: Forest | controller 0\nbattlefield: Grizzly Bears | controller 0\n\
              battlefield: Savannah Lions | controller 0\nthen: player 0 casts Giant Growth | targeting player 1"

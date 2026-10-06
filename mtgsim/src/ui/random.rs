@@ -34,7 +34,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 
-use crate::oracle::mana_helpers::available_mana_sources;
+use crate::oracle::mana_supply::available_mana_sources;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -91,18 +91,23 @@ pub(crate) fn mana_window_preference(
     }
 
     // Keyed on the definition, as the window is: two grants of one mana
-    // ability are one type the permanent can make, not two.
-    let produces: crate::types::ids::IdMap<(ObjectId, AbilityId), ManaType> =
-        available_mana_sources(game, player)
-            .into_iter()
-            .map(|s| ((s.permanent_id, s.ability_id.definition()), s.produces))
-            .collect();
+    // ability are one ability the permanent has, not two. An ability can
+    // make several types, a land Wild Growth enchants its own and green.
+    let mut produces: crate::types::ids::IdMap<(ObjectId, AbilityId), Vec<ManaType>> =
+        crate::types::ids::IdMap::default();
+    for source in available_mana_sources(game, player) {
+        let types = produces.entry((source.permanent_id, source.ability_id.definition())).or_default();
+        if !types.contains(&source.produces) {
+            types.push(source.produces);
+        }
+    }
     // How many wanted types each permanent can make: its flexibility.
     let mut flexibility: crate::types::ids::IdMap<ObjectId, usize> =
         crate::types::ids::IdMap::default();
-    for ((perm, _), t) in &produces {
-        if wanted.contains(t) {
-            *flexibility.entry(*perm).or_insert(0) += 1;
+    for ((perm, _), types) in &produces {
+        let made_and_wanted = types.iter().filter(|t| wanted.contains(t)).count();
+        if made_and_wanted > 0 {
+            *flexibility.entry(*perm).or_insert(0) += made_and_wanted;
         }
     }
 
@@ -114,7 +119,7 @@ pub(crate) fn mana_window_preference(
             continue;
         };
         match produces.get(&(*perm, ab.definition())) {
-            Some(t) if wanted.contains(t) => useful.push((i, flexibility[perm])),
+            Some(types) if types.iter().any(|t| wanted.contains(t)) => useful.push((i, flexibility[perm])),
             Some(_) => {}
             None => unreadable = true,
         }
@@ -421,14 +426,14 @@ mod tests {
     use super::*;
     use crate::cards::basic_lands::forest;
     use crate::cards::dual_lands::everywhere;
-    use crate::oracle::mana_helpers::enumerate_activatable_mana_abilities;
+    use crate::oracle::mana_supply::ManaAbilityWindowOffer;
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::test_support::setup_two_player_game as setup_basic_game;
 
     /// The window's options for player 0, as `ask_activate_mana_ability`
     /// builds them, and what each produces.
     fn window_options(game: &GameState) -> (Vec<ChoiceOption>, Vec<ManaType>) {
-        let legal = enumerate_activatable_mana_abilities(game, 0);
+        let legal = ManaAbilityWindowOffer::read(game, 0).options(game);
         let produces: std::collections::HashMap<_, _> = available_mana_sources(game, 0)
             .into_iter()
             .map(|s| ((s.permanent_id, s.ability_id), s.produces))

@@ -279,7 +279,7 @@ fn test_an_aura_with_no_legal_target_cannot_be_cast() {
     let aura = holy_strength_in_hand(&mut game, 0);
 
     assert!(
-        castable_spells(&game, 0).iter().all(|(id, _)| *id != aura),
+        !castable_spells(&game, 0).contains(&aura),
         "CR 601.2c's pre-check: a spell with no legal target is not castable"
     );
     assert!(game.cast_spell(0, aura, &test_dp()).is_err());
@@ -297,7 +297,7 @@ fn test_enchant_creature_admits_only_creatures() {
     let trinket = put_on_battlefield(&mut game, equipment("Trinket"), 1);
     let aura = holy_strength_in_hand(&mut game, 0);
 
-    assert!(castable_spells(&game, 0).iter().all(|(id, _)| *id != aura));
+    assert!(!castable_spells(&game, 0).contains(&aura));
     assert!(game.cast_spell(0, aura, &test_dp()).is_err(), "an artifact is not a creature");
 
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
