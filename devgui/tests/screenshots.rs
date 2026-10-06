@@ -56,11 +56,12 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
         window_by_rule::play_by_rule(play(from_board(board)), |state| {
             let Some(prompt) = &state.prompt else { return };
             let Some((_, name)) = PICTURES.iter().find(|(kind, _)| *kind == prompt.kind) else { return };
-            // A priority prompt with a spell or two in reach, and blocks with
-            // two blockers to choose between: with every seat the window's, a
-            // lone block's yes or no comes first.
+            // A priority prompt with a spell in reach, and blocks with two
+            // blockers to choose between: with every seat the window's, a lone
+            // block's yes or no comes first. Since MA-1's exact check no review
+            // board offers two spells at once.
             let worth_it = match prompt.kind.as_str() {
-                "PriorityAction" => prompt.options.len() >= 3,
+                "PriorityAction" => prompt.options.len() >= 2,
                 "DeclareBlockers" => prompt.options.len() >= 2,
                 _ => true,
             };
@@ -97,6 +98,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(picture(&partway(wall), &line("blocks.scenario", "Serra Angel edited in"), None, "why_blocks"));
     let bears = why_on(&mana, "Grizzly Bears");
     results.add(picture(&partway(bears), &line("main.scenario", "Everywhere edited to a Mountain"), None, "why_mana"));
+    let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
+    let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
+    results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], "editor_refused"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -206,6 +210,37 @@ fn why_on(board: &Path, name: &str) -> WindowState {
     assert!(state.why_view().is_some_and(|view| view.sections[0].heading == "At this question"), "the panel shows");
     finish(engine);
     state
+}
+
+/// The why panel open on the event where Lightning Bolt deals its damage, on
+/// §5.3's sample once its stack has resolved: read from a replay's trace,
+/// stopped at the question then open (`setup-architecture.md` §7c, SU-8).
+fn why_event(sample: &str) -> WindowState {
+    let root = std::env::temp_dir().join("devgui-picture-why-event");
+    let _ = std::fs::remove_dir_all(&root);
+    let folders = Folders { logs: root.join("logs"), boards: root.join("boards"), ..Folders::default() };
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+    let start = Start::Game(GameSetup { scenario: Some(path), ..from_board("main.scenario") });
+    let mut session = Session::start(start, folders, Arc::new(|| {}));
+    let until = |session: &mut Session, done: &dyn Fn(&Session) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while !done(session) {
+            assert!(std::time::Instant::now() < deadline, "{}", session.state.status());
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            session.receive();
+        }
+    };
+    let damage = loop {
+        until(&mut session, &|session| session.state.prompt.is_some());
+        if let Some(line) = session.state.log.iter().find(|line| line.text.starts_with("DamageDealt: Lightning Bolt")) {
+            break line.event;
+        }
+        let pass = session.state.prompt.as_ref().and_then(|prompt| prompt.pass).expect("a priority question");
+        session.input(Input::OptionButton(pass));
+    };
+    session.input(Input::WhyEvent(damage));
+    until(&mut session, &|session| session.state.why_view().is_some_and(|view| view.title.starts_with("DamageDealt")));
+    session.state.clone()
 }
 
 /// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking
