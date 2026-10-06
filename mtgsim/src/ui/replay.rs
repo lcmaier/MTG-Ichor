@@ -90,6 +90,12 @@ impl<'a> Replay<'a> {
         Arc::clone(&self.control)
     }
 
+    /// Stopped through `control`, which another thread made before this
+    /// replay existed, so it can supersede the replay from the start.
+    pub fn with_control(self, control: Arc<ReplayControl>) -> Replay<'a> {
+        Replay { control, ..self }
+    }
+
     /// Lines not yet answered.
     pub fn remaining(&self) -> usize {
         self.lines.len() - self.next.get()
