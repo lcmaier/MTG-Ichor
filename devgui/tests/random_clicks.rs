@@ -70,6 +70,8 @@ struct Reached {
     /// Whys asked and answered, and the panel closed.
     whys: usize,
     closed: usize,
+    /// The panel opened or closed, sliding the board.
+    slid: usize,
 }
 
 #[test]
@@ -86,6 +88,7 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
     assert!(reached.pass_only > 0, "full control asked nothing a seat can only pass at");
     assert!(reached.yields > 0 && reached.stops > 0, "yields set {}, stopped {}", reached.yields, reached.stops);
     assert!(reached.whys > 0 && reached.closed > 0, "whys asked {}, the panel closed {}", reached.whys, reached.closed);
+    assert!(reached.slid > 0, "no click met the board sliding beside the why panel");
 }
 
 /// The review boards reach what a dealt game reaches only now and then: a
@@ -205,6 +208,16 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
                         assert_eq!(state.why_view(), None, "the panel closed and still shows");
                         reached.closed += 1;
                     }
+                }
+                // A panel that opened or closed slid the board, which offers
+                // nothing in the beat after; then the person's time goes on.
+                if let Some(now) = state.now
+                    && state.board_settling_for().is_some()
+                {
+                    let board = state.board_view().expect("a board at a question");
+                    assert!(!items(&board).any(|item| item.clickable), "the board offered a click in its beat at {:?}", state.prompt);
+                    reached.slid += 1;
+                    state.tick(now + 2.0 * SETTLE_SECONDS);
                 }
             }
             Some(reply) => return Some(reply),

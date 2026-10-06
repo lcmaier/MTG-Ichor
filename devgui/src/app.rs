@@ -73,8 +73,8 @@ pub struct SessionHeader<'a> {
 pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader, editor: Option<&EditorView>) -> Vec<Input> {
     // A shortcut answers the game's prompt, so the editor takes none.
     let mut inputs = if editor.is_none() { keys(ui.ctx()) } else { Vec::new() };
-    if let Some(left) = state.settling_for() {
-        // The prompt's controls come back when the beat ends, mouse or no mouse.
+    for left in [state.settling_for(), state.board_settling_for()].into_iter().flatten() {
+        // What a beat greys comes back when it ends, mouse or no mouse.
         ui.ctx().request_repaint_after(Duration::from_secs_f64(left));
     }
     if state.replaying.is_some() {

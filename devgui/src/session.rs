@@ -108,6 +108,10 @@ impl Session {
     /// answer, the editor's to the editor, and the window's own controls act
     /// here.
     pub fn input(&mut self, input: Input) {
+        // Aimed at what the window showed before it was replaced.
+        if self.state.replacing_for().is_some() {
+            return;
+        }
         match input {
             // The game again from its file, read again.
             Input::Reload => {
@@ -131,7 +135,7 @@ impl Session {
                 self.state.input(input);
             }
             Input::SaveBoard => self.save_game_board(),
-            Input::Mode(mode) => self.mode = mode,
+            Input::Mode(mode) => self.show(mode),
             Input::EditThisBoard => self.edit_this_board(),
             Input::EditTheScenario => self.edit_the_scenario(),
             Input::Editor(EditorInput::Play) => self.play_board(),
@@ -345,7 +349,7 @@ impl Session {
         let Some(path) = self.save_board() else { return };
         let players = self.editor.board().players;
         self.start_game(GameSetup { seed: None, pool: Pool::Performance, players, scenario: Some(path) });
-        self.mode = Mode::Play;
+        self.show(Mode::Play);
     }
 
     /// The editor's board written to its file, which a board not yet in
@@ -382,7 +386,7 @@ impl Session {
     fn edit_the_scenario(&mut self) {
         let Some(path) = self.setup.as_ref().and_then(|setup| setup.scenario.clone()) else { return };
         if self.editor.source == Source::Board(path.clone()) {
-            self.mode = Mode::Edit;
+            self.show(Mode::Edit);
         } else {
             self.open_file(&path);
         }
@@ -404,9 +408,19 @@ impl Session {
         match Editor::open(text, source, CardRegistry::default_registry()) {
             Ok(mut editor) => {
                 editor.advanced = self.editor.advanced;
-                (self.editor, self.mode, self.message) = (editor, Mode::Edit, None);
+                (self.editor, self.message) = (editor, None);
+                self.mode = Mode::Edit;
+                self.state.replaced();
             }
             Err(refusal) => self.message = Some(Err(format!("cannot open {what}: {refusal}"))),
+        }
+    }
+
+    /// The game or the editor shown, in place of the other.
+    fn show(&mut self, mode: Mode) {
+        if self.mode != mode {
+            self.mode = mode;
+            self.state.replaced();
         }
     }
 
