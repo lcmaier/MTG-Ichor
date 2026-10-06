@@ -108,6 +108,9 @@ ROWS = [
     # timing table's `µs / decision` divides CPU/game by.
     ("Decisions", r"^\s+Decisions:\s+(\d+)"),
     ("Priority decisions", r"^\s+Priority decisions:\s+(\d+)"),
+    # CR 732.1's reversals of a priority action, per game (MA-1): what an
+    # over-offer costs, and the row an exact offer reads at zero.
+    ("Actions reversed", r"^\s+Actions reversed:\s+([\d.]+)"),
     # Triggered abilities put onto the stack, per game (TR-1): zero until a
     # trigger source is in the pool, then the row that says the dispatcher
     # and the drain both ran.

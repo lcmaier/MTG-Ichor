@@ -191,6 +191,7 @@ impl GameState {
                     Ok(()) => break (action, was_mana_ability),
                     Err(e) => {
                         rejections += 1;
+                        self.diagnostics.record_action_reversed();
                         // What `--dump-events` cannot show: a cast the enumeration
                         // offered and the engine rejected performs nothing, so the
                         // re-ask that follows is only explicable from here.

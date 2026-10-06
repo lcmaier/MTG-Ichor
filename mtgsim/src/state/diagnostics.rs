@@ -55,6 +55,7 @@ pub struct Diagnostics {
     mana_productions: Cell<u64>,
     decisions: Cell<u64>,
     priority_decisions: Cell<u64>,
+    actions_reversed: Cell<u64>,
     triggers_placed: Cell<u64>,
     trigger_dispatch: Cell<TriggerDispatchWork>,
 }
@@ -223,6 +224,17 @@ impl Diagnostics {
         self.priority_decisions.set(self.priority_decisions.get() + 1);
     }
 
+    /// One priority action the enumeration offered and the engine reversed
+    /// (CR 732.1): a cast or activation begun and not completed, whose seat
+    /// is then asked again.
+    ///
+    /// **The price of an over-offer**, and the row an exact offer reads at
+    /// zero: every one is a re-ask the agent did not need, and a re-ask moves
+    /// its stream (`mana-architecture.md` §5).
+    pub fn record_action_reversed(&self) {
+        self.actions_reversed.set(self.actions_reversed.get() + 1);
+    }
+
     pub fn layer_walks(&self) -> u64 {
         self.layer_walks.get()
     }
@@ -309,5 +321,9 @@ impl Diagnostics {
 
     pub fn priority_decisions(&self) -> u64 {
         self.priority_decisions.get()
+    }
+
+    pub fn actions_reversed(&self) -> u64 {
+        self.actions_reversed.get()
     }
 }
