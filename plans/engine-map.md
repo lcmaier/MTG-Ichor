@@ -105,8 +105,8 @@ Each is one subsystem reading another's output, in path order.
 
 ### 1.4 The loops the path passes
 
-Named only; row A6i of `roadmap-v2.md` counts them and the cards that close
-each.
+Named only; `plans/references/feedback-loops.md` counts the cards that close
+each, and reads these seams for a fifth loop, finding none.
 
 1. **An entry's writes and CR 616.1's re-gather** — step 8, S6.
 2. **A layer effect and CR 613.8's dependency** — inside every walk: `depends_on` `engine/layers/board.rs:1433`, `next_ready` `engine/layers/board.rs:1483`; [item-7](traces/item-7-an-effect-waits-for-what-it-reads.html).

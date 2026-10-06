@@ -1451,6 +1451,11 @@ sentence at combat's steps. Eon Hub's two rulings (item 121) are tests of
 exactly this: a skipped upkeep emits no `StepBegin`, and a trigger from the
 untap step waits for the draw step's grant.
 
+**The printed cards that close the two loops this moment runs** (CR 704.3's
+next check, and what a resolution's events trigger), each class counted
+beside its query and given a disposition, are
+`plans/references/feedback-loops.md` §4 and §5.
+
 ### 5.2 APNAP over the seat list, two tiers, the ordering prompt and its elision
 
 ```

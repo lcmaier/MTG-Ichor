@@ -54,17 +54,17 @@ is derived.
 
 | Landed | Phase | Code | Doc |
 |---|---|---|---|
-| 2026-08-25 | The plumbing | `RA-1` | `replacement-architecture.md` |
+| 2026-08-25 | The action context, threaded through the engine | `RA-1` | `replacement-architecture.md` |
 | 2026-08-25 | Routing the silent sites | `RA-2` | `replacement-architecture.md` |
 | 2026-08-25 | Payloads and structure | `RA-3` | `replacement-architecture.md` |
-| 2026-08-26 | The pipeline, with counters and regeneration as consumers | `RB` | `replacement-architecture.md` |
+| 2026-08-26 | The replacement pipeline, with counters and regeneration as consumers | `RB` | `replacement-architecture.md` |
 | 2026-08-31 | The shared duration registry | `RS-0` | `cant-effects-architecture.md` |
 | 2026-08-31 | The spine and Tier 2 | `RS-1` | `cant-effects-architecture.md` |
 | 2026-09-01 | Delete the early stack pop | `RC-1` | `replacement-architecture.md` |
 | 2026-09-01 | `EnterBattlefield` as an event | `RC-2` | `replacement-architecture.md` |
 | 2026-09-02 | The capture, the row and the two legs | `CV-1` | `copy-effects-architecture.md` |
 | 2026-09-02 | The membership gate and the frame's ability list | `RC-3` | `replacement-architecture.md` |
-| 2026-09-02 | The overlay | `RC-4` | `replacement-architecture.md` |
+| 2026-09-02 | The CR 614.12 look-ahead as an overlay | `RC-4` | `replacement-architecture.md` |
 | 2026-09-02 | Entering is one event | `RC-4b` | `replacement-architecture.md` |
 | 2026-09-03 | Auxiliary zone changes and a dynamic entry amount | `RC-5` | `replacement-architecture.md` |
 | 2026-09-04 | The host becomes addressable | `LH-1` | `layers-architecture.md` |
@@ -73,26 +73,26 @@ is derived.
 | 2026-09-06 | CR 613.8a, 613.8b, 613.8c | `LI-2` | `layers-architecture.md` |
 | 2026-09-06 | Conditional statics | `LI-3` | `layers-architecture.md` |
 | 2026-09-07 | `PermanentFilter` → `ObjectFilter` | `CM-0` | `cost-architecture.md` |
-| 2026-09-07 | The pipeline | `CM-1` | `cost-architecture.md` |
+| 2026-09-07 | The cost-modification pipeline | `CM-1` | `cost-architecture.md` |
 | 2026-09-07 | The spell's own cost abilities | `CM-2` | `cost-architecture.md` |
 | 2026-09-07 | Lock-in's payment side | `CM-3` | `cost-architecture.md` |
 | 2026-09-08 | The mana window and the payer | `CM-4` | `cost-architecture.md` |
 | 2026-09-08 | The damage event's two subjects and its results | `RD-1` | `replacement-architecture.md` |
 | 2026-09-09 | CR 615.7 prevention shields, and the loop's unit | `RD-2` | `replacement-architecture.md` |
-| 2026-09-09 | Sources | `RD-3` | `replacement-architecture.md` |
+| 2026-09-09 | Damage matched by its source | `RD-3` | `replacement-architecture.md` |
 | 2026-09-09 | Redirection and unpreventable damage | `RD-4` | `replacement-architecture.md` |
 | 2026-09-11 | Skips, and the turn queue | `RE-1` | `replacement-architecture.md` |
-| 2026-09-11 | Draw | `RE-2` | `replacement-architecture.md` |
-| 2026-09-12 | Life | `RE-3` | `replacement-architecture.md` |
+| 2026-09-11 | The draw as a replaceable event | `RE-2` | `replacement-architecture.md` |
+| 2026-09-12 | Life gain and loss as replaceable events | `RE-3` | `replacement-architecture.md` |
 | 2026-09-12 | The game's end | `RE-6` | `replacement-architecture.md` |
-| 2026-09-13 | Tokens | `RE-4` | `replacement-architecture.md` |
+| 2026-09-13 | Token creation as one replaceable event | `RE-4` | `replacement-architecture.md` |
 | 2026-09-13 | Counters, on permanents and players | `RE-5` | `replacement-architecture.md` |
 | 2026-09-13 | Leaving the game | `RE-7` | `replacement-architecture.md` |
 | 2026-09-14 | The zone-reaching `ObjectSet` | `LJ` | `layers-architecture.md` |
 | 2026-09-14 | CR 113.6, which abilities function in which zone | `LK` | `layers-architecture.md` |
-| 2026-09-14 | The producers | `RE-8` | `replacement-architecture.md` |
+| 2026-09-14 | Discard and scry as events | `RE-8` | `replacement-architecture.md` |
 | 2026-09-14 | Extra phases, and the turn plan | `RE-10` | `replacement-architecture.md` |
-| 2026-09-15 | Mana | `RE-9` | `replacement-architecture.md` |
+| 2026-09-15 | Mana production as a replaceable event | `RE-9` | `replacement-architecture.md` |
 | 2026-09-16 | The gather's zone leg | `RF` | `replacement-architecture.md` |
 | 2026-09-19 | The spine: dispatch, the queue, placement, the stack object | `TR-1` | `triggers-architecture.md` |
 | 2026-09-22 | The dispatch audit | `TR-1b` | `triggers-architecture.md` |
@@ -104,9 +104,9 @@ is derived.
 | 2026-09-29 | CR 707.9's exceptions | `CV-2b` | `copy-effects-architecture.md` |
 | 2026-10-01 | Setup actions | `SU-2` | `setup-architecture.md` |
 | 2026-10-01 | The scenario loader | `SU-1` | `setup-architecture.md` |
-| 2026-10-03 | The replay | `SU-4` | `setup-architecture.md` |
+| 2026-10-03 | The engine's replay of a decision log | `SU-4` | `setup-architecture.md` |
 | 2026-10-03 | The board editor | `SU-3` | `setup-architecture.md` |
-| 2026-10-04 | The tools | `SU-5` | `setup-architecture.md` |
+| 2026-10-04 | Save, undo and savestates in the dev GUI | `SU-5` | `setup-architecture.md` |
 | 2026-10-05 | The inventory and the exact check | `MA-1` | `mana-architecture.md` |
 | 2026-10-05 | Why an option is not offered | `SU-7` | `setup-architecture.md` |
 | 2026-10-05 | The why panel, and what the layers did | `SU-6` | `setup-architecture.md` |
@@ -123,22 +123,22 @@ and no ✅ heading records, in the docs' order.
 | The read-side choice points | `RS-2` | `cant-effects-architecture.md` |
 | Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
 | Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
-| Costs | `RS-4` | `cant-effects-architecture.md` |
+| Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
 | Indefinite-duration copies | `CV-1b` | `copy-effects-architecture.md` |
 | Token copies | `CV-3` | `copy-effects-architecture.md` |
 | Spell copies | `CV-4` | `copy-effects-architecture.md` |
-| Faces | `CV-5` | `copy-effects-architecture.md` |
-| Face-down | `CV-6` | `copy-effects-architecture.md` |
+| Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
+| Face-down permanents and morph | `CV-6` | `copy-effects-architecture.md` |
 | Merging + meld | `CV-7` | `copy-effects-architecture.md` |
-| Payment | `CP-1` | `cost-architecture.md` |
+| Hybrid, Phyrexian and X payment | `CP-1` | `cost-architecture.md` |
 | The cost actions | `CP-2` | `cost-architecture.md` |
 | The check widened | `MA-7` | `mana-architecture.md` |
-| X | `MA-2` | `mana-architecture.md` |
+| The legal values of X | `MA-2` | `mana-architecture.md` |
 | Any color, riders, the nested window | `MA-3` | `mana-architecture.md` |
 | The chosen color and "could produce" | `MA-4` | `mana-architecture.md` |
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
-| The design | `PM-0` | `permission-architecture.md` |
+| Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | Delayed, reflexive, and "until" | `TR-3` | `triggers-architecture.md` |
 | The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
 | Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
@@ -151,7 +151,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 103 |
-| `#[test]` functions | 2055 |
+| `#[test]` functions | 2062 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -172,14 +172,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 276 |
+| Numbered items | 277 |
 | …closed, still recorded | 100 |
-| …open — unreachable, and says why | 112 |
+| …open — unreachable, and says why | 113 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 171 of 176 |
+| …open, carrying an explicit `**Sized:**` | 172 of 177 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

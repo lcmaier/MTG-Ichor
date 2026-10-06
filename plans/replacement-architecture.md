@@ -914,6 +914,10 @@ of a different kind (`CreateTokens` → `EnterBattlefield`). That parameter is t
 whole of §3.2d's lineage rule, and the reason two Teferi's Ageless Insights draw
 four cards instead of hanging.
 
+**The printed cards that close this loop** (CR 616.1f's re-gather), each class
+counted beside its query and given a disposition, are
+`plans/references/feedback-loops.md` §2.
+
 ```
 fn apply_replacements(game, action, ctx, inherited, riders) -> Option<GameAction>
     # `riders` collects every applied effect's `then` half, in application
@@ -2047,7 +2051,7 @@ nothing in a later group is a prerequisite for an earlier one.
 
 | Sub-phase | Tickets | Shape | Measured size | Status |
 |---|---|---|---|---|
-| **RA-1 — plumbing** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites | ✅ PR #58 |
+| **RA-1 — the action context, threaded through the engine** | 1, 2 | pure signature sweep, zero behavior change | 6 signatures, ~90 production + ~75 test call sites | ✅ PR #58 |
 | **RA-2 — routing** | 3, 4, 5, 10, 11, 12 | six independent "make the silent site loud" tickets | 5 new `GameEvent` variants; ~10 sites each | ✅ PR #59 |
 | **RA-3 — payloads** | 9, 6, 7, 8 *(that order)* | the deep half: batches, LKI, the bypass closure | 3 bypass sites, the SBA sweep, `apply_combat_damage` | ✅ 2026-08-25 |
 
@@ -2064,7 +2068,7 @@ tickets is the session that overruns. Split off, RA-1 is the safest PR shape the
 project writes: the diff is a signature sweep, and green-on-the-nose is the whole
 test.
 
-#### RA-1 — the plumbing (tickets 1–2) — ✅ landed 2026-08-25
+#### RA-1 — the action context, threaded through the engine (tickets 1–2) — ✅ landed 2026-08-25
 
 1. `ActionContext` threaded through `execute_action` / `change_zone` /
    `advance_turn` / `apply_combat_damage` / the SBA sweep. `resolve_effect` and
@@ -2142,7 +2146,7 @@ arms writes `entry.tapped`, writes `life_total`, or moves a card library→hand.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RA-3" (evicted 2026-09-11).
 
-### Phase RB — the pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
+### Phase RB — the replacement pipeline, with counters and regeneration as consumers — ✅ landed 2026-08-26
 
 **Shipped.** `ReplacementDef`, `EventPattern`, `Rewrite`, `ReplacementClass`, `Uses`, `Effect::Replacement` with its `then`, `ReplacementEffectRegistry`, and `apply_replacements` — §4.1's CR 616.1 loop with 614.5, 616.1g and CR 101.4's APNAP — with CR 122.1c/d/h counters, CR 701.19 regeneration and Kalitas as consumers and 704.6d / 903.9b beside. Shipped at +5,475 across 33 files, 2.2× the band, because nobody counted first: `engineering-practices.md` §4's cautionary case.
 
@@ -2180,7 +2184,7 @@ accepts that a later PR may fix an earlier one.
 | **RC-1 — delete the early stack pop** ✅ | pure deletion, zero new behavior | measured **12**, not 11: `stack.is_empty()` × **6** (the row said 5 — see below) + `GameState::resolving` × 6; deletes one leniency branch | low |
 | **RC-2 — `EnterBattlefield` as an event** ✅ | the performer migration, plus enters-tapped as its first consumer | predicted **10** production `place_on_battlefield` sites; **two**, and the number that mattered was 92 direct callers with 88 in `#[cfg(test)]`. Shipped **+1,409 / −218 across 25 files** — 611 engine, 207 cards, 591 tests | medium |
 | **RC-3 — the membership gate and the frame's ability list** ✅ | §5c's question 1 | predicted **1** site; **2**, because CR 614.12 is two membership rules and only clause (3) was counted — `compute.rs:629` and `gather`'s source 1a. Shipped **+717 / −37 across 8 files** | **high** |
-| **RC-4 — the overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
+| **RC-4 — the CR 614.12 look-ahead as an overlay** ✅ | §5's clauses (1)–(3), 614.17d, 616.1b, `CountOf`, §11 item 19. **614.13a/b moved to RC-5** | re-counted a third time at **9** reads and the count was the wrong instrument: **four kinds** of read needed perturbing, and only those moved. Shipped **+2,567 / −279 across 25 files** — 1,447 engine, 223 cards, 897 tests — over the band on tests alone, with RC-5 already split out in the doc before code | **highest** — and the risk that materialised was not the walk: it was item 19's theorem, which the frame falsified (finding 3) |
 | **RC-4b — one proposal per entry, none per cast step** ✅ | The entry hop RC-4's review found (`EnterBattlefield` carries `from` and its performer moves), tokens, CR 608.3e, and the cast rewind's phantom zone change (`codebase-state.md` item 51) — one bundle under one rule, §11 item 20 | sized ~450–650; shipped **+378 / −250 engine across 12 files** and +568 tests — the engine inside the band, the tests over it, as RC-4's were | low, and the one reach into `gather` beyond the pattern arm was a finding, not a cost: source 1a read the entering permanent through a plain walk that was right only because the card had already moved (finding 1 below) |
 | **RC-5 — auxiliary zone changes and a dynamic entry amount** ✅ | CR 614.13/13a/13b, a dynamic `EnterWith` amount. **Re-sized 2026-09-03 before code**: the batch-scoped frame was RC-4b's and CR 613.7m is RE's — see below | sized below: ~1,200 + ~250, after the re-size dropped the ~400 | medium — a new decision site, and the only piece the re-size did not shrink |
 
@@ -2214,7 +2218,7 @@ close RB's half at zero engine cost; do not let RC open a second such gap.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RC-3" (evicted 2026-09-11).
 
-#### RC-4 — the overlay — ✅ landed 2026-09-02
+#### RC-4 — the CR 614.12 look-ahead as an overlay — ✅ landed 2026-09-02
 
 **Shipped.** `compute_as_entering` — the CR 614.12 frame as a read-side overlay through `FrameCache`'s accessor pair, never a `GameState` clone — CR 614.17d in both printed shapes, CR 616.1b (`EnterUnderControlOf`), the first `AmountExpr::CountOf` in the walk, and CR 616.1 no longer prompting for a choice with one outcome (§11 item 19). CR 614.13 and the batch-scoped frame sized out to RC-5 before code.
 
@@ -2330,7 +2334,7 @@ The titles, in order, so `§9 RD decision N` still lands; each was read against 
 |---|---|---|---|
 | **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `ObjectSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
 | **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
-| **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
+| **RD-3 — damage matched by its source** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
 
 **≈ 5,700–6,500 across four, each at or inside the band, RD-2 at its top —
@@ -2355,7 +2359,7 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RD-2" (evicted 2026-09-11).
 
-#### RD-3 — sources — ✅ landed 2026-09-09
+#### RD-3 — damage matched by its source — ✅ landed 2026-09-09
 
 **Shipped.** `EventPattern::DealDamage { source: Option<SourcePattern>, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, `PatternFill::ChosenDamageSource`), 615.8/9/10, `AmountRewrite::Plus`. Eight printed cards with Guardian Seraph pooled; +2,035 / −57, over on every axis. Two fixes shown failing first: `Primitive::DealDamage` never read `FilteredPermanents`, and a whole-event `Prevent` reported nothing prevented. Circle of Protection: Red's activation ran ~98 times a game, striking the prediction that it would be rare.
 
@@ -2576,15 +2580,15 @@ The titles, in order, so `§9 RE decision N` still lands; each was read against 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **RE-1 — skips, and the turn queue** — ✅ landed | `BeginTurn`/`BeginPhase`/`BeginStep`, three arms, three small performers emitting the three begin events; `advance_turn` as a queue drainer with proceed-past; `Primitive::ExtraTurn` and CR 500.7's order | Predicted **~1,700–1,900**; shipped **+1,770 / −155** before the docs. The three exhaustive matches and `pattern_watches` were exactly as counted; `Game::setup`'s "first turn" was a *new* site rather than an existing one, and `turn_rotation` was a field nobody predicted (§11 items 47, 48) | medium — and the risk landed where it was named: the fixtures, six of which counted turn positions by hand |
-| **RE-2 — draw** | `DrawCards` outer + `DrawCard.cause`; two pattern arms; `GameActionTemplate::DrawCards { n, player }`; the outer performer's decomposition with the inherited applied set (item 29's producer) | exhaustive matches **3** + `pattern_watches` **2**; `DrawCard` producers **2** rewritten to the outer, performer **1**, test constructions **1**; `execute_batch_inner`'s `inherited` **1** call site; `Primitive::DrawCards` **1**. Predicted **~550 engine, ~350 cards, ~800 tests ≈ 1,700–1,900** | **highest** — the first decomposition, whose defect is a hang, and the `cause` stamping rule across nested outers |
-| **RE-3 — life** | `EventPattern::GainLife`, `LoseLife { cause }`; `AmountRewrite::LifeFloor`; `GameActionTemplate::{GainLife, LoseLife} { amount: TemplateAmount }`; `Restriction::Event.affected_players` | `pattern_watches` **2**; `apply_rewrite`'s `Amount` arm **1** and `Instead` arm **2**; `Restriction::Event` constructions **~6** + `is_prohibited`'s union **1**; `GainLife` producers **2**, `LoseLife` **3**, untouched. Predicted **~350 engine, ~450 cards, ~600 tests ≈ 1,400–1,600** | low-medium — patterns over events that already flow; the clamp is the one new arithmetic |
-| **RE-4 — tokens** — ✅ landed | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850**; shipped **+1,867 / −171** — engine 594, cards 322, tests 951 — with the two loop findings' 90 lines in it, and the three exhaustive matches exactly as counted plus `pattern_watches`, `reads_the_amount` and `display.rs` (compiler-forced); `game_state.rs` needed nothing for the variants | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
+| **RE-2 — the draw as a replaceable event** | `DrawCards` outer + `DrawCard.cause`; two pattern arms; `GameActionTemplate::DrawCards { n, player }`; the outer performer's decomposition with the inherited applied set (item 29's producer) | exhaustive matches **3** + `pattern_watches` **2**; `DrawCard` producers **2** rewritten to the outer, performer **1**, test constructions **1**; `execute_batch_inner`'s `inherited` **1** call site; `Primitive::DrawCards` **1**. Predicted **~550 engine, ~350 cards, ~800 tests ≈ 1,700–1,900** | **highest** — the first decomposition, whose defect is a hang, and the `cause` stamping rule across nested outers |
+| **RE-3 — life gain and loss as replaceable events** | `EventPattern::GainLife`, `LoseLife { cause }`; `AmountRewrite::LifeFloor`; `GameActionTemplate::{GainLife, LoseLife} { amount: TemplateAmount }`; `Restriction::Event.affected_players` | `pattern_watches` **2**; `apply_rewrite`'s `Amount` arm **1** and `Instead` arm **2**; `Restriction::Event` constructions **~6** + `is_prohibited`'s union **1**; `GainLife` producers **2**, `LoseLife` **3**, untouched. Predicted **~350 engine, ~450 cards, ~600 tests ≈ 1,400–1,600** | low-medium — patterns over events that already flow; the clamp is the one new arithmetic |
+| **RE-4 — token creation as one replaceable event** — ✅ landed | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850**; shipped **+1,867 / −171** — engine 594, cards 322, tests 951 — with the two loop findings' 90 lines in it, and the three exhaustive matches exactly as counted plus `pattern_watches`, `reads_the_amount` and `display.rs` (compiler-forced); `game_state.rs` needed nothing for the variants | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
 | **RE-5 — counters, on permanents and players** | `CounterChange`'s entry door and `by`; `AddCounters.by` and its `CounterSubject`; item 43's `EnterMods` player half; `Amount` on an entry's mods; `PlayerState`'s counter map (§2.16) | `pattern_watches` **1** more arm; `AddCounters` constructions **2** + performer **1**; `EnterMods`/`EnterModsTemplate` merge **2**; `apply_rewrite`'s `Amount` arm **1**; `poison_counters` readers **4** (one production, `sba.rs:142`) → the map. Predicted **~650 engine, ~550 cards, ~800 tests ≈ 1,900–2,100** | medium-high — top of the band; an `Amount` arm that edits `EnterMods` is new, and the subject enum touches every counter site |
 | **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
 | **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
-| **RE-8 — the producers (CR 701.9, 701.22)** — ✅ landed | `Primitive::Discard` with 701.9b's chooser; **`ReplacementDef::by`** rather than the `caused_by` this row sized onto the zone-change pattern; `GameAction::Scry`, its arm, `Primitive::Scry` and two scry choice kinds. **The to-battlefield leg did not ship** — every printed customer is on a card in hand, which is CR 113.6 and critical-path item 6a (§11 item 87) | `resolve.rs` stubs **2** made real; `pattern_watches` **1** arm and no field, the cause predicate having moved off the pattern; exhaustive matches **3** for `Scry` plus `display.rs`, compiler-forced as in RE-4; `DecisionProvider` impls **0** — the CLI's prompt text only, the others being generic. Predicted at the design check **~200 types, ~430 engine, ~330 cards, ~600 tests, ~15 harness ≈ 1,575**; shipped **+1,737 / −115** — types 195, engine 445, cards 371, tests 710, harness 16 | low-medium, and it landed there; the risk that showed up was neither producer but CR 514.1's cleanup discard, which had been N events where the rule says one |
+| **RE-8 — discard and scry as events (CR 701.9, 701.22)** — ✅ landed | `Primitive::Discard` with 701.9b's chooser; **`ReplacementDef::by`** rather than the `caused_by` this row sized onto the zone-change pattern; `GameAction::Scry`, its arm, `Primitive::Scry` and two scry choice kinds. **The to-battlefield leg did not ship** — every printed customer is on a card in hand, which is CR 113.6 and critical-path item 6a (§11 item 87) | `resolve.rs` stubs **2** made real; `pattern_watches` **1** arm and no field, the cause predicate having moved off the pattern; exhaustive matches **3** for `Scry` plus `display.rs`, compiler-forced as in RE-4; `DecisionProvider` impls **0** — the CLI's prompt text only, the others being generic. Predicted at the design check **~200 types, ~430 engine, ~330 cards, ~600 tests, ~15 harness ≈ 1,575**; shipped **+1,737 / −115** — types 195, engine 445, cards 371, tests 710, harness 16 | low-medium, and it landed there; the risk that showed up was neither producer but CR 514.1's cleanup discard, which had been N events where the rule says one |
 | **RE-10 — extra phases, and the turn plan** — ✅ landed | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300**; shipped **+1,066 / −171** — engine 149, state 136, types 24, cards 147, tests 600, seam 10. **Three of this row's counts were wrong** (see the section's findings): `next_phase` had one production caller and not ~8 readers, its wrap arm was already dead, and "re-counts nobody's fixtures" missed 46 hand-written positions. The split inverted — the engine half came in at 466 against ~700 because the seam's 46 sites are one line each, and the test half at 600 against ~400 | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
-| **RE-9 — mana** — ✅ landed | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped_for_mana` from the activation cost; **and**, added at the design check on §4's eighty-line rule, `GameActionTemplate::ProduceMana` for CR 106.12b's six type-changers, with Deep Water | exhaustive matches **3** + `reads_the_amount` + `display.rs`; writers **2** → **1**; `resolve_mana_effect` **1** (plus a signature the row did not count), `Primitive::ProduceMana` **1**; `pattern_watches` **1**; `substitute` **1** leg and three predicate arms. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150**, re-counted at the design check to **1,300–1,450**; shipped **+1,423 / −29** — engine 334, cards 285, tests 734, harness 14 | low on shape, **the one whose A/B could say no** — a proposal on every land tap. **It said yes: +1.2% at two seats, under the 2.5-point gate, and lever 2 stays unbuilt** |
+| **RE-9 — mana production as a replaceable event** — ✅ landed | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped_for_mana` from the activation cost; **and**, added at the design check on §4's eighty-line rule, `GameActionTemplate::ProduceMana` for CR 106.12b's six type-changers, with Deep Water | exhaustive matches **3** + `reads_the_amount` + `display.rs`; writers **2** → **1**; `resolve_mana_effect` **1** (plus a signature the row did not count), `Primitive::ProduceMana` **1**; `pattern_watches` **1**; `substitute` **1** leg and three predicate arms. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150**, re-counted at the design check to **1,300–1,450**; shipped **+1,423 / −29** — engine 334, cards 285, tests 734, harness 14 | low on shape, **the one whose A/B could say no** — a proposal on every land tap. **It said yes: +1.2% at two seats, under the 2.5-point gate, and lever 2 stays unbuilt** |
 
 **≈ 14,300–16,300 across ten, each inside the band, RE-5 and RE-6 at its top
 and RE-7 and RE-10 below its floor.** Hard orders: RE-2 → RE-3 (Words of Worship needs the draw pattern and
@@ -2626,7 +2630,7 @@ no turn-based action in any game the engine has played (§11 item 48).
 `plans/archive/replacement-architecture-landed.md`, "RE-1" (evicted
 2026-09-11).
 
-#### RE-2 — draw (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g) — ✅ landed 2026-09-11
+#### RE-2 — the draw as a replaceable event (CR 614.11, 614.11a, 121.2, 121.2a, 121.6a/b, 616.1g) — ✅ landed 2026-09-11
 
 **Shipped.** `GameAction::DrawCards { player, n, cause }` as CR 121.2a's
 instruction and `DrawCard { player, cause }` as the draw, with
@@ -2659,7 +2663,7 @@ encodings with the loop the sized one produces, and the three-Thief board.
 `plans/archive/replacement-architecture-landed.md`, "RE-2" (evicted
 2026-09-11).
 
-#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
+#### RE-3 — life gain and loss as replaceable events (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
 
 **Shipped.** `EventPattern::{GainLife, LoseLife { cause }}`,
 `AmountRewrite::LifeFloor(i64)`, `GameActionTemplate::{GainLife, LoseLife}` over
@@ -2698,7 +2702,7 @@ answers the *same* question in the same place. The rule that would catch it is
 `plans/archive/replacement-architecture-landed.md`, "RE-3" (evicted
 2026-09-12).
 
-#### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52) — ✅ landed 2026-09-13
+#### RE-4 — token creation as one replaceable event (CR 614.16's token half, 111.5, 616.1g; items 46 and 52) — ✅ landed 2026-09-13
 
 **Shipped.** `Primitive::CreateToken` resolves as one `GameAction::CreateTokens
 { defs, controller }`, whose performer creates the objects and proposes every
@@ -2825,7 +2829,7 @@ decided at the close.
 → As sized, as built and as measured: `plans/archive/replacement-architecture-landed.md`,
 "RE-7" (evicted 2026-09-13).
 
-#### RE-8 — the producers (CR 701.9, 701.9b, 701.22) — ✅ landed 2026-09-14
+#### RE-8 — discard and scry as events (CR 701.9, 701.9b, 701.22) — ✅ landed 2026-09-14
 
 *Body evicted to `plans/archive/replacement-architecture-landed.md` under the
 same heading: the section as sized, the design check's nine decisions, what was
@@ -2858,7 +2862,7 @@ whole movement to that reshape and leaves the two producers costing a board
 with nothing watching them exactly nothing. Pooled is a re-record. → the
 archive, and `plans/fuzz-record.md`.
 
-#### RE-9 — mana (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
+#### RE-9 — mana production as a replaceable event (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
 
 *Body evicted to `plans/archive/replacement-architecture-landed.md` under the
 same heading: the section as sized, the design check's thirteen decisions and

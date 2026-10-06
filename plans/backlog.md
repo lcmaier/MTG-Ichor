@@ -598,6 +598,12 @@ critical path, which lists neither; that is the owner's line to add.
   blocked on the card type rather than on the arm (`codebase-state.md`
   item 87).
 - **Atoms** — none filed under `Backlog` yet; CR 310's are in Phase 8.
+- **The defeat waits on its own trigger** (the feedback-loop census,
+  2026-10-06). CR 704.5v puts a battle with defense 0 into its owner's
+  graveyard only if "it isn't the source of an ability that has triggered but
+  not yet left the stack", so a Siege stays while its 310.11b trigger waits,
+  and that trigger exiles it. The check reads the trigger queue, as §2.44's
+  Sagas do.
 - **Owner** — none yet. Entered 2026-09-08 by RD's design check, because no
   document owned CR 310 and the results-of-damage decomposition needed to
   point somewhere real rather than at a `T##`.
@@ -2730,6 +2736,44 @@ control; they are here so a board that needs one by clicking can find them.
 | **Blocks** | nothing: a board needing one of these rows types it into the field |
 | **Atoms** | none |
 | **Owner** | `setup-architecture.md` §7b.2, decision 2, which designed them |
+
+### 2.43 A filter that reads an ability or a keyword
+
+**Found by the feedback-loop census (2026-10-06): the one class of loop 2
+with no surface** (`plans/references/feedback-loops.md` §3). A grant over a set
+chosen by an ability depends on any other grant or removal in its layer (CR
+613.8a(b)). Kwende, Pride of Femeref's "creatures you control with first
+strike have double strike" waits for whatever grants first strike, and
+reaches nothing once Humility has removed it. No `ObjectFilter` leaf can say
+"with first strike", so no card of the class can be written.
+
+| Field | |
+|---|---|
+| **Rules** | CR 613.8a(b), the dependency a grant's own set creates; 604.2, a condition that reads another permanent's abilities (Escaped Shapeshifter) |
+| **Verdict** | `ObjectFilter` reads types, subtypes, supertypes, colors, power, controller, owner and identity, and no ability or keyword. The feeds table already records the gap from the entry side: a keyword counter "unmatches none, since no leaf reads keywords" (`replacement-architecture.md` §3.5) |
+| **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_matches_filter_with`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
+| **Blocks** | the census's `ability-filter` class, 7 cards in Commander; the 7c anthems that name a keyword ("creatures you control with flying get +1/+1") need the same leaf, and close no loop, since they read the layer before theirs |
+| **Atoms** | none filed |
+| **Owner** | — ; `layers-architecture.md` when taken |
+
+### 2.44 Sagas and dungeons, the state-based actions that wait on a trigger
+
+**Found by the feedback-loop census (2026-10-06), where loop 3 meets loop
+4** (`plans/references/feedback-loops.md` §4). CR 704.5s sacrifices a Saga
+whose lore counters have reached its final chapter "and it isn't the source
+of a chapter ability that has triggered but not yet left the stack". So the
+check reads the queue and the stack that CR 117.5's alternation fills, and
+`perform_sba_and_triggers` is where that alternation runs. CR 704.5t asks the
+same of a dungeon's last room, and 704.5v of a battle (§2.23).
+
+| Field | |
+|---|---|
+| **Rules** | CR 714 (Sagas: 714.2b's chapter trigger on a lore counter, 714.3's lore counters, 714.4's sacrifice), 704.5s; CR 309 and 701.49 (dungeons and venture), 704.5t |
+| **Verdict** | nothing of either: no chapter ability, no lore counter's turn-based action, no dungeon, and neither state-based action (`codebase-state.md`'s 704.5 row marks both ❌). Each would read `pending_triggers` and the stack for its source, which the check reads nowhere today |
+| **Size** | one PR in the band for Sagas, after TR-5b, since a chapter ability triggers on lore counters being put on (CR 714.2b) and `CountersPutOn` is TR-5b's arm; dungeons after it |
+| **Blocks** | the census's `saga` class, 223 Sagas in Commander; venture's cards, uncounted |
+| **Atoms** | 11 under CR 714, all Phase 8's, none covered |
+| **Owner** | — |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

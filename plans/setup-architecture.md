@@ -2524,7 +2524,7 @@ the panel's view 1.5 µs a repaint.
 → `plans/archive/setup-architecture-landed.md`, "SU-6" (the build as sized,
 sized against built, and what the build changed in the design).
 
-### SU-5 — the tools — ✅ landed 2026-10-04
+### SU-5 — save, undo and savestates in the dev GUI — ✅ landed 2026-10-04
 
 **What shipped.** §7.1–§7.3's window half, as decided at #212 and #216.
 The save, `<log>.save` beside each decision log (`devgui/src/save.rs`): a
@@ -2562,7 +2562,7 @@ against `main`'s 23.2–23.4 s, the tools' eight tests 0.9 s of it.
 → `plans/archive/setup-architecture-landed.md`, "SU-5" (the build as sized,
 sized against built, and what the build changed in the design).
 
-### SU-4 — the replay — ✅ landed 2026-10-03
+### SU-4 — the engine's replay of a decision log — ✅ landed 2026-10-03
 
 **What shipped.** §7.1–§7.3's engine half, as decided at #216.
 `ChoiceKind::as_str`, the trace sink's spelling of a kind moved onto the
