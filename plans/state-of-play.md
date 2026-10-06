@@ -111,18 +111,31 @@ says nothing about progress, so there is one answer and it is derived.
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
+## Performance floors
+
+The latest reading of each of `engineering-practices.md` §3.1's floors, from
+the table there, and how much room it leaves. A floor with less than 20% room
+is bolded.
+
+| Floor | Limit | Latest | Room | Read on |
+|---|---:|---:|---:|---|
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
+| 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-05 |
+| 2. Microseconds per clone | ≤ 10 | 6.9 | 45% | 2026-10-06 |
+| 3. Kilobytes per clone | ≤ 128 | 100.0 | 28% | 2026-10-05 |
+
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
-| Numbered items | 274 |
+| Numbered items | 275 |
 | …closed, still recorded | 98 |
 | …open — unreachable, and says why | 112 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 32 |
+| …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 171 of 176 |
+| …open, carrying an explicit `**Sized:**` | 172 of 177 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -155,7 +168,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/ma-1-review.md`
+- (none — nothing half-finished)
 
 ## What this file deliberately does not know
 

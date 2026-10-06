@@ -9312,9 +9312,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-10-05):** unreachable — no registered card has one
      of these shapes; the two MA-1 pools, Ironworks and the Cube, are read
      exactly, together and apart.
-     **Sized:** with each shape's first card: the converters and Treasure in
-     MA-3, about 60 lines of the inventory; each other one a test and a few
-     lines.
+     **Sized:** with MA-7 (`mana-architecture.md` §6, the owner, 2026-10-06),
+     which reads every cost per `Cost` arm; the converters and Treasure stay
+     MA-3's, about 60 lines of the inventory.
 
 214. **The random agent does not pay through Doubling Cube.** MA-1's check
      counts a payment the Cube's doubling makes, and the window offers the
@@ -9333,3 +9333,31 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      with a test on the Humility board: keep the owed pip's mana, tap toward
      the doubler's `{3}`, activate it, and pay the `{3}` with the other
      units. Slot: MA-2's first commit (B12), or its own PR sooner.
+
+215. **What MA-1's review left for a hygiene pass.** Three cleanups the
+     owner's review of #225 found, each changing no answer:
+     - **The inventory a priority point shares is a bare
+       `&OnceCell<ManaSupply>`** in three signatures, each `_with` function
+       with a one-line twin that hands it an empty cell (`mana_helpers.rs`).
+       The recommended shape is the checks as methods on one value holding
+       the cell, `PlayerChecks::new(game, p).can_cast(card)`, which removes
+       the three pairs; about 30 call sites, most in tests.
+     - **The watcher memo's debug audit restores every counter by hand**
+       (`Diagnostics::rewind_to`), as the frame memo's restores four
+       (`rewind_layer_work`). Auditing a clone of the game instead, in debug
+       builds only, removes both, provided the trace sink does not follow the
+       clone.
+     - **Helpers built more than once.** The permanents a player controls
+       are still built inline in `legality.rs` (`legal_blockers`),
+       `engine/costs.rs`, `engine/turns.rs` and `ui/why.rs`, beside
+       `oracle::board::permanents_controlled_by`. The first run of
+       `plans/similar_functions.py` lists about eight engine candidates:
+       `static_replacement` in three card files, `intrinsic_mana_ability`
+       beside `mana_ability_single`, `ManaPool::can_pay` beside
+       `can_pay_with_context`, and two pairs of prompt wrappers in
+       `ui/ask.rs`.
+     **Reachability (2026-10-06):** reachable — not wrong: each is the shape
+     of code that answers correctly.
+     **Sized:** about 150–250 lines in all. Slot: the hygiene pass of item
+     6's close audit (`roadmap-v2.md` A6e), which asks the third question at
+     every spine close since this review (`engineering-practices.md` §9).

@@ -242,6 +242,26 @@ when the condition holds. It is the flow item 162 and `backlog.md` §2.22
 named, with its feasibility read in closed form instead of by augmenting
 paths.
 
+**The alternatives, and why not** (the owner asked at #225's review):
+- **Flow by augmenting paths** gives the same answer with more work. It is
+  kept for MA-6's solver, which needs the payment, not only its existence.
+- **A linear program, or any convex relaxation**, is exact where the
+  closed form already is: the transportation polytope's vertices are
+  integral. It is wrong where the closed form needs help. A relaxation
+  splits a one-choice entry's mana across types, half a `{W}{W}` and half
+  a `{U}{U}`, and so pays `{W}{U}` from Mana Reflection on an Everywhere,
+  which no tap makes.
+- **Integer programming** is exact, but it is a solver call per check
+  against about 100 instructions a cost, and floating point at a decision
+  site is a determinism risk.
+- **Restricted mana** needs none of them. A restriction names what the
+  mana may pay for, a spell's types or an ability's source, which is the
+  whole cost, so the purpose filters the supply before Hall's condition and
+  the check stays exact (§3.6). A grant (Cavern of Souls' "can't be
+  countered") changes nothing about whether a payment exists. Hall's
+  theorem holds for any bipartite graph, so a restriction naming part of a
+  cost would only narrow what that mana reaches.
+
 **How it runs.** The inventory keeps one table: for each of the 64 type
 sets (128 once `{S}` needs a seventh bit), how much mana reaches it, built once with a subset-sum transform (384
 additions). A generic pip accepts every type, so it enters only the total. A
@@ -694,6 +714,7 @@ card-by-card hunt runs in each PR's brief.
 | PR | Shape | Size | Consumer | Closes |
 |---|---|---|---|---|
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
+| **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
 | **MA-2, X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one) | ~350 engine, ~450 tests, a card: 800–950 | Blaze | `cast-census.md` §8's X row |
 | **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; TR-7's three facilities | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
@@ -704,6 +725,11 @@ card-by-card hunt runs in each PR's brief.
 - **MA-1 landed before SU-8** (decision 7). It removed the wrong offer
   SU-7's click script met on the review board, and wrote the why's
   `ManaAbilityWindow` line SU-8 would have read off its inventory.
+- **MA-7 first** (the owner, 2026-10-06, at #225's review): it widens the
+  check that MA-2 to MA-6 extend. It is not urgent for today's games: the
+  choice search never passed 6 leaves in about 150,000 checks over the four
+  fuzz boards (2026-10-06). It is the guarantee for v1's Commander boards,
+  where Nyxbloom Ancient and many lands do meet.
 - **MA-2 to MA-6** go in `roadmap-v2.md` B, before C. **MA-3 before TR-7**,
   whose loop needs any-color mana, a draw inside a mana ability, and a window
   inside a mana ability's activation.
