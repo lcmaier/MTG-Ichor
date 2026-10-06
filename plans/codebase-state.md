@@ -9347,20 +9347,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
-216. **The review pictures are drawn by a test no CI step runs.**
-     `devgui/tests/screenshots.rs` draws the dev GUI at the review boards'
-     prompts and compares each picture with its committed PNG, which holds
-     only on the machine that drew it, so CI's dev GUI step leaves the test
-     out, and with it the games it plays to reach each picture. MA-1 (#225)
-     counts Everywhere as one mana source, so no review board offers two
-     spells at once, and the test waited for a priority prompt with three
-     options that never came: it failed on `main` from #225's merge until
-     SU-8's redraw found it and took a prompt with a spell in reach. Eight
-     pictures had moved with MA-1's games.
-     **Reachability (2026-10-06):** reachable — not wrong in any game: a
-     harness, the review's pictures.
-     **Sized:** a CI step running the test with `UPDATE_SNAPSHOTS=true`, which
-     compares nothing and still fails when a review board stops reaching a
-     picture's prompt: ~5 lines, if CI's runner can draw offscreen, which the
-     step's first run says. **Slotted:** A6g's dev GUI audit, the row's last
-     PR.
+216. **~~The review pictures are drawn by a test no CI step runs.~~ — ✅
+     CLOSED 2026-10-06 (the dev GUI audit, #228).** — archived. The dev GUI's
+     CI job draws them through Mesa's software Vulkan driver and compares
+     none, so a review board that stops reaching its picture's question
+     fails the job; its first run drew all 21 in 18 s.
+     **Reachability (2026-10-06):** closed — the dev GUI audit, #228.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 216".
