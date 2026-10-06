@@ -1584,6 +1584,13 @@ bucket — it cannot produce a `CopyOnEnter` without the copy spine, so it keeps
 
 ---
 
+### RS-0 — the shared duration registry — ✅ 2026-08-31
+
+The registry both existing ones own and delegate to, which RS-1 was built on
+the same day; the outcome is recorded at §9's finding 7. Its heading was
+written at the dev GUI audit (2026-10-06): the board's index of phases by
+name reads the ✅ headings, and without one listed RS-0 as still to build.
+
 ### 7a. RS-1 — the spine and Tier 2 — ✅ 2026-08-31
 
 **What landed**, against §7's row: `RestrictionDef` and `Restriction::Event`,

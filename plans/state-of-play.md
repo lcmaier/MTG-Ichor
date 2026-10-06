@@ -38,69 +38,112 @@ Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI h
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
-## Phases their architecture doc records as landed
+## Phases by name
 
-A `###`/`####` heading carrying ✅, in any of the architecture docs
-(`plans/*-architecture.md`, globbed — this file never counts them).
-**This is where landed status lives** — `CLAUDE.md` owns the ordering and
-says nothing about progress, so there is one answer and it is derived.
+Every phase the architecture docs (`plans/*-architecture.md`, globbed) name,
+by its plain name, its code beside it for reading older text. A phase's name
+comes first in chat and titles, and a roadmap row's ID orders work but never
+names it (`engineering-practices.md` §4.2).
 
-- `CM-0` — plans/cost-architecture.md
-- `CM-1` — plans/cost-architecture.md
-- `CM-2` — plans/cost-architecture.md
-- `CM-3` — plans/cost-architecture.md
-- `CM-4` — plans/cost-architecture.md
-- `CV-1` — plans/copy-effects-architecture.md
-- `CV-2a` — plans/copy-effects-architecture.md
-- `CV-2b` — plans/copy-effects-architecture.md
-- `LH-1` — plans/layers-architecture.md
-- `LH-2` — plans/layers-architecture.md
-- `LI-1` — plans/layers-architecture.md
-- `LI-2` — plans/layers-architecture.md
-- `LI-3` — plans/layers-architecture.md
-- `LJ` — plans/layers-architecture.md
-- `LK` — plans/layers-architecture.md
-- `LL` — plans/layers-architecture.md
-- `MA-1` — plans/mana-architecture.md
-- `RA-1` — plans/replacement-architecture.md
-- `RA-2` — plans/replacement-architecture.md
-- `RA-3` — plans/replacement-architecture.md
-- `RB` — plans/replacement-architecture.md
-- `RC-1` — plans/replacement-architecture.md
-- `RC-2` — plans/replacement-architecture.md
-- `RC-3` — plans/replacement-architecture.md
-- `RC-4` — plans/replacement-architecture.md
-- `RC-4b` — plans/replacement-architecture.md
-- `RC-5` — plans/replacement-architecture.md
-- `RD-1` — plans/replacement-architecture.md
-- `RD-2` — plans/replacement-architecture.md
-- `RD-3` — plans/replacement-architecture.md
-- `RD-4` — plans/replacement-architecture.md
-- `RE-1` — plans/replacement-architecture.md
-- `RE-10` — plans/replacement-architecture.md
-- `RE-2` — plans/replacement-architecture.md
-- `RE-3` — plans/replacement-architecture.md
-- `RE-4` — plans/replacement-architecture.md
-- `RE-5` — plans/replacement-architecture.md
-- `RE-6` — plans/replacement-architecture.md
-- `RE-7` — plans/replacement-architecture.md
-- `RE-8` — plans/replacement-architecture.md
-- `RE-9` — plans/replacement-architecture.md
-- `RF` — plans/replacement-architecture.md
-- `RG` — plans/replacement-architecture.md
-- `RS-1` — plans/cant-effects-architecture.md
-- `SU-1` — plans/setup-architecture.md
-- `SU-2` — plans/setup-architecture.md
-- `SU-3` — plans/setup-architecture.md
-- `SU-4` — plans/setup-architecture.md
-- `SU-5` — plans/setup-architecture.md
-- `SU-6` — plans/setup-architecture.md
-- `SU-7` — plans/setup-architecture.md
-- `SU-8` — plans/setup-architecture.md
-- `TR-1` — plans/triggers-architecture.md
-- `TR-1b` — plans/triggers-architecture.md
-- `TR-2a` — plans/triggers-architecture.md
-- `TR-2b` — plans/triggers-architecture.md
+### Landed
+
+A `###`/`####` heading carrying ✅ and the day, coded or plain-named, in the
+order they landed. **This is where landed status lives** — `CLAUDE.md` owns
+the ordering and says nothing about progress, so there is one answer and it
+is derived.
+
+| Landed | Phase | Code | Doc |
+|---|---|---|---|
+| 2026-08-25 | The plumbing | `RA-1` | `replacement-architecture.md` |
+| 2026-08-25 | Routing the silent sites | `RA-2` | `replacement-architecture.md` |
+| 2026-08-25 | Payloads and structure | `RA-3` | `replacement-architecture.md` |
+| 2026-08-26 | The pipeline, with counters and regeneration as consumers | `RB` | `replacement-architecture.md` |
+| 2026-08-31 | The shared duration registry | `RS-0` | `cant-effects-architecture.md` |
+| 2026-08-31 | The spine and Tier 2 | `RS-1` | `cant-effects-architecture.md` |
+| 2026-09-01 | Delete the early stack pop | `RC-1` | `replacement-architecture.md` |
+| 2026-09-01 | `EnterBattlefield` as an event | `RC-2` | `replacement-architecture.md` |
+| 2026-09-02 | The capture, the row and the two legs | `CV-1` | `copy-effects-architecture.md` |
+| 2026-09-02 | The membership gate and the frame's ability list | `RC-3` | `replacement-architecture.md` |
+| 2026-09-02 | The overlay | `RC-4` | `replacement-architecture.md` |
+| 2026-09-02 | Entering is one event | `RC-4b` | `replacement-architecture.md` |
+| 2026-09-03 | Auxiliary zone changes and a dynamic entry amount | `RC-5` | `replacement-architecture.md` |
+| 2026-09-04 | The host becomes addressable | `LH-1` | `layers-architecture.md` |
+| 2026-09-05 | CR 613.7e, and the field split | `LH-2` | `layers-architecture.md` |
+| 2026-09-06 | The board-wide sequential pass | `LI-1` | `layers-architecture.md` |
+| 2026-09-06 | CR 613.8a, 613.8b, 613.8c | `LI-2` | `layers-architecture.md` |
+| 2026-09-06 | Conditional statics | `LI-3` | `layers-architecture.md` |
+| 2026-09-07 | `PermanentFilter` → `ObjectFilter` | `CM-0` | `cost-architecture.md` |
+| 2026-09-07 | The pipeline | `CM-1` | `cost-architecture.md` |
+| 2026-09-07 | The spell's own cost abilities | `CM-2` | `cost-architecture.md` |
+| 2026-09-07 | Lock-in's payment side | `CM-3` | `cost-architecture.md` |
+| 2026-09-08 | The mana window and the payer | `CM-4` | `cost-architecture.md` |
+| 2026-09-08 | The damage event's two subjects and its results | `RD-1` | `replacement-architecture.md` |
+| 2026-09-09 | CR 615.7 prevention shields, and the loop's unit | `RD-2` | `replacement-architecture.md` |
+| 2026-09-09 | Sources | `RD-3` | `replacement-architecture.md` |
+| 2026-09-09 | Redirection and unpreventable damage | `RD-4` | `replacement-architecture.md` |
+| 2026-09-11 | Skips, and the turn queue | `RE-1` | `replacement-architecture.md` |
+| 2026-09-11 | Draw | `RE-2` | `replacement-architecture.md` |
+| 2026-09-12 | Life | `RE-3` | `replacement-architecture.md` |
+| 2026-09-12 | The game's end | `RE-6` | `replacement-architecture.md` |
+| 2026-09-13 | Tokens | `RE-4` | `replacement-architecture.md` |
+| 2026-09-13 | Counters, on permanents and players | `RE-5` | `replacement-architecture.md` |
+| 2026-09-13 | Leaving the game | `RE-7` | `replacement-architecture.md` |
+| 2026-09-14 | The zone-reaching `ObjectSet` | `LJ` | `layers-architecture.md` |
+| 2026-09-14 | CR 113.6, which abilities function in which zone | `LK` | `layers-architecture.md` |
+| 2026-09-14 | The producers | `RE-8` | `replacement-architecture.md` |
+| 2026-09-14 | Extra phases, and the turn plan | `RE-10` | `replacement-architecture.md` |
+| 2026-09-15 | Mana | `RE-9` | `replacement-architecture.md` |
+| 2026-09-16 | The gather's zone leg | `RF` | `replacement-architecture.md` |
+| 2026-09-19 | The spine: dispatch, the queue, placement, the stack object | `TR-1` | `triggers-architecture.md` |
+| 2026-09-22 | The dispatch audit | `TR-1b` | `triggers-architecture.md` |
+| 2026-09-24 | The histories, the gates, and each player | `TR-2a` | `triggers-architecture.md` |
+| 2026-09-25 | Hidden walks | `LL` | `layers-architecture.md` |
+| 2026-09-26 | "may", CR 118.12's answer, and the `departed` frames | `TR-2b` | `triggers-architecture.md` |
+| 2026-09-28 | Enters as a copy | `CV-2a` | `copy-effects-architecture.md` |
+| 2026-09-28 | The entry state | `RG` | `replacement-architecture.md` |
+| 2026-09-29 | CR 707.9's exceptions | `CV-2b` | `copy-effects-architecture.md` |
+| 2026-10-01 | Setup actions | `SU-2` | `setup-architecture.md` |
+| 2026-10-01 | The scenario loader | `SU-1` | `setup-architecture.md` |
+| 2026-10-03 | The replay | `SU-4` | `setup-architecture.md` |
+| 2026-10-03 | The board editor | `SU-3` | `setup-architecture.md` |
+| 2026-10-04 | The tools | `SU-5` | `setup-architecture.md` |
+| 2026-10-05 | The inventory and the exact check | `MA-1` | `mana-architecture.md` |
+| 2026-10-05 | Why an option is not offered | `SU-7` | `setup-architecture.md` |
+| 2026-10-05 | The why panel, and what the layers did | `SU-6` | `setup-architecture.md` |
+| 2026-10-06 | The editor's advanced settings, first part | — | `setup-architecture.md` |
+| 2026-10-06 | What happened, from the trace | `SU-8` | `setup-architecture.md` |
+
+### Named, not yet landed
+
+A numbered phase a doc defines in a heading or a sizing table's first cell,
+and no ✅ heading records, in the docs' order.
+
+| Phase | Code | Doc |
+|---|---|---|
+| The read-side choice points | `RS-2` | `cant-effects-architecture.md` |
+| Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
+| Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
+| Costs | `RS-4` | `cant-effects-architecture.md` |
+| Indefinite-duration copies | `CV-1b` | `copy-effects-architecture.md` |
+| Token copies | `CV-3` | `copy-effects-architecture.md` |
+| Spell copies | `CV-4` | `copy-effects-architecture.md` |
+| Faces | `CV-5` | `copy-effects-architecture.md` |
+| Face-down | `CV-6` | `copy-effects-architecture.md` |
+| Merging + meld | `CV-7` | `copy-effects-architecture.md` |
+| Payment | `CP-1` | `cost-architecture.md` |
+| The cost actions | `CP-2` | `cost-architecture.md` |
+| The check widened | `MA-7` | `mana-architecture.md` |
+| X | `MA-2` | `mana-architecture.md` |
+| Any color, riders, the nested window | `MA-3` | `mana-architecture.md` |
+| The chosen color and "could produce" | `MA-4` | `mana-architecture.md` |
+| Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
+| A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
+| The design | `PM-0` | `permission-architecture.md` |
+| Delayed, reflexive, and "until" | `TR-3` | `triggers-architecture.md` |
+| The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
+| Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
+| State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
+| The Krark-Clan Ironworks loop, the track's showcase | `TR-7` | `triggers-architecture.md` |
 
 ## Counts
 
@@ -108,7 +151,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 103 |
-| `#[test]` functions | 2049 |
+| `#[test]` functions | 2055 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
