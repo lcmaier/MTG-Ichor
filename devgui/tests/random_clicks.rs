@@ -135,6 +135,7 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
             ToWindow::Refused { message, .. } => panic!("{game}: the scenario did not load: {message}"),
             ToWindow::Diverged { message, .. } => panic!("{game}: a game played from its start replayed nothing, yet {message}"),
             ToWindow::Why(why) => panic!("{game}: a why came with no question asked: {}", why.title),
+            ToWindow::WhyFromTrace { .. } => panic!("{game}: a replay's why came over the game's own channel"),
             ToWindow::Prompt { prompt, .. } => {
                 reached.primitives.push(prompt.primitive.clone());
                 reached.pass_only += usize::from(prompt.pass.is_some() && prompt.options.len() == 1);
@@ -184,7 +185,14 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
             }
             Some(Reply::Why(about)) => {
                 engine.answers.send(Reply::Why(about)).expect("the engine hung up with a prompt open");
+                let from_the_trace = state.prompt.as_ref().is_some_and(|prompt| prompt.why_reads_the_trace);
                 match about {
+                    // A replay answers it, which these clicks start none of:
+                    // the seat stays quiet, and the panel says it waits.
+                    Some(_) if from_the_trace => {
+                        assert!(state.reading_the_trace.is_some(), "{input:?} at {:?} waits on no replay", state.prompt);
+                        reached.whys += 1;
+                    }
                     Some(about) => {
                         let answer = next(engine);
                         assert!(matches!(answer, ToWindow::Why(_)), "{input:?} at {:?} was answered with {answer:?}", state.prompt);

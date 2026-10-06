@@ -11,9 +11,11 @@ use mtgsim::state::decision_log::GameStart;
 use crate::boards::{Folders, ListedFile, start_name};
 use crate::bridge::{EngineHandle, GameSetup, Play, Pool, Record, Writer, locked, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
+use crate::bridge::ToWindow;
 use crate::launch::{Start, start_line};
 use crate::save::{self, Save};
 use crate::view_model::{Input, Mode, Progress, Refusal, WindowState};
+use crate::why_replay::WhyReplay;
 
 pub struct Session {
     /// How the game the window plays began, once one has; Reload begins it
@@ -41,6 +43,8 @@ pub struct Session {
     /// The game's record: its log, its save, and the tree of play the
     /// window's tools read.
     record: Option<Arc<Mutex<Record>>>,
+    /// The replay answering the why the panel waits on, while it runs.
+    why_replay: Option<WhyReplay>,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
 
@@ -59,6 +63,7 @@ impl Session {
             message: None,
             engine: None,
             record: None,
+            why_replay: None,
             wake,
         };
         match start {
@@ -91,6 +96,12 @@ impl Session {
         if received {
             self.read_record();
         }
+        if let Some(replay) = &self.why_replay
+            && let Ok(why) = replay.answer.try_recv()
+        {
+            self.state.receive(ToWindow::WhyFromTrace { request: replay.request, why });
+        }
+        self.ask_the_trace();
     }
 
     /// Act on one input: a prompt's goes to the engine once it completes an
@@ -142,6 +153,28 @@ impl Session {
                 }
             }
         }
+        self.ask_the_trace();
+    }
+
+    /// A replay for the why the panel waits on, unless one is already on its
+    /// way for it; one the panel no longer waits on is superseded, and stops
+    /// at its next answer (`setup-architecture.md` §7c, decision 3). The
+    /// replay plays the save's line to its current place, the open question
+    /// or the game's end.
+    fn ask_the_trace(&mut self) {
+        let wanted = self.state.reading_the_trace;
+        if self.why_replay.as_ref().map(|replay| replay.request) == wanted.map(|request| request.number) {
+            return;
+        }
+        if let Some(replay) = self.why_replay.take() {
+            replay.supersede();
+        }
+        let (Some(request), Some(start), Some(record)) = (wanted, self.start.clone(), &self.record) else { return };
+        let line = {
+            let record = locked(record);
+            record.save.line_to(record.save.current())
+        };
+        self.why_replay = Some(WhyReplay::start(start, line, request, Arc::clone(&self.wake)));
     }
 
     /// `setup`'s game on a thread of its own, its start read now and its
@@ -155,7 +188,7 @@ impl Session {
         // card: only the same start again, an unchanged board's Reload,
         // keeps it.
         if begun.as_ref().ok() != before.as_ref() {
-            (self.state.why_path, self.state.why) = (Vec::new(), None);
+            (self.state.why_path, self.state.why, self.state.reading_the_trace) = (Vec::new(), None, None);
         }
         self.setup = Some(setup.clone());
         let start = match begun {
@@ -175,7 +208,7 @@ impl Session {
                 return;
             }
         };
-        let watching = self.state.why_path.last().copied();
+        let watching = self.state.following();
         self.spawn(Play { record: Some(Writer::take_over(&record)), watching, ..Play::new(start.clone()) });
         (self.start, self.log_path, self.record) = (Some(start), Some(log_path), Some(record));
     }
@@ -218,19 +251,22 @@ impl Session {
         };
         let replaying = Progress { done: writer.replayed(), of: line.len() };
         self.state = WindowState { replaying: Some(replaying), ..self.window_kept() };
-        let watching = self.state.why_path.last().copied();
+        let watching = self.state.following();
         self.spawn(Play { start, line, audited: false, record: Some(writer), written_by: None, watching });
         self.read_record();
     }
 
     /// A fresh window but for what is the window's own: full control, the
-    /// clock, and the why panel, whose object a rebuilt game numbers alike.
+    /// clock, and the why panel, whose object a rebuilt game numbers alike,
+    /// with a replay on its way for it.
     fn window_kept(&mut self) -> WindowState {
         WindowState {
             full_control: self.state.full_control,
             now: self.state.now,
             why_path: std::mem::take(&mut self.state.why_path),
             why: self.state.why.take(),
+            reading_the_trace: self.state.reading_the_trace,
+            trace_requests: self.state.trace_requests,
             ..WindowState::default()
         }
     }
@@ -244,7 +280,7 @@ impl Session {
     fn load(&mut self, file: &Path) {
         self.leave_game();
         // Another game: the panel's object may be anything in it.
-        (self.state.why_path, self.state.why) = (Vec::new(), None);
+        (self.state.why_path, self.state.why, self.state.reading_the_trace) = (Vec::new(), None, None);
         let read = std::fs::read_to_string(file).map_err(|e| format!("cannot read {}: {e}", file.display()));
         let save = match read.and_then(|text| Save::read(&text).map_err(|why| format!("{}, {why}", file.display()))) {
             Ok(save) => save,

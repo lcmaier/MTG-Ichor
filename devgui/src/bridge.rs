@@ -32,7 +32,7 @@ use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode,
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::{Replay, ReplayControl};
-use mtgsim::ui::why::{OpenQuestion, Why, why};
+use mtgsim::ui::why::{OpenQuestion, Why, read_from_the_trace, why};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -136,6 +136,9 @@ pub enum ToWindow {
     /// The why the window asked for at the open question
     /// (`setup-architecture.md` §7c).
     Why(Why),
+    /// The why a replay read from its trace, for the window's request
+    /// numbered `request` (`why_replay`).
+    WhyFromTrace { request: u64, why: Why },
     /// `Game::run` returned.
     Finished { snapshot: Snapshot, outcome: Outcome },
     /// The engine thread panicked: an `ask_*` validator, or an engine bug.
@@ -351,7 +354,11 @@ impl GuiSeat {
             record.window_asked();
         }
         let yielding = self.yields.holding(game, prompt.player);
-        let why = self.watching.get().map(|about| Box::new(why(game, about.why_about(), Some(&question))));
+        let why = self
+            .watching
+            .get()
+            .filter(|_| !read_from_the_trace(&question.context.kind))
+            .map(|about| Box::new(why(game, about.why_about(), Some(&question))));
         if self.to_window.send(ToWindow::Prompt { snapshot, prompt, yielding, why }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
@@ -367,10 +374,11 @@ impl GuiSeat {
     }
 
     /// The panel shows `about` from now on, its why answered at once from
-    /// the board at this question; `None` closes it.
+    /// the board at this question, unless a replay answers it here; `None`
+    /// closes it, or leaves it on an event.
     fn answer_why(&self, game: &GameState, question: &OpenQuestion, about: Option<BoardRef>) {
         self.watching.set(about);
-        let Some(about) = about else { return };
+        let Some(about) = about.filter(|_| !read_from_the_trace(&question.context.kind)) else { return };
         if self.to_window.send(ToWindow::Why(why(game, about.why_about(), Some(question)))).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
@@ -700,7 +708,8 @@ pub fn locked(record: &Mutex<Record>) -> MutexGuard<'_, Record> {
     record.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn panic_message(payload: &(dyn Any + Send)) -> String {
+/// What a thread's panic said, for the window.
+pub(crate) fn panic_message(payload: &(dyn Any + Send)) -> String {
     if let Some(text) = payload.downcast_ref::<&str>() {
         text.to_string()
     } else if let Some(text) = payload.downcast_ref::<String>() {

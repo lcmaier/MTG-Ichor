@@ -10,7 +10,7 @@ use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{option_label, question, rejection};
-use mtgsim::ui::why::WhyAbout;
+use mtgsim::ui::why::{WhyAbout, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,6 +61,15 @@ impl BoardRef {
             BoardRef::Player(player) => WhyAbout::Player(player),
         }
     }
+
+    /// The board thing a why is about; none for an event.
+    pub fn of(about: WhyAbout) -> Option<BoardRef> {
+        match about {
+            WhyAbout::Object(id) => Some(BoardRef::Object(id)),
+            WhyAbout::Player(player) => Some(BoardRef::Player(player)),
+            WhyAbout::Event(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +95,9 @@ pub struct Prompt {
     /// Why the seat is asked again, in `ui::display::rejection`'s words: the
     /// answer the engine rejected and the rule.
     pub rejected: Option<String>,
+    /// A why at this question reads the trace, so a replay answers it, not
+    /// the seat (`mtgsim::ui::why::read_from_the_trace`).
+    pub why_reads_the_trace: bool,
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
@@ -137,6 +149,7 @@ impl Prompt {
             subject: context.kind.subject(),
             pass: options.iter().position(|option| matches!(option, ChoiceOption::Action(PriorityAction::Pass))),
             rejected: context.rejected.as_ref().map(|rejected| rejection(game, rejected)),
+            why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
         }

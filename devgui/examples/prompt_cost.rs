@@ -35,7 +35,6 @@ use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Play, Pool, ToWindow, spawn_game};
 use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
-use devgui::prompt::BoardRef;
 use devgui::save::{Destination, Tools};
 use devgui::snapshot::Snapshot;
 use devgui::view_model::WindowState;
@@ -105,7 +104,7 @@ fn main() {
     let in_hand = *game.state.players[asked].hand.first().expect("a card in the asked seat's hand");
     reading("why of a card in hand, at a question", || why(&game.state, WhyAbout::Object(in_hand), Some(&question)));
     let busiest_why = why(&game.state, WhyAbout::Object(busiest), Some(&question));
-    (state.why_path, state.why) = (vec![BoardRef::Object(busiest)], Some(busiest_why));
+    (state.why_path, state.why) = (vec![WhyAbout::Object(busiest)], Some(busiest_why));
     reading("why view, every repaint", || state.why_view());
 
     let mut editor = Editor::open(&text, Source::File(board), CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}"));

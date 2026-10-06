@@ -11,6 +11,7 @@ use std::sync::Arc;
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::engine::resolve::ResolvedTarget;
+use mtgsim::events::event::EventSeq;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
@@ -35,14 +36,22 @@ pub struct Snapshot {
     pub pending_triggers: Vec<PendingTriggerView>,
     pub exile: Vec<CardView>,
     pub command: Vec<CardView>,
-    /// `format_event` lines for what happened since the previous snapshot.
-    pub log: Vec<String>,
+    /// What happened since the previous snapshot, a line an event.
+    pub log: Vec<LogLine>,
     /// How many recorded events the window's log holds, where the next
     /// snapshot's starts.
     pub events_logged: usize,
     /// The board as a scenario file, with what it could not write at the top
     /// (`Scenario::write`), for "Save board as scenario".
     pub board_text: String,
+}
+
+/// One line of the log: what happened, in `format_event`'s words, and the
+/// event's place in the performed stream, which a why about it names.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LogLine {
+    pub event: EventSeq,
+    pub text: String,
 }
 
 #[derive(Clone, Debug)]
@@ -155,7 +164,7 @@ impl Snapshot {
         let log = recorded
             .records_from(events_logged)
             .iter()
-            .map(|record| format_event(game, &record.event, &record.names))
+            .map(|record| LogLine { event: record.seq, text: format_event(game, &record.event, &record.names) })
             .collect();
         let lines = TypeLines::new(game);
         let permanents: Vec<PermanentView> = game

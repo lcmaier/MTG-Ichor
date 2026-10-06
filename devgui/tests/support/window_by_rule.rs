@@ -57,6 +57,7 @@ pub fn play_by_rule(game: Play, mut watch: impl FnMut(&WindowState)) -> (Outcome
             ToWindow::Refused { message, .. } => panic!("the scenario did not load: {message}"),
             ToWindow::Diverged { message, .. } => panic!("a game played from its start replayed nothing, yet {message}"),
             ToWindow::Prompt { .. } | ToWindow::Why(_) => None,
+            ToWindow::WhyFromTrace { .. } => panic!("a replay's why came over the game's own channel"),
         };
         state.receive(message);
         watch(&state);

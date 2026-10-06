@@ -12,15 +12,16 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use mtgsim::events::event::EventSeq;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::why::{Why, WhyLine};
+use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
 
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::save::{Destination, Tools};
-use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
+use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
 /// What the window shows: the game, or the board editor beside it
@@ -80,6 +81,8 @@ pub enum Input {
     /// Ask why of an object or a player: a right-click on it on the board,
     /// or a click on its name in the why panel.
     Why(BoardRef),
+    /// Ask what an event did: a right-click on its line in the log.
+    WhyEvent(EventSeq),
     /// The why panel goes back to the object asked about before this one.
     WhyBack,
     /// Close the why panel.
@@ -295,7 +298,7 @@ pub struct WindowState {
     pub prompt: Option<Prompt>,
     pub selection: Option<Selection>,
     /// Every log line so far, oldest first.
-    pub log: Vec<String>,
+    pub log: Vec<LogLine>,
     pub outcome: Option<Outcome>,
     pub panic: Option<String>,
     /// Why no game started, and the refusal's words.
@@ -323,11 +326,24 @@ pub struct WindowState {
     /// Why the game's record stopped being written, if it has: what the
     /// header says until another game starts.
     pub unwritten: Option<String>,
-    /// The objects the why panel was asked about, the one it shows last;
-    /// empty while the panel is closed (`setup-architecture.md` §7c).
-    pub why_path: Vec<BoardRef>,
-    /// The engine's last answer for the object the panel shows.
+    /// What the why panel was asked about, what it shows last; empty while
+    /// the panel is closed (`setup-architecture.md` §7c).
+    pub why_path: Vec<WhyAbout>,
+    /// The engine's last answer for what the panel shows.
     pub why: Option<Why>,
+    /// The why the panel waits on a replay's trace for, which the session
+    /// starts and supersedes (`why_replay`).
+    pub reading_the_trace: Option<TraceRequest>,
+    /// Requests made of a replay so far, which number the next.
+    pub trace_requests: u64,
+}
+
+/// A why the window asks of a replay: about what, and its number, which the
+/// answer carries back, so an answer to a request since replaced is dropped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TraceRequest {
+    pub about: WhyAbout,
+    pub number: u64,
 }
 
 /// A replay the window counts while it waits (`setup-architecture.md` §7.3).
@@ -380,16 +396,31 @@ impl WindowState {
                 self.prompt_at = self.now;
                 self.prompts += 1;
                 self.selection = Some(Selection::start(&prompt));
+                let reads_the_trace = prompt.why_reads_the_trace;
                 self.prompt = Some(prompt);
                 self.board = Some(snapshot);
-                // A panel closed while this was on its way shows nothing.
-                if !self.why_path.is_empty() {
-                    self.why = why.map(|why| *why);
+                // The panel follows an object or a player to this question:
+                // the seat's answer, or else a replay's. An event's answer
+                // stands, and a panel closed while this was on its way shows
+                // nothing.
+                match self.why_path.last().copied() {
+                    Some(about @ (WhyAbout::Object(_) | WhyAbout::Player(_))) if reads_the_trace => self.read_the_trace(about),
+                    Some(WhyAbout::Object(_) | WhyAbout::Player(_)) => {
+                        self.why = why.map(|why| *why);
+                        self.reading_the_trace = None;
+                    }
+                    Some(WhyAbout::Event(_)) | None => {}
                 }
             }
             ToWindow::Why(why) => {
-                if !self.why_path.is_empty() {
+                if matches!(self.why_path.last(), Some(WhyAbout::Object(_) | WhyAbout::Player(_))) {
                     self.why = Some(why);
+                }
+            }
+            ToWindow::WhyFromTrace { request, why } => {
+                if self.reading_the_trace.is_some_and(|reading| reading.number == request) {
+                    self.why = Some(why);
+                    self.reading_the_trace = None;
                 }
             }
             ToWindow::Finished { snapshot, outcome } => {
@@ -440,26 +471,19 @@ impl WindowState {
                 return None;
             }
             // A why answers nothing, so it closes no prompt and the beat after
-            // one arrives need not drop it. The seat answers it at the open
-            // question, and only there.
-            Input::Why(about) => {
-                self.prompt.as_ref()?;
-                if self.why_path.last() != Some(&about) {
-                    self.why_path.push(about);
-                }
-                return Some(Reply::Why(Some(about)));
-            }
+            // one arrives need not drop it. It is asked at an open question,
+            // or of a game that has ended.
+            Input::Why(target) => return self.ask_why(target.why_about()),
+            Input::WhyEvent(event) => return self.ask_why(WhyAbout::Event(event)),
             Input::WhyBack => {
-                self.prompt.as_ref()?;
-                if self.why_path.len() < 2 {
+                if !self.why_is_live() || self.why_path.len() < 2 {
                     return None;
                 }
                 self.why_path.pop();
-                return Some(Reply::Why(self.why_path.last().copied()));
+                return self.why_path.last().copied().and_then(|about| self.answer_from(about));
             }
             Input::WhyClose => {
-                self.why_path.clear();
-                self.why = None;
+                (self.why_path, self.why, self.reading_the_trace) = (Vec::new(), None, None);
                 return Some(Reply::Why(None));
             }
             // Aimed at the prompt before: it arrived too recently to be read.
@@ -488,6 +512,56 @@ impl WindowState {
             Key::F4 => Some(Input::Yield(Yield::UntilEndOfTurn)),
             Key::F6 => Some(Input::Yield(Yield::UntilYourNextTurn)),
         }
+    }
+
+    /// `about` asked why of, the panel's path stepping to it unless it shows
+    /// it already, when the right-click is live.
+    fn ask_why(&mut self, about: WhyAbout) -> Option<Reply> {
+        if !self.why_is_live() {
+            return None;
+        }
+        if self.why_path.last() != Some(&about) {
+            self.why_path.push(about);
+        }
+        self.answer_from(about)
+    }
+
+    /// Who answers a why about `about`: the open question's seat, about now,
+    /// or else a replay's trace, for an event, at a question whose why reads
+    /// the trace, and once the game has ended. The seat is told what the
+    /// panel follows either way, which for an event, answered once, is
+    /// nothing.
+    fn answer_from(&mut self, about: WhyAbout) -> Option<Reply> {
+        let follow = BoardRef::of(about);
+        let at_the_seat = follow.is_some() && self.prompt.as_ref().is_some_and(|prompt| !prompt.why_reads_the_trace);
+        if at_the_seat {
+            self.reading_the_trace = None;
+        } else {
+            self.read_the_trace(about);
+        }
+        self.prompt.as_ref().map(|_| Reply::Why(follow))
+    }
+
+    /// The panel waits on a replay for `about`'s why, a new request.
+    fn read_the_trace(&mut self, about: WhyAbout) {
+        self.trace_requests += 1;
+        (self.why, self.reading_the_trace) = (None, Some(TraceRequest { about, number: self.trace_requests }));
+    }
+
+    /// A why can be asked now: at an open question, or of a game that has
+    /// ended, which a replay of its whole line answers.
+    pub fn why_is_live(&self) -> bool {
+        self.prompt.is_some() || self.outcome.is_some()
+    }
+
+    /// The object or player the panel follows from question to question.
+    pub fn following(&self) -> Option<BoardRef> {
+        self.why_path.last().copied().and_then(BoardRef::of)
+    }
+
+    /// What a right-click on a log line does now, while it asks.
+    pub fn log_hint(&self) -> Option<&'static str> {
+        self.why_is_live().then_some(WHY_ON_A_LOG_LINE)
     }
 
     /// The window's clock, which the drawing reads from egui at each frame.
@@ -571,6 +645,7 @@ impl WindowState {
     pub fn board_view(&self) -> Option<BoardView> {
         let board = self.board.as_ref()?;
         let mut marks = Marks::new(self.prompt.as_ref(), self.selection.as_ref());
+        marks.why_is_live = self.why_is_live();
         if self.settling_for().is_some() {
             marks.clickable.clear();
         }
@@ -598,12 +673,17 @@ impl WindowState {
         Some(if self.settling_for().is_some() { view.settling() } else { view })
     }
 
-    /// The why panel, while it is open and the engine has answered. Its
-    /// links ask at the open question, so with none open they are off and
-    /// the panel says so.
+    /// The why panel, while it is open and the engine has answered, or a
+    /// replay is reading the trace for it. Its links ask why, so while none
+    /// can be asked they are off and the panel says so.
     pub fn why_view(&self) -> Option<WhyView> {
-        let why = self.why.as_ref()?;
-        let open = self.prompt.is_some();
+        let live = self.why_is_live();
+        let back = live && self.why_path.len() > 1;
+        let Some(why) = &self.why else {
+            let reading = self.reading_the_trace.is_some() && !self.why_path.is_empty();
+            let title = "reading the trace".to_string();
+            return reading.then(|| WhyView { title, back, note: Some(WHY_READING_THE_TRACE), sections: Vec::new() });
+        };
         let line = |line: &WhyLine| WhyLineView {
             text: line.text.clone(),
             rule: line.rule.map(|rule| format!("CR {rule}")),
@@ -611,7 +691,7 @@ impl WindowState {
             links: line
                 .names
                 .iter()
-                .map(|(id, label)| WhyLink { label: label.clone(), input: Input::Why(BoardRef::Object(*id)), live: open })
+                .map(|(id, label)| WhyLink { label: label.clone(), input: Input::Why(BoardRef::Object(*id)), live })
                 .collect(),
         };
         let sections = why
@@ -619,22 +699,28 @@ impl WindowState {
             .iter()
             .map(|section| WhySectionView { heading: section.heading.clone(), lines: section.lines.iter().map(line).collect() })
             .collect();
-        Some(WhyView {
-            title: why.title.clone(),
-            back: open && self.why_path.len() > 1,
-            note: (!open).then_some(WHY_AT_A_QUESTION),
-            sections,
-        })
+        let note = if self.reading_the_trace.is_some() {
+            Some(WHY_READING_THE_TRACE)
+        } else {
+            (!live).then_some(WHY_AT_A_QUESTION)
+        };
+        Some(WhyView { title: why.title.clone(), back, note, sections })
     }
 }
 
-/// What the why panel says while no question is open.
+/// What the why panel says while no question is open and the game goes on.
 pub const WHY_AT_A_QUESTION: &str = "The answer at the last question: a why is asked while a question is open.";
 
-/// What an object's hover says a right-click does, at an open question and
-/// with none open, when the seat has no one to answer it.
+/// What the why panel says while a replay reads the trace for it.
+pub const WHY_READING_THE_TRACE: &str = "Reading the trace: the game is replaying to this question.";
+
+/// What an object's hover says a right-click does, while one asks and while
+/// none does, when no seat waits and the game goes on.
 pub const WHY_ON_RIGHT_CLICK: &str = "Right-click: why it is so";
-pub const WHY_ONLY_AT_A_QUESTION: &str = "A right-click asks why only while a question is open";
+pub const WHY_ONLY_AT_A_QUESTION: &str = "A right-click asks why only while a question is open, or once the game is over";
+
+/// What the log's heading says a right-click on a line does.
+pub const WHY_ON_A_LOG_LINE: &str = "Right-click a line: what happened";
 
 /// The why panel: what the engine says made an object the way it is
 /// (`setup-architecture.md` §7c).
@@ -746,6 +832,8 @@ struct Marks {
     chosen: Vec<BoardRef>,
     subject: Option<BoardRef>,
     asked: Option<PlayerId>,
+    /// A right-click asks why now (`WindowState::why_is_live`).
+    why_is_live: bool,
 }
 
 impl Marks {
@@ -772,7 +860,7 @@ impl Marks {
             Selection::Order(order) => order.iter().filter_map(first).collect(),
             Selection::Allocation(_) | Selection::Number(_) => Vec::new(),
         };
-        Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object), asked: Some(prompt.player) }
+        Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object), asked: Some(prompt.player), why_is_live: true }
     }
 
     fn item(&self, target: BoardRef, title: String, detail: String, tapped: bool) -> Item {
@@ -787,7 +875,7 @@ impl Marks {
             hover: String::new(),
             printed: None,
             type_line: None,
-            why_hint: Some(if self.asked.is_some() { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
+            why_hint: Some(if self.why_is_live { WHY_ON_RIGHT_CLICK } else { WHY_ONLY_AT_A_QUESTION }),
         }
     }
 
@@ -1182,6 +1270,7 @@ mod tests {
             subject: None,
             pass: None,
             rejected: None,
+            why_reads_the_trace: false,
             primitive,
             options,
         }
@@ -1525,7 +1614,7 @@ mod tests {
         assert_eq!(state.input(Input::Why(bear)), Some(Reply::Why(Some(bear))));
         assert_eq!((&state.prompt, &state.selection), (&prompt_before, &selection_before));
         assert_eq!(state.input(Input::Why(bear)), Some(Reply::Why(Some(bear))), "asked again, as a refresh");
-        assert_eq!(state.why_path, [bear], "and not a second step back");
+        assert_eq!(state.why_path, [bear.why_about()], "and not a second step back");
         let player = BoardRef::Player(1);
         assert_eq!(state.input(Input::Why(player)), Some(Reply::Why(Some(player))), "a player's line asks too");
         let idle = WindowState { board: Some(b.snapshot.clone()), ..WindowState::default() };
@@ -1559,7 +1648,7 @@ mod tests {
         let named = WhyLine { text: "Layer 6".to_string(), rule: Some("613.1f"), names: vec![(b.relic, "Relic (#4)".to_string())], depth: 0 };
         let why = Why { title: "Bear (#1)".to_string(), sections: vec![WhySection { heading: "What the layers did".to_string(), lines: vec![named] }] };
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
-        (state.why_path, state.why) = (vec![BoardRef::Object(b.bear)], Some(why));
+        (state.why_path, state.why) = (vec![WhyAbout::Object(b.bear)], Some(why));
         let view = state.why_view().expect("an answer to show");
         let line = &view.sections[0].lines[0];
         assert_eq!((line.rule.as_deref(), line.depth), (Some("CR 613.1f"), 0));
@@ -1569,5 +1658,56 @@ mod tests {
         let idle = state.why_view().expect("kept with no question open");
         assert!(!idle.sections[0].lines[0].links[0].live);
         assert_eq!(idle.note, Some(WHY_AT_A_QUESTION));
+    }
+
+    fn answer(title: &str) -> Why {
+        Why { title: title.to_string(), sections: Vec::new() }
+    }
+
+    /// A log line's why is a replay's to answer: the panel waits on it, saying
+    /// so, the seat stops following, and only the answer to the request the
+    /// panel waits on is shown. A question arriving meanwhile leaves it be.
+    #[test]
+    fn a_log_lines_why_is_read_from_the_trace() {
+        let b = board();
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)));
+        state.input(Input::Why(Object(b.bear)));
+        let event = WhyAbout::Event(EventSeq(7));
+        assert_eq!(state.input(Input::WhyEvent(EventSeq(7))), Some(Reply::Why(None)), "the seat stops following");
+        assert_eq!(state.reading_the_trace, Some(TraceRequest { about: event, number: 1 }));
+        let waiting = state.why_view().expect("the panel says it waits");
+        assert_eq!((waiting.note, waiting.sections.len(), waiting.back), (Some(WHY_READING_THE_TRACE), 0, true));
+
+        state.receive(ToWindow::WhyFromTrace { request: 0, why: answer("a request since replaced") });
+        assert_eq!(state.why, None);
+        let next = ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None };
+        state.receive(next);
+        assert_eq!(state.reading_the_trace.map(|r| r.number), Some(1), "an event's answer is still on its way");
+        state.receive(ToWindow::WhyFromTrace { request: 1, why: answer("DamageDealt") });
+        assert_eq!((state.why.as_ref().map(|why| why.title.as_str()), state.reading_the_trace), (Some("DamageDealt"), None));
+        assert_eq!(state.input(Input::WhyBack), Some(Reply::Why(Some(Object(b.bear)))), "back to the seat's answer");
+        assert_eq!(state.why_path, [WhyAbout::Object(b.bear)]);
+    }
+
+    /// At a question whose why reads the trace, the seat follows the object
+    /// and a replay answers; at the next such question the panel asks again.
+    /// Once the game is over, with no seat, every why is a replay's.
+    #[test]
+    fn a_question_whose_why_reads_the_trace_and_a_game_over_ask_a_replay() {
+        let b = board();
+        let reads = Prompt { why_reads_the_trace: true, ..prompt(Primitive::Order, unnamed(2)) };
+        let mut state = deciding(&b, reads.clone());
+        assert_eq!(state.input(Input::Why(Object(b.bear))), Some(Reply::Why(Some(Object(b.bear)))));
+        assert_eq!(state.reading_the_trace.map(|r| (r.about, r.number)), Some((WhyAbout::Object(b.bear), 1)));
+        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: reads, yielding: None, why: None });
+        assert_eq!(state.reading_the_trace.map(|r| r.number), Some(2), "followed through the next one");
+
+        let mut over = WindowState { board: Some(b.snapshot.clone()), outcome: Some(Outcome::Won(0)), ..WindowState::default() };
+        assert_eq!(over.input(Input::WhyEvent(EventSeq(3))), None, "no seat to tell");
+        assert_eq!(over.reading_the_trace.map(|r| r.about), Some(WhyAbout::Event(EventSeq(3))));
+        assert_eq!(over.log_hint(), Some(WHY_ON_A_LOG_LINE));
+        assert_eq!(item(&over.board_view().unwrap(), b.bear).why_hint, Some(WHY_ON_RIGHT_CLICK));
+        over.receive(ToWindow::WhyFromTrace { request: 1, why: answer("an event") });
+        assert!(over.why_view().unwrap().note.is_none(), "a game over answers, and its links ask");
     }
 }
