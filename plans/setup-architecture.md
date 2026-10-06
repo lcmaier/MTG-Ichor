@@ -2381,11 +2381,12 @@ loader's refusal of a word a control shows marks the player's name.
 **What moved on the way in.** Only the parser refuses a typed line: one the
 loader refuses goes in, as any edit the parser reads does, and its refusal
 marks it (decision 2, amended where it stands). Life's write rule became
-every player word's. Two typed counter words could sum past `u32::MAX` and
-panic the loader on the window's thread, so a counter count now stays at the
-most a count holds, a player's and a permanent's (the owner, at #227). It
-landed at +244 code and +230 tests, all but +6 and +19 in the dev GUI,
-against ~175–265 sized with tests: 1.8–2.7 times, past SU-3's rate.
+every player word's. A typed line could state a number the engine could not
+hold or reach in time, panicking or stalling the window's thread, so counter
+and history counts and a P/T total now stop at the most each type holds, and
+the loader begins only the last rotation's turns (the owner, at #227). It
+landed at +262 code and +283 tests, all but +24 and +72 in the dev GUI,
+against ~175–265 sized with tests: 2.1–3.1 times, past SU-3's rate.
 
 **Measured.** `close_out.py` against #226's merge, one arm, the engine fix:
 every gameplay and cost row `IDENTICAL`, both pools, two seats and four, and

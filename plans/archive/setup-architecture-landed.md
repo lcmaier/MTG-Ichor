@@ -42,10 +42,10 @@ Lines added, `devgui/` with a `src` file's `#[cfg(test)]` module and
 |---|---|---:|---:|---:|
 | The switch and the typed field, kept across opens | `editor.rs`, `app.rs`, `session.rs` | 40–60 | ~100 | ~85: two unit tests, the random clicks' switch and field, the session's assertion, the picture, `prompt_cost` |
 | The four player rows, with the write rule and the reading they share | `editor.rs`, `app.rs` | 135–205 | ~140 | ~125: four unit tests and their helpers, the random clicks' rows and reach check, the typed line past what a count holds |
-| A counter count kept at the most a count holds (below, 7) | `mtgsim/src/state/player.rs`, `battlefield.rs` | — | 6 | 19 |
-| **The first part** | | **175–265** | **244** | **230** |
+| The engine at a line's extremes (below, 7) | `mtgsim/src/state/`, `scenario/`, `engine/layers/` | — | 24 | 72 |
+| **The first part** | | **175–265** | **262** | **283** |
 
-Code and tests came to 474 lines, 1.8–2.7 times the sizing; the dev GUI's
+Code and tests came to 545 lines, 2.1–3.1 times the sizing; the dev GUI's
 code alone, 238, is 0.9–1.4 times it. What the row-by-row sizing left out:
 the field's own state (the line, its refusal, Add live only for a line not
 yet refused, and Enter keeping the focus); the switch kept across opens; the
@@ -53,8 +53,8 @@ reading each count shows, which differs by row; one write rule for every
 player word, which replaced life's own; which words a control shows, an
 exhaustive match; the refusal mark on a player's name; the engine's fix; and
 the tests, which ran about twice the code's share. The band stayed far under
-2,500 at every commit: 367, 420, 433 and 444, then 469 and 474 with the fix,
-the docs beside.
+2,500 at every commit: 367, 420, 433 and 444, then 469, 474 and 545 with
+the engine's fixes, the docs beside.
 
 ### What the build changed in the design
 
@@ -92,7 +92,13 @@ the docs beside.
    now, the permanent's reachable only in play, after a board set its count
    near the most. Each test failed first on the tree before the fix.
    `close_out.py`: every row `IDENTICAL`, instructions per decision +0.01%
-   (`fuzz-record.md`).
+   (`fuzz-record.md`). Its siblings, at the owner's word, in one later
+   commit: a history count stays at `u64::MAX` (the loader's sums, the row's
+   add, the writer's sums); a +1/+1 count past `i32::MAX` reads as the most
+   power holds, and a P/T total saturates; and the loader begins only the
+   last rotation's turns, so a turn in the billions loads at once and reads
+   as a small one does. Each failed first; not re-measured, the owner's call
+   for small fixes.
 
 #### SU-8 — what happened, from the trace — ✅ landed 2026-10-06
 

@@ -54,7 +54,10 @@ decision within ±0.3%.
 | audit, engine, performance / stress, dispatches agreed | 164,309 / 173,758 | 324,859 / 355,449 |
 | instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7520 M → 0.7521 M, **+0.01%** |
 
-As expected. The close-out ran in 106 s.
+As expected. The close-out ran in 106 s. The PR's later engine commit
+(`fb890cf`: history counts and P/T totals saturating, and the loader
+beginning only the last rotation's turns) was not re-measured, the owner's
+call for small fixes; the P/T add sits on the layer pass's path.
 
 **Measured 2026-10-06 for SU-8** (what happened, from the trace;
 `setup-architecture.md` §8's ✅ section). The sink writes nothing unless
