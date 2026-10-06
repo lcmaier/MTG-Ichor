@@ -10,12 +10,14 @@ games.
 **4-player Commander** — and **highly parallel AI games** over the CLI. A correct
 two-player game is a checkpoint on the way, not the destination.
 
-> **Status (2026-09-15):** The layer system (CR 613) is complete but for Layer 3 and Layer
-> 1b, including the CR 613.8 dependency algorithm. Replacement and prevention effects
-> (CR 614–616) landed as Phases RA–RE, 2026-08-25 → 2026-09-15, and closed through an
-> audit; every observable mutation is now a proposal the CR 616.1 pipeline sees before it
-> happens. Next on the spine: triggered abilities (CR 603). Build is green with zero
-> warnings.
+> **Status (2026-10-06):** The layer system (CR 613) is complete but for Layer 3 and Layer
+> 1b, including the CR 613.8 dependency algorithm, and replacement and prevention effects
+> (CR 614–616) landed as Phases RA–RE: every observable mutation is a proposal the CR 616.1
+> pipeline sees before it happens. Triggered abilities (CR 603) are under way: the dispatch
+> and its queue, the histories, "may", and what left the battlefield are in, and delayed,
+> reflexive and state triggers come next. Beside them: copy effects through "enters as a
+> copy", the exact mana check, boards written as scenario files, and a window to play and
+> debug them in, the dev GUI. Build is green with zero warnings.
 >
 > For anything more precise than that — per-rule coverage, what's stubbed, what's next —
 > read [`plans/state-of-play.md`](plans/state-of-play.md), the generated board, and
@@ -89,7 +91,7 @@ and each is stated in full in [`CLAUDE.md`](CLAUDE.md).
    order a sweep returns in is part of the decision. Sweeps that reach a choice go through
    `battlefield_ordered` / `battlefield_ids_ordered`, ordered by `PermanentState::timestamp`
    — which is CR 613.7's order anyway. Never raw `HashMap` order, and never `ObjectId`, which
-   is a v4 UUID. Randomness is owned, never ambient: draw from `GameState.rng`, not
+   deliberately has no order. Randomness is owned, never ambient: draw from `GameState.rng`, not
    `rand::rng()`.
 
 ---
@@ -112,14 +114,16 @@ A coarse map. The per-CR-rule breakdown lives in
 | **Layer system (CR 613)** | ✅ Layers 1a, 2, 4, 5, 6, 7a–7d live, the CR 613.8 dependency algorithm inside one board-wide pass; Layer 3 and Layer 1b stubbed |
 | Characteristic-defining abilities (CR 604.3) | ✅ |
 | CR 305.7 land-type replacement (Blood Moon, Urborg) | ✅ |
-| CR 113.6 — which abilities function in which zone | 🟡 the registration leg; the replacement and restriction sweeps still visit the battlefield alone |
+| CR 113.6 — which abilities function in which zone | 🟡 registration, and the replacement gather's zone leg; the restriction sweep's waits for "can't" effects' next phase |
 | **Replacement and prevention (CR 614–616)** | ✅ Phases RA–RE: the proposal chokepoint, the CR 616.1 loop, the CR 614.12 look-ahead frame, damage and prevention (CR 615), and every event kind the vocabulary derives |
 | "Can't" effects (CR 101.2, 614.17) | 🟡 the spine and the event chokepoint; casting, combat and cost restrictions pending |
-| Copy effects (CR 707) | 🟡 the copiable-values capture and "becomes a copy"; enters-as-a-copy, tokens, spell copies, faces, face-down pending |
-| **Triggered abilities (CR 603)** | ❌ enum variant only — next on the spine |
+| Copy effects (CR 707) | 🟡 the copiable-values capture, "becomes a copy", and "enters as a copy" with CR 707.9's exceptions; tokens, spell copies, faces, face-down pending |
+| **Triggered abilities (CR 603)** | 🟡 dispatch, the queue and placement, the histories, "may", and what left the battlefield; delayed and reflexive triggers, the look-back list, combat's shapes and state triggers next |
 | Commander (CR 903) | 🟡 command zone, CR 903.9a/b, commander damage; the tax, designation and `GameConfig::commander()` pending |
 | Multiplayer (CR 800/802) | 🟡 any number of seats, N-player rotation, a lost player leaves the game (CR 800.4a–e); CR 802 pending |
 | CLI play, seeded and threaded fuzz harness at any seat count | ✅ |
+| Scenarios: a board as a text file (CR 103's setup) | ✅ loaded, written back from any game, and setup actions that cast and activate before the first question |
+| The dev GUI | ✅ a window that plays every seat, with a board editor, undo and savestates, and a "why" panel over the layers, the options and the trace |
 
 **Cards:** [`plans/state-of-play.md`](plans/state-of-play.md) carries the count, registered
 and pooled. Basic and dual lands, Alpha staples, vanilla and keyword creatures, the
@@ -136,7 +140,8 @@ what.
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (edition 2024)
+- [Rust](https://rustup.rs/), edition 2024: 1.88 or later for the engine, and 1.95 for the
+  dev GUI, whose window library (eframe 0.36) sets its own floor.
 
 ### Build and test
 
@@ -145,6 +150,33 @@ cd mtgsim && cargo test
 ```
 
 `cargo build --all-targets` must print **zero warnings** — a hard bar, not a preference.
+
+### Play in the window: the dev GUI
+
+```bash
+cd devgui && cargo run
+```
+
+A window onto a game that plays every seat, so you see every card and answer every
+question by clicking. It is a tool for testing cards, not for playing an opponent.
+
+- **A dealt game:** `cargo run -- --seed 7 --players 4 --pool stress`, each flag optional.
+  A seed deals the decks `fuzz_games` deals for it, so a fuzz game's printed seed opens here.
+- **A board from a file:** `cargo run -- --scenario ../mtgsim/scenarios/holy-strength.scenario`.
+  A scenario states a board in a few lines; `mtgsim/scenarios/template.scenario` documents
+  the format.
+- **A board built by clicking:** `cargo run -- --edit`, or Edit in the window's header.
+  Play saves the board under `devgui/boards/` and starts it.
+- **Why is it so:** right-click a card, a player or a log line. A panel shows what the
+  layers did to it, why an option is not offered, or what an event did, each line with its
+  rule.
+- **Back and forth:** Undo answer, savestates, and `--load FILE`, which replays a game's
+  record and plays on from where it ended.
+
+Every game writes its decision log, with a save beside it, under `devgui/logs/` or its
+board's folder in `devgui/boards/`. A debug build (`cargo run`) runs the engine's own
+checks, which is what to test cards under; `cargo run --release` is quicker on a large
+board. [`plans/devgui-map.md`](plans/devgui-map.md) is where to start reading its code.
 
 ### Play at the terminal
 
@@ -231,11 +263,12 @@ Dependency order — each item needs the ones above it. [`CLAUDE.md`](CLAUDE.md)
 | 4 | Layer 2 — control changing | ✅ |
 | 7 | The CR 613.8 cluster — dependency algorithm, board-wide sequential pass, memoization | ✅ 2026-09-06 |
 | 5 | **Replacement and prevention effects (CR 614–616)** — Phases RA–RE | ✅ **2026-09-15** |
-| 6a | CR 113.6 — which abilities function in which zone | 🟡 registration leg landed; the sweeps' zone leg is one PR away |
-| 6 | **Triggered abilities (CR 603)** — takes LKI with it | 🔜 **next** — its architecture doc is written first |
+| 6a | CR 113.6 — which abilities function in which zone | ✅ 2026-09-16 |
+| 6 | **Triggered abilities (CR 603)** — takes LKI with it | 🟡 **under way**: four phases landed, the rest in [`plans/triggers-architecture.md`](plans/triggers-architecture.md) §12 |
 
 Beside the spine, not sequenced against it: **"can't" effects** (RS-1 landed; RS-2–RS-4
-open), **copy effects** (CV-1 landed; CV-2–CV-7 open), and the **Commander and
+open), **copy effects** (CV-1 and CV-2 landed; CV-3–CV-7 open), **the mana check** (MA-1
+landed; MA-2–MA-7 open), and the **Commander and
 multiplayer track** — cost modification landed (CM-0–CM-4), CR 903.9a/b landed, N-seat
 games run; the commander tax, `GameConfig::commander()`, designation and CR 802 remain.
 
@@ -253,25 +286,38 @@ phase in hindsight; what item 6 inherits from it is listed there.
 mtgsim/src/
 ├── bin/            cli_play.rs, fuzz_games.rs
 ├── cards/          Card definitions (data only), one file per phase + registry.rs
-├── engine/         actions (the chokepoint), cast, costs, mana, priority,
+├── engine/         actions (the chokepoint), put_on_stack, costs, mana, priority,
 │                   resolve, sba, stack, targeting, turns, zones, keywords,
 │                   leaving, zone_function (CR 113.6)
 │   ├── combat/            validation, resolution, steps, keywords
 │   ├── cost_determination/ gather, total  ← CR 601.2f
-│   ├── layers/            board, compute, lookahead, condition, copy,
-│   │                      cda, land_types, types  ← CR 613
-│   └── replacement/       gather, instance, lookahead, pipeline  ← CR 614–616
-├── events/         GameEvent + EventLog
+│   ├── layers/            board, compute, lookahead, condition, copy, explain,
+│   │                      cda, land_types, intrinsic, types  ← CR 613
+│   ├── replacement/       gather, instance, lookahead, entry_copy, pipeline  ← CR 614–616
+│   ├── restriction/       predicate  ← CR 101.2, 614.17
+│   └── triggers/          dispatch, binding, history, placement, audit  ← CR 603
+├── events/         GameEvent and its recorder
 ├── objects/        CardData, AbilityDef, GameObject
-├── oracle/         characteristics, legality, board, mana_helpers
-├── state/          game, game_state, game_config, player, battlefield,
+├── oracle/         characteristics, legality, board, mana_helpers, mana_supply
+├── scenario/       a board as text: parse, build, write, setup actions  ← CR 103
+├── state/          game, game_state, game_config, player, battlefield, history,
 │                   duration_registry  ← shared by the three registries:
 │                   continuous_effects, replacement_effects, restrictions;
-│                   layer_memo, diagnostics
+│                   layer_memo, diagnostics, decision_log, trace
 ├── types/          ids, mana, effects, costs, cost_modification, replacement,
-│                   restriction, card_types, colors, keywords, keyword_actions, zones
-└── ui/             decision (trait), ask (typed bridge), choice_types,
-                    cli, random, display, auto_payer, mana_window_stop
+│                   restriction, triggers, history, card_types, colors, keywords,
+│                   keyword_actions, zones
+└── ui/             decision (trait), ask (typed bridge), choice_types, display,
+                    cli, random, auto_payer, auto_yield, full_control,
+                    mana_window_stop, replay, why, what_happened
+
+devgui/             the dev GUI, a crate of its own beside the engine
+├── src/            bridge (the engine's thread and the seats), snapshot, prompt,
+│                   view_model, editor, session, save, why_replay, launch;
+│                   app.rs, the egui drawing, decides nothing
+├── tests/          headless games, random clicks, the tools, the why panel,
+│                   and the review pictures (screenshots.rs, snapshots/)
+└── examples/       prompt_cost.rs, what one question costs the window
 ```
 
 Integration tests live in `mtgsim/tests/`, one file per phase.
@@ -287,11 +333,17 @@ Authority order — when two docs disagree, the higher one wins.
 | [`plans/state-of-play.md`](plans/state-of-play.md) | **The board** — generated, checked in CI: what landed, the counts, the debt, the open handoffs. Read first when picking up work |
 | [`plans/codebase-state.md`](plans/codebase-state.md) | **Current state.** Beats every other doc, this README included; its Deferred Migrations section is the debt register |
 | [`CLAUDE.md`](CLAUDE.md) | Invariants, conventions, commands, critical-path ordering |
+| [`plans/engine-map.md`](plans/engine-map.md) | **Where to start reading the engine:** one event through every subsystem, and where each invariant lives |
 | [`plans/layers-architecture.md`](plans/layers-architecture.md) | The layer system: type shapes, module layout, dependency algorithm |
 | [`plans/replacement-architecture.md`](plans/replacement-architecture.md) | Replacement and prevention (CR 614–616): event vocabulary, the CR 616.1 pipeline, the phases as landed, §14 in hindsight |
 | [`plans/cant-effects-architecture.md`](plans/cant-effects-architecture.md) | "Can't" effects (CR 101.2 / 614.17 / 613.11) |
 | [`plans/copy-effects-architecture.md`](plans/copy-effects-architecture.md) | Copy effects (CR 707 / 712 / 708 / 729) and Layer 1 |
 | [`plans/cost-architecture.md`](plans/cost-architecture.md) | Cost determination and modification (CR 601.2f–h, 118, 903.8) |
+| [`plans/triggers-architecture.md`](plans/triggers-architecture.md) | Triggered abilities (CR 603), and the rules that watch them |
+| [`plans/mana-architecture.md`](plans/mana-architecture.md) | Mana (CR 106, 605): the inventory and the exact castability check |
+| [`plans/permission-architecture.md`](plans/permission-architecture.md) | What may be cast and activated, and from where (CR 601.3, 602.2, 113.6, 305.1–2) |
+| [`plans/setup-architecture.md`](plans/setup-architecture.md) | Scenarios (CR 103): the format, the loader, the writer; the dev GUI's tools and its why panel |
+| [`plans/devgui-map.md`](plans/devgui-map.md) | **Where to start reading the dev GUI:** its parts, one question's trip, how each part is reviewed |
 | [`plans/backlog.md`](plans/backlog.md) | Every mechanic off the critical path, one entry each: the surface that can't express it, size, what it blocks |
 | [`plans/roadmap-v2.md`](plans/roadmap-v2.md) | The route narrative: why the spine is ordered as it is, stakes per segment |
 | [`plans/handoffs/`](plans/handoffs/) | Half-finished work; a file here is an open plate |
