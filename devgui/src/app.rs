@@ -247,7 +247,8 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
             ui.weak(if header.playing { state.no_board() } else { "No game yet." });
             return;
         };
-        egui::ScrollArea::vertical().auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
+        // Both ways: a zone wraps first, and what cannot wrap scrolls.
+        egui::ScrollArea::both().auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             for seat in &board.seats {
                 // A collapsing header's id is its label, and every seat has a "Creatures".
                 ui.push_id(seat.player.target, |ui| {
@@ -321,7 +322,8 @@ fn editor_panels(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
         }
     });
     egui::CentralPanel::default().show(ui, |ui| {
-        egui::ScrollArea::vertical().id_salt("board").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
+        // Both ways: a row wraps first, and what cannot wrap scrolls.
+        egui::ScrollArea::both().id_salt("board").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             if !view.comments.is_empty() {
                 egui::CollapsingHeader::new("The file's comments, kept on every save").id_salt("comments").show(ui, |ui| {
                     for line in view.comments {
@@ -453,7 +455,7 @@ fn seat_edit(ui: &mut egui::Ui, seat: &SeatEdit, inputs: &mut Vec<Input>) {
 }
 
 /// A card's line: outlined when the loader's refusal names it, filled while
-/// it is edited; and the "×" that removes it, which no wrap parts from it.
+/// it is edited. One widget, so a zone's row wraps before it.
 fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
     let text = if card.detail.is_empty() { card.title.clone() } else { format!("{}\n{}", card.title, card.detail) };
     let visuals = ui.visuals();
@@ -465,14 +467,9 @@ fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
         egui::Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
     };
     let sense = if card.live { egui::Sense::click() } else { egui::Sense::hover() };
-    ui.horizontal(|ui| {
-        if ui.add(egui::Button::new(text).selected(card.edited).stroke(stroke).sense(sense)).clicked() && card.live {
-            inputs.push(Input::Editor(card.input.clone()));
-        }
-        if ui.small_button("×").on_hover_text(&card.remove_hint).clicked() {
-            inputs.push(Input::Editor(card.remove.clone()));
-        }
-    });
+    if ui.add(egui::Button::new(text).selected(card.edited).stroke(stroke).sense(sense)).clicked() && card.live {
+        inputs.push(Input::Editor(card.input.clone()));
+    }
 }
 
 fn card_panel(ui: &mut egui::Ui, card: &CardEdit, inputs: &mut Vec<Input>) {

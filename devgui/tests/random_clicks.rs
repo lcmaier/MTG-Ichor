@@ -423,10 +423,9 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
 
 /// What `app::draw` lets a person click in the editor, besides Play, Save
 /// and Save as, which are the session's, in groups so the long list of names
-/// does not crowd out the board: the game's facts, the seats, the cards and
-/// one card's "×", the card being edited, the lines shown as text, the
-/// search, the advanced settings' switch and typed field, Save as's field,
-/// and Undo.
+/// does not crowd out the board: the game's facts, the seats, the cards,
+/// the card being edited, the lines shown as text, the search, the advanced
+/// settings' switch and typed field, Save as's field, and Undo.
 fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     let live = |buttons: &mut dyn Iterator<Item = &EditButton>| -> Vec<EditorInput> {
         buttons.filter(|button| button.live).map(|button| button.input.clone()).collect()
@@ -436,7 +435,6 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     facts.push(EditorInput::Seed(view.seed.wrapping_add(rng.random_range(1..100))));
     let mut seats = Vec::new();
     let mut cards = Vec::new();
-    let mut removals = Vec::new();
     for seat in &view.seats {
         seats.extend(stepped(&seat.life, rng));
         seats.extend(seat.words.iter().map(|word| word.remove.clone()));
@@ -447,13 +445,7 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
         for zone in &seat.zones {
             seats.extend(live(&mut std::iter::once(&zone.put).chain(&zone.shuffled)));
             cards.extend(zone.cards.iter().filter(|card| card.live).map(|card| card.input.clone()));
-            removals.extend(zone.cards.iter().map(|card| card.remove.clone()));
         }
-    }
-    // One card's "×" among the cards: a removal as often as each card is
-    // clicked, so the boards keep permanents to edit.
-    if !removals.is_empty() {
-        cards.push(removals.swap_remove(rng.random_range(0..removals.len())));
     }
     let mut card = Vec::new();
     for row in view.card.iter().flat_map(|card| &card.rows) {
