@@ -478,6 +478,42 @@ fn chosen_pump() -> Arc<CardData> {
         .build()
 }
 
+/// CR 400.3 and 400.7 together: player 0 has stolen player 1's Bears with
+/// Act of Treason, and Lightning Bolt is aimed at them when they are
+/// destroyed. They go to their owner's graveyard, the steal's row and the
+/// Bolt's target both lose them, and the card there has none of the
+/// permanent's damage or counters.
+// COVERS: COMP-ZONE-TRANSITION-001
+#[test]
+fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    resolve_spell(&mut game, mtgsim::cards::phase_lg_cards::act_of_treason(), 0, &[bears]);
+    assert_eq!(mtgsim::oracle::characteristics::get_effective_controller(&game, bears), Some(0));
+    game.execute_action(
+        GameAction::AddCounters { subject: CounterSubject::Object(bears), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        &test_ctx(),
+    )
+    .unwrap();
+    let red = put_on_battlefield(&mut game, red_creature(1), 0);
+    deal_damage(&mut game, red, DamageTarget::Object(bears), 1);
+    let aim = ScriptedDecisionProvider::new();
+    aim.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: bears },
+        vec![ChoiceOption::Object(bears)],
+    );
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], aim);
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].targets().collect();
+    assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
+
+    destroy(&mut game, bears);
+    assert!(game.players[1].graveyard.contains(&bears), "its owner's graveyard (CR 400.3)");
+    assert!(!game.continuous_effects.iter().any(|row| row.affected_objects.names(bears)), "the steal lost it");
+    assert!(!game.battlefield.contains_key(&bears), "no permanent, so no damage and no counters");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert!(fizzled(&game, bolt), "and so did the Bolt");
+}
+
 // ---------------------------------------------------------------------------
 // 3. Combat's half
 // ---------------------------------------------------------------------------
