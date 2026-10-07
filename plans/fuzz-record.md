@@ -59,7 +59,10 @@ decision up by at most 0.5%.
 
 Every prediction held. The added dispatches are the `Targeted` records, each
 refused at the gate since no trigger reads the kind, and no trigger count
-moved. `GameEvent` stays 64 bytes. The close-out ran in 99 s.
+moved. `GameEvent` stays 64 bytes. The close-out ran in 99 s. The review
+round's engine commit, a `controller` on `SpellFizzled` and `SpellCountered`
+to mirror their ability twins, was not re-measured: two fields on records no
+trigger reads, the owner's call for small fixes.
 
 **Re-recorded 2026-10-06 for CV-1b** (copies that last, and CR 400.7's new
 object; `copy-effects-architecture.md` §7d). Cryptoplasm joins

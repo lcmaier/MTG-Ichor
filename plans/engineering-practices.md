@@ -1940,13 +1940,11 @@ everything a drawing function calls runs that often.
    nothing live; a key's repeat answers nothing; and each prompt's widgets
    take an id from its number, so focus dies with its prompt. A new kind of
    input goes through `WindowState::input`, where the beat is. The same beat
-   follows three other moves (the dev GUI audit's two, and #231's): the why
-   panel opening or closing slides the board, so a board click is dropped
-   and the board offers nothing for the beat after
-   (`WindowState::board_settling_for`); the game and the editor switching,
-   or another board opening, replace the window, so every click is dropped
-   (`Session::input`); and a card removed in the editor slides the cards
-   after it, so every click is dropped then too. A control drawn after
+   follows two other moves (the dev GUI audit): the why panel opening or
+   closing slides the board, so a board click is dropped and the board offers
+   nothing for the beat after (`WindowState::board_settling_for`); and the
+   game and the editor switching, or another board opening, replace the
+   window, so every click is dropped (`Session::input`). A control drawn after
    text that changes width moves under the pointer too, so each header draws
    its buttons first, each whether or not it can act.
 
@@ -2036,13 +2034,11 @@ once. A number typed into an editor's field is `EditorInput::NumberTyped`,
 whose consecutive edits of one field are one undo step, so Undo walking back
 to the board opened checks that join too.
 
-**Since #231** the editor's clicks remove a card by its "×", one card's
-among the cards, so a removal is as likely as a click on any one card, and
-type a name for Save as. The guard that a reference reaches its card had
-held by the stream's luck, 7 picks in 3,000 clicks and the one that
-landed, and the two new kinds of click moved the stream off it. So a pick
-waiting for its card is answered by one three times in four, as a person
-picking does.
+**Since #231** the editor's clicks type a name for Save as. The guard that
+a reference reaches its card had held by the stream's luck, 7 picks in 3,000
+clicks and the one that landed, and the new kind of click moved the stream
+off it. So a pick waiting for its card is answered by one three times in
+four, as a person picking does.
 
 ### 10.4 What one prompt costs the window
 
