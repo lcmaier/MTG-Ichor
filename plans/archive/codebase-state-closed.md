@@ -3498,7 +3498,7 @@ when a later copy over it expires (`phase_cv1b_integration_test::
 an_indefinite_copy_shows_again_with_its_statics_when_a_later_copy_ends`). The
 same tag fixed what this entry understated: copying one donor twice applied
 its static abilities twice (`copying_one_donor_twice_applies_its_static_ability_once`).
-What is left is item 218, a superseded copy's rows staying registered.
+The review round finished what this entry named: a copy that lasts retires the earlier copies of its object, with the rows their copied static abilities generated (`ContinuousEffectRegistry::retire_earlier_copies_of`), since both last as long as the object and the later applies last. A turn's copy over an earlier one keeps them, for the earlier shows again.
 
 *Original entry:*
 

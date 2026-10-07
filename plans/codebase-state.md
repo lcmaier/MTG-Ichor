@@ -823,7 +823,8 @@ here. None is blocking RB.
     permanent spell. A target carries the epoch it was announced at, which
     CR 608.2b compares (`TargetRef`). The applied set keys an object by
     `ObjectRef`, and a permanent leaving the battlefield is removed from
-    combat (CR 506.4).
+    combat (CR 506.4). The rule's twelve exceptions, with who owns each, are
+    `copy-effects-architecture.md` §5.3's table.
     **Reachability (2026-10-06):** closed — PR #230.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 10".
 
@@ -1053,8 +1054,8 @@ built, and none of it blocks RC-1 through RC-3.
 16b. **~~A re-copy inside one turn leaves its superseded derived rows in the
     registry~~ — ✅ CLOSED 2026-10-06 (PR #230).** — archived. Each copy row
     tags the abilities it copies (`AbilityId::copied_by`), so a derived row
-    applies only while its own copy shows; a superseded copy's rows staying
-    registered is item 218.
+    applies only while its own copy shows, and a copy that lasts retires the
+    earlier copies it hides with their rows (`retire_earlier_copies_of`).
     **Reachability (2026-10-06):** closed — PR #230.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 16b".
 
@@ -9266,22 +9267,6 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by CV-1b (2026-10-06)
 
-218. **A superseded indefinite copy stays registered, with the rows its
-     static abilities generate, until the copier leaves the battlefield.**
-     Each upkeep Cryptoplasm says yes adds a copy row over the last (CR
-     707.4), and an indefinite row ends only when its subject moves. The
-     older rows apply at layer 1a under the newest, and their derived rows
-     are inert (item 16b's tag), so nothing is wrong. Each costs its layer-1a
-     application and an existence check on every walk of the copier.
-     **Reachability (2026-10-06):** reachable — not wrong in any game: a
-     copier's walk grows by one row per re-copy, about one per two turns
-     for a Cryptoplasm.
-     **Sized:** ~30 lines. A copy row with an indefinite duration and a whole
-     snapshot, with no 707.9c "doesn't copy", hides every earlier copy row on
-     the objects it affects for as long as both exist, so the re-copy can
-     prune those objects from them. The case the snapshot does not make
-     whole keeps them. **Slotted:** CV-3, the copy track's next phase.
-
 219. **A target inside an `Effect::Conditional` is never announced.**
      `Effect::instances` walks into `Optional` since CV-1b, and into nothing
      else. CR 601.2c announces a target that a cost or a mode requires only
@@ -9307,15 +9292,6 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~20 lines, the activated def carried on the stack entry.
      **Slotted:** the first registered activated "this ability" copy, Dimir
      Doppelganger, which waits on TR-7's graveyard targets.
-
-221. **A resolution's copy refuses CR 707.9c's "doesn't copy" over several
-     objects.** The exception keeps each copier's own value, and a copy row
-     holds one capture for its whole `Fixed` set.
-     **Reachability (2026-10-06):** unreachable — no printed producer:
-     Vesuvan Doppelganger, the one card that prints 707.9c, copies onto
-     itself alone.
-     **Sized:** ~25 lines, a row per affected object when an exception keeps
-     a value, and a fixture. **Slotted:** CV-3, as a fixture.
 
 222. **A copy row that carries a triggered ability opens the dispatcher's
      gate for the whole battlefield.** `RegistryScopeSummary` adds a `Fixed`
