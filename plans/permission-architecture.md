@@ -199,6 +199,25 @@ Named here so the design session starts from them; none is answered.
 5. **A limit's state.** Per ability instance (602.5c), per permanent (606.3),
    kept across a change of control (602.5b), held on `GameState`
    (`CLAUDE.md`: no decision-site state off it).
+6. **What a cast or a play keeps across CR 400.7.** Since CV-1b,
+   `move_object` ends every reference to an object that moves
+   (`break_references_to`), sparing only 400.7a and 400.7c's rows for a
+   permanent spell. Five more exceptions are this document's
+   (`copy-effects-architecture.md` §5.3):
+   - 400.7g: an ability granted to a card that lets it be cast (Snapcaster
+     Mage's flashback) still applies to the spell;
+   - 400.7h and 400.7i: the rest of the effect that let a card be cast or a
+     land be played finds the new object (Torrential Gearhulk's "exile it
+     instead");
+   - 400.7b with 611.3d: a static grant to a permanent spell of an ability
+     that works on the battlefield stays on the permanent, for as long as
+     the grant says or, with none, until the end of the game, though its
+     filter no longer matches it;
+   - 400.7k: after a madness card that was not cast, effects find the
+     discarded card.
+   Each is a row carried across the move, and the cast is what knows "this
+   way", so the design says how it hands the prune what to spare. The
+   corpus has no atoms for 400.7g, h, i or k; the design authors them.
 
 ## 6. Sizing and the phase plan
 

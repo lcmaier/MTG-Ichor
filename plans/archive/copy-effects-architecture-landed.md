@@ -798,3 +798,19 @@ the registries' half, the announcement's, combat's, a re-copy, copies that
 last, "another target", Cryptoplasm, and item 189. Two RB tests now assert a
 regeneration shield unspent before its creature dies, not after. Every
 ruling of Mirrorform's four and Cryptoplasm's four is a test.
+
+**The review round** (the owner, 2026-10-07). Two items this PR had filed
+were finished in it. Item 218: a copy that lasts hides every earlier copy of
+its object for as long as both exist, so it retires them and the rows their
+copied statics generated (`retire_earlier_copies_of`); the owner's "overwrite
+the line item" is that, with a turn's copy over a lasting one kept apart,
+since the lasting one shows again. Item 221: CR 707.9c over several objects
+is a row per object. Its test found that one timestamp per effect made the
+rows one `EffectGroup`, which CR 613.6 held to the first row's object, so
+each row takes its own. The one-word names this PR added were renamed for
+their call sites (`refers_to`, `remove_references_to`, `from_announcement`,
+`for_text_of`, `as_resolved_targets`, `chosen_damage_source`), and the
+609.7a read lost its nineteen `None` arms: `PatternFill`, the closed list of
+what a resolution writes into a pattern, is where the guard belongs. CR
+400.7's twelve exceptions were tabled with an owner each (§5.3): five are
+PM-0's (`permission-architecture.md` §5 question 6), and stickers have none.

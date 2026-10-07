@@ -795,6 +795,10 @@ eventually gets written for one.
 > made the resolving ability's def there, since a card cannot write it as
 > data. Each copy row tags the abilities it copies (`AbilityId::copied_by`),
 > so a re-copy of one donor is a second instance and its statics apply once.
+> A copy over several objects that keeps each one's own value (707.9c) is a
+> row per object, each with its own timestamp: one timestamp would make the
+> rows one `EffectGroup`, and CR 613.6 would hold them all to the first
+> row's object.
 
 > **`exclude_donor` is a field because review found the card that needs it
 > `false`.** The arm shipped as `OthersCopyRecipient(ObjectFilter)`, with the
@@ -1186,7 +1190,28 @@ origin and duration — not by `ObjectSet`):
 > from every row that names it, beside `remove_by_source` and never instead
 > of it. CR 400.7a–c's exceptions are taken narrowly: a permanent spell keeps
 > its continuous rows and a prevention effect watching damage from it, and
-> nothing else. An indefinite copy row now ends when its subject moves.
+> nothing else. An indefinite copy row now ends when its subject moves, and
+> a copy that lasts retires the earlier copies of its object, which it hides
+> for as long as both exist (`retire_earlier_copies_of`, the review round).
+>
+> **CR 400.7's twelve exceptions, and who owns each** (the review, 2026-10-07).
+> Two keep a row today's cards can make, and `break_references_to` spares
+> them; five are a permission's, and the prune spares nothing for them yet.
+>
+> | CR | What carries over, or is found | Where | State |
+> |---|---|---|---|
+> | 400.7a | an effect on a permanent spell changing characteristics or control | the prune spares every continuous row from the stack to the battlefield | ✅; 400.7a-002, a text change, waits on Layer 3 (`backlog.md`) |
+> | 400.7b | a static grant, to a permanent spell, of an ability that works on the battlefield (611.3d) | the grant's filter ("creature spells you cast") stops matching the permanent, so the resolution writes a row | ✗ PM-0 (`permission-architecture.md` §5 question 6); ATOM-400.7b-001 |
+> | 400.7c | prevention of damage from a permanent spell | the prune spares it (`prevents_damage_from`) | ✅ |
+> | 400.7d | facts a permanent keeps about the spell it was | `PermanentState.cast` (main item 9); mana spent is B9 | ✅ but mana provenance |
+> | 400.7e | a zone-change trigger finding the new object | TR-4 | 400.7e-001, -002 |
+> | 400.7f | a leaves-the-battlefield trigger finding the Auras | TR-4 | 400.7f-001 |
+> | 400.7g | a granted cast ability (Snapcaster Mage's flashback) on the spell | the cast spares its grant from the prune | ✗ PM-0, question 6; no atom |
+> | 400.7h | the rest of an effect finding the spell it let be cast | the same | ✗ PM-0; no atom |
+> | 400.7i | the rest of an effect finding the land it let be played | the same | ✗ PM-0; no atom |
+> | 400.7j | the rest of an effect finding what it moved to a public zone | CR 608.2b's check runs once, as the resolution begins (`stack.rs`), and a later step finds the object by id | ✅; what a step does there is its primitive's (400.7j-001, Phase 8) |
+> | 400.7k | after an uncast madness card, effects finding the discarded card | madness's permission (§1's census, "cast while something resolves") | ✗ PM-0, question 6; no atom |
+> | 400.7m | stickers, and their effects, across public zones | none: the corpus scoped stickers out (session 1, 103.2d), yet `o:sticker -is:acorn legal:vintage` counts 9 cards and `legal:commander` 47 | ✗ the owner's call |
 
 **Scheduling consequence:** **CV-1 shipped turn-bounded Tier C, CV-2 ships
 Tier B, and CV-1b ships the indefinite 25 and is blocked on item 10.** §7
@@ -1411,9 +1436,9 @@ the sites, size, tests and arms, and what the building changed:
 
 **What shipped.** `codebase-state.md` item 10's rule and the indefinite copy
 that needed it, in one PR (#230). A move ends every reference made before it:
-- `DurationRegistry::forget` prunes the mover from each registry row that
-  names it, an `ObjectSet::Fixed` set or CR 609.7a's chosen source, with CR
-  400.7a and 400.7c's exceptions for a permanent spell;
+- `DurationRegistry::remove_references_to` prunes the mover from each row
+  that refers to it, an `ObjectSet::Fixed` set or CR 609.7a's chosen source,
+  sparing a permanent spell's rows as CR 400.7a and 400.7c say (§5.3);
 - a target is a `TargetRef`, its epoch compared at CR 608.2b;
 - the applied set keys an object by `ObjectRef`;
 - a permanent leaving the battlefield is removed from combat (CR 506.4).
@@ -1425,15 +1450,15 @@ and CR 707.9a–c's exceptions, and each copy row tags the abilities it copies
 filter, and a "may" that announces its targets. Mirrorform is spelled as
 printed, Cryptoplasm registered and pooled (103 → 104), and item 189's
 take-back scales with a doubler. ATOM-611.2a-002, 707.4-001 and
-COMP-ZONE-TRANSITION-001 covered; 400.7-001, -002, -003 and 400.7a-001
-partially.
+COMP-ZONE-TRANSITION-001 covered; 400.7-001, -002, -003, 400.7a-001 partially.
 
 **What moved on the way in.** The card-by-card hunt found five things the
 sizing had not: CR 609.7a's chosen source and combat pairings are references
 too, the second reachable and wrong; "another target" was TR-3b's facility;
 "this ability" cannot be card data; and item 16b's re-copy applied a donor's
-statics twice, which its own sized fix would have made worse. Items 218–222
-are what it left.
+statics twice, which its own sized fix would have made worse. The review
+fixed two more, a lasting copy retiring what it hides and 707.9c over several
+objects; items 219, 220 and 222 are what it left.
 
 **Measured** (`fuzz-record.md`, CV-1b's block). The rule's arm plays every
 gameplay row as `main` does on both pools at two seats and four, at +0.23%
@@ -1441,8 +1466,8 @@ instructions per decision once a lookup left the gather's hot path; the
 combat fix moves games at four seats; Cryptoplasm is reached in 58% of
 two-seat games.
 
-**Trace page: no**, decided at the close and the owner's to reverse, as RF's
-and RG's were: each read the phase changes is one comparison at one site.
+**Trace page: no**, the owner's to reverse, as RF's and RG's were: each
+read the phase changes is one comparison at one site.
 
 → `plans/archive/copy-effects-architecture-landed.md`, "CV-1b" (the brief's
 scope, what the hunt changed, the arms and the tests).
