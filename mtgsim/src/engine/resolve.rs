@@ -1877,7 +1877,7 @@ impl GameState {
                 // PRE-LAYER ZONE: the printed text, which a rebuilt def carries
                 // for the window and no rule reads.
                 let printed = self.objects.get(&source).and_then(|obj| {
-                    obj.card_data.abilities.iter().find(|a| a.id.definition() == identity.ability.definition()).map(|a| a.rules_text.clone())
+                    obj.card_data.abilities.iter().find(|a| a.id.definition() == identity.ability.definition()).map(|a| a.rules_text)
                 });
                 crate::objects::card_data::AbilityDef {
                     id: identity.ability,
