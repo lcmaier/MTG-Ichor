@@ -2875,7 +2875,7 @@ layer, and §2.7 gained devotion's modifiability.
 | Atom | Why it stays |
 |---|---|
 | `ATOM-208.4b-001` | names `get_base_power`/`get_base_toughness` down to the name — the `zone_change_epoch` case exactly |
-| `ATOM-400.7a-002` | text-change persistence across stack→battlefield; Layer 3, and no entry covers it |
+| `ATOM-400.7a-002` | text-change persistence across stack→battlefield; Layer 3, and no entry covers it. CV-1b's carve-out (CR 400.7a) keeps every continuous row across that move, so the test waits only on a text-changing effect |
 | `ATOM-613.1f-002` | Layer 6 keyword counters (roadmap D10) — §3.1 files CR 613 as owned, but not this |
 | `ATOM-605.1a-002/004` | a mana ability may not require a target. **Contradicts §3.2's pre-sort**, which read CR 605 as implemented — confirm before annotating |
 | `ATOM-502.3-002`, `ATOM-703.4c-002` | "doesn't untap" restriction effects — **one mechanic wearing two section numbers**; §2.14 names it now (2026-08-31) — re-file at the next pass |

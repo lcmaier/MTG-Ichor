@@ -2108,8 +2108,9 @@ at least one registered consumer of what it builds, and each closes against
 - TR-2's histories are what TR-3's "this turn" durations and TR-5's
   `FirstTimeEachTurn` read.
 - TR-3 builds `ReturnToBattlefield`, which TR-4's persist and Rancor need.
-  A return makes a new object, so **TR-3 waits for CV-2, then CV-1b with
-  `codebase-state.md` item 10 (CR 400.7)**.
+  A return makes a new object, so **TR-3 waited for CV-2, then CV-1b with
+  `codebase-state.md` item 10 (CR 400.7)**, both landed: a move now ends every
+  reference made before it (`copy-effects-architecture.md` §7d).
 - TR-4 widens the frame TR-5's combat shapes never read. TR-5a needs only
   TR-2b, so it may move up to just after it.
 - TR-6's loop detector counts the decisions every earlier phase adds.
@@ -2269,7 +2270,7 @@ reviewed, what landing and the code review changed, and no trace page).
 | the registry, `DelayedTrigger`, `DelayedSource`, `DelayedDuration`, `ObjectRef`, `Instant`, `ExtraTurnId` on `turn_queue` and `current_turn_origin`, `Primitive::CreateDelayedTrigger`, provenance from `ResolutionContext` and from a rider, 107.3n's X, `ChooseDelayedTriggerEvent`, cleanup expiry of `ThisTurn`; `Effect::Reflexive` and the immediate check; `UntilEvent` resolved at dispatch (610.3) | ~520 |
 | `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm at `resolve.rs:1417`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser | ~120 |
 | cards: **Final Fortune** (603.7d, a named extra turn; its ruling — a skipped extra turn loses nothing — is the `ExtraTurnId` test), **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) | ~320 |
-| tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
+| tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card's indefinite haste is expressible since CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
 | docs, ledger, record | ~250 |
 
 **Split 2026-09-24**, by the re-count below. **TR-3a** is the delayed
@@ -2363,7 +2364,8 @@ where it first appears:
 - a complete `Primitive::Sacrifice` (the source itself, a named object, or a
   chooser over a filter), in TR-2b;
 - `EventKindMask` widened past `u16`, in TR-2b;
-- "another target" (targeting refuses `NotSource`), by TR-3b;
+- "another target" (targeting refused `NotSource`), built by CV-1b for
+  Cryptoplasm (`copy-effects-architecture.md` §7d), so TR-3b no longer owes it;
 - damage an ability deals, dealt by its source permanent (CR 113.7a), by
   TR-5a.
 
@@ -2394,7 +2396,7 @@ their trigger half lands.
 | **TR-4** | 603.6e-001, -002; 400.7e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 14 |
 | **TR-5** | 508.2a-001; 603.2d-001; 122.7-001; 120.10-001 | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
-| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 400.7-001 (the rule itself — CV-1b); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 41 |
+| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 400.7-001 (the rule itself — CV-1b, partial there: the atom's board is a delayed trigger, so its whole board is TR-3a's); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 41 |
 
 Ninety-two of the 133 Phase 7 atoms are owed across the six phases (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
@@ -2505,8 +2507,9 @@ Recorded here at authoring; a finding that becomes a code item moves to
    while `any_control_changing` is set, which is the cost to weigh then.
 5. **Golgari Brownscale's dredge** may or may not fit TR-4's band; the
    atom's fixture is the floor and the card is the ceiling.
-6. **Sneak Attack** waits for an indefinite haste (CV-1b's
-   `Duration::Indefinite` prune); its ruling is a TR-3 fixture board.
+6. **Sneak Attack** waited for an indefinite haste, which CV-1b's prune
+   made expressible (a `Duration::Indefinite` row ends when its subject
+   moves); its ruling is a TR-3 fixture board.
 7. **The pregame sweep** over the registry is a measurement TR-2 takes
    and records (histories advanced per record, ~40 fields, ~1,000 records
    a game); the decision to prune waits for the number. **Measured
