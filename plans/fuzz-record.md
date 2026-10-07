@@ -37,6 +37,102 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-06 for CV-1b** (copies that last, and CR 400.7's new
+object; `copy-effects-architecture.md` §7d). Cryptoplasm joins
+`PERFORMANCE_POOL` (103 → 104), and on `stress` Mirrorform's copies now last
+until the end of the game, so **both §3 columns are a new baseline.**
+`close_out.py` against **main** `d7af3cd` (#229's merge), with four arms:
+**rule** `3092567` (the prune, targets by identity, the applied set's key),
+**combat** `6415df8` (CR 506.4's removal), **engine** `d8be020` (all but
+Cryptoplasm's registration) and **shipped** `950d088`. Two later sittings:
+**rulefix** `dde1b09`, the rule arm with `84b999c`'s fix on a throwaway
+branch, and shipped again at `84b999c`, the last code commit, for the budget
+board's new reading.
+
+**Predictions, before any arm ran:** rule `IDENTICAL` on every gameplay row,
+its cost rows a little lower, instructions per decision within ±0.3%; combat
+moving a few games; engine `IDENTICAL` on `performance` wherever combat is, and
+`stress` moving through Mirrorform; shipped a re-record.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, rule vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Candidate visits`, `main` → rule, performance / stress | 45.1 → 44.8 / 44.3 → 44.0 | 124.4 → 119.5 / 166.1 → 165.4 |
+| gameplay rows, combat vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | differ, 9 rows / differ, 6 rows |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / differ, 14 rows | differ / differ |
+| `Candidate visits`, `main` → engine, stress | 44.3 → 108.1 | 166.1 → 173.7 |
+| `Windows past gate`, `main` → shipped, performance / stress | 27.3 → 60.6 / 33.6 → 51.4 | 70.6 → 151.8 / 107.0 → 165.4 |
+| `Candidate visits`, `main` → shipped, performance / stress | 45.1 → 797.4 / 44.3 → 215.9 | 124.4 → 2,091.3 / 166.1 → 1,511.6 |
+| audit, shipped, performance / stress, dispatches agreed | 163,154 / 168,380 | 332,406 / 377,171 |
+| instructions / decision, rule vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7528 M → 0.7625 M, **+1.29%** |
+| instructions / decision, rulefix vs `main`, the same board | | 0.7526 M → 0.7543 M, **+0.23%** |
+| instructions / decision, shipped at `84b999c` vs `main`, the same board (the games differ: not a budget reading) | | 0.7527 M → 0.6546 M, −13.03% |
+
+Every other prediction held: the rule arm's audit agreed on as many dispatches
+as `main`'s, and its cost rows fell where a pruned row stops being visited.
+The sittings ran in 173 s, 84 s and 84 s. **Three moves nobody predicted:**
+- **The rule arm's +1.29% against ±0.3.** Joined by function, nearly all of it
+  was `replacement::gather`: the applied set's new key looked up each
+  permanent's zone-change epoch on every gather, though only the counter leg
+  builds a key. With the lookup moved into that leg's loop (`84b999c`), the
+  same arm read +0.23%. That is the budget's reading. The rule arm is the
+  last whose counters are identical, since the combat fix moves four-seat
+  games.
+- **The dispatcher's gate** (`codebase-state.md` item 222). On `performance`
+  with Cryptoplasm in the pool, `Windows past gate` doubles and `Candidate
+  visits` rises about seventeenfold. A copy row that carries a triggered
+  ability adds the battlefield to `unattributed_trigger_zones`, so every
+  window visits every permanent while one exists. Cryptoplasm's copies always
+  carry its upkeep trigger. The engine arm's `stress` column shows the same
+  through Mirrorform's lasting copies (44.3 → 108.1 at two seats). No game is
+  wrong; it costs instructions. ~30 lines, slotted TR-3a.
+- **The budget board's −13%, against no prediction**, since its games differ.
+  There `Candidate visits` read 294.6 → 6,068.2 a game, and the run's
+  instructions still fell, from about 8,910 M to 7,330 M (`Decisions` 592 →
+  560 a game, `Spells cast` 62.5 → 56.8). The visits are not where a game's
+  instructions go, though nothing here prices them; item 222's arm will.
+
+**Reachability**, shipped, `--require Cryptoplasm`, 200 games. At two seats:
+cast 165 times and resolved 164, in 115 games (58%), at 1.45 copies a deck. At
+four seats: 112 and 110, in 92 games (46%), at 2.85 copies. Floors 2 and 3,
+CI's release `clone_bound_test`: ≤ 41 allocations and ≤ 94.4 KB a clone over 199 readings (MA-1's ≤ 39 and ≤ 100.0 KB over 207), the bytes' high-water at `performance` 12346's turn 80.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** These are a
+new baseline for both columns; MA-1's block below holds the last one.
+`84b999c`, after this arm, moves no counter (the rulefix arm).
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 28 (56.0%) / 22 (44.0%) | 25 (50.0%) / 24 (48.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 28.4 | 27.0 |
+| Spells cast | 22.2 | 20.1 |
+| Lands played | 16.7 | 16.1 |
+| Combat w/ atk | 10.4 | 8.9 |
+| Creatures died | 7.2 | 5.2 |
+| Damage events | 21.2 | 18.5 |
+| Total damage | 57.0 | 47.6 |
+| Life changes | 15.0 | 15.6 |
+| **Layer walks** | **334** | **400** |
+| **Board walks** | **205** | **245** |
+| **Memo hits** | **51,995** | **70,354** |
+| **Layer frames** | **3,783** | **4,686** |
+| **Frames/walk** | **11.33** | **11.73** |
+| **Dependency checks** | **47** | **12** |
+| **Replacement gathers** | **988** | **1002** |
+| **Restriction queries** | **989** | **1005** |
+| Mana productions | 70 | 93 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.26 | 1.30 |
+| Max batch depth | 5 | 4 |
+| Decisions | 192 | 293 |
+| Priority decisions | 69 | 117 |
+| Actions reversed | 0.2 | 0.2 |
+| Triggers placed | 2.3 | 1.4 |
+| Windows past gate | 61.0 | 48.9 |
+| Candidate visits | 608.7 | 175.3 |
+| Trigger matches | 3.7 | 2.2 |
+
 **Measured 2026-10-06 for the dev GUI audit** (`roadmap-v2.md` A6g's last
 PR). Two engine changes, neither on a release game's path:
 `GameState::audit_each_frame_once`, the layer memo's audit checking each frame
