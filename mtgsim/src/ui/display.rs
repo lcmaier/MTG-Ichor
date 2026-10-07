@@ -846,6 +846,9 @@ fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacte
     }
 }
 
+/// Why a spell or ability fizzled, in CR 608.2b's words.
+const DOES_NOT_RESOLVE: &str = "doesn't resolve: every target is illegal (CR 608.2b)";
+
 /// Format one event, each object named as its record kept it.
 pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced) -> String {
     use crate::events::event::CounterSubject;
@@ -930,12 +933,12 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellCountered { spell_id, countered_by } => {
             format!("SpellCountered: {} countered by {}", obj_name(game, *spell_id), obj_name(game, *countered_by))
         }
-        AbilityCountered { ability_id, countered_by } => {
-            format!("AbilityCountered: {} countered by {}", obj_name(game, *ability_id), obj_name(game, *countered_by))
-        }
-        SpellFizzled { spell_id } => {
-            format!("SpellFizzled: {}", obj_name(game, *spell_id))
-        }
+        AbilityCountered { identity, controller, countered_by } => format!(
+            "AbilityCountered: {}'s ability [P{}] countered by {}",
+            obj_name(game, identity.source.id), controller, obj_name(game, *countered_by)),
+        SpellFizzled { spell_id } => format!("SpellFizzled: {} {DOES_NOT_RESOLVE}", obj_name(game, *spell_id)),
+        AbilityFizzled { identity, controller } => format!(
+            "AbilityFizzled: {}'s ability [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), controller),
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }

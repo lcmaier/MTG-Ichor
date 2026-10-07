@@ -208,6 +208,7 @@ impl EventKind {
             GameEvent::LibraryShuffled { .. } => EventKind::LibraryShuffled,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
+            | GameEvent::AbilityFizzled { .. }
             | GameEvent::AbilityResolved { .. }
             | GameEvent::Attached { .. }
             | GameEvent::BlockersDeclared { .. }

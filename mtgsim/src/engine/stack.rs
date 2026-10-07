@@ -302,9 +302,12 @@ impl GameState {
             self.remove_object(object_id);
         }
 
-        self.emit_event(GameEvent::SpellFizzled {
-            spell_id: object_id,
-        });
+        // An ability by its identity, as `resolve_taken` announces one: the
+        // object just removed names nothing to a reader of the record.
+        match entry.ability_identity {
+            Some(identity) => self.emit_event(GameEvent::AbilityFizzled { identity, controller: entry.controller }),
+            None => self.emit_event(GameEvent::SpellFizzled { spell_id: object_id }),
+        }
 
         Ok(())
     }

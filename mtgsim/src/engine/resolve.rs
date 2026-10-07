@@ -739,14 +739,19 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target
                         && let Some(pos) = self.stack.iter().position(|s| s == id) {
                         let removed_id = self.stack.remove(pos);
-                        self.take_stack_entry(removed_id);
+                        let entry = self.take_stack_entry(removed_id);
                         // Remove the object entirely — abilities on the
                         // stack are not cards and have no destination zone.
                         self.remove_object(removed_id);
-                        self.emit_event(crate::events::event::GameEvent::AbilityCountered {
-                            ability_id: removed_id,
-                            countered_by: ctx.source,
-                        });
+                        if let Some(entry) = entry
+                            && let Some(identity) = entry.ability_identity
+                        {
+                            self.emit_event(crate::events::event::GameEvent::AbilityCountered {
+                                identity,
+                                controller: entry.controller,
+                                countered_by: ctx.source,
+                            });
+                        }
                     }
                 }
                 Ok(())
