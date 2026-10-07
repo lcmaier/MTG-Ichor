@@ -23,6 +23,7 @@ use mtgsim::state::game_state::Phase;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::PlayerId;
 
+use crate::boards::board_name;
 use crate::search::NameSearch;
 
 /// The widest a life total or a starting life is typed, either way.
@@ -205,6 +206,10 @@ pub enum EditorInput {
     Play,
     /// The session's: save the board to its file.
     Save,
+    /// Typed into Save as's field.
+    SaveAsName(String),
+    /// The session's: save the board as a new board, under the name typed.
+    SaveAs,
     /// The session's: open the listed file `i`.
     Open(usize),
 }
@@ -266,6 +271,8 @@ pub struct Editor {
     pub chosen: Option<usize>,
     /// The advanced settings' controls and the typed field, shown.
     pub advanced: bool,
+    /// The name typed for Save as.
+    pub save_as_name: String,
     /// The field the last input was typed into, which the next one typed
     /// there joins in one undo step.
     typing: Option<TypedInto>,
@@ -318,6 +325,7 @@ impl Editor {
             picking: None,
             chosen: None,
             advanced: false,
+            save_as_name: String::new(),
             typing: None,
             typed_line: String::new(),
             typed_line_refusal: None,
@@ -379,7 +387,8 @@ impl Editor {
             EditorInput::TypedLine(line) => (self.typed_line, self.typed_line_refusal) = (line, None),
             EditorInput::AddTypedLine => self.add_typed_line(),
             EditorInput::Undo => self.step_back(),
-            EditorInput::Play | EditorInput::Save | EditorInput::Open(_) => {}
+            EditorInput::SaveAsName(name) => self.save_as_name = name,
+            EditorInput::Play | EditorInput::Save | EditorInput::SaveAs | EditorInput::Open(_) => {}
             edit => {
                 if edit.card().is_some_and(|i| listed_at(&self.board, i).is_none()) {
                     return;
@@ -730,6 +739,8 @@ impl Draft {
             | EditorInput::AddTypedLine
             | EditorInput::Play
             | EditorInput::Save
+            | EditorInput::SaveAsName(_)
+            | EditorInput::SaveAs
             | EditorInput::Open(_) => {}
         }
     }
@@ -1178,6 +1189,16 @@ pub struct TypedLineView<'e> {
     pub refusal: Option<&'e str>,
 }
 
+/// Save as: the board written as a new board, under the name typed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveAsView<'e> {
+    pub name: &'e str,
+    /// Live while the field holds a board's name.
+    pub save: EditButton,
+    /// Why what the field holds is not one; `None` while it is, or is empty.
+    pub refusal: Option<&'static str>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchView<'e> {
     pub query: &'e str,
@@ -1208,6 +1229,7 @@ pub struct EditorView<'e> {
     pub undo: EditButton,
     pub play: EditButton,
     pub save: EditButton,
+    pub save_as: SaveAsView<'e>,
     /// The switch that shows the advanced settings.
     pub advanced: EditButton,
     /// While they show.
@@ -1235,6 +1257,7 @@ impl Editor {
             refused: refused(action.line),
         });
         let action = |label: &str, input: EditorInput, live: bool| EditButton { label: label.to_string(), input, live, on: false };
+        let named = board_name(&self.save_as_name);
         EditorView {
             source: self.source_words(),
             comments: &self.comments,
@@ -1255,6 +1278,11 @@ impl Editor {
             undo: action("Undo", EditorInput::Undo, !self.undo.is_empty()),
             play: action("Play this board", EditorInput::Play, self.refusal.is_none()),
             save: action("Save", EditorInput::Save, true),
+            save_as: SaveAsView {
+                name: &self.save_as_name,
+                save: action("Save as", EditorInput::SaveAs, named.is_ok()),
+                refusal: named.err().filter(|_| !self.save_as_name.trim().is_empty()),
+            },
             advanced: EditButton { label: "Advanced".to_string(), input: EditorInput::Advanced(!self.advanced), live: true, on: self.advanced },
             typed_line: self.advanced.then(|| TypedLineView {
                 line: &self.typed_line,
@@ -1611,6 +1639,24 @@ mod tests {
         let panel = editor.view().card.unwrap();
         let first: Vec<&str> = panel.rows[0].buttons.iter().map(|button| button.label.as_str()).collect();
         assert_eq!(first, ["Remove", "Close"]);
+    }
+
+    /// Save as is live while its field holds a board's name, and says why
+    /// not under one that is not; an empty field says nothing, and a name
+    /// typed is no edit of the board.
+    #[test]
+    fn save_as_is_live_while_its_field_holds_a_boards_name() {
+        let mut editor = opened("");
+        let save_as = |editor: &Editor| {
+            let view = editor.view();
+            (view.save_as.save.live, view.save_as.refusal.is_some())
+        };
+        assert_eq!(save_as(&editor), (false, false));
+        editor.input(EditorInput::SaveAsName("cryptoplasm fizzle".to_string()));
+        assert_eq!(save_as(&editor), (true, false));
+        editor.input(EditorInput::SaveAsName("boards/x".to_string()));
+        assert_eq!(save_as(&editor), (false, true));
+        assert!(!editor.view().undo.live);
     }
 
     /// A number typed a digit at a time, or dragged, is one undo step however

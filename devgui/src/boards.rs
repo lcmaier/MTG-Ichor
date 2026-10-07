@@ -97,6 +97,20 @@ impl Folders {
     }
 }
 
+/// A board's name as typed for Save as, trimmed. It names the board's
+/// folder and file, so it is letters, digits, spaces, `-` and `_`, which
+/// every system takes as one folder and none reads as a path.
+pub fn board_name(typed: &str) -> Result<&str, &'static str> {
+    let name = typed.trim();
+    if name.is_empty() {
+        return Err("Type the new board's name.");
+    }
+    if !name.chars().all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_')) {
+        return Err("A board's name is letters, digits, spaces, - and _, since it names a folder.");
+    }
+    Ok(name)
+}
+
 /// What `dir` holds, by name; nothing when it cannot be read.
 fn folder(dir: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|entry| entry.path()).collect();
@@ -155,5 +169,15 @@ mod tests {
         assert!(folders.holds(&first) && !folders.holds(&folders.committed[0].1.join("holy-strength.scenario")));
         let labels: Vec<String> = folders.listed().into_iter().map(|file| file.label).collect();
         assert_eq!(labels, ["boards/holy-strength", "samples/holy-strength"]);
+    }
+
+    /// A name typed for Save as is one folder's: trimmed, and never a path
+    /// or a character a system refuses in a folder's name.
+    #[test]
+    fn a_board_is_named_by_letters_digits_spaces_dashes_and_underscores() {
+        assert_eq!(board_name("  Cryptoplasm fizzle_2-b "), Ok("Cryptoplasm fizzle_2-b"));
+        for refused in ["", "   ", "a/b", "a\\b", "..", "what?", "c:", "board.scenario"] {
+            assert!(board_name(refused).is_err(), "{refused:?}");
+        }
     }
 }
