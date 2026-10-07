@@ -1,0 +1,16 @@
+# Cryptoplasm's upkeep trigger and the Bolt that kills its target, as #230's
+# cards were tested: at player 1's upkeep, Cryptoplasm targets player 0's
+# Blood Artist, the one other creature, and player 0 bolts the Artist in
+# response, so the trigger doesn't resolve (CR 608.2b). Player 0's Mountain
+# is untapped for it.
+turn 3
+active 0
+step end
+
+hand 0: Lightning Bolt
+library 0: Mountain | x8
+library 1: Island | x8
+
+battlefield: Mountain | controller 0
+battlefield: Blood Artist | controller 0
+battlefield: Cryptoplasm | controller 1
