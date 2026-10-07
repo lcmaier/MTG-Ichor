@@ -1609,7 +1609,7 @@ mod tests {
         assert_eq!(row.duration, Duration::UntilEndOfTurn);
         assert_eq!(row.source, spell);
         assert_eq!(row.controller, 0);
-        assert_eq!(row.targets, vec![ResolvedTarget::Player(1)]);
+        assert_eq!(row.targets, vec![crate::engine::targeting::TargetRef::Player(1)]);
         assert!(row.def.is_prevention());
     }
 

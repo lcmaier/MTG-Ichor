@@ -110,6 +110,7 @@ is derived.
 | 2026-10-05 | The inventory and the exact check | `MA-1` | `mana-architecture.md` |
 | 2026-10-05 | Why an option is not offered | `SU-7` | `setup-architecture.md` |
 | 2026-10-05 | The why panel, and what the layers did | `SU-6` | `setup-architecture.md` |
+| 2026-10-06 | Copies that last, and CR 400.7's new object | `CV-1b` | `copy-effects-architecture.md` |
 | 2026-10-06 | The editor's advanced settings, first part | — | `setup-architecture.md` |
 | 2026-10-06 | What happened, from the trace | `SU-8` | `setup-architecture.md` |
 
@@ -124,7 +125,6 @@ and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
 | Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
-| Indefinite-duration copies | `CV-1b` | `copy-effects-architecture.md` |
 | Token copies | `CV-3` | `copy-effects-architecture.md` |
 | Spell copies | `CV-4` | `copy-effects-architecture.md` |
 | Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
@@ -149,9 +149,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 181 |
-| …of them in `PERFORMANCE_POOL` | 103 |
-| `#[test]` functions | 2062 |
+| Cards registered | 182 |
+| …of them in `PERFORMANCE_POOL` | 104 |
+| `#[test]` functions | 2098 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -172,11 +172,11 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 277 |
-| …closed, still recorded | 100 |
-| …open — unreachable, and says why | 113 |
+| Numbered items | 280 |
+| …closed, still recorded | 103 |
+| …open — unreachable, and says why | 112 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 32 |
+| …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
 | …open, carrying an explicit `**Sized:**` | 172 of 177 |

@@ -14,7 +14,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
-- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). Still ahead: CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
+- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). A copy may last until the end of the game (CV-1b, 2026-10-06), since a move now ends every reference to the object that moved (CR 400.7, main item 10), with Cryptoplasm. Still ahead: CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
@@ -816,92 +816,17 @@ here. None is blocking RB.
 
    **Reachability (2026-09-19):** closed — TR-1; the rule itself closed 2026-08-26.
 
-10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
-    2026-08-26; the *field* landed with RB, the rule did not).** `GameObject.zone_change_epoch` now exists — stamped by `move_object`, read by CR 704.6d — so the tick this item wanted is recorded and does not need re-threading later. What is still missing is the rule itself and, more importantly, its exception list. `move_object` preserves the `ObjectId`, and
-    `cleanup_zone_state` removes only effects *sourced by* the leaving object,
-    never effects *targeting* it. So a `Duration::UntilEndOfTurn` pump on a
-    creature that dies and returns the same turn still applies to it, against
-    "an object that moves from one zone to another becomes a new object with no
-    memory of, or relation to, its previous existence."
-
-    Two consequences worth separating. The **default** is wrong as above. The
-    **exceptions** (400.7a–c: effects that changed a permanent spell's
-    characteristics or controller, and prevention effects, continue to apply to
-    the permanent it becomes) currently work *by accident*, because we never
-    break the relation in the first place — so implementing 400.7 without its
-    exception list would regress item 9's control case and Xu-Ifit's
-    "has no abilities" rider.
-
-    `plans/alchemy-mechanics-audit.md` already designed a
-    `last_zone_change_epoch` on `GameObject` for this and calls it "already
-    designed"; that document is **not** in `CLAUDE.md`'s authority table and
-    nothing implements it. Either promote the design or restate it here before
-    the first card needs it. This is the general form of the Xu-Ifit case in
-    `replacement-architecture.md` §5c, and it is a replacement × continuous
-    interaction, so RC is the natural forcing function.
-
-    **Sized 2026-09-03, and scheduled with CV-1b as one PR: after CV-2,
-    before TR-3a (the owner, 2026-09-25) and RS-2.** The `ObjectId` stays — targets, attachments, events and
-    the fuzz log all key on it, and re-keying is the whole engine — so what
-    breaks is every *reference* made before the move. Three kinds hold one:
-
-    - **`ObjectSet::Fixed` rows**, in all three registries. They share
-      `DurationRegistry`, so one subject-keyed `retain` serves them: prune
-      the mover from every `Fixed` set, drop a row whose set empties (a
-      two-target pump keeps applying to the target that stayed), and keep
-      `remove_by_source` beside it — `copy-effects-architecture.md` §5.3's
-      "alongside" fact, which is why Clone must be on the board first.
-      Called from `move_object` for every zone pair, through the continuous
-      registry's `mutating` so the layer memo sees it.
-    - **`StackEntry.chosen_targets`**, which CR 608.2b re-validates by id
-      today, so a spell finds a target that died and came back. A parallel
-      `target_epochs` on the entry, set where the targets are chosen and
-      compared in `is_single_target_legal`; `ResolvedTarget::Object` has 38
-      match sites, so the type does not change for this.
-    - **Attachments**, already cleaned by `cleanup_zone_state`.
-
-    The exceptions 400.7a–c are one carve-out: a move from the stack to the
-    battlefield prunes nothing keyed on the mover, which is what keeps item
-    9's stolen spell stolen and Xu-Ifit's rider on the permanent. 400.7d–k
-    are trigger rules (e, f — item 6's, where the LKI frame finds the new
-    object) and cast-permission rules (g–i — the cast-permission entry's);
-    they stay there. **Content-neutral on both pools today**: no registered
-    card returns an object (`ReturnToBattlefield` is a stub), so the fuzz
-    rows should not move and the PR says so — the rule's tests are built by
-    hand around `move_object`. ~500 additions for the rule, its tests and
-    this entry's closure; CV-1b adds ~400 — `Duration::Indefinite`'s one
-    consumer, Dimir Doppelganger, its tests and a `PERFORMANCE_POOL` seat,
-    since an indefinite row is a new engine path. One PR under the band,
-    A/B'd as two arms (the rule alone, then the card) the way the Everywhere
-    PR was.
-
-    **A fourth kind, found by the type-surface re-sweep (2026-09-24,
-    `cr-coverage-audit.md` §4a):** `RegisteredReplacementEffect.targets`.
-    Divine Deflection's target is chosen at cast, and its rider reads it
-    whenever the shield next applies (item 90). That ruling makes the rider's
-    check "an existence and type check". Under CR 400.7, existence is identity:
-    a target that left and came back is a different object, and a bare
-    `ObjectId` finds it anyway. It needs an epoch stored beside each target, as
-    `chosen_targets` does, at about 10 lines on top of the size below.
-    Narrower still is the applied set: its `StaticAbility(ObjectId, AbilityId)`
-    key outlives a move only inside a rider (CR 615.5). That is recorded here
-    but not sized.
-
-    **Reachability (2026-09-24):** unreachable — nothing returns an object to
-    a zone yet (the 2026-09-03 line below still holds), and item 90's rider has
-    no reader.
-
-    **Reachability (2026-09-03):** unreachable — no registered card returns an
-    object to any zone (`ReturnToHand`, `ReturnToBattlefield` and the rest of
-    the zone-moving primitives are the stub arm at `resolve.rs:866`) and nothing
-    recasts a countered spell, so no `Fixed` row and no `chosen_targets` entry
-    ever meets its object after a zone change. The CV-1 review's C6 (absorbed
-    below) called this "a live wrong answer" because Giant Growth is in
-    `PERFORMANCE_POOL`; it is not — that reading needed a return path, and there
-    is none. A reachability claim can go stale in either direction.
-
-    **Sized:** above (2026-09-03) — ~500 for the rule and ~400 for CV-1b, one PR
-    after CV-2.
+10. **~~CR 400.7 is unimplemented: an object keeps its identity across zones~~ —
+    ✅ CLOSED 2026-10-06 (PR #230).** — archived. A move ends every
+    reference made to the object before it. Registry rows that name it are
+    pruned at `move_object`, with CR 400.7a and 400.7c's exceptions for a
+    permanent spell. A target carries the epoch it was announced at, which
+    CR 608.2b compares (`TargetRef`). The applied set keys an object by
+    `ObjectRef`, and a permanent leaving the battlefield is removed from
+    combat (CR 506.4). The rule's twelve exceptions, with who owns each, are
+    `copy-effects-architecture.md` §5.3's table.
+    **Reachability (2026-10-06):** closed — PR #230.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 10".
 
 11. **`AbilityType::Mana` is a printed tag; CR 605.1 defines mana abilities
     dynamically (found 2026-08-26, via Toph + Caged Sun).** `engine/mana.rs` and
@@ -1126,52 +1051,13 @@ built, and none of it blocks RC-1 through RC-3.
 
 ### Found by CV-1 (2026-09-02)
 
-16b. **A re-copy inside one turn leaves its superseded derived rows in the
-    registry, inert, until CR 514.2 (found 2026-09-02, CV-1).**
-    `register_copied_static_effects` registers a CR 613.7a row per static ability
-    in a `CopyFrom` capture. When a CR 707.4 re-copy replaces the copy row, the
-    old derived rows stop *applying* immediately — the existence check reads the
-    subject's frame, which now carries the new capture — but they stay
-    registered until their `Duration` retires them with the copy row they came
-    from. **Harmless for everything CV-1 ships**, which is turn-bounded only: one
-    cleanup step retires the lot, and an inert row costs a `HashSet` lookup in
-    `effects_in_layer`'s slice.
-
-    **It stops being harmless at `Duration::Indefinite`**, which is CV-1b: a
-    permanent re-copying itself every turn would accumulate derived rows without
-    bound, and nothing would remove them. **So this is CV-1b's prerequisite, not
-    a bug in CV-1.**
-
-    **Three things this is not, because an earlier draft of this entry ran them
-    together** (corrected 2026-09-02 in review):
-
-    - **It is not item 10's problem.** Item 10 is CR 400.7: `move_object`
-      preserves `ObjectId`, so a row keyed on a *leaving* object's id
-      re-attaches to whatever comes back. A derived row's `source` is the
-      copying permanent, so `remove_by_source` already reaches it on a zone
-      change. What is unreachable is "the ability that justified this row is
-      gone", which is a different question with a different fix.
-    - **It is not solved by updating the row in place.** A re-copy must
-      **add** a `CopyFrom` row, never overwrite the existing one's payload:
-      CR 613.2a orders layer 1 by timestamp and each row carries its own
-      `Duration`, so an `UntilEndOfTurn` copy laid over an `Indefinite` one has
-      to expire *back* to the indefinite values. Overwriting would delete an
-      effect that is still running. Two rows is the correct model and the
-      litter is the price of it.
-    - **It is not the pump-spell shape either.** A pump row is inert-but-present
-      for a different reason (its subject left and returned); this one's subject
-      never moved.
-
-    **Sized:** at the moment `apply_copy` registers a `CopyFrom` for a subject
-    that already has one, `retain` out the derived rows whose
-    `EffectGroup::StaticAbility(subject, ability)` names an ability id that the
-    *new* capture does not carry — and only those, because the subject may also
-    **print** the same ability, which no copy row justifies or removes. One
-    `retain` and one set difference; the care is entirely in the second clause.
-
-    **Reachability (2026-09-03):** unreachable — `Duration::Indefinite` has no
-    consumer in `src/cards` (0 sites), so every re-copy's litter retires at the
-    next cleanup; CV-1b is the trigger, as the entry says.
+16b. **~~A re-copy inside one turn leaves its superseded derived rows in the
+    registry~~ — ✅ CLOSED 2026-10-06 (PR #230).** — archived. Each copy row
+    tags the abilities it copies (`AbilityId::copied_by`), so a derived row
+    applies only while its own copy shows, and a copy that lasts retires the
+    earlier copies it hides with their rows (`retire_earlier_copies_of`).
+    **Reachability (2026-10-06):** closed — PR #230.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 16b".
 
 ### Found by CV-1's reachability mode (2026-09-02)
 
@@ -8807,42 +8693,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by building CV-2b (2026-09-29)
 
-189. **When a second copy replaces a first in one entry, the first copy's
-     extra counters are removed at their original count, even if a doubler
-     multiplied them in between.** Spark Double copying a Clone that copied
-     nothing enters as a creature, so its exception puts one +1/+1 counter
-     on the entry. The Clone's own copy ability, which the entry now has,
-     then applies in the same entry, and CR 707.9e says the first copy's
-     exception "doesn't happen". So `EnterMods::take_back` removes that one
-     counter (`a_later_copy_takes_back_spark_doubles_counter`), reading how
-     many from `EntryCopy.added`. If a doubler such as Doubling Season had
-     applied between the two copies, the entry would hold two counters from
-     that one exception, and the take-back would remove one, leaving a
-     counter the rule says should not be there.
-
-     **Reachability (2026-10-06):** unreachable. A copy applies at CR
-     616.1c's step, ahead of every 616.1e effect applicable beside it, so a
-     multiplier comes between two copies only if the second copy becomes
-     applicable through the multiplier's own write (CR 616.2). That needs a
-     copy effect whose applicability hangs on the entering object's counter
-     count, and no registered card has one: Clone's and Spark Double's are the
-     entering object's own abilities, present from the iteration its copy is
-     made, and Essence of the Wild is a test fixture. The status half of the
-     same take-back is exact: `EnterMods::merge` drops a copy's claim to the
-     status once a later effect sets one
-     (`a_later_copy_does_not_restore_over_a_status_set_after_the_addition`).
-
-     **Sized:** ~30 lines: `CopyAdditions` keeps a per-row share, which the
-     `Amount` arm's entry leg scales as it scales the row, and a fixture copy
-     made applicable at two counters. A halving and a plus each need their
-     own reading of the share, which is why it is not built blind.
-     **Slotted:** CV-1b (indefinite-duration copies), as a fixture. The
-     feedback-loop census, its slot until 2026-10-06, searched two phrasings
-     and found no printed copy that a counter write on the entering object
-     makes applicable: every counter or power such a copy reads belongs to the
-     donor or to the copy's own exception (`plans/references/feedback-loops.md`
-     §6, `copy-by-counters`). CR 616.2 allows the shape all the same, so no
-     card will bring the fix, and CV-1b is the next copy phase on the route.
+189. **~~When a second copy replaces a first in one entry, the first copy's
+     extra counters are removed at their original count~~ — ✅ CLOSED
+     2026-10-06 (PR #230).** — archived. The `Amount` rewrite's entry
+     leg scales a copy's share of each row it scales, so a later copy takes
+     back what a doubler made of the exception too.
+     **Reachability (2026-10-06):** closed — PR #230.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 189".
 
 ### Found by the CV-2b review (2026-09-29)
 
@@ -9407,3 +9264,47 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      the first PR that gives `evaluate_amount` a new arm. The census's
      `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
      first printed customer, and none prints as a static yet.
+
+### Found by CV-1b (2026-10-06)
+
+219. **A target inside an `Effect::Conditional` is never announced.**
+     `Effect::instances` walks into `Optional` since CV-1b, and into nothing
+     else. CR 601.2c announces a target that a cost or a mode requires only
+     when that cost was paid or mode chosen (a kicker's), and any other
+     target always, so the walk needs to know which kind of condition it is
+     in.
+     **Reachability (2026-10-06):** unreachable — every registered
+     `Conditional` is a static ability's "as long as", with no target in it.
+     **Sized:** ~20–40 lines, the condition's kind read by the walk.
+     **Slotted:** CP-2, the cost actions (`cost-architecture.md`), which
+     announces what each cost requires at CR 601.2b, and with it the first
+     target a cost can make conditional (`backlog.md` §4's CR 601 cluster).
+
+220. **"Except it has this ability" on an activated ability whose source
+     lost it in response is refused.** `with_this_ability` finds the def on
+     the source's effective list, or else in a trigger's binding. An
+     activated ability's stack entry carries its effect but not its costs,
+     so there is nothing to rebuild the def from, and the copy errs rather
+     than gaining an ability with no cost.
+     **Reachability (2026-10-06):** unreachable — no registered activated
+     ability has "this ability"; Dimir Doppelganger and Lazav are
+     unregistered.
+     **Sized:** ~20 lines, the activated def carried on the stack entry.
+     **Slotted:** the first registered activated "this ability" copy, Dimir
+     Doppelganger, which waits on TR-7's graveyard targets.
+
+222. **A copy row that carries a triggered ability opens the dispatcher's
+     gate for the whole battlefield.** `RegistryScopeSummary` adds a `Fixed`
+     row's `carries` to `unattributed_trigger_zones` as `BATTLEFIELD`, so
+     every window visits every permanent while one exists.
+     Cryptoplasm's copies always carry its trigger, which keeps the gate open
+     from its first copy to its last. On `performance` with it pooled,
+     `Candidate visits` read 45.1 → 797.4 a game at two seats and 124.4 →
+     2,091.3 at four (`fuzz-record.md`, CV-1b's block).
+     **Reachability (2026-10-06):** reachable — not wrong in any game: the
+     dispatcher's cost.
+     **Sized:** ~30 lines. A named row adds its named objects to the
+     candidates, as `any_named_unattributed_replacement` names the
+     replacement gate's, and a `Filter` row keeps opening its zones.
+     **Slotted:** TR-3a, the next PR on the route, which touches the
+     dispatcher.

@@ -728,3 +728,89 @@ rather than at the close. 707.9f adds a read no page walks: a look-ahead of
 a copy that has not been made, taken once per judgment, inside the CR 616.1c
 application. The page walks Spark Double's entry read by read, on the Kaito
 board and on a plain creature.
+
+### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ 2026-10-06 (PR #230)
+
+*Evicted 2026-10-06 from `plans/copy-effects-architecture.md`, where the
+heading and a stub remain.*
+
+**The scope, as briefed** (#229's close). Item 10's rule, with its three
+reference kinds and the fourth the type-surface re-sweep found
+(`RegisteredReplacementEffect.targets`) and the 400.7a–c carve-out; CV-1b's
+`Duration::Indefinite` row and its teardown, with Mirrorform spelled as
+printed and one registered consumer; item 189's fixture; and the atoms. The
+open decisions went to the owner at the start, with what the hunt below had
+found, and each took the recommendation: Cryptoplasm with "another target"
+built here, the combat fix in this PR as its own commit and arm, one PR split
+at 2,500 if it crossed, and the applied set's key included.
+
+**What the hunt changed**, card by card before the count
+(`engineering-practices.md` §4):
+1. **Two reference kinds item 10 did not list.** CR 609.7a's chosen source
+   lives in a replacement's pattern, not its affected set, and is pruned at
+   the same point, with 400.7c's exception. Combat pairings were never
+   cleaned: a dead blocker stayed in `blocked_by`, and the division prompt
+   offered it. That was reachable and wrong.
+2. **The carve-out, narrowed.** Item 10's "a move from the stack to the
+   battlefield prunes nothing keyed on the mover" became 400.7a and 400.7c
+   as written: every continuous row, and a prevention effect watching damage
+   from the spell. A restriction on the spell does not carry over.
+3. **"Another target"** (`ObjectFilter::NotSource` in a selection) was
+   refused, and `triggers-architecture.md` §12 had given it to TR-3b. Six of
+   the 25 indefinite clauses print it.
+4. **"Except it has this ability"** cannot be card data, since the def would
+   contain itself. `GainsThisAbility` is made the resolving ability's def at
+   the capture, off `GameState::resolving`.
+5. **Item 16b, the brief's unlisted prerequisite**, was worse than recorded.
+   Copying one donor twice applied its statics twice, and the fix the item
+   sized would have dropped an indefinite copy's statics for good once a
+   turn's copy over it expired. Tagging copied abilities per copy row fixes
+   both.
+
+Two more surfaced in the build: `Effect::instances` did not walk into
+`Optional`, so Cryptoplasm's target was never announced; and a declined
+"may" left the resolution's instance cursor behind.
+
+**The commits.** The rule: the registries' prune (`0ed8c6d`), targets by
+identity (`c933609`), the applied set's key (`9ae388e`, with the trace
+test's expectation `3092567`), and the combat removal (`6415df8`). The copy:
+per-row tags (`2580f4d`), Mirrorform and the exceptions on the primitive
+(`0911ee5`), "another target" (`62061b2`), Cryptoplasm unregistered with its
+engine pieces (`d8be020`), its registration (`a42f078`), item 189
+(`0478fc9`), the composite atom's test (`8cbf132`), and a perf fix the
+close-out's callgrind found (`84b999c`, the gather's lookup off its hot
+path).
+
+**The arms**, predicted before any ran:
+- `rule` against `main`: every gameplay row identical, cost rows a little
+  lower, ±0.3% instructions. Read **IDENTICAL** at two seats and four on
+  both pools, and +1.29%. The callgrind diff put nearly all of it in
+  `replacement::gather`, the permanent's epoch looked up per permanent per
+  gather for the applied set's key. Moved into the counter loop, the same
+  arm reads +0.23%.
+- `combat`: moves a few games. Read identical at two seats, moving at four.
+- `engine` (Cryptoplasm unregistered): `performance` identical where combat
+  is, `stress` moving through Mirrorform. As read.
+- `shipped`: a pool change, so a re-record (`engineering-practices.md` §3).
+
+**The tests.** 29 in `phase_cv1b_integration_test.rs`, in eight sections:
+the registries' half, the announcement's, combat's, a re-copy, copies that
+last, "another target", Cryptoplasm, and item 189. Two RB tests now assert a
+regeneration shield unspent before its creature dies, not after. Every
+ruling of Mirrorform's four and Cryptoplasm's four is a test.
+
+**The review round** (the owner, 2026-10-07). Two items this PR had filed
+were finished in it. Item 218: a copy that lasts hides every earlier copy of
+its object for as long as both exist, so it retires them and the rows their
+copied statics generated (`retire_earlier_copies_of`); the owner's "overwrite
+the line item" is that, with a turn's copy over a lasting one kept apart,
+since the lasting one shows again. Item 221: CR 707.9c over several objects
+is a row per object. Its test found that one timestamp per effect made the
+rows one `EffectGroup`, which CR 613.6 held to the first row's object, so
+each row takes its own. The one-word names this PR added were renamed for
+their call sites (`refers_to`, `remove_references_to`, `from_announcement`,
+`for_text_of`, `as_resolved_targets`, `chosen_damage_source`), and the
+609.7a read lost its nineteen `None` arms: `PatternFill`, the closed list of
+what a resolution writes into a pattern, is where the guard belongs. CR
+400.7's twelve exceptions were tabled with an owner each (§5.3): five are
+PM-0's (`permission-architecture.md` §5 question 6), and stickers have none.

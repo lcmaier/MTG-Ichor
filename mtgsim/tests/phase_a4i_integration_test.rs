@@ -358,7 +358,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
             &two_creatures,
             &[ResolvedTarget::Object(a), ResolvedTarget::Object(b)],
             0,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_ok(),
         "two different creatures"
@@ -368,7 +368,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
             &two_creatures,
             &[ResolvedTarget::Object(a), ResolvedTarget::Object(a)],
             0,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_err(),
         "the same creature twice for one instance (CR 601.2c)"
@@ -379,7 +379,15 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
     let mut earlier_targets = ChosenTargets::NONE;
     earlier_targets.push(vec![ResolvedTarget::Object(a)]);
     assert!(
-        game.validate_targets(&one_creature, &[ResolvedTarget::Object(a)], 0, &earlier_targets)
+        game.validate_targets(
+            &one_creature,
+            &[ResolvedTarget::Object(a)],
+            0,
+            mtgsim::engine::targeting::FilterIdentity {
+                source: None,
+                earlier_targets: mtgsim::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
+            },
+        )
             .is_ok(),
         "CR 601.2c's second sentence"
     );

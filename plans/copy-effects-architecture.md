@@ -266,7 +266,7 @@ answered 133/17. Both the question and the answer were wrong:
 |---|---:|---|---|
 | **Tier B** — enters as a copy | **69** | No row: the copy is state on the entering permanent and leaves with its `PermanentState` | **No** |
 | **Tier C, turn-bounded** | **56** | `remove_expired_at_cleanup`. Source is the stack object, so `remove_by_source` never fires — but the row is gone at CR 514.2 anyway | **No** — exposure is the rest of the turn, which is exactly a pump spell's |
-| **Tier C, indefinite** | **25** | **Nothing.** Never expires, and `remove_by_source` cannot reach it | **Yes** (§5.3) |
+| **Tier C, indefinite** | **25** | **Nothing.** Never expires, and `remove_by_source` cannot reach it | **Yes** (§5.3); CR 400.7's prune ends it since CV-1b (§7d) |
 
 **25 clauses, and the script prints all 25 by name** — Dimir Doppelganger,
 Lazav the Multifarious, True Polymorph, Metamorphic Alteration and the rest.
@@ -786,6 +786,20 @@ combinations are nonsense — a recipient copying itself, and "each other" with 
 donor to be other than — and encoding unreachable states is how an arm
 eventually gets written for one.
 
+> **A third arm, and exceptions on the primitive (CV-1b).**
+> `CopyRoles::ThisObjectCopiesRecipient` is "this creature becomes a copy of
+> [target]" (Cryptoplasm, Vesuvan Doppelganger's upkeep, Lazav), the family's
+> usual shape. `Primitive::Copy { roles, except, duration }` makes CR
+> 707.9a–c's exceptions at the capture, as an entry copy does, and
+> `CharacteristicEdit::GainsThisAbility` is "except it has this ability",
+> made the resolving ability's def there, since a card cannot write it as
+> data. Each copy row tags the abilities it copies (`AbilityId::copied_by`),
+> so a re-copy of one donor is a second instance and its statics apply once.
+> A copy over several objects that keeps each one's own value (707.9c) is a
+> row per object, each with its own timestamp: one timestamp would make the
+> rows one `EffectGroup`, and CR 613.6 would hold them all to the first
+> row's object.
+
 > **`exclude_donor` is a field because review found the card that needs it
 > `false`.** The arm shipped as `OthersCopyRecipient(ObjectFilter)`, with the
 > exclusion **structural**, on the reading that a class-scoped copy always says
@@ -1171,6 +1185,34 @@ origin and duration — not by `ObjectSet`):
    failed to state is exactly this: a pump spell's exposure is one turn wide,
    an indefinite copy's is unbounded.
 
+> **Resolved by CV-1b (2026-10-06, §7d).** The rule is item 10's, keyed on
+> the affected object as this section asked. `move_object` prunes the mover
+> from every row that names it, beside `remove_by_source` and never instead
+> of it. CR 400.7a–c's exceptions are taken narrowly: a permanent spell keeps
+> its continuous rows and a prevention effect watching damage from it, and
+> nothing else. An indefinite copy row now ends when its subject moves, and
+> a copy that lasts retires the earlier copies of its object, which it hides
+> for as long as both exist (`retire_earlier_copies_of`, the review round).
+>
+> **CR 400.7's twelve exceptions, and who owns each** (the review, 2026-10-07).
+> Two keep a row today's cards can make, and `break_references_to` spares
+> them; five are a permission's, and the prune spares nothing for them yet.
+>
+> | CR | What carries over, or is found | Where | State |
+> |---|---|---|---|
+> | 400.7a | an effect on a permanent spell changing characteristics or control | the prune spares every continuous row from the stack to the battlefield | ✅; 400.7a-002, a text change, waits on Layer 3 (`backlog.md`) |
+> | 400.7b | a static grant, to a permanent spell, of an ability that works on the battlefield (611.3d) | the grant's filter ("creature spells you cast") stops matching the permanent, so the resolution writes a row | ✗ PM-0 (`permission-architecture.md` §5 question 6); ATOM-400.7b-001 |
+> | 400.7c | prevention of damage from a permanent spell | the prune spares it (`prevents_damage_from`) | ✅ |
+> | 400.7d | facts a permanent keeps about the spell it was | `PermanentState.cast` (main item 9); mana spent is B9 | ✅ but mana provenance |
+> | 400.7e | a zone-change trigger finding the new object | TR-4 | 400.7e-001, -002 |
+> | 400.7f | a leaves-the-battlefield trigger finding the Auras | TR-4 | 400.7f-001 |
+> | 400.7g | a granted cast ability (Snapcaster Mage's flashback) on the spell | the cast spares its grant from the prune | ✗ PM-0, question 6; no atom |
+> | 400.7h | the rest of an effect finding the spell it let be cast | the same | ✗ PM-0; no atom |
+> | 400.7i | the rest of an effect finding the land it let be played | the same | ✗ PM-0; no atom |
+> | 400.7j | the rest of an effect finding what it moved to a public zone | CR 608.2b's check runs once, as the resolution begins (`stack.rs`), and a later step finds the object by id | ✅; what a step does there is its primitive's (400.7j-001, Phase 8) |
+> | 400.7k | after an uncast madness card, effects finding the discarded card | madness's permission (§1's census, "cast while something resolves") | ✗ PM-0, question 6; no atom |
+> | 400.7m | stickers, and their effects, across public zones | `backlog.md` §2.45, scoped in by the owner (2026-10-07) where session 1 had ruled CR 123 out | ✗ no owner doc yet |
+
 **Scheduling consequence:** **CV-1 shipped turn-bounded Tier C, CV-2 ships
 Tier B, and CV-1b ships the indefinite 25 and is blocked on item 10.** §7
 draws that line.
@@ -1314,7 +1356,7 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **CV-1 — the capture, the row, and the two legs** | `CopiableValues`, `EffectModification::CopyFrom`, the ceiling-1 capture, `Primitive::Copy`, `RegistryScopeSummary::any_copied_replacement`, and static re-registration off the captured list. Turn-bounded durations only. **Consumer: Cytoshape** — "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn": a resolution, `ObjectSet::Fixed` by CR 611.2c, `UntilEndOfTurn`, no trigger. Plus a Clone-of-an-Anthem probe for §4.7 leg 2 | **1** new `EffectModification` arm; **1** apply site (`compute.rs` layer index 0, which today applies nothing); **1** new field on `RegistryScopeSummary` + its recompute (`continuous_effects.rs:114`); **1** gate leg (`gather.rs:143`); **1** re-registration path against `register_static_effects` (`game_state.rs:737`). New type sized against `EffectiveCharacteristics` (12 fields) | **medium-high** — one line in the hottest path in the engine, and `layers-architecture.md` §12 measured an ungated existence check at 5.2×–8.0×. The deliverable is as much the `fuzz_games --games 200 --seed 12345` measurement as the behaviour |
-| **CV-1b — indefinite-duration copies** | `Duration::Indefinite` on a `CopyFrom` row. **Consumer: Dimir Doppelganger** ("{1}{U}{B}: Exile target creature card from a graveyard. This creature becomes a copy of that card, except it has this ability") — which also exercises capturing from a **card in a graveyard**, a subject `compute_to_ceiling` reaches because it reads `game.objects`, not `game.battlefield`. Also `codebase-state.md` item 189's fixture, a copy a counter write makes applicable (CR 616.2), which no card prints | **25** clauses (§2.4), printed by name by `--scope`; **0** new types — one `Duration` value plus its teardown | low mechanically; **ships in one PR with `codebase-state.md` item 10 (CR 400.7), sized and slotted 2026-09-03 after CV-2**, and §5.3 is why: an indefinite row is reachable by neither expiry nor `remove_by_source`, so it outlives its subject without bound |
+| **CV-1b — indefinite-duration copies** | ✅ (§7d). `Duration::Indefinite` on a `CopyFrom` row, in one PR with `codebase-state.md` item 10 (CR 400.7). **Consumer: Cryptoplasm**, chosen over Dimir Doppelganger, whose graveyard target is TR-7's facility; and item 189's fixture | **25** clauses (§2.4); sized ~900 with item 10 | §7d |
 | **CV-2a, CV-2b — enters as a copy** | Two PRs: CV-2a ✅ (§7b), CV-2b ✅ (§7c; its vocabulary is §4.1a). **CV-2a:** `PermanentState.entered_as_copy`, `Rewrite::EnterAsCopy`, the CR 707.6 choice and copiable loyalty; **consumer: Clone**. **CV-2b:** CR 707.9's exceptions; **consumer: Spark Double** | §7c | medium — RC-2 and RC-4 have landed |
 | **CV-3 — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `token_card_data` (`resolve.rs:1450`); **1** `Primitive::CreateToken` arm | low — no row, no layer, no duration |
 | **CV-4 — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. Defers CR 707.10b ability copies (**39** clauses) to critical-path item 6 | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
@@ -1390,6 +1432,46 @@ the sites, size, tests and arms, and what the building changed:
 `plans/archive/copy-effects-architecture-landed.md`, "CV-2b" (evicted
 2026-09-29).
 
+### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ landed 2026-10-06
+
+**What shipped.** `codebase-state.md` item 10's rule and the indefinite copy
+that needed it, in one PR (#230). A move ends every reference made before it:
+- `DurationRegistry::remove_references_to` prunes the mover from each row
+  that refers to it, an `ObjectSet::Fixed` set or CR 609.7a's chosen source,
+  sparing a permanent spell's rows as CR 400.7a and 400.7c say (§5.3);
+- a target is a `TargetRef`, its epoch compared at CR 608.2b;
+- the applied set keys an object by `ObjectRef`;
+- a permanent leaving the battlefield is removed from combat (CR 506.4).
+
+`Primitive::Copy { roles, except, duration }` takes `Duration::Indefinite`
+and CR 707.9a–c's exceptions, and each copy row tags the abilities it copies
+(item 16b). For Cryptoplasm: `CopyRoles::ThisObjectCopiesRecipient`,
+`CharacteristicEdit::GainsThisAbility`, "another target" in a targeting
+filter, and a "may" that announces its targets. Mirrorform is spelled as
+printed, Cryptoplasm registered and pooled (103 → 104), and item 189's
+take-back scales with a doubler. ATOM-611.2a-002, 707.4-001 and
+COMP-ZONE-TRANSITION-001 covered; 400.7-001, -002, -003, 400.7a-001 partially.
+
+**What moved on the way in.** The card-by-card hunt found five things the
+sizing had not: CR 609.7a's chosen source and combat pairings are references
+too, the second reachable and wrong; "another target" was TR-3b's facility;
+"this ability" cannot be card data; and item 16b's re-copy applied a donor's
+statics twice, which its own sized fix would have made worse. The review
+fixed two more, a lasting copy retiring what it hides and 707.9c over several
+objects; items 219, 220 and 222 are what it left.
+
+**Measured** (`fuzz-record.md`, CV-1b's block). The rule's arm plays every
+gameplay row as `main` does on both pools at two seats and four, at +0.23%
+instructions per decision once a lookup left the gather's hot path; the
+combat fix moves games at four seats; Cryptoplasm is reached in 58% of
+two-seat games.
+
+**Trace page: no**, the owner's to reverse, as RF's and RG's were: each
+read the phase changes is one comparison at one site.
+
+→ `plans/archive/copy-effects-architecture-landed.md`, "CV-1b" (the brief's
+scope, what the hunt changed, the arms and the tests).
+
 ### 7.1 Where this sits in the interleaved order
 
 `cant-effects-architecture.md` §7.1 holds the end-to-end reading of
@@ -1408,7 +1490,7 @@ adds a track. Its own summary framing extends cleanly:
 | **CV-4** may be inserted anywhere from step 4 onward | No coupling to either existing track |
 | **CV-1 → CV-2 → CV-3**, after RC-2 and RC-4 | The spine, then its consumers |
 | **CV-5** after CV-1, before Phase 8 card breadth | 496 cards, 120 of them potential commanders |
-| **CV-1b** with item 10 as its consumer, after CV-2 | §5.3 — the indefinite 25; item 10 sized 2026-09-03, and Clone must be on the board before subject-keyed teardown is proven to leave Tier B's source-torn rows alone |
+| **CV-1b** with item 10 as its consumer, after CV-2 — ✅ 2026-10-06 (§7d) | §5.3 — the indefinite 25; item 10 sized 2026-09-03, and Clone must be on the board before subject-keyed teardown is proven to leave Tier B's source-torn rows alone |
 | **CV-6**, **CV-7** after CV-5; CV-7 before Phase 8 card breadth | §6 — CV-7's multi-component permanent is a *fact*, and the back-stop is the same one item 7 has |
 
 **Everything this document names now has an owner**, which was not true of the

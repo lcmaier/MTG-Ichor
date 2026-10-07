@@ -186,9 +186,9 @@ See `rule-400-7-details.md` for the full article by a certified MTG judge detail
 - **Mechanism:** Static ability effects on a spell (e.g., from a permanent that says "creature spells you control have haste") must persist when the spell resolves into a permanent.
 - **Minimal Board:** A permanent granting "creature spells you control have haste" on the battlefield. A creature spell on the stack.
 - **Action:** The creature spell resolves.
-- **Expected Result:** The resulting creature permanent has haste (the static ability continues to apply via the layer system, not via a transferred effect — this is actually just the layer system working normally since static abilities re-evaluate continuously).
+- **Expected Result:** The resulting creature permanent has haste. Not the layer system re-evaluating the static ability: the permanent is no longer a "creature spell", so the grant's filter no longer matches it. CR 611.3d keeps the grant on it for as long as the effect states or, with no duration, until the end of the game.
 - **Phase:** Phase 5 (Continuous Effects / Layers)
-- **Ticket:** L06 (Layer 6: abilities) — static ability application handles this naturally
+- **Ticket:** DEFERRED (2026-10-07, CV-1b's review) — PM-0, `permission-architecture.md` §5 question 6: the resolution writes the row CR 611.3d keeps; was: L06 (Layer 6: abilities) — static ability application handles this naturally
 
 ---
 

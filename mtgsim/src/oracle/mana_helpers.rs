@@ -128,7 +128,7 @@ fn can_cast_with(
     // requires targets if no legal target exists. Asked of the card, not
     // the spell ability — an Aura's target is its enchant ability
     // (CR 303.4a) and it has no spell ability to ask.
-    if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id) {
+    if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id, card_id) {
         return Err(CannotCast::NoLegalTarget);
     }
 
@@ -356,7 +356,7 @@ fn can_activate_as_its_controller(
     // make it illegal. Provably illegal from a static read, which is
     // what the oracle may filter on
     // (`dp-middleware-and-candidate-enumeration.md` §2).
-    if !every_instance_has_a_choice(game, &ability.instances, player_id) {
+    if !every_instance_has_a_choice(game, &ability.instances, player_id, source_id) {
         return Err(CannotActivate::NoLegalTarget);
     }
 
@@ -435,6 +435,7 @@ fn every_instance_has_a_choice(
     game: &GameState,
     instances: &[EffectRecipient],
     player_id: PlayerId,
+    this_object: ObjectId,
 ) -> bool {
     // The last clause whose criteria read an earlier instance. Everything after
     // it has nothing to feed forward to, and for every spell but the "another
@@ -462,7 +463,10 @@ fn every_instance_has_a_choice(
             | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
         {
             let n = *n as usize;
-            let view = crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets);
+            let view = crate::engine::targeting::FilterIdentity::for_text_of(
+                this_object,
+                crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
+            );
             // **One pass, not two.** When a later clause reads this one, the
             // check and the feed-forward want the same scan: `n` candidates, or
             // the knowledge that there are not `n`. A bounded enumeration

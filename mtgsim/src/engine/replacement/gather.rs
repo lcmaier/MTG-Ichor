@@ -42,7 +42,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::{IdSet, ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
@@ -296,12 +296,15 @@ pub(crate) fn gather(
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
+            // By identity (CR 400.7), and looked up only for a permanent with
+            // counters that make one: the sweep visits every permanent.
+            let Some(object) = game.object_ref(id) else { continue };
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_if_applicable(
                 game,
                 &mut candidates,
                 ReplacementInstance {
-                    id: ReplacementInstanceId::Counter(id, counter, kind),
+                    id: ReplacementInstanceId::Counter(object, counter, kind),
                     source: id,
                     controller,
                     def,
@@ -547,11 +550,12 @@ fn push_static_ability_replacements(
         if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
             continue;
         }
+        let Some(object) = game.object_ref(id) else { continue };
         push_if_applicable(
             game,
             out,
             ReplacementInstance {
-                id: ReplacementInstanceId::StaticAbility(id, ability.id),
+                id: ReplacementInstanceId::StaticAbility(object, ability.id),
                 source: id,
                 controller,
                 def: def.clone(),
@@ -1173,7 +1177,7 @@ fn commander_zone_replacement(
     def.exempt_from_614_5 = true;
     Some(ReplacementInstance {
         id: ReplacementInstanceId::GameRule(
-            *object,
+            ObjectRef { id: *object, zone_change_epoch: obj.zone_change_epoch },
             super::GameRuleReplacement::CommanderZone,
         ),
         source: *object,
@@ -1239,5 +1243,34 @@ mod tests {
              through no source: {:?}",
             found.iter().map(|i| i.id).collect::<Vec<_>>()
         );
+    }
+
+    /// CR 614.5 meets CR 400.7. A rider's events continue the applied set of
+    /// the event they are the rest of, and an object that left and came back
+    /// inside that lineage is a new object, whose ability is a new effect.
+    /// Rhox Faithmender's doubling is in the lineage's set; the same
+    /// Faithmender is refused, and once it has come back it doubles the gain.
+    #[test]
+    fn an_ability_of_an_object_that_moved_is_not_the_one_already_applied() {
+        let mut game = setup_two_player_game();
+        let faith = crate::test_support::put_on_battlefield(&mut game, crate::cards::phase_re_cards::rhox_faithmender(), 0);
+        let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
+        let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling);
+        let gain_in_the_lineage = |game: &mut GameState| {
+            game.rider_lineage = Some(std::collections::HashSet::from([applied]));
+            let before = game.players[0].life_total;
+            let dp = test_dp();
+            game.execute_action(GameAction::GainLife { player: 0, amount: 3, source: faith }, &ActionContext::new(&dp))
+                .unwrap();
+            game.rider_lineage = None;
+            game.players[0].life_total - before
+        };
+        assert_eq!(gain_in_the_lineage(&mut game), 3, "this Faithmender already applied");
+
+        let dp = test_dp();
+        let ctx = ActionContext::new(&dp);
+        game.change_zone(faith, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
+        game.change_zone(faith, Zone::Battlefield, ZoneChangeCause::Returned, &ctx).unwrap();
+        assert_eq!(gain_in_the_lineage(&mut game), 6, "a new object's ability is a new effect");
     }
 }

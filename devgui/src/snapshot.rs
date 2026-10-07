@@ -268,7 +268,7 @@ fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
         is_spell: entry.map(|e| e.is_spell),
         controller: chars.as_ref().map(|c| c.controller).or(entry.map(|e| e.controller)).unwrap_or_default(),
         targets: entry
-            .map(|e| e.chosen_targets.iter().flat_map(|t| &t.chosen).map(|t| target_name(game, t)).collect())
+            .map(|e| e.chosen_targets.iter().flat_map(|t| t.as_resolved_targets()).map(|t| target_name(game, &t)).collect())
             .unwrap_or_default(),
         x: entry.and_then(|e| e.x_value),
     }

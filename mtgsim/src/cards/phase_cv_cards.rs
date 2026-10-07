@@ -1,5 +1,6 @@
-//! Cards for Phases CV-1 and CV-2 — the copy spine (CR 707, layer 1a), and a
-//! permanent that enters as a copy (CR 707.5).
+//! Cards for Phases CV-1, CV-1b and CV-2 — the copy spine (CR 707, layer 1a),
+//! copies that last until the end of the game, and a permanent that enters as a
+//! copy (CR 707.5).
 //!
 //! **CV-1's three cards, and none of them is decoration.** `CopyRoles` has two arms
 //! because Cytoshape and Mirrorweave bind the atom's target to opposite roles:
@@ -11,11 +12,14 @@
 //!
 //! None is a Clone: CR 707.5's "enters as a copy" is an entry replacement, and
 //! [`clone`] is CV-2a's. [`spark_double`] is CV-2b's, the same entry copy
-//! with CR 707.9's exceptions.
+//! with CR 707.9's exceptions. [`cryptoplasm`] is CV-1b's: a copy with no
+//! stated duration, which CR 611.2a makes last until the end of the game.
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -27,6 +31,7 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
     CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite,
 };
+use crate::types::triggers::{TriggerCondition, TriggerDef};
 
 /// "Nonlegendary creature" — the filter both cards scope their copy source
 /// with, and the reason CR 707 cards say it at all: a copy of a legend meets
@@ -92,12 +97,11 @@ pub fn cytoshape() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::Copy(
-                    CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(
-                        nonlegendary_creature(),
-                    )),
-                    Duration::UntilEndOfTurn,
-                ),
+                Primitive::Copy {
+                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(nonlegendary_creature())),
+                    except: Vec::new(),
+                    duration: Duration::UntilEndOfTurn,
+                },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
         })
@@ -128,11 +132,24 @@ pub fn cytoshape() -> Arc<CardData> {
 /// own `Duration`, so it holds those values past the expiry of an earlier copy
 /// row that put them there.
 ///
+/// # No duration, so until the end of the game
+///
+/// The card states none, and CR 611.2a makes such an effect last "until the
+/// end of the game". It was spelled `UntilEndOfTurn` until CV-1b, because an
+/// indefinite row is reached by neither CR 514.2's expiry nor
+/// `remove_by_source`; CR 400.7 is what ends one now, when its subject moves.
+///
 /// # Registered, not pooled
 ///
 /// It opens no engine path Mirrorweave does not, so it stays out of
 /// `PERFORMANCE_POOL` for the reason given there. Its job is to keep
 /// `exclude_donor: false` from being scaffolding with no consumer.
+///
+/// # The rulings, and where each is tested
+///
+/// All four are in `tests/phase_cv1b_integration_test.rs`: nothing enters,
+/// so no "enters" ability applies (1); only the printed values are copied
+/// (2); a copy of a copy copies what it copied (3); X is 0 (4).
 pub fn mirrorform() -> Arc<CardData> {
     CardDataBuilder::new("Mirrorform")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 4))
@@ -151,8 +168,8 @@ pub fn mirrorform() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::Copy(
-                    CopyRoles::FilteredCopyRecipient {
+                Primitive::Copy {
+                    roles: CopyRoles::FilteredCopyRecipient {
                         // "Each nonland permanent you control" — and no
                         // "other", which is the whole reason this card is
                         // registered.
@@ -164,8 +181,10 @@ pub fn mirrorform() -> Arc<CardData> {
                         ),
                         exclude_donor: false,
                     },
-                    Duration::UntilEndOfTurn,
-                ),
+                    except: Vec::new(),
+                    // No duration printed: CR 611.2a's "until the end of the game".
+                    duration: Duration::Indefinite,
+                },
                 // "target non-Aura permanent" — the donor, and the only place
                 // in CV-1 where a copy source is not required to be a creature.
                 EffectRecipient::Target(
@@ -246,13 +265,14 @@ pub fn mirrorweave() -> Arc<CardData> {
                 // "Each **other** creature" — `exclude_donor` is the word
                 // "other", and it is a field rather than structure because
                 // Mirrorform prints the same shape without it.
-                Primitive::Copy(
-                    CopyRoles::FilteredCopyRecipient {
+                Primitive::Copy {
+                    roles: CopyRoles::FilteredCopyRecipient {
                         filter: ObjectFilter::ByType(CardType::Creature),
                         exclude_donor: true,
                     },
-                    Duration::UntilEndOfTurn,
-                ),
+                    except: Vec::new(),
+                    duration: Duration::UntilEndOfTurn,
+                },
                 // The target is the *donor* here, and it is what the printed
                 // "nonlegendary" scopes.
                 EffectRecipient::Target(
@@ -412,5 +432,68 @@ pub fn spark_double() -> Arc<CardData> {
                 )
             })),
         })
+        .build()
+}
+
+/// Cryptoplasm — {1}{U}{U}
+/// Creature — Shapeshifter 2/2
+///
+/// > At the beginning of your upkeep, you may have this creature become a copy
+/// > of another target creature, except it has this ability.
+///
+/// (Oracle text verified on Scryfall, 2026-10-06.)
+///
+/// # CV-1b's card: a copy that only a move ends
+///
+/// The copy is a resolution's row with no stated duration, so CR 611.2a's
+/// "until the end of the game", `Duration::Indefinite`, and nothing but CR
+/// 400.7 ends it: Cryptoplasm leaving the battlefield. Each upkeep it may
+/// copy again (CR 707.4), a new row over the old one, and "except it has this
+/// ability" keeps the trigger that does it.
+///
+/// Three facilities, each first needed here: `CopyRoles::ThisObjectCopiesRecipient`
+/// for "this creature becomes a copy of [target]", "another target"
+/// (`ObjectFilter::NotSource` in a targeting filter), and
+/// `CharacteristicEdit::GainsThisAbility`.
+///
+/// # In `PERFORMANCE_POOL`
+///
+/// An indefinite copy row is an engine path no pooled card opened: a row that
+/// outlives its turn, and that a move alone ends. At `{1}{U}{U}` a random game
+/// casts it, and its "may" is asked every upkeep it has a target.
+///
+/// # The rulings, and where each is tested
+///
+/// All four are in `tests/phase_cv1b_integration_test.rs`: the target chosen
+/// as the trigger is put on the stack and the "may" as it resolves (1); the
+/// copy lasts until another overwrites it (2); an illegal target leaves it as
+/// it was (3); a copy of it copies what it copies and has its ability (4).
+pub fn cryptoplasm() -> Arc<CardData> {
+    let text = "At the beginning of your upkeep, you may have this creature become a copy of another target creature, except it has this ability.";
+    let copy = Effect::Atom(
+        Primitive::Copy {
+            roles: CopyRoles::ThisObjectCopiesRecipient,
+            except: vec![CopyException::Modifies(CharacteristicEdit::GainsThisAbility)],
+            // No duration printed: CR 611.2a's "until the end of the game".
+            duration: Duration::Indefinite,
+        },
+        EffectRecipient::Target(
+            SelectionFilter::Permanent(another(ObjectFilter::ByType(CardType::Creature))),
+            TargetCount::Exactly(1),
+        ),
+    );
+    CardDataBuilder::new("Cryptoplasm")
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Shapeshifter))
+        .power_toughness(2, 2)
+        .rules_text(text)
+        .ability(triggered_ability(text, TriggerDef {
+            condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
+            intervening_if: None,
+            limit: None,
+            effect: Effect::Optional { chooser: PlayerRef::You, effect: Box::new(copy) },
+        }))
         .build()
 }

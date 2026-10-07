@@ -158,7 +158,8 @@ impl GameState {
         let id = self.add_object(object);
         self.stack.push(id);
 
-        let targets = match self.announce_targets(controller, id, &pending.instances, dp) {
+        let TriggerOrigin::Object(identity) = pending.origin;
+        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, dp) {
             Ok(targets) => targets,
             Err(_) => {
                 self.stack.retain(|&x| x != id);
@@ -168,7 +169,6 @@ impl GameState {
             }
         };
 
-        let TriggerOrigin::Object(identity) = pending.origin;
         let entry = StackEntry {
             object_id: id,
             controller,

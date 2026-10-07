@@ -49,17 +49,12 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     let obj = GameObject::new(holy_strength(), controller, Zone::Stack);
     let id = game.add_object(obj);
     game.stack.push(id);
+    let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let chosen_targets = vec![TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets: vec![TargetInstance::new(
-            holy_strength()
-                .spell_instances
-                .last()
-                .cloned()
-                .expect("an Aura announces its enchant clause"),
-            vec![ResolvedTarget::Object(target)],
-        )],
+        chosen_targets,
         chosen_modes: Vec::new(),
         x_value: None,
         effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),

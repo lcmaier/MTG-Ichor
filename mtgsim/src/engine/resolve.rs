@@ -10,7 +10,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, Condition, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
+    AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
@@ -327,6 +327,9 @@ impl GameState {
             Effect::Optional { chooser, effect: inner } => {
                 let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
                 if !crate::ui::ask::ask_apply_optional_effect(dp, self, chooser, ctx.source) {
+                    // Its targets were announced all the same, so the instances
+                    // after it are read past them.
+                    walk.instance_cursor += inner.instances().len();
                     walk.last_cost_answer = Some(CostAnswer::Doesnt);
                     return Ok(());
                 }
@@ -899,8 +902,8 @@ impl GameState {
             }
 
             // === Copy effects (CR 707, layer 1a) ===
-            Primitive::Copy(roles, duration) => {
-                self.apply_copy(roles, *duration, targets, ctx, dp)
+            Primitive::Copy { roles, except, duration } => {
+                self.apply_copy(roles, except, *duration, targets, ctx, dp)
             }
 
             Primitive::SwitchPowerToughness(duration) => {
@@ -1099,6 +1102,7 @@ impl GameState {
             // next time", `Duration::UntilEndOfTurn` "this turn", `Prevent` "instead",
             // the `then` rider its sentence — so the engine builds it, not a card author.
             Primitive::Regenerate => {
+                let recorded = self.target_refs(targets);
                 for object in self.collect_battlefield_targets(targets) {
                     let controller = get_effective_controller(self, object)
                         .unwrap_or(ctx.controller);
@@ -1116,7 +1120,7 @@ impl GameState {
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
-                        targets: targets.to_vec(),
+                        targets: recorded.clone(),
                         def,
                     });
                 }
@@ -1261,6 +1265,7 @@ impl GameState {
                         ))
                     }
                 };
+                let recorded = self.target_refs(targets);
                 for row in rows {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
@@ -1268,7 +1273,7 @@ impl GameState {
                         controller: ctx.controller,
                         duration: *duration,
                         created_on_turn: self.turn_number,
-                        targets: targets.to_vec(),
+                        targets: recorded.clone(),
                         def: row,
                     });
                 }
@@ -1701,26 +1706,6 @@ impl GameState {
         }
     }
 
-    // --- Helper: collect battlefield targets ---
-
-    /// Extract object IDs from resolved targets that are currently on the battlefield.
-    /// One player sacrifices one permanent of their choice (CR 701.21a).
-    ///
-    /// **CR 608.2d and `cant-effects-architecture.md` §4.9 are one mechanism
-    /// here, not two.** 608.2d's own example is "a player who controls no
-    /// creatures can't choose the sacrifice option"; Sigarda's ruling is "if it
-    /// would force you to sacrifice a permanent, you just don't" — and both are
-    /// answered by the same candidate list being empty. Prompting and then
-    /// refusing would violate 608.2d, would tell every other player which
-    /// permanent you would have picked, and would make an AI harness spend a
-    /// decision on a branch that cannot happen.
-    ///
-    /// An empty list is CR 101.3's "any part of an instruction that's impossible
-    /// to perform is ignored" — no prompt, no sacrifice, no error. The
-    /// *fallback* half ("each player who can't discards a card") waits on
-    /// `Effect::Conditional`, and that split is safe in one direction only:
-    /// suppressing a prompt with no fallback is a resolved effect that does
-    /// nothing, which is 101.3's own answer.
     /// CR 707.4 — "[objects] become a copy of [object] [for a duration]".
     ///
     /// Three steps, in this order and for CR reasons rather than convenience:
@@ -1738,6 +1723,7 @@ impl GameState {
     fn apply_copy(
         &mut self,
         roles: &CopyRoles,
+        except: &[CopyException],
         duration: Duration,
         targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
@@ -1777,6 +1763,20 @@ impl GameState {
                 };
                 (donor, recipients)
             }
+            CopyRoles::ThisObjectCopiesRecipient => {
+                // "This creature" is found by identity (CR 400.7): a source
+                // that left and came back is not the creature the ability is
+                // of, and the copy finds nothing to change.
+                let (Some(&donor), Some(this)) =
+                    (self.collect_battlefield_targets(targets).first(), self.this_object(ctx))
+                else {
+                    return Ok(());
+                };
+                if !self.battlefield.contains_key(&this) {
+                    return Ok(());
+                }
+                (donor, vec![this])
+            }
             CopyRoles::FilteredCopyRecipient { filter, exclude_donor } => {
                 let Some(&donor) = self.collect_battlefield_targets(targets).first() else {
                     return Ok(());
@@ -1805,31 +1805,147 @@ impl GameState {
         // Once, here, and never re-derived (CR 707.2b; CR 611.2c for a
         // resolution's) — the opposite of every other continuous effect here,
         // and the whole reason `CopyFrom` carries values rather than an `ObjectId`.
-        let Some(values) = crate::engine::layers::copiable_values(self, donor) else {
+        let Some(captured) = crate::engine::layers::copiable_values(self, donor) else {
             return Ok(());
         };
+        let except = if except.is_empty() { Vec::new() } else { self.with_this_ability(except, ctx)? };
+        // CR 707.9c: "doesn't copy" keeps each copying object's own value, so a
+        // copy over several objects that keeps one is a row per object.
+        let keeps_own_value = except.iter().any(|exception| matches!(exception, CopyException::DoesNotCopy(_)));
+        let row_subjects: Vec<Vec<ObjectId>> =
+            if keeps_own_value { affected.iter().map(|&id| vec![id]).collect() } else { vec![affected] };
+        for affected in row_subjects {
+            let mut values = captured.clone();
+            if !except.is_empty() {
+                self.make_copy_exceptions(&mut values, &except, &affected)?;
+            }
+            // CR 613.7, 707.4: a copy that lasts as long as its object hides
+            // every earlier copy of it for that whole time, so the earlier
+            // ones retire rather than stay one row more per re-copy. After the
+            // capture, since 707.9c's own value is read through them.
+            if duration == Duration::Indefinite {
+                for &object in &affected {
+                    self.continuous_effects.retire_earlier_copies_of(object);
+                }
+            }
 
-        // --- 3. The row (CR 613.2a) -------------------------------------
-        let timestamp = self.allocate_timestamp();
-        self.continuous_effects.add(ContinuousEffect {
-            id: 0,
-            source: ctx.source,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer1Copy,
-            duration,
-            controller: ctx.controller,
-            created_on_turn: self.turn_number,
-            timestamp,
-            affected_objects: ObjectSet::Fixed(affected.clone()),
-            modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
-        });
+            // --- 3. The row (CR 613.2a) ---------------------------------
+            //
+            // Each copied ability is tagged with the row, as a Layer 6 grant
+            // is: a second copy of the same donor is a second instance of each
+            // of its abilities, and the rows a copied static ability generates
+            // must apply only while their own copy is the one showing (item 16b).
+            let row = self.continuous_effects.next_id();
+            for ability in std::sync::Arc::make_mut(&mut values.abilities) {
+                ability.id = ability.id.copied_by(row);
+            }
+            // A timestamp per row, though CR 613.7b gives the effect one: the
+            // rows are allocated together and affect different objects, so
+            // their order is unobservable, while one timestamp would make them
+            // one `EffectGroup`, and CR 613.6 would hold every row to the
+            // first one's object.
+            let timestamp = self.allocate_timestamp();
+            self.continuous_effects.add(ContinuousEffect {
+                id: 0,
+                source: ctx.source,
+                origin: EffectOrigin::Resolution,
+                layer: Layer::Layer1Copy,
+                duration,
+                controller: ctx.controller,
+                created_on_turn: self.turn_number,
+                timestamp,
+                affected_objects: ObjectSet::Fixed(affected.clone()),
+                modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
+            });
 
-        // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes the
-        // copy *have* the ability; it does not make the ability *do* anything.
-        self.register_copied_static_effects(
-            &values, &affected, timestamp, duration,
-        );
+            // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes
+            // the copy *have* the ability; it does not make the ability *do*
+            // anything.
+            self.register_copied_static_effects(&values, &affected, timestamp, duration);
+        }
         Ok(())
+    }
+
+    /// `except` with "it has this ability" made the ability it names: the one
+    /// resolving, which [`GameState::resolving`] identifies.
+    ///
+    /// An ability on the stack exists apart from its source (CR 113.7a), so
+    /// the def is the source's while the source still has that instance, and
+    /// otherwise a trigger's own: an effect in response that took the ability
+    /// away does not take "this ability" from the copy. A rebuilt def is held
+    /// to what `CardDataBuilder::build` does, its instances of "target" listed.
+    fn with_this_ability(&self, except: &[CopyException], ctx: &ResolutionContext) -> Result<Vec<CopyException>, String> {
+        use crate::objects::card_data::{AbilityType, ActivationRestriction};
+        use crate::types::effects::CharacteristicEdit;
+        let names_it = |e: &CopyException| matches!(e, CopyException::Modifies(CharacteristicEdit::GainsThisAbility));
+        if !except.iter().any(names_it) {
+            return Ok(except.to_vec());
+        }
+        let identity = self
+            .resolving
+            .as_ref()
+            .and_then(|resolving| resolving.identity)
+            .ok_or("\"except it has this ability\" on a resolution that is not an ability's")?;
+        let source = identity.source.id;
+        let current = crate::oracle::characteristics::get_effective_abilities(self, source);
+        let this = match current.iter().find(|a| a.id == identity.ability) {
+            Some(def) => def.clone(),
+            None => {
+                let trigger = ctx.trigger.as_ref().ok_or_else(|| {
+                    format!("{source}'s ability {} is gone and only a trigger carries its own def", identity.ability)
+                })?;
+                let effect = Effect::Triggered(std::sync::Arc::clone(&trigger.def));
+                // PRE-LAYER ZONE: the printed text, which a rebuilt def carries
+                // for the window and no rule reads.
+                let printed = self.objects.get(&source).and_then(|obj| {
+                    obj.card_data.abilities.iter().find(|a| a.id.definition() == identity.ability.definition()).map(|a| a.rules_text)
+                });
+                crate::objects::card_data::AbilityDef {
+                    id: identity.ability,
+                    rules_text: printed.unwrap_or_else(|| "".into()),
+                    ability_type: AbilityType::Triggered,
+                    costs: Vec::new(),
+                    instances: effect.instances(),
+                    effect,
+                    is_characteristic_defining: false,
+                    activation_restriction: ActivationRestriction::None,
+                }
+            }
+        };
+        Ok(except
+            .iter()
+            .map(|e| if names_it(e) { CopyException::Modifies(CharacteristicEdit::GainsAbility(this.clone())) } else { e.clone() })
+            .collect())
+    }
+
+    /// CR 707.9a–c — make a resolution's copy exceptions on the captured
+    /// values, so they are the copy's copiable values (707.9b) and a copy of
+    /// the copy has them too.
+    ///
+    /// "It doesn't copy that creature's color" keeps the copying object's own
+    /// value (707.9c), read here, which is why [`Self::apply_copy`] hands a
+    /// copy that keeps one a single object per row. 707.9e's additions and
+    /// 707.9f's conditions are an entry's, and refused.
+    fn make_copy_exceptions(
+        &self,
+        values: &mut crate::engine::layers::copy::CopiableValues,
+        except: &[CopyException],
+        affected: &[ObjectId],
+    ) -> Result<(), String> {
+        for exception in except {
+            match exception {
+                CopyException::Modifies(_) | CopyException::DoesNotCopy(_) => {}
+                CopyException::Additionally(_) | CopyException::If(..) => {
+                    return Err(format!("{exception:?} is about a permanent entering (CR 707.9e, 707.9f), not a resolution's copy"));
+                }
+            }
+        }
+        let own = match affected {
+            [only] => crate::engine::layers::copiable_values(self, *only),
+            _ => None,
+        };
+        let exceptions: Vec<&CopyException> = except.iter().collect();
+        values.except(&exceptions, own.as_ref())
     }
 
     /// CR 609.7a — ask for the source of damage a
@@ -2095,6 +2211,14 @@ impl GameState {
         }
     }
 
+    /// `targets` as a row keeps them: each object by identity, at the epoch
+    /// it has now. An object an earlier part of this effect moved is the one
+    /// it moved, which CR 400.7j lets the rest of the effect find.
+    fn target_refs(&self, targets: &[ResolvedTarget]) -> Vec<crate::engine::targeting::TargetRef> {
+        targets.iter().filter_map(|&target| self.target_ref(target)).collect()
+    }
+
+    /// The resolved targets that are on the battlefield now.
     fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
         targets.iter()
             .filter_map(|t| {

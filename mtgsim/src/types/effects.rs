@@ -370,6 +370,27 @@ impl ObjectSet {
             ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::EMPTY,
         }
     }
+
+    /// CR 400.7 — does this set refer to `object` by identity? Only a `Fixed`
+    /// set does, captured as its effect began (CR 611.2c); the other three
+    /// arms read the board each time they are asked, so a move leaves nothing
+    /// of theirs behind.
+    pub fn refers_to(&self, object: ObjectId) -> bool {
+        matches!(self, ObjectSet::Fixed(ids) if ids.contains(&object))
+    }
+
+    /// CR 400.7 — stop referring to `object`, which has become a new object.
+    /// Returns whether the set is still about any object, which only a
+    /// `Fixed` set left empty is not.
+    pub fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        match self {
+            ObjectSet::Fixed(ids) => {
+                ids.retain(|&id| id != object);
+                !ids.is_empty()
+            }
+            ObjectSet::SourceOnly | ObjectSet::Filter { .. } | ObjectSet::Host => true,
+        }
+    }
 }
 
 /// Which **players** a replacement or prevention effect applies to — CR 614.1's
@@ -419,6 +440,17 @@ impl PlayerSet {
             PlayerSet::Opponents => player != controller,
             PlayerSet::Everyone => true,
             PlayerSet::Fixed(ids) => ids.contains(&player),
+        }
+    }
+
+    /// Can this set contain a player at all? What keeps a row whose object
+    /// half CR 400.7 emptied: "prevent all damage that would be dealt to you
+    /// and target creature" still protects you once the creature is gone.
+    pub fn can_contain_a_player(&self) -> bool {
+        match self {
+            PlayerSet::Nobody => false,
+            PlayerSet::Fixed(ids) => !ids.is_empty(),
+            PlayerSet::You | PlayerSet::Opponents | PlayerSet::Everyone => true,
         }
     }
 }
@@ -905,7 +937,9 @@ pub enum SelectionFilter {
 ///
 /// A closed enum with two arms rather than a `bool`, because the arm names the
 /// rule it serves; a second arm needs a second CR rule that puts a resolution's
-/// choice in a pattern.
+/// choice in a pattern. An object it writes is one CR 400.7 ends when the
+/// object moves, which `move_object`'s prune reads through
+/// `EventPattern::chosen_damage_source`, so that arm adds its read there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PatternFill {
     /// Nothing is asked; the pattern is the card's, as written.
@@ -1319,6 +1353,13 @@ pub enum CharacteristicEdit {
     /// `is_characteristic_defining` stands: CR 604.3a(2) counts an ability "acquired
     /// ... as the result of a copy effect".
     GainsAbility(crate::objects::card_data::AbilityDef),
+    /// "Except it has this ability" — Cryptoplasm, Dimir Doppelganger, and
+    /// every "this creature becomes a copy" that keeps the ability that did
+    /// it. [`Self::GainsAbility`] of the ability resolving, which a card
+    /// cannot write as data, since the def would contain itself. Only a
+    /// resolution's copy has one, and it is made a `GainsAbility` at the
+    /// capture.
+    GainsThisAbility,
     /// "It has flying" — Mockingbird.
     GainsKeyword(KeywordFlag),
     /// "It's 7/7" — Quicksilver Gargantuan: base power and toughness.
@@ -1343,7 +1384,9 @@ impl CharacteristicEdit {
                     && change.remove_subtypes.is_empty()
                     && change.remove_supertypes.is_empty()
             }
-            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) => true,
+            CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
+            | CharacteristicEdit::GainsKeyword(_) => true,
             CharacteristicEdit::PowerToughness(..) | CharacteristicEdit::Name(_) => false,
         }
     }
@@ -1371,6 +1414,7 @@ impl CharacteristicEdit {
                 change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
             }
             CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
             | CharacteristicEdit::GainsKeyword(_)
             | CharacteristicEdit::PowerToughness(..)
             | CharacteristicEdit::Name(_) => {
@@ -1454,6 +1498,11 @@ pub enum CopyRoles {
     /// resolves (CR 707.4). A choice, not a target: hexproof and shroud do not
     /// apply, and nothing fizzles if it leaves. Cytoshape, Polymorphous Rush.
     RecipientsCopyChosen(SelectionFilter),
+    /// The atom's recipient supplies the values and the object whose
+    /// ability this is becomes a copy of it: "you may have this creature
+    /// become a copy of another target creature" (Cryptoplasm). The family's
+    /// usual shape, alongside Vesuvan Doppelganger's upkeep and Lazav's.
+    ThisObjectCopiesRecipient,
     /// The atom's target supplies the values, and every permanent matching
     /// `filter` becomes a copy of it. Mirrorweave, Mirrorform.
     FilteredCopyRecipient {
@@ -1844,16 +1893,21 @@ pub enum Primitive {
     /// One or more permanents become a copy of another (CR 707.4).
     ///
     /// The `Duration` is authored for the reason [`Self::Restrict`]'s is: CR
-    /// 611.2's scope comes from the card's English, not from the mechanism. The
-    /// turn-bounded shapes only — `Duration::Indefinite` needs CR 400.7 first
-    /// (CV-1b), because a row reachable by neither expiry nor `remove_by_source`
-    /// outlives its subject without bound (`copy-effects-architecture.md` §5.3).
+    /// 611.2's scope comes from the card's English, not from the mechanism. A
+    /// card that states none is `Duration::Indefinite` (CR 611.2a: "it lasts
+    /// until the end of the game"), which ends when its subject moves (CR
+    /// 400.7), since neither expiry nor `remove_by_source` reaches it
+    /// (`copy-effects-architecture.md` §5.3).
     ///
     /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
     /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —
     /// which is what makes a copy row independent of every other layer 1 effect
     /// and so keeps this off critical-path item 7.
-    Copy(CopyRoles, Duration),
+    ///
+    /// `except` is CR 707.9a–c's, made on the captured values as the effect
+    /// begins: "except it has this ability" and the rest. 707.9e's additions
+    /// and 707.9f's conditions are about an entry, so a resolution refuses them.
+    Copy { roles: CopyRoles, except: Vec<CopyException>, duration: Duration },
 
     // === Counter spells/abilities (rule 701.6) ===
     /// Counter a spell on the stack (rule 701.6a).
@@ -2014,6 +2068,11 @@ impl Effect {
                     def.effect.for_each_ability_def_mut(f);
                 }
             }
+            Effect::Atom(Primitive::Copy { except, .. }, _) => {
+                for exception in except {
+                    exception.for_each_ability_def_mut(f);
+                }
+            }
             Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}
             Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
                 for effect in effects {
@@ -2112,6 +2171,10 @@ impl Effect {
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.
             Effect::Triggered(def) => def.effect.for_each_instance(f),
+            // A "may" changes nothing about what is targeted: the target is
+            // chosen as the ability is put on the stack and the choice made as
+            // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
+            Effect::Optional { effect, .. } => effect.for_each_instance(f),
             _ => true,
         }
     }

@@ -33,7 +33,7 @@
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::restriction::RestrictionDef;
+use crate::types::restriction::{Restriction, RestrictionDef};
 
 /// Unique identifier for a registered restriction.
 pub type RestrictionId = u64;
@@ -83,6 +83,25 @@ impl DurationRow for RegisteredRestriction {
         self.created_on_turn
     }
     fn sort_key(&self) -> Self::SortKey {}
+    fn refers_to(&self, object: ObjectId) -> bool {
+        match &self.def.what {
+            Restriction::Event { pattern, affected_objects, .. } => {
+                affected_objects.refers_to(object) || pattern.chosen_damage_source() == Some(object)
+            }
+            Restriction::ApplyReplacement { to_objects, .. } => to_objects.refers_to(object),
+        }
+    }
+    fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        match &mut self.def.what {
+            Restriction::Event { pattern, affected_objects, affected_players, .. } => {
+                pattern.chosen_damage_source() != Some(object)
+                    && (affected_objects.remove_reference_to(object) || affected_players.can_contain_a_player())
+            }
+            Restriction::ApplyReplacement { to_objects, to_players, .. } => {
+                to_objects.remove_reference_to(object) || to_players.can_contain_a_player()
+            }
+        }
+    }
 }
 
 /// Every "can't" a resolution has created.

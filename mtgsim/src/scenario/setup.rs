@@ -265,7 +265,7 @@ impl LineAnswers<'_> {
         let Some(entry) = entry else {
             self.refuse("the engine rewound it once picked (CR 732.1), most often for a cost the untapped lands cannot pay");
         };
-        let chosen: Vec<ResolvedTarget> = entry.chosen_targets.iter().flat_map(|instance| instance.chosen.iter().copied()).collect();
+        let chosen: Vec<ResolvedTarget> = entry.chosen_targets.iter().flat_map(|instance| instance.as_resolved_targets()).collect();
         let untaken = line.targets.iter().zip(self.taken.borrow().iter()).position(|(target, taken)| !taken && !chosen.contains(target));
         if let Some(i) = untaken {
             self.refuse(format!("it names {} as a target, and no target it was cast or activated with is that", line.written.targets[i]));

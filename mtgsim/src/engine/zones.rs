@@ -56,6 +56,7 @@ impl GameState {
         // Clean up zone-specific state for the old zone (before removal,
         // so we can still read the departing entity's state)
         self.cleanup_zone_state(id, from);
+        self.break_references_to(id, from, Some(to));
 
         self.remove_from_zone_collection(id, from)?;
 
@@ -95,6 +96,7 @@ impl GameState {
     pub(crate) fn remove_from_game(&mut self, id: ObjectId) -> Result<(), String> {
         let from = self.get_object(id)?.zone;
         self.cleanup_zone_state(id, from);
+        self.break_references_to(id, from, None);
         self.remove_from_zone_collection(id, from)?;
         // A spell or ability on the stack keeps its entry beside the object;
         // `remove_from_zone_collection` drops it for the stack arm, and a
@@ -431,6 +433,35 @@ impl GameState {
         }
     }
 
+    /// CR 400.7 — "an object that moves from one zone to another becomes a new
+    /// object with no memory of, or relation to, its previous existence", so
+    /// every effect that referred to `id` as it was stops referring to it.
+    /// `to` is `None` for an object leaving the game (CR 800.4a).
+    ///
+    /// The registries' half of the rule; a target's is its epoch, compared at
+    /// CR 608.2b, and an attachment's is `cleanup_zone_state`.
+    /// The source's half — the rows its own static abilities generate — is
+    /// `remove_by_source`, there too.
+    ///
+    /// Of CR 400.7's twelve exceptions, two keep a row any card can make
+    /// today, both for a permanent spell becoming the permanent (400.7a,
+    /// 400.7c): every continuous effect, since each changes characteristics
+    /// or control, and a prevention effect watching damage from it. Nothing
+    /// else carries over, a restriction included. A card put onto the
+    /// battlefield from anywhere else, as Reanimate puts one, was no spell
+    /// and keeps nothing; the rest of its own effect finds it by id (400.7j).
+    /// 400.7b and 400.7g–i keep a row across a static grant, a cast or a play
+    /// that no card can make yet (`permission-architecture.md` §5); the whole
+    /// list, and who owns each, is `copy-effects-architecture.md` §5.3.
+    fn break_references_to(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) {
+        let spell_becomes_permanent = from == Zone::Stack && to == Some(Zone::Battlefield);
+        if !spell_becomes_permanent {
+            self.continuous_effects.remove_references_to(id);
+        }
+        self.replacement_effects.remove_references_to(id, |row| spell_becomes_permanent && row.prevents_damage_from(id));
+        self.restrictions.remove_references_to(id, |_| false);
+    }
+
     /// Clean up zone-specific state when leaving a zone.
     ///
     /// Called BEFORE remove_from_zone_collection so we can still read
@@ -463,6 +494,12 @@ impl GameState {
             // And the trigger dispatcher's. Its look-back conditions read the
             // CR 603.10a frame the record carries, never this set.
             self.trigger_sources.remove(&id);
+
+            // CR 506.4 — "a permanent is removed from combat if it leaves the
+            // battlefield", and both ends of each pairing go with it: an attacker
+            // no longer lists a blocker that died, and a blocker no longer
+            // blocks an attacker that did.
+            self.remove_from_combat(id);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {

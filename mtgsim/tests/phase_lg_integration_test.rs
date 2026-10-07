@@ -642,7 +642,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             0,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_ok(),
         "P0 controls it"
@@ -652,7 +652,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             1,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_err(),
         "P1 does not"
@@ -665,7 +665,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             1,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_ok(),
         "CR 613.1b: and now P1 does"
@@ -675,7 +675,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter, TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             0,
-            &ChosenTargets::NONE,
+            mtgsim::engine::targeting::FilterIdentity::NONE,
         )
         .is_err(),
         "and P0 does not"

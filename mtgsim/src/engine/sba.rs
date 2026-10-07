@@ -356,13 +356,16 @@ impl GameState {
                             // it is already attached to, outside CR 601.2c's
                             // loop — so there are no earlier instances, and a
                             // `OtherThanInstance` leaf on an enchant filter is
-                            // refused rather than answered.
+                            // refused rather than answered. "This" is the Aura.
                             if self
                                 .validate_selection(
                                     filter,
                                     &candidate,
                                     you,
-                                    crate::engine::targeting::EarlierTargets::None,
+                                    crate::engine::targeting::FilterIdentity::for_text_of(
+                                        id,
+                                        crate::engine::targeting::EarlierTargets::None,
+                                    ),
                                 )
                                 .is_err()
                             {
