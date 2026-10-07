@@ -24,6 +24,8 @@
 //!    until the end of the game (CR 611.2a) and end when their subject moves.
 //! 6. "Another target": a targeting filter is other than the object the
 //!    text's "this" names, at the offer, the announcement and the re-check.
+//! 7. Cryptoplasm, the card: an upkeep's "may" copy of another target
+//!    creature, with no duration, that keeps the ability that made it.
 
 use std::sync::Arc;
 
@@ -31,7 +33,7 @@ use mtgsim::cards::alpha::giant_growth;
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_rc_cards::chainbreaker;
-use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
+use mtgsim::cards::phase_cv_cards::{self, cryptoplasm, cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
@@ -63,7 +65,9 @@ use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
+use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -806,4 +810,259 @@ fn another_target_is_other_than_the_abilitys_own_source() {
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(pt(&game, bears), (Some(3), Some(3)));
+}
+
+// ---------------------------------------------------------------------------
+// 7. Cryptoplasm
+// ---------------------------------------------------------------------------
+
+/// Walk the turn machinery until `whose` player's `step` begins. Libraries
+/// are filled so a draw step on the way is not a loss.
+fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
+    for p in 0..game.num_players() {
+        if game.players[p].library.len() < 5 {
+            mtgsim::test_support::fill_library(game, p, 10);
+        }
+    }
+    for _ in 0..200 {
+        game.advance_turn(&test_ctx()).expect("advancing");
+        if game.active_player == whose && game.phase.step == Some(step) {
+            return;
+        }
+    }
+    panic!("player {whose}'s {step:?} never began");
+}
+
+/// The trigger on top of the stack, and what it targets.
+fn top_targets(game: &GameState) -> (ObjectId, Vec<ResolvedTarget>) {
+    let top = *game.stack.last().expect("a trigger on the stack");
+    (top, game.stack_entries[&top].chosen_targets[0].targets().collect())
+}
+
+/// Place the upkeep trigger, choosing `target` among several candidates.
+fn place_targeting(game: &mut GameState, target: ObjectId) -> ObjectId {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: target },
+        vec![ChoiceOption::Object(target)],
+    );
+    game.perform_sba_and_triggers(&dp).unwrap();
+    assert!(dp.is_empty(), "the target was asked for as the trigger was put on the stack");
+    let (trigger, targets) = top_targets(game);
+    assert_eq!(targets, vec![ResolvedTarget::Object(target)]);
+    trigger
+}
+
+/// Resolve the trigger on top, answering its "may".
+fn resolve_may(game: &mut GameState, yes: bool) {
+    let (trigger, _) = top_targets(game);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: trigger }, if yes { vec![0] } else { vec![] });
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert!(dp.is_empty(), "the may was asked as it resolved");
+}
+
+/// Does `id` have Cryptoplasm's ability, whichever instance?
+fn has_cryptoplasms_ability(game: &GameState, id: ObjectId) -> bool {
+    let printed = cryptoplasm().abilities[0].id;
+    mtgsim::oracle::characteristics::get_effective_abilities(game, id).iter().any(|a| a.id.definition() == printed.definition())
+}
+
+// RULING: Cryptoplasm #1 - "You choose the target for the triggered ability
+//   when the ability is put onto the stack. You choose whether or not
+//   Cryptoplasm becomes a copy of that creature when the ability resolves."
+/// Cast from hand from exactly {1}{U}{U}. At its controller's upkeep the
+/// target is chosen as the trigger goes on the stack and nothing else is
+/// asked; "may" is asked as it resolves. A no leaves a Cryptoplasm, and next
+/// upkeep a yes makes it a Serra Angel.
+#[test]
+fn cryptoplasm_targets_as_it_triggers_and_asks_may_as_it_resolves() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = cast_from_pool(
+        &mut game,
+        0,
+        cryptoplasm(),
+        &[(ManaType::Blue, 2), (ManaType::Colorless, 1)],
+        ScriptedDecisionProvider::new(),
+    );
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.get_object(crypto).unwrap().zone, Zone::Battlefield);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, false);
+    assert_eq!(get_effective_name(&game, crypto), "Cryptoplasm");
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, true);
+    assert_eq!(get_effective_name(&game, crypto), "Serra Angel");
+    assert!(has_cryptoplasms_ability(&game, crypto), "except it has this ability");
+}
+
+// RULING: Cryptoplasm #2 - "The copy effect lasts indefinitely. Often, it will
+//   last until it is overwritten by another copy effect (if it copies another
+//   creature on a future turn, perhaps.)"
+/// A Serra Angel through two cleanups and the other player's turn, then a
+/// Grizzly Bears from the next upkeep's copy, which the ability it kept made.
+#[test]
+fn cryptoplasms_copy_lasts_until_another_overwrites_it() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, true);
+    advance_to(&mut game, 1, StepType::Upkeep);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(get_effective_name(&game, crypto), "Serra Angel", "two cleanups later");
+
+    place_targeting(&mut game, bears);
+    resolve_may(&mut game, true);
+    assert_eq!(get_effective_name(&game, crypto), "Grizzly Bears");
+    assert!(has_cryptoplasms_ability(&game, crypto));
+}
+
+// RULING: Cryptoplasm #3 - "If the creature is an illegal target when the
+//   ability tries to resolve, it won't resolve. Cryptoplasm won't become a copy
+//   of that creature; it remains whatever it was before."
+/// The target dies and comes back before the trigger resolves: a new object
+/// (CR 400.7), so an illegal target (CR 608.2b). The trigger does not
+/// resolve, the "may" is never asked, and the Angel it was stays.
+#[test]
+fn cryptoplasm_whose_target_is_gone_stays_what_it_was() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, true);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    let trigger = place_targeting(&mut game, bears);
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).unwrap();
+    assert!(!game.stack.contains(&trigger));
+    assert_eq!(get_effective_name(&game, crypto), "Serra Angel");
+}
+
+// RULING: Cryptoplasm #4 - "If another creature becomes a copy of Cryptoplasm,
+//   it will become a copy of whatever Cryptoplasm is currently copying (if
+//   anything), plus it will have Cryptoplasm's triggered ability."
+/// "Except it has this ability" is part of the copiable values (CR 707.9b),
+/// so a Clone of a Cryptoplasm that is an Angel enters as an Angel with the
+/// trigger, and the trigger works for the Clone's controller.
+#[test]
+fn a_clone_of_cryptoplasm_copies_what_it_copies_and_has_its_ability() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, true);
+
+    let clone = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::clone(), 1);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(crypto)]);
+    game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &mtgsim::engine::actions::ActionContext::new(&dp))
+        .unwrap();
+    assert_eq!(get_effective_name(&game, clone), "Serra Angel");
+    assert!(has_cryptoplasms_ability(&game, clone));
+
+    advance_to(&mut game, 1, StepType::Upkeep);
+    assert_eq!(game.pending_triggers.len(), 1, "the Clone's copy of the trigger, at its controller's upkeep");
+}
+
+/// CR 707.4: "Some effects cause a permanent that's copying a permanent to
+/// copy a different object while remaining on the battlefield. The change
+/// doesn't cause enters-the-battlefield or leaves-the-battlefield abilities
+/// to trigger. This also doesn't change any noncopy effects presently
+/// affecting the permanent." Cryptoplasm, an Angel with Giant Growth on it,
+/// becomes a Grizzly Bears: still +3/+3, and Soul Warden sees nothing enter.
+// COVERS: ATOM-707.4-001
+#[test]
+fn a_re_copy_keeps_noncopy_effects_and_enters_nothing() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::phase_tr1_cards::soul_warden(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+    }
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, angel);
+    resolve_may(&mut game, true);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, bears);
+    resolve_spell(&mut game, giant_growth(), 0, &[crypto]);
+    let before = life(&game, 0);
+    resolve_may(&mut game, true);
+
+    assert_eq!(get_effective_name(&game, crypto), "Grizzly Bears");
+    assert_eq!(pt(&game, crypto), (Some(5), Some(5)), "2/2 and Giant Growth");
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(game.stack.is_empty(), "nothing entered or left");
+    assert_eq!(life(&game, 0), before);
+}
+
+/// CR 603.3d: with no other creature there is no legal target, so the
+/// trigger is removed from the stack as it would be put there, and nothing is
+/// asked. Cryptoplasm is not "another" creature to itself.
+#[test]
+fn cryptoplasm_alone_has_no_target_and_its_trigger_is_removed() {
+    let mut game = setup_two_player_game();
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(game.pending_triggers.len(), 1, "it triggers");
+    game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
+    assert!(game.stack.is_empty(), "and is removed for want of a target");
+    assert_eq!(get_effective_name(&game, crypto), "Cryptoplasm");
+}
+
+/// A declined "may" still announced its targets (CR 603.3d), so the instance
+/// after it is read past them: "You may have target creature get +2/+2 until
+/// end of turn. Target creature gets +1/+1 until end of turn", declined, pumps
+/// the second creature and not the first.
+#[test]
+fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
+    let mut game = setup_two_player_game();
+    let (first, second) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let pump = |n: u64| {
+        Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(n), Duration::UntilEndOfTurn),
+            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        )
+    };
+    let effect = Effect::Sequence(vec![
+        Effect::Optional { chooser: mtgsim::types::effects::PlayerRef::You, effect: Box::new(pump(2)) },
+        pump(1),
+    ]);
+    assert_eq!(effect.instances().len(), 2, "the may's target is an instance");
+
+    let source = game.add_object(GameObject::new(grizzly_bears(), 0, Zone::Stack));
+    let mut targets = ChosenTargets::NONE;
+    targets.push(vec![ResolvedTarget::Object(first)]);
+    targets.push(vec![ResolvedTarget::Object(second)]);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source }, vec![]);
+    game.resolve_effect(&effect, &ctx, &dp).unwrap();
+    assert_eq!((pt(&game, first), pt(&game, second)), ((Some(2), Some(2)), (Some(3), Some(3))));
 }

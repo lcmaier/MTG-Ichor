@@ -173,6 +173,9 @@ impl CopiableValues {
         }
         for exception in exceptions {
             match exception {
+                CopyException::Modifies(CharacteristicEdit::GainsThisAbility) => {
+                    return Err("\"this ability\" is the resolving ability's def, made a `GainsAbility` at the capture".into());
+                }
                 CopyException::Modifies(edit) => self.modify(edit),
                 CopyException::DoesNotCopy(characteristic) => {
                     let own = own.ok_or("a copy that keeps its own value was not handed the copying object's values")?;
@@ -224,6 +227,8 @@ impl CopiableValues {
                 }
             }
             CharacteristicEdit::GainsAbility(ability) => Arc::make_mut(&mut self.abilities).push(ability.clone()),
+            // Refused in `except`, before any edit is made.
+            CharacteristicEdit::GainsThisAbility => {}
             CharacteristicEdit::GainsKeyword(keyword) => {
                 self.keyword_flags.insert(*keyword);
             }
@@ -262,7 +267,10 @@ fn characteristic_it_fixes(exception: &CopyException) -> Option<CdaCharacteristi
         CopyException::Modifies(CharacteristicEdit::PowerToughness(..)) => Some(CdaCharacteristic::PowerToughness),
         CopyException::DoesNotCopy(Characteristic::Color) => Some(CdaCharacteristic::Colors),
         CopyException::Modifies(
-            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) | CharacteristicEdit::Name(_),
+            CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
+            | CharacteristicEdit::GainsKeyword(_)
+            | CharacteristicEdit::Name(_),
         )
         | CopyException::Additionally(_)
         | CopyException::If(..) => None,

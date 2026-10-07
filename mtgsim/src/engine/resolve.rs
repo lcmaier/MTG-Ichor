@@ -327,6 +327,9 @@ impl GameState {
             Effect::Optional { chooser, effect: inner } => {
                 let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
                 if !crate::ui::ask::ask_apply_optional_effect(dp, self, chooser, ctx.source) {
+                    // Its targets were announced all the same, so the instances
+                    // after it are read past them.
+                    walk.instance_cursor += inner.instances().len();
                     walk.last_cost_answer = Some(CostAnswer::Doesnt);
                     return Ok(());
                 }
@@ -1760,6 +1763,20 @@ impl GameState {
                 };
                 (donor, recipients)
             }
+            CopyRoles::ThisObjectCopiesRecipient => {
+                // "This creature" is found by identity (CR 400.7): a source
+                // that left and came back is not the creature the ability is
+                // of, and the copy finds nothing to change.
+                let (Some(&donor), Some(this)) =
+                    (self.collect_battlefield_targets(targets).first(), self.this_object(ctx))
+                else {
+                    return Ok(());
+                };
+                if !self.battlefield.contains_key(&this) {
+                    return Ok(());
+                }
+                (donor, vec![this])
+            }
             CopyRoles::FilteredCopyRecipient { filter, exclude_donor } => {
                 let Some(&donor) = self.collect_battlefield_targets(targets).first() else {
                     return Ok(());
@@ -1792,7 +1809,8 @@ impl GameState {
             return Ok(());
         };
         if !except.is_empty() {
-            self.make_copy_exceptions(&mut values, except, &affected)?;
+            let except = self.with_this_ability(except, ctx)?;
+            self.make_copy_exceptions(&mut values, &except, &affected)?;
         }
 
         // --- 3. The row (CR 613.2a) -------------------------------------
@@ -1825,6 +1843,58 @@ impl GameState {
             &values, &affected, timestamp, duration,
         );
         Ok(())
+    }
+
+    /// `except` with "it has this ability" made the ability it names: the one
+    /// resolving, which [`GameState::resolving`] identifies.
+    ///
+    /// An ability on the stack exists apart from its source (CR 113.7a), so
+    /// the def is the source's while the source still has that instance, and
+    /// otherwise a trigger's own: an effect in response that took the ability
+    /// away does not take "this ability" from the copy. A rebuilt def is held
+    /// to what `CardDataBuilder::build` does, its instances of "target" listed.
+    fn with_this_ability(&self, except: &[CopyException], ctx: &ResolutionContext) -> Result<Vec<CopyException>, String> {
+        use crate::objects::card_data::{AbilityType, ActivationRestriction};
+        use crate::types::effects::CharacteristicEdit;
+        let names_it = |e: &CopyException| matches!(e, CopyException::Modifies(CharacteristicEdit::GainsThisAbility));
+        if !except.iter().any(names_it) {
+            return Ok(except.to_vec());
+        }
+        let identity = self
+            .resolving
+            .as_ref()
+            .and_then(|resolving| resolving.identity)
+            .ok_or("\"except it has this ability\" on a resolution that is not an ability's")?;
+        let source = identity.source.id;
+        let current = crate::oracle::characteristics::get_effective_abilities(self, source);
+        let this = match current.iter().find(|a| a.id == identity.ability) {
+            Some(def) => def.clone(),
+            None => {
+                let trigger = ctx.trigger.as_ref().ok_or_else(|| {
+                    format!("{source}'s ability {} is gone and only a trigger carries its own def", identity.ability)
+                })?;
+                let effect = Effect::Triggered(std::sync::Arc::clone(&trigger.def));
+                // PRE-LAYER ZONE: the printed text, which a rebuilt def carries
+                // for the window and no rule reads.
+                let printed = self.objects.get(&source).and_then(|obj| {
+                    obj.card_data.abilities.iter().find(|a| a.id.definition() == identity.ability.definition()).map(|a| a.rules_text.clone())
+                });
+                crate::objects::card_data::AbilityDef {
+                    id: identity.ability,
+                    rules_text: printed.unwrap_or_else(|| "".into()),
+                    ability_type: AbilityType::Triggered,
+                    costs: Vec::new(),
+                    instances: effect.instances(),
+                    effect,
+                    is_characteristic_defining: false,
+                    activation_restriction: ActivationRestriction::None,
+                }
+            }
+        };
+        Ok(except
+            .iter()
+            .map(|e| if names_it(e) { CopyException::Modifies(CharacteristicEdit::GainsAbility(this.clone())) } else { e.clone() })
+            .collect())
     }
 
     /// CR 707.9a–c — make a resolution's copy exceptions on the captured

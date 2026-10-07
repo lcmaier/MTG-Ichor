@@ -1533,7 +1533,9 @@ impl EntryWrites {
             }
             // No leaf reads an ability or a keyword, and the entry door
             // refuses both until one has an entry placement.
-            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) => {}
+            CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
+            | CharacteristicEdit::GainsKeyword(_) => {}
             // Sets, which returned above as feeding every leaf.
             CharacteristicEdit::PowerToughness(..) | CharacteristicEdit::Name(_) => {}
         }

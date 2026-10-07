@@ -1351,6 +1351,13 @@ pub enum CharacteristicEdit {
     /// `is_characteristic_defining` stands: CR 604.3a(2) counts an ability "acquired
     /// ... as the result of a copy effect".
     GainsAbility(crate::objects::card_data::AbilityDef),
+    /// "Except it has this ability" — Cryptoplasm, Dimir Doppelganger, and
+    /// every "this creature becomes a copy" that keeps the ability that did
+    /// it. [`Self::GainsAbility`] of the ability resolving, which a card
+    /// cannot write as data, since the def would contain itself. Only a
+    /// resolution's copy has one, and it is made a `GainsAbility` at the
+    /// capture.
+    GainsThisAbility,
     /// "It has flying" — Mockingbird.
     GainsKeyword(KeywordFlag),
     /// "It's 7/7" — Quicksilver Gargantuan: base power and toughness.
@@ -1375,7 +1382,9 @@ impl CharacteristicEdit {
                     && change.remove_subtypes.is_empty()
                     && change.remove_supertypes.is_empty()
             }
-            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) => true,
+            CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
+            | CharacteristicEdit::GainsKeyword(_) => true,
             CharacteristicEdit::PowerToughness(..) | CharacteristicEdit::Name(_) => false,
         }
     }
@@ -1403,6 +1412,7 @@ impl CharacteristicEdit {
                 change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
             }
             CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsThisAbility
             | CharacteristicEdit::GainsKeyword(_)
             | CharacteristicEdit::PowerToughness(..)
             | CharacteristicEdit::Name(_) => {
@@ -1486,6 +1496,11 @@ pub enum CopyRoles {
     /// resolves (CR 707.4). A choice, not a target: hexproof and shroud do not
     /// apply, and nothing fizzles if it leaves. Cytoshape, Polymorphous Rush.
     RecipientsCopyChosen(SelectionFilter),
+    /// The atom's recipient supplies the values and the object whose
+    /// ability this is becomes a copy of it: "you may have this creature
+    /// become a copy of another target creature" (Cryptoplasm). The family's
+    /// usual shape, alongside Vesuvan Doppelganger's upkeep and Lazav's.
+    ThisObjectCopiesRecipient,
     /// The atom's target supplies the values, and every permanent matching
     /// `filter` becomes a copy of it. Mirrorweave, Mirrorform.
     FilteredCopyRecipient {
@@ -2154,6 +2169,10 @@ impl Effect {
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.
             Effect::Triggered(def) => def.effect.for_each_instance(f),
+            // A "may" changes nothing about what is targeted: the target is
+            // chosen as the ability is put on the stack and the choice made as
+            // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
+            Effect::Optional { effect, .. } => effect.for_each_instance(f),
             _ => true,
         }
     }
