@@ -12,6 +12,7 @@ use crate::engine::put_on_stack::SorceryTiming;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
@@ -874,6 +875,18 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "AbilityTriggered: {} [P{}] #{}", obj_name(game, origin.source()), controller, seq.0),
         AbilityResolved { identity, controller } => format!(
             "AbilityResolved: {} [P{}]", obj_name(game, identity.source.id), controller),
+        Targeted { target, by, ability_source, controller, instances } => {
+            let target = match target {
+                TargetRef::Object(object) => obj_name(game, object.id),
+                TargetRef::Player(player) => format!("P{player}"),
+            };
+            let by = match ability_source {
+                Some(source) => format!("{}'s ability", obj_name(game, *source)),
+                None => obj_name(game, *by),
+            };
+            let instances = if *instances > 1 { format!(", chosen for {instances} instances") } else { String::new() };
+            format!("Targeted: {target} by {by} [P{controller}]{instances}")
+        }
         Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
         Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
         CardDrawn { player_id, card_id } => {

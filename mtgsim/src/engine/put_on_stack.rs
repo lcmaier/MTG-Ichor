@@ -18,7 +18,7 @@ use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
-use crate::engine::targeting::TargetInstance;
+use crate::engine::targeting::{TargetInstance, TargetRef};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -291,10 +291,11 @@ impl GameState {
         // --- 601.2i: the spell becomes cast ---
         // The move 601.2a made silently is an event from this moment, and it is
         // announced ahead of `SpellCast` so the log reads as the CR does: put
-        // onto the stack, then cast. No LKI: nothing is cast from the
-        // battlefield. The mana abilities activated at 601.2g are already in
-        // the log, where CR 732.1 leaves them even when a cast rewinds.
+        // onto the stack, its targets, then cast. No LKI: nothing is cast from
+        // the battlefield. The mana abilities activated at 601.2g are already
+        // in the log, where CR 732.1 leaves them even when a cast rewinds.
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
+        self.announce_targeted_records(card_id);
         self.emit_event(GameEvent::SpellCast {
             spell_id: card_id,
             caster: player_id,
@@ -363,6 +364,25 @@ impl GameState {
             earlier_targets.push(chosen);
         }
         Ok(announced)
+    }
+
+    /// `GameEvent::Targeted` for each distinct object or player the stack
+    /// object `by`'s targeting instances chose, in the order first chosen.
+    /// The one emitter of the record; its callers own the moment.
+    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId) {
+        let Some(entry) = self.stack_entries.get(&by) else { return };
+        let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
+        for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
+            match targeted.iter_mut().find(|(seen, _)| seen == target) {
+                Some((_, instances)) => *instances += 1,
+                None => targeted.push((*target, 1)),
+            }
+        }
+        let ability_source = entry.ability_identity.map(|identity| identity.source.id);
+        let controller = entry.controller;
+        for (target, instances) in targeted {
+            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances });
+        }
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
@@ -458,10 +478,6 @@ impl GameState {
         };
         self.set_stack_entry(stack_entry);
 
-        // CR 602.2a — the ability is on the stack. Identified durably: the
-        // ephemeral `ability_obj_id` is deleted at resolution.
-        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id });
-
         // --- 602.1b: Mana ability window ---
         // Same rules-correct model as 601.2g for spells. The player activates
         // mana abilities as needed to pay the activated-ability cost. Pool is
@@ -487,6 +503,12 @@ impl GameState {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e);
         }
+
+        // CR 602.2b runs 601.2i: the ability becomes activated once its costs
+        // are paid, its targets first as a spell's are. Identified durably: the
+        // ephemeral `ability_obj_id` is deleted at resolution.
+        self.announce_targeted_records(ability_obj_id);
+        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id });
 
         Ok(())
     }
