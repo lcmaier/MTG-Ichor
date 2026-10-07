@@ -1576,6 +1576,15 @@ text and the list. Working on one board writes one file, and the editor never
 writes a committed file, so a board becomes a sample by a copy that its PR
 reviews.
 
+**Save as** (#231, the owner's note from testing #230's cards): under B a
+board opened from `boards/` saves over its own file, so a variant could not
+be kept beside it. So C's typed name, but only inside `boards/`: the board
+is written as a new board under it, numbered as a taken name is
+(`Folders::new_board`), and saves there from then on. The name is the
+folder's and the file's, so it is letters, digits, spaces, `-` and `_`
+(`boards::board_name`), and C's risk, a committed file overwritten, cannot
+arise.
+
 **A folder per board** (the owner's direction at the second round, designed
 here). Each board gets a folder in `boards/`, named for the board, holding the
 board and the record of every game played from it:

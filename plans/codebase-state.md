@@ -5516,6 +5516,11 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
 
     **Phase (2026-09-18):** TR-5 — `GameEvent::Targeted`, one record per (spell or ability, target) at three emit sites; question 11 decided as once per spell (Frost Titan's ruling); `triggers-architecture.md` §3.12, §14.
 
+    **The record built (2026-10-07, #231):** `GameEvent::Targeted` at the
+    three sites, for the dev GUI's log, with the ability's source beside
+    `by`. What is left is the reader, TR-5's `BecomesTarget`; until it
+    lands the item stays, unreachable.
+
 13. **No event announces a control change (the trigger survey,
     2026-09-18).** CR 603.10d's look-back triggers (126 cards) watch an event
     the engine performs as a Layer 2 registry row: `Primitive::GainControl`
