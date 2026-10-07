@@ -15,6 +15,8 @@
 //! 2. The announcement's half: a target or a choice is remembered with the
 //!    epoch it had when chosen, and CR 608.2b compares it. Cast from hand,
 //!    since the cast path is what stamps it.
+//! 3. Combat's: a creature that leaves the battlefield is removed from combat
+//!    (CR 506.4), so no attacker or blocker it was paired with still names it.
 
 use std::sync::Arc;
 
@@ -23,6 +25,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cv_cards::mirrorweave;
 use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
+use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -36,8 +39,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
-    lightning_bolt, pacifism, put_in_hand, put_on_battlefield, put_spell_on_stack, setup_two_player_game,
-    test_ctx, test_dp, RecordingDecisionProvider,
+    lightning_bolt, pacifism, place_vanilla_creature, put_in_hand, put_on_battlefield, put_spell_on_stack,
+    set_attacking, set_blocked_by, set_blocking, setup_two_player_game, test_ctx, test_dp,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -50,7 +54,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -453,4 +457,33 @@ fn chosen_pump() -> Arc<CardData> {
             ),
         })
         .build()
+}
+
+// ---------------------------------------------------------------------------
+// 3. Combat's half
+// ---------------------------------------------------------------------------
+
+/// CR 506.4: "a permanent is removed from combat if it leaves the
+/// battlefield". A 3/3 blocked by two 1/1s, one of which is destroyed before
+/// damage, is blocked by one creature: all its damage goes there (CR
+/// 510.1c), and no division is asked between a blocker and a card in a
+/// graveyard.
+#[test]
+fn a_blocker_that_dies_before_damage_is_out_of_the_division() {
+    let mut game = setup_two_player_game();
+    let attacker = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
+    let (gone, stays) = (place_vanilla_creature(&mut game, 1, 1, 1, &[]), place_vanilla_creature(&mut game, 1, 1, 1, &[]));
+    set_attacking(&mut game, attacker, 1);
+    set_blocked_by(&mut game, attacker, vec![gone, stays]);
+    set_blocking(&mut game, gone, vec![attacker]);
+    set_blocking(&mut game, stays, vec![attacker]);
+
+    destroy(&mut game, gone);
+    let blocked_by = game.battlefield[&attacker].attacking.as_ref().map(|a| a.blocked_by.clone());
+    assert_eq!(blocked_by, Some(vec![stays]), "removed from combat as it left");
+
+    let assignments = assign_combat_damage(&game, &ScriptedDecisionProvider::new(), 0, false);
+    let from_attacker: Vec<(DamageTarget, u64)> =
+        assignments.iter().filter(|a| a.source == attacker).map(|a| (a.target, a.amount)).collect();
+    assert_eq!(from_attacker, vec![(DamageTarget::Object(stays), 3)]);
 }
