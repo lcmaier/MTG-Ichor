@@ -26,6 +26,8 @@
 //!    text's "this" names, at the offer, the announcement and the re-check.
 //! 7. Cryptoplasm, the card: an upkeep's "may" copy of another target
 //!    creature, with no duration, that keeps the ability that made it.
+//! 8. Item 189: a copy a counter write makes applicable takes back the
+//!    first copy's exception at the count a doubler left it, not as added.
 
 use std::sync::Arc;
 
@@ -1065,4 +1067,60 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
     dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source }, vec![]);
     game.resolve_effect(&effect, &ctx, &dp).unwrap();
     assert_eq!((pt(&game, first), pt(&game, second)), ((Some(2), Some(2)), (Some(3), Some(3))));
+}
+
+// ---------------------------------------------------------------------------
+// 8. Item 189
+// ---------------------------------------------------------------------------
+
+/// **Fixture.** "Creatures you control with power 4 or greater enter as a
+/// copy of this creature." Essence of the Wild with a power gate, which no
+/// printed copy has: the gate is what lets a counter written during the entry
+/// make the copy applicable (CR 616.2).
+fn essence_of_might() -> Arc<CardData> {
+    use mtgsim::types::effects::{ObjectFilter, PlayerRef};
+    use mtgsim::types::replacement::{CopyDonor, EntryCopyTemplate};
+    let big_creatures_you_control = ObjectFilter::And(
+        Box::new(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+        )),
+        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(3)))),
+    );
+    CardDataBuilder::new("Essence of Might")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 3))
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .power_toughness(6, 6)
+        .ability(mtgsim::test_support::static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::battlefield_filter(big_creatures_you_control),
+            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
+        )))))
+        .build()
+}
+
+/// Spark Double copies a Grizzly Bears and so enters with its +1/+1 counter
+/// (CR 707.9e); Doubling Season makes it two, and a 4/4 entering is now one
+/// Essence of Might copies (CR 616.2). The later copy means "the exception's
+/// effect doesn't happen", and the two counters were that effect, the one
+/// added and the one it was doubled into. Taken back as added, one would
+/// stay on a 7/7.
+#[test]
+fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::phase_re_cards::doubling_season(), 0);
+    put_on_battlefield(&mut game, essence_of_might(), 0);
+
+    let spark = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::spark_double(), 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseCopySource { source: spark }, vec![ChoiceOption::Object(bears)]);
+    game.change_zone(spark, Zone::Battlefield, ZoneChangeCause::Returned, &mtgsim::engine::actions::ActionContext::new(&dp))
+        .unwrap();
+    assert!(dp.is_empty());
+
+    assert_eq!(get_effective_name(&game, spark), "Essence of Might");
+    assert_eq!(counters(&game, spark, CounterType::PlusOnePlusOne), 0);
+    assert_eq!(pt(&game, spark), (Some(6), Some(6)));
 }

@@ -2215,6 +2215,21 @@ fn apply_rewrite(
                             .is_none_or(|set| set.contains(chosen.controller, row.putter(controller)));
                     let after =
                         if matched { counter_arithmetic(chosen, *amount_rewrite, row.n)? } else { row.n };
+                    // CR 707.9e: a later copy takes back what this row would not
+                    // hold without a copy's exception, scaled as the row is. The
+                    // share becomes the row less the row without it, the same
+                    // arithmetic on each; a row that was all share is no event
+                    // without it, and nothing applies to nothing.
+                    if matched
+                        && let Some(share) = mods.copy.as_mut().and_then(|copy| {
+                            copy.added.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by)
+                        })
+                    {
+                        let without = row.n.saturating_sub(share.n);
+                        let without_after =
+                            if without > 0 { counter_arithmetic(chosen, *amount_rewrite, without)? } else { 0 };
+                        share.n = after.saturating_sub(without_after);
+                    }
                     took_effect |= after != row.n;
                     if after > 0 {
                         kept.push(EntryCounters { n: after, ..row });

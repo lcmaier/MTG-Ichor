@@ -1437,7 +1437,8 @@ pub struct EntryCopy {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CopyAdditions {
     /// The counter rows merged into [`EnterMods::counters`], after CR 614.17d
-    /// struck what a "can't have counters" refuses.
+    /// struck what a "can't have counters" refuses: this copy's share of each
+    /// row, which the `Amount` rewrite's entry leg scales as it scales the row.
     pub counters: Vec<EntryCounters>,
     /// The status an exception replaced, while the entry still carries the
     /// exception's: `Some(None)` replaced CR 110.5b's default. A status is
@@ -1625,11 +1626,10 @@ impl EnterMods {
     /// applying the copy effect with that exception, the exception's effect
     /// doesn't happen": take back what a copy's additional effects wrote.
     ///
-    /// Exact in the order CR 616.1c gives, where a copy applies before any
-    /// 616.1e effect that could scale its counters. A multiplier between two
-    /// copies of one entry needs the second copy to become applicable through
-    /// the multiplier's write, and no registered card can (`codebase-state.md`
-    /// main item 189).
+    /// Exact whatever applied between the two copies: a copy applies at CR
+    /// 616.1c's step, ahead of any 616.1e effect beside it, and a multiplier
+    /// that comes between them, because the second copy became applicable
+    /// through its write (CR 616.2), scaled the share with the row.
     pub fn take_back(&mut self, added: &CopyAdditions) {
         for row in &added.counters {
             if let Some(have) = self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
