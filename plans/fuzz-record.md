@@ -133,6 +133,23 @@ new baseline for both columns; MA-1's block below holds the last one.
 | Candidate visits | 608.7 | 175.3 |
 | Trigger matches | 3.7 | 2.2 |
 
+**The review round** (2026-10-07), one more sitting: **head** `84b999c`, the
+first round's last code commit, against **review** `21b4cbd` (the renames,
+and items 218 and 221). Expected, though not written down before the arm
+ran: every gameplay row `IDENTICAL`, since a retired row was hidden and its
+statics' rows inert; the cost rows a little lower; instructions within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, review vs head, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, head → review, performance / stress | 57,541 → 57,266 / 65,636 → 65,552 | 177,007 → 176,705 / 251,637 → 251,486 |
+| audit, review, performance / stress, dispatches agreed | 163,154 / 168,380 | 332,406 / 377,171 |
+| instructions / decision, review vs head, callgrind, the budget board | | 0.6541 M → 0.6506 M, **−0.54%** |
+
+The saving ran past the band, in the expected direction: a re-copied
+Cryptoplasm's walk no longer grows a row per copy. Not attributed by
+function. The sitting ran in 103 s.
+
 **Measured 2026-10-06 for the dev GUI audit** (`roadmap-v2.md` A6g's last
 PR). Two engine changes, neither on a release game's path:
 `GameState::audit_each_frame_once`, the layer memo's audit checking each frame
