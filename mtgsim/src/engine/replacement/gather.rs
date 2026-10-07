@@ -295,8 +295,10 @@ pub(crate) fn gather(
             }
         }
 
-        let Some(object) = game.object_ref(id) else { continue };
         for (counter, kind, def) in counter_replacements(game, id) {
+            // By identity (CR 400.7), and looked up only for a permanent with
+            // counters that make one: the sweep visits every permanent.
+            let Some(object) = game.object_ref(id) else { continue };
             let controller = controller_or_owner(game, id).unwrap_or(0);
             push_if_applicable(
                 game,
