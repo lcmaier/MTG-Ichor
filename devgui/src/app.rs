@@ -9,7 +9,9 @@ use std::time::Duration;
 use eframe::egui;
 
 use crate::boards::{Folders, ListedFile};
-use crate::editor::{CardButton, CardEdit, EditButton, EditorInput, EditorView, SearchView, SeatEdit, Stepper, TextLine, Typed, TypedLineView};
+use crate::editor::{
+    CardButton, CardEdit, EditButton, EditorInput, EditorView, SaveAsView, SearchView, SeatEdit, Stepper, TextLine, Typed, TypedLineView,
+};
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
@@ -245,7 +247,8 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
             ui.weak(if header.playing { state.no_board() } else { "No game yet." });
             return;
         };
-        egui::ScrollArea::vertical().auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
+        // Both ways: a zone wraps first, and what cannot wrap scrolls.
+        egui::ScrollArea::both().auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             for seat in &board.seats {
                 // A collapsing header's id is its label, and every seat has a "Creatures".
                 ui.push_id(seat.player.target, |ui| {
@@ -265,13 +268,33 @@ fn editor_header(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
     for button in [&view.undo, &view.play, &view.save] {
         edit_button(ui, button, inputs);
     }
+    save_as(ui, &view.save_as, inputs);
     if ui.button("Copy as text").clicked() {
         ui.ctx().copy_text(view.text.to_string());
     }
     edit_button(ui, &view.advanced, inputs);
     ui.weak(&view.source);
-    if let Some(why) = view.unsaid {
+    for why in view.unsaid.into_iter().chain(view.save_as.refusal) {
         ui.colored_label(ui.visuals().warn_fg_color, why);
+    }
+}
+
+/// Save as's field, which keeps its width whatever is typed, so nothing
+/// after it moves, and its button, which Enter presses too.
+fn save_as(ui: &mut egui::Ui, save_as: &SaveAsView, inputs: &mut Vec<Input>) {
+    let mut name = save_as.name.to_string();
+    let field = egui::TextEdit::singleline(&mut name).id_salt("save as").desired_width(170.0).hint_text("a new board's name");
+    let response = ui.add(field);
+    let entered = response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+    let typed = name != save_as.name;
+    if typed {
+        inputs.push(Input::Editor(EditorInput::SaveAsName(name)));
+    }
+    let clicked = ui.add_enabled(save_as.save.live, egui::Button::new(&save_as.save.label)).clicked();
+    // A name typed and entered in one frame goes too, though the view was
+    // built before it: the session checks the name either way.
+    if (clicked && save_as.save.live) || (entered && (save_as.save.live || typed)) {
+        inputs.push(Input::Editor(save_as.save.input.clone()));
     }
 }
 
@@ -299,7 +322,8 @@ fn editor_panels(ui: &mut egui::Ui, view: &EditorView, inputs: &mut Vec<Input>) 
         }
     });
     egui::CentralPanel::default().show(ui, |ui| {
-        egui::ScrollArea::vertical().id_salt("board").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
+        // Both ways: a row wraps first, and what cannot wrap scrolls.
+        egui::ScrollArea::both().id_salt("board").auto_shrink(FILL_THE_WIDTH).show(ui, |ui| {
             if !view.comments.is_empty() {
                 egui::CollapsingHeader::new("The file's comments, kept on every save").id_salt("comments").show(ui, |ui| {
                     for line in view.comments {
@@ -431,7 +455,7 @@ fn seat_edit(ui: &mut egui::Ui, seat: &SeatEdit, inputs: &mut Vec<Input>) {
 }
 
 /// A card's line: outlined when the loader's refusal names it, filled while
-/// it is edited.
+/// it is edited. One widget, so a zone's row wraps before it.
 fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
     let text = if card.detail.is_empty() { card.title.clone() } else { format!("{}\n{}", card.title, card.detail) };
     let visuals = ui.visuals();

@@ -33,7 +33,7 @@ mechanic.
 | The snapshot | `snapshot.rs` | the board copied as plain data at each question, read through the layers, so the window never touches the live game | closely |
 | The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
-| The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3); behind its Advanced switch, a line of the file typed in and each player's rows as controls (§11) | closely |
+| The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3), or as a new board under a name typed (#231); behind its Advanced switch, a line of the file typed in and each player's rows as controls (§11) | closely |
 | The drawing | `app.rs` | lays out what the view model and the editor built, and reports clicks. It decides nothing | against §10.1's checklist, and by running |
 
 The line between them is a gate: only `app.rs`, `main.rs` and
@@ -122,7 +122,9 @@ client's choice, so they stay out of the log (`engineering-practices.md` §10).
 
 From `devgui/`, where `cargo run` runs the window:
 - `boards/<board>/` holds a board's file and the decision log of every game
-  played from it, `seed-N.log`, named for the seed the game played;
+  played from it, `seed-N.log`, named for the seed the game played. Save
+  writes a board's own file, and Save as a new board's, under the name
+  typed, numbered as a taken name is;
 - `logs/seed-N-players-P.log` is a dealt game's decision log;
 - beside each log, its save, `seed-N.log.save`: the session's journal of
   every line it played, where the window was asked, the savestates set and

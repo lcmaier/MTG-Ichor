@@ -327,6 +327,10 @@ const TYPED_LINES: [&str; 7] = [
     "# a comment",
 ];
 
+/// What a person types for Save as, now and then: names a board takes, and
+/// one that is a path.
+const SAVE_AS_NAMES: [&str; 4] = ["fizzle", "my board 2", "boards/x", ""];
+
 /// From an empty board and from the samples (a Commander table, a board
 /// with every word, setup actions), anything the editor offers, clicked at
 /// random (`setup-architecture.md` §8).
@@ -386,10 +390,18 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
     let mut rng = StdRng::seed_from_u64(seed);
     for click in 0..EDITOR_CLICKS {
         let groups = editor_clicks(&editor.view(), &mut rng);
-        let group = &groups[rng.random_range(0..groups.len())];
+        // A reference waiting for its card is answered by one three times
+        // in four, as a person picking does, so the naming is reached.
+        let cards = live_cards(&editor.view());
+        let group = match editor.picking {
+            Some(_) if !cards.is_empty() && rng.random_range(0..4) != 0 => &cards,
+            _ => &groups[rng.random_range(0..groups.len())],
+        };
         let input = group[rng.random_range(0..group.len())].clone();
         let typed = |e: &Editor| e.view().typed_line.map(|typed| (typed.line.to_string(), typed.refusal.map(str::to_string)));
-        let state = |e: &Editor| (e.board().clone(), e.editing, e.picking, e.chosen, e.search().query().to_string(), e.advanced, typed(e));
+        let state = |e: &Editor| {
+            (e.board().clone(), e.editing, e.picking, e.chosen, e.search().query().to_string(), e.advanced, typed(e), e.save_as_name.clone())
+        };
         let before = state(&editor);
         reached.named += usize::from(editor.picking.is_some() && matches!(input, EditorInput::Card(_)));
         reached.undone += usize::from(input == EditorInput::Undo);
@@ -409,11 +421,11 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
     assert_eq!(editor.board(), &opened, "seed {seed}: Undo did not walk back to the board opened");
 }
 
-/// What `app::draw` lets a person click in the editor, besides Play and
-/// Save, which are the session's, in groups so the long list of names does
-/// not crowd out the board: the game's facts, the seats, the cards, the card
-/// being edited, the lines shown as text, the search, the advanced settings'
-/// switch and typed field, and Undo.
+/// What `app::draw` lets a person click in the editor, besides Play, Save
+/// and Save as, which are the session's, in groups so the long list of names
+/// does not crowd out the board: the game's facts, the seats, the cards,
+/// the card being edited, the lines shown as text, the search, the advanced
+/// settings' switch and typed field, Save as's field, and Undo.
 fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     let live = |buttons: &mut dyn Iterator<Item = &EditButton>| -> Vec<EditorInput> {
         buttons.filter(|button| button.live).map(|button| button.input.clone()).collect()
@@ -450,8 +462,16 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
         advanced.push(EditorInput::TypedLine(lines[rng.random_range(0..lines.len())].to_string()));
         advanced.extend(live(&mut std::iter::once(&typed.add)));
     }
+    let names: Vec<&str> = SAVE_AS_NAMES.into_iter().filter(|name| *name != view.save_as.name).collect();
+    let save_as = vec![EditorInput::SaveAsName(names[rng.random_range(0..names.len())].to_string())];
     let undo = live(&mut std::iter::once(&view.undo));
-    [facts, seats, cards, card, texts, search, advanced, undo].into_iter().filter(|group| !group.is_empty()).collect()
+    [facts, seats, cards, card, texts, search, advanced, save_as, undo].into_iter().filter(|group| !group.is_empty()).collect()
+}
+
+/// A click on each card the board lists, where it is live.
+fn live_cards(view: &EditorView) -> Vec<EditorInput> {
+    let listed = view.seats.iter().flat_map(|seat| &seat.zones).flat_map(|zone| &zone.cards);
+    listed.filter(|card| card.live).map(|card| card.input.clone()).collect()
 }
 
 /// A stepper's live "−" and "+", and a number typed near its own.

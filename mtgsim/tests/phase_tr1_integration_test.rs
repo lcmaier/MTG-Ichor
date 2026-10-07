@@ -1263,7 +1263,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     assert!(
         !game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
-            GameEvent::SpellFizzled { .. } | GameEvent::AbilityResolved { .. }
+            GameEvent::SpellFizzled { .. } | GameEvent::AbilityFizzled { .. } | GameEvent::AbilityResolved { .. }
         )),
         "608.2a came first: no fizzle, no resolution"
     );
@@ -1514,7 +1514,7 @@ fn gaining_zero_life_triggers_nothing() {
 #[test]
 fn an_effect_that_counters_abilities_counters_a_triggered_ability() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, soul_warden(), 0);
+    let warden = put_on_battlefield(&mut game, soul_warden(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     place(&mut game, &test_dp());
     let ability = *game.stack.last().unwrap();
@@ -1531,7 +1531,7 @@ fn an_effect_that_counters_abilities_counters_a_triggered_ability() {
     );
 
     assert!(game.stack.is_empty());
-    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::AbilityCountered { ability_id, .. } if *ability_id == ability)));
+    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::AbilityCountered { identity, .. } if identity.source.id == warden)));
     assert_eq!(life(&game, 0), 20);
 }
 

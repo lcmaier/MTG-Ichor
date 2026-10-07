@@ -37,6 +37,33 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-07 for CV-1b's dev GUI notes** (#231). Two engine
+changes, both records no trigger reads: `AbilityFizzled` and
+`AbilityCountered` named by identity, and `Targeted` at the three places CR
+601.2c's announcement is final, with `AbilityActivated` moved after the
+costs. No pool changed, so the §3 tables stand. `close_out.py` against
+**main** `7037db4` (#230's merge), one arm, **engine** `b403c93`, the last
+engine commit.
+
+**Predictions, before any arm ran:** every gameplay row `IDENTICAL`; the
+event and dispatch counts up by the `Targeted` records; instructions per
+decision up by at most 0.5%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, engine vs `main` | none moved | none moved |
+| audit, dispatches agreed, `main` → engine, performance / stress | 163,154 → 165,363 / 168,380 → 170,317 | 332,406 → 337,395 / 377,171 → 381,392 |
+| audit, triggers agreed, both arms, performance / stress | 750 / 452 | 1,798 / 1,329 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6508 M → 0.6520 M, **+0.18%** |
+
+Every prediction held. The added dispatches are the `Targeted` records, each
+refused at the gate since no trigger reads the kind, and no trigger count
+moved. `GameEvent` stays 64 bytes. The close-out ran in 99 s. The review
+round's engine commit, a `controller` on `SpellFizzled` and `SpellCountered`
+to mirror their ability twins, was not re-measured: two fields on records no
+trigger reads, the owner's call for small fixes.
+
 **Re-recorded 2026-10-06 for CV-1b** (copies that last, and CR 400.7's new
 object; `copy-effects-architecture.md` §7d). Cryptoplasm joins
 `PERFORMANCE_POOL` (103 → 104), and on `stress` Mirrorform's copies now last

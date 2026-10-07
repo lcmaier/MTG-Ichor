@@ -189,6 +189,7 @@ impl GameState {
         self.set_stack_entry(entry);
         self.diagnostics.record_trigger_placed();
         self.trace(|| trace_records::pending(self, &pending, Some(id), None, &chosen));
+        self.announce_targeted_records(id);
         Ok(true)
     }
 }

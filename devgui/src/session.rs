@@ -9,7 +9,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::GameStart;
 
-use crate::boards::{Folders, ListedFile, start_name};
+use crate::boards::{Folders, ListedFile, board_name, start_name};
 use crate::bridge::{EngineHandle, GameSetup, Play, Pool, Record, Writer, locked, spawn_game};
 use crate::editor::{Editor, EditorInput, Source};
 use crate::bridge::ToWindow;
@@ -143,6 +143,7 @@ impl Session {
             Input::Editor(EditorInput::Save) => {
                 self.save_board();
             }
+            Input::Editor(EditorInput::SaveAs) => self.save_board_as(),
             Input::Editor(EditorInput::Open(i)) => {
                 if let Some(file) = self.files.get(i).cloned() {
                     self.open_file(&file.path);
@@ -362,6 +363,18 @@ impl Session {
             self.editor.source = Source::Board(path.clone());
         }
         saved
+    }
+
+    /// Save as: the editor's board written as a new board under the name
+    /// typed, numbered as a taken name is (`Folders::new_board`). It saves
+    /// there from now on, and the field empties.
+    fn save_board_as(&mut self) {
+        let Ok(name) = board_name(&self.editor.save_as_name) else { return };
+        let path = self.folders.new_board(name);
+        if let Some(path) = self.write(&path, &self.editor.file_text()) {
+            self.editor.source = Source::Board(path);
+            self.editor.save_as_name.clear();
+        }
     }
 
     /// "Save board as scenario": the board the game is at, a new board

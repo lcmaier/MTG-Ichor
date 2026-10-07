@@ -420,6 +420,39 @@ fn a_click_in_the_beat_after_the_window_is_replaced_is_dropped() {
     assert_ne!(session.editor.board(), &opened);
 }
 
+/// A board in `boards/` saves over its own file, so Save as writes it as a
+/// new board under the name typed, leaving the first as it was, and the
+/// editor saves there from then on. A name taken is numbered; one that is no
+/// folder's name writes nothing.
+#[test]
+fn save_as_makes_a_new_board_under_the_name_typed() {
+    let (mut session, folders, _) = session_with("devgui-session-save-as", BOLT_IN_HAND, |file| Start::Edit(Some(file.to_path_buf())));
+    click(&mut session, EditorInput::Save);
+    let first = folders.boards.join("devgui-session-save-as").join("devgui-session-save-as.scenario");
+    assert_eq!(session.editor.source, Source::Board(first.clone()));
+    click(&mut session, EditorInput::Number(BoardNumber::Life(0), 9));
+    click(&mut session, EditorInput::SaveAsName("a/b".to_string()));
+    click(&mut session, EditorInput::SaveAs);
+    assert!(!folders.boards.join("a").exists(), "a name that is a path writes nothing");
+
+    click(&mut session, EditorInput::SaveAsName(" bolt fizzle ".to_string()));
+    click(&mut session, EditorInput::SaveAs);
+    let saved = folders.boards.join("bolt fizzle").join("bolt fizzle.scenario");
+    assert_eq!(session.message, Some(Ok(format!("saved {}", saved.display()))));
+    assert!(std::fs::read_to_string(&saved).unwrap().contains("player 0: life 9\n"));
+    assert!(std::fs::read_to_string(&first).unwrap().contains("player 0: life 13\n"), "the first board as it was");
+    assert_eq!((&session.editor.source, session.editor.save_as_name.as_str()), (&Source::Board(saved.clone()), ""));
+
+    click(&mut session, EditorInput::Number(BoardNumber::Life(0), 8));
+    click(&mut session, EditorInput::Save);
+    assert!(std::fs::read_to_string(&saved).unwrap().contains("player 0: life 8\n"), "Save writes the new board now");
+    click(&mut session, EditorInput::SaveAsName("bolt fizzle".to_string()));
+    click(&mut session, EditorInput::SaveAs);
+    let numbered = folders.boards.join("bolt fizzle-2").join("bolt fizzle-2.scenario");
+    assert_eq!(session.editor.source, Source::Board(numbered));
+    assert!(session.files.iter().any(|listed| listed.label == "boards/bolt fizzle-2"));
+}
+
 /// The PR's click script: a four-seat Commander board built in the editor
 /// from an empty one, and played to its first question. Player 2's Isamaru
 /// attacks Player 3, whose Wall of Stone can block it; Player 0's commander

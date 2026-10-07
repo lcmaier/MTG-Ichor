@@ -208,6 +208,7 @@ impl EventKind {
             GameEvent::LibraryShuffled { .. } => EventKind::LibraryShuffled,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
+            | GameEvent::AbilityFizzled { .. }
             | GameEvent::AbilityResolved { .. }
             | GameEvent::Attached { .. }
             | GameEvent::BlockersDeclared { .. }
@@ -220,6 +221,7 @@ impl EventKind {
             | GameEvent::SpellCountered { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
+            | GameEvent::Targeted { .. }
             | GameEvent::TokenCeasedToExist { .. }
             | GameEvent::TokenCreated { .. } => return None,
         })

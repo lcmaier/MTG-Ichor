@@ -7,6 +7,7 @@ use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::triggers::{TriggerOrigin, TriggerSeq};
 
@@ -159,8 +160,22 @@ pub enum GameEvent {
     /// durable (source, ability) pair, which is why this event exists
     /// alongside it rather than replacing it.
     AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
-    /// An activated ability was put onto the stack (CR 602.2a).
+    /// An activated ability became activated: its costs are paid (CR 602.2b
+    /// runs 601.2i), so an activation reversed for want of them (CR 732.1)
+    /// announces nothing.
     AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
+    /// An object or player became the target of a spell or ability: one
+    /// record per (spell or ability, distinct target), `instances` how many
+    /// of its instances of "target" chose it (CR 115.9a counts each).
+    /// Announced as the announcement is final, ahead of `SpellCast` (CR
+    /// 601.2i) and `AbilityActivated` (602.2b), and as a triggered ability
+    /// goes on the stack (603.3d). A choice that does not target announces
+    /// nothing (CR 115.10a).
+    ///
+    /// `ability_source` is an ability's source, which a reader names it by:
+    /// `by` is the stack object, which CR 608.2n removes. `None` for a spell.
+    /// Not the whole `AbilityIdentity`, which would grow every event by half.
+    Targeted { target: TargetRef, by: ObjectId, ability_source: Option<ObjectId>, controller: PlayerId, instances: u32 },
     /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
     /// watches, emitted by the dispatcher once per queued trigger after the
     /// window it belongs to has closed (`triggers-architecture.md` §4.8).
@@ -174,11 +189,22 @@ pub enum GameEvent {
         controller: PlayerId,
         caused_by: EventSeq,
     },
-    SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
-    AbilityCountered { ability_id: ObjectId, countered_by: ObjectId },
-    /// Spell or ability fizzled (countered by game rules due to all targets
-    /// becoming illegal). No source object — this is a game-rules counter.
-    SpellFizzled { spell_id: ObjectId },
+    /// A spell was countered (CR 701.6a). `controller` is its controller as
+    /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
+    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId },
+    /// An activated or triggered ability was countered (CR 701.6b), named by
+    /// what it is: the stack object ceased to exist as it was countered.
+    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
+    /// A spell doesn't resolve (CR 608.2b): every target of every instance of
+    /// "target" is illegal. Its move to the graveyard, the `ZoneChange` with
+    /// `ZoneChangeCause::Fizzled`, comes first. Not a countering: CR 701.6a's
+    /// counter is an effect's, and "whenever a spell is countered" does not
+    /// read this. `controller` as [`Self::SpellCountered`]'s.
+    SpellFizzled { spell_id: ObjectId, controller: PlayerId },
+    /// An ability doesn't resolve (CR 608.2b), named by what it is, as
+    /// [`Self::AbilityResolved`] is: CR 608.2b removes the stack object, so
+    /// its id names nothing once this is read.
+    AbilityFizzled { identity: AbilityIdentity, controller: PlayerId },
 
     // --- Deaths are not events of their own ---
     //
@@ -380,15 +406,22 @@ impl GameEvent {
             | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id } => ([Some(*id), None, None], &[], &[]),
-            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } => {
+            | SpellFizzled { spell_id: id, .. } => ([Some(*id), None, None], &[], &[]),
+            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 ([Some(identity.source.id), None, None], &[], &[])
+            }
+            AbilityCountered { identity, countered_by, .. } => ([Some(identity.source.id), Some(*countered_by), None], &[], &[]),
+            Targeted { target, by, ability_source, .. } => {
+                let target = match target {
+                    TargetRef::Object(object) => Some(object.id),
+                    TargetRef::Player(_) => None,
+                };
+                ([target, Some(ability_source.unwrap_or(*by)), None], &[], &[])
             }
             AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
             LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b }
-            | AbilityCountered { ability_id: a, countered_by: b }
+            | SpellCountered { spell_id: a, countered_by: b, .. }
             | EquipmentDetached { equipment_id: a, former_host: b } => ([Some(*a), Some(*b), None], &[], &[]),
             Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
             AttackersDeclared { attackers } => ([None; 3], attackers, &[]),

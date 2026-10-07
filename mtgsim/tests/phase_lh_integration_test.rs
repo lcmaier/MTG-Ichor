@@ -225,7 +225,7 @@ fn test_an_aura_whose_target_left_fizzles() {
     assert!(game
         .recorded_events()
         .events()
-        .any(|e| matches!(e, GameEvent::SpellFizzled { spell_id } if *spell_id == aura)));
+        .any(|e| matches!(e, GameEvent::SpellFizzled { spell_id, .. } if *spell_id == aura)));
 }
 
 // ---------------------------------------------------------------------------

@@ -101,6 +101,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
+    results.add(picture(&partway(fizzled()), &header("fizzle.scenario"), None, "fizzle_log"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -244,6 +245,40 @@ fn why_event(sample: &str) -> WindowState {
     session.input(Input::WhyEvent(damage));
     until(&mut session, &|session| session.state.why_view().is_some_and(|view| view.title.starts_with("DamageDealt")));
     session.state.clone()
+}
+
+/// The window as Cryptoplasm's upkeep trigger doesn't resolve, on
+/// `fizzle.scenario`: every seat passes, but player 0 bolts the trigger's
+/// target, the Blood Artist, and the Artist's own trigger takes player 1.
+/// The log says what each spell and ability targeted, and names the one
+/// that didn't resolve by its source (CR 608.2b).
+fn fizzled() -> WindowState {
+    let engine = spawn(from_board("fizzle.scenario"));
+    let mut state = WindowState::default();
+    let mut bolted = false;
+    loop {
+        state.receive(next(&engine));
+        if state.log.iter().any(|line| line.text.starts_with("AbilityFizzled")) {
+            break;
+        }
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let stacked = state.board.as_ref().is_some_and(|board| !board.stack.is_empty());
+        let pick = match prompt.kind.as_str() {
+            "PriorityAction" if prompt.player == 0 && stacked && !bolted => {
+                bolted = true;
+                labeled("Lightning Bolt")
+            }
+            "SelectRecipients" => labeled("Blood Artist").or(labeled("Player 1")),
+            "ManaAbilityWindow" => labeled("Mountain"),
+            _ => None,
+        };
+        let input = Input::OptionButton(pick.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
+        engine.answers.send(state.input(input).expect("one option answers")).unwrap();
+    }
+    assert!(bolted, "the Bolt was cast");
+    finish(engine);
+    state
 }
 
 /// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking

@@ -23,6 +23,7 @@ use mtgsim::state::game_state::Phase;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::PlayerId;
 
+use crate::boards::board_name;
 use crate::search::NameSearch;
 
 /// The widest a life total or a starting life is typed, either way.
@@ -205,6 +206,10 @@ pub enum EditorInput {
     Play,
     /// The session's: save the board to its file.
     Save,
+    /// Typed into Save as's field.
+    SaveAsName(String),
+    /// The session's: save the board as a new board, under the name typed.
+    SaveAs,
     /// The session's: open the listed file `i`.
     Open(usize),
 }
@@ -266,6 +271,8 @@ pub struct Editor {
     pub chosen: Option<usize>,
     /// The advanced settings' controls and the typed field, shown.
     pub advanced: bool,
+    /// The name typed for Save as.
+    pub save_as_name: String,
     /// The field the last input was typed into, which the next one typed
     /// there joins in one undo step.
     typing: Option<TypedInto>,
@@ -318,6 +325,7 @@ impl Editor {
             picking: None,
             chosen: None,
             advanced: false,
+            save_as_name: String::new(),
             typing: None,
             typed_line: String::new(),
             typed_line_refusal: None,
@@ -379,7 +387,8 @@ impl Editor {
             EditorInput::TypedLine(line) => (self.typed_line, self.typed_line_refusal) = (line, None),
             EditorInput::AddTypedLine => self.add_typed_line(),
             EditorInput::Undo => self.step_back(),
-            EditorInput::Play | EditorInput::Save | EditorInput::Open(_) => {}
+            EditorInput::SaveAsName(name) => self.save_as_name = name,
+            EditorInput::Play | EditorInput::Save | EditorInput::SaveAs | EditorInput::Open(_) => {}
             edit => {
                 if edit.card().is_some_and(|i| listed_at(&self.board, i).is_none()) {
                     return;
@@ -730,6 +739,8 @@ impl Draft {
             | EditorInput::AddTypedLine
             | EditorInput::Play
             | EditorInput::Save
+            | EditorInput::SaveAsName(_)
+            | EditorInput::SaveAs
             | EditorInput::Open(_) => {}
         }
     }
@@ -1174,6 +1185,16 @@ pub struct TypedLineView<'e> {
     pub refusal: Option<&'e str>,
 }
 
+/// Save as: the board written as a new board, under the name typed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveAsView<'e> {
+    pub name: &'e str,
+    /// Live while the field holds a board's name.
+    pub save: EditButton,
+    /// Why what the field holds is not one; `None` while it is, or is empty.
+    pub refusal: Option<&'static str>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchView<'e> {
     pub query: &'e str,
@@ -1204,6 +1225,7 @@ pub struct EditorView<'e> {
     pub undo: EditButton,
     pub play: EditButton,
     pub save: EditButton,
+    pub save_as: SaveAsView<'e>,
     /// The switch that shows the advanced settings.
     pub advanced: EditButton,
     /// While they show.
@@ -1231,6 +1253,7 @@ impl Editor {
             refused: refused(action.line),
         });
         let action = |label: &str, input: EditorInput, live: bool| EditButton { label: label.to_string(), input, live, on: false };
+        let named = board_name(&self.save_as_name);
         EditorView {
             source: self.source_words(),
             comments: &self.comments,
@@ -1251,6 +1274,11 @@ impl Editor {
             undo: action("Undo", EditorInput::Undo, !self.undo.is_empty()),
             play: action("Play this board", EditorInput::Play, self.refusal.is_none()),
             save: action("Save", EditorInput::Save, true),
+            save_as: SaveAsView {
+                name: &self.save_as_name,
+                save: action("Save as", EditorInput::SaveAs, named.is_ok()),
+                refusal: named.err().filter(|_| !self.save_as_name.trim().is_empty()),
+            },
             advanced: EditButton { label: "Advanced".to_string(), input: EditorInput::Advanced(!self.advanced), live: true, on: self.advanced },
             typed_line: self.advanced.then(|| TypedLineView {
                 line: &self.typed_line,
@@ -1407,7 +1435,11 @@ impl Editor {
             let on = has(&flag.word());
             EditButton { label: label.to_string(), input: EditorInput::Flag(i, flag, !on), live: true, on }
         };
-        let mut rows = Vec::new();
+        // First, above a permanent's rows, which run past the panel's height;
+        // Remove takes the line, every copy of it.
+        let remove = if line.copies > 1 { format!("Remove all {}", line.copies) } else { "Remove".to_string() };
+        let done = [(remove, EditorInput::Remove(i)), ("Close".to_string(), EditorInput::Close)];
+        let mut rows = vec![row("", done.map(|(label, input)| EditButton { label, input, live: true, on: false }).into())];
         if zone == Zone::Battlefield {
             rows.push(row("Controller", seats(controller(line), EditorInput::Controller)));
         }
@@ -1440,8 +1472,6 @@ impl Editor {
             EditButton { label: label.to_string(), input: EditorInput::Move(i, direction), live, on: false }
         });
         rows.push(row("Order", moves.into()));
-        let done = [("Remove", EditorInput::Remove(i)), ("Close", EditorInput::Close)];
-        rows.push(row("", done.map(|(label, input)| EditButton { label: label.to_string(), input, live: true, on: false }).into()));
         Some(CardEdit { text: line.to_string(), rows })
     }
 
@@ -1569,6 +1599,47 @@ mod tests {
         editor.input(EditorInput::Undo);
         assert!(!editor.view().undo.live);
         assert_eq!(editor.text(), "turn 3\nbattlefield: Grizzly Bears | controller 0\n");
+    }
+
+    /// A card clicked in any zone shows Remove first in its panel, above a
+    /// permanent's many rows, so it is in sight; it removes the line, every
+    /// copy of it, which its label counts, as one undo step.
+    #[test]
+    fn a_cards_panel_shows_remove_first_in_every_zone() {
+        let text = "battlefield: Serra Angel | controller 1\nexile: Grizzly Bears | owner 1\nhand 0: Grizzly Bears\nlibrary 0: Plains | x3\n";
+        let mut editor = opened(text);
+        let listed: Vec<EditorInput> = editor.view().seats.into_iter().flat_map(|seat| seat.zones).flat_map(|zone| zone.cards).map(|card| card.input).collect();
+        let expected = [("Remove", "Serra Angel"), ("Remove", "exile:"), ("Remove", "hand 0:"), ("Remove all 3", "Plains")];
+        assert_eq!(listed.len(), expected.len(), "seat 1's battlefield and exile, then seat 0's hand and library");
+        for (card, (label, gone)) in listed.into_iter().zip(expected) {
+            editor.input(card);
+            let first = editor.view().card.unwrap().rows.remove(0).buttons;
+            let labels: Vec<&str> = first.iter().map(|button| button.label.as_str()).collect();
+            assert_eq!(labels, [label, "Close"]);
+            editor.input(first[0].input.clone());
+            assert!(!editor.text().contains(gone), "{gone} left {}", editor.text());
+            assert_eq!(editor.editing, None, "the panel closes with its card");
+            editor.input(EditorInput::Undo);
+            assert_eq!(editor.text(), text);
+        }
+    }
+
+    /// Save as is live while its field holds a board's name, and says why
+    /// not under one that is not; an empty field says nothing, and a name
+    /// typed is no edit of the board.
+    #[test]
+    fn save_as_is_live_while_its_field_holds_a_boards_name() {
+        let mut editor = opened("");
+        let save_as = |editor: &Editor| {
+            let view = editor.view();
+            (view.save_as.save.live, view.save_as.refusal.is_some())
+        };
+        assert_eq!(save_as(&editor), (false, false));
+        editor.input(EditorInput::SaveAsName("cryptoplasm fizzle".to_string()));
+        assert_eq!(save_as(&editor), (true, false));
+        editor.input(EditorInput::SaveAsName("boards/x".to_string()));
+        assert_eq!(save_as(&editor), (false, true));
+        assert!(!editor.view().undo.live);
     }
 
     /// A number typed a digit at a time, or dragged, is one undo step however

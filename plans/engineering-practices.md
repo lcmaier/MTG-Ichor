@@ -2034,6 +2034,12 @@ once. A number typed into an editor's field is `EditorInput::NumberTyped`,
 whose consecutive edits of one field are one undo step, so Undo walking back
 to the board opened checks that join too.
 
+**Since #231** the editor's clicks type a name for Save as. The guard that
+a reference reaches its card had held by the stream's luck, 7 picks in 3,000
+clicks and the one that landed, and the new kind of click moved the stream
+off it. So a pick waiting for its card is answered by one three times in
+four, as a person picking does.
+
 ### 10.4 What one prompt costs the window
 
 `cargo run --release --example prompt_cost`, in `devgui/`, reads what the
