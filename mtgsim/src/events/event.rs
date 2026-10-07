@@ -189,7 +189,9 @@ pub enum GameEvent {
         controller: PlayerId,
         caused_by: EventSeq,
     },
-    SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
+    /// A spell was countered (CR 701.6a). `controller` is its controller as
+    /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
+    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
@@ -197,8 +199,8 @@ pub enum GameEvent {
     /// "target" is illegal. Its move to the graveyard, the `ZoneChange` with
     /// `ZoneChangeCause::Fizzled`, comes first. Not a countering: CR 701.6a's
     /// counter is an effect's, and "whenever a spell is countered" does not
-    /// read this.
-    SpellFizzled { spell_id: ObjectId },
+    /// read this. `controller` as [`Self::SpellCountered`]'s.
+    SpellFizzled { spell_id: ObjectId, controller: PlayerId },
     /// An ability doesn't resolve (CR 608.2b), named by what it is, as
     /// [`Self::AbilityResolved`] is: CR 608.2b removes the stack object, so
     /// its id names nothing once this is read.
@@ -404,7 +406,7 @@ impl GameEvent {
             | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id } => ([Some(*id), None, None], &[], &[]),
+            | SpellFizzled { spell_id: id, .. } => ([Some(*id), None, None], &[], &[]),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
                 ([Some(identity.source.id), None, None], &[], &[])
             }
@@ -419,7 +421,7 @@ impl GameEvent {
             AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
             LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b }
+            | SpellCountered { spell_id: a, countered_by: b, .. }
             | EquipmentDetached { equipment_id: a, former_host: b } => ([Some(*a), Some(*b), None], &[], &[]),
             Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
             AttackersDeclared { attackers } => ([None; 3], attackers, &[]),

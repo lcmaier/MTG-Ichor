@@ -211,7 +211,7 @@ fn cast_from_pool(
 }
 
 fn fizzled(game: &GameState, spell: ObjectId) -> bool {
-    game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { spell_id } if *spell_id == spell))
+    game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { spell_id, .. } if *spell_id == spell))
 }
 
 // ---------------------------------------------------------------------------

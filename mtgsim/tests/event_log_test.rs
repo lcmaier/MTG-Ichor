@@ -128,7 +128,8 @@ fn an_ability_that_does_not_resolve_is_named_by_its_source() {
     assert!(!log.iter().any(|l| l.starts_with("SpellFizzled")), "an ability is not a spell: {log:#?}");
 }
 
-/// A spell's line says why too, and names the card in its graveyard.
+/// A spell's line says why too, and whose it was, which the card in its
+/// graveyard no longer says (CR 108.4a).
 #[test]
 fn a_spell_that_does_not_resolve_says_why() {
     let mut game = setup_two_player_game();
@@ -138,7 +139,32 @@ fn a_spell_that_does_not_resolve_says_why() {
     resolve_top(&mut game);
 
     let log = format_event_log(&game);
-    let line = format!("SpellFizzled: Lightning Bolt ({bolt}) doesn't resolve: every target is illegal (CR 608.2b)");
+    let line = format!("SpellFizzled: Lightning Bolt ({bolt}) [P0] doesn't resolve: every target is illegal (CR 608.2b)");
+    assert!(log.contains(&line), "no {line:?} in {log:#?}");
+}
+
+/// Lightning Bolt countered (CR 701.6a): its line says whose it was, as a
+/// countered ability's does.
+#[test]
+fn a_countered_spell_says_whose_it_was() {
+    let mut game = setup_two_player_game();
+    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(1)]);
+    let counter = put_in_hand(&mut game, lightning_bolt(), 1);
+    let ctx = ResolutionContext {
+        source: counter,
+        ability_source: None,
+        controller: 1,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bolt)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let effect = Effect::Atom(Primitive::CounterSpell, EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)));
+    game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
+    assert_eq!(game.get_object(bolt).unwrap().zone, Zone::Graveyard);
+
+    let log = format_event_log(&game);
+    let line = format!("SpellCountered: Lightning Bolt ({bolt}) [P0] countered by Lightning Bolt ({counter})");
     assert!(log.contains(&line), "no {line:?} in {log:#?}");
 }
 

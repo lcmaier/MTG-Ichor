@@ -719,10 +719,15 @@ impl GameState {
                 for target in targets {
                     if let ResolvedTarget::Object(id) = target {
                         let id = *id;
-                        if self.stack.contains(&id) {
+                        // Its controller read while it is a spell, as the record
+                        // keeps it (CR 108.4a: a card in a graveyard has none).
+                        if self.stack.contains(&id)
+                            && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
+                        {
                             self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Countered, &actx)?;
                             self.emit_event(crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
+                                controller,
                                 countered_by: ctx.source,
                             });
                         }

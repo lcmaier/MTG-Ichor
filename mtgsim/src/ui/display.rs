@@ -943,13 +943,12 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellCast { spell_id, caster } => {
             format!("SpellCast: P{} casts {}", caster, obj_name(game, *spell_id))
         }
-        SpellCountered { spell_id, countered_by } => {
-            format!("SpellCountered: {} countered by {}", obj_name(game, *spell_id), obj_name(game, *countered_by))
-        }
+        SpellCountered { spell_id, controller, countered_by } => format!(
+            "SpellCountered: {} [P{}] countered by {}", obj_name(game, *spell_id), controller, obj_name(game, *countered_by)),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {}'s ability [P{}] countered by {}",
             obj_name(game, identity.source.id), controller, obj_name(game, *countered_by)),
-        SpellFizzled { spell_id } => format!("SpellFizzled: {} {DOES_NOT_RESOLVE}", obj_name(game, *spell_id)),
+        SpellFizzled { spell_id, controller } => format!("SpellFizzled: {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, *spell_id), controller),
         AbilityFizzled { identity, controller } => format!(
             "AbilityFizzled: {}'s ability [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), controller),
         PlayerLost { player_id, reason } => {

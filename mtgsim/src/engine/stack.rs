@@ -140,8 +140,8 @@ impl GameState {
         let this_object = entry.ability_identity.map_or(object_id, |identity| identity.source.id);
         let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object) else {
             // Every target of every instance is illegal — the spell or ability
-            // is countered by game rules.
-            self.handle_fizzle(object_id, &entry, dp)?;
+            // doesn't resolve (CR 608.2b).
+            self.handle_fizzle(object_id, &entry, controller, dp)?;
             return Ok(());
         };
 
@@ -280,15 +280,17 @@ impl GameState {
     /// The object is still on self.stack when this is called (CR 608.2). Spells
     /// go to their owner's graveyard, which is the zone change that removes them;
     /// abilities cease to exist and take themselves off the stack here.
+    /// `controller` is the one read before its entry was taken.
     fn handle_fizzle(
         &mut self,
         object_id: crate::types::ids::ObjectId,
         entry: &crate::state::game_state::StackEntry,
+        controller: crate::types::ids::PlayerId,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         if entry.is_spell {
-            // CR 608.2b — countered by game rules, and a real zone change. It
-            // belongs to no resolution: the spell never resolved.
+            // CR 608.2b — it doesn't resolve, and this is a real zone change.
+            // It belongs to no resolution: the spell never resolved.
             self.change_zone(
                 object_id,
                 Zone::Graveyard,
@@ -305,8 +307,8 @@ impl GameState {
         // An ability by its identity, as `resolve_taken` announces one: the
         // object just removed names nothing to a reader of the record.
         match entry.ability_identity {
-            Some(identity) => self.emit_event(GameEvent::AbilityFizzled { identity, controller: entry.controller }),
-            None => self.emit_event(GameEvent::SpellFizzled { spell_id: object_id }),
+            Some(identity) => self.emit_event(GameEvent::AbilityFizzled { identity, controller }),
+            None => self.emit_event(GameEvent::SpellFizzled { spell_id: object_id, controller }),
         }
 
         Ok(())
