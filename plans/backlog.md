@@ -2775,6 +2775,24 @@ same of a dungeon's last room, and 704.5v of a battle (§2.23).
 | **Atoms** | 11 under CR 714, all Phase 8's, none covered |
 | **Owner** | — |
 
+### 2.45 Stickers (CR 123), with tickets (107.17)
+
+**Scoped in by the owner (2026-10-07, PR #230's review)**, where session 1
+had ruled CR 123 out as an Un-set mechanic. Sticker cards are eternal-legal,
+and _____ Goblin, banned in Legacy and Vintage, is legal in Commander and
+played in cEDH. CR 123.5 keeps an object's stickers across a move between
+public zones, one of CR 400.7's twelve exceptions (400.7m,
+`copy-effects-architecture.md` §5.3).
+
+| Field | |
+|---|---|
+| **Rules** | CR 123 (28 rules): a player's sticker sheets (123.2, 103.2d's three at random), putting a sticker on an object one owns and paying its ticket cost (123.3), "stickered" (123.4), the carry between public zones and the drop into a hidden one (123.5, 400.7m), and the four kinds, name (123.6, a text-changing effect by 123.6c), ability (123.7), power and toughness (123.8) and art (123.9); 107.17's ticket counter, a counter on a player |
+| **Verdict** | nothing: no sheet in a game's setup, no sticker on an object, no `{TK}`. A sticker is not an object (123.1), so it is state on the object that `move_object`'s prune must keep between public zones and drop into a hidden one. A name sticker needs Layer 3, which no effect reaches yet (`ATOM-400.7a-002`'s row) |
+| **Size** | unsized. Sheets, placement, tickets and the carry look like one PR in the band with the ability and power-and-toughness kinds; the name kind waits on Layer 3 |
+| **Blocks** | `o:sticker -is:acorn legal:commander`: 47 cards; `legal:vintage`: 9. `o:{TK} -is:acorn legal:commander`: 69 |
+| **Atoms** | none: session 1 ruled CR 123 out, so they are authored when an owner takes the entry |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

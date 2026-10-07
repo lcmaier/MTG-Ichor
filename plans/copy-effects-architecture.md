@@ -1211,7 +1211,7 @@ origin and duration — not by `ObjectSet`):
 > | 400.7i | the rest of an effect finding the land it let be played | the same | ✗ PM-0; no atom |
 > | 400.7j | the rest of an effect finding what it moved to a public zone | CR 608.2b's check runs once, as the resolution begins (`stack.rs`), and a later step finds the object by id | ✅; what a step does there is its primitive's (400.7j-001, Phase 8) |
 > | 400.7k | after an uncast madness card, effects finding the discarded card | madness's permission (§1's census, "cast while something resolves") | ✗ PM-0, question 6; no atom |
-> | 400.7m | stickers, and their effects, across public zones | none: the corpus scoped stickers out (session 1, 103.2d), yet `o:sticker -is:acorn legal:vintage` counts 9 cards and `legal:commander` 47 | ✗ the owner's call |
+> | 400.7m | stickers, and their effects, across public zones | `backlog.md` §2.45, scoped in by the owner (2026-10-07) where session 1 had ruled CR 123 out | ✗ no owner doc yet |
 
 **Scheduling consequence:** **CV-1 shipped turn-bounded Tier C, CV-2 ships
 Tier B, and CV-1b ships the indefinite 25 and is blocked on item 10.** §7
