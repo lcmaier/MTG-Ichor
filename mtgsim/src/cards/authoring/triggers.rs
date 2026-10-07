@@ -45,7 +45,8 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
 }
 
 /// "Another [filter]" (CR 603.6a): the filter beside `NotSource`, which the
-/// matcher reads as other than the ability's own source.
+/// matcher reads as other than the ability's own source. In a targeting
+/// filter it is "another target creature", other than the same object.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
     ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }

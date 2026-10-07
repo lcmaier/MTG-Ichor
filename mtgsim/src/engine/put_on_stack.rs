@@ -182,7 +182,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let targets = match self.announce_targets(
-            player_id, card_id, instances, decisions,
+            player_id, card_id, card_id, instances, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -319,10 +319,16 @@ impl GameState {
     /// shared rather than duplicated. The caller owns the rollback — CR 601.2e
     /// for a spell, `rollback_ability_activation` for an ability — because the
     /// two rewind different things.
+    ///
+    /// `source_id` is the object on the stack, which CR 115.5 makes no target
+    /// of its own; `this_object` is the object the text's "this" names (CR
+    /// 113.7a), which "another target" excludes — the spell itself, or the
+    /// permanent whose ability is announced.
     pub(crate) fn announce_targets(
         &mut self,
         player_id: PlayerId,
         source_id: ObjectId,
+        this_object: ObjectId,
         instances: &[EffectRecipient],
         decisions: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
@@ -339,13 +345,11 @@ impl GameState {
                     recipient
                 ));
             };
-            let legal = enumerate_legal_selections_excluding(
-                self,
-                filter,
-                Some(source_id),
-                player_id,
+            let identity = crate::engine::targeting::FilterIdentity::announcing(
+                this_object,
                 crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
             );
+            let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
                 crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
@@ -354,7 +358,7 @@ impl GameState {
                 decisions, self, player_id, recipient, source_id,
                 &legal, min_sel, max_sel,
             );
-            self.validate_targets(recipient, &chosen, player_id, &earlier_targets)?;
+            self.validate_targets(recipient, &chosen, player_id, identity)?;
             announced.push(TargetInstance::announce(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
@@ -425,7 +429,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2c, so an ability
         // announces its instances exactly as a spell does.
         let targets = match self.announce_targets(
-            player_id, ability_obj_id, instances, decisions,
+            player_id, ability_obj_id, source_id, instances, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {

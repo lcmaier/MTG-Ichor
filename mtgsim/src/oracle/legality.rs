@@ -190,7 +190,7 @@ pub fn enumerate_legal_selections(
         filter,
         exclude_id,
         you,
-        crate::engine::targeting::EarlierTargets::None,
+        crate::engine::targeting::FilterIdentity::NONE,
     )
 }
 
@@ -207,9 +207,9 @@ pub fn enumerate_legal_selections_excluding(
     filter: &crate::types::effects::SelectionFilter,
     exclude_id: Option<ObjectId>,
     you: PlayerId,
-    earlier_targets: crate::engine::targeting::EarlierTargets<'_>,
+    identity: crate::engine::targeting::FilterIdentity<'_>,
 ) -> Vec<crate::engine::resolve::ResolvedTarget> {
-    enumerate_legal_selections_upto(game, filter, exclude_id, you, earlier_targets, usize::MAX)
+    enumerate_legal_selections_upto(game, filter, exclude_id, you, identity, usize::MAX)
 }
 
 /// [`enumerate_legal_selections_excluding`] that stops once it has `limit`.
@@ -229,7 +229,7 @@ pub fn enumerate_legal_selections_upto(
     filter: &crate::types::effects::SelectionFilter,
     exclude_id: Option<ObjectId>,
     you: PlayerId,
-    earlier_targets: crate::engine::targeting::EarlierTargets<'_>,
+    identity: crate::engine::targeting::FilterIdentity<'_>,
     limit: usize,
 ) -> Vec<crate::engine::resolve::ResolvedTarget> {
     use crate::engine::resolve::ResolvedTarget as RT;
@@ -267,7 +267,7 @@ pub fn enumerate_legal_selections_upto(
     };
     let passes = |id: ObjectId| {
         let candidate = RT::Object(id);
-        game.validate_selection(filter, &candidate, you, earlier_targets)
+        game.validate_selection(filter, &candidate, you, identity)
             .is_ok()
             .then_some(candidate)
     };
@@ -305,7 +305,7 @@ pub fn enumerate_legal_selections_upto(
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::targeting::EarlierTargets;
+    use crate::engine::targeting::FilterIdentity;
     use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
@@ -571,20 +571,20 @@ mod tests {
         // both directions: everything offered validates, and the card in hand
         // does not.
         for choice in &legal {
-            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, EarlierTargets::None).is_ok());
+            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, FilterIdentity::NONE).is_ok());
         }
         assert!(game
             .validate_selection(
                 &SelectionFilter::DamageSource,
                 &ResolvedTarget::Object(in_hand),
                 0,
-                EarlierTargets::None,
+                FilterIdentity::NONE,
             )
             .is_err());
         assert!(game
-            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, EarlierTargets::None)
+            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, FilterIdentity::NONE)
             .is_err());
-        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, EarlierTargets::None));
+        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, FilterIdentity::NONE));
     }
 
     // The board with nothing on it: no permanent, no spell, so CR 101.3's
@@ -597,7 +597,7 @@ mod tests {
         let game = setup_two_player_game();
         assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
             .is_empty());
-        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, EarlierTargets::None));
+        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, FilterIdentity::NONE));
     }
 
     // CR 800.4a — a player who has left the game is not a player, so not a
@@ -625,7 +625,7 @@ mod tests {
         // offered nothing at all.
         for filter in [SelectionFilter::Player, SelectionFilter::Any] {
             assert_eq!(seats(&game, filter.clone()).len(), 4, "{:?}: four seats", filter);
-            assert!(game.has_legal_choices(&filter, None, 0, 4, EarlierTargets::None));
+            assert!(game.has_legal_choices(&filter, None, 0, 4, FilterIdentity::NONE));
         }
 
         game.player_lost[3] = true;
@@ -640,19 +640,19 @@ mod tests {
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);
             assert!(
-                game.has_legal_choices(&filter, None, 0, 3, EarlierTargets::None),
+                game.has_legal_choices(&filter, None, 0, 3, FilterIdentity::NONE),
                 "{:?}: three seats are still three choices",
                 filter,
             );
             assert!(
-                !game.has_legal_choices(&filter, None, 0, 4, EarlierTargets::None),
+                !game.has_legal_choices(&filter, None, 0, 4, FilterIdentity::NONE),
                 "{:?}: and the fourth is not a choice to count",
                 filter,
             );
             // Enumeration and enforcement agree — the rule RS-2 fixed in both
             // directions, asked here of the seat that left.
             assert!(game
-                .validate_selection(&filter, &ResolvedTarget::Player(3), 0, EarlierTargets::None)
+                .validate_selection(&filter, &ResolvedTarget::Player(3), 0, FilterIdentity::NONE)
                 .is_err());
         }
     }

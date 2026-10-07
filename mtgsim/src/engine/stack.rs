@@ -135,7 +135,10 @@ impl GameState {
         // Filtered here rather than per atom because 608.2b checks targets as
         // the spell *begins* to resolve: Plague Spores destroying the creature
         // does not make the land illegal afterwards.
-        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller) else {
+        // "Another target" is other than the object the text's "this" names:
+        // the spell, or the permanent whose ability this is (CR 113.7a).
+        let this_object = entry.ability_identity.map_or(object_id, |identity| identity.source.id);
+        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object) else {
             // Every target of every instance is illegal — the spell or ability
             // is countered by game rules.
             self.handle_fizzle(object_id, &entry, dp)?;

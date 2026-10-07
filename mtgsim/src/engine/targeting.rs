@@ -281,10 +281,12 @@ impl EarlierTargets<'_> {
 /// `exclude_id` stays applied in the enumeration, uniformly, whatever the filter's
 /// shape.
 #[derive(Clone, Copy)]
-pub(crate) struct FilterIdentity<'a> {
-    /// The source [`ObjectFilter::NotSource`] excludes: the effect's own.
-    /// `None` in a selection context, where the leaf is refused rather than
-    /// answered.
+pub struct FilterIdentity<'a> {
+    /// The source [`ObjectFilter::NotSource`] excludes: the effect's own, or
+    /// for a selection the object "this" names in the text being announced —
+    /// the spell, or the permanent whose ability it is (CR 113.7a), so
+    /// "another target creature" is other than Cryptoplasm. `None` where no
+    /// text is being announced, and the leaf is refused rather than answered.
     pub source: Option<ObjectId>,
     /// The instances of "target" announced before this one, which
     /// [`ObjectFilter::OtherThanInstance`] reads. `None` outside CR 601.2c's
@@ -298,6 +300,14 @@ impl FilterIdentity<'static> {
         source: None,
         earlier_targets: EarlierTargets::None,
     };
+}
+
+impl<'a> FilterIdentity<'a> {
+    /// The text of `this_object` being announced, with the instances of
+    /// "target" it has announced so far.
+    pub fn announcing(this_object: ObjectId, earlier_targets: EarlierTargets<'a>) -> Self {
+        FilterIdentity { source: Some(this_object), earlier_targets }
+    }
 }
 
 /// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
@@ -386,7 +396,7 @@ impl GameState {
         recipient: &EffectRecipient,
         targets: &[ResolvedTarget],
         you: PlayerId,
-        earlier_targets: &ChosenTargets,
+        identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit
@@ -452,12 +462,7 @@ impl GameState {
                     }
                 }
                 for t in targets {
-                    self.validate_selection(
-                        filter,
-                        t,
-                        you,
-                        EarlierTargets::Chosen(earlier_targets),
-                    )?;
+                    self.validate_selection(filter, t, you, identity)?;
                 }
                 Ok(())
             }
@@ -499,14 +504,14 @@ impl GameState {
         filter: &SelectionFilter,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier_targets: EarlierTargets<'_>,
+        identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
             SelectionFilter::Player => self.validate_player_target(target),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
-                self.validate_permanent_target(target, pf, you, earlier_targets)
+                self.validate_permanent_target(target, pf, you, identity)
             }
             SelectionFilter::Spell => self.validate_spell_target(target),
             SelectionFilter::DamageSource => self.validate_damage_source(target),
@@ -629,12 +634,12 @@ impl GameState {
         target: &ResolvedTarget,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier_targets: EarlierTargets<'_>,
+        identity: FilterIdentity<'_>,
     ) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                if !self.object_matches_filter_for_instance(*id, filter, you, earlier_targets)? {
+                if !self.object_matches_filter_for_instance(*id, filter, you, identity)? {
                     return Err(format!(
                         "Target {} does not match permanent filter {:?}", id, filter
                     ));
@@ -720,23 +725,25 @@ impl GameState {
 
     /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where the
     /// instances announced so far are known — so
-    /// [`ObjectFilter::OtherThanInstance`] has something to be other than.
+    /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
+    /// and the object whose text is announced, which
+    /// [`ObjectFilter::NotSource`] is other than.
     ///
     /// The selection-side twin of [`Self::object_matches_filter_of_source`],
-    /// and the two identity facts are deliberately separate: "each other" is
-    /// about the *effect's source* and "another target" is about an *earlier
-    /// choice*, and a filter can carry both.
+    /// and the two identity facts are deliberately separate: "another target
+    /// creature" on Cryptoplasm is about the *ability's source* and on
+    /// Incremental Growth about an *earlier choice*, and a filter can carry
+    /// both.
     pub(crate) fn object_matches_filter_for_instance(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier_targets: EarlierTargets<'_>,
+        identity: FilterIdentity<'_>,
     ) -> Result<bool, String> {
         self.get_object(id)?;
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        let identity = FilterIdentity { source: None, earlier_targets };
         self.object_matches_filter_with(id, filter, you, identity, &|| {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
@@ -867,7 +874,7 @@ impl GameState {
             ObjectFilter::NotSource => match identity.source {
                 Some(source) => Ok(id != source),
                 None => Err(format!(
-                    "ObjectFilter::NotSource on {} has no source to be other than in a selection context",
+                    "ObjectFilter::NotSource on {} has no source to be other than: nothing is being announced",
                     id
                 )),
             },
@@ -951,6 +958,7 @@ impl GameState {
         &self,
         instances: &[TargetInstance],
         you: PlayerId,
+        this_object: ObjectId,
     ) -> Option<ChosenTargets> {
         // The announcement, unfiltered, so that `OtherThanInstance` re-reads
         // what CR 601.2c chose. "Another target creature" was a criterion of
@@ -961,7 +969,7 @@ impl GameState {
         // Borrowed from the entry rather than copied: the announcement is
         // already `instances`, and the only thing the leaf needs of it is a
         // by-index read.
-        let announced_targets = EarlierTargets::Announced(instances);
+        let announced_targets = FilterIdentity::announcing(this_object, EarlierTargets::Announced(instances));
 
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
@@ -1032,7 +1040,7 @@ impl GameState {
         exclude_id: Option<ObjectId>,
         you: PlayerId,
         n: usize,
-        earlier_targets: EarlierTargets<'_>,
+        identity: FilterIdentity<'_>,
     ) -> bool {
         if n == 0 {
             return true;
@@ -1061,7 +1069,7 @@ impl GameState {
                         continue;
                     }
                     let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
+                    if self.validate_selection(filter, &candidate, you, identity).is_ok() {
                         found += 1;
                         if found >= n {
                             return true;
@@ -1104,7 +1112,7 @@ impl GameState {
                         continue;
                     }
                     let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
+                    if self.validate_selection(filter, &candidate, you, identity).is_ok() {
                         found += 1;
                         if found >= n {
                             return true;
@@ -1123,11 +1131,11 @@ impl GameState {
         recipient: &EffectRecipient,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier_targets: EarlierTargets<'_>,
+        identity: FilterIdentity<'_>,
     ) -> bool {
         match recipient {
             EffectRecipient::Target(filter, _) => {
-                self.validate_selection(filter, target, you, earlier_targets).is_ok()
+                self.validate_selection(filter, target, you, identity).is_ok()
             }
             // Choose, Implicit, Controller — always "legal" (no fizzle).
             _ => true,
@@ -1163,7 +1171,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -1174,7 +1182,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Land)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -1185,7 +1193,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Creature)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -1193,7 +1201,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(1)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_ok());
     }
 
     #[test]
@@ -1201,7 +1209,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(5)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -1210,15 +1218,15 @@ mod tests {
         let fake_id = crate::types::ids::new_object_id();
         let targets = vec![ResolvedTarget::Object(fake_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
     fn test_validate_no_targets() {
         let game = GameState::new(2, 20);
         let spec = EffectRecipient::Implicit;
-        assert!(game.validate_targets(&spec, &[], 0, &ChosenTargets::NONE).is_ok());
-        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0, &ChosenTargets::NONE).is_err());
+        assert!(game.validate_targets(&spec, &[], 0, FilterIdentity::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -1229,7 +1237,7 @@ mod tests {
             ResolvedTarget::Object(land_id),
         ];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, FilterIdentity::NONE).is_err());
     }
 
     #[test]
@@ -1240,14 +1248,14 @@ mod tests {
 
         // Target is legal while on battlefield
         let survivors = game
-            .surviving_targets(&instances, 0)
+            .surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED)
             .expect("a legal target resolves");
         assert_eq!(survivors.instance(0), &[ResolvedTarget::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.
         game.battlefield.remove(&land_id);
-        assert!(game.surviving_targets(&instances, 0).is_none());
+        assert!(game.surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED).is_none());
     }
 }
 

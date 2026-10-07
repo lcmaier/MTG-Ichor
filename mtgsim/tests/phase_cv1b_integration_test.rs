@@ -22,6 +22,8 @@
 //!    copy is the one showing (item 16b).
 //! 5. Copies that last: Mirrorform states no duration, so its copies last
 //!    until the end of the game (CR 611.2a) and end when their subject moves.
+//! 6. "Another target": a targeting filter is other than the object the
+//!    text's "this" names, at the offer, the announcement and the re-check.
 
 use std::sync::Arc;
 
@@ -744,4 +746,64 @@ fn an_indefinite_copy_shows_again_with_its_statics_when_a_later_copy_ends() {
     mtgsim::test_support::pass_turn(&mut game);
     assert_eq!(get_effective_name(&game, copier), "Anthem Bearer");
     assert_eq!(pt(&game, other), (Some(3), Some(3)), "and back with it");
+}
+
+// ---------------------------------------------------------------------------
+// 6. "Another target"
+// ---------------------------------------------------------------------------
+
+/// **Fixture.** "{T}: Another target creature gets +1/+1 until end of turn."
+/// No registered card has an activated "another target" yet; Cryptoplasm's
+/// is a trigger's.
+fn another_pumper() -> Arc<CardData> {
+    use mtgsim::types::effects::ObjectFilter;
+    CardDataBuilder::new("Another Pumper")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .ability(AbilityDef {
+            rules_text: "{T}: Another target creature gets +1/+1 until end of turn.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Activated,
+            costs: vec![mtgsim::types::costs::Cost::TapSelf],
+            effect: Effect::Atom(
+                Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::UntilEndOfTurn),
+                EffectRecipient::Target(
+                    SelectionFilter::Permanent(mtgsim::cards::authoring::another(ObjectFilter::ByType(CardType::Creature))),
+                    TargetCount::Exactly(1),
+                ),
+            ),
+        })
+        .build()
+}
+
+/// "Another target creature" is other than the permanent whose ability it
+/// is (CR 113.7a). With that permanent the only creature, the ability is not
+/// offered (CR 602.2b through 601.2c's "legal choices for all its targets");
+/// with a second creature it is, and the announcement offers only that one.
+#[test]
+fn another_target_is_other_than_the_abilitys_own_source() {
+    use mtgsim::oracle::legality::candidate_priority_actions;
+    use mtgsim::ui::decision::PriorityAction;
+    let mut game = setup_two_player_game();
+    let pumper = put_on_battlefield(&mut game, another_pumper(), 0);
+    let offered = |game: &GameState| {
+        candidate_priority_actions(game, 0).iter().any(|a| matches!(a, PriorityAction::ActivateAbility(s, _) if *s == pumper))
+    };
+    assert!(!offered(&game), "it is not another creature");
+
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert!(offered(&game));
+    let dp = RecordingDecisionProvider::picking(0);
+    game.activate_ability(0, pumper, 0, &dp).unwrap();
+    let ability = *game.stack.last().unwrap();
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&ability].chosen_targets[0].targets().collect();
+    assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
+    assert_eq!(dp.prompts(), 0, "one legal choice is no choice");
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(pt(&game, bears), (Some(3), Some(3)));
 }
