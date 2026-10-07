@@ -1805,43 +1805,64 @@ impl GameState {
         // Once, here, and never re-derived (CR 707.2b; CR 611.2c for a
         // resolution's) — the opposite of every other continuous effect here,
         // and the whole reason `CopyFrom` carries values rather than an `ObjectId`.
-        let Some(mut values) = crate::engine::layers::copiable_values(self, donor) else {
+        let Some(captured) = crate::engine::layers::copiable_values(self, donor) else {
             return Ok(());
         };
-        if !except.is_empty() {
-            let except = self.with_this_ability(except, ctx)?;
-            self.make_copy_exceptions(&mut values, &except, &affected)?;
-        }
+        let except = if except.is_empty() { Vec::new() } else { self.with_this_ability(except, ctx)? };
+        // CR 707.9c: "doesn't copy" keeps each copying object's own value, so a
+        // copy over several objects that keeps one is a row per object.
+        let keeps_own_value = except.iter().any(|exception| matches!(exception, CopyException::DoesNotCopy(_)));
+        let row_subjects: Vec<Vec<ObjectId>> =
+            if keeps_own_value { affected.iter().map(|&id| vec![id]).collect() } else { vec![affected] };
+        for affected in row_subjects {
+            let mut values = captured.clone();
+            if !except.is_empty() {
+                self.make_copy_exceptions(&mut values, &except, &affected)?;
+            }
+            // CR 613.7, 707.4: a copy that lasts as long as its object hides
+            // every earlier copy of it for that whole time, so the earlier
+            // ones retire rather than stay one row more per re-copy. After the
+            // capture, since 707.9c's own value is read through them.
+            if duration == Duration::Indefinite {
+                for &object in &affected {
+                    self.continuous_effects.retire_earlier_copies_of(object);
+                }
+            }
 
-        // --- 3. The row (CR 613.2a) -------------------------------------
-        //
-        // Each copied ability is tagged with the row, as a Layer 6 grant is:
-        // a second copy of the same donor is a second instance of each of its
-        // abilities, and the rows a copied static ability generates must apply
-        // only while their own copy is the one showing (item 16b).
-        let row = self.continuous_effects.next_id();
-        for ability in std::sync::Arc::make_mut(&mut values.abilities) {
-            ability.id = ability.id.copied_by(row);
-        }
-        let timestamp = self.allocate_timestamp();
-        self.continuous_effects.add(ContinuousEffect {
-            id: 0,
-            source: ctx.source,
-            origin: EffectOrigin::Resolution,
-            layer: Layer::Layer1Copy,
-            duration,
-            controller: ctx.controller,
-            created_on_turn: self.turn_number,
-            timestamp,
-            affected_objects: ObjectSet::Fixed(affected.clone()),
-            modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
-        });
+            // --- 3. The row (CR 613.2a) ---------------------------------
+            //
+            // Each copied ability is tagged with the row, as a Layer 6 grant
+            // is: a second copy of the same donor is a second instance of each
+            // of its abilities, and the rows a copied static ability generates
+            // must apply only while their own copy is the one showing (item 16b).
+            let row = self.continuous_effects.next_id();
+            for ability in std::sync::Arc::make_mut(&mut values.abilities) {
+                ability.id = ability.id.copied_by(row);
+            }
+            // A timestamp per row, though CR 613.7b gives the effect one: the
+            // rows are allocated together and affect different objects, so
+            // their order is unobservable, while one timestamp would make them
+            // one `EffectGroup`, and CR 613.6 would hold every row to the
+            // first one's object.
+            let timestamp = self.allocate_timestamp();
+            self.continuous_effects.add(ContinuousEffect {
+                id: 0,
+                source: ctx.source,
+                origin: EffectOrigin::Resolution,
+                layer: Layer::Layer1Copy,
+                duration,
+                controller: ctx.controller,
+                created_on_turn: self.turn_number,
+                timestamp,
+                affected_objects: ObjectSet::Fixed(affected.clone()),
+                modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
+            });
 
-        // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes the
-        // copy *have* the ability; it does not make the ability *do* anything.
-        self.register_copied_static_effects(
-            &values, &affected, timestamp, duration,
-        );
+            // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes
+            // the copy *have* the ability; it does not make the ability *do*
+            // anything.
+            self.register_copied_static_effects(&values, &affected, timestamp, duration);
+        }
         Ok(())
     }
 
@@ -1902,9 +1923,9 @@ impl GameState {
     /// the copy has them too.
     ///
     /// "It doesn't copy that creature's color" keeps the copying object's own
-    /// value (707.9c), which is one object's: a row over several would need
-    /// one capture each, and no printed card asks, so that is refused. So are
-    /// 707.9e's additions and 707.9f's conditions, which are an entry's.
+    /// value (707.9c), read here, which is why [`Self::apply_copy`] hands a
+    /// copy that keeps one a single object per row. 707.9e's additions and
+    /// 707.9f's conditions are an entry's, and refused.
     fn make_copy_exceptions(
         &self,
         values: &mut crate::engine::layers::copy::CopiableValues,
@@ -1913,14 +1934,7 @@ impl GameState {
     ) -> Result<(), String> {
         for exception in except {
             match exception {
-                CopyException::Modifies(_) => {}
-                CopyException::DoesNotCopy(_) if affected.len() == 1 => {}
-                CopyException::DoesNotCopy(_) => {
-                    return Err(format!(
-                        "{exception:?} keeps each copying object's own value, and one copy row covers {} objects",
-                        affected.len()
-                    ));
-                }
+                CopyException::Modifies(_) | CopyException::DoesNotCopy(_) => {}
                 CopyException::Additionally(_) | CopyException::If(..) => {
                     return Err(format!("{exception:?} is about a permanent entering (CR 707.9e, 707.9f), not a resolution's copy"));
                 }

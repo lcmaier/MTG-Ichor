@@ -609,6 +609,107 @@ fn copying_one_donor_twice_applies_its_static_ability_once() {
     assert_eq!(pt(&game, donor), (Some(3), Some(3)), "the donor's own, for its own controller");
 }
 
+/// The copy rows that refer to `id`, oldest first.
+fn copy_rows_on(game: &GameState, id: ObjectId) -> Vec<u64> {
+    game.continuous_effects
+        .iter()
+        .filter(|row| matches!(row.modification, EffectModification::CopyFrom(_)) && row.affected_objects.refers_to(id))
+        .map(|row| row.id)
+        .collect()
+}
+
+/// The rows `copy`'s copied static abilities generated for `id`.
+fn rows_from_copied_statics(game: &GameState, id: ObjectId, copy: u64) -> usize {
+    game.continuous_effects
+        .iter()
+        .filter(|row| {
+            row.source == id
+                && matches!(row.origin, EffectOrigin::StaticAbility { ability } if ability.granting_row() == Some(copy))
+        })
+        .count()
+}
+
+/// **Fixture.** Cytoshape with no duration, which no printed card is:
+/// "Choose a creature. Target creature becomes a copy of it." A copy that
+/// lasts, of one object, for laying over a Mirrorform.
+fn lasting_shape() -> Arc<CardData> {
+    use mtgsim::types::effects::CopyRoles;
+    CardDataBuilder::new("Lasting Shape")
+        .card_type(CardType::Sorcery)
+        .ability(AbilityDef {
+            rules_text: "Choose a creature. Target creature becomes a copy of it.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::Copy {
+                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Creature),
+                    except: Vec::new(),
+                    duration: Duration::Indefinite,
+                },
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .build()
+}
+
+/// Item 218, from the review round: a second Mirrorform over the first. Both
+/// last until their subjects move and the later applies last (CR 613.7), so
+/// the first never shows again, and the second retires it and the rows its
+/// copied anthem generated rather than leave each creature one row longer
+/// per copy.
+#[test]
+fn a_lasting_copy_retires_the_earlier_copies_it_hides() {
+    let mut game = setup_two_player_game();
+    let bearer = put_on_battlefield(&mut game, anthem_bearer(), 1);
+    let plain = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_spell(&mut game, mirrorform(), 0, &[bearer]);
+    let hidden = copy_rows_on(&game, first);
+    assert_eq!(hidden.len(), 1);
+    assert_eq!(pt(&game, first), (Some(4), Some(4)), "two copied anthems");
+    assert!(rows_from_copied_statics(&game, first, hidden[0]) > 0);
+
+    resolve_spell(&mut game, mirrorform(), 0, &[plain]);
+    for id in [first, second] {
+        assert_eq!(get_effective_name(&game, id), "Grizzly Bears");
+        assert_eq!(pt(&game, id), (Some(2), Some(2)), "no anthem shows");
+        assert_eq!(copy_rows_on(&game, id).len(), 1, "one copy row, not two");
+        assert_eq!(rows_from_copied_statics(&game, id, hidden[0]), 0, "the hidden copy's anthem rows retired");
+    }
+    assert!(!game.continuous_effects.iter().any(|row| row.id == hidden[0]), "the earlier row, about nothing now, is gone");
+}
+
+/// A Mirrorform over two creatures, then a copy that lasts over one of them:
+/// the earlier row keeps the other, with its anthem.
+#[test]
+fn a_lasting_copy_of_one_object_leaves_the_earlier_copys_other_object_alone() {
+    let mut game = setup_two_player_game();
+    let bearer = put_on_battlefield(&mut game, anthem_bearer(), 1);
+    let _plain = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_spell(&mut game, mirrorform(), 0, &[bearer]);
+    let mirrorform_row = copy_rows_on(&game, first);
+    assert_eq!(copy_rows_on(&game, second), mirrorform_row);
+
+    // The donor's candidates in timestamp order: [bearer, plain, first, second].
+    resolve_spell_with(&mut game, lasting_shape(), 0, &[first], &RecordingDecisionProvider::picking(1));
+    assert_eq!(get_effective_name(&game, first), "Grizzly Bears");
+    assert_eq!(get_effective_name(&game, second), "Anthem Bearer");
+    assert_eq!(copy_rows_on(&game, second), mirrorform_row, "the earlier row keeps the other creature");
+    assert_eq!(copy_rows_on(&game, first).len(), 1);
+    assert_ne!(copy_rows_on(&game, first), mirrorform_row);
+    assert_eq!(rows_from_copied_statics(&game, first, mirrorform_row[0]), 0, "its anthem rows retired");
+    assert!(rows_from_copied_statics(&game, second, mirrorform_row[0]) > 0, "the other's kept");
+    assert_eq!(pt(&game, first), (Some(3), Some(3)), "one anthem now, the other creature's");
+    assert_eq!(pt(&game, second), (Some(3), Some(3)));
+}
+
 // ---------------------------------------------------------------------------
 // 5. Copies that last
 // ---------------------------------------------------------------------------
@@ -965,6 +1066,37 @@ fn cryptoplasms_copy_lasts_until_another_overwrites_it() {
     assert!(has_cryptoplasms_ability(&game, crypto));
 }
 
+/// Item 218's own board: each upkeep Cryptoplasm says yes lays a copy over
+/// the last, which never shows again, so it keeps one copy row however often
+/// it copies, and none of a hidden copy's anthem.
+#[test]
+fn cryptoplasm_keeps_one_copy_row_however_often_it_copies() {
+    let mut game = setup_two_player_game();
+    let bearer = put_on_battlefield(&mut game, anthem_bearer(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, bearer);
+    resolve_may(&mut game, true);
+    assert_eq!(pt(&game, mine), (Some(3), Some(3)), "the copied anthem");
+    let first = copy_rows_on(&game, crypto);
+    assert_eq!(first.len(), 1);
+
+    advance_to(&mut game, 1, StepType::Upkeep);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, bears);
+    resolve_may(&mut game, true);
+    assert_eq!(get_effective_name(&game, crypto), "Grizzly Bears");
+    assert!(has_cryptoplasms_ability(&game, crypto));
+    assert_eq!(pt(&game, mine), (Some(2), Some(2)), "the hidden copy's anthem is gone");
+    let second = copy_rows_on(&game, crypto);
+    assert_eq!(second.len(), 1, "one copy row, not two");
+    assert_ne!(second, first);
+    assert_eq!(rows_from_copied_statics(&game, crypto, first[0]), 0);
+}
+
 // RULING: Cryptoplasm #3 - "If the creature is an illegal target when the
 //   ability tries to resolve, it won't resolve. Cryptoplasm won't become a copy
 //   of that creature; it remains whatever it was before."
@@ -1159,4 +1291,62 @@ fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
     assert_eq!(get_effective_name(&game, spark), "Essence of Might");
     assert_eq!(counters(&game, spark, CounterType::PlusOnePlusOne), 0);
     assert_eq!(pt(&game, spark), (Some(6), Some(6)));
+}
+
+// ---------------------------------------------------------------------------
+// 9. CR 707.9c over several objects
+// ---------------------------------------------------------------------------
+
+/// **Fixture**, no printed card: "Each creature you control becomes a copy of
+/// target creature until end of turn, except it doesn't copy that creature's
+/// color." CR 707.9c keeps each copying creature's own color, so the copy is
+/// a row per creature (item 221, from the review round).
+fn shared_shape() -> Arc<CardData> {
+    use mtgsim::types::effects::{Characteristic, CopyException, CopyRoles, ObjectFilter, PlayerRef};
+    CardDataBuilder::new("Shared Shape")
+        .card_type(CardType::Sorcery)
+        .ability(AbilityDef {
+            rules_text: "Each creature you control becomes a copy of target creature until end of turn, except it doesn't copy that creature's color.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::Copy {
+                    roles: CopyRoles::FilteredCopyRecipient {
+                        filter: ObjectFilter::And(
+                            Box::new(ObjectFilter::ByType(CardType::Creature)),
+                            Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                        ),
+                        exclude_donor: true,
+                    },
+                    except: vec![CopyException::DoesNotCopy(Characteristic::Color)],
+                    duration: Duration::UntilEndOfTurn,
+                },
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .build()
+}
+
+/// A green creature and a red one become Serra Angels and keep their own
+/// colors, each its own: one capture could keep only one of them.
+#[test]
+fn a_copy_over_several_creatures_keeps_each_ones_own_color() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let green = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let red = put_on_battlefield(&mut game, red_creature(2), 0);
+    resolve_spell(&mut game, shared_shape(), 0, &[angel]);
+    for id in [green, red] {
+        assert_eq!(get_effective_name(&game, id), "Serra Angel");
+        assert_eq!(pt(&game, id), (Some(4), Some(4)));
+    }
+    assert_eq!(get_effective_colors(&game, green), std::collections::HashSet::from([Color::Green]));
+    assert_eq!(get_effective_colors(&game, red), std::collections::HashSet::from([Color::Red]));
+    assert_eq!(copy_rows_on(&game, green).len(), 1);
+    assert_ne!(copy_rows_on(&game, green), copy_rows_on(&game, red), "a row each");
+    assert_eq!(get_effective_colors(&game, angel), std::collections::HashSet::from([Color::White]), "the donor is not a recipient");
 }

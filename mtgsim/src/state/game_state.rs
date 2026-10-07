@@ -1831,8 +1831,10 @@ impl GameState {
     /// includes layer 1; a copy row that expired or that a CR 707.4 re-copy
     /// superseded stops applying on the next walk whatever the registry holds.
     /// Each derived row gets the copy row's own `Duration` so both expire in the
-    /// same CR 514.2 sweep; a re-copy within a turn leaves superseded rows inert
-    /// until cleanup (Deferred Migrations).
+    /// same CR 514.2 sweep. A copy that lasts retires the earlier copies it
+    /// hides and these rows with them (`retire_earlier_copies_of`); a turn's
+    /// copy over an earlier one leaves them inert until it ends, when they
+    /// apply again.
     ///
     /// **Two differences from `register_granted_static_effects`**: CDAs are
     /// skipped, since CR 604.3a(2)'s third clause makes a copied CDA still a

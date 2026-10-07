@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Layer, Timestamp};
+use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp};
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
@@ -501,6 +501,42 @@ impl ContinuousEffectRegistry {
             return false;
         }
         self.mutating(|rows| rows.remove_references_to(object, |_| false))
+    }
+
+    /// CR 613.7 and 707.4 — `object` is taking a copy that lasts as long as
+    /// it does, which hides every earlier copy a resolution made of it for
+    /// that whole time: a copy row sets every copiable value (CR 707.2, its
+    /// exceptions made at the capture), and the later one applies last. So
+    /// `object` leaves each such row, a row left about nothing goes, and so do
+    /// the rows its copied static abilities generated for `object`
+    /// (`AbilityId::copied_by`). Returns whether a row changed.
+    ///
+    /// A resolution's rows only, whose timestamps are fixed (CR 613.7b). A
+    /// static ability's copy row has its source's, which CR 613.7e can move
+    /// past the new copy's, so it may show again.
+    pub fn retire_earlier_copies_of(&mut self, object: ObjectId) -> bool {
+        let hidden: Vec<EffectId> = self
+            .effects
+            .iter()
+            .filter(|row| {
+                row.origin == EffectOrigin::Resolution
+                    && matches!(row.modification, EffectModification::CopyFrom(_))
+                    && row.affected_objects.refers_to(object)
+            })
+            .map(|row| row.id)
+            .collect();
+        if hidden.is_empty() {
+            return false;
+        }
+        self.mutating(|rows| {
+            rows.remove_references_to(object, |row| !hidden.contains(&row.id));
+            rows.retain(|row| {
+                !(row.source == object
+                    && matches!(row.origin, EffectOrigin::StaticAbility { ability }
+                        if ability.granting_row().is_some_and(|copy| hidden.contains(&copy))))
+            });
+        });
+        true
     }
 
     /// All effects in a layer, already in application order (CR 613.7).
