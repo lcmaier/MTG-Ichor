@@ -411,9 +411,9 @@ fn edit_at_random(text: &str, seed: u64, reached: &mut EditorReached) {
 
 /// What `app::draw` lets a person click in the editor, besides Play and
 /// Save, which are the session's, in groups so the long list of names does
-/// not crowd out the board: the game's facts, the seats, the cards, the card
-/// being edited, the lines shown as text, the search, the advanced settings'
-/// switch and typed field, and Undo.
+/// not crowd out the board: the game's facts, the seats, the cards, each
+/// card's "×", the card being edited, the lines shown as text, the search,
+/// the advanced settings' switch and typed field, and Undo.
 fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     let live = |buttons: &mut dyn Iterator<Item = &EditButton>| -> Vec<EditorInput> {
         buttons.filter(|button| button.live).map(|button| button.input.clone()).collect()
@@ -423,6 +423,7 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
     facts.push(EditorInput::Seed(view.seed.wrapping_add(rng.random_range(1..100))));
     let mut seats = Vec::new();
     let mut cards = Vec::new();
+    let mut removals = Vec::new();
     for seat in &view.seats {
         seats.extend(stepped(&seat.life, rng));
         seats.extend(seat.words.iter().map(|word| word.remove.clone()));
@@ -433,6 +434,7 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
         for zone in &seat.zones {
             seats.extend(live(&mut std::iter::once(&zone.put).chain(&zone.shuffled)));
             cards.extend(zone.cards.iter().filter(|card| card.live).map(|card| card.input.clone()));
+            removals.extend(zone.cards.iter().map(|card| card.remove.clone()));
         }
     }
     let mut card = Vec::new();
@@ -451,7 +453,7 @@ fn editor_clicks(view: &EditorView, rng: &mut StdRng) -> Vec<Vec<EditorInput>> {
         advanced.extend(live(&mut std::iter::once(&typed.add)));
     }
     let undo = live(&mut std::iter::once(&view.undo));
-    [facts, seats, cards, card, texts, search, advanced, undo].into_iter().filter(|group| !group.is_empty()).collect()
+    [facts, seats, cards, removals, card, texts, search, advanced, undo].into_iter().filter(|group| !group.is_empty()).collect()
 }
 
 /// A stepper's live "−" and "+", and a number typed near its own.

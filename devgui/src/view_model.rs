@@ -608,8 +608,8 @@ impl WindowState {
         self.settling_for().into_iter().chain(moved).reduce(f64::max)
     }
 
-    /// What the window shows was replaced under the pointer, so every click
-    /// is dropped for a beat, as at a new prompt (`Session::input`).
+    /// What the window shows was replaced, or moved, under the pointer, so
+    /// every click is dropped for a beat, as at a new prompt (`Session::input`).
     pub fn replaced(&mut self) {
         self.replaced_at = self.now;
     }

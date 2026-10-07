@@ -148,6 +148,12 @@ impl Session {
                     self.open_file(&file.path);
                 }
             }
+            // The cards after it slide under the pointer, so the second
+            // click of a double click on its "×" would remove the next.
+            Input::Editor(remove @ EditorInput::Remove(_)) => {
+                self.editor.input(remove);
+                self.state.replaced();
+            }
             Input::Editor(edit) => self.editor.input(edit),
             input => {
                 if let Some(reply) = self.state.input(input)

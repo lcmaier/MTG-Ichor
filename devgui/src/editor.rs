@@ -1105,6 +1105,10 @@ pub struct CardButton {
     pub edited: bool,
     /// The loader's refusal names its line.
     pub refused: bool,
+    /// The "×" beside it, which removes the line, every copy of it.
+    pub remove: EditorInput,
+    /// What the "×" says it does.
+    pub remove_hint: String,
 }
 
 /// A word or line shown as its text, and the input that removes it.
@@ -1390,7 +1394,17 @@ impl Editor {
             Some(_) => zone == Zone::Battlefield && !edited,
             None => !edited,
         };
-        CardButton { title, detail: detail.join(" · "), input: EditorInput::Card(i), live, edited, refused: refused(line.line) }
+        let remove_hint = if card.copies > 1 { format!("Remove all {}", card.copies) } else { "Remove".to_string() };
+        CardButton {
+            title,
+            detail: detail.join(" · "),
+            input: EditorInput::Card(i),
+            live,
+            edited,
+            refused: refused(line.line),
+            remove: EditorInput::Remove(i),
+            remove_hint,
+        }
     }
 
     fn card_edit(&self, i: usize) -> Option<CardEdit> {
@@ -1407,7 +1421,9 @@ impl Editor {
             let on = has(&flag.word());
             EditButton { label: label.to_string(), input: EditorInput::Flag(i, flag, !on), live: true, on }
         };
-        let mut rows = Vec::new();
+        // First, above a permanent's rows, which run past the panel's height.
+        let done = [("Remove", EditorInput::Remove(i)), ("Close", EditorInput::Close)];
+        let mut rows = vec![row("", done.map(|(label, input)| EditButton { label: label.to_string(), input, live: true, on: false }).into())];
         if zone == Zone::Battlefield {
             rows.push(row("Controller", seats(controller(line), EditorInput::Controller)));
         }
@@ -1440,8 +1456,6 @@ impl Editor {
             EditButton { label: label.to_string(), input: EditorInput::Move(i, direction), live, on: false }
         });
         rows.push(row("Order", moves.into()));
-        let done = [("Remove", EditorInput::Remove(i)), ("Close", EditorInput::Close)];
-        rows.push(row("", done.map(|(label, input)| EditButton { label: label.to_string(), input, live: true, on: false }).into()));
         Some(CardEdit { text: line.to_string(), rows })
     }
 
@@ -1569,6 +1583,34 @@ mod tests {
         editor.input(EditorInput::Undo);
         assert!(!editor.view().undo.live);
         assert_eq!(editor.text(), "turn 3\nbattlefield: Grizzly Bears | controller 0\n");
+    }
+
+    /// Every card the board lists, in every zone, has a "×" where it is
+    /// listed, which removes its line, every copy of it, as one undo step;
+    /// and a card's panel shows Remove first, where a permanent's many rows
+    /// cannot push it out of sight.
+    #[test]
+    fn a_card_is_removed_where_its_zone_lists_it() {
+        let text = "battlefield: Serra Angel | controller 1\nexile: Grizzly Bears | owner 1\nhand 0: Grizzly Bears\nlibrary 0: Plains | x3\n";
+        let mut editor = opened(text);
+        let listed = |editor: &Editor| -> Vec<CardButton> {
+            editor.view().seats.into_iter().flat_map(|seat| seat.zones).flat_map(|zone| zone.cards).collect()
+        };
+        let hints: Vec<String> = listed(&editor).into_iter().map(|card| card.remove_hint).collect();
+        assert_eq!(hints, ["Remove", "Remove", "Remove", "Remove all 3"], "seat 1's battlefield and exile, then seat 0's hand and library");
+        for (card, gone) in listed(&editor).into_iter().zip(["Serra Angel", "exile:", "hand 0:", "Plains"]) {
+            assert!(editor.text().contains(gone));
+            let removed = card.remove.clone();
+            editor.input(removed);
+            assert!(!editor.text().contains(gone), "{card:?} left {}", editor.text());
+            editor.input(EditorInput::Undo);
+            assert_eq!(editor.text(), text);
+        }
+
+        editor.input(EditorInput::Card(line_of(&editor, "Serra Angel")));
+        let panel = editor.view().card.unwrap();
+        let first: Vec<&str> = panel.rows[0].buttons.iter().map(|button| button.label.as_str()).collect();
+        assert_eq!(first, ["Remove", "Close"]);
     }
 
     /// A number typed a digit at a time, or dragged, is one undo step however

@@ -431,7 +431,7 @@ fn seat_edit(ui: &mut egui::Ui, seat: &SeatEdit, inputs: &mut Vec<Input>) {
 }
 
 /// A card's line: outlined when the loader's refusal names it, filled while
-/// it is edited.
+/// it is edited; and the "×" that removes it, which no wrap parts from it.
 fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
     let text = if card.detail.is_empty() { card.title.clone() } else { format!("{}\n{}", card.title, card.detail) };
     let visuals = ui.visuals();
@@ -443,9 +443,14 @@ fn card_button(ui: &mut egui::Ui, card: &CardButton, inputs: &mut Vec<Input>) {
         egui::Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
     };
     let sense = if card.live { egui::Sense::click() } else { egui::Sense::hover() };
-    if ui.add(egui::Button::new(text).selected(card.edited).stroke(stroke).sense(sense)).clicked() && card.live {
-        inputs.push(Input::Editor(card.input.clone()));
-    }
+    ui.horizontal(|ui| {
+        if ui.add(egui::Button::new(text).selected(card.edited).stroke(stroke).sense(sense)).clicked() && card.live {
+            inputs.push(Input::Editor(card.input.clone()));
+        }
+        if ui.small_button("×").on_hover_text(&card.remove_hint).clicked() {
+            inputs.push(Input::Editor(card.remove.clone()));
+        }
+    });
 }
 
 fn card_panel(ui: &mut egui::Ui, card: &CardEdit, inputs: &mut Vec<Input>) {

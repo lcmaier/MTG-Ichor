@@ -420,6 +420,29 @@ fn a_click_in_the_beat_after_the_window_is_replaced_is_dropped() {
     assert_ne!(session.editor.board(), &opened);
 }
 
+/// A removal slides every card after it left, under the pointer, so the
+/// second click of a double click on a card's "×" is dropped rather than
+/// removing the next card; one after the beat removes it.
+#[test]
+fn a_click_in_the_beat_after_a_removal_is_dropped() {
+    let text = "hand 0: Grizzly Bears\nhand 0: Lightning Bolt\n";
+    let (mut session, ..) = session_with("devgui-session-removed", text, |file| Start::Edit(Some(file.to_path_buf())));
+    let first = |session: &Session| session.editor.view().seats.into_iter().flat_map(|seat| seat.zones).flat_map(|zone| zone.cards).next();
+    let remove_first = |session: &mut Session| {
+        let remove = first(session).expect("a card listed").remove;
+        click(session, remove);
+    };
+    session.tick(10.0);
+    remove_first(&mut session);
+    assert_eq!(session.editor.text(), "hand 0: Lightning Bolt\n");
+    session.tick(10.1);
+    remove_first(&mut session);
+    assert_eq!(session.editor.text(), "hand 0: Lightning Bolt\n", "the second click of a double click");
+    session.tick(10.0 + 2.0 * SETTLE_SECONDS);
+    remove_first(&mut session);
+    assert!(first(&session).is_none(), "{}", session.editor.text());
+}
+
 /// The PR's click script: a four-seat Commander board built in the editor
 /// from an empty one, and played to its first question. Player 2's Isamaru
 /// attacks Player 3, whose Wall of Stone can block it; Player 0's commander
