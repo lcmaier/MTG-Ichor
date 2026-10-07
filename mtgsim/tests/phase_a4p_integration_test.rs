@@ -73,7 +73,7 @@ fn any_target_damage_does_not_resolve_against_a_seat_that_left_the_game() {
     let dp = RecordingDecisionProvider::picking(3);
     game.cast_spell(0, bolt, &dp).expect("{R} is in the pool and the seats are legal");
     assert_eq!(
-        game.stack_entries[&bolt].chosen_targets[0].targets().collect::<Vec<_>>(),
+        game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
         vec![ResolvedTarget::Player(3)],
         "the fourth seat, chosen while it was still a player",
     );
@@ -118,7 +118,7 @@ fn a_seat_that_left_the_game_is_not_among_the_players_a_cast_offers() {
     game.cast_spell(0, recall, &dp)
         .expect("three seats are in the game, so CR 601.2c has a legal target");
     assert_eq!(
-        game.stack_entries[&recall].chosen_targets[0].targets().collect::<Vec<_>>(),
+        game.stack_entries[&recall].chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
         vec![ResolvedTarget::Player(2)],
         "the last seat offered is the last seat still in the game",
     );

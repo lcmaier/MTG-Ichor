@@ -371,18 +371,18 @@ impl ObjectSet {
         }
     }
 
-    /// CR 400.7 — does this set name `object` by identity? Only a `Fixed` set
-    /// does, captured as its effect began (CR 611.2c); the other three arms
-    /// read the board each time they are asked, so a move leaves nothing of
-    /// theirs behind.
-    pub fn names(&self, object: ObjectId) -> bool {
+    /// CR 400.7 — does this set refer to `object` by identity? Only a `Fixed`
+    /// set does, captured as its effect began (CR 611.2c); the other three
+    /// arms read the board each time they are asked, so a move leaves nothing
+    /// of theirs behind.
+    pub fn refers_to(&self, object: ObjectId) -> bool {
         matches!(self, ObjectSet::Fixed(ids) if ids.contains(&object))
     }
 
-    /// CR 400.7 — stop naming `object`, which has become a new object.
-    /// Returns whether the set still names any object, which only a `Fixed`
-    /// set left empty does not.
-    pub fn forget(&mut self, object: ObjectId) -> bool {
+    /// CR 400.7 — stop referring to `object`, which has become a new object.
+    /// Returns whether the set is still about any object, which only a
+    /// `Fixed` set left empty is not.
+    pub fn remove_reference_to(&mut self, object: ObjectId) -> bool {
         match self {
             ObjectSet::Fixed(ids) => {
                 ids.retain(|&id| id != object);
@@ -446,7 +446,7 @@ impl PlayerSet {
     /// Can this set contain a player at all? What keeps a row whose object
     /// half CR 400.7 emptied: "prevent all damage that would be dealt to you
     /// and target creature" still protects you once the creature is gone.
-    pub fn names_a_player(&self) -> bool {
+    pub fn can_contain_a_player(&self) -> bool {
         match self {
             PlayerSet::Nobody => false,
             PlayerSet::Fixed(ids) => !ids.is_empty(),
@@ -937,7 +937,9 @@ pub enum SelectionFilter {
 ///
 /// A closed enum with two arms rather than a `bool`, because the arm names the
 /// rule it serves; a second arm needs a second CR rule that puts a resolution's
-/// choice in a pattern.
+/// choice in a pattern. An object it writes is one CR 400.7 ends when the
+/// object moves, which `move_object`'s prune reads through
+/// `EventPattern::chosen_damage_source`, so that arm adds its read there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PatternFill {
     /// Nothing is asked; the pattern is the card's, as written.

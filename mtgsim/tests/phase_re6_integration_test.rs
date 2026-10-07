@@ -113,7 +113,7 @@ fn stage_spell_with(
     let obj = GameObject::new(card, controller, Zone::Stack);
     let id = game.add_object(obj);
     game.stack.push(id);
-    let chosen_targets = vec![TargetInstance::announce(game, recipient, &chosen_targets).unwrap()];
+    let chosen_targets = vec![TargetInstance::from_announcement(game, recipient, &chosen_targets).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,

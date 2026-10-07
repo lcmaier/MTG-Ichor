@@ -186,7 +186,7 @@ fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
     let chosen = &game.stack_entries[&counter].chosen_targets;
     assert_eq!(chosen.len(), 1, "one instance of \"target\" (CR 601.2c)");
     assert_eq!(
-        chosen[0].targets().collect::<Vec<_>>(),
+        chosen[0].as_resolved_targets().collect::<Vec<_>>(),
         vec![ResolvedTarget::Object(growth)],
         "the spell, not the ability",
     );

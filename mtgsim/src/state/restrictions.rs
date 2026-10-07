@@ -83,22 +83,22 @@ impl DurationRow for RegisteredRestriction {
         self.created_on_turn
     }
     fn sort_key(&self) -> Self::SortKey {}
-    fn names(&self, object: ObjectId) -> bool {
+    fn refers_to(&self, object: ObjectId) -> bool {
         match &self.def.what {
             Restriction::Event { pattern, affected_objects, .. } => {
-                affected_objects.names(object) || pattern.chosen_source() == Some(object)
+                affected_objects.refers_to(object) || pattern.chosen_damage_source() == Some(object)
             }
-            Restriction::ApplyReplacement { to_objects, .. } => to_objects.names(object),
+            Restriction::ApplyReplacement { to_objects, .. } => to_objects.refers_to(object),
         }
     }
-    fn forget(&mut self, object: ObjectId) -> bool {
+    fn remove_reference_to(&mut self, object: ObjectId) -> bool {
         match &mut self.def.what {
             Restriction::Event { pattern, affected_objects, affected_players, .. } => {
-                pattern.chosen_source() != Some(object)
-                    && (affected_objects.forget(object) || affected_players.names_a_player())
+                pattern.chosen_damage_source() != Some(object)
+                    && (affected_objects.remove_reference_to(object) || affected_players.can_contain_a_player())
             }
             Restriction::ApplyReplacement { to_objects, to_players, .. } => {
-                to_objects.forget(object) || to_players.names_a_player()
+                to_objects.remove_reference_to(object) || to_players.can_contain_a_player()
             }
         }
     }

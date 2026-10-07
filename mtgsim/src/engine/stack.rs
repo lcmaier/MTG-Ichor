@@ -230,7 +230,7 @@ impl GameState {
                     let host_id = match entry
                         .chosen_targets
                         .first()
-                        .and_then(|inst| inst.targets().next())
+                        .and_then(|inst| inst.as_resolved_targets().next())
                     {
                         Some(ResolvedTarget::Object(id)) => id,
                         _ => return Err(format!(
@@ -364,7 +364,7 @@ mod tests {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
         game.stack.push(id);
-        let chosen_targets = vec![TargetInstance::announce(game, recipient, &targets).unwrap()];
+        let chosen_targets = vec![TargetInstance::from_announcement(game, recipient, &targets).unwrap()];
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
@@ -633,7 +633,7 @@ mod tests {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
         game.stack.push(id);
-        let chosen_targets = vec![TargetInstance::announce(game, recipient, &targets).unwrap()];
+        let chosen_targets = vec![TargetInstance::from_announcement(game, recipient, &targets).unwrap()];
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,

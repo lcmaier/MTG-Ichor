@@ -362,7 +362,7 @@ impl GameState {
                                     filter,
                                     &candidate,
                                     you,
-                                    crate::engine::targeting::FilterIdentity::announcing(
+                                    crate::engine::targeting::FilterIdentity::for_text_of(
                                         id,
                                         crate::engine::targeting::EarlierTargets::None,
                                     ),

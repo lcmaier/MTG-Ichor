@@ -72,7 +72,7 @@ fn permanent(state: &GameState, name: &str) -> ObjectId {
 
 /// Each stack object's targets, bottom first, an instance of "target" each.
 fn targets_on_the_stack(state: &GameState) -> Vec<Vec<Vec<ResolvedTarget>>> {
-    let entry = |id: &ObjectId| state.stack_entries[id].chosen_targets.iter().map(|instance| instance.targets().collect()).collect();
+    let entry = |id: &ObjectId| state.stack_entries[id].chosen_targets.iter().map(|instance| instance.as_resolved_targets().collect()).collect();
     state.stack.iter().map(entry).collect()
 }
 

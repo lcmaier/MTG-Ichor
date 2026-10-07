@@ -463,7 +463,7 @@ fn every_instance_has_a_choice(
             | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
         {
             let n = *n as usize;
-            let view = crate::engine::targeting::FilterIdentity::announcing(
+            let view = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
                 crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
             );

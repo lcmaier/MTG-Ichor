@@ -345,7 +345,7 @@ impl GameState {
                     recipient
                 ));
             };
-            let identity = crate::engine::targeting::FilterIdentity::announcing(
+            let identity = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
                 crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
             );
@@ -359,7 +359,7 @@ impl GameState {
                 &legal, min_sel, max_sel,
             );
             self.validate_targets(recipient, &chosen, player_id, identity)?;
-            announced.push(TargetInstance::announce(self, recipient.clone(), &chosen)?);
+            announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
         Ok(announced)
@@ -834,7 +834,7 @@ mod tests {
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
         assert_eq!(
-            entry.chosen_targets[0].targets().collect::<Vec<_>>(),
+            entry.chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
             vec![ResolvedTarget::Player(1)]
         );
         assert!(entry.is_spell);

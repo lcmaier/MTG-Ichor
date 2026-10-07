@@ -710,32 +710,15 @@ impl DestructionSourcePattern {
 }
 
 impl EventPattern {
-    /// CR 609.7a's chosen source, when a resolution has written one in: the
-    /// one object a pattern names by identity, so the one CR 400.7 can strand.
-    /// Matched exhaustively, so an arm that grows an object of its own says
-    /// whether a move must end it.
-    pub fn chosen_source(&self) -> Option<ObjectId> {
+    /// The source of damage CR 609.7a had a player choose, once a resolution
+    /// has written it in: the one object a pattern can name by identity, and
+    /// so the one a move must end (CR 400.7). `PatternFill` is the closed list
+    /// of what a resolution writes into a pattern, so the guard lives there: a
+    /// new arm that writes an object adds its read beside this one.
+    pub fn chosen_damage_source(&self) -> Option<ObjectId> {
         match self {
-            EventPattern::DealDamage { source, .. } => source.as_ref().and_then(|s| s.object),
-            EventPattern::DrawCards { .. }
-            | EventPattern::GainLife
-            | EventPattern::LoseLife { .. }
-            | EventPattern::ZoneChange { .. }
-            | EventPattern::Scry
-            | EventPattern::DrawCard { .. }
-            | EventPattern::EnterBattlefield { .. }
-            | EventPattern::Destroy { .. }
-            | EventPattern::AddCounters { .. }
-            | EventPattern::RemoveCounters { .. }
-            | EventPattern::Untap
-            | EventPattern::Tap
-            | EventPattern::BeginTurn
-            | EventPattern::BeginPhase { .. }
-            | EventPattern::BeginStep { .. }
-            | EventPattern::PlayerLoses
-            | EventPattern::PlayerWins
-            | EventPattern::ProduceMana { .. }
-            | EventPattern::CreateTokens { .. } => None,
+            EventPattern::DealDamage { source: Some(source), .. } => source.object,
+            _ => None,
         }
     }
 

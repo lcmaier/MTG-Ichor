@@ -443,17 +443,23 @@ impl GameState {
     /// The source's half — the rows its own static abilities generate — is
     /// `remove_by_source`, there too.
     ///
-    /// A permanent spell becoming the permanent keeps two kinds (CR 400.7a,
-    /// 400.7c): every continuous effect, since each changes characteristics or
-    /// control, and a prevention effect watching damage from it. Nothing else
-    /// carries over, a restriction included.
+    /// Of CR 400.7's twelve exceptions, two keep a row any card can make
+    /// today, both for a permanent spell becoming the permanent (400.7a,
+    /// 400.7c): every continuous effect, since each changes characteristics
+    /// or control, and a prevention effect watching damage from it. Nothing
+    /// else carries over, a restriction included. A card put onto the
+    /// battlefield from anywhere else, as Reanimate puts one, was no spell
+    /// and keeps nothing; the rest of its own effect finds it by id (400.7j).
+    /// 400.7b and 400.7g–i keep a row across a static grant, a cast or a play
+    /// that no card can make yet (`permission-architecture.md` §5); the whole
+    /// list, and who owns each, is `copy-effects-architecture.md` §5.3.
     fn break_references_to(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) {
-        let becomes_permanent = from == Zone::Stack && to == Some(Zone::Battlefield);
-        if !becomes_permanent {
-            self.continuous_effects.forget(id);
+        let spell_becomes_permanent = from == Zone::Stack && to == Some(Zone::Battlefield);
+        if !spell_becomes_permanent {
+            self.continuous_effects.remove_references_to(id);
         }
-        self.replacement_effects.forget(id, |row| becomes_permanent && row.prevents_damage_from(id));
-        self.restrictions.forget(id, |_| false);
+        self.replacement_effects.remove_references_to(id, |row| spell_becomes_permanent && row.prevents_damage_from(id));
+        self.restrictions.remove_references_to(id, |_| false);
     }
 
     /// Clean up zone-specific state when leaving a zone.

@@ -37,11 +37,11 @@ impl DurationRow for ContinuousEffect {
     fn sort_key(&self) -> Self::SortKey {
         (self.layer, self.timestamp)
     }
-    fn names(&self, object: ObjectId) -> bool {
-        self.affected_objects.names(object)
+    fn refers_to(&self, object: ObjectId) -> bool {
+        self.affected_objects.refers_to(object)
     }
-    fn forget(&mut self, object: ObjectId) -> bool {
-        self.affected_objects.forget(object)
+    fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        self.affected_objects.remove_reference_to(object)
     }
 }
 
@@ -491,14 +491,16 @@ impl ContinuousEffectRegistry {
         self.mutating(|rows| rows.remove_by_source(source))
     }
 
-    /// CR 400.7 — [`DurationRegistry::forget`], through [`Self::mutating`] only
-    /// when a row names `object`, so the summary is rebuilt for a write and
-    /// not for every move. Returns whether a row changed.
-    pub fn forget(&mut self, object: ObjectId) -> bool {
-        if !self.effects.iter().any(|row| row.names(object)) {
+    /// CR 400.7 — [`DurationRegistry::remove_references_to`], through
+    /// [`Self::mutating`] only when a row refers to `object`, so the summary
+    /// is rebuilt for a write and not for every move. The same name as the
+    /// method it wraps, as [`Self::remove_by_source`] has: this registry's
+    /// writes all rebuild the summary. Returns whether a row changed.
+    pub fn remove_references_to(&mut self, object: ObjectId) -> bool {
+        if !self.effects.iter().any(|row| row.refers_to(object)) {
             return false;
         }
-        self.mutating(|rows| rows.forget(object, |_| false))
+        self.mutating(|rows| rows.remove_references_to(object, |_| false))
     }
 
     /// All effects in a layer, already in application order (CR 613.7).

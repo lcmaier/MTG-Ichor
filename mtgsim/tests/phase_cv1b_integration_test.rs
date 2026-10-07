@@ -405,7 +405,7 @@ fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].targets().collect();
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
     assert_eq!(announced, vec![ResolvedTarget::Object(bears)], "players first, then the Bears");
 
     leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
@@ -503,12 +503,12 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
         vec![ChoiceOption::Object(bears)],
     );
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], aim);
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].targets().collect();
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
     assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
 
     destroy(&mut game, bears);
     assert!(game.players[1].graveyard.contains(&bears), "its owner's graveyard (CR 400.3)");
-    assert!(!game.continuous_effects.iter().any(|row| row.affected_objects.names(bears)), "the steal lost it");
+    assert!(!game.continuous_effects.iter().any(|row| row.affected_objects.refers_to(bears)), "the steal lost it");
     assert!(!game.battlefield.contains_key(&bears), "no permanent, so no damage and no counters");
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert!(fizzled(&game, bolt), "and so did the Bolt");
@@ -842,7 +842,7 @@ fn another_target_is_other_than_the_abilitys_own_source() {
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, pumper, 0, &dp).unwrap();
     let ability = *game.stack.last().unwrap();
-    let announced: Vec<ResolvedTarget> = game.stack_entries[&ability].chosen_targets[0].targets().collect();
+    let announced: Vec<ResolvedTarget> = game.stack_entries[&ability].chosen_targets[0].as_resolved_targets().collect();
     assert_eq!(announced, vec![ResolvedTarget::Object(bears)]);
     assert_eq!(dp.prompts(), 0, "one legal choice is no choice");
 
@@ -874,7 +874,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
 /// The trigger on top of the stack, and what it targets.
 fn top_targets(game: &GameState) -> (ObjectId, Vec<ResolvedTarget>) {
     let top = *game.stack.last().expect("a trigger on the stack");
-    (top, game.stack_entries[&top].chosen_targets[0].targets().collect())
+    (top, game.stack_entries[&top].chosen_targets[0].as_resolved_targets().collect())
 }
 
 /// Place the upkeep trigger, choosing `target` among several candidates.

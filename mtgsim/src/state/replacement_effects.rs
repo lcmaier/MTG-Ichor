@@ -128,16 +128,16 @@ impl DurationRow for RegisteredReplacementEffect {
         self.created_on_turn
     }
     fn sort_key(&self) -> Self::SortKey {}
-    fn names(&self, object: ObjectId) -> bool {
-        self.def.affected_objects.names(object) || self.def.pattern.chosen_source() == Some(object)
+    fn refers_to(&self, object: ObjectId) -> bool {
+        self.def.affected_objects.refers_to(object) || self.def.pattern.chosen_damage_source() == Some(object)
     }
     /// A shield watching damage from a source that is gone can never apply,
     /// so it goes whatever else it names.
-    fn forget(&mut self, object: ObjectId) -> bool {
-        if self.def.pattern.chosen_source() == Some(object) {
+    fn remove_reference_to(&mut self, object: ObjectId) -> bool {
+        if self.def.pattern.chosen_damage_source() == Some(object) {
             return false;
         }
-        self.def.affected_objects.forget(object) || self.def.affected_players.names_a_player()
+        self.def.affected_objects.remove_reference_to(object) || self.def.affected_players.can_contain_a_player()
     }
 }
 
@@ -145,7 +145,7 @@ impl RegisteredReplacementEffect {
     /// CR 400.7c — a prevention effect watching damage from `object`, which
     /// a permanent spell keeps as it becomes the permanent.
     pub fn prevents_damage_from(&self, object: ObjectId) -> bool {
-        self.def.is_prevention() && self.def.pattern.chosen_source() == Some(object)
+        self.def.is_prevention() && self.def.pattern.chosen_damage_source() == Some(object)
     }
 }
 

@@ -50,7 +50,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     let id = game.add_object(obj);
     game.stack.push(id);
     let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
-    let chosen_targets = vec![TargetInstance::announce(game, enchant, &[ResolvedTarget::Object(target)]).unwrap()];
+    let chosen_targets = vec![TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,

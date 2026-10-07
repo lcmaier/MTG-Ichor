@@ -43,7 +43,7 @@ pub enum TargetRef {
 impl TargetRef {
     /// What the object or player is now, which is all a reader past the
     /// existence check needs.
-    pub fn target(self) -> ResolvedTarget {
+    pub fn as_resolved_target(self) -> ResolvedTarget {
         match self {
             TargetRef::Object(object) => ResolvedTarget::Object(object.id),
             TargetRef::Player(player) => ResolvedTarget::Player(player),
@@ -71,7 +71,7 @@ impl TargetInstance {
     /// Record `chosen` as CR 601.2c announced it, each object at the epoch
     /// it has now. `Err` for an object that is not in the store, which a
     /// choice made from the legal candidates cannot name.
-    pub fn announce(game: &GameState, recipient: EffectRecipient, chosen: &[ResolvedTarget]) -> Result<Self, String> {
+    pub fn from_announcement(game: &GameState, recipient: EffectRecipient, chosen: &[ResolvedTarget]) -> Result<Self, String> {
         let chosen = chosen
             .iter()
             .map(|&target| game.target_ref(target).ok_or_else(|| format!("{target:?} was announced but is not an object")))
@@ -80,8 +80,8 @@ impl TargetInstance {
     }
 
     /// What was chosen for this instance, as it is now.
-    pub fn targets(&self) -> impl Iterator<Item = ResolvedTarget> + '_ {
-        self.chosen.iter().map(|chosen| chosen.target())
+    pub fn as_resolved_targets(&self) -> impl Iterator<Item = ResolvedTarget> + '_ {
+        self.chosen.iter().map(|chosen| chosen.as_resolved_target())
     }
 
     /// Whether this instance *targets* — CR 115.1's word, as opposed to a
@@ -259,7 +259,7 @@ impl EarlierTargets<'_> {
         match self {
             EarlierTargets::None => false,
             EarlierTargets::Chosen(c) => c.instance(ix).contains(&target),
-            EarlierTargets::Announced(i) => i.get(ix).is_some_and(|inst| inst.targets().any(|t| t == target)),
+            EarlierTargets::Announced(i) => i.get(ix).is_some_and(|inst| inst.as_resolved_targets().any(|t| t == target)),
         }
     }
 }
@@ -305,7 +305,7 @@ impl FilterIdentity<'static> {
 impl<'a> FilterIdentity<'a> {
     /// The text of `this_object` being announced, with the instances of
     /// "target" it has announced so far.
-    pub fn announcing(this_object: ObjectId, earlier_targets: EarlierTargets<'a>) -> Self {
+    pub fn for_text_of(this_object: ObjectId, earlier_targets: EarlierTargets<'a>) -> Self {
         FilterIdentity { source: Some(this_object), earlier_targets }
     }
 }
@@ -969,7 +969,7 @@ impl GameState {
         // Borrowed from the entry rather than copied: the announcement is
         // already `instances`, and the only thing the leaf needs of it is a
         // by-index read.
-        let announced_targets = FilterIdentity::announcing(this_object, EarlierTargets::Announced(instances));
+        let announced_targets = FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances));
 
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
@@ -980,7 +980,7 @@ impl GameState {
         let mut survived = false;
         let mut survivors = ChosenTargets::NONE;
         for inst in instances {
-            let existing = inst.chosen.iter().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.target());
+            let existing = inst.chosen.iter().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.as_resolved_target());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
                 // clause, so all of it that still exists is carried through.
@@ -1244,7 +1244,7 @@ mod tests {
     fn a_spell_whose_only_target_left_the_battlefield_does_not_resolve() {
         let (mut game, land_id) = setup_game_with_land();
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        let instances = vec![TargetInstance::announce(&game, spec, &[ResolvedTarget::Object(land_id)]).unwrap()];
+        let instances = vec![TargetInstance::from_announcement(&game, spec, &[ResolvedTarget::Object(land_id)]).unwrap()];
 
         // Target is legal while on battlefield
         let survivors = game
