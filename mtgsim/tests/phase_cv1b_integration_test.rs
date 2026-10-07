@@ -17,12 +17,15 @@
 //!    since the cast path is what stamps it.
 //! 3. Combat's: a creature that leaves the battlefield is removed from combat
 //!    (CR 506.4), so no attacker or blocker it was paired with still names it.
+//! 4. A re-copy: each copy row's abilities are their own instances, so the
+//!    rows a copied static ability generates apply once, and only while their
+//!    copy is the one showing (item 16b).
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::giant_growth;
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cv_cards::mirrorweave;
+use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorweave};
 use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
@@ -486,4 +489,70 @@ fn a_blocker_that_dies_before_damage_is_out_of_the_division() {
     let from_attacker: Vec<(DamageTarget, u64)> =
         assignments.iter().filter(|a| a.source == attacker).map(|a| (a.target, a.amount)).collect();
     assert_eq!(from_attacker, vec![(DamageTarget::Object(stays), 3)]);
+}
+
+// ---------------------------------------------------------------------------
+// 4. A re-copy
+// ---------------------------------------------------------------------------
+
+/// **Fixture.** A nonlegendary 2/2 with "Creatures you control get +1/+1":
+/// the donor whose copied static ability makes a re-copy observable.
+fn anthem_bearer() -> Arc<CardData> {
+    use mtgsim::types::effects::ObjectFilter;
+    use mtgsim::types::effects::PlayerRef;
+    CardDataBuilder::new("Anthem Bearer")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            )),
+        )))
+        .build()
+}
+
+/// Resolve `card` with `targets`, answering its CR 707.4 choice with `dp`.
+fn resolve_spell_with(
+    game: &mut GameState,
+    card: Arc<CardData>,
+    controller: PlayerId,
+    targets: &[ObjectId],
+    dp: &dyn DecisionProvider,
+) {
+    let id = put_in_hand(game, card.clone(), controller);
+    let ctx = ResolutionContext {
+        source: id,
+        ability_source: None,
+        controller,
+        targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
+}
+
+/// Cytoshape twice in one turn, both times making the same creature a copy
+/// of the same Anthem Bearer. Each copy row puts its own instance of the
+/// anthem on the creature, and only the one showing applies, so your Bears
+/// get +1/+1 once. Keyed by the donor's id alone, the two copies' rows were
+/// one ability twice, and both passed CR 604.2's existence check.
+#[test]
+fn copying_one_donor_twice_applies_its_static_ability_once() {
+    let mut game = setup_two_player_game();
+    let donor = put_on_battlefield(&mut game, anthem_bearer(), 1);
+    let copier = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    for _ in 0..2 {
+        // The candidates are the battlefield in timestamp order: the donor first.
+        resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::picking(0));
+    }
+    assert_eq!(get_effective_name(&game, copier), "Anthem Bearer");
+    assert_eq!(pt(&game, bears), (Some(3), Some(3)), "one anthem, not two");
+    assert_eq!(pt(&game, copier), (Some(3), Some(3)), "its own anthem, once");
+    assert_eq!(pt(&game, donor), (Some(3), Some(3)), "the donor's own, for its own controller");
 }

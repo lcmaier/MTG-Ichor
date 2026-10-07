@@ -126,8 +126,10 @@ impl std::fmt::Display for ObjectId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AbilityId {
     definition: u64,
-    /// The `EffectId` of the Layer 6 row that granted this instance, or `0`
-    /// for one the object has by any other route. Registry ids start at one.
+    /// The `EffectId` of the row that put this instance on the object: a
+    /// Layer 6 grant, or a layer 1a copy ([`Self::copied_by`]). `0` for one
+    /// the object has by any other route. Registry ids start at one, and one
+    /// counter serves every row, so a grant and a copy never share one.
     grant: u64,
 }
 
@@ -197,12 +199,23 @@ impl AbilityId {
         AbilityId { definition: self.definition, grant: row }
     }
 
+    /// This ability as the layer 1a row `row` copies it onto an object (CR
+    /// 707.2a): [`Self::granted_by`]'s tag, for the same reason. Two copies of
+    /// one donor put two instances of its abilities on the copying object, one
+    /// per row, and CR 604.2's existence check has to tell them apart: the
+    /// rows a copied static ability generates apply while *their* copy is the
+    /// one showing, and come back if a later copy over it expires.
+    pub fn copied_by(self, row: u64) -> AbilityId {
+        debug_assert!(row != 0, "registry ids start at one; 0 means not copied");
+        AbilityId { definition: self.definition, grant: row }
+    }
+
     /// The ability, whichever instance: the id with its grant dropped.
     pub fn definition(self) -> AbilityId {
         AbilityId::defined(self.definition)
     }
 
-    /// The Layer 6 row that granted this instance, or `None` for one the
+    /// The row that granted or copied this instance, or `None` for one the
     /// object has by any other route.
     pub fn granting_row(self) -> Option<u64> {
         (self.grant != 0).then_some(self.grant)

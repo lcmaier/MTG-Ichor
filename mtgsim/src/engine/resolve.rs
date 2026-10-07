@@ -1703,26 +1703,6 @@ impl GameState {
         }
     }
 
-    // --- Helper: collect battlefield targets ---
-
-    /// Extract object IDs from resolved targets that are currently on the battlefield.
-    /// One player sacrifices one permanent of their choice (CR 701.21a).
-    ///
-    /// **CR 608.2d and `cant-effects-architecture.md` §4.9 are one mechanism
-    /// here, not two.** 608.2d's own example is "a player who controls no
-    /// creatures can't choose the sacrifice option"; Sigarda's ruling is "if it
-    /// would force you to sacrifice a permanent, you just don't" — and both are
-    /// answered by the same candidate list being empty. Prompting and then
-    /// refusing would violate 608.2d, would tell every other player which
-    /// permanent you would have picked, and would make an AI harness spend a
-    /// decision on a branch that cannot happen.
-    ///
-    /// An empty list is CR 101.3's "any part of an instruction that's impossible
-    /// to perform is ignored" — no prompt, no sacrifice, no error. The
-    /// *fallback* half ("each player who can't discards a card") waits on
-    /// `Effect::Conditional`, and that split is safe in one direction only:
-    /// suppressing a prompt with no fallback is a resolved effect that does
-    /// nothing, which is 101.3's own answer.
     /// CR 707.4 — "[objects] become a copy of [object] [for a duration]".
     ///
     /// Three steps, in this order and for CR reasons rather than convenience:
@@ -1812,6 +1792,16 @@ impl GameState {
         };
 
         // --- 3. The row (CR 613.2a) -------------------------------------
+        //
+        // Each copied ability is tagged with the row, as a Layer 6 grant is:
+        // a second copy of the same donor is a second instance of each of its
+        // abilities, and the rows a copied static ability generates must apply
+        // only while their own copy is the one showing (item 16b).
+        let mut values = values;
+        let row = self.continuous_effects.next_id();
+        for ability in std::sync::Arc::make_mut(&mut values.abilities) {
+            ability.id = ability.id.copied_by(row);
+        }
         let timestamp = self.allocate_timestamp();
         self.continuous_effects.add(ContinuousEffect {
             id: 0,
@@ -2104,6 +2094,7 @@ impl GameState {
         targets.iter().filter_map(|&target| self.target_ref(target)).collect()
     }
 
+    /// The resolved targets that are on the battlefield now.
     fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
         targets.iter()
             .filter_map(|t| {
