@@ -729,7 +729,7 @@ a copy that has not been made, taken once per judgment, inside the CR 616.1c
 application. The page walks Spark Double's entry read by read, on the Kaito
 board and on a plain creature.
 
-### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ 2026-10-06
+### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ 2026-10-06 (PR #230)
 
 *Evicted 2026-10-06 from `plans/copy-effects-architecture.md`, where the
 heading and a stub remain.*

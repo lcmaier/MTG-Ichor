@@ -817,14 +817,14 @@ here. None is blocking RB.
    **Reachability (2026-09-19):** closed — TR-1; the rule itself closed 2026-08-26.
 
 10. **~~CR 400.7 is unimplemented: an object keeps its identity across zones~~ —
-    ✅ CLOSED 2026-10-06 (CV-1b's PR).** — archived. A move ends every
+    ✅ CLOSED 2026-10-06 (PR #230).** — archived. A move ends every
     reference made to the object before it. Registry rows that name it are
     pruned at `move_object`, with CR 400.7a and 400.7c's exceptions for a
     permanent spell. A target carries the epoch it was announced at, which
     CR 608.2b compares (`TargetRef`). The applied set keys an object by
     `ObjectRef`, and a permanent leaving the battlefield is removed from
     combat (CR 506.4).
-    **Reachability (2026-10-06):** closed — CV-1b's PR.
+    **Reachability (2026-10-06):** closed — PR #230.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 10".
 
 11. **`AbilityType::Mana` is a printed tag; CR 605.1 defines mana abilities
@@ -1051,11 +1051,11 @@ built, and none of it blocks RC-1 through RC-3.
 ### Found by CV-1 (2026-09-02)
 
 16b. **~~A re-copy inside one turn leaves its superseded derived rows in the
-    registry~~ — ✅ CLOSED 2026-10-06 (CV-1b's PR).** — archived. Each copy row
+    registry~~ — ✅ CLOSED 2026-10-06 (PR #230).** — archived. Each copy row
     tags the abilities it copies (`AbilityId::copied_by`), so a derived row
     applies only while its own copy shows; a superseded copy's rows staying
     registered is item 218.
-    **Reachability (2026-10-06):** closed — CV-1b's PR.
+    **Reachability (2026-10-06):** closed — PR #230.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 16b".
 
 ### Found by CV-1's reachability mode (2026-09-02)
@@ -8694,10 +8694,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 189. **~~When a second copy replaces a first in one entry, the first copy's
      extra counters are removed at their original count~~ — ✅ CLOSED
-     2026-10-06 (CV-1b's PR).** — archived. The `Amount` rewrite's entry
+     2026-10-06 (PR #230).** — archived. The `Amount` rewrite's entry
      leg scales a copy's share of each row it scales, so a later copy takes
      back what a doubler made of the exception too.
-     **Reachability (2026-10-06):** closed — CV-1b's PR.
+     **Reachability (2026-10-06):** closed — PR #230.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 189".
 
 ### Found by the CV-2b review (2026-09-29)

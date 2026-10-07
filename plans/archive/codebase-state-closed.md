@@ -3364,7 +3364,7 @@ Closed by a step in the dev GUI's CI job: Mesa's software Vulkan driver installe
      step's first run says. **Slotted:** A6g's dev GUI audit, the row's last
      PR.
 
-### Item 10 — closed 2026-10-06 by CV-1b's PR
+### Item 10 — closed 2026-10-06 by PR #230
 
 Closed with more reference kinds than it listed, and an exception list narrower
 than its sketch.
@@ -3487,7 +3487,7 @@ CV-1b's block). The tests are built around `change_zone`,
     **Sized:** above (2026-09-03) — ~500 for the rule and ~400 for CV-1b, one PR
     after CV-2.
 
-### Item 16b — closed 2026-10-06 by CV-1b's PR
+### Item 16b — closed 2026-10-06 by PR #230
 
 Closed by tagging rather than by the fix sized here, which would have broken a
 copy laid over an indefinite one. `AbilityId::copied_by(row)` gives each
@@ -3549,7 +3549,7 @@ What is left is item 218, a superseded copy's rows staying registered.
     consumer in `src/cards` (0 sites), so every re-copy's litter retires at the
     next cleanup; CV-1b is the trigger, as the entry says.
 
-### Item 189 — closed 2026-10-06 by CV-1b's PR
+### Item 189 — closed 2026-10-06 by PR #230
 
 Closed as sized. The `Amount` rewrite's entry leg scales a copy's share of each
 row it scales: the row less what the row would be without the share, the same

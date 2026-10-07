@@ -1407,7 +1407,7 @@ the sites, size, tests and arms, and what the building changed:
 `plans/archive/copy-effects-architecture-landed.md`, "CV-2b" (evicted
 2026-09-29).
 
-### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ landed 2026-10-06
+### 7d. CV-1b — copies that last, and CR 400.7's new object — ✅ landed 2026-10-06 (PR #230)
 
 **What shipped.** `codebase-state.md` item 10's rule and the indefinite copy
 that needed it, in one PR. A move ends every reference made before it:

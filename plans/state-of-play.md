@@ -110,7 +110,6 @@ is derived.
 | 2026-10-05 | The inventory and the exact check | `MA-1` | `mana-architecture.md` |
 | 2026-10-05 | Why an option is not offered | `SU-7` | `setup-architecture.md` |
 | 2026-10-05 | The why panel, and what the layers did | `SU-6` | `setup-architecture.md` |
-| 2026-10-06 | Copies that last, and CR 400.7's new object | `CV-1b` | `copy-effects-architecture.md` |
 | 2026-10-06 | The editor's advanced settings, first part | — | `setup-architecture.md` |
 | 2026-10-06 | What happened, from the trace | `SU-8` | `setup-architecture.md` |
 
@@ -125,6 +124,7 @@ and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `RS-3a` | `cant-effects-architecture.md` |
 | Combat, the solver half | `RS-3b` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `RS-4` | `cant-effects-architecture.md` |
+| Indefinite-duration copies | `CV-1b` | `copy-effects-architecture.md` |
 | Token copies | `CV-3` | `copy-effects-architecture.md` |
 | Spell copies | `CV-4` | `copy-effects-architecture.md` |
 | Double-faced cards | `CV-5` | `copy-effects-architecture.md` |
