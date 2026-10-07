@@ -92,12 +92,11 @@ pub fn cytoshape() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::Copy(
-                    CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(
-                        nonlegendary_creature(),
-                    )),
-                    Duration::UntilEndOfTurn,
-                ),
+                Primitive::Copy {
+                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(nonlegendary_creature())),
+                    except: Vec::new(),
+                    duration: Duration::UntilEndOfTurn,
+                },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
         })
@@ -128,11 +127,24 @@ pub fn cytoshape() -> Arc<CardData> {
 /// own `Duration`, so it holds those values past the expiry of an earlier copy
 /// row that put them there.
 ///
+/// # No duration, so until the end of the game
+///
+/// The card states none, and CR 611.2a makes such an effect last "until the
+/// end of the game". It was spelled `UntilEndOfTurn` until CV-1b, because an
+/// indefinite row is reached by neither CR 514.2's expiry nor
+/// `remove_by_source`; CR 400.7 is what ends one now, when its subject moves.
+///
 /// # Registered, not pooled
 ///
 /// It opens no engine path Mirrorweave does not, so it stays out of
 /// `PERFORMANCE_POOL` for the reason given there. Its job is to keep
 /// `exclude_donor: false` from being scaffolding with no consumer.
+///
+/// # The rulings, and where each is tested
+///
+/// All four are in `tests/phase_cv1b_integration_test.rs`: nothing enters,
+/// so no "enters" ability applies (1); only the printed values are copied
+/// (2); a copy of a copy copies what it copied (3); X is 0 (4).
 pub fn mirrorform() -> Arc<CardData> {
     CardDataBuilder::new("Mirrorform")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 4))
@@ -151,8 +163,8 @@ pub fn mirrorform() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::Copy(
-                    CopyRoles::FilteredCopyRecipient {
+                Primitive::Copy {
+                    roles: CopyRoles::FilteredCopyRecipient {
                         // "Each nonland permanent you control" — and no
                         // "other", which is the whole reason this card is
                         // registered.
@@ -164,8 +176,10 @@ pub fn mirrorform() -> Arc<CardData> {
                         ),
                         exclude_donor: false,
                     },
-                    Duration::UntilEndOfTurn,
-                ),
+                    except: Vec::new(),
+                    // No duration printed: CR 611.2a's "until the end of the game".
+                    duration: Duration::Indefinite,
+                },
                 // "target non-Aura permanent" — the donor, and the only place
                 // in CV-1 where a copy source is not required to be a creature.
                 EffectRecipient::Target(
@@ -246,13 +260,14 @@ pub fn mirrorweave() -> Arc<CardData> {
                 // "Each **other** creature" — `exclude_donor` is the word
                 // "other", and it is a field rather than structure because
                 // Mirrorform prints the same shape without it.
-                Primitive::Copy(
-                    CopyRoles::FilteredCopyRecipient {
+                Primitive::Copy {
+                    roles: CopyRoles::FilteredCopyRecipient {
                         filter: ObjectFilter::ByType(CardType::Creature),
                         exclude_donor: true,
                     },
-                    Duration::UntilEndOfTurn,
-                ),
+                    except: Vec::new(),
+                    duration: Duration::UntilEndOfTurn,
+                },
                 // The target is the *donor* here, and it is what the printed
                 // "nonlegendary" scopes.
                 EffectRecipient::Target(

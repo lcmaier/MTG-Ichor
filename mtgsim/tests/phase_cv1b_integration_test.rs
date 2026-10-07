@@ -20,12 +20,16 @@
 //! 4. A re-copy: each copy row's abilities are their own instances, so the
 //!    rows a copied static ability generates apply once, and only while their
 //!    copy is the one showing (item 16b).
+//! 5. Copies that last: Mirrorform states no duration, so its copies last
+//!    until the end of the game (CR 611.2a) and end when their subject moves.
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::giant_growth;
+use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorweave};
+use mtgsim::cards::phase_rc_cards::chainbreaker;
+use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, mending_hands};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
@@ -34,6 +38,7 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_name, get_effective_power, get_effective_toughness,
     has_summoning_sickness,
@@ -56,6 +61,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
+use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -67,7 +73,9 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// Resolve `card`'s spell effect for `controller` with `targets`, as the stack
 /// would once CR 608.2b has kept them.
 fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId, targets: &[ObjectId]) -> ObjectId {
-    let id = put_in_hand(game, card.clone(), controller);
+    // The spell object, in no zone's collection: `ResolutionContext.source`
+    // is the stack object, and a card in a hand would be one more card there.
+    let id = game.add_object(GameObject::new(card.clone(), controller, Zone::Stack));
     let ctx = ResolutionContext {
         source: id,
         ability_source: None,
@@ -523,7 +531,7 @@ fn resolve_spell_with(
     targets: &[ObjectId],
     dp: &dyn DecisionProvider,
 ) {
-    let id = put_in_hand(game, card.clone(), controller);
+    let id = game.add_object(GameObject::new(card.clone(), controller, Zone::Stack));
     let ctx = ResolutionContext {
         source: id,
         ability_source: None,
@@ -555,4 +563,185 @@ fn copying_one_donor_twice_applies_its_static_ability_once() {
     assert_eq!(pt(&game, bears), (Some(3), Some(3)), "one anthem, not two");
     assert_eq!(pt(&game, copier), (Some(3), Some(3)), "its own anthem, once");
     assert_eq!(pt(&game, donor), (Some(3), Some(3)), "the donor's own, for its own controller");
+}
+
+// ---------------------------------------------------------------------------
+// 5. Copies that last
+// ---------------------------------------------------------------------------
+
+fn serra_angel() -> Arc<CardData> {
+    mtgsim::cards::keyword_creatures::serra_angel()
+}
+
+/// State-based actions and triggers, then the stack, until both are quiet:
+/// the Wall's own entry trigger, here.
+fn settle(game: &mut GameState) {
+    for _ in 0..20 {
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+        if game.stack.is_empty() {
+            return;
+        }
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+    }
+    panic!("the board never settled");
+}
+
+fn counters(game: &GameState, id: ObjectId, counter: CounterType) -> u32 {
+    game.battlefield[&id].counter_count(counter)
+}
+
+/// Wall of Omens: "When this creature enters, draw a card."
+fn wall_of_omens() -> Arc<CardData> {
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    CardDataBuilder::new("Wall of Omens")
+        .card_type(CardType::Creature)
+        .color(Color::White)
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .power_toughness(0, 4)
+        .ability(triggered_ability("", whenever(enters(TriggerSubject::ThisObject), draw)))
+        .build()
+}
+
+/// CR 611.2a: "If no duration is stated, it lasts until the end of the
+/// game." Mirrorform states none, so two turns' cleanup leave its copies,
+/// and what ends one is CR 400.7: the creature that died and came back is
+/// itself again, and the artifact beside it is still an Angel.
+// COVERS: ATOM-611.2a-002
+#[test]
+fn mirrorforms_copies_last_until_their_subject_moves() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let ring = put_on_battlefield(&mut game, mtgsim::cards::artifacts::sol_ring(), 0);
+    resolve_spell(&mut game, mirrorform(), 0, &[angel]);
+    assert_eq!(game.continuous_effects.iter().next().map(|row| row.duration), Some(Duration::Indefinite));
+
+    mtgsim::test_support::pass_turn(&mut game);
+    mtgsim::test_support::pass_turn(&mut game);
+    assert_eq!((get_effective_name(&game, bears), get_effective_name(&game, ring)), ("Serra Angel".into(), "Serra Angel".into()));
+
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    assert_eq!(get_effective_name(&game, bears), "Grizzly Bears");
+    assert_eq!(get_effective_name(&game, ring), "Serra Angel");
+}
+
+// RULING: Mirrorform #1 - "Because the permanents aren't entering the
+//   battlefield when they become copies of the target permanent, any "When
+//   [this permanent] enters" or "[this permanent] enters with" abilities of
+//   the copied permanent won't apply."
+/// CR 707.4's "the change doesn't cause enters-the-battlefield ... abilities
+/// to trigger": a copy of Wall of Omens draws nothing, and a copy of
+/// Chainbreaker gets none of its two -1/-1 counters.
+#[test]
+fn mirrorform_copies_enter_nothing_and_trigger_nothing() {
+    let mut game = setup_two_player_game();
+    mtgsim::test_support::fill_library(&mut game, 0, 3);
+    mtgsim::test_support::fill_library(&mut game, 1, 3);
+    let wall = put_on_battlefield(&mut game, wall_of_omens(), 1);
+    let breaker = put_on_battlefield(&mut game, chainbreaker(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    settle(&mut game);
+    let hand = game.players[0].hand.len();
+
+    resolve_spell(&mut game, mirrorform(), 0, &[wall]);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(get_effective_name(&game, bears), "Wall of Omens");
+    assert!(game.stack.is_empty(), "nothing entered, so nothing triggered");
+    assert_eq!(game.players[0].hand.len(), hand);
+
+    resolve_spell(&mut game, mirrorform(), 0, &[breaker]);
+    assert_eq!(get_effective_name(&game, bears), "Chainbreaker");
+    assert_eq!(counters(&game, bears, CounterType::MinusOneMinusOne), 0);
+    assert_eq!(pt(&game, bears), (Some(3), Some(3)));
+}
+
+// RULING: Mirrorform #2 - "The permanents copy exactly what was printed on
+//   the original permanent and nothing else (unless that permanent is copying
+//   something else; see below). They don't copy whether that permanent is
+//   tapped or untapped, whether it has any counters on it or Auras and
+//   Equipment attached to it, or any non-copy effects that have changed its
+//   power, toughness, types, color, and so on."
+/// The donor's counter, tapped status and pump stay on the donor; the copy
+/// is an untapped 4/4 white Angel, as printed.
+#[test]
+fn mirrorform_copies_only_the_printed_values() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    game.add_counters(angel, CounterType::PlusOnePlusOne, 1);
+    game.battlefield.get_mut(&angel).unwrap().tapped = true;
+    resolve_spell(&mut game, giant_growth(), 1, &[angel]);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    resolve_spell(&mut game, mirrorform(), 0, &[angel]);
+    assert_eq!(pt(&game, bears), (Some(4), Some(4)));
+    assert_eq!(counters(&game, bears, CounterType::PlusOnePlusOne), 0);
+    assert!(!game.battlefield[&bears].tapped);
+    assert_eq!(get_effective_colors(&game, bears), std::collections::HashSet::from([Color::White]));
+}
+
+// RULING: Mirrorform #3 - "If the copied permanent is copying something else,
+//   then the permanents become copies of whatever that permanent copied."
+/// The donor is a Cytoshape copy of Serra Angel for the turn. Mirrorform's
+/// copies are Angels, captured once (CR 707.2b), so they stay Angels after
+/// cleanup has ended the donor's own copy.
+#[test]
+fn mirrorform_of_a_copy_copies_what_it_copied_and_keeps_it() {
+    let mut game = setup_two_player_game();
+    let angel = put_on_battlefield(&mut game, serra_angel(), 1);
+    let donor = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_spell_with(&mut game, cytoshape(), 1, &[donor], &RecordingDecisionProvider::picking(0));
+    assert_eq!(get_effective_name(&game, donor), "Serra Angel");
+
+    resolve_spell(&mut game, mirrorform(), 0, &[donor]);
+    assert_eq!(get_effective_name(&game, bears), "Serra Angel");
+    mtgsim::test_support::pass_turn(&mut game);
+    assert_eq!(get_effective_name(&game, donor), "Grizzly Bears", "Cytoshape's copy ended");
+    assert_eq!(get_effective_name(&game, bears), "Serra Angel", "Mirrorform's did not");
+    let _ = angel;
+}
+
+// RULING: Mirrorform #4 - "If the copied permanent has {X} in its mana cost,
+//   X is 0."
+/// The copy's cost has the {X}, and its mana value counts it as 0 (CR
+/// 202.3e).
+#[test]
+fn mirrorform_of_an_x_permanent_has_x_as_zero() {
+    use mtgsim::types::mana::ManaSymbol;
+    let mut game = setup_two_player_game();
+    let x_cost = ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]);
+    let donor = put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("X Creature").card_type(CardType::Creature).mana_cost(x_cost.clone()).power_toughness(2, 2).build(),
+        1,
+    );
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_spell(&mut game, mirrorform(), 0, &[donor]);
+    let cost = mtgsim::engine::layers::compute_characteristics(&game, bears).unwrap().mana_cost.clone().expect("the copied cost");
+    assert_eq!(cost, x_cost);
+    assert_eq!(cost.mana_value(), 1);
+}
+
+/// Item 16b's board, and why its sized fix would have been wrong: a turn's
+/// copy laid over an indefinite one hides the older copy's anthem for the
+/// turn, and when cleanup ends it, the older copy shows again and its anthem
+/// with it. Dropping the older copy's rows at the re-copy would have lost
+/// the anthem for good.
+#[test]
+fn an_indefinite_copy_shows_again_with_its_statics_when_a_later_copy_ends() {
+    let mut game = setup_two_player_game();
+    let bearer = put_on_battlefield(&mut game, anthem_bearer(), 1);
+    let copier = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    resolve_spell(&mut game, mirrorform(), 0, &[bearer]);
+    let other = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pt(&game, other), (Some(3), Some(3)), "the copied anthem");
+
+    // Cytoshape's candidates: [bearer, copier, other]; the last is a plain Bear.
+    resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::picking(2));
+    assert_eq!(get_effective_name(&game, copier), "Grizzly Bears");
+    assert_eq!(pt(&game, other), (Some(2), Some(2)), "hidden for the turn");
+
+    mtgsim::test_support::pass_turn(&mut game);
+    assert_eq!(get_effective_name(&game, copier), "Anthem Bearer");
+    assert_eq!(pt(&game, other), (Some(3), Some(3)), "and back with it");
 }

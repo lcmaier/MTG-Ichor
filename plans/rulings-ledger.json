@@ -655,6 +655,7 @@
     },
     "Mirrorform": {
       "first_seen": "2026-09-17",
+      "read": "2026-10-06",
       "rulings": [
         {"n": 1, "published_at": "2025-11-17", "comment": "Because the permanents aren't entering the battlefield when they become copies of the target permanent, any \"When [this permanent] enters\" or \"[This permanent] enters with\" abilities of the copied permanent won't apply."},
         {"n": 2, "published_at": "2025-11-17", "comment": "The permanents copy exactly what was printed on the original permanent and nothing else (unless that permanent is copying something else; see below). They don't copy whether that permanent is tapped or untapped, whether it has any counters on it or Auras and Equipment attached to it, or any non-copy effects that have changed its power, toughness, types, color, and so on."},

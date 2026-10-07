@@ -1876,16 +1876,21 @@ pub enum Primitive {
     /// One or more permanents become a copy of another (CR 707.4).
     ///
     /// The `Duration` is authored for the reason [`Self::Restrict`]'s is: CR
-    /// 611.2's scope comes from the card's English, not from the mechanism. The
-    /// turn-bounded shapes only — `Duration::Indefinite` needs CR 400.7 first
-    /// (CV-1b), because a row reachable by neither expiry nor `remove_by_source`
-    /// outlives its subject without bound (`copy-effects-architecture.md` §5.3).
+    /// 611.2's scope comes from the card's English, not from the mechanism. A
+    /// card that states none is `Duration::Indefinite` (CR 611.2a: "it lasts
+    /// until the end of the game"), which ends when its subject moves (CR
+    /// 400.7), since neither expiry nor `remove_by_source` reaches it
+    /// (`copy-effects-architecture.md` §5.3).
     ///
     /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
     /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —
     /// which is what makes a copy row independent of every other layer 1 effect
     /// and so keeps this off critical-path item 7.
-    Copy(CopyRoles, Duration),
+    ///
+    /// `except` is CR 707.9a–c's, made on the captured values as the effect
+    /// begins: "except it has this ability" and the rest. 707.9e's additions
+    /// and 707.9f's conditions are about an entry, so a resolution refuses them.
+    Copy { roles: CopyRoles, except: Vec<CopyException>, duration: Duration },
 
     // === Counter spells/abilities (rule 701.6) ===
     /// Counter a spell on the stack (rule 701.6a).
@@ -2044,6 +2049,11 @@ impl Effect {
                 for def in &mut token.abilities {
                     f(def);
                     def.effect.for_each_ability_def_mut(f);
+                }
+            }
+            Effect::Atom(Primitive::Copy { except, .. }, _) => {
+                for exception in except {
+                    exception.for_each_ability_def_mut(f);
                 }
             }
             Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}

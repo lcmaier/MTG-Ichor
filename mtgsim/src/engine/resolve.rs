@@ -10,7 +10,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, Condition, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
+    AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
@@ -899,8 +899,8 @@ impl GameState {
             }
 
             // === Copy effects (CR 707, layer 1a) ===
-            Primitive::Copy(roles, duration) => {
-                self.apply_copy(roles, *duration, targets, ctx, dp)
+            Primitive::Copy { roles, except, duration } => {
+                self.apply_copy(roles, except, *duration, targets, ctx, dp)
             }
 
             Primitive::SwitchPowerToughness(duration) => {
@@ -1720,6 +1720,7 @@ impl GameState {
     fn apply_copy(
         &mut self,
         roles: &CopyRoles,
+        except: &[CopyException],
         duration: Duration,
         targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
@@ -1787,9 +1788,12 @@ impl GameState {
         // Once, here, and never re-derived (CR 707.2b; CR 611.2c for a
         // resolution's) — the opposite of every other continuous effect here,
         // and the whole reason `CopyFrom` carries values rather than an `ObjectId`.
-        let Some(values) = crate::engine::layers::copiable_values(self, donor) else {
+        let Some(mut values) = crate::engine::layers::copiable_values(self, donor) else {
             return Ok(());
         };
+        if !except.is_empty() {
+            self.make_copy_exceptions(&mut values, except, &affected)?;
+        }
 
         // --- 3. The row (CR 613.2a) -------------------------------------
         //
@@ -1797,7 +1801,6 @@ impl GameState {
         // a second copy of the same donor is a second instance of each of its
         // abilities, and the rows a copied static ability generates must apply
         // only while their own copy is the one showing (item 16b).
-        let mut values = values;
         let row = self.continuous_effects.next_id();
         for ability in std::sync::Arc::make_mut(&mut values.abilities) {
             ability.id = ability.id.copied_by(row);
@@ -1822,6 +1825,43 @@ impl GameState {
             &values, &affected, timestamp, duration,
         );
         Ok(())
+    }
+
+    /// CR 707.9a–c — make a resolution's copy exceptions on the captured
+    /// values, so they are the copy's copiable values (707.9b) and a copy of
+    /// the copy has them too.
+    ///
+    /// "It doesn't copy that creature's color" keeps the copying object's own
+    /// value (707.9c), which is one object's: a row over several would need
+    /// one capture each, and no printed card asks, so that is refused. So are
+    /// 707.9e's additions and 707.9f's conditions, which are an entry's.
+    fn make_copy_exceptions(
+        &self,
+        values: &mut crate::engine::layers::copy::CopiableValues,
+        except: &[CopyException],
+        affected: &[ObjectId],
+    ) -> Result<(), String> {
+        for exception in except {
+            match exception {
+                CopyException::Modifies(_) => {}
+                CopyException::DoesNotCopy(_) if affected.len() == 1 => {}
+                CopyException::DoesNotCopy(_) => {
+                    return Err(format!(
+                        "{exception:?} keeps each copying object's own value, and one copy row covers {} objects",
+                        affected.len()
+                    ));
+                }
+                CopyException::Additionally(_) | CopyException::If(..) => {
+                    return Err(format!("{exception:?} is about a permanent entering (CR 707.9e, 707.9f), not a resolution's copy"));
+                }
+            }
+        }
+        let own = match affected {
+            [only] => crate::engine::layers::copiable_values(self, *only),
+            _ => None,
+        };
+        let exceptions: Vec<&CopyException> = except.iter().collect();
+        values.except(&exceptions, own.as_ref())
     }
 
     /// CR 609.7a — ask for the source of damage a
