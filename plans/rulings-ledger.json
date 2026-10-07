@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-29",
+  "fetched": "2026-10-06",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -229,6 +229,15 @@
         {"n": 1, "published_at": "2008-05-01", "comment": "An effect that changes a permanent's colors overwrites all its old colors unless it specifically says \"in addition to its other colors.\" For example, after Cerulean Wisps resolves, the affected creature will just be blue. It doesn't matter what colors it used to be (even if, for example, it used to be blue and black)."},
         {"n": 2, "published_at": "2008-05-01", "comment": "Changing a permanent's color won't change its text. If you turn Wilt-Leaf Liege blue, it will still affect green creatures and white creatures."},
         {"n": 3, "published_at": "2008-05-01", "comment": "Colorless is not a color."}
+      ]
+    },
+    "Cryptoplasm": {
+      "first_seen": "2026-10-06",
+      "rulings": [
+        {"n": 1, "published_at": "2011-06-01", "comment": "You choose the target for the triggered ability when the ability is put onto the stack. You choose whether or not Cryptoplasm becomes a copy of that creature when the ability resolves."},
+        {"n": 2, "published_at": "2011-06-01", "comment": "The copy effect lasts indefinitely. Often, it will last until it is overwritten by another copy effect (if it copies another creature on a future turn, perhaps.)"},
+        {"n": 3, "published_at": "2011-06-01", "comment": "If the creature is an illegal target when the ability tries to resolve, it won’t resolve. Cryptoplasm won’t become a copy of that creature; it remains whatever it was before."},
+        {"n": 4, "published_at": "2011-06-01", "comment": "If another creature becomes a copy of Cryptoplasm, it will become a copy of whatever Cryptoplasm is currently copying (if anything), plus it will have Cryptoplasm’s triggered ability."}
       ]
     },
     "Culling Drone": {

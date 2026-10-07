@@ -54,7 +54,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 103] = [
+const PERFORMANCE_POOL: [&str; 104] = [
     "Plains",
     "Island",
     "Swamp",
@@ -468,6 +468,11 @@ const PERFORMANCE_POOL: [&str; 103] = [
     // over its controller's own creatures only, since the pool has no
     // planeswalker; the tests carry that path.
     "Spark Double",
+    // CV-1b's: the only copy row with no end but a move (CR 611.2a, 400.7),
+    // so the only rows that outlive their turn and that CR 400.7's prune ends,
+    // and a re-copy each upkeep over the last. Its target is "another", and
+    // its "may" is asked at resolution.
+    "Cryptoplasm",
     // MA-1's two paths no pooled card reaches (`mana-architecture.md` §3.3):
     // mana once for each permanent an outlet can sacrifice, with the cost's
     // own sacrifices taken first and the window's sacrifice prompt, and a
@@ -705,6 +710,8 @@ impl CardRegistry {
         // CR 707.9: the entry copy that makes exceptions, over a creature or
         // planeswalker its controller controls.
         registry.register("Spark Double", phase_cv_cards::spark_double);
+        // CR 611.2a: a copy with no stated duration, which a move alone ends.
+        registry.register("Cryptoplasm", phase_cv_cards::cryptoplasm);
         // CR 110.5b's other status: a permanent that enters untapped because
         // an effect says so (`replacement-architecture.md` §3.5).
         registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
