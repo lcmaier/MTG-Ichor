@@ -135,7 +135,7 @@ fn a_destruction_a_cant_stopped_is_told_after_the_damage() {
     let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Indestructible]), 0);
     let source = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
     let trace = install_trace(&mut game, "a can't, told");
-    let damage = GameAction::DealDamage { source, target: DamageTarget::Object(creature), amount: 3, is_combat: false, unpreventable: false };
+    let damage = GameAction::DealDamage { source, target: DamageTarget::Object(creature), amount: 3, is_combat: false, unpreventable: false, source_frame: None };
     game.execute_action(damage, &test_ctx()).unwrap();
     game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
 

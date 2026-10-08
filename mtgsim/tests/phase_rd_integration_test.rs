@@ -44,7 +44,8 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
             target: DamageTarget::Player(victim),
             amount,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -65,7 +66,8 @@ fn bolt_player_with(
             target: DamageTarget::Player(victim),
             amount,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &ctx,
     )
@@ -140,7 +142,8 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
             target: DamageTarget::Object(victim),
             amount: 1,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -229,7 +232,8 @@ fn three_damage_to_a_five_loyalty_planeswalker_leaves_two() {
             target: DamageTarget::Object(probe),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -254,7 +258,8 @@ fn lethal_damage_to_a_planeswalker_reaches_cr_704_5i() {
             target: DamageTarget::Object(probe),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -292,7 +297,8 @@ fn damage_to_a_creature_planeswalker_both_marks_and_removes_loyalty() {
             target: DamageTarget::Object(probe),
             amount: 2,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -324,7 +330,8 @@ fn damage_to_a_noncreature_nonplaneswalker_marks_nothing() {
             // Furnace doubles it; the point is that 6 lands nowhere.
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -512,14 +519,16 @@ fn giselas_two_halves_never_apply_to_one_damage_proposal() {
                 target: DamageTarget::Object(mine),
                 amount: 3,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             GameAction::DealDamage {
                 source,
                 target: DamageTarget::Object(theirs),
                 amount: 3,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
         ],
         &ctx,
@@ -712,7 +721,8 @@ fn angel_of_suffering_does_not_protect_its_controllers_permanents() {
             target: DamageTarget::Object(mine),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )

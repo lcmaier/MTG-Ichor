@@ -429,6 +429,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
+                let source_frame = self.departed_source_frame(ctx);
                 self.execute_actions(
                     targets
                         .into_iter()
@@ -437,6 +438,7 @@ impl GameState {
                         // prevented" is about this resolution's damage and nothing else.
                         .map(|target| GameAction::DealDamage {
                             source: ctx.effect_source(),
+                            source_frame: source_frame.clone(),
                             target,
                             amount,
                             is_combat: false,
@@ -2513,6 +2515,18 @@ impl GameState {
                 crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller))
             }
         }
+    }
+
+    /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
+    /// has left the zone it was in: the frame its entry kept as it went.
+    /// `None` while it is there, and for a spell, which resolves where it
+    /// was cast. A source no frame was kept for reads where it is now.
+    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
+        let source = ctx.ability_source?;
+        if self.object_ref(source.id) == Some(source) {
+            return None;
+        }
+        self.departed_frame(source)
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,

@@ -2057,7 +2057,7 @@ fn apply_rewrite(
         // observable. CR 615.12's second site — both arms ask `is_unpreventable` the
         // same way (`replacement-architecture.md` §9, RD-4's "As landed").
         Rewrite::Amount(amount_rewrite) => match event {
-            GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
+            GameAction::DealDamage { source, source_frame, target, amount, is_combat, unpreventable } => {
                 // CR 615.7's cap is the instance's count. `PreventRemaining`
                 // on anything else, or a count on anything else, is a def
                 // whose halves disagree — the same authoring error every
@@ -2113,6 +2113,7 @@ fn apply_rewrite(
                 Ok((
                     Some(GameAction::DealDamage {
                         source,
+                        source_frame,
                         target,
                         amount: after,
                         is_combat,
@@ -2314,12 +2315,12 @@ fn apply_rewrite(
         // destination is gone is still gathered, offered and chosen, then does
         // nothing and is not spent (`ATOM-614.9-001`).
         Rewrite::Retarget(spec) => match event {
-            GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
+            GameAction::DealDamage { source, source_frame, target, amount, is_combat, unpreventable } => {
                 // The two outcomes differ in one field and in what they claim:
                 // a legal destination replaces `target` and took effect; an
                 // illegal one is CR 614.9's "the effect does nothing", which
                 // returns the event as proposed and spends nothing.
-                let (target, outcome) = match retarget_destination(game, chosen, *spec, source)
+                let (target, outcome) = match retarget_destination(game, chosen, *spec, source, source_frame.as_ref())
                     .filter(|&to| redirection_is_legal(game, to, target))
                 {
                     Some(to) => (to, Applied { took_effect: true, prevented: 0 }),
@@ -2328,6 +2329,7 @@ fn apply_rewrite(
                 Ok((
                     Some(GameAction::DealDamage {
                         source,
+                        source_frame,
                         target,
                         amount,
                         is_combat,
@@ -2806,6 +2808,7 @@ fn retarget_destination(
     chosen: &ReplacementInstance,
     spec: RetargetSpec,
     damage_source: ObjectId,
+    damage_source_frame: Option<&std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>>,
 ) -> Option<DamageTarget> {
     match spec {
         RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
@@ -2820,10 +2823,12 @@ fn retarget_destination(
         // CR 109.5 asked of the *damage's* source, wherever it is: a spell on
         // the stack has no battlefield entry, so this falls through to its
         // owner, which is its controller for every card cast from its owner's
-        // own hand.
-        RetargetSpec::ToDamageSourceController => {
-            controller_or_owner(game, damage_source).map(DamageTarget::Player)
-        }
+        // own hand. A source that left before dealing it is asked as it last
+        // existed (CR 608.2h).
+        RetargetSpec::ToDamageSourceController => match damage_source_frame {
+            Some(frame) => Some(DamageTarget::Player(frame.controller)),
+            None => controller_or_owner(game, damage_source).map(DamageTarget::Player),
+        },
     }
 }
 

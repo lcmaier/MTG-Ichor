@@ -907,14 +907,19 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, target, amount, is_combat } => {
+        DamageDealt { source_id, source_frame, target, amount, is_combat } => {
             let target_str = match target {
                 crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
                 crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
             };
+            // A source that had left dealt it as it last existed.
+            let source = match source_frame {
+                Some(frame) => object_label(game, *source_id, &frame.name),
+                None => obj_name(game, *source_id),
+            };
             format!(
                 "DamageDealt: {} -> {} for {}{}",
-                obj_name(game, *source_id),
+                source,
                 target_str,
                 amount,
                 if *is_combat { " (combat)" } else { "" },

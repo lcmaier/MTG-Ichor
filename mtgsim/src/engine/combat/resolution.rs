@@ -206,6 +206,8 @@ impl GameState {
             // not one.
             .map(|a| GameAction::DealDamage {
                 source: a.source,
+                // CR 510.2: dealt by the creatures still on the battlefield.
+                source_frame: None,
                 target: a.target,
                 amount: a.amount,
                 is_combat: true,

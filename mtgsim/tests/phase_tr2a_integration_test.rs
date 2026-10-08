@@ -171,6 +171,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
         amount: 3,
         is_combat: false,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_action(damage, &ctx).unwrap();
     game.execute_action(GameAction::Destroy { object: mine, source: DestructionSource::Effect(theirs) }, &ctx).unwrap();
@@ -227,6 +228,7 @@ fn damage_to_a_permanent_is_not_damage_to_its_controller() {
         amount: 1,
         is_combat: false,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_action(damage, &test_ctx()).unwrap();
     assert_eq!(this_turns_row(&game, 0), TurnSummary::ZERO);
@@ -317,6 +319,7 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
         amount: 1,
         is_combat: true,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_actions(vec![hit(a), hit(b)], &ctx).unwrap();
     assert_eq!(pending_triggers(&game), 3, "two sources, two losses (CR 120.3a)");
@@ -515,6 +518,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
         amount: 1,
         is_combat: false,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_actions(vec![hit(a), hit(b)], &test_ctx()).unwrap();
     assert_eq!(pending_triggers(&game), 1, "two losses, and only the first is the first");
@@ -864,7 +868,7 @@ fn gain_counter() -> Arc<CardData> {
 }
 
 fn damage(source: ObjectId, target: DamageTarget, amount: u64) -> GameAction {
-    GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false }
+    GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false, source_frame: None }
 }
 
 /// A lifelinker dealing damage to a blocker and to a player at once causes

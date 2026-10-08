@@ -4,11 +4,26 @@
 // resolution (lifelink, deathtouch) rather than during combat damage
 // assignment. Called from perform_action in actions.rs.
 
+use std::sync::Arc;
+
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::DamageTarget;
-use crate::oracle::characteristics::has_keyword;
+use crate::oracle::characteristics::damage_source_characteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
+
+/// Whether `source` deals damage with `keyword`: as it last existed when
+/// the damage carries its `frame` (CR 702.15c, 702.2e), and as it is
+/// otherwise.
+fn deals_damage_with(
+    game: &GameState,
+    source: ObjectId,
+    frame: Option<&Arc<EffectiveCharacteristics>>,
+    keyword: KeywordFlag,
+) -> bool {
+    damage_source_characteristics(game, source, frame).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
+}
 
 /// Apply the deathtouch flag to a damage target if the source has deathtouch.
 ///
@@ -22,10 +37,11 @@ use crate::types::keywords::KeywordFlag;
 pub fn apply_deathtouch_flag(
     game: &mut GameState,
     source: ObjectId,
+    frame: Option<&Arc<EffectiveCharacteristics>>,
     target: &DamageTarget,
 ) {
-    // Pre-check before mutable borrow (borrow checker: has_keyword reads objects)
-    if !has_keyword(game, source, KeywordFlag::Deathtouch) {
+    // Pre-check before mutable borrow (borrow checker: the read borrows objects)
+    if !deals_damage_with(game, source, frame, KeywordFlag::Deathtouch) {
         return;
     }
     if let DamageTarget::Object(id) = target
@@ -49,14 +65,23 @@ pub struct LifelinkGain {
 /// life-gain events, so one source's damage to several recipients at once
 /// sums into one gain (Nykthos Paragon's sixth ruling). Multiple instances are
 /// redundant (CR 702.15f). Who gains is read as the damage is dealt: the
-/// source's controller, or its owner if it has none.
-pub fn add_lifelink_gain(game: &GameState, gains: &mut Vec<LifelinkGain>, source: ObjectId, amount: u64) {
-    if !has_keyword(game, source, KeywordFlag::Lifelink) {
+/// source's controller, or its owner if it has none; a source that left
+/// before dealing it gains its controller as it last existed (CR 608.2h).
+pub fn add_lifelink_gain(
+    game: &GameState,
+    gains: &mut Vec<LifelinkGain>,
+    source: ObjectId,
+    frame: Option<&Arc<EffectiveCharacteristics>>,
+    amount: u64,
+) {
+    if !deals_damage_with(game, source, frame, KeywordFlag::Lifelink) {
         return;
     }
-    let Some(player) = crate::oracle::characteristics::get_effective_controller(game, source)
-        .or_else(|| game.objects.get(&source).map(|obj| obj.owner))
-    else {
+    let controller = match frame {
+        Some(frame) => Some(frame.controller),
+        None => crate::oracle::characteristics::get_effective_controller(game, source),
+    };
+    let Some(player) = controller.or_else(|| game.objects.get(&source).map(|obj| obj.owner)) else {
         return;
     };
     match gains.iter_mut().find(|gain| gain.source == source) {
@@ -102,7 +127,7 @@ mod tests {
         let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
         let target = setup_creature(&mut game, &[]);
 
-        apply_deathtouch_flag(&mut game, source, &DamageTarget::Object(target));
+        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Object(target));
         assert!(game.battlefield.get(&target).unwrap().damaged_by_deathtouch);
     }
 
@@ -112,7 +137,7 @@ mod tests {
         let source = setup_creature(&mut game, &[]); // no deathtouch
         let target = setup_creature(&mut game, &[]);
 
-        apply_deathtouch_flag(&mut game, source, &DamageTarget::Object(target));
+        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Object(target));
         assert!(!game.battlefield.get(&target).unwrap().damaged_by_deathtouch);
     }
 
@@ -122,7 +147,7 @@ mod tests {
         let source = setup_creature(&mut game, &[KeywordFlag::Deathtouch]);
 
         // Should not panic or error — just does nothing for player targets
-        apply_deathtouch_flag(&mut game, source, &DamageTarget::Player(1));
+        apply_deathtouch_flag(&mut game, source, None, &DamageTarget::Player(1));
     }
 
     // --- Lifelink tests ---
@@ -136,6 +161,7 @@ mod tests {
                 amount,
                 is_combat: false,
                 unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -202,7 +228,8 @@ mod tests {
                 target: crate::events::event::DamageTarget::Player(1),
                 amount: 2,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         ).unwrap();

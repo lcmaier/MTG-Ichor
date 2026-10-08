@@ -105,6 +105,10 @@ pub enum GameEvent {
     /// Triggered abilities" item 10).
     DamageDealt {
         source_id: ObjectId,
+        /// The proposal's `source_frame`: the source as it last existed, when
+        /// it dealt the damage after leaving its zone, so a trigger asking
+        /// what dealt it reads what the damage's results read (CR 608.2h).
+        source_frame: Option<Arc<EffectiveCharacteristics>>,
         target: DamageTarget,
         amount: u64,
         is_combat: bool,

@@ -197,7 +197,7 @@ fn next_upkeep(game: &mut GameState) -> PlayerId {
 
 fn deal(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64, combat: bool) {
     game.execute_action(
-        GameAction::DealDamage { source, target, amount, is_combat: combat, unpreventable: false },
+        GameAction::DealDamage { source, target, amount, is_combat: combat, unpreventable: false, source_frame: None },
         &test_ctx(),
     )
     .expect("dealing damage");
@@ -1473,8 +1473,8 @@ fn each_source_of_simultaneous_life_gain_triggers_separately() {
 
     game.execute_actions(
         vec![
-            GameAction::DealDamage { source: a, target: DamageTarget::Player(1), amount: 2, is_combat: true, unpreventable: false },
-            GameAction::DealDamage { source: b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false },
+            GameAction::DealDamage { source: a, target: DamageTarget::Player(1), amount: 2, is_combat: true, unpreventable: false, source_frame: None },
+            GameAction::DealDamage { source: b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false, source_frame: None },
         ],
         &test_ctx(),
     )

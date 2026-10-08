@@ -278,7 +278,8 @@ fn a_partly_spent_count_keeps_its_remainder_when_the_source_stops_matching() {
                 target: DamageTarget::Player(0),
                 amount,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -331,14 +332,16 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
                 target: DamageTarget::Player(0),
                 amount: 2,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             GameAction::DealDamage {
                 source: colorless,
                 target: DamageTarget::Player(0),
                 amount: 4,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
         ],
         &ActionContext::new(&dp),
@@ -473,6 +476,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
             amount: 6,
             is_combat: false,
             unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )

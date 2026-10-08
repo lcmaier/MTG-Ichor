@@ -186,7 +186,7 @@ fn assert_audited(game: &GameState, triggers: u64) {
 
 fn deal(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
     game.execute_action(
-        GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false },
+        GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false, source_frame: None },
         &test_ctx(),
     )
     .expect("dealing damage");

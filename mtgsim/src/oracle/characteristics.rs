@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
@@ -19,6 +20,21 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
     compute_characteristics(game, id)
         .map(|chars| chars.keyword_flags.contains(&keyword))
         .unwrap_or(false)
+}
+
+/// The characteristics `source` deals damage with: `frame`, its last known
+/// information, when the damage carries one because an effect has it deal
+/// damage after it left (CR 608.2h, 702.15c, 702.2e), and the object as it
+/// is otherwise.
+pub fn damage_source_characteristics(
+    game: &GameState,
+    source: ObjectId,
+    frame: Option<&Arc<EffectiveCharacteristics>>,
+) -> Option<Arc<EffectiveCharacteristics>> {
+    match frame {
+        Some(frame) => Some(Arc::clone(frame)),
+        None => compute_characteristics(game, source),
+    }
 }
 
 /// Is `card` an instant, or does it have flash? What CR 117.1a's timing asks

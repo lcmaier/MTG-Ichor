@@ -474,7 +474,8 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
             target: DamageTarget::Object(bear),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -520,7 +521,8 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
             target: DamageTarget::Object(bear),
             amount: 0,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )
@@ -560,7 +562,8 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
             target: DamageTarget::Object(bear),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         },
         &test_ctx(),
     )

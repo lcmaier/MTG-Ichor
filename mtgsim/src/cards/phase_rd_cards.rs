@@ -1355,7 +1355,8 @@ mod tests {
                 target: DamageTarget::Object(ids.victim),
                 amount,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -1450,7 +1451,8 @@ mod tests {
                 target: DamageTarget::Object(ids.victim),
                 amount: 14,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &ctx,
         )
@@ -1477,7 +1479,8 @@ mod tests {
                     target: DamageTarget::Object(victim),
                     amount: 3,
                     is_combat: false,
-                    unpreventable: false
+                    unpreventable: false,
+                    source_frame: None,
                 },
                 &test_ctx(),
             )
@@ -1503,7 +1506,8 @@ mod tests {
                 target: DamageTarget::Object(their_victim),
                 amount: 2,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -1525,7 +1529,8 @@ mod tests {
                 target: DamageTarget::Object(mine),
                 amount: 5,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -1584,7 +1589,7 @@ mod tests {
 
     fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: DamageTarget, amount: u64) {
         game.execute_action(
-            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_frame: None },
             &test_ctx(),
         )
         .unwrap();
@@ -1886,7 +1891,8 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 5,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &ActionContext::new(&dp),
         )
@@ -1938,7 +1944,8 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 3,
                 is_combat: false,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &ActionContext::new(&dp),
         )
@@ -1992,7 +1999,8 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 3,
                 is_combat: true,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &test_ctx(),
         )
@@ -2019,7 +2027,8 @@ mod tests {
                     target: DamageTarget::Object(target),
                     amount: 2,
                     is_combat: true,
-                    unpreventable: false
+                    unpreventable: false,
+                    source_frame: None,
                 },
                 &test_ctx(),
             )
@@ -2091,7 +2100,8 @@ mod tests {
                 target: DamageTarget::Player(1),
                 amount: 3,
                 is_combat: true,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             },
             &ActionContext::new(&dp),
         )
@@ -2146,7 +2156,7 @@ mod tests {
         ctx: &ActionContext,
     ) {
         game.execute_action(
-            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_frame: None },
             ctx,
         )
         .unwrap();

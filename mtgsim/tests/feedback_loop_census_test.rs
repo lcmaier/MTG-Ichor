@@ -86,6 +86,7 @@ fn palisade_giant_beside_guardian_seraph_is_an_order_the_redirect_can_end() {
             amount: 5,
             is_combat: false,
             unpreventable: false,
+            source_frame: None,
         };
         game.execute_action(damage, &ActionContext::new(&dp)).unwrap();
         assert_eq!(game.players[0].life_total, 20, "the player took none either way");
