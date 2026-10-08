@@ -85,7 +85,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let saved = Some(Ok("saved boards/main-turn-3/main-turn-3.scenario"));
     results.add(picture(&partway(state.clone()), &header(board), saved, "board_saved"));
     results.add(picture(&replaying(), &header("main.scenario"), None, "replaying"));
-    results.add(menu_picture(&with_savestates(state.clone()), &header(board), "savestates_menu"));
+    results.add(clicked_picture(&with_savestates(state.clone()), &header(board), "Savestates", "savestates_menu"));
     let (state, board) = &first["targets"];
     let diverged = "the log diverges at answer 12: it chose player 7, which is not offered".to_string();
     results.add(picture(&WindowState { diverged: Some(diverged), ..partway(state.clone()) }, &header(board), None, "diverged"));
@@ -102,6 +102,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
     results.add(picture(&partway(fizzled()), &header("fizzle.scenario"), None, "fizzle_log"));
+    results.add(clicked_picture(&partway(waiting()), &header("waiting.scenario"), "Waiting (3)", "waiting"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -281,6 +282,37 @@ fn fizzled() -> WindowState {
     state
 }
 
+/// The click script's board, `waiting.scenario`: player 0 casts Blessed
+/// Wine, then Final Fortune, each passed to resolution, and the window stops
+/// at player 0's next priority with the stack empty.
+fn waiting() -> WindowState {
+    let engine = spawn(from_board("waiting.scenario"));
+    let mut state = WindowState::default();
+    let mut to_cast = vec!["Blessed Wine", "Final Fortune"];
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        let stacked = state.board.as_ref().is_some_and(|board| !board.stack.is_empty());
+        let ours = prompt.kind == "PriorityAction" && prompt.player == 0 && !stacked;
+        if ours && to_cast.is_empty() {
+            break;
+        }
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let pick = match prompt.kind.as_str() {
+            "PriorityAction" if ours => labeled(to_cast.remove(0)),
+            "ManaAbilityWindow" => labeled("Plains").or(labeled("Mountain")),
+            _ => None,
+        };
+        let input = Input::OptionButton(pick.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
+        engine.answers.send(state.input(input).expect("one option answers")).unwrap();
+    }
+    let shown = state.board_view().and_then(|board| board.waiting).map(|waiting| waiting.name);
+    assert_eq!(shown.as_deref(), Some("Waiting (3)"), "{}", state.log.iter().map(|line| line.text.as_str()).collect::<Vec<_>>().join("
+"));
+    finish(engine);
+    state
+}
+
 /// CR 509.1a's re-ask: the window declared its one Wall of Stone blocking
 /// both Bears, and is asked again, told why.
 fn blocks_rejected() -> WindowState {
@@ -327,11 +359,12 @@ fn picture(state: &WindowState, line: &(String, PathBuf), saved: Option<Result<&
     harness.try_snapshot(name)
 }
 
-/// The game's window with the header's menu of savestates opened.
-fn menu_picture(state: &WindowState, line: &(String, PathBuf), name: &str) -> SnapshotResult {
+/// The game's window with the button or header called `label` clicked
+/// open: the header's menu of savestates, the Waiting panel.
+fn clicked_picture(state: &WindowState, line: &(String, PathBuf), label: &str, name: &str) -> SnapshotResult {
     let mut harness = game_window(state, line, None);
     harness.run();
-    harness.get_by_label("Savestates").click();
+    harness.get_by_label(label).click();
     harness.run();
     harness.try_snapshot(name)
 }

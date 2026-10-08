@@ -195,6 +195,12 @@ impl AbilityId {
         AbilityId::defined(id.0 & !ROLE_MASK)
     }
 
+    /// The delayed triggered ability this id is, by its registry number, or
+    /// `None` for any other ability: [`Self::delayed`] read back.
+    pub fn delayed_trigger(self) -> Option<DelayedTriggerId> {
+        (self.definition & ROLE_MASK == 0 && self.definition != 0).then_some(DelayedTriggerId(self.definition))
+    }
+
     /// This ability as the Layer 6 row `row` grants it, minted where the
     /// grant is applied (`compute.rs`). The row is the
     /// grant: it exists exactly as long as the grant does, its id is a

@@ -668,7 +668,7 @@ fn lifelinker(game: &mut GameState) -> ObjectId {
 }
 
 fn hit(source: ObjectId, target: DamageTarget, is_combat: bool) -> GameAction {
-    GameAction::DealDamage { source, target, amount: 1, is_combat, unpreventable: false }
+    GameAction::DealDamage { source, target, amount: 1, is_combat, unpreventable: false, source_frame: None }
 }
 
 /// Resolve the top of the stack, answering its "may".

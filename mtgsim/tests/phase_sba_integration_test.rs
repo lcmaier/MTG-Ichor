@@ -240,6 +240,7 @@ fn test_deathtouch_damage_is_read_by_one_check() {
         amount: 1,
         is_combat: false,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_action(damage, &test_ctx()).unwrap();
     game.check_state_based_actions(&test_dp()).unwrap();

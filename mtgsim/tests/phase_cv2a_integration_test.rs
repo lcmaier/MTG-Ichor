@@ -1034,6 +1034,7 @@ fn a_clone_of_a_commander_is_not_a_commander() {
         amount: 2,
         is_combat: true,
         unpreventable: false,
+        source_frame: None,
     };
     game.execute_action(hit(clone), &ctx).unwrap();
     assert_eq!(game.players[0].life_total, 18);

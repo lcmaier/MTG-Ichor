@@ -771,10 +771,12 @@ pub(crate) fn pattern_watches(
         // The `unwrap_or(true)`s are the fields' meaning ("this effect does not
         // ask"); the `unwrap_or(false)` swallows `object_matches_filter`'s three
         // authoring-error `Err`s, unreached in 600 fuzz games (2026-09-09) and
-        // shared with `set_affects` — `codebase-state.md` item 103.
+        // shared with `set_affects` — `codebase-state.md` item 103. A source
+        // that left before an effect had it deal the damage is matched as it
+        // last existed, which is what deals it (CR 608.2h).
         (
             EventPattern::DealDamage { source, combat },
-            GameAction::DealDamage { source: dealt_by, is_combat, .. },
+            GameAction::DealDamage { source: dealt_by, source_frame, is_combat, .. },
         ) => {
             combat.map(|c| c == *is_combat).unwrap_or(true)
                 && source
@@ -784,8 +786,11 @@ pub(crate) fn pattern_watches(
                             && p.filter
                                 .as_ref()
                                 .map(|f| {
-                                    game.object_matches_filter(*dealt_by, f, you)
-                                        .unwrap_or(false)
+                                    match source_frame {
+                                        Some(frame) => game.object_matches_filter_in_frame(*dealt_by, f, you, frame),
+                                        None => game.object_matches_filter(*dealt_by, f, you),
+                                    }
+                                    .unwrap_or(false)
                                 })
                                 .unwrap_or(true)
                     })

@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-07",
+  "fetched": "2026-10-08",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -621,6 +621,10 @@
         {"n": 8, "published_at": "2024-06-07", "comment": "If a spell or ability with one or more targets states that you \"may pay\" some amount of {E}, and each permanent that it targets has become an illegal target, the spell or ability won't resolve. You can't pay any {E} even if you want to."},
         {"n": 9, "published_at": "2024-06-07", "comment": "Some spells and abilities that give you {E} may require targets. If each target chosen is an illegal target as that spell or ability tries to resolve, it won't resolve. You won't get any {E}."}
       ]
+    },
+    "Loxodon Warhammer": {
+      "first_seen": "2026-10-08",
+      "rulings": []
     },
     "Mana Reflection": {
       "first_seen": "2026-09-17",

@@ -24,7 +24,7 @@ use super::history::TurnOrdinals;
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::trace_records;
-use crate::events::event::{EventRecord, EventSeq};
+use crate::events::event::{EventRecord, EventSeq, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
@@ -39,7 +39,7 @@ impl GameState {
     /// provenance its rule gives: a resolution reads CR 603.7d–f's off its
     /// context, and a special action a static ability allows would read
     /// 603.7g's off that ability's object (`backlog.md` §2.8). Returns the
-    /// new entry's id.
+    /// new entry's id. Announced first, so its creation is no record it reads.
     pub fn register_delayed_trigger(
         &mut self,
         template: &DelayedTriggerTemplate,
@@ -47,6 +47,13 @@ impl GameState {
     ) -> DelayedTriggerId {
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
+        self.emit_event(GameEvent::DelayedTriggerCreated {
+            id,
+            source: provenance.source.id,
+            controller: provenance.controller,
+            rules_text: template.rules_text,
+            duration: template.duration,
+        });
         self.delayed_triggers.push(DelayedTrigger {
             id,
             def: Arc::clone(&template.def),
@@ -62,6 +69,7 @@ impl GameState {
             x_value: provenance.x_value,
             turn: provenance.turn,
             instances: template.def.effect.instances(),
+            rules_text: template.rules_text,
         });
         id
     }

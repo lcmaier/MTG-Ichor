@@ -115,7 +115,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 fn deal_damage(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u64) {
     game.execute_action(
-        GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false },
+        GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_frame: None },
         &test_ctx(),
     )
     .unwrap();

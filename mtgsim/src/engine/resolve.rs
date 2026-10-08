@@ -30,15 +30,15 @@ use crate::ui::decision::DecisionProvider;
 #[derive(Debug, Clone)]
 pub struct ResolutionContext {
     /// The resolving stack object — the spell, or for an ability the
-    /// ephemeral object CR 608.2n deletes at the end of resolution.
+    /// ephemeral object CR 608.2n deletes at the end of resolution. What a
+    /// prompt or a record names as the thing resolving; what an effect names
+    /// as its source is [`Self::effect_source`].
     pub source: ObjectId,
     /// CR 113.7a — for an activated or triggered ability, the permanent whose
     /// ability is resolving, and which existence of it (CR 400.7); `None` for
     /// a spell (whose source is `source`) and for a CR 615.5 rider. "This
     /// permanent" in an ability's text reads this: `Primitive::Attach` attaches
-    /// it and `EffectRecipient::ThisObject` finds it. Existing primitives that
-    /// attribute to `source` (`DealDamage`'s source, `Destroy`'s
-    /// `DestructionSource`) are unchanged by this field.
+    /// it and `EffectRecipient::ThisObject` finds it.
     pub ability_source: Option<ObjectRef>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
@@ -89,6 +89,14 @@ impl ResolutionContext {
             damage_prevented: None,
             trigger: None,
         }
+    }
+
+    /// The object this resolution's effects are attributed to: the spell, or
+    /// the object that has the ability (CR 113.7), which deals the damage and
+    /// gains the life (CR 120.2b, 608.2h) after its stack object is gone. A
+    /// rider's is the object whose replacement it is.
+    pub fn effect_source(&self) -> ObjectId {
+        self.ability_source.map_or(self.source, |r| r.id)
     }
 }
 
@@ -421,6 +429,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
+                let source_frame = self.departed_source_frame(ctx);
                 self.execute_actions(
                     targets
                         .into_iter()
@@ -428,7 +437,8 @@ impl GameState {
                         // and carried onto every member: Pinpoint Avalanche's "can't be
                         // prevented" is about this resolution's damage and nothing else.
                         .map(|target| GameAction::DealDamage {
-                            source: ctx.source,
+                            source: ctx.effect_source(),
+                            source_frame: source_frame.clone(),
                             target,
                             amount,
                             is_combat: false,
@@ -577,7 +587,7 @@ impl GameState {
                 self.execute_action(GameAction::GainLife {
                     player: player_id,
                     amount,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                 }, &actx)?;
                 Ok(())
             }
@@ -617,7 +627,7 @@ impl GameState {
                     self.execute_action(GameAction::GainLife {
                         player,
                         amount: (target - current) as u64,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                     }, &actx)?;
                 } else if target < current {
                     self.execute_action(GameAction::LoseLife {
@@ -749,7 +759,7 @@ impl GameState {
                 self.execute_action(
                     GameAction::ProduceMana {
                         player: ctx.controller,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         mana,
                         special: output.special.clone(),
                         tapped_for_mana: false,
@@ -1202,7 +1212,7 @@ impl GameState {
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
                 // resolution. A spell's is the spell.
-                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
+                let source = ctx.effect_source();
 
                 // CR 609.7a — the source is chosen when the effect is created, before the
                 // rows are built, since every row a recipient makes watches the same
@@ -1534,7 +1544,7 @@ impl GameState {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
                     EffectRecipient::ThisObject => {
-                        vec![self.get_object(ctx.ability_source.map_or(ctx.source, |r| r.id))?.owner]
+                        vec![self.get_object(ctx.effect_source())?.owner]
                     }
                     EffectRecipient::Implicit => {
                         return Err(format!(
@@ -2169,7 +2179,7 @@ impl GameState {
         let is_permanent = self.battlefield.contains_key(&object);
         Ok(match primitive {
             Primitive::Destroy => {
-                is_permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.source) })
+                is_permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.effect_source()) })
             }
             // CR 701.13a — from wherever the object is.
             Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {
@@ -2439,7 +2449,7 @@ impl GameState {
         Ok(match by {
             PlayerRef::You => ctx.controller,
             PlayerRef::Player(pid) => *pid,
-            PlayerRef::Owner => self.get_object(ctx.source)?.owner,
+            PlayerRef::Owner => self.get_object(ctx.effect_source())?.owner,
             PlayerRef::Opponent => {
                 let targeted = targets.iter().find_map(|t| match t {
                     ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
@@ -2501,10 +2511,24 @@ impl GameState {
             // CR 109.5 — a resolving spell's or ability's "you" is its
             // controller, whatever has become of its source since.
             other => {
-                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
+                let source = ctx.effect_source();
                 crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller))
             }
         }
+    }
+
+    /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
+    /// has left the zone it was in. A trigger on its source's own departure
+    /// ("when this creature dies") looks back (CR 603.10a) and is named by
+    /// the object it left as, so it reads the departure record's frame; any
+    /// other, the frame its entry kept as the source went. `None` while the
+    /// source is there, since a frame is kept only for an existence that has
+    /// left, and for a spell, which resolves where it was cast. A source no
+    /// frame was kept for reads where it is now.
+    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
+        let source = ctx.ability_source?;
+        let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
+        looked_back.and_then(crate::engine::triggers::binding::departure_frame).or_else(|| self.departed_frame(source))
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,

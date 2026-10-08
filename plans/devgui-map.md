@@ -278,3 +278,18 @@ for any line of the file. All of it is `editor.rs`, plain Rust, with
 - **Not built:** controls for history, `this turn:` and `counters:` lines,
   and for setup actions, which the owner left off the route at the dev GUI
   audit since the field writes every row (`backlog.md` §2.42).
+
+## 12. The Waiting panel
+
+What the game is holding for later, under the side panel's shared zones (#233):
+each delayed triggered ability waiting for its event, with its card's words,
+whose it is, whether it fires once or each time this turn and the turn it can
+trigger in, then each extra turn in the order it will be taken. The engine
+answers it (`ui::waiting::what_is_waiting`, under `mtgsim/tests/waiting_test.rs`),
+the snapshot carries it, `view_model.rs` makes it a zone of rows, and `app.rs`
+draws that zone as it draws Exile: a collapsing header, closed until opened,
+shown only while something waits. A row goes when its trigger fires or
+expires, or its turn is taken, skipped, or lost with its player.
+`tests/scenarios/waiting.scenario` is its board and `waiting.png` its picture.
+TR-3b's "until" effects, prevention and regeneration shields, and skipped
+steps would join it as kinds of row, not panels of their own.

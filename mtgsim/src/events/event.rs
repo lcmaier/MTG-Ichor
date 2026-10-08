@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::recorder::RecorderHandle;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
@@ -9,7 +9,8 @@ use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
-use crate::types::triggers::{TriggerOrigin, TriggerSeq};
+use crate::objects::card_data::AbilityText;
+use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
 
 
 /// Game events that can be observed by triggered abilities and logging systems.
@@ -108,6 +109,10 @@ pub enum GameEvent {
         target: DamageTarget,
         amount: u64,
         is_combat: bool,
+        /// The proposal's `source_frame`: the source as it last existed, when
+        /// it dealt the damage after leaving its zone, so a trigger asking
+        /// what dealt it reads what the damage's results read (CR 608.2h).
+        source_frame: Option<Arc<EffectiveCharacteristics>>,
     },
 
     // --- Turn structure ---
@@ -188,6 +193,17 @@ pub enum GameEvent {
         origin: TriggerOrigin,
         controller: PlayerId,
         caused_by: EventSeq,
+    },
+    /// A delayed triggered ability was created (CR 603.7a), by
+    /// `GameState::register_delayed_trigger`, ahead of any record it can
+    /// trigger on. A record for a log and a client: nothing triggers on it.
+    /// `source` and `controller` are CR 603.7d–g's.
+    DelayedTriggerCreated {
+        id: DelayedTriggerId,
+        source: ObjectId,
+        controller: PlayerId,
+        rules_text: AbilityText,
+        duration: DelayedDuration,
     },
     /// A spell was countered (CR 701.6a). `controller` is its controller as
     /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
@@ -419,6 +435,7 @@ impl GameEvent {
                 ([target, Some(ability_source.unwrap_or(*by)), None], &[], &[])
             }
             AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
+            DelayedTriggerCreated { source, .. } => ([Some(*source), None, None], &[], &[]),
             LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
             | SpellCountered { spell_id: a, countered_by: b, .. }

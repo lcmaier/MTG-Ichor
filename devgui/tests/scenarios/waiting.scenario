@@ -1,0 +1,21 @@
+# The Waiting panel's board: player 0 casts Blessed Wine, then Final
+# Fortune, so the panel lists Wine's draw at the next turn's upkeep, Final
+# Fortune's loss at its extra turn's end step, and the extra turn itself.
+# Two Plains pay for the Wine, two Mountains for Final Fortune, and the
+# Bolt and the third Mountain keep player 0 asked once both have resolved:
+# the engine passes for a player with nothing to do.
+turn 3
+active 0
+step precombat main
+
+hand 0: Blessed Wine
+hand 0: Final Fortune
+hand 0: Lightning Bolt
+library 0: Plains | x8
+library 1: Island | x8
+
+battlefield: Plains | controller 0
+battlefield: Plains | controller 0
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0

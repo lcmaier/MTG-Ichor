@@ -15,6 +15,21 @@ use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::TriggerBinding;
 
+/// The subject as it was in the zone it left, when the matched event was its
+/// own departure: the record's CR 603.10a frame.
+pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
+    let subject = binding.subject?;
+    match &binding.records.first()?.event {
+        GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
+        | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
+            if *object_id == subject.id =>
+        {
+            Some(Arc::clone(frame))
+        }
+        _ => None,
+    }
+}
+
 impl GameState {
     /// "That object" — the binding's subject, if it is still the object the
     /// event was about. CR 603.6's "unable to be found in the zone it went
@@ -53,14 +68,9 @@ impl GameState {
     /// resolving entry kept as it went (§6.1). `None` there is a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
-        match &binding.records.first()?.event {
-            GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
-            | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
-                if *object_id == subject.id =>
-            {
-                Some(Arc::clone(frame))
-            }
-            _ => match self.bound_object(binding) {
+        match departure_frame(binding) {
+            Some(frame) => Some(frame),
+            None => match self.bound_object(binding) {
                 Some(id) => compute_characteristics(self, id),
                 None => self.departed_frame(subject),
             },

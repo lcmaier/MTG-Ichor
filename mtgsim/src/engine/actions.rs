@@ -121,6 +121,14 @@ pub enum GameAction {
         /// survive a redirect: CR 614.9 moves "the same damage", so
         /// `Rewrite::Retarget` copies this along with `is_combat`.
         unpreventable: bool,
+        /// `source` as it last existed, when an effect has it deal damage
+        /// after it left the zone the effect expected it in (CR 608.2h):
+        /// what lifelink, deathtouch and a shield's source match read then
+        /// (CR 702.15c, 702.2e, 609.7b), through
+        /// `oracle::characteristics::damage_source_characteristics`. `None`
+        /// while it is there, and its current characteristics answer. A
+        /// rewrite of "the same damage" keeps it.
+        source_frame: Option<std::sync::Arc<EffectiveCharacteristics>>,
     },
 
     /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",
@@ -988,8 +996,8 @@ impl GameState {
                 performed_ok = Err(e);
                 break;
             }
-            if let GameAction::DealDamage { source, amount, .. } = &action {
-                add_lifelink_gain(self, &mut lifelink_gains, *source, *amount);
+            if let GameAction::DealDamage { source, source_frame, amount, .. } = &action {
+                add_lifelink_gain(self, &mut lifelink_gains, *source, source_frame.as_ref(), *amount);
             }
             performed.push(action);
         }
@@ -1166,7 +1174,7 @@ impl GameState {
             // CR 615.12 is a fact about which *effects* may prevent this
             // damage, and by the time the event is performed every effect has
             // had its say.
-            GameAction::DealDamage { source, target, amount, is_combat, unpreventable: _ } => {
+            GameAction::DealDamage { source, source_frame, target, amount, is_combat, unpreventable: _ } => {
                 // No 0-amount guard: CR 614.7a makes a 0-damage event never happen, which
                 // is the *proposal's* problem — `replacement::never_happens` owns it ahead
                 // of the pipeline, and a 0 that reaches CR 616.1 is one a prevention
@@ -1200,7 +1208,7 @@ impl GameState {
                         .damage_marked += amount as u32;
                 }
 
-                apply_deathtouch_flag(self, source, &target);
+                apply_deathtouch_flag(self, source, source_frame.as_ref(), &target);
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -1221,6 +1229,7 @@ impl GameState {
 
                 self.emit_event(GameEvent::DamageDealt {
                     source_id: source,
+                    source_frame,
                     target,
                     amount,
                     is_combat,
@@ -2041,7 +2050,8 @@ mod tests {
             target: DamageTarget::Object(bears_id),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
@@ -2058,7 +2068,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
@@ -2075,7 +2086,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 0,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 20);
@@ -2152,7 +2164,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         // Player 1 took 2 damage: 20 - 2 = 18
@@ -2170,7 +2183,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 3,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
@@ -2186,7 +2200,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
@@ -2207,7 +2222,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (the
@@ -2267,14 +2283,16 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: creature_b,
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         // P1 took 4 total damage
@@ -2326,7 +2344,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 4,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
@@ -2343,7 +2362,8 @@ mod tests {
                 target: DamageTarget::Player(1),
                 amount: 7,
                 is_combat: true,
-                unpreventable: false
+                unpreventable: false,
+                source_frame: None,
             }, &test_ctx()).unwrap();
         }
 
@@ -2361,7 +2381,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 4,
             is_combat: false,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
@@ -2378,7 +2399,8 @@ mod tests {
             target: DamageTarget::Player(1),
             amount: 2,
             is_combat: true,
-            unpreventable: false
+            unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert!(!game.players[1].commander_damage_taken.contains_key(&bears_id));
@@ -2406,10 +2428,12 @@ mod tests {
         let cmdr_b = build_cmdr(&mut game, "General B");
 
         game.execute_action(GameAction::DealDamage {
-            source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false
+            source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
-            source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false
+            source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
+            source_frame: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_a).copied(), Some(3));

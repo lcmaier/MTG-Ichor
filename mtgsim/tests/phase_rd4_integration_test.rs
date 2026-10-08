@@ -84,7 +84,7 @@ fn deal(
     ctx: &ActionContext,
 ) {
     game.execute_action(
-        GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable },
+        GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable, source_frame: None },
         ctx,
     )
     .unwrap();
@@ -451,6 +451,7 @@ fn reflect_damage_sends_the_next_damage_back_to_its_sources_controller() {
             amount: 4,
             is_combat: false,
             unpreventable: false,
+            source_frame: None,
         },
         &ctx,
     )
@@ -486,6 +487,7 @@ fn a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row() {
             amount: 4,
             is_combat: false,
             unpreventable: false,
+            source_frame: None,
         },
         &ctx,
     )
@@ -767,6 +769,7 @@ fn under_a_cant_be_prevented_row_the_angel_still_mills_and_reverse_damage_gains_
             amount: 3,
             is_combat: false,
             unpreventable: false,
+            source_frame: None,
         },
         &ctx,
     )

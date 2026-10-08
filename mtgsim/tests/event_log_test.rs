@@ -12,9 +12,11 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_cv_cards::cryptoplasm;
 use mtgsim::cards::phase_tr1_cards::soul_warden;
+use mtgsim::cards::phase_tr3a_cards::blessed_wine;
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -26,6 +28,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::triggers::{DelayedDuration, EventKind};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -365,4 +368,67 @@ fn chosen_pump() -> Arc<CardData> {
             ),
         })
         .build()
+}
+
+// ---------------------------------------------------------------------------
+// A delayed trigger, from its creation to its resolution
+// ---------------------------------------------------------------------------
+
+/// The owner's Blessed Wine log: between the spell resolving and its draw a
+/// turn later, the log said nothing, and the draw's lines named the trigger
+/// `#0`. Its creation now has a line saying what it will do (CR 603.7a), and
+/// the lines a turn later name the same trigger by the number that line gave
+/// it.
+#[test]
+fn a_delayed_trigger_is_announced_as_it_is_created_and_named_when_it_triggers() {
+    let mut game = setup_two_player_game();
+    let wine = cast_from_pool(&mut game, 0, blessed_wine(), &[(ManaType::White, 1), (ManaType::Colorless, 1)], test_dp());
+    resolve_top(&mut game);
+    let created = format!(
+        "DelayedTriggerCreated: Blessed Wine ({wine})'s delayed trigger 1 [P0], once: \"Draw a card at the beginning of the next turn's upkeep.\""
+    );
+    let log = format_event_log(&game);
+    assert_eq!(log.iter().filter(|l| l.starts_with("DelayedTriggerCreated")).count(), 1, "{log:#?}");
+    assert!(log.contains(&created), "no {created:?} in {log:#?}");
+
+    advance_to(&mut game, 1, StepType::Upkeep);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    resolve_top(&mut game);
+
+    let log = format_event_log(&game);
+    let triggered = format!("AbilityTriggered: Blessed Wine ({wine})'s delayed trigger 1 [P0]");
+    let resolved = format!("AbilityResolved: Blessed Wine ({wine})'s delayed trigger 1 [P0]");
+    for line in [&triggered, &resolved] {
+        assert!(log.contains(line), "no {line:?} in {log:#?}");
+    }
+    let order: Vec<usize> =
+        [&created, &triggered, &resolved].iter().map(|line| log.iter().position(|l| l == *line).unwrap()).collect();
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "created, then triggered, then resolved: {order:?}");
+}
+
+/// The record comes before anything the trigger could read, so a trigger
+/// created during an event never sees its own creation (CR 603.7a), and it
+/// is no record a trigger reads at all.
+#[test]
+fn a_delayed_triggers_creation_is_recorded_once_and_triggers_nothing() {
+    let mut game = setup_two_player_game();
+    cast_from_pool(&mut game, 0, blessed_wine(), &[(ManaType::White, 1), (ManaType::Colorless, 1)], test_dp());
+    resolve_top(&mut game);
+
+    let creations: Vec<_> = game
+        .recorded_events()
+        .records()
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::DelayedTriggerCreated { .. }))
+        .map(|r| r.seq)
+        .collect();
+    assert_eq!(creations.len(), 1);
+    assert!(game.delayed_triggers[0].created_at > creations[0], "created after its own record");
+    assert_eq!(EventKind::from_record(&GameEvent::DelayedTriggerCreated {
+        id: game.delayed_triggers[0].id,
+        source: game.delayed_triggers[0].source.id,
+        controller: 0,
+        rules_text: game.delayed_triggers[0].rules_text,
+        duration: DelayedDuration::Once,
+    }), None);
 }

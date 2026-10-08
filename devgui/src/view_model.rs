@@ -14,7 +14,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mtgsim::events::event::EventSeq;
 use mtgsim::types::ids::PlayerId;
+use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
+use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
 
 use crate::bridge::{Outcome, ToWindow};
@@ -878,6 +880,9 @@ pub struct BoardView {
     pub pending_triggers: Vec<Item>,
     pub exile: Vec<Item>,
     pub command: Vec<Item>,
+    /// What the game is holding for later, closed until opened; `None`
+    /// while nothing is, as an empty exile is not shown.
+    pub waiting: Option<ZoneView>,
 }
 
 /// Which board things a click would move the answer along, which the answer
@@ -1026,24 +1031,60 @@ impl BoardView {
             pending_triggers: board
                 .pending_triggers
                 .iter()
-                .map(|trigger| Item {
-                    target: None,
-                    title: trigger.source.clone(),
-                    detail: format!("Player {}'s trigger, not yet on the stack", trigger.controller),
-                    clickable: false,
-                    chosen: false,
-                    subject: false,
-                    tapped: false,
-                    hover: String::new(),
-                    printed: None,
-                    type_line: None,
-                    why_hint: None,
+                .map(|trigger| {
+                    note(trigger.source.clone(), format!("Player {}'s trigger, not yet on the stack", trigger.controller))
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),
             command: board.command.iter().map(|card| owned(marks, card)).collect(),
+            waiting: waiting_zone(&board.waiting),
         }
     }
+}
+
+/// A line on the board that names nothing a click could choose.
+fn note(title: String, detail: String) -> Item {
+    Item {
+        target: None,
+        title,
+        detail,
+        clickable: false,
+        chosen: false,
+        subject: false,
+        tapped: false,
+        hover: String::new(),
+        printed: None,
+        type_line: None,
+        why_hint: None,
+    }
+}
+
+/// The Waiting panel: each delayed trigger in the order it was made, its
+/// words and when it can trigger, then each extra turn in the order it will
+/// be taken.
+fn waiting_zone(waiting: &Waiting) -> Option<ZoneView> {
+    let triggers = waiting.delayed_triggers.iter().map(|trigger| {
+        let fires = match trigger.duration {
+            DelayedDuration::Once => "once",
+            DelayedDuration::ThisTurn => "each time this turn",
+        };
+        let turn = match trigger.turn {
+            TriggersIn::AnyTurn => "in any turn".to_string(),
+            TriggersIn::TurnAfter(turn) => format!("in a turn after turn {turn}"),
+            TriggersIn::ExtraTurn { in_progress: true, .. } => "in this extra turn".to_string(),
+            TriggersIn::ExtraTurn { player, in_progress: false } => format!("in Player {player}'s extra turn"),
+        };
+        note(
+            format!("{}'s delayed trigger {}", trigger.source, trigger.id.0),
+            format!("\"{}\"\nPlayer {}'s · {fires} · {turn}", trigger.text, trigger.controller),
+        )
+    });
+    let turns = waiting.extra_turns.iter().enumerate().map(|(place, turn)| {
+        let when = if place == 0 { "taken next" } else { "taken after the one above" };
+        note(format!("Player {}'s extra turn", turn.player), when.to_string())
+    });
+    let items: Vec<Item> = triggers.chain(turns).collect();
+    (!items.is_empty()).then(|| ZoneView { name: format!("Waiting ({})", items.len()), key: "waiting", items, open: false })
 }
 
 fn owned(marks: &Marks, card: &CardView) -> Item {
@@ -1367,6 +1408,45 @@ mod tests {
         assert_eq!(line.text, "Land — Mountain");
         assert_eq!(item(&view, priest).detail, "Creature — Human Cleric");
         assert_eq!(item(&view, priest).type_line, None, "a hand card's line is its detail");
+    }
+
+    /// The Waiting panel's rows (`ui::waiting`): Blessed Wine's draw and
+    /// Final Fortune's loss in the order they were made, each with its words
+    /// and when it can trigger, then the extra turn; closed until opened.
+    #[test]
+    fn the_waiting_panel_lists_each_delayed_trigger_then_each_extra_turn() {
+        use mtgsim::cards::phase_tr3a_cards::{blessed_wine, final_fortune};
+        use mtgsim::engine::resolve::ResolutionContext;
+        let mut game = setup_two_player_game();
+        let wine = put_in_hand(&mut game, blessed_wine(), 0);
+        let fortune = put_in_hand(&mut game, final_fortune(), 0);
+        let nothing = WindowState { board: Some(Snapshot::build(&game, 0)), ..WindowState::default() }.board_view().unwrap();
+        assert_eq!(nothing.waiting, None, "not shown while nothing waits");
+        for (id, ability) in [(wine, 1), (fortune, 0)] {
+            let effect = game.get_object(id).unwrap().card_data.abilities[ability].effect.clone();
+            game.resolve_effect(&effect, &ResolutionContext::untargeted(id, 0), &mtgsim::test_support::test_dp()).unwrap();
+        }
+        let view = WindowState { board: Some(Snapshot::build(&game, 0)), ..WindowState::default() }.board_view().unwrap();
+        let waiting = view.waiting.expect("shown once something waits");
+
+        let rows: Vec<(String, String)> = waiting.items.iter().map(|item| (item.title.clone(), item.detail.clone())).collect();
+        let turn = game.turn_number;
+        assert_eq!(
+            rows,
+            [
+                (
+                    format!("Blessed Wine ({wine})'s delayed trigger 1"),
+                    format!("\"Draw a card at the beginning of the next turn's upkeep.\"\nPlayer 0's · once · in a turn after turn {turn}"),
+                ),
+                (
+                    format!("Final Fortune ({fortune})'s delayed trigger 2"),
+                    "\"At the beginning of that turn's end step, you lose the game.\"\nPlayer 0's · once · in Player 0's extra turn".to_string(),
+                ),
+                ("Player 0's extra turn".to_string(), "taken next".to_string()),
+            ]
+        );
+        assert_eq!((waiting.name.as_str(), waiting.open), ("Waiting (3)", false));
+        assert!(waiting.items.iter().all(|item| !item.clickable && item.target.is_none()), "nothing in it is a choice");
     }
 
     #[test]
