@@ -214,7 +214,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- (none — nothing half-finished)
+- `plans/handoffs/tr-3b-devgui-notes.md`
 
 ## What this file deliberately does not know
 

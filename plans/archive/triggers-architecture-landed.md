@@ -1014,6 +1014,10 @@ of the window" does not hold (item 3). Ten facilities the rows did not list:
 5. **A return names its controller.** CR 610.3c's "unless otherwise specified"
    and Flickerwisp's "under its owner's control" need it. ATOM-610.3c-002 is a
    fixture, since no printed until-exile says "under your control".
+   *(Sharpened at the review: that is the until shape only. `ReturnUnder::You`
+   itself has printed customers in plenty, Cloudshift's and Restoration
+   Angel's flickers and Animate Dead's reanimation among the 60 cards that
+   print "return … to the battlefield under your control".)*
 6. **CR 303.4f/g's host choice.** Who chooses: the player under whose control
    the Aura enters. From what: what CR 704.5m's check accepts, among
    permanents already on the battlefield (Calix's last ruling). Which prompt.

@@ -1319,14 +1319,15 @@ beginning of the next end step" names an `ObjectRef { id, zone_change_epoch }`
 and finds nothing if the epoch moved (CR 400.7), which is Sneak Attack's
 ruling and Flickerwisp's board.
 
-A **reflexive** trigger (603.12) is a delayed entry with `reflexive:
-Some(stamp)`, created by `Effect::Reflexive { when: ReflexiveEvent, then }`
-as the resolution reaches it, and **checked immediately**: the window is
-the records with that stamp up to `created.record`. `ReflexiveEvent` is a
-`TriggerEvent` restricted to what the resolution's own instructions can
-perform — "when you do" is the `ZoneChange { cause: Sacrificed }` the
-preceding `Optional` proposed; if none matched, the entry is dropped
-silently. Heart-Piercer Manticore's first ruling is the shape ("goes on the
+A **reflexive** trigger (603.12) is a delayed entry created as the
+resolution reaches it and **checked immediately**: the window is the records
+with that stamp up to `created.record`. *(Amended at TR-3b's review,
+2026-10-08: this sketch named an `Effect::Reflexive { when, then }`, which
+no code ever had. TR-3c builds it as `Primitive::CreateDelayedTrigger` with
+`DelayedDuration::Reflexive`, its row in §12 says why.)* Its trigger event
+reads what the resolution's own instructions performed: "when you do" is
+the `ZoneChange { cause: Sacrificed }` the preceding `Optional` proposed; if
+none matched, the entry is dropped silently. Heart-Piercer Manticore's first ruling is the shape ("goes on the
 stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
