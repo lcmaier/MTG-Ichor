@@ -32,6 +32,7 @@ use crate::types::triggers::{
     Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq,
     TriggerTurn,
 };
+use crate::types::zones::UntilReturn;
 use crate::ui::ask::ask_choose_delayed_trigger_event;
 use crate::ui::choice_types::ChoiceOption;
 
@@ -119,35 +120,37 @@ impl GameState {
         }
     }
 
-    /// CR 610.3 — the "until" returns whose event a record of the window is,
-    /// by their place on `until_returns`, in the order they were made. The
-    /// event is read as a trigger arm is, "this" being the exile's source and
-    /// "that" what it refers to, each by identity, and a record before the
-    /// return was made does not count.
-    pub(crate) fn events_ending_an_until(&self, window: &[EventSeq]) -> Vec<usize> {
+    /// CR 610.3 — take off `until_returns` every return whose event happened
+    /// in `window`, oldest first.
+    pub(crate) fn take_returns_due(&mut self, window: &[EventSeq]) -> Vec<UntilReturn> {
         if self.until_returns.is_empty() {
             return Vec::new();
         }
-        let mut ended = Vec::new();
-        for (at, until) in self.until_returns.iter().enumerate() {
-            let referents = TriggerReferents {
-                this: ThisObject::Remembered(until.source),
-                controller: until.controller,
-                owner: self.objects.get(&until.source.object.id).map_or(until.controller, |o| o.owner),
-                host: None,
-                this_ability: None,
-                referred: &until.referred,
-            };
-            let happened = window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
-                record.seq >= until.created_at
-                    && until.until.reads(&record.event)
-                    && !self.occurrences_matching_arm(&until.until, &referents, record.seq, &record.event).is_empty()
-            });
-            if happened {
-                ended.push(at);
-            }
-        }
-        ended
+        let (due, waiting): (Vec<UntilReturn>, Vec<UntilReturn>) =
+            std::mem::take(&mut self.until_returns).into_iter().partition(|until| self.is_due(until, window));
+        self.until_returns = waiting;
+        due
+    }
+
+    /// Whether `window` holds the event `until` waits for. The event is
+    /// matched the way a trigger condition is: "this" is the source of the
+    /// exiling ability, and "that" is the target the "until" names (Calix's
+    /// enchantment), both by identity. An event recorded before the return
+    /// was made does not count.
+    fn is_due(&self, until: &UntilReturn, window: &[EventSeq]) -> bool {
+        let referents = TriggerReferents {
+            this: ThisObject::Remembered(until.source),
+            controller: until.controller,
+            owner: self.objects.get(&until.source.object.id).map_or(until.controller, |o| o.owner),
+            host: None,
+            this_ability: None,
+            referred: &until.referred,
+        };
+        window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
+            record.seq >= until.created_at
+                && until.until.reads(&record.event)
+                && !self.occurrences_matching_arm(&until.until, &referents, record.seq, &record.event).is_empty()
+        })
     }
 
     /// CR 514.2: the cleanup step ends "this turn" effects, and a delayed

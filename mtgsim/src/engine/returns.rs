@@ -166,32 +166,22 @@ impl GameState {
         Ok(watched.is_empty() || !watched.iter().all(here))
     }
 
-    /// CR 610.3 — perform the returns `ended` names, now and as one event,
+    /// CR 610.3 — perform the returns that are `due`, now and as one event,
     /// since one-shot effects created after simultaneous events are
     /// simultaneous (610.3d). Each object goes back to its previous zone
     /// while it is still the object the exile moved (CR 400.7), a permanent
     /// under its owner's control unless the card said otherwise (610.3c).
-    /// The return is no part of a resolution whose batch caused the leaving.
-    pub(crate) fn return_until(&mut self, ended: Vec<usize>, ctx: Option<&ActionContext>) -> Result<(), String> {
-        if ended.is_empty() {
+    /// The return is no part of a resolution whose batch caused the event.
+    pub(crate) fn return_until(&mut self, due: Vec<UntilReturn>, ctx: Option<&ActionContext>) -> Result<(), String> {
+        if due.is_empty() {
             return Ok(());
         }
-        let mut at = 0;
-        let mut taken = Vec::new();
-        self.until_returns.retain(|until| {
-            let keep = !ended.contains(&at);
-            if !keep {
-                taken.push(until.clone());
-            }
-            at += 1;
-            keep
-        });
         let Some(ctx) = ctx else {
-            debug_assert!(false, "a departure from the battlefield is performed in a batch, which has a provider");
+            debug_assert!(false, "a leaving is performed in a batch, which has a provider (item 230 for any other event)");
             return Ok(());
         };
         let mut returns = Vec::new();
-        for until in taken {
+        for until in due {
             for (object, to) in until.returns {
                 let Some(object) = RememberedObject::now(object).found(self) else { continue };
                 let controller = match until.under {
