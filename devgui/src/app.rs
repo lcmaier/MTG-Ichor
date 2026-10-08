@@ -580,7 +580,8 @@ fn edit_button(ui: &mut egui::Ui, button: &EditButton, inputs: &mut Vec<Input>) 
     }
 }
 
-/// The stack, empty or not, then each other shared zone that holds anything.
+/// The stack, empty or not, then each other shared zone that holds anything,
+/// then what is waiting, if anything, under a header that starts closed.
 fn side_panel(ui: &mut egui::Ui, board: &BoardView, inputs: &mut Vec<Input>) {
     ui.strong("Stack, top first");
     if board.stack.is_empty() {
@@ -599,6 +600,9 @@ fn side_panel(ui: &mut egui::Ui, board: &BoardView, inputs: &mut Vec<Input>) {
         for entry in items {
             item(ui, entry, inputs);
         }
+    }
+    if let Some(waiting) = &board.waiting {
+        zone_view(ui, waiting, inputs);
     }
 }
 

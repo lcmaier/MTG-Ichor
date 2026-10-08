@@ -19,6 +19,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
+use mtgsim::ui::waiting::{Waiting, what_is_waiting};
 use mtgsim::ui::display::{
     TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_event, format_permanent, format_phase,
     keyword_name, named, player_name, printed_faces,
@@ -34,6 +35,8 @@ pub struct Snapshot {
     /// Top first.
     pub stack: Vec<StackItem>,
     pub pending_triggers: Vec<PendingTriggerView>,
+    /// What the game is holding for later, as the engine describes it.
+    pub waiting: Waiting,
     pub exile: Vec<CardView>,
     pub command: Vec<CardView>,
     /// What happened since the previous snapshot, a line an event.
@@ -201,6 +204,7 @@ impl Snapshot {
                     source: named(game, trigger.origin.source()),
                 })
                 .collect(),
+            waiting: what_is_waiting(game),
             exile: cards(game, &lines, &game.exile),
             command: cards(game, &lines, &game.command),
             log,
