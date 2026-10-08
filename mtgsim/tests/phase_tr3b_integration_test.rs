@@ -967,3 +967,14 @@ fn the_waiting_view_shows_an_until_return() {
     assert!(waiting.until_returns[0].watched.contains("Banishing Light"));
     assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
 }
+
+// ---------------------------------------------------------------------------
+// 5. Item 226
+// ---------------------------------------------------------------------------
+
+/// Cobbled Wings prints {2} (Scryfall, 2026-10-08); it was built at {1}.
+#[test]
+fn cobbled_wings_costs_two() {
+    let cost = cobbled_wings().mana_cost.as_ref().map(|cost| cost.mana_value());
+    assert_eq!(cost, Some(2));
+}

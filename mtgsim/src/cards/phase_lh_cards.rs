@@ -218,7 +218,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
     CardDataBuilder::new("Cobbled Wings")
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
-        .mana_cost(ManaCost::build(&[], 1))
+        .mana_cost(ManaCost::build(&[], 2))
         .rules_text("Equipped creature has flying.\nEquip {1}")
         .ability(AbilityDef {
             rules_text: "Equipped creature has flying.".into(),
