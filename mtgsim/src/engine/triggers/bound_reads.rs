@@ -37,7 +37,10 @@ impl BoundReads {
     pub const SOURCE: BoundReads = BoundReads(1 << 4);
     /// "This ability": its CR 603.2h gate and its CR 603.7h count.
     pub const ABILITY: BoundReads = BoundReads(1 << 5);
-    const EVERYTHING: BoundReads = BoundReads((1 << 6) - 1);
+    /// "That card", "that token": what a delayed trigger refers to (CR
+    /// 603.7c).
+    pub const REFERRED: BoundReads = BoundReads(1 << 6);
+    const EVERYTHING: BoundReads = BoundReads((1 << 7) - 1);
 
     pub fn contains(self, fact: BoundReads) -> bool {
         self.0 & fact.0 == fact.0
@@ -69,6 +72,7 @@ fn effect(e: &Effect) -> BoundReads {
         Effect::Sequence(effects) => effects.iter().fold(BoundReads::NOTHING, |reads, e| reads | effect(e)),
         Effect::Conditional(test, inner) => condition(test) | effect(inner),
         Effect::Optional { chooser, effect: inner } => player_ref(chooser) | effect(inner),
+        Effect::Remember(inner) => effect(inner),
         Effect::ForEach(over, inner) => selector(over) | effect(inner),
         Effect::Repeat(times, inner) => amount(times) | effect(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
@@ -94,6 +98,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
         EffectRecipient::TriggeringObject => BoundReads::SUBJECT,
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
+        EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
             let count = match &pick.count {
@@ -187,9 +192,10 @@ fn primitive(p: &Primitive) -> BoundReads {
     match p {
         Primitive::Destroy
         | Primitive::Exile
+        | Primitive::ExileUntil { .. }
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
-        | Primitive::ReturnToBattlefield
+        | Primitive::ReturnToBattlefield(_)
         | Primitive::PutOnTopOfLibrary
         | Primitive::PutOnBottomOfLibrary
         | Primitive::ShuffleIntoLibrary

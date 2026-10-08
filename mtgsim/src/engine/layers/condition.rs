@@ -81,8 +81,8 @@ pub(super) fn holds(
         // would answer `false` for the one question being asked counterfactually.
         //
         // **Battlefield sources never see a `false` here**, because leaving the
-        // battlefield calls `remove_by_source`, which drops every row of that
-        // source whatever its duration. That is still not a second spelling of the
+        // battlefield calls `remove_rows_ending_with`, which drops every row its
+        // static abilities generate. That is still not a second spelling of the
         // duration — the duration decides whether the row is in the registry, and
         // this decides whether the effect exists given that it is.
         Condition::SourceInZone(zones) => board.in_zones_or_entering(game, source, *zones),

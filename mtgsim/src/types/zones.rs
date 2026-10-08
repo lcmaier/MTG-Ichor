@@ -1,4 +1,33 @@
-use crate::types::ids::ObjectId;
+use crate::events::event::EventSeq;
+use crate::types::effects::ReturnUnder;
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::triggers::{RememberedObject, TriggerEvent};
+
+/// CR 610.3 — the return an "until" exile waits to make: a one-shot effect
+/// created immediately after its event, which uses no stack and is no
+/// triggered ability. On `GameState::until_returns` from the exile until its
+/// event happens.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UntilReturn {
+    /// The specified event, read as a trigger arm is.
+    pub until: TriggerEvent,
+    /// "This" in the event: the object whose ability exiled, or the spell,
+    /// by identity.
+    pub source: RememberedObject,
+    /// What the event refers to: the target "until target enchantment
+    /// leaves the battlefield" named, by identity.
+    pub referred: Vec<RememberedObject>,
+    /// Each object the exile moved, by identity where it put it, and the zone
+    /// it returns to (CR 610.3: "its previous zone").
+    pub returns: Vec<(ObjectRef, Zone)>,
+    /// Whose control a returned permanent enters under (CR 610.3c).
+    pub under: ReturnUnder,
+    /// The exile's controller, the "you" of `ReturnUnder::You`.
+    pub controller: PlayerId,
+    /// The first record performed after it was made: an event before it is
+    /// not the one it waits for.
+    pub created_at: EventSeq,
+}
 
 /// Game zones (rule 400.1)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

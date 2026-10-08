@@ -37,6 +37,98 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-08 for TR-3b** (the returns and "until": item 223's
+row half, `Effect::Remember`, `ReturnToBattlefield` with CR 303.4f/g, CR
+610.3's returns). Flickerwisp and Banishing Light join the registry and the
+pool (185 → 187 registered, 104 → 106 pooled), and Cobbled Wings costs its
+printed {2} (item 226), so both §3 columns are new baselines.
+`close_out.py` against **main** `bf406d3` (#233's merge), with two arms:
+**engine** `7030a47` (every engine commit, the two cards written and not
+registered) and **shipped** (item 226 and the registration).
+
+**Predictions, before any arm ran:**
+- engine `IDENTICAL` to `main` on both pools, gameplay and cost rows, at two
+  seats and four. No registered card's ability makes a "for as long as"
+  row, so the narrowed sweep ends what it ended before. A row an ability
+  makes now names the permanent, which nothing that decides play reads. The
+  new primitives have no registered user, and the held window changes when
+  records flush, not what they say.
+- Every dispatch agreed.
+- Instructions per decision, engine against `main`, within ±0.3%.
+- shipped differing from `main` on both pools by the pool.
+- Reachability: each card cast in about half of the games.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Candidate visits`, `main` → engine, performance / stress | 44.8 → 44.8 / 37.9 → 37.9 | 140.3 → 140.3 / 158.1 → 157.5 |
+| audit, engine, performance / stress, dispatches agreed | 165,363 / 166,572 | 337,395 / 349,829 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the pool, item 226) | differ (the pool) / differ (the pool, item 226) |
+| audit, shipped, performance / stress, dispatches agreed | 162,715 / 171,434 | 333,105 / 359,864 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6432 M → 0.6434 M, **+0.04%** |
+
+Every prediction held but one cost row. `Candidate visits` fell from 158.1 to
+157.5 at four seats on `stress`, with gameplay unchanged. That is the look-back
+gate's narrowing. A spell's "until end of turn" row used to put the spell
+in `ability_list_sources`, so a four-seat player's loss, which departs
+everything they own, took a snapshot for it. The row outlives its source
+(CR 611.2a), so no list changes and no snapshot is needed. Every other cost
+row read `main`'s to the digit. The audit agreed on every dispatch, and the
+sitting ran in 118 s.
+
+**Reachability**, shipped, `--require "Flickerwisp,Banishing Light"`,
+`stress`, 200 games. At two seats, Flickerwisp was cast 160 times in 112
+games (56%) and Banishing Light 158 times in 110 (55%). At four seats, 103
+times in 91 games (46%) and 112 times in 88 (44%). Before registering, 200
+`stress` games at seed 12345 with each card required read no error, panic or
+turn-limit game at either seat count, and moved average turns by about one
+at most. Their event dumps hold 126 returns from exile through Flickerwisp
+and 42 through Banishing Light's "until".
+
+**The review round** (after the sitting): the until-event became any
+`TriggerEvent`, CR 111.8 landed, and the 611.2b predicate moved onto
+`Duration`. Predicted identical to shipped, since every registered "until"
+waits for a leaving, matched now by the trigger matcher instead of by hand.
+A token exiled by Flickerwisp or Banishing Light ceases to exist before any
+return could find it. `fuzz_ab.py` against shipped `a8fc1da`, 200 games at
+seed 12345: every row outside timing **IDENTICAL** on both pools at two seats
+and four. The fixture rows below stand.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** Both columns
+are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 21 (42.0%) / 29 (58.0%) | 26 (52.0%) / 24 (48.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 27.8 | 26.6 |
+| Spells cast | 21.3 | 20.7 |
+| Lands played | 16.5 | 16.6 |
+| Combat w/ atk | 10.3 | 8.7 |
+| Creatures died | 6.7 | 5.9 |
+| Damage events | 21.3 | 19.6 |
+| Total damage | 54.6 | 59.2 |
+| Life changes | 14.9 | 14.3 |
+| **Layer walks** | **320** | **387** |
+| **Board walks** | **199** | **231** |
+| **Memo hits** | **49,407** | **62,842** |
+| **Layer frames** | **3,671** | **4,503** |
+| **Frames/walk** | **11.46** | **11.62** |
+| **Dependency checks** | **6** | **21** |
+| **Replacement gathers** | **958** | **987** |
+| **Restriction queries** | **959** | **991** |
+| Mana productions | 62 | 83 |
+| Prevention allocations | 0.02 | 0.04 |
+| Replacement prompts | 0.20 | 1.90 |
+| Max batch depth | 5 | 5 |
+| Decisions | 182 | 239 |
+| Priority decisions | 68 | 92 |
+| Actions reversed | 0.2 | 0.1 |
+| Triggers placed | 2.0 | 2.4 |
+| Windows past gate | 31.2 | 51.0 |
+| Candidate visits | 37.1 | 56.4 |
+| Trigger matches | 3.0 | 3.5 |
+
 **Re-recorded 2026-10-08 for TR-3a's dev GUI notes** (#233: item 223's event
 half, a source that left dealing its damage as it last existed, the delayed
 trigger's creation record and the Waiting panel). Loxodon Warhammer joins the

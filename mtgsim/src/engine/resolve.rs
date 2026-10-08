@@ -4,7 +4,7 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
-use crate::events::event::{CounterSubject, DamageTarget, LossReason};
+use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
@@ -12,7 +12,7 @@ use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -20,7 +20,9 @@ use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-use crate::types::triggers::{DelayedProvenance, DelayedTurn, TriggerTurn};
+use crate::engine::returns::Return;
+use crate::engine::triggers::bound_reads::BoundReads;
+use crate::types::triggers::{DelayedProvenance, DelayedTurn, Referred, RememberedObject, TriggerEvent, TriggerTurn};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -98,6 +100,11 @@ impl ResolutionContext {
     pub fn effect_source(&self) -> ObjectId {
         self.ability_source.map_or(self.source, |r| r.id)
     }
+
+    /// What every event this resolution performs is stamped with.
+    pub fn stamp(&self) -> ResolutionStamp {
+        ResolutionStamp { source: self.source, controller: self.controller }
+    }
 }
 
 /// One resolution's walk over its effect tree: its place among the instances
@@ -112,12 +119,24 @@ struct ResolutionWalk {
     /// The extra turn this resolution's last `ExtraTurn` scheduled: what
     /// "that turn" names (Final Fortune; CR 500.7).
     extra_turn: Option<ExtraTurnId>,
+    /// While `Effect::Remember`'s instruction runs, the objects and players
+    /// its atom was handed.
+    remembering: Option<Vec<ResolvedTarget>>,
+    /// CR 603.7c — what `Effect::Remember`'s instruction acted on, which a
+    /// delayed trigger created after it refers to.
+    remembered: Option<Referred>,
 }
 
 impl ResolutionWalk {
     /// Before the effect's first atom: no instance used, no action taken.
     fn start() -> Self {
-        ResolutionWalk { instance_cursor: 0, last_cost_answer: None, extra_turn: None }
+        ResolutionWalk {
+            instance_cursor: 0,
+            last_cost_answer: None,
+            extra_turn: None,
+            remembering: None,
+            remembered: None,
+        }
     }
 }
 
@@ -197,7 +216,9 @@ impl GameState {
             // slice it already reads — empty when CR 603.6 finds nothing.
             Effect::Atom(
                 primitive,
-                recipient @ (EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer),
+                recipient @ (EffectRecipient::TriggeringObject
+                | EffectRecipient::TriggeringPlayer
+                | EffectRecipient::Referred),
             ) => {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
@@ -354,6 +375,28 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 603.7c — what this instruction acts on is "that card" for a
+            // delayed trigger created after it, read back off the records it
+            // performed once it has.
+            Effect::Remember(inner) => {
+                let Effect::Atom(primitive, _) = inner.as_ref() else {
+                    return Err(format!(
+                        "`Effect::Remember` on {:?} marks {:?}, which is not one instruction",
+                        ctx.source, inner
+                    ));
+                };
+                if walk.remembered.is_some() {
+                    return Err(format!("{:?} remembers a second instruction; a resolution remembers one", ctx.source));
+                }
+                let mark = self.events.next_seq();
+                walk.remembering = Some(Vec::new());
+                let result = self.resolve_effect_at(inner, ctx, dp, declared, walk);
+                let acted_on = walk.remembering.take().unwrap_or_default();
+                result?;
+                walk.remembered = Some(self.remembered_since(primitive, &acted_on, ctx, mark));
+                Ok(())
+            }
+
             Effect::Modal { .. } => {
                 // Mode choice — `backlog.md` §2.7.
                 Err("Modal effects not yet implemented".to_string())
@@ -388,6 +431,9 @@ impl GameState {
         // Every mutation a primitive proposes belongs to *this* resolution
         // (CR 614.15 / the resolution stamp on each emitted event).
         let actx = ActionContext::resolving(dp, ctx);
+        if let Some(acted_on) = walk.remembering.as_mut() {
+            acted_on.extend_from_slice(targets);
+        }
         match primitive {
             // === One-shot primitives ===
 
@@ -678,6 +724,44 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 610.3 — the exile, unless its event has already happened
+            // since the spell was cast or the ability triggered (610.3a, b).
+            // Then the return it waits to make, of what it exiled.
+            Primitive::ExileUntil { until, refers_to, under } => {
+                let referred: Vec<ObjectRef> = match refers_to {
+                    None => Vec::new(),
+                    Some(_) => {
+                        let ix = walk.instance_cursor;
+                        walk.instance_cursor += 1;
+                        ctx.targets
+                            .instance(ix)
+                            .iter()
+                            .filter_map(|t| match t {
+                                ResolvedTarget::Object(id) => self.object_ref(*id),
+                                ResolvedTarget::Player(_) => None,
+                            })
+                            .collect()
+                    }
+                };
+                let spell = || self.object_ref(ctx.source).ok_or_else(|| format!("{} is not in the game", ctx.source));
+                let source = match ctx.ability_source {
+                    Some(source) => source,
+                    None => spell()?,
+                };
+                if self.until_has_happened(until, ctx.ability_source, &referred)? {
+                    return Ok(());
+                }
+                let mark = self.events.next_seq();
+                let batch = self.events_for(&Primitive::Exile, targets, ctx)?;
+                if batch.is_empty() {
+                    return Ok(());
+                }
+                self.execute_actions(batch, &actx)?;
+                let returns = self.exiled_since(ctx.stamp(), mark);
+                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller);
+                Ok(())
+            }
+
             // CR 500.7 — scheduling, not a mutation: the extra turn becomes a
             // `GameAction::BeginTurn` proposal when the drainer reaches it, which is
             // what a skip replaces (CR 614.10a). Pushed, because "the most recently
@@ -726,7 +810,18 @@ impl GameState {
                     x_value: resolving.and_then(|r| r.x_value),
                     turn,
                 };
-                self.register_delayed_trigger(template, provenance);
+                // CR 603.7c — its "that card" is what this resolution
+                // remembered; a template that names one with nothing
+                // remembered is a card missing its `Effect::Remember`.
+                let names_referred = template.def.bound_reads().contains(BoundReads::REFERRED)
+                    || template.def.condition.events().iter().any(TriggerEvent::watches_referred);
+                if names_referred && walk.remembered.is_none() {
+                    return Err(format!(
+                        "a delayed trigger on {} refers to an object its resolution never remembered (`Effect::Remember`)",
+                        ctx.source
+                    ));
+                }
+                self.register_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default());
                 Ok(())
             }
 
@@ -920,7 +1015,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7cModifyPT,
                     duration: *duration,
@@ -950,7 +1045,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7bSetPT,
                     duration: *duration,
@@ -980,7 +1075,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7dSwitchPT,
                     duration: *duration,
@@ -1010,7 +1105,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer5Color,
                     duration: *duration,
@@ -1045,7 +1140,7 @@ impl GameState {
                 for modification in modifications {
                     let effect = crate::engine::layers::ContinuousEffect {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         origin: crate::engine::layers::EffectOrigin::Resolution,
                         layer: crate::engine::layers::Layer::Layer4Type,
                         duration: *duration,
@@ -1182,7 +1277,7 @@ impl GameState {
                     .with_then(crate::types::replacement::regeneration_rider());
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
@@ -1245,7 +1340,8 @@ impl GameState {
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::TriggeringObject
-                    | EffectRecipient::TriggeringPlayer => {
+                    | EffectRecipient::TriggeringPlayer
+                    | EffectRecipient::Referred => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
@@ -1381,7 +1477,7 @@ impl GameState {
                 for def in rows {
                     self.restrictions.add(RegisteredRestriction {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         controller: ctx.controller,
                         duration: *duration,
                         created_on_turn: self.turn_number,
@@ -1513,7 +1609,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 self.continuous_effects.add(ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: EffectOrigin::Resolution,
                     layer: Layer::Layer2Control,
                     duration: *duration,
@@ -1555,7 +1651,8 @@ impl GameState {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::TriggeringObject
-                    | EffectRecipient::TriggeringPlayer => targets
+                    | EffectRecipient::TriggeringPlayer
+                    | EffectRecipient::Referred => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -1594,10 +1691,24 @@ impl GameState {
                 Ok(())
             }
 
+            // Each object from where it is now, as one event (CR 608.2f),
+            // under its owner's control or the effect's controller's.
+            Primitive::ReturnToBattlefield(under) => {
+                let mut returns = Vec::new();
+                for target in targets {
+                    let ResolvedTarget::Object(object) = *target else { continue };
+                    let controller = match under {
+                        ReturnUnder::Owner => self.get_object(object)?.owner,
+                        ReturnUnder::You => ctx.controller,
+                    };
+                    returns.push(Return { object, to: Zone::Battlefield, controller });
+                }
+                self.return_objects(&returns, &actx)
+            }
+
             // === Unimplemented primitives — `backlog.md` §2.5 ===
 
             Primitive::ReturnToHand
-            | Primitive::ReturnToBattlefield
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
             | Primitive::ShuffleIntoLibrary
@@ -1644,7 +1755,7 @@ impl GameState {
         let timestamp = self.allocate_timestamp();
         let row = self.continuous_effects.add(ContinuousEffect {
             id: 0,
-            source: ctx.source,
+            source: ctx.effect_source(),
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer6Ability,
             duration,
@@ -1913,7 +2024,7 @@ impl GameState {
             let timestamp = self.allocate_timestamp();
             self.continuous_effects.add(ContinuousEffect {
                 id: 0,
-                source: ctx.source,
+                source: ctx.effect_source(),
                 origin: EffectOrigin::Resolution,
                 layer: Layer::Layer1Copy,
                 duration,
@@ -2531,6 +2642,57 @@ impl GameState {
         looked_back.and_then(crate::engine::triggers::binding::departure_frame).or_else(|| self.departed_frame(source))
     }
 
+    /// What `Effect::Remember`'s instruction acted on, as it left them (CR
+    /// 603.7c, 400.7). A verb that moves things: each object its records put
+    /// where the verb puts them, and each token it made there, if it is
+    /// still there. A move a replacement sent elsewhere (Rest in Peace's
+    /// exile) is not "that card". A verb that moves nothing: each object it
+    /// acted on, as it is. Either way, each player it named.
+    fn remembered_since(
+        &self,
+        primitive: &Primitive,
+        acted_on: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+        mark: crate::events::event::EventSeq,
+    ) -> Referred {
+        let players = acted_on
+            .iter()
+            .filter_map(|t| match t {
+                ResolvedTarget::Player(pid) => Some(*pid),
+                ResolvedTarget::Object(_) => None,
+            })
+            .collect();
+        let into = primitive.moves_into();
+        let candidates: Vec<ObjectId> = match into {
+            Some(zone) => self
+                .events
+                .resolution_records(ctx.stamp(), mark)
+                .filter_map(|record| match &record.event {
+                    GameEvent::ZoneChange { object_id, to, .. } if *to == zone => Some(*object_id),
+                    GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => Some(*object_id),
+                    _ => None,
+                })
+                .collect(),
+            None => acted_on
+                .iter()
+                .filter_map(|t| match t {
+                    ResolvedTarget::Object(id) => Some(*id),
+                    ResolvedTarget::Player(_) => None,
+                })
+                .collect(),
+        };
+        let mut objects: Vec<RememberedObject> = Vec::new();
+        for id in candidates {
+            let still_there = into.is_none_or(|zone| self.objects.get(&id).is_some_and(|o| o.zone == zone));
+            if let Some(object) = self.object_ref(id).filter(|_| still_there)
+                && !objects.iter().any(|r| r.object == object)
+            {
+                objects.push(RememberedObject::now(object));
+            }
+        }
+        Referred { objects, players }
+    }
+
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,
     /// found by identity (CR 400.7), else the spell or replacement source itself
     /// while it is still where the effect found it. `None` is the object
@@ -2556,7 +2718,9 @@ impl GameState {
     ) -> PlayerId {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player, _) | EffectRecipient::TriggeringPlayer => {
+            EffectRecipient::Target(SelectionFilter::Player, _)
+            | EffectRecipient::TriggeringPlayer
+            | EffectRecipient::Referred => {
                 for t in targets {
                     if let ResolvedTarget::Player(pid) = t {
                         return *pid;

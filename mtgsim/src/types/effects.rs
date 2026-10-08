@@ -2,7 +2,7 @@ use super::colors::Color;
 use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
-use super::zones::ZoneSet;
+use super::zones::{Zone, ZoneSet};
 use crate::state::game_state::PhaseType;
 
 // ---------------------------------------------------------------------------
@@ -505,6 +505,18 @@ pub enum Duration {
     Indefinite,
 }
 
+impl Duration {
+    /// CR 611.2b — a "for as long as" duration tied to the object that made
+    /// the effect: it ends as that object leaves the battlefield (or stops
+    /// enchanting or equipping), wherever the effect is registered.
+    pub fn ends_with_its_source(self) -> bool {
+        match self {
+            Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => true,
+            Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => false,
+        }
+    }
+}
+
 /// Conditions for Conditional effects (rule 603.4 intervening "if")
 ///
 /// Shared with a static ability's "as long as [X]" (CR 604.2): a conditional
@@ -775,6 +787,11 @@ pub enum EffectRecipient {
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
+    /// CR 603.7c — "return that card", "sacrifice it", "that player" on a
+    /// delayed triggered ability: what the instruction its creator
+    /// remembered acted on ([`Effect::Remember`]), each object found only
+    /// while it is the same object (CR 400.7). Never an instance of "target".
+    Referred,
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is
@@ -952,6 +969,16 @@ pub enum PatternFill {
     /// which is [`Primitive::Restrict`]'s shape one level down: the *shape* is
     /// the card's and the *object* is the resolution's.
     ChosenDamageSource,
+}
+
+/// Whose control a returned permanent enters under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnUnder {
+    /// "Under its owner's control", and CR 610.3c's default for a return
+    /// that does not say.
+    Owner,
+    /// "Under your control": the effect's controller.
+    You,
 }
 
 /// How many targets/choices to select
@@ -1538,6 +1565,24 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
+    /// CR 610.3 — "exile [it] until [a specified event occurs]": the exile,
+    /// and the return it waits to make, which CR 610.3 creates immediately
+    /// after the event and which uses no stack. The event is read as a
+    /// trigger arm is: "until this leaves the battlefield" is a leaving of
+    /// `TriggerSubject::ThisObject`, Palace Jailer's "until an opponent
+    /// becomes the monarch" a designation's arm. If the event has already
+    /// happened since the spell was cast or the ability triggered (610.3a,
+    /// 610.3b), nothing moves.
+    ExileUntil {
+        until: Box<crate::types::triggers::TriggerEvent>,
+        /// The target the event refers to as `TriggerSubject::Referred`,
+        /// "until target enchantment you control leaves the battlefield"
+        /// (Calix, Destiny's Hand): an `EffectRecipient::Target` declared
+        /// after the instruction's own, so it is announced and re-checked (CR
+        /// 608.2b) as any target is.
+        refers_to: Option<EffectRecipient>,
+        under: ReturnUnder,
+    },
     /// Sacrifice (CR 701.21a): "its controller moves it from the battlefield
     /// directly to its owner's graveyard". The recipient is the permanent, as
     /// [`Self::Destroy`]'s is: `ThisObject` for "sacrifice this enchantment",
@@ -1554,8 +1599,11 @@ pub enum Primitive {
     Sacrifice,
     /// Return to owner's hand ("bounce")
     ReturnToHand,
-    /// Return to the battlefield (from exile/graveyard)
-    ReturnToBattlefield,
+    /// Return to the battlefield from wherever it is, under the control
+    /// [`ReturnUnder`] says (CR 610.3c's owner unless the card says
+    /// otherwise). Every object one resolution returns enters as one event,
+    /// and an Aura chooses what it enchants as it enters (CR 303.4f).
+    ReturnToBattlefield(ReturnUnder),
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library
@@ -1909,7 +1957,7 @@ pub enum Primitive {
     /// 611.2's scope comes from the card's English, not from the mechanism. A
     /// card that states none is `Duration::Indefinite` (CR 611.2a: "it lasts
     /// until the end of the game"), which ends when its subject moves (CR
-    /// 400.7), since neither expiry nor `remove_by_source` reaches it
+    /// 400.7), since neither expiry nor `remove_rows_ending_with` reaches it
     /// (`copy-effects-architecture.md` §5.3).
     ///
     /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
@@ -1929,6 +1977,68 @@ pub enum Primitive {
     /// Counter an activated or triggered ability on the stack (rule 701.6b).
     /// The countered ability ceases to exist — it is simply removed from the stack.
     CounterAbility,
+}
+
+impl Primitive {
+    /// The zone this verb puts what it acts on into, or `None` for a verb
+    /// that moves nothing. What [`Effect::Remember`] checks a performed move
+    /// against: a replacement can send the object elsewhere (Rest in Peace
+    /// exiles a card bound for a graveyard, CR 903.9b sends a commander bound
+    /// for a hand to the command zone), and then it is not "that card".
+    pub fn moves_into(&self) -> Option<Zone> {
+        match self {
+            Primitive::Destroy
+            | Primitive::Sacrifice
+            | Primitive::Mill(_)
+            | Primitive::Discard(..)
+            | Primitive::CounterSpell => Some(Zone::Graveyard),
+            Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
+            Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
+            Primitive::ReturnToBattlefield(_) | Primitive::CreateToken(..) => Some(Zone::Battlefield),
+            Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
+                Some(Zone::Library)
+            }
+            Primitive::ShuffleLibrary
+            | Primitive::DealDamage { .. }
+            | Primitive::GainLife(_)
+            | Primitive::LoseLife(_)
+            | Primitive::SetLifeTotal(_)
+            | Primitive::LoseGame
+            | Primitive::WinGame
+            | Primitive::DrawCards(_)
+            | Primitive::Scry(_)
+            | Primitive::Surveil(_)
+            | Primitive::ExtraTurn
+            | Primitive::ExtraPhases(_)
+            | Primitive::CreateDelayedTrigger(_)
+            | Primitive::ProduceMana(_)
+            | Primitive::AddCounters { .. }
+            | Primitive::RemoveCounters(..)
+            | Primitive::GetCounters { .. }
+            | Primitive::Regenerate
+            | Primitive::CreateReplacement(..)
+            | Primitive::Restrict(..)
+            | Primitive::RemoveFromCombat
+            | Primitive::RemoveAllDamage
+            | Primitive::Attach
+            | Primitive::Fight
+            | Primitive::Tap
+            | Primitive::Untap
+            | Primitive::SetPowerToughness(..)
+            | Primitive::ModifyPowerToughness(..)
+            | Primitive::SwitchPowerToughness(_)
+            | Primitive::GrantKeywordFlag(..)
+            | Primitive::RemoveKeywordFlag(..)
+            | Primitive::GrantAbility(..)
+            | Primitive::LoseAbility(..)
+            | Primitive::LoseAllAbilities(_)
+            | Primitive::ChangeColor(..)
+            | Primitive::ChangeType(..)
+            | Primitive::GainControl(_)
+            | Primitive::Copy { .. }
+            | Primitive::CounterAbility => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1962,6 +2072,17 @@ pub enum Effect {
     /// declined is `Doesnt`, and taken is the action's own, since CR 118.3
     /// lets no player pay a cost they can't (`triggers-architecture.md` §6.2).
     Optional { chooser: PlayerRef, effect: Box<Effect> },
+
+    /// CR 603.7c — what this instruction acts on is what a delayed triggered
+    /// ability this resolution creates afterwards refers to: Flickerwisp's
+    /// "return that card", Kiki-Jiki's "sacrifice it", "when that token
+    /// dies". The resolution remembers each object the instruction moved or
+    /// made as the move left it (CR 400.7), so long as it went where the
+    /// instruction put it, each object it acted on without moving it, and
+    /// each player it named; [`EffectRecipient::Referred`] and
+    /// `TriggerSubject::Referred` read them back. One instruction per
+    /// resolution.
+    Remember(Box<Effect>),
 
     /// "Choose N mode(s):" (rule 700.2)
     Modal {
@@ -2099,6 +2220,7 @@ impl Effect {
             }
             Effect::Conditional(_, effect)
             | Effect::Optional { effect, .. }
+            | Effect::Remember(effect)
             | Effect::ForEach(_, effect)
             | Effect::Repeat(_, effect) => effect.for_each_ability_def_mut(f),
             Effect::Replacement(def) => {
@@ -2177,14 +2299,23 @@ impl Effect {
     /// when `f` returns `false`.
     fn for_each_instance<'a>(&'a self, f: &mut impl FnMut(&'a EffectRecipient) -> bool) -> bool {
         match self {
-            Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
-                f(recipient)
+            Effect::Atom(primitive, recipient) => {
+                let own = match recipient {
+                    EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => f(recipient),
+                    // "Target player sacrifices a creature": the chooser is the instance.
+                    EffectRecipient::ChosenBy(choice) => match &choice.chooser {
+                        chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
+                        _ => true,
+                    },
+                    _ => true,
+                };
+                // "Until target enchantment leaves the battlefield": the verb's
+                // second instance, after its own.
+                own && match primitive {
+                    Primitive::ExileUntil { refers_to: Some(target), .. } => f(target),
+                    _ => true,
+                }
             }
-            // "Target player sacrifices a creature": the chooser is the instance.
-            Effect::Atom(_, EffectRecipient::ChosenBy(choice)) => match &choice.chooser {
-                chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
-                _ => true,
-            },
             Effect::Sequence(effects) => effects.iter().all(|sub| sub.for_each_instance(f)),
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.
@@ -2193,6 +2324,9 @@ impl Effect {
             // chosen as the ability is put on the stack and the choice made as
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
             Effect::Optional { effect, .. } => effect.for_each_instance(f),
+            // Remembering what an instruction acts on changes nothing about
+            // what it targets.
+            Effect::Remember(effect) => effect.for_each_instance(f),
             _ => true,
         }
     }

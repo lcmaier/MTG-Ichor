@@ -37,8 +37,8 @@ use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primi
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DamageRecipient, DepartedFrame, EventIndex, EventKind, EventKindMask, IdentityRef, Multiplicity, PendingTrigger,
-    TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerSeq,
-    TriggerSubject,
+    Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
+    TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
 use super::history::TurnOrdinals;
@@ -131,6 +131,7 @@ fn could_add_mana(effect: &Effect) -> bool {
         }
         Effect::Conditional(_, inner)
         | Effect::Optional { effect: inner, .. }
+        | Effect::Remember(inner)
         | Effect::ForEach(_, inner)
         | Effect::Repeat(_, inner) => could_add_mana(inner),
         Effect::Replacement(_)
@@ -175,7 +176,7 @@ pub(super) struct TriggerCandidate<'a> {
 /// takes them from the candidate; a delayed trigger from its registry entry
 /// (CR 603.7d–g), whose "this object" is its source remembered by identity.
 #[derive(Clone, Copy)]
-pub(super) struct TriggerReferents {
+pub(super) struct TriggerReferents<'a> {
     /// "This object".
     pub(super) this: ThisObject,
     /// "You" (CR 109.5): the controller.
@@ -187,6 +188,9 @@ pub(super) struct TriggerReferents {
     /// CR 603.7h's "this ability": the ability whose arm this is, or the one
     /// that created a delayed trigger; `None` for a spell's delayed trigger.
     pub(super) this_ability: Option<AbilityIdentity>,
+    /// CR 603.7c's "that token": the objects a delayed trigger refers to;
+    /// none for an object's own ability.
+    pub(super) referred: &'a [RememberedObject],
 }
 
 /// What "this object" is to an arm.
@@ -197,30 +201,23 @@ pub(super) enum ThisObject {
     Candidate(ObjectId),
     /// A delayed trigger's source (CR 603.7d–g), remembered by identity (CR
     /// 400.7) with the record of the move that ended it, if one has.
-    Remembered { object: ObjectRef, left_at: Option<EventSeq> },
+    Remembered(RememberedObject),
 }
 
 impl ThisObject {
     fn id(self) -> ObjectId {
         match self {
             ThisObject::Candidate(id) => id,
-            ThisObject::Remembered { object, .. } => object.id,
+            ThisObject::Remembered(remembered) => remembered.object.id,
         }
     }
 
     /// Whether record `seq`'s object `id` is this object: the candidate, or
-    /// the remembered existence, whose own departure is the record that ended
-    /// it and which is itself only while it has not moved (CR 400.7).
+    /// the remembered existence (CR 400.7).
     fn is(self, game: &GameState, id: ObjectId, seq: EventSeq) -> bool {
         match self {
             ThisObject::Candidate(this) => id == this,
-            ThisObject::Remembered { object, left_at } => {
-                id == object.id
-                    && match left_at {
-                        Some(at) => at == seq,
-                        None => game.object_ref(id) == Some(object),
-                    }
-            }
+            ThisObject::Remembered(remembered) => remembered.is(game, id, seq),
         }
     }
 }
@@ -405,11 +402,15 @@ impl GameState {
     ///   sacrifice) is dispatched while the batch it interrupts is still open,
     ///   and that batch's records are dispatched only when it closes. A flush
     ///   there would take them out of the window before their dispatch.
+    /// - **Inside a resolution.** A later instruction reads what the earlier
+    ///   ones performed (`EventWindow::resolution_records`): what
+    ///   `Effect::Remember` remembers (CR 603.7c). `resolve_top_of_stack`
+    ///   flushes as the resolution ends.
     ///
     /// A trigger keeps copies of the records it binds, so nothing reads the
     /// window after this.
-    fn flush_window_unless_nested(&mut self) {
-        if self.nesting.dispatch_depth == 0 && self.nesting.batch_depth == 0 {
+    pub(crate) fn flush_window_unless_nested(&mut self) {
+        if self.nesting.dispatch_depth == 0 && self.nesting.batch_depth == 0 && self.resolving.is_none() {
             self.events.flush();
         }
     }
@@ -498,10 +499,13 @@ impl GameState {
         // The registry's leg (§4.6), which has no shortcut for the audit to
         // check: every entry reading a kind of the window is asked.
         let delayed = self.detect_delayed(window, window_kinds, ordinals);
-        if matches.is_empty() && delayed.is_empty() {
+        let due = self.take_returns_due(window);
+        if matches.is_empty() && delayed.is_empty() && due.is_empty() {
             return Ok(());
         }
-        self.queue_matches(matches, delayed, ctx)
+        self.queue_matches(matches, delayed, ctx)?;
+        // CR 610.3 — "immediately after the specified event", and no stack.
+        self.return_until(due, ctx)
     }
 
     /// Steps 1 to 3 of `dispatch_inner`'s five, for the objects' abilities:
@@ -566,6 +570,7 @@ impl GameState {
                 event: m.event,
                 subject: m.subject,
                 triggered_by: None,
+                referred: Referred::default(),
             };
             let origin = TriggerOrigin::Object(m.identity);
             let pending = PendingTrigger {
@@ -1181,6 +1186,7 @@ impl GameState {
             owner: candidate.owner,
             host: candidate.host,
             this_ability: Some(identity),
+            referred: &[],
         };
         let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
         for (index, arm) in def.condition.events().iter().enumerate() {
@@ -1254,7 +1260,7 @@ impl GameState {
     pub(super) fn occurrences_matching_arm(
         &self,
         arm: &TriggerEvent,
-        referents: &TriggerReferents,
+        referents: &TriggerReferents<'_>,
         seq: EventSeq,
         event: &GameEvent,
     ) -> Vec<Option<ObjectId>> {
@@ -1418,7 +1424,7 @@ impl GameState {
         &self,
         subject: &TriggerSubject,
         id: Option<ObjectId>,
-        referents: &TriggerReferents,
+        referents: &TriggerReferents<'_>,
         seq: EventSeq,
         frame: Option<&EffectiveCharacteristics>,
     ) -> bool {
@@ -1426,16 +1432,20 @@ impl GameState {
             (TriggerSubject::Any, _) => true,
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
+            (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
             (TriggerSubject::Filter(filter), Some(id)) => self
                 .object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame)
                 .unwrap_or(false),
-            (TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
+            (
+                TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
+                None,
+            ) => false,
         }
     }
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
-    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents) -> bool {
+    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
         match who {
             PlayerRef::You => player == referents.controller,
             PlayerRef::Opponent => player != referents.controller,

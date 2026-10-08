@@ -23,9 +23,10 @@
 //!
 //! # `remove_by_source` has no production caller, and battlefield-leave is not one
 //!
-//! The mirror call in `cleanup_zone_state` is right for
-//! `ContinuousEffectRegistry` — CR 611.3b, a *static ability's* effect lasts
-//! only while its source is on the battlefield — and wrong here: every row in
+//! The mirror sweep in `cleanup_zone_state` is right for
+//! `ContinuousEffectRegistry`, whose static rows (CR 611.3b) and "for as long
+//! as" rows (611.2b) last only while their source is on the battlefield
+//! (`remove_rows_ending_with`), and wrong here: every row in
 //! this registry was made by a resolution, and CR 611.2a gives those the
 //! duration the spell or ability stated. A regeneration shield does not die
 //! with the permanent whose ability made it; it expires at the CR 514.2 cleanup

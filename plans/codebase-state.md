@@ -71,7 +71,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
-| 111 | Tokens — cease-to-exist | ✅ SBA 704.5d | `engine/sba.rs:332+` |
+| 111 | Tokens — cease-to-exist; 111.8's "can't move" | ✅ SBA 704.5d; 111.8 since TR-3b | `engine/sba.rs:332+`; `engine/actions.rs` (`is_a_departed_tokens_move`) |
 | 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/put_on_stack.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
 | 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/put_on_stack.rs`, `engine/costs.rs` |
@@ -98,7 +98,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 |---|---|---|---|
 | 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/phase_lh_cards.rs` |
 | 302 | Creatures + summoning sickness | ✅ turn-based tracking (T09) | `oracle/characteristics.rs` `has_summoning_sickness` |
-| 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); **non-stack ETB host choice (303.4f/g) ❌** — `attach_aura_on_etb` was dead code and was deleted with LH-1 | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
+| 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); non-stack ETB host choice (303.4f/g, TR-3b 2026-10-08: `engine/returns.rs`); an Aura enchanting a player ❌ (item 227) | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
 | 304 | Instants | ✅ basic cast path | `engine/put_on_stack.rs` |
 | 305 | Lands | ✅ basic lands + mana abilities | `cards/basic_lands.rs` |
 | 306 | Planeswalkers | ✅ loyalty ETB, 0-loyalty SBA; loyalty-ability costs ❌ (T19 pending) | `engine/sba.rs` |
@@ -141,7 +141,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 606 | Loyalty abilities | ❌ (T19 pending) |
 | 607 | Linked abilities | ❌ (T20 pending) |
 | 608 | Resolution of spells and abilities — fizzle, Target vs Choose split | ✅ via T15b refactor (`TargetSpec` → `EffectRecipient`) | `engine/resolve.rs`, `engine/stack.rs` |
-| 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
+| 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry; 610.3's "until" returns (`engine/returns.rs`, TR-3b); a resolution's "for as long as" row ends as its source leaves (611.2b, TR-3b) | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, CV-6). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
 | **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13 (critical-path item 6); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
@@ -1255,6 +1255,15 @@ registered card returns an object.
     control-change sweep. Fixtures: Sower flickered in response, Sower leaving
     later, Silumgar stolen and returned. Owed by the first registered
     resolution with such a duration, in any of the three registries.
+
+    **Since TR-3b (2026-10-08, #234):** item 223 fixed the key. A
+    resolution's row names `ResolutionContext::effect_source`, the permanent,
+    and the continuous registry's battlefield sweep ends a resolution's row
+    whose duration ends with its source. That predicate is
+    `Duration::ends_with_its_source` (CR 611.2b), so the retain above reads it
+    for the replacement and restriction registries too. Still owed: their
+    sweep, the epoch (the row's source is an id, not an `ObjectRef`), and the
+    control leg.
 
     **Reachability (2026-09-24):** unreachable — the 33 registered
     source-scoped durations are all static abilities, whose rows name the
@@ -3579,27 +3588,13 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
 
-95. **The row a `Primitive::Regenerate` makes still names the ephemeral
-    ability object; a `CreateReplacement` row names the permanent.**
-    CR 113.7a makes an ability's source the object that has it, so
-    `CreateReplacement` writes `ctx.ability_source.unwrap_or(ctx.source)` and
-    Samite Healer's row names the Healer — which outlives the stack object
-    CR 608.2n deletes and is what `ask_choose_replacement` offers a UI.
-    `Regenerate` keeps `ctx.source`; no registered card regenerates from an
-    activated ability, so its rows are never offered under a dead id.
-
-    **Reachability (2026-09-09):** unreachable — `Primitive::Regenerate` has
-    no registered producer at all; the row's `source` is read only by the
-    CR 616.1 prompt and by `remove_by_source`, which nothing calls.
-
-    **Sized:** one token, in the PR that registers the first regenerating
-    card.
-
-    **Absorbed (2026-10-07):** into item 223, which owns every site that
-    attributes an effect to the ability's stack object; this closes with it.
-    Since #233's split (2026-10-08) `Regenerate` is a row site, so this
-    closes with item 223's row half in TR-3b
-    (`plans/handoffs/item-223-rows.md`).
+95. **~~The row a `Primitive::Regenerate` makes still names the ephemeral
+    ability object; a `CreateReplacement` row names the permanent.~~ — ✅
+    CLOSED 2026-10-08 (PR #234, TR-3b, with item 223's row half).** —
+    archived. The shield's row names the permanent whose ability made it,
+    which is what CR 616.1's prompt offers.
+    **Reachability (2026-10-08):** closed — PR #234.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 95".
 
 ### Found by the RD-2 review (2026-09-09)
 
@@ -3682,13 +3677,18 @@ this PR added the fields it names.
     effect choosing its own resolving spell as the source of future damage is
     the only thing that loses, and nothing printed does it.
 
-    **Reachability (2026-10-07):** unreachable — the command zone is empty,
-    and TR-3a's registry exists but its entries refer to an object only as
-    their source (CR 603.7d–g): no registered delayed trigger's text names
-    one (Final Fortune's and Blessed Wine's), so (a)'s delayed leg has no
-    referent until TR-3b's `refs`. The resolving-object gap is asked for by
+    **Reachability (2026-10-08):** unreachable in play — TR-3b's
+    `Effect::Remember` gives delayed triggers referents (Flickerwisp's exiled
+    card), which CR 609.7a lets Circle of Protection: Red choose and the
+    engine does not offer; such a choice prevents nothing, since the card
+    returns as a new object (CR 400.7). The stack leg matters once a source
+    that left deals damage, which TR-3c's Cornered Crook makes reachable.
+    The command zone is empty, and the resolving-object gap is asked for by
     no printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
     `COVERS-PARTIAL` naming exactly the two categories.
+    **Slotted:** (a)'s three legs in TR-3c, beside item 225, whose
+    candidates they are (#234's review, 2026-10-08); (b) with the Commander
+    PR that fills the command zone.
 
     **Sized:** (a) is a `referred_to: Vec<ObjectId>` on `StackEntry` plus the
     same on a registry row plus CR 603.7 — not before item 6. (b) is one
@@ -9320,74 +9320,75 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found at #231's review (2026-10-07)
 
-223. **A resolving ability's effects are attributed to its stack object,
-     not to the object that has the ability.** `ResolutionContext::source`
-     is the resolving stack object, which CR 608.2n removes, and fifteen
-     sites in `engine/resolve.rs` attribute to it: `DealDamage`,
-     `GainLife`, `SetLifeTotal`, `ProduceMana`, `Destroy`'s
-     `DestructionSource`, and the registry rows of `ModifyPowerToughness`,
-     `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`,
-     `ChangeType`, `Regenerate` (item 95), `Restrict`, `GainControl`, a
-     granted ability (`register_resolution_ability_effect`) and a copy
-     (`apply_copy`). Two already read
-     `ctx.ability_source.map_or(ctx.source, ..)` with CR 113.7a's reason:
-     `CreateReplacement`'s row (Samite Healer's shield, item 95's other
-     half) and the conditions' "this". CR 120.2b has an ability name the
-     object that deals its damage, and CR 608.2h says "it's the object ...
-     that does it, not the ability", so the damage half is a rules error:
-     lifelink (702.15b), deathtouch (702.2b), a source chosen for Circle of
-     Protection: Red (609.7a, registered) and "whenever this deals damage"
-     all read the source. Found in #231's `fizzle_log.png`: `LifeChanged:
-     P0 20 -> 21 (source: #22)`, Blood Artist's gain named by its
-     trigger's object, gone by the time the log reads it.
-     **Reachability (2026-10-08):** reachable — not wrong today: the event
-     half closed in #233, and what is left is the registry rows' source,
-     which the why panel's "from" line shows and nothing that decides play
-     reads; no registered card regenerates, so CR 616.1's prompt never
-     shows item 95's row.
-     **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
-     accessor naming the object an effect is attributed to, read at each
-     site; the tests the log's line, lifelink and Circle of Protection:
-     Red's chosen source over a fixture whose ability deals damage, and the
-     owner's board (2026-10-08): Dragonhawk, Fate's Tempest's delayed
-     "Dragonhawk deals 2 damage to each opponent" with Loxodon Warhammer,
-     which lifelinks if the Warhammer is attached as the trigger resolves, or
-     was attached when Dragonhawk left (CR 113.7a, off
-     `DelayedTrigger::source_frame`), and not if it was attached at
-     neither. The fixture drops "for each of those cards that are still
-     exiled", which names the cards the creating ability exiled: TR-3b's
-     `refs`. First
-     count what keys on a row's source (`remove_by_source`, CR 616.1's
-     prompt), since a row naming the permanent outlives the stack object:
-     that is the point, and a behavior change the A/B shows. Absorbs item
-     95.
-     **Split (2026-10-08, the owner, at #233's design review):** the six
-     sites whose effect is an event landed in #233: the damage's source, a
-     life gain and a set life total, produced mana, an effect's destruction
-     and "its owner", each through `ResolutionContext::effect_source`, with a
-     source that left dealing its damage as it last existed
-     (`GameAction::DealDamage::source_frame`, CR 608.2h, 702.15c, 702.2e).
-     The ten sites whose effect is a registry row wait with the sweep they
-     need, so neither half lands wrong.
-     **Slotted:** the row half in TR-3b, a row of its pieces table
-     (`triggers-architecture.md`), carried by
-     `plans/handoffs/item-223-rows.md`, which TR-3b's landing PR deletes
-     with this item and item 95 closed. TR-3b's "until" is the same
-     question, an effect that ends when its source leaves (CR 610.3), as
-     the sweep's "for as long as" (611.2b).
-     **Counted (2026-10-08):** 51 lines of `resolve.rs` read `ctx.source`.
-     The fifteen above attribute; `PlayerRef::Owner` (the activator, read
-     off the stack object) is a sixteenth; the rest name the resolving
-     object as itself (prompts, `countered_by`, X, errors). What keys on a
-     row's source is the opposite of the guess: `cleanup_zone_state`'s
-     `remove_by_source` drops *every* row naming a permanent that leaves,
-     a resolution's included, so a row naming the permanent would end with
-     it (against CR 611.2a). The sweep narrows to the rows that end with
-     their source — a static ability's (611.3b) and a resolution's "for
-     as long as" (611.2b) — and the look-back gate's
-     `ability_list_sources` takes the same predicate. Replacement and
-     restriction rows are never swept by source; CR 616.1's prompt reads
-     the sources for display and is answered by index.
+223. **~~A resolving ability's effects are attributed to its stack object,
+     not to the object that has the ability.~~ — ✅ CLOSED 2026-10-08 (PR
+     #234, TR-3b).** — archived. The event half landed in #233, and the row
+     half in TR-3b: the ten sites that write a resolution's registry row
+     read `ResolutionContext::effect_source`, and the battlefield sweep ends
+     only the rows that end with their source (CR 611.3b, 611.2b).
+     **Reachability (2026-10-08):** closed — PR #234.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 223".
+
+### Found by TR-3b — the returns and "until" (2026-10-08)
+
+227. **An Aura that enchants a player has no host to enter attached to.**
+     `PermanentState::attached_to` and `GameAction::Attach`'s host name an
+     object. So an "Enchant player" Aura can neither resolve onto the
+     player it targets (`engine/stack.rs`'s Aura branch errs on a player
+     target) nor choose a player as CR 303.4f's host (`engine/returns.rs`
+     refuses it loudly). 47 printed, 46 legal in Commander
+     (`o:"enchant player" t:aura`, Scryfall 2026-10-08): the Curses.
+     **Reachability (2026-10-08):** unreachable — no registered Aura
+     enchants a player.
+     **Sized:** an attachment that can name a player, and its readers (CR
+     704.5m, `ObjectSet::Host`, the why panel), ~150 lines with the first
+     Curse.
+     **Slotted:** Phase 8's card breadth, with the first Curse it registers
+     (the owner, at #234's review, 2026-10-08).
+
+228. **An Aura that enters attached is attached by a direct write, and
+     announces nothing.** `engine/stack.rs`'s Aura branch and
+     `GameState::return_objects`'s CR 303.4f host both call
+     `GameState::attach` after the entry, outside `perform_action`, so no
+     `Attached` record follows. Whether an Aura entering attached "becomes
+     attached" is the question TR-4's `BecomesAttached` arm answers off that
+     record.
+     **Reachability (2026-10-08):** reachable — not wrong today: no trigger
+     reads `Attached` yet.
+     **Sized:** both sites through `GameAction::Attach`, or the host on the
+     entry, ~20 lines.
+     **Slotted:** TR-4, with the `BecomesAttached` arm.
+
+229. **"Another" at resolution is refused, and the refusal reads as no
+     candidate.** `object_matches_filter` (`engine/targeting.rs`) carries no
+     source, so `ObjectFilter::NotSource` errs there, and
+     `choose_as_it_applies` and the five resolution-time
+     `FilteredPermanents` sweeps (`engine/resolve.rs`) read the error as "does
+     not match": Heart-Piercer Manticore's "sacrifice another creature"
+     would sacrifice nothing.
+     **Reachability (2026-10-08):** unreachable — no registered card's
+     resolution reads `NotSource`.
+     **Sized:** one helper passing `ResolutionContext::effect_source`, at six
+     sites, ~20 lines.
+     **Slotted:** TR-3c, whose Manticore fixture is its first reader.
+
+230. **CR 610.3a/b is answered only for a leaving.** An "until" whose event
+     is anything else cannot say whether the event happened after the spell
+     was cast or the ability triggered, since only a leaving's history is
+     kept (the object's departure, by identity). So
+     `GameState::until_has_happened` (`engine/returns.rs`) refuses that
+     resolution loudly rather than guess. Palace Jailer's "until an opponent
+     becomes the monarch" is the printed customer.
+     **Reachability (2026-10-08):** unreachable — every registered "until"
+     waits for a leaving.
+     **Sized:** the event's records since the trigger's stamp, read by the
+     same matcher, ~40 lines with the monarch's designation record. One more
+     leg with it: an event recorded outside a batch (a cast, attackers
+     declared) is dispatched by `dispatch_unbatched`, whose provider is
+     optional and whose result is dropped, so a return due on one would be
+     lost; `return_until` asserts against it in debug builds.
+     **Slotted:** Phase 9, with the monarch (CR 724), where §13 already
+     defers the designation atoms on §3.8's arm.
 
 ### Found by #233 — an ability's source (2026-10-08)
 
@@ -9412,19 +9413,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      identity (`ObjectRef`), the prune spares it, and the damage says which
      existence dealt it, as `source_frame` already says that one left; a
      Perilous Myr fixture under Circle of Protection: Red.
-     **Slotted:** TR-3b, beside Cornered Crook, which makes it reachable
-     (the owner, 2026-10-08).
+     **Slotted:** TR-3c, beside Cornered Crook, which makes it reachable
+     (the owner, 2026-10-08; TR-3b was split at its design review, #234).
+     **Decided (#234's review, 2026-10-08):** the damage's `source_frame`
+     becomes a `DepartedFrame`, which names the existence it is of, so the
+     dealer is that existence once the source has left and the source as it
+     is otherwise; `SourcePattern.object` becomes an `ObjectRef`; the prune
+     spares a chosen source that moved, since only that existence's damage
+     matches, and a spell becoming a permanent re-points it (CR 400.7c).
 
-226. **Cobbled Wings costs {1}; it prints {2}.** `phase_lh_cards::cobbled_wings`
-     builds `ManaCost::build(&[], 1)` under a doc that says "{2}", and
-     Scryfall prints {2} (checked 2026-10-08). Found writing Loxodon
-     Warhammer beside it in #233.
-     **Reachability (2026-10-08):** reachable — wrong today: the card is
-     registered, so every `stress` game can cast it a mana early.
-     **Sized:** one token, and an assertion on its cost.
-     **Slotted:** the next engine PR, TR-3b (the owner, 2026-10-08), whose
-     pooled Flickerwisp and Banishing Light re-record `stress` anyway, so
-     the fix moves no table a second time.
+226. **~~Cobbled Wings costs {1}; it prints {2}.~~ — ✅ CLOSED 2026-10-08
+     (PR #234, TR-3b).** — archived. It costs {2}, with a test on its cost.
+     **Reachability (2026-10-08):** closed — PR #234.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 226".
 
 ### Found by TR-3a — the delayed-trigger registry (2026-10-07)
 

@@ -609,6 +609,9 @@ pub struct GameState {
     /// Written by `register_delayed_trigger`; an entry leaves as it triggers
     /// (`Once`), at cleanup (`ThisTurn`), or when its turn has gone.
     pub delayed_triggers: Vec<crate::types::triggers::DelayedTrigger>,
+    /// CR 610.3's returns waiting for their events (`engine::returns`), in
+    /// the order they were made.
+    pub until_returns: Vec<crate::types::zones::UntilReturn>,
     /// The next `DelayedTriggerId` to mint; ids start at one.
     pub(crate) next_delayed_trigger_id: u64,
     /// CR 603.2h — "do this only once each turn": each ability whose action
@@ -940,6 +943,7 @@ impl GameState {
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
             delayed_triggers: Vec::new(),
+            until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
@@ -1662,7 +1666,7 @@ impl GameState {
     ///   There is no entity, and CR 108.4 makes the controller the owner.
     ///
     /// Rows are removed when the source leaves: `cleanup_zone_state` →
-    /// `remove_by_source` off the battlefield, `remove_static_by_source`
+    /// `remove_rows_ending_with` off the battlefield, `remove_static_by_source`
     /// elsewhere. Registration is *not* what decides whether an effect applies —
     /// CR 305.7 and Layer 6 can take the ability away without touching the
     /// registry, so `compute.rs` re-checks existence, zone included, at every

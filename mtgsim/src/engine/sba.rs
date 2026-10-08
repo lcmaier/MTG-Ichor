@@ -15,7 +15,6 @@ use crate::state::game_state::{GameResult, GameState};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
 use crate::engine::replacement::{subject_of, EventSubject};
-use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
 use crate::types::zones::Zone;
@@ -350,25 +349,8 @@ impl GameState {
                         // the Aura's controller (CR 109.5), not the enchanted creature's
                         // (CR 303.4e).
                         if let Some(filter) = &obj.card_data.enchant_filter {
-                            let candidate = ResolvedTarget::Object(host_id);
                             let you = get_effective_controller(self, id)?;
-                            // SBA 704.5n asks the enchant clause about the host
-                            // it is already attached to, outside CR 601.2c's
-                            // loop — so there are no earlier instances, and a
-                            // `OtherThanInstance` leaf on an enchant filter is
-                            // refused rather than answered. "This" is the Aura.
-                            if self
-                                .validate_selection(
-                                    filter,
-                                    &candidate,
-                                    you,
-                                    crate::engine::targeting::FilterIdentity::for_text_of(
-                                        id,
-                                        crate::engine::targeting::EarlierTargets::None,
-                                    ),
-                                )
-                                .is_err()
-                            {
+                            if !self.can_enchant(filter, id, host_id, you) {
                                 return Some(id);
                             }
                         }

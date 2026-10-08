@@ -421,7 +421,7 @@ impl GameState {
             // walks the declared clauses rather than the atoms.
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
-            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer => Err(format!(
+            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its
@@ -492,6 +492,17 @@ impl GameState {
             }
         }
         Ok(())
+    }
+
+    /// Whether Aura `aura`, whose enchant ability is `filter`, may enchant
+    /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
+    /// leaves attached and what CR 303.4f offers an Aura entering the
+    /// battlefield. Not targeting, so hexproof and shroud do not apply. Asked
+    /// outside CR 601.2c's loop, so an `OtherThanInstance` leaf is refused
+    /// rather than answered; "this" is the Aura.
+    pub(crate) fn can_enchant(&self, filter: &SelectionFilter, aura: ObjectId, host: ObjectId, you: PlayerId) -> bool {
+        let identity = FilterIdentity::for_text_of(aura, EarlierTargets::None);
+        self.validate_selection(filter, &ResolvedTarget::Object(host), you, identity).is_ok()
     }
 
     /// Validate a single selected object/player against a SelectionFilter.

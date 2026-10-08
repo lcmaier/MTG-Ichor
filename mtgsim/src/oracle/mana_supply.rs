@@ -896,6 +896,9 @@ fn mana_trigger_adds(
                     TriggerSubject::Filter(filter) => game
                         .object_matches_filter_of_source(producer, filter, controller, at.permanent, None)
                         .unwrap_or(false),
+                    // CR 603.7c's "that token" is a delayed trigger's; an
+                    // object's own ability refers to nothing.
+                    TriggerSubject::Referred => false,
                 }
         }
         // `is_mana_ability` admitted only `ManaAdded` arms.

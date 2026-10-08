@@ -12,7 +12,7 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId};
-use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerTurn};
+use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerSubject, TriggerTurn};
 use crate::ui::display::{named, object_label};
 
 /// The delayed triggers and the extra turns waiting, each kind in its own
@@ -24,6 +24,21 @@ pub struct Waiting {
     /// The extra turns, in the order they will be taken: the most recently
     /// created first (CR 500.7).
     pub extra_turns: Vec<WaitingTurn>,
+    /// CR 610.3's "until" returns, in the order they were made.
+    pub until_returns: Vec<WaitingReturn>,
+}
+
+/// One "until" return, waiting for its object to leave the battlefield (CR
+/// 610.3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitingReturn {
+    /// The object its event is about, named as it is: "this" or the target
+    /// it named. `None` for an event about no object.
+    pub watched: Option<String>,
+    /// What returns, each named as it is.
+    pub returns: Vec<String>,
+    /// The exile's controller.
+    pub controller: PlayerId,
 }
 
 /// One delayed triggered ability, waiting for its event.
@@ -70,6 +85,19 @@ pub fn what_is_waiting(game: &GameState) -> Waiting {
             .rev()
             .filter(|turn| game.in_game(turn.player))
             .map(|turn| WaitingTurn { id: turn.id, player: turn.player })
+            .collect(),
+        until_returns: game
+            .until_returns
+            .iter()
+            .map(|until| WaitingReturn {
+                watched: match until.until.subject() {
+                    Some(TriggerSubject::ThisObject) => Some(named(game, until.source.object.id)),
+                    Some(TriggerSubject::Referred) => until.referred.first().map(|r| named(game, r.object.id)),
+                    _ => None,
+                },
+                returns: until.returns.iter().map(|(object, _)| named(game, object.id)).collect(),
+                controller: until.controller,
+            })
             .collect(),
     }
 }

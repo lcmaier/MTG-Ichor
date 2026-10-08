@@ -745,6 +745,32 @@ it. `AbilityId::delayed_trigger` reads back the role above, so a log names the
 trigger by its registry number on its triggered and resolved lines.
 `ui::waiting` reads the registry for a client.
 
+**As built (TR-3b, 2026-10-08).** `refs` is `Effect::Remember`, decided at
+#234's review. A card marks the instruction whose objects a later delayed
+trigger names, and once that instruction has performed the resolution reads
+back its own records (`EventWindow::resolution_records`), which the window
+holds until the resolution ends. What it remembers:
+- each object the verb moved where the verb puts them, as the move left it
+  (a move a replacement sent elsewhere is not "that card");
+- each token it made;
+- each object a verb that moves nothing acted on;
+- each player it named.
+
+They ride on the entry as `Referred`, each object's departure noted as the
+source's is, and on the trigger's binding to the stack.
+`TriggerSubject::Referred` matches "when that token dies", and
+`EffectRecipient::Referred` finds each object only while it is the same
+object (CR 603.7c). CR 610.3's return is not `DelayedDuration::UntilEvent`:
+it is no triggered ability, so it lives on `GameState::until_returns`
+(`engine/returns.rs`), made by `Primitive::ExileUntil` and performed at a
+dispatch as one batch for one event (610.3d). Its event is any
+`TriggerEvent`, matched as a trigger arm is (`take_returns_due`), and
+`refers_to` names a target the event watches as `TriggerSubject::Referred`
+(Calix, Destiny's Hand). CR 610.3a/b's "already occurred" is answered for a
+leaving, by identity, and refused for any other event until that event's
+history is kept (`codebase-state.md` item 230). A token the exile moved
+stays where it went (CR 111.8).
+
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
 ```rust
@@ -1299,14 +1325,15 @@ beginning of the next end step" names an `ObjectRef { id, zone_change_epoch }`
 and finds nothing if the epoch moved (CR 400.7), which is Sneak Attack's
 ruling and Flickerwisp's board.
 
-A **reflexive** trigger (603.12) is a delayed entry with `reflexive:
-Some(stamp)`, created by `Effect::Reflexive { when: ReflexiveEvent, then }`
-as the resolution reaches it, and **checked immediately**: the window is
-the records with that stamp up to `created.record`. `ReflexiveEvent` is a
-`TriggerEvent` restricted to what the resolution's own instructions can
-perform — "when you do" is the `ZoneChange { cause: Sacrificed }` the
-preceding `Optional` proposed; if none matched, the entry is dropped
-silently. Heart-Piercer Manticore's first ruling is the shape ("goes on the
+A **reflexive** trigger (603.12) is a delayed entry created as the
+resolution reaches it and **checked immediately**: the window is the records
+with that stamp up to `created.record`. *(Amended at TR-3b's review,
+2026-10-08: this sketch named an `Effect::Reflexive { when, then }`, which
+no code ever had. TR-3c builds it as `Primitive::CreateDelayedTrigger` with
+`DelayedDuration::Reflexive`, its row in §12 says why.)* Its trigger event
+reads what the resolution's own instructions performed: "when you do" is
+the `ZoneChange { cause: Sacrificed }` the preceding `Optional` proposed; if
+none matched, the entry is dropped silently. Heart-Piercer Manticore's first ruling is the shape ("goes on the
 stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
@@ -1345,6 +1372,13 @@ carry two occurrences of an arm, `AttackersDeclared`, dispatches with its
 step's provider (`emit_event_with_provider`; `codebase-state.md` item 224,
 closed at the review). "603.7a and 513.2 need no code" did not hold:
 see §3.9's `created_in`.
+
+**As built (TR-3b, 2026-10-08).** `resolution_records(stamp)` is
+`EventWindow::resolution_records`, from a mark. The window used to flush at
+every outermost batch's close, which emptied it before a later instruction
+could read an earlier one's records, so it now holds a resolution's records
+until the resolution ends. `Effect::Remember` is its first reader; the
+reflexive check is TR-3c's.
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
@@ -2382,18 +2416,53 @@ Instructions per decision: item 222 −1.21% against `main`, the registry
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-3a".
 
-### TR-3b — reflexive triggers, the returns and "until" (1,650–1,880)
+### TR-3b — the returns and "until", with Flickerwisp and Banishing Light — ✅ landed 2026-10-08
 
-TR-3's other half, by the 2026-09-24 re-count (the last subsection); TR-3a's
-stub says what landed of the plan.
+*Body evicted 2026-10-08 to `plans/archive/triggers-architecture-landed.md`,
+"TR-3b", with the plan as sized and the gap hunt that split it.*
+
+**What shipped.** Item 223's row half: the ten sites that write a
+resolution's registry row read `ResolutionContext::effect_source`, and the
+battlefield sweep ends only the rows that end with their source (CR 611.3b,
+611.2b), the look-back gate with it; items 223 and 95 closed.
+`Effect::Remember`, §3.9's `refs` as #234's review decided it, read back off
+the resolution's own records, which the window now holds until the
+resolution ends. `Primitive::ReturnToBattlefield` with `ReturnUnder`, and CR
+303.4f/g through the existing non-targeting `SelectRecipients`. CR 610.3:
+`Primitive::ExileUntil`, its event any `TriggerEvent`, with 610.3a/b's check
+for a leaving, and `GameState::until_returns`, made at a dispatch as one batch
+(610.3d). CR 111.8. Item 226. Flickerwisp and Banishing Light registered and
+pooled (185 → 187, 104 → 106). Thirty-six tests; §13's six CR 610.3 atoms are
+covered.
+
+**What moved on the way in.** The gap hunt found ten facilities no row
+listed, and the owner split the phase at the design review: the reflexive
+half is TR-3c. Three corrections to the plan: the window flushed at every
+batch's close, so a resolution could not read its own records; 610.3d is one
+batch, which the window alone did not give; and the return is no triggered
+ability, so it is not a `DelayedDuration`. `ReturnToHand` moved to TR-4 with
+Rancor. The review generalized the until-event and took CR 111.8 in. +2,235
+in code and tests (code +1,090, tests +1,145).
+
+**Measured** (`fuzz-record.md`, the TR-3b block). The engine arm plays every
+gameplay row as `main` does on both pools at two seats and four, and the
+audit agrees on every dispatch. One cost row moved, by the look-back gate's
+narrowing. Instructions per decision +0.04%.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-3b".
+
+### TR-3c — the reflexive trigger, item 225 and item 99 (800–950)
+
+TR-3b's other half, split at its design review (#234, 2026-10-08) along the
+seam its brief named. It reads the window TR-3b holds.
 
 | Piece |
 |---|
-| `Effect::Reflexive` and the immediate check over the resolution's own records (§4.6); `refs`, the objects a creating instruction names, filled from those records (Flickerwisp's "that card", the Tatsumasa board's "that token"), each with a departure record as the source has; `UntilEvent` resolved at dispatch (610.3) |
-| `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm in `resolve.rs`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser |
-| **`codebase-state.md` item 223's row half**, carried by `plans/handoffs/item-223-rows.md` (the owner's split at #233's design review, 2026-10-08), ~170 lines: the ten sites that write a resolution's registry row read `ResolutionContext::effect_source`, and `cleanup_zone_state`'s sweep ends only the rows that end with their source, a static ability's (CR 611.3b) and a "for as long as" (611.2b), beside 610.3's "until"; closes items 223 and 95. **Item 225**, ~70 lines: a chosen-source shield kept past its source's departure, since Cornered Crook killed in response deals its damage as it last existed. **Item 226**, one token: Cobbled Wings' printed {2}, riding this phase's `stress` re-record |
-| cards: **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) |
-| tests: §13's 7 TR-3b atoms; Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); the Tatsumasa board, under a doubler; Sneak Attack's ruling as a fixture board; Flickerwisp's second ruling and Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) |
+| CR 603.12: `DelayedDuration::Reflexive` on `Primitive::CreateDelayedTrigger` rather than §4.6's `Effect::Reflexive`, since 603.12 has reflexive triggers follow the delayed rules (one producer, one door). Checked as it is created against `EventWindow::resolution_records`, queued once per matching record (603.12a), never waiting. "When you do" is `ZoneChange { cause: Sacrificed, to: any }` |
+| `codebase-state.md` item 229: a source-relative filter at resolution, so "sacrifice another creature" has candidates |
+| **Item 225**, as #234's review decided it: the damage's `source_frame` a `DepartedFrame`, `SourcePattern.object` an `ObjectRef`, the prune sparing a chosen source that moved, and a spell becoming a permanent re-pointing it (CR 400.7c). **Item 99**'s (a): an object referred to by a stack object, a waiting replacement or prevention effect, or a delayed trigger, even once it has left its zone (CR 609.7a): one enumeration, its options told apart where two existences share an id |
+| cards: **Cornered Crook** (603.12: `Optional`, then reflexive, any target), registered, not pooled; Heart-Piercer Manticore's shape as a fixture (embalm keeps the card out) |
+| tests: ATOM-603.12-001; Manticore's four trigger rulings (the LKI power read, "another"); Cornered Crook's ruling, and the Crook killed in response dealing its damage as it last existed (lifelink, deathtouch); item 225 on a Perilous-Myr-shaped fixture under Circle of Protection: Red; item 99's legs; the Crook cast from hand under `ManaWindowStop` |
 
 ### TR-4 — the look-back list, the frame, unattach, control — TR-4a and TR-4b (2,640–3,460)
 
@@ -2511,7 +2580,8 @@ their trigger half lands.
 | **TR-2a** | 603.1b-001 (fixture); 603.2h-001; 603.2h-002 (partial — its board is Nykthos Paragon's "may"); 608.2h-001; 608.2p-001 (fixture); and 121.2c-001, a Phase 8 atom item 122's rule closes | 6 — 5 of them Phase 7 |
 | **TR-2b** | 603.2h-002 (partial → full); 603.5-001; 118.12-001; 121.5-001 (partial → full); 118.12-002 (partial — a Phase 8 atom whose rule §6.2's amendment builds; its Dermoplasm board waits for morph) | 5 — 4 of them Phase 7, one shared with TR-2a |
 | **TR-3a** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 107.3n-001; 513.2-001, -002; and 400.7-001, whose whole board is a delayed trigger, from the deferred row | 14 — 13 of TR-3's 20, and CV-1b's partial |
-| **TR-3b** | 603.12-001; 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 7 |
+| **TR-3b** | 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 6 |
+| **TR-3c** | 603.12-001 | 1 |
 | **TR-4** | 603.6e-001, -002; 400.7e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 14 |
 | **TR-5** | 508.2a-001; 603.2d-001; 122.7-001; 120.10-001 | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |

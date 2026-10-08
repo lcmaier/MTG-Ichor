@@ -118,6 +118,7 @@ impl GameState {
                 || (x.subject == y.subject && x.records.first() == y.records.first()))
             && (unread(BoundReads::SOURCE) || a.origin == b.origin)
             && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
+            && (unread(BoundReads::REFERRED) || x.referred == y.referred)
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this

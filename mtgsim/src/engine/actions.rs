@@ -78,10 +78,7 @@ impl<'a> ActionContext<'a> {
     /// rather than recycling it. Carrying the target list would copy it onto
     /// every event for no reader.
     pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
-        self.resolution.map(|r| ResolutionStamp {
-            source: r.source,
-            controller: r.controller,
-        })
+        self.resolution.map(ResolutionContext::stamp)
     }
 }
 
@@ -832,6 +829,12 @@ impl GameState {
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
         use crate::engine::trace_records;
+
+        // CR 111.8 — a token that has left the battlefield "remains in its
+        // current zone instead" of moving again. A rule, so no event: nothing
+        // is proposed, and no replacement sees it.
+        let mut batch = batch;
+        batch.retain(|action| !self.is_a_departed_tokens_move(action));
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -1833,7 +1836,7 @@ impl GameState {
     /// It carries CR 110.5b's default and nothing else. What the rules give an
     /// object as it enters beyond that is an ability of the object (CR 306.5b's
     /// loyalty), which the pipeline gathers like any other (`layers::intrinsic`).
-    fn entry_proposal(
+    pub(crate) fn entry_proposal(
         &mut self,
         object: ObjectId,
         from: Option<Zone>,
@@ -1844,6 +1847,20 @@ impl GameState {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, cause })
+    }
+
+    /// CR 111.8 — whether `action` moves a token that is off the battlefield.
+    /// Such a token has left it, or was made elsewhere by a replacement
+    /// (`CreateTokenIn`). 111.8 names only the first; the second is held
+    /// too, since it ceases to exist at the next state-based check either
+    /// way (111.7).
+    fn is_a_departed_tokens_move(&self, action: &GameAction) -> bool {
+        match action {
+            GameAction::ZoneChange { object, .. } | GameAction::EnterBattlefield { object, .. } => {
+                self.objects.get(object).is_some_and(|o| o.is_token && o.zone != Zone::Battlefield)
+            }
+            _ => false,
+        }
     }
 
     /// Propose CR 614.1c's entry — the one proposal for a card entering the
