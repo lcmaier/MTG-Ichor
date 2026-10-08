@@ -394,7 +394,7 @@ pub struct ObjectRef {
 /// or is skipped: which entry of the turn queue a turn came from. "That turn"
 /// (Final Fortune) names one turn by it, and a skipped extra turn (CR
 /// 614.10a) is never taken for the turn after it. Minted per game from
-/// `GameState::extra_turns_created`, never reused, and nonzero, so an
+/// `GameState::next_extra_turn_id`, never reused, and nonzero, so an
 /// `Option` of one is a word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExtraTurnId(std::num::NonZeroU64);
@@ -408,7 +408,7 @@ impl ExtraTurnId {
 
 /// A delayed triggered ability's number (CR 603.7): the registry's key, and
 /// the ability half of its identity ([`AbilityId::delayed`]). Minted per game
-/// from `GameState::delayed_triggers_created`, from one, never reused.
+/// from `GameState::next_delayed_trigger_id`, from one, never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DelayedTriggerId(pub u64);
 

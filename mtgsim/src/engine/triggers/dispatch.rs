@@ -169,13 +169,18 @@ pub(super) struct TriggerCandidate<'a> {
     pub(super) card: Arc<CardData>,
 }
 
-/// Who an arm is read for (§3.3): the object its "this object" names, the
-/// player its "you" is (CR 109.5), that object's owner and host, and "this
-/// ability". One shape for an object's own ability and a delayed trigger's.
+/// What a triggered ability's text means by its words for itself, which its
+/// trigger event is read against (§3.3): "this object", "you", "its owner",
+/// "enchanted" or "equipped", and "this ability". An object's own ability
+/// takes them from the candidate; a delayed trigger from its registry entry
+/// (CR 603.7d–g), whose "this object" is its source remembered by identity.
 #[derive(Clone, Copy)]
-pub(super) struct ArmReader {
+pub(super) struct TriggerReferents {
+    /// "This object".
     pub(super) this: ThisObject,
+    /// "You" (CR 109.5): the controller.
     pub(super) controller: PlayerId,
+    /// "Its owner", of "this object".
     pub(super) owner: PlayerId,
     /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
     pub(super) host: Option<ObjectId>,
@@ -498,7 +503,9 @@ impl GameState {
         self.queue_matches(matches, delayed, ctx)
     }
 
-    /// Steps 1 to 3 for the objects: the gate and the match, read-only.
+    /// Steps 1 to 3 of `dispatch_inner`'s five, for the objects' abilities:
+    /// the gate and the match, read-only. The registry's leg is
+    /// `detect_delayed`.
     fn detect(
         &self,
         window: &[EventSeq],
@@ -615,11 +622,23 @@ impl GameState {
         readers.into_iter().map(|(_, id)| id).collect()
     }
 
-    /// The objects a row naming them (`SourceOnly`, `Fixed`, `Host`) puts a
-    /// triggered ability on that reads a kind `window_kinds` carries, read
-    /// off the rows wherever the objects are — the replacement gather's
-    /// named leg, with the printed leg's mask. Unordered: `live_candidates`
-    /// puts every candidate in CR 613.7 order.
+    /// The objects that have a triggered ability only because a continuous
+    /// effect names them, and whose ability could read this window.
+    ///
+    /// A permanent with a *printed* triggered ability is filed in
+    /// `trigger_sources` as it enters, under the kinds of event it reads, and
+    /// `battlefield_readers` asks that file. Two effects give an object a
+    /// triggered ability it did not print, and no filing sees them: a copy
+    /// (Cryptoplasm becoming a copy of a creature and keeping its own
+    /// upkeep trigger) and a grant (an Aura's "enchanted creature has
+    /// 'whenever this creature deals damage, ...'"). Each such effect is a
+    /// registry row. A row that names its objects — its own source, a fixed
+    /// list, or its source's host — is read here: its objects are
+    /// candidates, wherever they are, when a triggered ability it puts on
+    /// them reads a kind of event the window carries (item 222). A row over
+    /// a filter names zones instead, and `candidates_now` walks them.
+    ///
+    /// Unordered: `candidates_now` puts every candidate in CR 613.7 order.
     fn named_trigger_carriers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
         if !self.continuous_effects.summary().named_unattributed_trigger_kinds.intersects(window_kinds) {
             return Vec::new();
@@ -823,7 +842,7 @@ impl GameState {
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
         let named = self.named_trigger_carriers(EventKindMask::ALL);
-        self.live_candidates(self.battlefield_readers(EventKindMask::ALL), named, unattributed)
+        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, unattributed)
             .into_iter()
             .filter_map(|id| self.object_snapshot(id))
             .collect()
@@ -840,14 +859,18 @@ impl GameState {
         })
     }
 
-    /// The live objects a dispatch asks, in CR 613.7 order: `readers` and the
-    /// `named` objects on the battlefield, or every permanent while a
+    /// The objects a dispatch asks with their ability lists as they are now,
+    /// as against the lists from before an event (a departed object's CR
+    /// 603.10a frame, a survivor's `LookBackSnapshot`), in CR 613.7 order.
+    ///
+    /// Every zone, by three routes: on the battlefield, `readers` (printed
+    /// triggers) and the `named` objects there, or every permanent while a
     /// `Filter` row grants or copies a triggered ability onto the
-    /// battlefield; then the objects elsewhere whose triggered ability works
-    /// in the zone they are in (CR 113.6k) — a record's own subject in a
-    /// graveyard is one — plus the `named` objects there, and every object in
-    /// the other zones a `Filter` row reaches, while it exists.
-    fn live_candidates(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
+    /// battlefield; elsewhere, every object whose printed triggered ability
+    /// works in the zone it is in (CR 113.6k: a graveyard's, a hand's, exile's
+    /// — a record's own subject in a graveyard is one), the `named` objects
+    /// there, and every object in the zones a `Filter` row reaches.
+    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
         } else if named.is_empty() {
@@ -898,7 +921,7 @@ impl GameState {
         snapshots: &[LookBackSnapshot],
         ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
-        let mut live = self.live_candidates(readers, named, unattributed);
+        let mut live = self.candidates_now(readers, named, unattributed);
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after
@@ -1141,7 +1164,7 @@ impl GameState {
         if !candidate.frame.is_departed() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
-        let reader = ArmReader {
+        let referents = TriggerReferents {
             this: ThisObject::Candidate(candidate.id),
             controller: candidate.controller,
             owner: candidate.owner,
@@ -1163,14 +1186,14 @@ impl GameState {
             if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
-            let subjects = self.arm_occurrences(arm, &reader, seq, event);
+            let subjects = self.occurrences_matching_arm(arm, &referents, seq, event);
             if !subjects.is_empty() {
                 matched = Some((EventIndex(index), subjects));
                 break;
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_limit(def, identity, candidate.controller, seq, ordinals) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, seq, ordinals) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1186,7 +1209,7 @@ impl GameState {
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
     /// 603.2h's gate is its source's controller's; "only once each turn" is
     /// the ability's; "the first time" is this record's place in its turn.
-    pub(super) fn within_limit(
+    pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
         identity: AbilityIdentity,
@@ -1202,9 +1225,11 @@ impl GameState {
         }
     }
 
-    /// The occurrences of `arm` in `event`, as the subject of each — one for
-    /// every kind this phase ships, one per matching attacker for the attack
-    /// shape. Empty when the arm's predicates refuse the record.
+    /// Each occurrence of `arm`'s event that the record `event` holds, as that
+    /// occurrence's subject ("that object", if any), read for the trigger's
+    /// `referents`: each is one trigger (CR 603.2c). A record holds one
+    /// occurrence for every arm but `Attacks`, which holds one per matching
+    /// attacker. Empty when the record does not match the arm.
     ///
     /// One arm against one record, and every case has the same shape: the
     /// `match` pairs the arm with the record kind it reads, and the arm's own
@@ -1215,10 +1240,10 @@ impl GameState {
     /// arm's `subject_of` projection names, false is no occurrence at all. The
     /// only arm that does not go through it is `Attacks`, where CR 508.3a
     /// makes each matching attacker an occurrence of its own.
-    pub(super) fn arm_occurrences(
+    pub(super) fn occurrences_matching_arm(
         &self,
         arm: &TriggerEvent,
-        reader: &ArmReader,
+        referents: &TriggerReferents,
         seq: EventSeq,
         event: &GameEvent,
     ) -> Vec<Option<ObjectId>> {
@@ -1231,8 +1256,8 @@ impl GameState {
                 from.is_none_or(|z| z == *rf)
                     && to.is_none_or(|z| z == *rt)
                     && cause.is_none_or(|c| c == *rc)
-                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, reader))
-                    && self.subject_matches(subject, Some(*object_id), reader, seq, lki.as_deref()),
+                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
             // triggers on it and nothing narrower — no `to`, no cause.
@@ -1243,16 +1268,16 @@ impl GameState {
                 from.is_none_or(|z| z == *rf)
                     && to.is_none()
                     && cause.is_none()
-                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, reader))
-                    && self.subject_matches(subject, Some(*object_id), reader, seq, lki.as_deref()),
+                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                one(self.subject_matches(subject, Some(*object_id), reader, seq, None))
+                one(self.subject_matches(subject, Some(*object_id), referents, seq, None))
             }
             (TriggerEvent::DrawsCard { player: who, .. }, GameEvent::CardDrawn { player_id, .. })
             | (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
-                one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, reader)))
+                one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
                 TriggerEvent::ManaAdded { source, tapped_for_mana, mana },
@@ -1260,7 +1285,7 @@ impl GameState {
             ) => one(
                 tapped_for_mana.is_none_or(|t| t == *tapped)
                     && mana.is_none_or(|m| added.iter().any(|(t, n)| *t == m && *n > 0))
-                    && self.subject_matches(source, Some(*source_id), reader, seq, None),
+                    && self.subject_matches(source, Some(*source_id), referents, seq, None),
             ),
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
@@ -1269,14 +1294,14 @@ impl GameState {
                 let to = match (recipient, target) {
                     (DamageRecipient::Any, _) => true,
                     (DamageRecipient::Player(who), DamageTarget::Player(pid)) => {
-                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *pid, reader))
+                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *pid, referents))
                     }
                     (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
                         None => true,
                         Some(filter) => self.subject_matches(
                             &TriggerSubject::Filter(filter.clone()),
                             Some(*id),
-                            reader,
+                            referents,
                             seq,
                             None,
                         ),
@@ -1286,25 +1311,25 @@ impl GameState {
                 };
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
-                        && self.subject_matches(source, Some(*source_id), reader, seq, None),
+                        && self.subject_matches(source, Some(*source_id), referents, seq, None),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
-                one(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, reader)))
+                one(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::StepBegins { step, whose }, GameEvent::StepBegin { step: rs, player }) => {
-                one(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, reader)))
+                one(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
-                one(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, reader)))
+                one(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             // The sign is the split. A 0 gain never reaches the log (CR
             // 119.10, `replacement::never_happens`).
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, reader)))
+                one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                one(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, reader)))
+                one(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
                 let spell_ok = match spell {
@@ -1312,12 +1337,12 @@ impl GameState {
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
                         Some(*spell_id),
-                        reader,
+                        referents,
                         seq,
                         None,
                     ),
                 };
-                one(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, reader)))
+                one(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
@@ -1336,13 +1361,13 @@ impl GameState {
                 one(
                     from_ok
                         && cast_ok
-                        && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, reader))
-                        && self.subject_matches(subject, Some(*object_id), reader, seq, None),
+                        && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
+                        && self.subject_matches(subject, Some(*object_id), referents, seq, None),
                 )
             }
             (TriggerEvent::Attacks { attacker, .. }, GameEvent::AttackersDeclared { attackers }) => attackers
                 .iter()
-                .filter(|id| self.subject_matches(attacker, Some(**id), reader, seq, None))
+                .filter(|id| self.subject_matches(attacker, Some(**id), referents, seq, None))
                 .map(|id| Some(*id))
                 .collect(),
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
@@ -1351,7 +1376,7 @@ impl GameState {
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
                         Some(origin.source()),
-                        reader,
+                        referents,
                         seq,
                         None,
                     ),
@@ -1366,7 +1391,7 @@ impl GameState {
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => one(reader.this_ability.is_some_and(|this| {
+            ) => one(referents.this_ability.is_some_and(|this| {
                 this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
             })),
             _ => Vec::new(),
@@ -1382,28 +1407,28 @@ impl GameState {
         &self,
         subject: &TriggerSubject,
         id: Option<ObjectId>,
-        reader: &ArmReader,
+        referents: &TriggerReferents,
         seq: EventSeq,
         frame: Option<&EffectiveCharacteristics>,
     ) -> bool {
         match (subject, id) {
             (TriggerSubject::Any, _) => true,
-            (TriggerSubject::ThisObject, Some(id)) => reader.this.is(self, id, seq),
-            (TriggerSubject::Host, Some(id)) => reader.host == Some(id),
+            (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
+            (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Filter(filter), Some(id)) => self
-                .object_matches_filter_of_source(id, filter, reader.controller, reader.this.id(), frame)
+                .object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame)
                 .unwrap_or(false),
             (TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
         }
     }
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
-    /// reader (CR 109.5's "you" is its controller).
-    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, reader: &ArmReader) -> bool {
+    /// trigger's referents (CR 109.5's "you" is its controller).
+    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents) -> bool {
         match who {
-            PlayerRef::You => player == reader.controller,
-            PlayerRef::Opponent => player != reader.controller,
-            PlayerRef::Owner => player == reader.owner,
+            PlayerRef::You => player == referents.controller,
+            PlayerRef::Opponent => player != referents.controller,
+            PlayerRef::Owner => player == referents.owner,
             PlayerRef::Player(pid) => player == *pid,
         }
     }

@@ -333,16 +333,19 @@ pub struct GameState {
     /// turn that begins from it carries it (`Self::extra_turn`).
     ///
     /// Pushed by `Primitive::ExtraTurn` and drained by
-    /// [`Self::next_turn_taker`]. Extra *phases* and *steps* (CR 500.8,
-    /// 500.10) are this queue's second level and wait for their first card.
+    /// [`Self::next_turn_taker`]. Only extra turns are stored: a natural turn
+    /// is the rotation's next seat (`turn_rotation`), computed rather than
+    /// queued, since that order changes when a player leaves (CR 800.4).
+    /// Extra phases are spliced into `turn_plan` (CR 500.8), and extra steps
+    /// (500.10) will be.
     pub turn_queue: Vec<ExtraTurn>,
     /// The CR 500.7 extra turn the turn in progress is, by the queue entry
     /// it came from; `None` for a natural turn. Written by
     /// `GameAction::BeginTurn`'s performer from the proposal, which carries
     /// it because CR 614.10's "would begin an extra turn" is read there.
     pub extra_turn: Option<ExtraTurnId>,
-    /// How many extra turns this game has created: the next `ExtraTurnId`.
-    pub(crate) extra_turns_created: u64,
+    /// The next `ExtraTurnId` to mint, counted from zero.
+    pub(crate) next_extra_turn_id: u64,
     /// This turn's phases and the drainer's place in them — CR 500.1's
     /// sequence, spliced by CR 500.8. See [`TurnPlan`].
     pub turn_plan: TurnPlan,
@@ -606,9 +609,8 @@ pub struct GameState {
     /// Written by `register_delayed_trigger`; an entry leaves as it triggers
     /// (`Once`), at cleanup (`ThisTurn`), or when its turn has gone.
     pub delayed_triggers: Vec<crate::types::triggers::DelayedTrigger>,
-    /// How many delayed triggered abilities this game has created: the last
-    /// `DelayedTriggerId`.
-    pub(crate) delayed_triggers_created: u64,
+    /// The next `DelayedTriggerId` to mint; ids start at one.
+    pub(crate) next_delayed_trigger_id: u64,
     /// CR 603.2h — "do this only once each turn": each ability whose action
     /// its controller has taken this turn, with that controller, since the
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
@@ -902,7 +904,7 @@ impl GameState {
             phase: Phase::new(PhaseType::Beginning),
             turn_queue: Vec::new(),
             extra_turn: None,
-            extra_turns_created: 0,
+            next_extra_turn_id: 0,
             // Turn 1's plan, beside the turn 1 the rest of this constructor
             // describes. Its cursor is the beginning phase `phase` above names,
             // so a bare `GameState` a fixture never drains is already
@@ -938,7 +940,7 @@ impl GameState {
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
             delayed_triggers: Vec::new(),
-            delayed_triggers_created: 0,
+            next_delayed_trigger_id: 1,
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),

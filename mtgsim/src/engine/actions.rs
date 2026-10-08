@@ -391,7 +391,7 @@ pub enum GameAction {
     /// next turn" effect and starts no CR 302.6 clock (CR 614.10a).
     ///
     /// CR 500.7's extra turns and the natural rotation are the *schedule* the
-    /// proposal is built from (`GameState::next_turn_taker`), and `extra`
+    /// proposal is built from (`GameState::next_turn_taker`), and `extra_turn`
     /// says which queue entry this turn is, `None` for a natural turn: four
     /// printed replacement effects replace "a player would begin an extra
     /// turn" (CR 614.10), and the turn that begins takes the id from here
@@ -400,7 +400,7 @@ pub enum GameAction {
     BeginTurn {
         player: PlayerId,
         turn: u32,
-        extra: Option<ExtraTurnId>,
+        extra_turn: Option<ExtraTurnId>,
     },
 
     /// A phase begins (CR 500.11, 614.10) — Moment of Silence's unit.
@@ -1566,12 +1566,12 @@ impl GameState {
             // "at the beginning of" triggers will read. None runs a turn-based action
             // or an expiry: those are separate events (CR 703.4, 500.4) the drainer
             // runs after the proposal survives — see `engine::turns`.
-            GameAction::BeginTurn { player, turn, extra } => {
+            GameAction::BeginTurn { player, turn, extra_turn } => {
                 // `begin_turn` is the one writer of `last_turn_began`, so a
                 // turn that is skipped starts no CR 302.6 clock and expires no
                 // "until your next turn" effect (CR 614.10a).
                 self.begin_turn(turn, player);
-                self.extra_turn = extra;
+                self.extra_turn = extra_turn;
                 self.priority_player = player;
                 self.emit_event(GameEvent::TurnBegin { player, turn_number: turn });
                 Ok(())

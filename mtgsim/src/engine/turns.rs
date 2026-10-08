@@ -69,7 +69,7 @@ impl GameState {
         let player = self.active_player;
         let turn = 1;
         let performed =
-            self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra: None }], ctx)?;
+            self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra_turn: None }], ctx)?;
         if performed.is_empty() {
             return Err(
                 "the game's first turn was replaced, which CR 614.4 makes impossible \
@@ -156,7 +156,7 @@ impl GameState {
                         self.on_turn_end()?;
                         turn_began = false;
                     }
-                    let Some((player, extra)) = self.next_turn_taker() else {
+                    let Some((player, extra_turn)) = self.next_turn_taker() else {
                         // Every player has left the game (CR 104.2a), so there
                         // is no turn to advance to. The position stays where it
                         // is and `GameState::result`, settled by the batch that performed
@@ -165,7 +165,7 @@ impl GameState {
                     };
                     let turn = self.turn_number + 1;
                     let performed =
-                        self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra }], ctx)?;
+                        self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra_turn }], ctx)?;
                     if performed.is_empty() {
                         // CR 614.10a — a skipped turn advances no turn number
                         // and expires nothing. The cursor does not move, so the
@@ -231,8 +231,8 @@ impl GameState {
     /// queue's newest entry, so the most recently created turn is taken
     /// first. Returns its id, which "that turn" names.
     pub fn schedule_extra_turn(&mut self, player: PlayerId) -> ExtraTurnId {
-        let id = ExtraTurnId::nth(self.extra_turns_created);
-        self.extra_turns_created += 1;
+        let id = ExtraTurnId::nth(self.next_extra_turn_id);
+        self.next_extra_turn_id += 1;
         self.turn_queue.push(ExtraTurn { id, player });
         id
     }

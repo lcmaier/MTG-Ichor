@@ -90,7 +90,7 @@ impl<'g> Writer<'g> {
             phase,
             turn_queue,
             extra_turn,
-            extra_turns_created: _, // the counter extra turns' ids come from
+            next_extra_turn_id: _, // a counter
             turn_plan,
             turn_rotation,
             attacks_declared,
@@ -119,7 +119,7 @@ impl<'g> Writer<'g> {
             pending_triggers,
             next_trigger_seq: _,
             delayed_triggers,
-            delayed_triggers_created: _, // the counter their ids come from
+            next_delayed_trigger_id: _, // a counter
             action_taken_this_turn: _, // `this turn:` lines, in `cards`
             triggered_this_turn: _,
             resolutions_this_turn: _,

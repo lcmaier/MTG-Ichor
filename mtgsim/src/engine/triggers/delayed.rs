@@ -6,7 +6,7 @@
 //! 603.7a). It then waits on `GameState::delayed_triggers` for its event. It
 //! is no object's ability, so the dispatcher asks the registry as a leg of its
 //! own, beside the objects' leg, at the same windows and through the same arm
-//! matcher ([`ArmReader`]). Its "this object" is its CR 603.7d–g source,
+//! matcher ([`TriggerReferents`]). Its "this object" is its CR 603.7d–g source,
 //! remembered by identity.
 //!
 //! **CR 603.7a is one filter, and 513.2 falls out of it.** An entry reads
@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{ArmReader, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use super::history::TurnOrdinals;
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
@@ -45,8 +45,8 @@ impl GameState {
         template: &DelayedTriggerTemplate,
         provenance: DelayedProvenance,
     ) -> DelayedTriggerId {
-        self.delayed_triggers_created += 1;
-        let id = DelayedTriggerId(self.delayed_triggers_created);
+        let id = DelayedTriggerId(self.next_delayed_trigger_id);
+        self.next_delayed_trigger_id += 1;
         self.delayed_triggers.push(DelayedTrigger {
             id,
             def: Arc::clone(&template.def),
@@ -155,7 +155,7 @@ impl GameState {
     ) -> Vec<MatchedTrigger> {
         let identity = delayed.identity();
         let source = delayed.source.id;
-        let reader = ArmReader {
+        let referents = TriggerReferents {
             this: ThisObject::Remembered { object: delayed.source, left_at: delayed.source_left_at },
             controller: delayed.controller,
             owner: self.objects.get(&source).map_or(delayed.controller, |o| o.owner),
@@ -179,7 +179,7 @@ impl GameState {
             }
             let matched = arms.iter().enumerate().find_map(|(index, arm)| {
                 let subjects = if arm.reads(&record.event) {
-                    self.arm_occurrences(arm, &reader, *seq, &record.event)
+                    self.occurrences_matching_arm(arm, &referents, *seq, &record.event)
                 } else {
                     Vec::new()
                 };
@@ -187,7 +187,7 @@ impl GameState {
             });
             let refusal = match &matched {
                 None => Some(Refusal::TriggerCondition),
-                Some(_) if !self.within_limit(&delayed.def, identity, delayed.controller, *seq, ordinals) => {
+                Some(_) if !self.within_once_per_turn_limit(&delayed.def, identity, delayed.controller, *seq, ordinals) => {
                     Some(Refusal::Limit)
                 }
                 // CR 603.4 at the trigger, "you" its controller (CR 109.5).

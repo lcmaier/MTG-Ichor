@@ -692,6 +692,9 @@ pub enum DelayedDuration {
 }
 
 /// Which turn a delayed triggered ability may trigger in, as a card prints it.
+/// It grows with the cards that need it: the CR does not list the ways a card
+/// names a turn. "Your next upkeep" (the Pacts) needs no arm, being `whose:
+/// You` on the step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayedTurn {
     /// Whichever turn its event comes in: "at the beginning of the next end
