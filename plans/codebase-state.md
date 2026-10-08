@@ -9364,6 +9364,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      reads this. TR-3a's delayed triggers take their provenance from
      `ability_source` (`triggers-architecture.md` §3.9), so they add no
      site.
+     **Counted (2026-10-08):** 51 lines of `resolve.rs` read `ctx.source`.
+     The fifteen above attribute; `PlayerRef::Owner` (the activator, read
+     off the stack object) is a sixteenth; the rest name the resolving
+     object as itself (prompts, `countered_by`, X, errors). What keys on a
+     row's source is the opposite of the guess: `cleanup_zone_state`'s
+     `remove_by_source` drops *every* row naming a permanent that leaves,
+     a resolution's included, so a row naming the permanent would end with
+     it (against CR 611.2a). The sweep narrows to the rows that end with
+     their source — a static ability's (611.3b) and a resolution's "for
+     as long as" (611.2b) — and the look-back gate's
+     `ability_list_sources` takes the same predicate. Replacement and
+     restriction rows are never swept by source; CR 616.1's prompt reads
+     the sources for display and is answered by index.
 
 ### Found by TR-3a — the delayed-trigger registry (2026-10-07)
 
