@@ -110,9 +110,9 @@ impl GameState {
     /// **The residual after clause 1, and it is small on purpose.** A Layer 2
     /// row from a static ability dies with its source, and clause 1 or clause
     /// 4 has just taken every source the departing player owned or controlled
-    /// — `cleanup_zone_state`'s `remove_by_source` is what ends those. What is
-    /// left is a row a *resolution* created, whose source is a sorcery in a
-    /// graveyard that nothing will disturb: Act of Treason's.
+    /// — `cleanup_zone_state`'s `remove_rows_ending_with` is what ends those.
+    /// What is left is a row a *resolution* created, which outlives its source
+    /// (CR 611.2a): Act of Treason's, whose source is a sorcery in a graveyard.
     ///
     /// `Owner` and `Opponent` name no single beneficiary a row can be judged
     /// by — Homeward Path hands each creature to a different player — so they

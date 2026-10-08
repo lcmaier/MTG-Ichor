@@ -1823,8 +1823,8 @@ pub(super) enum PassMembership {
 ///   strip (CR 613.8a) only if the pass can see the strip reach the source.
 ///
 /// A resolution's row is neither: CR 613.7b fixes its "you" and its existence
-/// is unconditional, so the pass never reads its source, and a `SourceOnly`
-/// one names a permanent that it leaves with (`remove_by_source`; CR 400.7).
+/// is unconditional, so the pass never reads its source, and its set is
+/// fixed as it begins (CR 611.2c), never `SourceOnly`.
 fn source_joins(effect: &ContinuousEffect, source_zone: Zone, left_out: ZoneSet) -> bool {
     matches!(effect.origin, EffectOrigin::StaticAbility { .. })
         && (matches!(effect.affected_objects, ObjectSet::SourceOnly) || left_out.contains(source_zone))

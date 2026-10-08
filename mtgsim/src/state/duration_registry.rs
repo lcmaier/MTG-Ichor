@@ -206,9 +206,10 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// accepts is left as it is, for the rule's own exceptions. Returns
     /// whether a row changed.
     ///
-    /// Beside [`Self::remove_by_source`], never instead of it: that one ends
-    /// the rows an object's static abilities generate, and this one the rows
-    /// that are *about* it (`copy-effects-architecture.md` §5.3).
+    /// Beside the sweep that ends the rows an object generates
+    /// (`ContinuousEffectRegistry::remove_rows_ending_with`), never instead of
+    /// it: that one ends the rows that end with their source, and this one the
+    /// rows that are *about* it (`copy-effects-architecture.md` §5.3).
     ///
     /// Scans first, so a move no row refers to, which is nearly every move,
     /// copies no row and leaves [`Self::generation`] alone. Removing a

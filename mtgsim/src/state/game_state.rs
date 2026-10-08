@@ -1662,7 +1662,7 @@ impl GameState {
     ///   There is no entity, and CR 108.4 makes the controller the owner.
     ///
     /// Rows are removed when the source leaves: `cleanup_zone_state` →
-    /// `remove_by_source` off the battlefield, `remove_static_by_source`
+    /// `remove_rows_ending_with` off the battlefield, `remove_static_by_source`
     /// elsewhere. Registration is *not* what decides whether an effect applies —
     /// CR 305.7 and Layer 6 can take the ability away without touching the
     /// registry, so `compute.rs` re-checks existence, zone included, at every

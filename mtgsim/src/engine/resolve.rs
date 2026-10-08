@@ -920,7 +920,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7cModifyPT,
                     duration: *duration,
@@ -950,7 +950,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7bSetPT,
                     duration: *duration,
@@ -980,7 +980,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer7dSwitchPT,
                     duration: *duration,
@@ -1010,7 +1010,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 let effect = crate::engine::layers::ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: crate::engine::layers::EffectOrigin::Resolution,
                     layer: crate::engine::layers::Layer::Layer5Color,
                     duration: *duration,
@@ -1045,7 +1045,7 @@ impl GameState {
                 for modification in modifications {
                     let effect = crate::engine::layers::ContinuousEffect {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         origin: crate::engine::layers::EffectOrigin::Resolution,
                         layer: crate::engine::layers::Layer::Layer4Type,
                         duration: *duration,
@@ -1182,7 +1182,7 @@ impl GameState {
                     .with_then(crate::types::replacement::regeneration_rider());
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
@@ -1381,7 +1381,7 @@ impl GameState {
                 for def in rows {
                     self.restrictions.add(RegisteredRestriction {
                         id: 0,
-                        source: ctx.source,
+                        source: ctx.effect_source(),
                         controller: ctx.controller,
                         duration: *duration,
                         created_on_turn: self.turn_number,
@@ -1513,7 +1513,7 @@ impl GameState {
                 let timestamp = self.allocate_timestamp();
                 self.continuous_effects.add(ContinuousEffect {
                     id: 0,
-                    source: ctx.source,
+                    source: ctx.effect_source(),
                     origin: EffectOrigin::Resolution,
                     layer: Layer::Layer2Control,
                     duration: *duration,
@@ -1644,7 +1644,7 @@ impl GameState {
         let timestamp = self.allocate_timestamp();
         let row = self.continuous_effects.add(ContinuousEffect {
             id: 0,
-            source: ctx.source,
+            source: ctx.effect_source(),
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer6Ability,
             duration,
@@ -1913,7 +1913,7 @@ impl GameState {
             let timestamp = self.allocate_timestamp();
             self.continuous_effects.add(ContinuousEffect {
                 id: 0,
-                source: ctx.source,
+                source: ctx.effect_source(),
                 origin: EffectOrigin::Resolution,
                 layer: Layer::Layer1Copy,
                 duration,

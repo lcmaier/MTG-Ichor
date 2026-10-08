@@ -137,7 +137,8 @@ pub fn cytoshape() -> Arc<CardData> {
 /// The card states none, and CR 611.2a makes such an effect last "until the
 /// end of the game". It was spelled `UntilEndOfTurn` until CV-1b, because an
 /// indefinite row is reached by neither CR 514.2's expiry nor
-/// `remove_by_source`; CR 400.7 is what ends one now, when its subject moves.
+/// `remove_rows_ending_with`; CR 400.7 is what ends one now, when its subject
+/// moves.
 ///
 /// # Registered, not pooled
 ///

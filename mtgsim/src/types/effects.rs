@@ -1909,7 +1909,7 @@ pub enum Primitive {
     /// 611.2's scope comes from the card's English, not from the mechanism. A
     /// card that states none is `Duration::Indefinite` (CR 611.2a: "it lasts
     /// until the end of the game"), which ends when its subject moves (CR
-    /// 400.7), since neither expiry nor `remove_by_source` reaches it
+    /// 400.7), since neither expiry nor `remove_rows_ending_with` reaches it
     /// (`copy-effects-architecture.md` §5.3).
     ///
     /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
