@@ -78,6 +78,7 @@ pub fn final_fortune() -> Arc<CardData> {
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::ThatExtraTurn,
+        rules_text: "At the beginning of that turn's end step, you lose the game.".into(),
     };
     CardDataBuilder::new("Final Fortune")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 0))
@@ -122,6 +123,7 @@ pub fn blessed_wine() -> Arc<CardData> {
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NextTurn,
+        rules_text: "Draw a card at the beginning of the next turn's upkeep.".into(),
     };
     CardDataBuilder::new("Blessed Wine")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))

@@ -21,12 +21,13 @@ use crate::oracle::characteristics::{
 use crate::oracle::legality::CannotPlayLand;
 use crate::oracle::mana_helpers::{CannotActivate, CannotCast};
 use crate::state::battlefield::AttackTarget;
-use crate::state::game_state::{GameState, PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, IdMap, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
+use crate::types::triggers::DelayedDuration;
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -853,6 +854,20 @@ fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacte
 /// Why a spell or ability fizzled, in CR 608.2b's words.
 const DOES_NOT_RESOLVE: &str = "doesn't resolve: every target is illegal (CR 608.2b)";
 
+/// The delayed triggered ability `identity` is, by the number its
+/// creation's line gave it (CR 603.7), or `None` for an ability of an object.
+fn delayed_trigger(identity: AbilityIdentity) -> Option<DelayedTriggerId> {
+    identity.ability.delayed_trigger()
+}
+
+/// "ability", or "delayed trigger 3" for a delayed triggered ability.
+fn ability_word(identity: AbilityIdentity) -> String {
+    match delayed_trigger(identity) {
+        Some(id) => format!("delayed trigger {}", id.0),
+        None => "ability".to_string(),
+    }
+}
+
 /// Format one event, each object named as its record kept it.
 pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced) -> String {
     use crate::events::event::CounterSubject;
@@ -874,10 +889,27 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
-        AbilityTriggered { seq, origin, controller, .. } => format!(
-            "AbilityTriggered: {} [P{}] #{}", obj_name(game, origin.source()), controller, seq.0),
-        AbilityResolved { identity, controller } => format!(
-            "AbilityResolved: {} [P{}]", obj_name(game, identity.source.id), controller),
+        AbilityTriggered { seq, origin, controller, .. } => match delayed_trigger(origin.identity()) {
+            Some(id) => format!("AbilityTriggered: {}'s delayed trigger {} [P{}]", obj_name(game, origin.source()), id.0, controller),
+            None => format!("AbilityTriggered: {} [P{}] #{}", obj_name(game, origin.source()), controller, seq.0),
+        },
+        AbilityResolved { identity, controller } => match delayed_trigger(*identity) {
+            Some(id) => format!("AbilityResolved: {}'s delayed trigger {} [P{}]", obj_name(game, identity.source.id), id.0, controller),
+            None => format!("AbilityResolved: {} [P{}]", obj_name(game, identity.source.id), controller),
+        },
+        DelayedTriggerCreated { id, source, controller, rules_text, duration } => {
+            let fires = match duration {
+                DelayedDuration::Once => "once",
+                DelayedDuration::ThisTurn => "each time this turn",
+            };
+            format!(
+                "DelayedTriggerCreated: {}'s delayed trigger {} [P{}], {fires}: \"{}\"",
+                obj_name(game, *source),
+                id.0,
+                controller,
+                rules_text.words
+            )
+        }
         Targeted { target, by, ability_source, controller, instances } => {
             let target = match target {
                 TargetRef::Object(object) => obj_name(game, object.id),
@@ -954,11 +986,11 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellCountered { spell_id, controller, countered_by } => format!(
             "SpellCountered: {} [P{}] countered by {}", obj_name(game, *spell_id), controller, obj_name(game, *countered_by)),
         AbilityCountered { identity, controller, countered_by } => format!(
-            "AbilityCountered: {}'s ability [P{}] countered by {}",
-            obj_name(game, identity.source.id), controller, obj_name(game, *countered_by)),
+            "AbilityCountered: {}'s {} [P{}] countered by {}",
+            obj_name(game, identity.source.id), ability_word(*identity), controller, obj_name(game, *countered_by)),
         SpellFizzled { spell_id, controller } => format!("SpellFizzled: {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, *spell_id), controller),
         AbilityFizzled { identity, controller } => format!(
-            "AbilityFizzled: {}'s ability [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), controller),
+            "AbilityFizzled: {}'s {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), ability_word(*identity), controller),
         PlayerLost { player_id, reason } => {
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }

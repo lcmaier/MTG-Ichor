@@ -102,14 +102,6 @@ pub enum GameAction {
     /// Deal damage from a source to a target.
     DealDamage {
         source: ObjectId,
-        /// `source` as it last existed, when an effect has it deal damage
-        /// after it left the zone the effect expected it in (CR 608.2h):
-        /// what lifelink, deathtouch and a shield's source match read then
-        /// (CR 702.15c, 702.2e, 609.7b), through
-        /// `oracle::characteristics::damage_source_characteristics`. `None`
-        /// while it is there, and its current characteristics answer. A
-        /// rewrite of "the same damage" keeps it.
-        source_frame: Option<std::sync::Arc<EffectiveCharacteristics>>,
         target: DamageTarget,
         amount: u64,
         is_combat: bool,
@@ -129,6 +121,14 @@ pub enum GameAction {
         /// survive a redirect: CR 614.9 moves "the same damage", so
         /// `Rewrite::Retarget` copies this along with `is_combat`.
         unpreventable: bool,
+        /// `source` as it last existed, when an effect has it deal damage
+        /// after it left the zone the effect expected it in (CR 608.2h):
+        /// what lifelink, deathtouch and a shield's source match read then
+        /// (CR 702.15c, 702.2e, 609.7b), through
+        /// `oracle::characteristics::damage_source_characteristics`. `None`
+        /// while it is there, and its current characteristics answer. A
+        /// rewrite of "the same damage" keeps it.
+        source_frame: Option<std::sync::Arc<EffectiveCharacteristics>>,
     },
 
     /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",

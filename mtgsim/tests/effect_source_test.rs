@@ -182,15 +182,19 @@ fn circle_of_protection_red_prevents_an_abilitys_damage_from_the_chosen_permanen
 /// creature enters, at the beginning of your next end step, this creature
 /// deals 2 damage to each opponent."
 fn dragonhawk_shaped() -> Arc<CardData> {
-    tempest_fixture(damage_each_opponent(2))
+    tempest_fixture(
+        "At the beginning of your next end step, this creature deals 2 damage to each opponent.",
+        damage_each_opponent(2),
+    )
 }
 
-/// The same creature, whose end-step damage is `damage`.
-fn tempest_fixture(damage: Effect) -> Arc<CardData> {
+/// The same creature, whose end-step damage is `damage`, which `words` say.
+fn tempest_fixture(words: &'static str, damage: Effect) -> Arc<CardData> {
     let end_step_damage = DelayedTriggerTemplate {
         def: Arc::new(whenever(at_beginning_of(StepType::End, Whose::Yours), damage)),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::Any,
+        rules_text: words.into(),
     };
     let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(end_step_damage)), EffectRecipient::Controller);
     CardDataBuilder::new("Tempest Fixture")
@@ -357,7 +361,8 @@ fn a_creature_that_died_with_deathtouch_deals_its_ability_damage_with_deathtouch
         Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
         EffectRecipient::FilteredPermanents(their_creatures),
     );
-    let hawk = enter_and_wait(&mut game, tempest_fixture(damage), 0);
+    let words = "At the beginning of your next end step, this creature deals 2 damage to each creature your opponents control.";
+    let hawk = enter_and_wait(&mut game, tempest_fixture(words, damage), 0);
     let giant = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     give(&mut game, hawk, Layer::Layer6Ability, EffectModification::GrantKeywordFlag(KeywordFlag::Deathtouch));
     dies(&mut game, hawk);

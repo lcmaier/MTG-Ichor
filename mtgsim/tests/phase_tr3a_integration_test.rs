@@ -75,7 +75,7 @@ fn a_creature() -> ObjectFilter {
 /// A delayed trigger as a card prints one: "[when event], [effect]", in any
 /// turn.
 fn template(event: impl Into<TriggerEvent>, effect: Effect, duration: DelayedDuration) -> DelayedTriggerTemplate {
-    DelayedTriggerTemplate { def: Arc::new(whenever(event, effect)), duration, turn: DelayedTurn::Any }
+    DelayedTriggerTemplate { def: Arc::new(whenever(event, effect)), duration, turn: DelayedTurn::Any, rules_text: "".into() }
 }
 
 /// The instruction that creates `template`.

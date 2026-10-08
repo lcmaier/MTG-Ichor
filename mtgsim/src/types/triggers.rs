@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
-use crate::objects::card_data::CardData;
+use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
@@ -215,6 +215,7 @@ impl EventKind {
             | GameEvent::BlockersDeclared { .. }
             | GameEvent::CountersAnnihilated { .. }
             | GameEvent::CountersChanged { .. }
+            | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::EquipmentDetached { .. }
             | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
@@ -735,6 +736,10 @@ pub struct DelayedTriggerTemplate {
     pub def: Arc<TriggerDef>,
     pub duration: DelayedDuration,
     pub turn: DelayedTurn,
+    /// The words the card prints for it, which no `TriggerDef` carries:
+    /// what a log and a client show while it waits. Written by the card's
+    /// author, as an ability's are.
+    pub rules_text: AbilityText,
 }
 
 /// A delayed triggered ability waiting for its event (CR 603.7): on
@@ -784,6 +789,8 @@ pub struct DelayedTrigger {
     /// CR 601.2c's instances of "target" its def declares, announced as it
     /// is put on the stack (603.3d).
     pub instances: Vec<EffectRecipient>,
+    /// Its template's words.
+    pub rules_text: AbilityText,
 }
 
 impl DelayedTrigger {
