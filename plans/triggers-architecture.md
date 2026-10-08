@@ -736,6 +736,15 @@ departures from the sketch, each forced by a board:
   card" and the Tatsumasa board's "that token", come with TR-3b, beside the
   reflexive window, both reading the resolution's own records.
 
+**Added in #233 (2026-10-08), the dev GUI's notes on TR-3a.** The template and
+the entry carry `rules_text: AbilityText`, the card's words for the trigger,
+which no `TriggerDef` carries, written by the card's author as an ability's
+are. `register_delayed_trigger` announces `GameEvent::DelayedTriggerCreated`
+ahead of the entry, so its creation is no record it reads; nothing triggers on
+it. `AbilityId::delayed_trigger` reads back the role above, so a log names the
+trigger by its registry number on its triggered and resolved lines.
+`ui::waiting` reads the registry for a client.
+
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
 ```rust
@@ -2373,7 +2382,7 @@ Instructions per decision: item 222 −1.21% against `main`, the registry
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-3a".
 
-### TR-3b — reflexive triggers, the returns and "until" (1,410–1,640)
+### TR-3b — reflexive triggers, the returns and "until" (1,650–1,880)
 
 TR-3's other half, by the 2026-09-24 re-count (the last subsection); TR-3a's
 stub says what landed of the plan.
@@ -2382,6 +2391,7 @@ stub says what landed of the plan.
 |---|
 | `Effect::Reflexive` and the immediate check over the resolution's own records (§4.6); `refs`, the objects a creating instruction names, filled from those records (Flickerwisp's "that card", the Tatsumasa board's "that token"), each with a departure record as the source has; `UntilEvent` resolved at dispatch (610.3) |
 | `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm in `resolve.rs`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser |
+| **`codebase-state.md` item 223's row half**, carried by `plans/handoffs/item-223-rows.md` (the owner's split at #233's design review, 2026-10-08), ~170 lines: the ten sites that write a resolution's registry row read `ResolutionContext::effect_source`, and `cleanup_zone_state`'s sweep ends only the rows that end with their source, a static ability's (CR 611.3b) and a "for as long as" (611.2b), beside 610.3's "until"; closes items 223 and 95. **Item 225**, ~70 lines: a chosen-source shield kept past its source's departure, since Cornered Crook killed in response deals its damage as it last existed |
 | cards: **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) |
 | tests: §13's 7 TR-3b atoms; Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); the Tatsumasa board, under a doubler; Sneak Attack's ruling as a fixture board; Flickerwisp's second ruling and Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) |
 
@@ -2450,7 +2460,7 @@ re-counts. Figures are code plus tests, the band `engineering-practices.md`
 | Phase | Was | Re-count | Split into |
 |---|---|---|---|
 | TR-2b | 1,500–1,700 | 1,720–2,180 | no split |
-| TR-3 | 2,070–2,540 | 2,800–3,600 | **TR-3a**: the delayed registry, with Final Fortune, 1,600–1,980. **TR-3b**: reflexive triggers, the returns and "until", with Flickerwisp, Cornered Crook and Banishing Light, 1,410–1,640 |
+| TR-3 | 2,070–2,540 | 2,800–3,600 | **TR-3a**: the delayed registry, with Final Fortune, 1,600–1,980. **TR-3b**: reflexive triggers, the returns and "until", with Flickerwisp, Cornered Crook and Banishing Light, 1,410–1,640, and 1,650–1,880 with item 223's row half and item 225 (2026-10-08) |
 | items 176/177 | — | 800–1,050 | their own PR, between TR-3b and TR-4a |
 | TR-4 | 2,000–2,460 | 2,640–3,460 | **TR-4a**: the frame, 1,360–1,620. **TR-4b**: the records, 1,430–1,790 |
 | TR-5 | 2,195–2,710 | 3,080–4,350 | **TR-5a**: combat, targeting, ability damage and excess damage, 1,200–2,050. **TR-5b**: counters, prevention, the multiplier, tokens and scry, 1,870–2,380 |

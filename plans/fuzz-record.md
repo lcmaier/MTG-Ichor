@@ -37,6 +37,87 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-08 for TR-3a's dev GUI notes** (#233: item 223's event
+half, a source that left dealing its damage as it last existed, the delayed
+trigger's creation record and the Waiting panel). Loxodon Warhammer joins the
+registry, not pooled (184 → 185), so the `stress` §3 column is a new baseline;
+nothing moves `performance`. `close_out.py` against **main** `08592d4` (#232's
+merge), with two arms: **warhammer** `e313877` (the card registered, nothing
+else) and **shipped** `3d4cd62` (every engine commit; the dev GUI commit after
+it builds the same `fuzz_games`).
+
+**Predictions, before any arm ran:** both arms `IDENTICAL` on `performance`,
+gameplay and cost rows, at two seats and four, since no pooled card's ability
+deals damage or creates a delayed trigger and the lifelink and deathtouch
+readers walk the layers as `has_keyword` did; `stress` differing from `main`
+by the pool; shipped `IDENTICAL` to warhammer on `stress`, since the life an
+ability gains changes only the source its record names and the creation
+record is read by no trigger and no counter row; instructions per decision
+within ±0.3%; every dispatch agreed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, warhammer vs `main`, performance / stress | **IDENTICAL** / differ (the pool) | **IDENTICAL** / differ (the pool) |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / differ (the pool) | **IDENTICAL** / differ (the pool) |
+| gameplay and cost rows, shipped vs warhammer, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, warhammer, performance / stress, dispatches agreed | 165,363 / 166,508 | 337,395 / 349,698 |
+| audit, shipped, performance / stress, dispatches agreed | 165,363 / 166,572 | 337,395 / 349,829 |
+| instructions / decision, shipped vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6432 M → 0.6432 M, **−0.00%** |
+
+Every prediction held. The cost rows on `performance` read `main`'s to the
+digit in both arms, and shipped's cost rows on `stress` read warhammer's. The
+shipped-against-warhammer row is read from the sitting's own outputs through
+`fuzz_ab`'s comparison, since `close_out.py` compares each arm with the first.
+The only trace of the creation record is the audit's: 64 and 131 more
+dispatches on `stress`, where Blessed Wine and Final Fortune are, every one
+agreed. The sitting ran in 127 s.
+
+**Reachability**, shipped, `--require "Loxodon Warhammer"`, `stress`, 200
+games: cast 151 times in 112 games (56%) at two seats, about 1.2 copies a
+deck, and 123 times in 112 games (56%) at four, about 2.5.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** `stress` is a
+new baseline; `performance` keeps TR-3a's rows to the digit.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 28 (56.0%) / 22 (44.0%) | 29 (58.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.4 | 27.9 |
+| Spells cast | 22.2 | 22.5 |
+| Lands played | 16.7 | 17.4 |
+| Combat w/ atk | 10.4 | 9.2 |
+| Creatures died | 7.2 | 5.6 |
+| Damage events | 21.2 | 20.7 |
+| Total damage | 57.0 | 55.4 |
+| Life changes | 15.0 | 15.5 |
+| **Layer walks** | **334** | **425** |
+| **Board walks** | **205** | **246** |
+| **Memo hits** | **51,433** | **64,664** |
+| **Layer frames** | **3,779** | **4,848** |
+| **Frames/walk** | **11.32** | **11.40** |
+| **Dependency checks** | **47** | **27** |
+| **Replacement gathers** | **988** | **1056** |
+| **Restriction queries** | **989** | **1059** |
+| Mana productions | 70 | 92 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.26 | 0.46 |
+| Max batch depth | 5 | 6 |
+| Decisions | 192 | 259 |
+| Priority decisions | 69 | 99 |
+| Actions reversed | 0.2 | 0.2 |
+| Triggers placed | 2.3 | 1.8 |
+| Windows past gate | 42.7 | 34.5 |
+| Candidate visits | 47.8 | 38.8 |
+| Trigger matches | 3.7 | 2.1 |
+
+**The dev GUI's own reading**, `cargo run --release --example prompt_cost` on
+`large.scenario`, `main` against the branch: every allocation count the same
+but the editor's views, one more each (the registry's 185th name in the
+search list); the times within the machine's noise (the warm snapshot 414.0 →
+401.6 µs median). The board holds no delayed trigger and no extra turn, so the
+Waiting view costs one empty read.
+
 **Re-recorded 2026-10-07 for TR-3a** (the delayed-trigger registry;
 `triggers-architecture.md` §12). Final Fortune and Blessed Wine join the
 registry, neither pooled (182 → 184), so the `stress` §3 column is a new

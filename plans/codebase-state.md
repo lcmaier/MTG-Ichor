@@ -3597,6 +3597,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 
     **Absorbed (2026-10-07):** into item 223, which owns every site that
     attributes an effect to the ability's stack object; this closes with it.
+    Since #233's split (2026-10-08) `Regenerate` is a row site, so this
+    closes with item 223's row half in TR-3b
+    (`plans/handoffs/item-223-rows.md`).
 
 ### Found by the RD-2 review (2026-09-09)
 
@@ -9337,11 +9340,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      all read the source. Found in #231's `fizzle_log.png`: `LifeChanged:
      P0 20 -> 21 (source: #22)`, Blood Artist's gain named by its
      trigger's object, gone by the time the log reads it.
-     **Reachability (2026-10-07):** reachable — wrong today: every life
-     change an ability makes names its stack object, which only the log
-     reads, and Soul Warden and Blood Artist are pooled. The damage half is
-     unreachable: `DealDamage` is in five registered spells and no ability,
-     until TR-5a registers Hellrider.
+     **Reachability (2026-10-08):** reachable — not wrong today: the event
+     half closed in #233, and what is left is the registry rows' source,
+     which the why panel's "from" line shows and nothing that decides play
+     reads; no registered card regenerates, so CR 616.1's prompt never
+     shows item 95's row.
      **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
      accessor naming the object an effect is attributed to, read at each
      site; the tests the log's line, lifelink and Circle of Protection:
@@ -9358,12 +9361,20 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      prompt), since a row naming the permanent outlives the stack object:
      that is the point, and a behavior change the A/B shows. Absorbs item
      95.
-     **Slotted:** the dev GUI PR after TR-3a (the owner, 2026-10-07), as its
-     engine half. Back-stop: before TR-5a, whose Hellrider is the first
-     registered ability to deal damage and whose "ability damage" piece
-     reads this. TR-3a's delayed triggers take their provenance from
-     `ability_source` (`triggers-architecture.md` §3.9), so they add no
-     site.
+     **Split (2026-10-08, the owner, at #233's design review):** the six
+     sites whose effect is an event landed in #233: the damage's source, a
+     life gain and a set life total, produced mana, an effect's destruction
+     and "its owner", each through `ResolutionContext::effect_source`, with a
+     source that left dealing its damage as it last existed
+     (`GameAction::DealDamage::source_frame`, CR 608.2h, 702.15c, 702.2e).
+     The ten sites whose effect is a registry row wait with the sweep they
+     need, so neither half lands wrong.
+     **Slotted:** the row half in TR-3b, a row of its pieces table
+     (`triggers-architecture.md`), carried by
+     `plans/handoffs/item-223-rows.md`, which TR-3b's landing PR deletes
+     with this item and item 95 closed. TR-3b's "until" is the same
+     question, an effect that ends when its source leaves (CR 610.3), as
+     the sweep's "for as long as" (611.2b).
      **Counted (2026-10-08):** 51 lines of `resolve.rs` read `ctx.source`.
      The fifteen above attribute; `PlayerRef::Owner` (the activator, read
      off the stack object) is a sixteenth; the rest name the resolving
@@ -9377,6 +9388,31 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `ability_list_sources` takes the same predicate. Replacement and
      restriction rows are never swept by source; CR 616.1's prompt reads
      the sources for display and is answered by index.
+
+### Found by #233 — an ability's source (2026-10-08)
+
+225. **A chosen-source shield is dropped when its source leaves, though the
+     source can still deal damage.** `RegisteredReplacementEffect`'s CR
+     400.7 prune drops a row whose chosen damage source is the mover ("a
+     shield watching damage from a source that is gone can never apply").
+     CR 113.7a and 608.2h have a source that left still deal damage as it
+     last existed: a dies trigger's "it deals 2 damage", an activation whose
+     creature was destroyed in response. CR 609.7a lets a player choose
+     exactly such a source, "even if that object is no longer in the zone it
+     used to be in". So Circle of Protection: Red, having chosen a creature,
+     does not stop that creature's damage once it has died. The id alone
+     cannot decide it: the card in the graveyard is a new object (CR 400.7)
+     whose own damage the shield must not see.
+     **Reachability (2026-10-08):** unreachable — no registered ability
+     deals damage after its source has left. TR-3b's Cornered Crook is the
+     first registered ability that deals damage, and its source can be
+     killed in response to its reflexive trigger, which makes this
+     reachable in a `stress` game beside Circle of Protection: Red.
+     **Sized:** ~40 lines and a test: the row keeps its chosen source by
+     identity (`ObjectRef`), the prune spares it, and the damage says which
+     existence dealt it, as `source_frame` already says that one left; a
+     Perilous Myr fixture under Circle of Protection: Red.
+     **Slotted:** TR-3b, beside Cornered Crook, which makes it reachable.
 
 ### Found by TR-3a — the delayed-trigger registry (2026-10-07)
 
