@@ -113,6 +113,7 @@ is derived.
 | 2026-10-06 | Copies that last, and CR 400.7's new object | `CV-1b` | `copy-effects-architecture.md` |
 | 2026-10-06 | The editor's advanced settings, first part | — | `setup-architecture.md` |
 | 2026-10-06 | What happened, from the trace | `SU-8` | `setup-architecture.md` |
+| 2026-10-07 | The delayed-trigger registry, with Final Fortune and Blessed Wine | `TR-3a` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -139,7 +140,7 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| Delayed, reflexive, and "until" | `TR-3` | `triggers-architecture.md` |
+| Reflexive triggers, the returns and "until" | `TR-3b` | `triggers-architecture.md` |
 | The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
 | Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
@@ -149,9 +150,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 182 |
+| Cards registered | 184 |
 | …of them in `PERFORMANCE_POOL` | 104 |
-| `#[test]` functions | 2108 |
+| `#[test]` functions | 2132 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -172,11 +173,11 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 281 |
-| …closed, still recorded | 103 |
-| …open — unreachable, and says why | 112 |
+| Numbered items | 282 |
+| …closed, still recorded | 104 |
+| …open — unreachable, and says why | 113 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 33 |
+| …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
 | …open, carrying an explicit `**Sized:**` | 173 of 178 |

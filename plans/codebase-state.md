@@ -3679,9 +3679,12 @@ this PR added the fields it names.
     effect choosing its own resolving spell as the source of future damage is
     the only thing that loses, and nothing printed does it.
 
-    **Reachability (2026-09-09):** unreachable — neither category exists on any
-    board the engine can build, and the resolving-object gap is asked for by no
-    printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
+    **Reachability (2026-10-07):** unreachable — the command zone is empty,
+    and TR-3a's registry exists but its entries refer to an object only as
+    their source (CR 603.7d–g): no registered delayed trigger's text names
+    one (Final Fortune's and Blessed Wine's), so (a)'s delayed leg has no
+    referent until TR-3b's `refs`. The resolving-object gap is asked for by
+    no printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
     `COVERS-PARTIAL` naming exactly the two categories.
 
     **Sized:** (a) is a `referred_to: Vec<ObjectId>` on `StackEntry` plus the
@@ -9301,21 +9304,16 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** the first registered activated "this ability" copy, Dimir
      Doppelganger, which waits on TR-7's graveyard targets.
 
-222. **A copy row that carries a triggered ability opens the dispatcher's
-     gate for the whole battlefield.** `RegistryScopeSummary` adds a `Fixed`
-     row's `carries` to `unattributed_trigger_zones` as `BATTLEFIELD`, so
-     every window visits every permanent while one exists.
-     Cryptoplasm's copies always carry its trigger, which keeps the gate open
-     from its first copy to its last. On `performance` with it pooled,
-     `Candidate visits` read 45.1 → 797.4 a game at two seats and 124.4 →
-     2,091.3 at four (`fuzz-record.md`, CV-1b's block).
-     **Reachability (2026-10-06):** reachable — not wrong in any game: the
-     dispatcher's cost.
-     **Sized:** ~30 lines. A named row adds its named objects to the
-     candidates, as `any_named_unattributed_replacement` names the
-     replacement gate's, and a `Filter` row keeps opening its zones.
-     **Slotted:** TR-3a, the next PR on the route, which touches the
-     dispatcher.
+222. **~~A copy row that carries a triggered ability opens the dispatcher's
+     gate for the whole battlefield.~~ — ✅ CLOSED 2026-10-07 (TR-3a).** —
+     archived. A row naming its objects files the record kinds its
+     triggered abilities read, and the dispatcher reads the objects off the
+     rows only for a window carrying one of those kinds. On `performance`,
+     `Candidate visits` 797.4 → 44.8 a game at two seats and 2,090.8 → 140.3
+     at four, every gameplay row `IDENTICAL` and the audit agreeing;
+     instructions per decision −1.21%.
+     **Reachability (2026-10-07):** closed — TR-3a.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 222".
 
 ### Found at #231's review (2026-10-07)
 
@@ -9358,3 +9356,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      reads this. TR-3a's delayed triggers take their provenance from
      `ability_source` (`triggers-architecture.md` §3.9), so they add no
      site.
+
+### Found by TR-3a — the delayed-trigger registry (2026-10-07)
+
+224. **CR 603.7b's choice has no provider at an unbatched record.**
+     `AttackersDeclared` is emitted outside any batch, and an unbatched
+     dispatch has no `ActionContext` to ask with. A `Once` delayed trigger
+     over `Attacks` whose window holds two matching attackers needs its
+     controller to choose which attack causes it; the registry takes the
+     first and debug-asserts.
+     **Reachability (2026-10-07):** unreachable — no registered delayed
+     trigger reads `Attacks`, and every other arm reads at most one
+     occurrence of an unbatched record (a cast, a resolution, a trigger).
+     **Sized:** ~20–40 lines: declare attackers inside a batch, or carry the
+     choice to placement, where a provider is.
+     **Slotted:** TR-5a, combat's shapes, which rebuilds the attack record.

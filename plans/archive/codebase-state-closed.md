@@ -3597,3 +3597,39 @@ Season, and then enters as an Essence of Might with no counter
      donor or to the copy's own exception (`plans/references/feedback-loops.md`
      §6, `copy-by-counters`). CR 616.2 allows the shape all the same, so no
      card will bring the fix, and CV-1b is the next copy phase on the route.
+
+### Item 222 — closed 2026-10-07 by TR-3a's PR
+
+Closed as sized, as TR-3a's first commit and its own close-out arm. A row
+naming its objects (`SourceOnly`, `Fixed`, `Host`) adds the record kinds its
+triggered abilities read to `RegistryScopeSummary::named_unattributed_trigger_kinds`
+instead of opening the battlefield, and the dispatcher reads the named
+objects off the rows, by `triggered_ability_kinds`, only for a window
+carrying one of those kinds: the replacement gather's named leg, with the
+printed leg's mask. A `Filter` row keeps opening its zones.
+`phase_tr3a_integration_test::a_named_grant_asks_only_its_object_and_only_for_its_kinds`
+grants "whenever this creature becomes tapped" to one creature of eight: an
+untap passes no gate and the creature's tap asks it alone, where the pre-fix
+tree asked all eight on the untap. On `performance`, `Candidate visits` read
+797.4 → 44.8 a game at two seats and 2,090.8 → 140.3 at four, `Windows past
+gate` 60.6 → 40.4 and 151.8 → 110.2, every gameplay row `IDENTICAL` on both
+pools, and the audit agreed on every dispatch; instructions per decision
+−1.21% (`fuzz-record.md`, the TR-3a block).
+
+*Original entry:*
+
+222. **A copy row that carries a triggered ability opens the dispatcher's
+     gate for the whole battlefield.** `RegistryScopeSummary` adds a `Fixed`
+     row's `carries` to `unattributed_trigger_zones` as `BATTLEFIELD`, so
+     every window visits every permanent while one exists.
+     Cryptoplasm's copies always carry its trigger, which keeps the gate open
+     from its first copy to its last. On `performance` with it pooled,
+     `Candidate visits` read 45.1 → 797.4 a game at two seats and 124.4 →
+     2,091.3 at four (`fuzz-record.md`, CV-1b's block).
+     **Reachability (2026-10-06):** reachable — not wrong in any game: the
+     dispatcher's cost.
+     **Sized:** ~30 lines. A named row adds its named objects to the
+     candidates, as `any_named_unattributed_replacement` names the
+     replacement gate's, and a `Filter` row keeps opening its zones.
+     **Slotted:** TR-3a, the next PR on the route, which touches the
+     dispatcher.
