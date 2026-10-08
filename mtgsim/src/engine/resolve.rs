@@ -2518,11 +2518,18 @@ impl GameState {
     }
 
     /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
-    /// has left the zone it was in: the frame its entry kept as it went.
-    /// `None` while it is there, and for a spell, which resolves where it
-    /// was cast. A source no frame was kept for reads where it is now.
+    /// has left the zone it was in. A trigger on its source's own departure
+    /// ("when this creature dies") looks back (CR 603.10a) and is named by
+    /// the object it left as, so it reads the departure record's frame; any
+    /// other, the frame its entry kept as the source went. `None` while the
+    /// source is there, and for a spell, which resolves where it was cast. A
+    /// source no frame was kept for reads where it is now.
     fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
         let source = ctx.ability_source?;
+        let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
+        if let Some(frame) = looked_back.and_then(crate::engine::triggers::binding::departure_frame) {
+            return Some(frame);
+        }
         if self.object_ref(source.id) == Some(source) {
             return None;
         }

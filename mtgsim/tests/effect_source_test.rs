@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whenever, Whose};
+use mtgsim::cards::authoring::{at_beginning_of, dies as when_it_dies, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
 use mtgsim::cards::phase_rd_cards::circle_of_protection_red;
@@ -146,6 +146,25 @@ fn lifelink_reads_the_permanent_whose_ability_deals_the_damage() {
     assert_eq!(life(&game, 1), 19);
     assert_eq!(life(&game, 0), 21, "the pinger has lifelink, and it dealt the damage");
     assert_eq!(life_changes(&game), vec![(1, -1, Some(pinger)), (0, 1, Some(pinger))], "the loss and the gain both the pinger's");
+}
+
+/// CR 113.7a's own board: "{T}: deal 1 damage" activated, and the creature
+/// destroyed in response. The ability resolves, and the creature deals the
+/// damage as it last existed, with the lifelink it had then.
+// COVERS: ATOM-113.7a-001
+#[test]
+fn an_activated_abilitys_source_destroyed_in_response_still_deals_the_damage() {
+    let mut game = setup_two_player_game();
+    let pinger = put_on_battlefield(&mut game, pinger(), 0);
+    let warhammer = put_on_battlefield(&mut game, loxodon_warhammer(), 0);
+    equip(&mut game, warhammer, pinger);
+    game.activate_ability(0, pinger, 0, &test_dp()).unwrap();
+    game.change_zone(pinger, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert_eq!(life(&game, 1), 19, "the ability exists apart from its source");
+    assert_eq!(life(&game, 0), 21, "and the creature had lifelink as it last existed");
 }
 
 /// CR 609.7a: "If the player chooses a permanent, the effect will apply to
@@ -347,9 +366,43 @@ fn shield_around(game: &mut GameState, player: PlayerId, def: ReplacementDef) {
     });
 }
 
+/// A 1/1 with Perilous Myr's shape: "When this creature dies, it deals
+/// `n` damage to `whom`."
+fn perilous(n: u64, whom: EffectRecipient) -> Arc<CardData> {
+    let damage = Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(n), unpreventable: false }, whom);
+    creature_with_ability("Perilous Fixture", 1, 1, triggered_ability("", whenever(when_it_dies(TriggerSubject::ThisObject), damage)))
+}
+
+/// Its dies trigger, put on the stack and resolved.
+fn dies_and_resolves(game: &mut GameState, creature: ObjectId) {
+    dies(game, creature);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+}
+
+/// CR 702.15c over a dies trigger: the creature died wearing the Warhammer,
+/// and its trigger, which exists only once it has left, deals the damage as
+/// it last existed. No entry was there to keep a frame as it went, so the
+/// frame is the departure record's.
+// COVERS: ATOM-702.15c-001
+#[test]
+fn a_dies_trigger_deals_its_damage_with_the_lifelink_its_creature_died_with() {
+    let mut game = setup_two_player_game();
+    let myr = put_on_battlefield(&mut game, perilous(2, EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents))), 0);
+    let warhammer = put_on_battlefield(&mut game, loxodon_warhammer(), 0);
+    equip(&mut game, warhammer, myr);
+
+    dies_and_resolves(&mut game, myr);
+
+    assert_eq!(life(&game, 1), 18);
+    assert_eq!(life(&game, 0), 22);
+}
+
 /// CR 702.2e: deathtouch is read off the last known information too. The
-/// creature had deathtouch from a row about it alone, and died; its 2 damage
-/// to a 5/5 is still lethal (CR 702.2b).
+/// creature had deathtouch from a row about it alone, which ended as it
+/// died; its dies trigger's 2 damage to a 5/5 is still lethal (CR 702.2b).
+// COVERS: ATOM-702.2e-001
 #[test]
 fn a_creature_that_died_with_deathtouch_deals_its_ability_damage_with_deathtouch() {
     let mut game = setup_two_player_game();
@@ -357,19 +410,11 @@ fn a_creature_that_died_with_deathtouch_deals_its_ability_damage_with_deathtouch
         Box::new(ObjectFilter::ByType(CardType::Creature)),
         Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
     );
-    let damage = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
-        EffectRecipient::FilteredPermanents(their_creatures),
-    );
-    let words = "At the beginning of your next end step, this creature deals 2 damage to each creature your opponents control.";
-    let hawk = enter_and_wait(&mut game, tempest_fixture(words, damage), 0);
+    let myr = put_on_battlefield(&mut game, perilous(2, EffectRecipient::FilteredPermanents(their_creatures)), 0);
     let giant = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
-    give(&mut game, hawk, Layer::Layer6Ability, EffectModification::GrantKeywordFlag(KeywordFlag::Deathtouch));
-    dies(&mut game, hawk);
+    give(&mut game, myr, Layer::Layer6Ability, EffectModification::GrantKeywordFlag(KeywordFlag::Deathtouch));
 
-    to_the_end_step(&mut game);
-    game.resolve_top_of_stack(&test_dp()).unwrap();
-    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    dies_and_resolves(&mut game, myr);
 
     assert_eq!(game.get_object(giant).unwrap().zone, Zone::Graveyard, "2 damage from a deathtouch source");
 }
