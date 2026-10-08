@@ -109,12 +109,45 @@ impl GameState {
                 }
             }
         }
-        // And CR 610.3's "until [it] leaves the battlefield".
+        // And the objects CR 610.3's "until" events name.
         for until in self.until_returns.iter_mut() {
-            if until.watched.object == object && until.watched.left_at.is_none() {
-                until.watched.left_at = Some(at);
+            for remembered in std::iter::once(&mut until.source).chain(until.referred.iter_mut()) {
+                if remembered.object == object && remembered.left_at.is_none() {
+                    remembered.left_at = Some(at);
+                }
             }
         }
+    }
+
+    /// CR 610.3 — the "until" returns whose event a record of the window is,
+    /// by their place on `until_returns`, in the order they were made. The
+    /// event is read as a trigger arm is, "this" being the exile's source and
+    /// "that" what it refers to, each by identity, and a record before the
+    /// return was made does not count.
+    pub(crate) fn events_ending_an_until(&self, window: &[EventSeq]) -> Vec<usize> {
+        if self.until_returns.is_empty() {
+            return Vec::new();
+        }
+        let mut ended = Vec::new();
+        for (at, until) in self.until_returns.iter().enumerate() {
+            let referents = TriggerReferents {
+                this: ThisObject::Remembered(until.source),
+                controller: until.controller,
+                owner: self.objects.get(&until.source.object.id).map_or(until.controller, |o| o.owner),
+                host: None,
+                this_ability: None,
+                referred: &until.referred,
+            };
+            let happened = window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
+                record.seq >= until.created_at
+                    && until.until.reads(&record.event)
+                    && !self.occurrences_matching_arm(&until.until, &referents, record.seq, &record.event).is_empty()
+            });
+            if happened {
+                ended.push(at);
+            }
+        }
+        ended
     }
 
     /// CR 514.2: the cleanup step ends "this turn" effects, and a delayed

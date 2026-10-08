@@ -830,6 +830,12 @@ impl GameState {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
         use crate::engine::trace_records;
 
+        // CR 111.8 — a token that has left the battlefield "remains in its
+        // current zone instead" of moving again. A rule, so no event: nothing
+        // is proposed, and no replacement sees it.
+        let mut batch = batch;
+        batch.retain(|action| !self.is_a_departed_tokens_move(action));
+
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
         // of a resolution, a decomposition's remaining inners, the ending batch's
@@ -1841,6 +1847,20 @@ impl GameState {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, cause })
+    }
+
+    /// CR 111.8 — whether `action` moves a token that has already left the
+    /// battlefield: out of the zone it went to, or back onto the battlefield.
+    /// A token made outside the battlefield (CR 111.5's substituted entry) is
+    /// held where it is too: 111.8 does not name it, and it ceases to exist
+    /// at the next state-based check either way (111.7).
+    fn is_a_departed_tokens_move(&self, action: &GameAction) -> bool {
+        let (object, from) = match action {
+            GameAction::ZoneChange { object, from, .. } => (*object, *from),
+            GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from),
+            _ => return false,
+        };
+        from != Zone::Battlefield && self.objects.get(&object).is_some_and(|o| o.is_token)
     }
 
     /// Propose CR 614.1c's entry — the one proposal for a card entering the

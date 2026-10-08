@@ -499,7 +499,7 @@ impl GameState {
         // The registry's leg (§4.6), which has no shortcut for the audit to
         // check: every entry reading a kind of the window is asked.
         let delayed = self.detect_delayed(window, window_kinds, ordinals);
-        let until = self.departures_ending_an_until(window);
+        let until = self.events_ending_an_until(window);
         if matches.is_empty() && delayed.is_empty() && until.is_empty() {
             return Ok(());
         }

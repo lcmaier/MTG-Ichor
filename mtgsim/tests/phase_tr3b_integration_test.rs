@@ -11,10 +11,15 @@
 //!    rulings, and an Aura that returns (CR 303.4f/g).
 //! 4. CR 610.3's "until": Banishing Light, its four rulings, and §13's six
 //!    CR 610.3 atoms.
+//! 5. Item 226.
+//! 6. The review: an exile and a return in one resolution (Cloudshift's
+//!    shape) and CR 111.8, and an "until" whose event is not a leaving.
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{at_beginning_of, dies, enters, triggered_ability, whenever, Whose};
+use mtgsim::cards::authoring::{
+    at_beginning_of, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose,
+};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::{cobbled_wings, holy_strength};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
@@ -34,7 +39,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
-    TargetCount, TokenDef, UntilLeaves,
+    TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::effects::CounterType;
@@ -692,7 +697,11 @@ fn banisher(under: ReturnUnder) -> Arc<CardData> {
             whenever(
                 enters(TriggerSubject::ThisObject),
                 Effect::Atom(
-                    Primitive::ExileUntil { leaves: UntilLeaves::ThisObject, under },
+                    Primitive::ExileUntil {
+                        until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                        refers_to: None,
+                        under,
+                    },
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
             ),
@@ -719,10 +728,8 @@ fn calix_instant() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ExileUntil {
-                    leaves: UntilLeaves::Target(EffectRecipient::Target(
-                        SelectionFilter::Permanent(yours),
-                        TargetCount::Exactly(1),
-                    )),
+                    until: Box::new(leaves_the_battlefield(TriggerSubject::Referred).into()),
+                    refers_to: Some(EffectRecipient::Target(SelectionFilter::Permanent(yours), TargetCount::Exactly(1))),
                     under: ReturnUnder::Owner,
                 },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
@@ -964,7 +971,7 @@ fn the_waiting_view_shows_an_until_return() {
     banish(&mut game, 0, &test_dp());
     let waiting = mtgsim::ui::waiting::what_is_waiting(&game);
     assert_eq!(waiting.until_returns.len(), 1);
-    assert!(waiting.until_returns[0].watched.contains("Banishing Light"));
+    assert!(waiting.until_returns[0].watched.as_deref().is_some_and(|w| w.contains("Banishing Light")));
     assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
 }
 
@@ -977,4 +984,97 @@ fn the_waiting_view_shows_an_until_return() {
 fn cobbled_wings_costs_two() {
     let cost = cobbled_wings().mana_cost.as_ref().map(|cost| cost.mana_value());
     assert_eq!(cost, Some(2));
+}
+
+// ---------------------------------------------------------------------------
+// 6. The review: Cloudshift's shape, CR 111.8, and "until" any event
+// ---------------------------------------------------------------------------
+
+/// Cloudshift's shape as an instant: "Exile target creature you control,
+/// then return that card to the battlefield under your control." No delayed
+/// trigger: the return finds the card the exile moved (CR 400.7j).
+fn cloudshift_shape() -> Arc<CardData> {
+    let text = "Exile target creature you control, then return that card to the battlefield under your control.";
+    CardDataBuilder::new("Cloud Step")
+        .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::White], 0))
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            rules_text: text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(Primitive::Exile, target_your_creature()),
+                Effect::Atom(Primitive::ReturnToBattlefield(ReturnUnder::You), EffectRecipient::SameInstanceAs(0)),
+            ]),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// The card comes back under its caster's control as a new object, which
+/// Cloudshift's rulings say of the creature it flickers.
+#[test]
+fn an_exile_then_a_return_in_one_resolution_brings_the_card_back_under_your_control() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let before = game.object_ref(bears).unwrap();
+    cast_for_white(&mut game, 0, cloudshift_shape());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert_ne!(game.object_ref(bears), Some(before), "a new object (CR 400.7)");
+    assert_eq!(get_effective_controller(&game, bears), Some(0));
+}
+
+/// CR 111.8: "A token that has left the battlefield can't move to another
+/// zone or come back onto the battlefield." Cloudshift's ruling: "If a token
+/// is exiled this way, it will cease to exist and won't return to the
+/// battlefield."
+// COVERS: ATOM-111.8-001
+#[test]
+fn a_token_that_has_left_the_battlefield_does_not_come_back() {
+    let mut game = setup_two_player_game();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 0 }, &test_ctx()).unwrap();
+    let soldier = tokens_named(&game, "Soldier")[0];
+    cast_for_white(&mut game, 0, cloudshift_shape());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, soldier), Zone::Exile, "it stayed where it went");
+
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(game.get_object(soldier).is_err(), "and ceased to exist (CR 111.7)");
+}
+
+/// An "until" whose event is not a leaving cannot yet say whether its event
+/// happened since the ability triggered (CR 610.3b), so its resolution is
+/// refused rather than guessed: "When this creature enters, exile target
+/// creature until you gain life."
+#[test]
+fn an_until_that_cannot_answer_610_3b_is_refused() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let gains = mtgsim::types::triggers::TriggerEvent::GainsLife {
+        player: Some(PlayerRef::You),
+        multiplicity: mtgsim::types::triggers::Multiplicity::PerOccurrence,
+    };
+    let jailer = CardDataBuilder::new("Life Jailer")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability(
+            "When this creature enters, exile target creature until you gain life.",
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                Effect::Atom(
+                    Primitive::ExileUntil { until: Box::new(gains), refers_to: None, under: ReturnUnder::Owner },
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                ),
+            ),
+        ))
+        .build();
+    put_on_battlefield(&mut game, jailer, 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.perform_sba_and_triggers(&dp).unwrap();
+    let refused = game.resolve_top_of_stack(&dp).expect_err("refused");
+    assert!(refused.contains("610.3a/b"), "{refused}");
 }

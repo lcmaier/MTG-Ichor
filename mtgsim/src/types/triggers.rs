@@ -462,9 +462,10 @@ impl TriggerEvent {
         EventKind::from_record(record).is_some_and(|kind| self.record_kinds().contains(kind))
     }
 
-    /// Whether the arm watches an object a delayed trigger refers to (CR
-    /// 603.7c): "when that token dies".
-    pub fn watches_referred(&self) -> bool {
+    /// The object the arm is about, for the arms about one: the creature
+    /// that dies, the permanent that becomes tapped, the source that deals
+    /// damage. `None` for an arm about a player, a step or an ability.
+    pub fn subject(&self) -> Option<&TriggerSubject> {
         match self {
             TriggerEvent::ZoneChange { subject, .. }
             | TriggerEvent::BecomesTapped { subject }
@@ -472,7 +473,7 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { subject, .. }
             | TriggerEvent::ManaAdded { source: subject, .. }
             | TriggerEvent::DamageDealt { source: subject, .. }
-            | TriggerEvent::Attacks { attacker: subject, .. } => *subject == TriggerSubject::Referred,
+            | TriggerEvent::Attacks { attacker: subject, .. } => Some(subject),
             TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -482,8 +483,14 @@ impl TriggerEvent {
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
-            | TriggerEvent::AbilityResolves { .. } => false,
+            | TriggerEvent::AbilityResolves { .. } => None,
         }
+    }
+
+    /// Whether the arm watches an object a delayed trigger refers to (CR
+    /// 603.7c): "when that token dies".
+    pub fn watches_referred(&self) -> bool {
+        self.subject() == Some(&TriggerSubject::Referred)
     }
 
     /// The arm's multiplicity field, for the arms that carry one.

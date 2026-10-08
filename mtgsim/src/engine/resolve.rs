@@ -12,7 +12,7 @@ use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    ReturnUnder, SelectionFilter, TargetCount, UntilLeaves,
+    ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -725,29 +725,32 @@ impl GameState {
             }
 
             // CR 610.3 — the exile, unless its event has already happened
-            // since the spell was cast or the ability triggered (610.3a, b):
-            // the watched object is gone, or is a new object. Then the return
-            // it waits to make, of what it exiled.
-            Primitive::ExileUntil { leaves, under } => {
-                let watched = match leaves {
-                    UntilLeaves::ThisObject if ctx.ability_source.is_none() => {
-                        return Err(format!("{:?}: a spell is never on the battlefield to leave it", ctx.source));
-                    }
-                    UntilLeaves::ThisObject => self.this_object(ctx),
-                    UntilLeaves::Target(_) => {
+            // since the spell was cast or the ability triggered (610.3a, b).
+            // Then the return it waits to make, of what it exiled.
+            Primitive::ExileUntil { until, refers_to, under } => {
+                let referred: Vec<ObjectRef> = match refers_to {
+                    None => Vec::new(),
+                    Some(_) => {
                         let ix = walk.instance_cursor;
                         walk.instance_cursor += 1;
-                        ctx.targets.instance(ix).iter().find_map(|t| match t {
-                            ResolvedTarget::Object(id) => Some(*id),
-                            ResolvedTarget::Player(_) => None,
-                        })
+                        ctx.targets
+                            .instance(ix)
+                            .iter()
+                            .filter_map(|t| match t {
+                                ResolvedTarget::Object(id) => self.object_ref(*id),
+                                ResolvedTarget::Player(_) => None,
+                            })
+                            .collect()
                     }
                 };
-                let Some(watched) =
-                    watched.filter(|id| self.battlefield.contains_key(id)).and_then(|id| self.object_ref(id))
-                else {
-                    return Ok(());
+                let spell = || self.object_ref(ctx.source).ok_or_else(|| format!("{} is not in the game", ctx.source));
+                let source = match ctx.ability_source {
+                    Some(source) => source,
+                    None => spell()?,
                 };
+                if self.until_has_happened(until, ctx.ability_source, &referred)? {
+                    return Ok(());
+                }
                 let mark = self.events.next_seq();
                 let batch = self.events_for(&Primitive::Exile, targets, ctx)?;
                 if batch.is_empty() {
@@ -755,7 +758,7 @@ impl GameState {
                 }
                 self.execute_actions(batch, &actx)?;
                 let returns = self.exiled_since(ctx.stamp(), mark);
-                self.wait_to_return(watched, returns, *under, ctx.controller);
+                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller);
                 Ok(())
             }
 

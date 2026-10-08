@@ -10,7 +10,7 @@ use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::RememberedObject;
+use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeCause};
 use crate::ui::decision::DecisionProvider;
 
@@ -113,11 +113,13 @@ impl GameState {
         exiled
     }
 
-    /// CR 610.3 — make the return an "until" exile waits to make, for
-    /// `watched`'s leaving the battlefield.
+    /// CR 610.3 — make the return an "until" exile waits to make: what it
+    /// exiled, back when `until` happens.
     pub(crate) fn wait_to_return(
         &mut self,
-        watched: ObjectRef,
+        until: TriggerEvent,
+        source: ObjectRef,
+        referred: &[ObjectRef],
         returns: Vec<(ObjectRef, Zone)>,
         under: ReturnUnder,
         controller: PlayerId,
@@ -126,33 +128,42 @@ impl GameState {
             return;
         }
         let created_at = self.events.next_seq();
-        self.until_returns.push(UntilReturn { watched: RememberedObject::now(watched), returns, under, controller, created_at });
+        self.until_returns.push(UntilReturn {
+            until,
+            source: RememberedObject::now(source),
+            referred: referred.iter().copied().map(RememberedObject::now).collect(),
+            returns,
+            under,
+            controller,
+            created_at,
+        });
     }
 
-    /// The returns the window's departures from the battlefield cause, by
-    /// their place on `until_returns`, in the order they were made. A
-    /// departure is the watched object's own (`RememberedObject::is`) and
-    /// after the return was made.
-    pub(crate) fn departures_ending_an_until(&self, window: &[EventSeq]) -> Vec<usize> {
-        if self.until_returns.is_empty() {
-            return Vec::new();
-        }
-        let mut ended = Vec::new();
-        for seq in window {
-            let Some(record) = self.events.record(*seq) else { continue };
-            let left = match &record.event {
-                GameEvent::ZoneChange { object_id, from: Zone::Battlefield, .. }
-                | GameEvent::LeftTheGame { object_id, from: Zone::Battlefield, .. } => *object_id,
-                _ => continue,
-            };
-            for (at, until) in self.until_returns.iter().enumerate() {
-                if record.seq >= until.created_at && until.watched.is(self, left, record.seq) && !ended.contains(&at) {
-                    ended.push(at);
-                }
+    /// CR 610.3a, 610.3b — whether `until` has already happened since the
+    /// spell was cast or the ability triggered, so nothing moves. A leaving
+    /// has, when the object it names is gone or is a new object (CR 400.7):
+    /// `source` for "this", `referred` for the target it named. Another event
+    /// would need its own history to say, and is refused rather than guessed.
+    pub(crate) fn until_has_happened(
+        &self,
+        until: &TriggerEvent,
+        source: Option<ObjectRef>,
+        referred: &[ObjectRef],
+    ) -> Result<bool, String> {
+        let TriggerEvent::ZoneChange { subject, from: Some(Zone::Battlefield), to: None, cause: None, owner: None, .. } =
+            until
+        else {
+            return Err(format!("CR 610.3a/b asks whether {until:?} has happened since, which needs that event's history"));
+        };
+        let watched: Vec<ObjectRef> = match subject {
+            TriggerSubject::ThisObject => {
+                vec![source.ok_or("a spell is never on the battlefield to leave it (CR 610.3)")?]
             }
-        }
-        ended.sort_unstable();
-        ended
+            TriggerSubject::Referred => referred.to_vec(),
+            other => return Err(format!("CR 610.3a/b asks whether {other:?} has left since, which needs its history")),
+        };
+        let here = |object: &ObjectRef| self.object_ref(object.id) == Some(*object) && self.battlefield.contains_key(&object.id);
+        Ok(watched.is_empty() || !watched.iter().all(here))
     }
 
     /// CR 610.3 — perform the returns `ended` names, now and as one event,
@@ -191,5 +202,34 @@ impl GameState {
             }
         }
         self.return_objects(&returns, &ActionContext::new(ctx.dp))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cards::creatures::grizzly_bears;
+    use crate::engine::actions::GameAction;
+    use crate::test_support::{put_in_exile, put_on_battlefield, setup_two_player_game, test_ctx};
+    use crate::types::effects::{PlayerRef, ReturnUnder};
+    use crate::types::triggers::{Multiplicity, TriggerEvent};
+    use crate::types::zones::Zone;
+
+    /// CR 610.3's event is any event: a return waiting on "you gain life"
+    /// is made when its controller gains life, as a dispatch reads the
+    /// record, and not before.
+    #[test]
+    fn an_until_waits_on_whatever_event_it_names() {
+        let mut game = setup_two_player_game();
+        let source = put_on_battlefield(&mut game, grizzly_bears(), 0);
+        let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
+        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+        let (source, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
+        game.wait_to_return(gains, source, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 0);
+
+        game.execute_action(GameAction::GainLife { player: 1, amount: 1, source: source.id }, &test_ctx()).unwrap();
+        assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Exile, "another player's gain is not \"you\"");
+        game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: source.id }, &test_ctx()).unwrap();
+        assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Battlefield);
+        assert!(game.until_returns.is_empty());
     }
 }

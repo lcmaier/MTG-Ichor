@@ -12,14 +12,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{another, at_beginning_of, enters, triggered_ability, whenever, Whose};
+use crate::cards::authoring::{
+    another, at_beginning_of, enters, leaves_the_battlefield, triggered_ability, whenever, Whose,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
-    UntilLeaves,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -146,7 +147,11 @@ pub fn banishing_light() -> Arc<CardData> {
             whenever(
                 enters(TriggerSubject::ThisObject),
                 Effect::Atom(
-                    Primitive::ExileUntil { leaves: UntilLeaves::ThisObject, under: ReturnUnder::Owner },
+                    Primitive::ExileUntil {
+                        until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                        refers_to: None,
+                        under: ReturnUnder::Owner,
+                    },
                     EffectRecipient::Target(
                         SelectionFilter::Permanent(nonland_an_opponent_controls),
                         TargetCount::Exactly(1),

@@ -300,17 +300,12 @@ impl ContinuousEffect {
     }
 
     /// Whether this row ends as its source leaves the battlefield: a static
-    /// ability's (CR 611.3b), or a resolution's "for as long as" its source
-    /// is there (CR 611.2b). Any other resolution's row lasts as long as it
-    /// stated (CR 611.2a), whatever becomes of the object that made it.
+    /// ability's (CR 611.3b), or a resolution's whose duration does (CR
+    /// 611.2b). Any other resolution's row lasts as long as it stated (CR
+    /// 611.2a), whatever becomes of the object that made it. One predicate,
+    /// so the battlefield sweep and the look-back gate cannot disagree.
     pub fn ends_with_its_source(&self) -> bool {
-        match self.origin {
-            EffectOrigin::StaticAbility { .. } => true,
-            EffectOrigin::Resolution => match self.duration {
-                Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => true,
-                Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => false,
-            },
-        }
+        matches!(self.origin, EffectOrigin::StaticAbility { .. }) || self.duration.ends_with_its_source()
     }
 }
 

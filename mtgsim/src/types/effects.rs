@@ -505,6 +505,18 @@ pub enum Duration {
     Indefinite,
 }
 
+impl Duration {
+    /// CR 611.2b — a "for as long as" duration tied to the object that made
+    /// the effect: it ends as that object leaves the battlefield (or stops
+    /// enchanting or equipping), wherever the effect is registered.
+    pub fn ends_with_its_source(self) -> bool {
+        match self {
+            Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => true,
+            Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => false,
+        }
+    }
+}
+
 /// Conditions for Conditional effects (rule 603.4 intervening "if")
 ///
 /// Shared with a static ability's "as long as [X]" (CR 604.2): a conditional
@@ -957,19 +969,6 @@ pub enum PatternFill {
     /// which is [`Primitive::Restrict`]'s shape one level down: the *shape* is
     /// the card's and the *object* is the resolution's.
     ChosenDamageSource,
-}
-
-/// CR 610.3 — the object whose leaving the battlefield ends an "until"
-/// exile. Every printed "until" exile waits for a leaving.
-#[derive(Debug, Clone, PartialEq)]
-pub enum UntilLeaves {
-    /// "Until this [permanent] leaves the battlefield": the ability's source.
-    ThisObject,
-    /// "Until target enchantment you control leaves the battlefield" (Calix,
-    /// Destiny's Hand): an `EffectRecipient::Target` the instruction declares
-    /// after its own, so it is announced and re-checked (CR 608.2b) as any
-    /// target is.
-    Target(EffectRecipient),
 }
 
 /// Whose control a returned permanent enters under.
@@ -1566,12 +1565,24 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
-    /// CR 610.3 — "exile [it] until [an object] leaves the battlefield": the
-    /// exile, and the return it waits to make, which CR 610.3 creates
-    /// immediately after that object leaves and which uses no stack. If the
-    /// object has already left since the spell was cast or the ability
-    /// triggered (610.3a, 610.3b), nothing moves.
-    ExileUntil { leaves: UntilLeaves, under: ReturnUnder },
+    /// CR 610.3 — "exile [it] until [a specified event occurs]": the exile,
+    /// and the return it waits to make, which CR 610.3 creates immediately
+    /// after the event and which uses no stack. The event is read as a
+    /// trigger arm is: "until this leaves the battlefield" is a leaving of
+    /// `TriggerSubject::ThisObject`, Palace Jailer's "until an opponent
+    /// becomes the monarch" a designation's arm. If the event has already
+    /// happened since the spell was cast or the ability triggered (610.3a,
+    /// 610.3b), nothing moves.
+    ExileUntil {
+        until: Box<crate::types::triggers::TriggerEvent>,
+        /// The target the event refers to as `TriggerSubject::Referred`,
+        /// "until target enchantment you control leaves the battlefield"
+        /// (Calix, Destiny's Hand): an `EffectRecipient::Target` declared
+        /// after the instruction's own, so it is announced and re-checked (CR
+        /// 608.2b) as any target is.
+        refers_to: Option<EffectRecipient>,
+        under: ReturnUnder,
+    },
     /// Sacrifice (CR 701.21a): "its controller moves it from the battlefield
     /// directly to its owner's graveyard". The recipient is the permanent, as
     /// [`Self::Destroy`]'s is: `ThisObject` for "sacrifice this enchantment",
@@ -2301,7 +2312,7 @@ impl Effect {
                 // "Until target enchantment leaves the battlefield": the verb's
                 // second instance, after its own.
                 own && match primitive {
-                    Primitive::ExileUntil { leaves: UntilLeaves::Target(watched), .. } => f(watched),
+                    Primitive::ExileUntil { refers_to: Some(target), .. } => f(target),
                     _ => true,
                 }
             }
