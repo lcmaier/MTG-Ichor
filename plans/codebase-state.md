@@ -71,7 +71,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
-| 111 | Tokens — cease-to-exist | ✅ SBA 704.5d | `engine/sba.rs:332+` |
+| 111 | Tokens — cease-to-exist; 111.8's "can't move" | ✅ SBA 704.5d; 111.8 since TR-3b | `engine/sba.rs:332+`; `engine/actions.rs` (`is_a_departed_tokens_move`) |
 | 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/put_on_stack.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
 | 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/put_on_stack.rs`, `engine/costs.rs` |
@@ -1255,6 +1255,15 @@ registered card returns an object.
     control-change sweep. Fixtures: Sower flickered in response, Sower leaving
     later, Silumgar stolen and returned. Owed by the first registered
     resolution with such a duration, in any of the three registries.
+
+    **Since TR-3b (2026-10-08, #234):** item 223 fixed the key. A
+    resolution's row names `ResolutionContext::effect_source`, the permanent,
+    and the continuous registry's battlefield sweep ends a resolution's row
+    whose duration ends with its source. That predicate is
+    `Duration::ends_with_its_source` (CR 611.2b), so the retain above reads it
+    for the replacement and restriction registries too. Still owed: their
+    sweep, the epoch (the row's source is an id, not an `ObjectRef`), and the
+    control leg.
 
     **Reachability (2026-09-24):** unreachable — the 33 registered
     source-scoped durations are all static abilities, whose rows name the
@@ -9362,6 +9371,20 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** one helper passing `ResolutionContext::effect_source`, at six
      sites, ~20 lines.
      **Slotted:** TR-3c, whose Manticore fixture is its first reader.
+
+230. **CR 610.3a/b is answered only for a leaving.** An "until" whose event
+     is anything else cannot say whether the event happened after the spell
+     was cast or the ability triggered, since only a leaving's history is
+     kept (the object's departure, by identity). So
+     `GameState::until_has_happened` (`engine/returns.rs`) refuses that
+     resolution loudly rather than guess. Palace Jailer's "until an opponent
+     becomes the monarch" is the printed customer.
+     **Reachability (2026-10-08):** unreachable — every registered "until"
+     waits for a leaving.
+     **Sized:** the event's records since the trigger's stamp, read by the
+     same matcher, ~40 lines with the monarch's designation record.
+     **Slotted:** Phase 9, with the monarch (CR 724), where §13 already
+     defers the designation atoms on §3.8's arm.
 
 ### Found by #233 — an ability's source (2026-10-08)
 

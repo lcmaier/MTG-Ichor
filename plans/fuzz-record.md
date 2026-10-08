@@ -85,6 +85,15 @@ turn-limit game at either seat count, and moved average turns by about one
 at most. Their event dumps hold 126 returns from exile through Flickerwisp
 and 42 through Banishing Light's "until".
 
+**The review round** (after the sitting): the until-event became any
+`TriggerEvent`, CR 111.8 landed, and the 611.2b predicate moved onto
+`Duration`. Predicted identical to shipped, since every registered "until"
+waits for a leaving, matched now by the trigger matcher instead of by hand.
+A token exiled by Flickerwisp or Banishing Light ceases to exist before any
+return could find it. `fuzz_ab.py` against shipped `a8fc1da`, 200 games at
+seed 12345: every row outside timing **IDENTICAL** on both pools at two seats
+and four. The fixture rows below stand.
+
 **§3 fixture rows, shipped, two seats, 50 games / seed 12345.** Both columns
 are new baselines.
 

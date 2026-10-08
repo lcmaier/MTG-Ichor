@@ -557,11 +557,13 @@ is derivable; where each name was read is not, and the gate needs the names.
 - **Added by TR-3b (2026-10-08)**:
   - `until_returns`: CR 610.3's returns waiting for their events, which are
     one-shot effects and no triggered abilities, so they are not on
-    `delayed_triggers`. Each holds the object whose leaving the battlefield
-    is the event, by identity; what the exile moved, by identity, with its
-    previous zone; and whose control a returned permanent enters under
-    (610.3c). Every printed "until" exile waits for a leaving (135 cards,
-    `o:/until .* leaves the battlefield/`).
+    `delayed_triggers`. Each holds its event, a `TriggerEvent` the trigger
+    matcher reads; the ability's source and any target the event refers to,
+    by identity; what the exile moved, by identity, with its previous zone;
+    and whose control a returned permanent enters under (610.3c). 135
+    printed "until" exiles wait for a leaving (`o:/until .* leaves the
+    battlefield/`), and Palace Jailer's for a monarch, so the event is not a
+    leaving by type (#234's review).
 
 ---
 

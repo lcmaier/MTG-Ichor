@@ -763,7 +763,13 @@ source's is, and on the trigger's binding to the stack.
 object (CR 603.7c). CR 610.3's return is not `DelayedDuration::UntilEvent`:
 it is no triggered ability, so it lives on `GameState::until_returns`
 (`engine/returns.rs`), made by `Primitive::ExileUntil` and performed at a
-dispatch as one batch for one event (610.3d).
+dispatch as one batch for one event (610.3d). Its event is any
+`TriggerEvent`, matched as a trigger arm is (`events_ending_an_until`), and
+`refers_to` names a target the event watches as `TriggerSubject::Referred`
+(Calix, Destiny's Hand). CR 610.3a/b's "already occurred" is answered for a
+leaving, by identity, and refused for any other event until that event's
+history is kept (`codebase-state.md` item 230). A token the exile moved
+stays where it went (CR 111.8).
 
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
@@ -2423,10 +2429,11 @@ battlefield sweep ends only the rows that end with their source (CR 611.3b,
 the resolution's own records, which the window now holds until the
 resolution ends. `Primitive::ReturnToBattlefield` with `ReturnUnder`, and CR
 303.4f/g through the existing non-targeting `SelectRecipients`. CR 610.3:
-`Primitive::ExileUntil` with 610.3a/b's check, and `GameState::until_returns`,
-made at a dispatch as one batch (610.3d). Item 226. Flickerwisp and Banishing
-Light registered and pooled (185 → 187, 104 → 106). Thirty-one tests; §13's
-six CR 610.3 atoms are covered.
+`Primitive::ExileUntil`, its event any `TriggerEvent`, with 610.3a/b's check
+for a leaving, and `GameState::until_returns`, made at a dispatch as one batch
+(610.3d). CR 111.8. Item 226. Flickerwisp and Banishing Light registered and
+pooled (185 → 187, 104 → 106). Thirty-six tests; §13's six CR 610.3 atoms are
+covered.
 
 **What moved on the way in.** The gap hunt found ten facilities no row
 listed, and the owner split the phase at the design review: the reflexive
@@ -2434,7 +2441,8 @@ half is TR-3c. Three corrections to the plan: the window flushed at every
 batch's close, so a resolution could not read its own records; 610.3d is one
 batch, which the window alone did not give; and the return is no triggered
 ability, so it is not a `DelayedDuration`. `ReturnToHand` moved to TR-4 with
-Rancor. +2,016 in code and tests (code +999, tests +1,017).
+Rancor. The review generalized the until-event and took CR 111.8 in. +2,242
+in code and tests (code +1,097, tests +1,145).
 
 **Measured** (`fuzz-record.md`, the TR-3b block). The engine arm plays every
 gameplay row as `main` does on both pools at two seats and four, and the

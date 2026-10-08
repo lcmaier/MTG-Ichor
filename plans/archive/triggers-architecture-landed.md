@@ -1091,3 +1091,27 @@ for thirty-one tests and their fixtures.
 names shift every window after them. At forty turns it raised 367 prompts
 and no blockers; at fifty it raises 548 with every kind it guards. Blockers
 are at one in every variant tried, so the guard is still near its edge.
+
+**The review** (#234, 2026-10-08) took three changes after the close-out.
+- **The until-event is any `TriggerEvent`.** It was `UntilLeaves`, an object
+  whose leaving ended the exile. The owner asked why a leaving was built into
+  the type when a return can wait on something that is no object's, and
+  Palace Jailer's "until an opponent becomes the monarch" is such a card. The
+  event is now read by the trigger matcher (`events_ending_an_until`), and
+  `refers_to` carries Calix's target as `TriggerSubject::Referred`. CR
+  610.3a/b's "already occurred" needs the event's history since the trigger,
+  which is kept only for a leaving, so any other event's resolution is
+  refused loudly (`codebase-state.md` item 230, Phase 9 with the monarch).
+- **CR 111.8.** Cloudshift's ruling, that an exiled token "won't return to
+  the battlefield", is the rule, and the engine let a token come back.
+  `execute_actions` drops a departed token's move before anything is
+  proposed, since the rule is no event and no replacement sees it. The test
+  fails without the drop. Covers ATOM-111.8-001.
+- **The 611.2b half of `ends_with_its_source` is `Duration`'s.** A duration
+  that ends with its source says so wherever it is registered, so item 17's
+  sweep over the replacement and restriction registries reads the same
+  predicate as the continuous one.
+
++334 in code and tests, so the phase closes at +2,242. Against shipped
+`a8fc1da`, every row outside timing played identically on both pools at two
+seats and four (`fuzz-record.md`, TR-3b).
