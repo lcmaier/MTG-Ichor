@@ -21,6 +21,10 @@
 //! [`audit`] answers every dispatch again the slow way in a game that turns
 //! it on, and panics when the two answers differ (§4.10).
 //!
+//! [`delayed`] is the CR 603.7 registry: what a resolution, a rider or a
+//! special action creates, asked as a leg of every dispatch beside the
+//! objects', through the same arm matcher.
+//!
 //! [`binding`] is what the resolution reads back: the bound facts as
 //! indices into the event log, resolved through the matched arm's
 //! projections, with CR 603.6's "unable to be found" and CR 400.7 as one
@@ -29,6 +33,7 @@
 pub mod audit;
 pub mod binding;
 pub mod bound_reads;
+pub mod delayed;
 pub mod dispatch;
 pub mod history;
 pub mod placement;

@@ -312,6 +312,9 @@ impl GameState {
         // the plan it never got — which no cursor of it ever reads.
         self.turn_plan.reset();
         self.expire_until_your_next_turn(player, turn);
+        // A delayed trigger for an extra turn that has ended or was skipped
+        // never triggers (CR 614.10a).
+        self.drop_delayed_triggers_of_gone_turns();
         // CR 800.4c again, beside the other expiry — see the cleanup step.
         self.exile_objects_no_player_in_game_controls(ctx)
     }
@@ -410,6 +413,8 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
+                // ... and a delayed triggered ability "this turn" (CR 603.7b).
+                self.end_this_turn_delayed_triggers();
                 // CR 800.4c — a control-changing effect that has just ended
                 // leaves its object with no player in the game controlling it,
                 // and "this is not a state-based action. It happens as soon as

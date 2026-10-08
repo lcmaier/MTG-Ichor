@@ -162,6 +162,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::ChooseAdditionalCosts { .. }
         | ChoiceKind::ChooseSacrificeForCost { .. }
         | ChoiceKind::OrderTriggers { .. }
+        | ChoiceKind::ChooseDelayedTriggerEvent { .. }
         | ChoiceKind::ChooseReplacementEffect { .. }
         | ChoiceKind::ApplyOptionalReplacement { .. }
         | ChoiceKind::LegendRule { .. }

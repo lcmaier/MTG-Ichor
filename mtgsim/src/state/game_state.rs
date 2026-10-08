@@ -600,6 +600,15 @@ pub struct GameState {
     /// the drain again.
     pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
+    /// CR 603.7's delayed triggered abilities waiting for their events, in
+    /// the order they were created: the dispatcher asks every one at every
+    /// window carrying a kind it reads (`triggers-architecture.md` §4.6).
+    /// Written by `register_delayed_trigger`; an entry leaves as it triggers
+    /// (`Once`), at cleanup (`ThisTurn`), or when its turn has gone.
+    pub delayed_triggers: Vec<crate::types::triggers::DelayedTrigger>,
+    /// How many delayed triggered abilities this game has created: the last
+    /// `DelayedTriggerId`.
+    pub(crate) delayed_triggers_created: u64,
     /// CR 603.2h — "do this only once each turn": each ability whose action
     /// its controller has taken this turn, with that controller, since the
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
@@ -928,6 +937,8 @@ impl GameState {
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
+            delayed_triggers: Vec::new(),
+            delayed_triggers_created: 0,
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),

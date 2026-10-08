@@ -235,7 +235,10 @@ fn primitive(p: &Primitive) -> BoundReads {
         | Primitive::ChangeColor(_, lasts)
         | Primitive::ChangeType(_, lasts)
         | Primitive::GainControl(lasts) => duration(lasts),
-        Primitive::CreateReplacement(..) | Primitive::Restrict(..) | Primitive::Copy { .. } => BoundReads::EVERYTHING,
+        Primitive::CreateReplacement(..)
+        | Primitive::Restrict(..)
+        | Primitive::Copy { .. }
+        | Primitive::CreateDelayedTrigger(_) => BoundReads::EVERYTHING,
     }
 }
 

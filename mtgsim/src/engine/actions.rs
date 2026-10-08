@@ -1773,6 +1773,7 @@ impl GameState {
             None
         };
         self.hand_over_departed_frame(object, lki.as_ref());
+        self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
         self.announce_zone_change(object, from, to, cause, lki)

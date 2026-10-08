@@ -15,7 +15,7 @@ use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerSeq, TriggerTier};
+use crate::types::triggers::{PendingTrigger, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -108,7 +108,7 @@ impl GameState {
     }
 
     /// Whether two entries of one def agree on every fact it reads (item 163).
-    fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
+    pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
         (unread(BoundReads::SUBJECT) || x.subject == y.subject)
@@ -123,7 +123,7 @@ impl GameState {
     /// "This ability"'s state: whether its CR 603.2h action is taken this
     /// turn, and how many times it has resolved (CR 603.7h).
     fn ability_state(&self, entry: &PendingTrigger) -> (bool, u32) {
-        let TriggerOrigin::Object(identity) = entry.origin;
+        let identity = entry.origin.identity();
         (
             self.action_taken_this_turn.contains(&(identity, entry.controller)),
             self.resolutions_this_turn_of(identity),
@@ -158,7 +158,7 @@ impl GameState {
         let id = self.add_object(object);
         self.stack.push(id);
 
-        let TriggerOrigin::Object(identity) = pending.origin;
+        let identity = pending.origin.identity();
         let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, dp) {
             Ok(targets) => targets,
             Err(_) => {
@@ -174,7 +174,7 @@ impl GameState {
             controller,
             chosen_targets: targets,
             chosen_modes: Vec::new(),
-            x_value: None,
+            x_value: pending.x_value,
             effect: Arc::new(pending.binding.def.effect.clone()),
             is_spell: false,
             chosen_alternative_cost: None,

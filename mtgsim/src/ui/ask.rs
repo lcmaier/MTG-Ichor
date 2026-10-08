@@ -1321,6 +1321,32 @@ pub fn ask_choose_damage_source(
     candidates[index[0]]
 }
 
+/// CR 603.7b — which of the events that happened at once causes a delayed
+/// triggered ability with no stated duration to trigger. `options` names each
+/// event, by its object or by its record's number; `source` is the delayed
+/// trigger's. Returns the chosen event's place among `options`.
+///
+/// **Only called with two or more events that give different games**: the
+/// caller drops an event that agrees with another on everything the
+/// ability reads, and does not ask over one.
+pub fn ask_choose_delayed_trigger_event(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    options: &[ChoiceOption],
+) -> usize {
+    assert!(
+        options.len() >= 2,
+        "ask_choose_delayed_trigger_event: a choice needs two or more events; called with {}",
+        options.len(),
+    );
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseDelayedTriggerEvent { source });
+    let index = dp.pick_n(game, chooser, &ctx, options, (1, 1));
+    validate_pick_n(&index, options, (1, 1), "choose_delayed_trigger_event", game, chooser, &ctx);
+    index[0]
+}
+
 /// Choose which permanents pay a `Cost::Sacrifice` (CR 601.2h, 701.21a).
 ///
 /// `candidates` is every permanent the payer controls that matches the cost's

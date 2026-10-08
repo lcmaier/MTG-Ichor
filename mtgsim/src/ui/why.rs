@@ -320,6 +320,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ApplyOptionalEffect { .. }
             | ChoiceKind::AllocateNextDamage { .. }
             | ChoiceKind::ChooseDamageSource { .. }
+            | ChoiceKind::ChooseDelayedTriggerEvent { .. }
             | ChoiceKind::ChooseEnteringController { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
@@ -390,6 +391,9 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ChooseDamageSource { source } => {
             (format!("every permanent and every spell on the stack, as the source {} names", n(source)), Some("609.7a"))
+        }
+        ChoiceKind::ChooseDelayedTriggerEvent { source } => {
+            (format!("the events that happened at once, any of which triggers {}'s delayed ability", n(source)), Some("603.7b"))
         }
         ChoiceKind::ChooseEnteringController { object } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))

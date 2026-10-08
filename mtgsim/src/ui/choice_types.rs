@@ -182,6 +182,14 @@ pub enum ChoiceKind {
     /// asked this" is answered by it and by nothing else on the prompt.
     ChooseDamageSource { source: ObjectId },
 
+    /// CR 603.7b — a delayed triggered ability with no stated duration whose
+    /// event happened more than once at the same time: its controller
+    /// chooses which event causes it. The options are the events, each by
+    /// its object, or by its record's number where objects do not tell them
+    /// apart. Asked only between two or more events that give different
+    /// games. `source` is the delayed trigger's (CR 603.7d–g).
+    ChooseDelayedTriggerEvent { source: ObjectId },
+
     /// CR 616.1b / 614.12a — an entry replacement puts `object` under "an
     /// opponent of your choice" and there is more than one opponent to choose
     /// from. The options are players. With exactly one opponent nothing is
@@ -339,6 +347,7 @@ impl ChoiceKind {
             ChoiceKind::ApplyOptionalEffect { source } => Some(*source),
             ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
+            ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
             ChoiceKind::ChooseCopySource { source } => Some(*source),
@@ -376,6 +385,7 @@ impl ChoiceKind {
             ChoiceKind::ApplyOptionalEffect { .. } => "ApplyOptionalEffect",
             ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
+            ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
             ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
             ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",

@@ -16,11 +16,11 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::events::event::{DamageTarget, EventRecord, GameEvent};
+use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -175,6 +175,7 @@ counted_enum! {
         SpellCast,
         CardDrawn,
         LibraryShuffled,
+        AbilityResolved,
     }
 }
 
@@ -206,10 +207,10 @@ impl EventKind {
             GameEvent::SpellCast { .. } => EventKind::SpellCast,
             GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
             GameEvent::LibraryShuffled { .. } => EventKind::LibraryShuffled,
+            GameEvent::AbilityResolved { .. } => EventKind::AbilityResolved,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
-            | GameEvent::AbilityResolved { .. }
             | GameEvent::Attached { .. }
             | GameEvent::BlockersDeclared { .. }
             | GameEvent::CountersAnnihilated { .. }
@@ -372,6 +373,21 @@ pub enum TriggerEvent {
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
+    /// "When this ability has resolved" (CR 603.7h): the ability's own
+    /// `AbilityResolved` record, which CR 608.2n's last step announces. For
+    /// a delayed trigger "this ability" is the one that created it, and "the
+    /// third time this turn" is the creating resolution's condition, which
+    /// creates it only then (§6.5).
+    AbilityResolves { identity: IdentityRef },
+}
+
+/// Which ability an `AbilityResolves` arm watches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityRef {
+    /// The ability whose arm this is, or for a delayed trigger the ability
+    /// that created it — the same ability of the same object, whichever
+    /// instance (Ashling the Pilgrim's ruling, §6.5).
+    ThisAbility,
 }
 
 impl TriggerEvent {
@@ -395,7 +411,8 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::AbilityTriggers { .. } => false,
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => false,
         }
     }
 
@@ -430,6 +447,7 @@ impl TriggerEvent {
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
+            TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
         }
     }
 
@@ -457,7 +475,8 @@ impl TriggerEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::AbilityTriggers { .. } => Multiplicity::PerOccurrence,
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => Multiplicity::PerOccurrence,
         }
     }
 
@@ -488,7 +507,8 @@ impl TriggerEvent {
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
-            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
+            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
+            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // "That spell".
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
             _ => None,
@@ -516,7 +536,8 @@ impl TriggerEvent {
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
                 Some(*controller)
             }
-            (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. }) => {
+            (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. })
+            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
                 Some(*controller)
             }
             (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
@@ -554,7 +575,8 @@ impl TriggerEvent {
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
-            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
+            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
+            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             _ => None,
         }
     }
@@ -579,7 +601,8 @@ impl TriggerEvent {
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
-            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => 1,
+            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
+            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => 1,
             _ => 0,
         }
     }
@@ -625,25 +648,138 @@ impl TriggerBinding {
     }
 }
 
-/// Where a pending trigger came from (§3.8). The delayed, reflexive and
-/// rule-owned origins land with TR-3 and TR-6.
+/// Where a pending trigger came from (§3.8). The reflexive and rule-owned
+/// origins land with TR-3b and TR-6.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.
     Object(AbilityIdentity),
+    /// CR 603.7 — a delayed triggered ability, by the identity CR 603.7d–g
+    /// give it: its source, and its registry number as the ability
+    /// (`AbilityId::delayed`). It is no ability of that object, and CR
+    /// 603.2d's "triggers additional times" does not reach it.
+    Delayed(AbilityIdentity),
 }
 
 impl TriggerOrigin {
+    /// The ability that triggered, by what it is.
+    pub fn identity(&self) -> AbilityIdentity {
+        match self {
+            TriggerOrigin::Object(identity) | TriggerOrigin::Delayed(identity) => *identity,
+        }
+    }
+
     pub fn source(&self) -> ObjectId {
         self.source_ref().id
     }
 
     /// The source, and which existence of it (CR 400.7).
     pub fn source_ref(&self) -> ObjectRef {
-        match self {
-            TriggerOrigin::Object(identity) => identity.source,
-        }
+        self.identity().source
     }
+}
+
+/// CR 603.7b — how many times a delayed triggered ability triggers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DelayedDuration {
+    /// "The next time": it triggers on the first event that matches and is
+    /// gone. If several match at once, its controller chooses which one
+    /// causes it.
+    Once,
+    /// "This turn": it triggers on every matching event until CR 514.2 ends
+    /// the turn's "this turn" effects in the cleanup step.
+    ThisTurn,
+}
+
+/// Which turn a delayed triggered ability may trigger in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DelayedTurn {
+    /// Whichever turn its event comes in: "at the beginning of the next end
+    /// step".
+    Any,
+    /// "That turn": the extra turn the same resolution scheduled before
+    /// creating it (CR 500.7), Final Fortune's "at the beginning of that
+    /// turn's end step". A skipped extra turn never comes (CR 614.10a), and
+    /// the trigger goes with it.
+    ThatExtraTurn,
+}
+
+/// What `Primitive::CreateDelayedTrigger` creates (CR 603.7), as a card
+/// prints it. Its source, controller, X and turn belong to the moment it is
+/// created, and the resolution fills them in (`triggers-architecture.md`
+/// §3.9).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DelayedTriggerTemplate {
+    /// What it watches, its intervening "if", and what it does. Its targets
+    /// are chosen as it is put on the stack (CR 603.3d), never as the spell
+    /// that creates it is cast.
+    pub def: Arc<TriggerDef>,
+    pub duration: DelayedDuration,
+    pub turn: DelayedTurn,
+}
+
+/// A delayed triggered ability waiting for its event (CR 603.7): on
+/// `GameState::delayed_triggers` from the moment it is created until it
+/// triggers (`Once`), its duration ends, or its turn has gone.
+#[derive(Debug, Clone)]
+pub struct DelayedTrigger {
+    pub id: DelayedTriggerId,
+    pub def: Arc<TriggerDef>,
+    /// CR 603.7d–g's source, by identity (CR 400.7): the spell as it
+    /// resolved, the source of the ability that created it, or the object
+    /// with the static ability. "This creature" in its text is this object.
+    pub source: ObjectRef,
+    /// The record of the move that ended `source` as that object, once one
+    /// has (CR 400.7). A departure record names the object's id and not
+    /// which existence of it moved, so this is how "when this creature
+    /// leaves the battlefield" knows its own departure and no later move of
+    /// a new object with the same id.
+    pub source_left_at: Option<EventSeq>,
+    /// What its stack object is built from (CR 603.3's "the text of the
+    /// ability that created it"), held because the source may be gone by
+    /// then.
+    pub source_card: Arc<CardData>,
+    /// CR 603.7d–g's controller, as of the moment it was created.
+    pub controller: PlayerId,
+    /// The first record performed after it was created, and the batch it was
+    /// created during, if any: CR 603.7a's "won't trigger until it has
+    /// actually been created". A rider (CR 615.5) creates one inside the
+    /// batch it rides on, after some of that event's members are performed
+    /// and before others are, and the whole event happened "just beforehand".
+    pub created_at: EventSeq,
+    pub created_in: Option<BatchId>,
+    /// The ability that created it, for CR 603.7h's "this ability"; `None`
+    /// for a spell's and a replacement effect's.
+    pub created_by: Option<AbilityIdentity>,
+    pub duration: DelayedDuration,
+    /// CR 107.3n — the X of the spell or ability that created it.
+    pub x_value: Option<u64>,
+    /// "That turn": the one extra turn it may trigger in (CR 500.7).
+    pub turn: Option<ExtraTurnId>,
+    /// CR 601.2c's instances of "target" its def declares, announced as it
+    /// is put on the stack (603.3d).
+    pub instances: Vec<EffectRecipient>,
+}
+
+impl DelayedTrigger {
+    /// Its identity (CR 603.7d–g): the source, and its registry number as
+    /// the ability.
+    pub fn identity(&self) -> AbilityIdentity {
+        AbilityIdentity { source: self.source, ability: AbilityId::delayed(self.id) }
+    }
+}
+
+/// Whose a new delayed triggered ability is, as CR 603.7d–g say for what
+/// creates it, taken at the moment it is created: what
+/// `GameState::register_delayed_trigger` adds to a template.
+#[derive(Debug, Clone)]
+pub struct DelayedProvenance {
+    pub source: ObjectRef,
+    pub source_card: Arc<CardData>,
+    pub controller: PlayerId,
+    pub created_by: Option<AbilityIdentity>,
+    pub x_value: Option<u64>,
+    pub turn: Option<ExtraTurnId>,
 }
 
 /// An object's last known information (CR 113.7a, 608.2h), kept by an entry
@@ -680,6 +816,9 @@ pub struct PendingTrigger {
     pub is_state_trigger: bool,
     /// The frames of the objects it names that have left since it triggered.
     pub departed: Vec<DepartedFrame>,
+    /// CR 107.3n — a delayed trigger's X, its creating spell's or ability's,
+    /// which its stack object carries; `None` for an object's trigger.
+    pub x_value: Option<u64>,
 }
 
 impl PendingTrigger {
@@ -742,6 +881,7 @@ mod tests {
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
+            ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
         ]
     }
@@ -783,6 +923,7 @@ mod tests {
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
+            (TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility }, &["AbilityResolved"]),
         ];
         let records = sample_records();
         for (arm, reads) in &expected {
@@ -793,7 +934,7 @@ mod tests {
     }
 
     /// The mask is as wide as the kinds need and no wider: one word for the
-    /// sixteen there are, every kind in it, and none of them in the empty set.
+    /// seventeen there are, every kind in it, and none of them in the empty set.
     #[test]
     fn the_mask_holds_every_kind_in_one_word() {
         assert_eq!(EventKind::WORDS, 1);

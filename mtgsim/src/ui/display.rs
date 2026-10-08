@@ -442,6 +442,9 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("Choose the damage {} prevents ({remaining} left)", n(source))
         }
         ChoiceKind::ChooseDamageSource { source } => format!("Choose a source of damage for {}", n(source)),
+        ChoiceKind::ChooseDelayedTriggerEvent { source } => {
+            format!("Choose which event triggers {}'s delayed ability", n(source))
+        }
         ChoiceKind::ChooseEnteringController { object } => {
             format!("Choose the opponent who controls {} as it enters", n(object))
         }
