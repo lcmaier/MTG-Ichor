@@ -24,6 +24,7 @@ use super::phase_tr1_cards;
 use super::phase_tr2a_cards;
 use super::phase_tr2b_cards;
 use super::phase_tr3a_cards;
+use super::phase_tr3b_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -55,7 +56,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 104] = [
+const PERFORMANCE_POOL: [&str; 106] = [
     "Plains",
     "Island",
     "Swamp",
@@ -483,6 +484,12 @@ const PERFORMANCE_POOL: [&str; 104] = [
     // after the doubling pays undoubled.
     "Krark-Clan Ironworks",
     "Doubling Cube",
+    // TR-3b's two paths: a delayed trigger that refers to the card its
+    // creator exiled (CR 603.7c) and returns it, an Aura choosing its host as
+    // it enters (CR 303.4f); and CR 610.3's "until" return, made as its
+    // source's departure is dispatched, with no stack.
+    "Flickerwisp",
+    "Banishing Light",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -846,6 +853,10 @@ impl CardRegistry {
         // by design; Blessed Wine because §12 pools the registry with TR-3b.
         registry.register("Final Fortune", phase_tr3a_cards::final_fortune);
         registry.register("Blessed Wine", phase_tr3a_cards::blessed_wine);
+
+        // TR-3b: the returns, and "until". Both pooled (§12).
+        registry.register("Flickerwisp", phase_tr3b_cards::flickerwisp);
+        registry.register("Banishing Light", phase_tr3b_cards::banishing_light);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

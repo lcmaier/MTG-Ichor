@@ -106,6 +106,15 @@
         {"n": 4, "published_at": "2004-10-04", "comment": "This card is a Mountain and a Swamp even while in the graveyard, library, or any other zone."}
       ]
     },
+    "Banishing Light": {
+      "first_seen": "2026-10-08",
+      "rulings": [
+        {"n": 1, "published_at": "2025-07-25", "comment": "If an Aura is exiled this way, its owner chooses what it will enchant as it returns to the battlefield. An Aura put onto the battlefield this way doesn’t target anything (so it could be attached to a permanent an opponent controls with hexproof, for example), but the Aura’s enchant ability restricts what it can be attached to. If the Aura can’t legally be attached to anything, it remains in exile for the rest of the game."},
+        {"n": 2, "published_at": "2025-07-25", "comment": "Auras attached to the exiled permanent will be put into their owners’ graveyards. Any Equipment will become unattached and remain on the battlefield. Any counters on the exiled permanent will cease to exist. When the card returns to the battlefield, it will be a new object with no connection to the card that was exiled."},
+        {"n": 3, "published_at": "2025-07-25", "comment": "If Banishing Light leaves the battlefield before its triggered ability resolves, the target permanent won’t be exiled."},
+        {"n": 4, "published_at": "2025-07-25", "comment": "If a token is exiled this way, it will cease to exist and won’t return to the battlefield."}
+      ]
+    },
     "Bard, King of Dale": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -413,6 +422,15 @@
       "rulings": [
         {"n": 1, "published_at": "2022-12-08", "comment": "If multiple \"extra turn\" effects resolve in the same turn, take them in the reverse of the order that the effects resolved. In other words, the most recently created extra turn is taken first."},
         {"n": 2, "published_at": "2004-10-04", "comment": "If you end up skipping the extra turn that is gained, you do not lose the game."}
+      ]
+    },
+    "Flickerwisp": {
+      "first_seen": "2026-10-08",
+      "rulings": [
+        {"n": 1, "published_at": "2021-03-19", "comment": "The exiled card will return to the battlefield at the beginning of the end step even if Flickerwisp is no longer on the battlefield."},
+        {"n": 2, "published_at": "2021-03-19", "comment": "If the permanent that returns to the battlefield has any abilities that trigger at the beginning of the end step, those abilities won't trigger that turn."},
+        {"n": 3, "published_at": "2021-03-19", "comment": "Auras attached to the exiled permanent will be put into their owners' graveyards. Equipment attached to the exiled permanent will become unattached and remain on the battlefield. Any counters on the exiled permanent will cease to exist. Once the exiled permanent returns, it's considered a new object with no relation to the object that it was."},
+        {"n": 4, "published_at": "2021-03-19", "comment": "If a token is exiled this way, it will cease to exist and won't return to the battlefield."}
       ]
     },
     "Fog": {
