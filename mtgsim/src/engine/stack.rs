@@ -95,6 +95,9 @@ impl GameState {
         let result = self.resolve_taken(object_id, entry, effective_controller, dp);
         self.resolving = None;
         self.bump_layer_epoch();
+        // The window held the resolution's records for its own later
+        // instructions to read; nothing reads them now.
+        self.flush_window_unless_nested();
         result
     }
 

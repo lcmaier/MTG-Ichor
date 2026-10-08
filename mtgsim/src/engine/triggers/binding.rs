@@ -83,11 +83,11 @@ impl GameState {
         resolving.departed.iter().find(|d| d.object == object).map(|d| Arc::clone(&d.frame))
     }
 
-    /// The bound fact a `TriggeringObject` or `TriggeringPlayer` atom acts
-    /// on, as the target slice every primitive already reads — empty when
-    /// the object can no longer be found (CR 603.6), which is the primitive
-    /// doing nothing. `Err` outside a trigger's resolution: a spell has no
-    /// event to refer back to.
+    /// The bound fact a `TriggeringObject`, `TriggeringPlayer` or `Referred`
+    /// atom acts on, as the target slice every primitive already reads —
+    /// empty when the object can no longer be found (CR 603.6, 603.7c), which
+    /// is the primitive doing nothing. `Err` outside a trigger's resolution:
+    /// a spell has no event to refer back to.
     pub(crate) fn bound_targets(
         &self,
         recipient: &EffectRecipient,
@@ -105,6 +105,10 @@ impl GameState {
             }
             EffectRecipient::TriggeringPlayer => {
                 self.bound_player(binding).map(ResolvedTarget::Player).into_iter().collect()
+            }
+            EffectRecipient::Referred => {
+                let objects = binding.referred.objects.iter().filter_map(|r| r.found(self)).map(ResolvedTarget::Object);
+                objects.chain(binding.referred.players.iter().map(|&p| ResolvedTarget::Player(p))).collect()
             }
             other => {
                 return Err(format!("{:?} is not a bound fact of a trigger", other));

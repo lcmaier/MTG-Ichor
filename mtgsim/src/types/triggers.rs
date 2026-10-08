@@ -18,7 +18,7 @@ use std::sync::Arc;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityText, CardData};
-use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -135,6 +135,10 @@ pub enum TriggerSubject {
     /// `And(filter, NotSource)`; `NotSource` excludes the ability's own source.
     Filter(ObjectFilter),
     Any,
+    /// CR 603.7c — "when that token dies": an object a delayed triggered
+    /// ability refers to ([`Referred`]), each existence's own departure and no
+    /// later object's (CR 400.7).
+    Referred,
 }
 
 /// Whom damage was dealt to, for "is dealt damage" and "deals damage to".
@@ -458,6 +462,30 @@ impl TriggerEvent {
         EventKind::from_record(record).is_some_and(|kind| self.record_kinds().contains(kind))
     }
 
+    /// Whether the arm watches an object a delayed trigger refers to (CR
+    /// 603.7c): "when that token dies".
+    pub fn watches_referred(&self) -> bool {
+        match self {
+            TriggerEvent::ZoneChange { subject, .. }
+            | TriggerEvent::BecomesTapped { subject }
+            | TriggerEvent::BecomesUntapped { subject }
+            | TriggerEvent::EntersBattlefield { subject, .. }
+            | TriggerEvent::ManaAdded { source: subject, .. }
+            | TriggerEvent::DamageDealt { source: subject, .. }
+            | TriggerEvent::Attacks { attacker: subject, .. } => *subject == TriggerSubject::Referred,
+            TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => false,
+        }
+    }
+
     /// The arm's multiplicity field, for the arms that carry one.
     pub fn multiplicity(&self) -> Multiplicity {
         match self {
@@ -640,6 +668,9 @@ pub struct TriggerBinding {
     pub subject: Option<ObjectRef>,
     /// The ability whose triggering this is (CR 603.3b's second tier).
     pub triggered_by: Option<TriggerSeq>,
+    /// CR 603.7c — what a delayed triggered ability refers to, carried to
+    /// the stack for its "that card" and "it"; empty for an object's trigger.
+    pub referred: Referred,
 }
 
 impl TriggerBinding {
@@ -791,6 +822,9 @@ pub struct DelayedTrigger {
     pub instances: Vec<EffectRecipient>,
     /// Its template's words.
     pub rules_text: AbilityText,
+    /// CR 603.7c — the objects and players its "that card", "it" and "that
+    /// token" mean: what its creator remembered (`Effect::Remember`).
+    pub referred: Referred,
 }
 
 impl DelayedTrigger {
@@ -812,6 +846,50 @@ pub struct DelayedProvenance {
     pub created_by: Option<AbilityIdentity>,
     pub x_value: Option<u64>,
     pub turn: TriggerTurn,
+}
+
+/// CR 603.7c — what a delayed triggered ability refers to: the objects and
+/// players the instruction its creator remembered acted on
+/// (`Effect::Remember`), each object as that instruction left it. The ability
+/// "still affects it even if the object changes characteristics", and not
+/// once it has left and returned (CR 400.7).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Referred {
+    pub objects: Vec<RememberedObject>,
+    pub players: Vec<PlayerId>,
+}
+
+/// An object remembered by identity (CR 400.7), with the record of the move
+/// that ended it as that object once one has. A departure record names the
+/// object's id and not which existence of it moved, so this is how "when this
+/// creature leaves the battlefield" and "when that token dies" know their own
+/// object's move and no later object's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RememberedObject {
+    pub object: ObjectRef,
+    pub left_at: Option<EventSeq>,
+}
+
+impl RememberedObject {
+    /// An existence that has not moved yet.
+    pub fn now(object: ObjectRef) -> Self {
+        RememberedObject { object, left_at: None }
+    }
+
+    /// Whether record `seq`'s object `id` is this existence: its own
+    /// departure, or, while it has not moved, the object as it is.
+    pub fn is(self, game: &GameState, id: ObjectId, seq: EventSeq) -> bool {
+        id == self.object.id
+            && match self.left_at {
+                Some(at) => at == seq,
+                None => game.object_ref(id) == Some(self.object),
+            }
+    }
+
+    /// The object, while it is still this existence (CR 603.7c).
+    pub fn found(self, game: &GameState) -> Option<ObjectId> {
+        (game.object_ref(self.object.id) == Some(self.object)).then_some(self.object.id)
+    }
 }
 
 /// An object's last known information (CR 113.7a, 608.2h), kept by an entry

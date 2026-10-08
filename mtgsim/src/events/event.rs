@@ -539,10 +539,10 @@ pub struct BatchId(pub u64);
 /// effects belong to the resolving spell or ability rather than to any registry,
 /// so `apply_replacements` has to know which resolution proposed an action in
 /// order to find them. That lookup uses `ActionContext::resolution`, the
-/// *proposal* side. Stamping it on the performed record as well is provenance —
-/// specified by the event-stream design in `codebase-state.md`, wanted by the
-/// CR 731 loop-detection transcripts, and useful in a log. **No trigger matcher
-/// needs it today**, and this comment should not be read as claiming one does.
+/// *proposal* side. On the performed record it is how a resolution reads back
+/// what its own instructions did ([`EventWindow::resolution_records`]):
+/// `Effect::Remember`'s objects (CR 603.7c). It is also provenance, wanted by
+/// the CR 731 loop-detection transcripts and useful in a log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolutionStamp {
     pub source: ObjectId,
@@ -688,6 +688,16 @@ impl EventWindow {
     /// Every record the window holds, oldest first.
     pub fn held(&self) -> &[EventRecord] {
         &self.records
+    }
+
+    /// The records resolution `stamp` performed from `mark` on, oldest first:
+    /// what a later instruction of the same resolution reads back. The
+    /// window holds a resolution's records until it ends
+    /// (`GameState::flush_window_unless_nested`), and a nested dispatch's
+    /// records carry no stamp or another resolution's, so they are not
+    /// among them.
+    pub fn resolution_records(&self, stamp: ResolutionStamp, mark: EventSeq) -> impl Iterator<Item = &EventRecord> {
+        self.records_since(mark).iter().filter(move |r| r.stamp.resolution == Some(stamp))
     }
 
     /// The sequence number the next emitted record will carry.

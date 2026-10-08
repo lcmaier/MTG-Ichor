@@ -29,7 +29,8 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, DepartedFrame, EventIndex, EventKindMask,
-    Multiplicity, PendingTrigger, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerTurn,
+    Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq,
+    TriggerTurn,
 };
 use crate::ui::ask::ask_choose_delayed_trigger_event;
 use crate::ui::choice_types::ChoiceOption;
@@ -38,12 +39,15 @@ impl GameState {
     /// The registry's one door (CR 603.7a). The caller supplies the
     /// provenance its rule gives: a resolution reads CR 603.7d–f's off its
     /// context, and a special action a static ability allows would read
-    /// 603.7g's off that ability's object (`backlog.md` §2.8). Returns the
-    /// new entry's id. Announced first, so its creation is no record it reads.
+    /// 603.7g's off that ability's object (`backlog.md` §2.8). `referred` is
+    /// what its "that card" means (CR 603.7c), the creating resolution's
+    /// `Effect::Remember`. Returns the new entry's id. Announced first, so its
+    /// creation is no record it reads.
     pub fn register_delayed_trigger(
         &mut self,
         template: &DelayedTriggerTemplate,
         provenance: DelayedProvenance,
+        referred: Referred,
     ) -> DelayedTriggerId {
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
@@ -70,15 +74,17 @@ impl GameState {
             turn: provenance.turn,
             instances: template.def.effect.instances(),
             rules_text: template.rules_text,
+            referred,
         });
         id
     }
 
     /// CR 400.7: object `id` is about to move, and the next record is that
-    /// move. A delayed trigger whose source it is keeps that record's number,
-    /// which is how "when this creature leaves the battlefield" knows its own
-    /// departure. The callers are the movers whose record follows the move
-    /// at once: `perform_zone_change` and a player leaving (CR 800.4a).
+    /// move. A delayed trigger whose source it is, or that refers to it,
+    /// keeps that record's number, which is how "when this creature leaves
+    /// the battlefield" and "when that token dies" know their own object's
+    /// move. The callers are the movers whose record follows the move at
+    /// once: `perform_zone_change` and a player leaving (CR 800.4a).
     pub(crate) fn note_delayed_source_moving(&mut self, id: ObjectId) {
         if self.delayed_triggers.is_empty() {
             return;
@@ -96,6 +102,11 @@ impl GameState {
         for delayed in self.delayed_triggers.iter_mut() {
             if delayed.source == object && delayed.source_left_at.is_none() {
                 delayed.source_left_at = Some(at);
+            }
+            for referred in delayed.referred.objects.iter_mut() {
+                if referred.object == object && referred.left_at.is_none() {
+                    referred.left_at = Some(at);
+                }
             }
         }
     }
@@ -184,15 +195,16 @@ impl GameState {
 
     /// What an entry's words for itself mean (CR 603.7c–g): "this object" is
     /// its source as remembered, "you" its controller, "its owner" the
-    /// source's owner while the store holds it, and "this ability" the one
-    /// that created it (CR 603.7h).
-    fn delayed_referents(&self, delayed: &DelayedTrigger) -> TriggerReferents {
+    /// source's owner while the store holds it, "this ability" the one that
+    /// created it (CR 603.7h), and "that token" what it refers to.
+    fn delayed_referents<'a>(&self, delayed: &'a DelayedTrigger) -> TriggerReferents<'a> {
         TriggerReferents {
-            this: ThisObject::Remembered { object: delayed.source, left_at: delayed.source_left_at },
+            this: ThisObject::Remembered(RememberedObject { object: delayed.source, left_at: delayed.source_left_at }),
             controller: delayed.controller,
             owner: self.objects.get(&delayed.source.id).map_or(delayed.controller, |o| o.owner),
             host: None,
             this_ability: delayed.created_by,
+            referred: &delayed.referred.objects,
         }
     }
 
@@ -203,7 +215,7 @@ impl GameState {
     fn match_delayed(
         &self,
         delayed: &DelayedTrigger,
-        referents: &TriggerReferents,
+        referents: &TriggerReferents<'_>,
         record: &EventRecord,
         ordinals: &TurnOrdinals,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
@@ -380,6 +392,7 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             event: m.event,
             subject: m.subject,
             triggered_by: None,
+            referred: delayed.referred.clone(),
         },
         is_state_trigger: false,
         departed: delayed

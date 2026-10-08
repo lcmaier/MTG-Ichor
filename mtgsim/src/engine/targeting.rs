@@ -421,7 +421,7 @@ impl GameState {
             // walks the declared clauses rather than the atoms.
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
-            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer => Err(format!(
+            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its

@@ -2,7 +2,7 @@ use super::colors::Color;
 use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
-use super::zones::ZoneSet;
+use super::zones::{Zone, ZoneSet};
 use crate::state::game_state::PhaseType;
 
 // ---------------------------------------------------------------------------
@@ -775,6 +775,11 @@ pub enum EffectRecipient {
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
+    /// CR 603.7c — "return that card", "sacrifice it", "that player" on a
+    /// delayed triggered ability: what the instruction its creator
+    /// remembered acted on ([`Effect::Remember`]), each object found only
+    /// while it is the same object (CR 400.7). Never an instance of "target".
+    Referred,
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is
@@ -1931,6 +1936,68 @@ pub enum Primitive {
     CounterAbility,
 }
 
+impl Primitive {
+    /// The zone this verb puts what it acts on into, or `None` for a verb
+    /// that moves nothing. What [`Effect::Remember`] checks a performed move
+    /// against: a replacement can send the object elsewhere (Rest in Peace
+    /// exiles a card bound for a graveyard, CR 903.9b sends a commander bound
+    /// for a hand to the command zone), and then it is not "that card".
+    pub fn moves_into(&self) -> Option<Zone> {
+        match self {
+            Primitive::Destroy
+            | Primitive::Sacrifice
+            | Primitive::Mill(_)
+            | Primitive::Discard(..)
+            | Primitive::CounterSpell => Some(Zone::Graveyard),
+            Primitive::Exile => Some(Zone::Exile),
+            Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
+            Primitive::ReturnToBattlefield | Primitive::CreateToken(..) => Some(Zone::Battlefield),
+            Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
+                Some(Zone::Library)
+            }
+            Primitive::ShuffleLibrary
+            | Primitive::DealDamage { .. }
+            | Primitive::GainLife(_)
+            | Primitive::LoseLife(_)
+            | Primitive::SetLifeTotal(_)
+            | Primitive::LoseGame
+            | Primitive::WinGame
+            | Primitive::DrawCards(_)
+            | Primitive::Scry(_)
+            | Primitive::Surveil(_)
+            | Primitive::ExtraTurn
+            | Primitive::ExtraPhases(_)
+            | Primitive::CreateDelayedTrigger(_)
+            | Primitive::ProduceMana(_)
+            | Primitive::AddCounters { .. }
+            | Primitive::RemoveCounters(..)
+            | Primitive::GetCounters { .. }
+            | Primitive::Regenerate
+            | Primitive::CreateReplacement(..)
+            | Primitive::Restrict(..)
+            | Primitive::RemoveFromCombat
+            | Primitive::RemoveAllDamage
+            | Primitive::Attach
+            | Primitive::Fight
+            | Primitive::Tap
+            | Primitive::Untap
+            | Primitive::SetPowerToughness(..)
+            | Primitive::ModifyPowerToughness(..)
+            | Primitive::SwitchPowerToughness(_)
+            | Primitive::GrantKeywordFlag(..)
+            | Primitive::RemoveKeywordFlag(..)
+            | Primitive::GrantAbility(..)
+            | Primitive::LoseAbility(..)
+            | Primitive::LoseAllAbilities(_)
+            | Primitive::ChangeColor(..)
+            | Primitive::ChangeType(..)
+            | Primitive::GainControl(_)
+            | Primitive::Copy { .. }
+            | Primitive::CounterAbility => None,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Effect — the combinator layer
 // ---------------------------------------------------------------------------
@@ -1962,6 +2029,17 @@ pub enum Effect {
     /// declined is `Doesnt`, and taken is the action's own, since CR 118.3
     /// lets no player pay a cost they can't (`triggers-architecture.md` §6.2).
     Optional { chooser: PlayerRef, effect: Box<Effect> },
+
+    /// CR 603.7c — what this instruction acts on is what a delayed triggered
+    /// ability this resolution creates afterwards refers to: Flickerwisp's
+    /// "return that card", Kiki-Jiki's "sacrifice it", "when that token
+    /// dies". The resolution remembers each object the instruction moved or
+    /// made as the move left it (CR 400.7), so long as it went where the
+    /// instruction put it, each object it acted on without moving it, and
+    /// each player it named; [`EffectRecipient::Referred`] and
+    /// `TriggerSubject::Referred` read them back. One instruction per
+    /// resolution.
+    Remember(Box<Effect>),
 
     /// "Choose N mode(s):" (rule 700.2)
     Modal {
@@ -2099,6 +2177,7 @@ impl Effect {
             }
             Effect::Conditional(_, effect)
             | Effect::Optional { effect, .. }
+            | Effect::Remember(effect)
             | Effect::ForEach(_, effect)
             | Effect::Repeat(_, effect) => effect.for_each_ability_def_mut(f),
             Effect::Replacement(def) => {
@@ -2193,6 +2272,9 @@ impl Effect {
             // chosen as the ability is put on the stack and the choice made as
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
             Effect::Optional { effect, .. } => effect.for_each_instance(f),
+            // Remembering what an instruction acts on changes nothing about
+            // what it targets.
+            Effect::Remember(effect) => effect.for_each_instance(f),
             _ => true,
         }
     }

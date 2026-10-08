@@ -78,10 +78,7 @@ impl<'a> ActionContext<'a> {
     /// rather than recycling it. Carrying the target list would copy it onto
     /// every event for no reader.
     pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
-        self.resolution.map(|r| ResolutionStamp {
-            source: r.source,
-            controller: r.controller,
-        })
+        self.resolution.map(ResolutionContext::stamp)
     }
 }
 
