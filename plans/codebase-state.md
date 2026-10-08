@@ -2301,6 +2301,11 @@ section never asked.
     **Item 193 (2026-10-02):** the blacklist is gone and the engine filters
     nothing, so a fork is offered what the original was.
 
+    **The triggers midpoint audit (2026-10-08):** three more sites, in the
+    trigger code and not in the table: CR 603.3d's targets at placement, CR
+    603.7b's choice of cause, and CR 303.4f's host for a returning Aura. Item
+    233.
+
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
     pass: the two non-outcome-bearing sets are loop locals that do not survive
@@ -6848,6 +6853,16 @@ Commander-scale board closes item 69.
      Commander board turned out to need; the next reading is the next spine
      close's.
 
+     **Lever 6, re-read (the triggers midpoint audit, 2026-10-08).** On
+     `close_out.py`'s board at `0ac5c98`, `battlefield_ordered` and
+     `battlefield_ids_ordered` are 1.45 G of 7.33 G instructions inclusive
+     (19.8%), the state-based check's calls 10.5% of the total, the
+     replacement gather's 3.7% and `activatable_abilities_with`'s 2.9%. The
+     16.8% of `layers-architecture.md` §12 was a 200-game board, so the two do
+     not compare, but the sorts are still the largest single row, and the
+     largest cost on a per-event path that grows with the board: the trigger
+     dispatcher's own scans read 0.06% (`battlefield_readers`) and below.
+
 139. **~~A retry re-prompt offers a list computed before the rejected action
      changed the board~~ ✅ CLOSED 2026-09-16 (A4h) — the enumeration moved
      inside the retry loop, so every priority prompt is built from the board it
@@ -8204,6 +8219,18 @@ and the reading below, which the audit makes and the dispatcher does not.
      the dispatcher's own candidates. Item 176's record design, before TR-4,
      takes this item as an input (2026-09-24).
 
+     **Three more readers of the same moment (the triggers midpoint audit,
+     2026-10-08).** At the window's close the matcher also reads, live:
+     - `EntersBattlefield`'s `was_cast`, off the permanent's `cast`
+       (`occurrences_matching_arm`), which reads false once a rider has
+       moved the permanent;
+     - CR 603.2f's visibility (`visible_to_all`), whose doc says "the object
+       as the event left it";
+     - CR 603.3a's controller, `controller_or_owner` of each live candidate,
+       which the CR fixes "at the time it triggered".
+     Each reads the board after the riders, so the option above, a
+     rider-bearing window dispatched per batch, would answer all five.
+
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
 `cr-coverage-audit.md` §4a read the replacement area's one-moment facts against
@@ -9247,6 +9274,21 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      6's close audit (`roadmap-v2.md` A6e), which asks the third question at
      every spine close since this review (`engineering-practices.md` §9).
 
+     **Re-read by the triggers midpoint audit (2026-10-08).**
+     `similar_functions.py` reads 1,146 functions, 26 near-copy pairs and 7
+     of one shape. The permanents a player controls are built inline at
+     five sites, one more than counted above: `sacrifice_candidates`
+     (`engine/costs.rs`), the untap step (`engine/turns.rs`),
+     `ChoiceScope::ChoosersPermanents` (`engine/resolve.rs`, since
+     2026-09-26), `legal_blockers` and the why panel's blockers. The
+     opponents are built twice: `replacement::pipeline`'s private
+     `opponents_of`, and inline in `engine/resolve.rs`'s single-opponent
+     recipient; `SetController(Opponent)` in `layers/compute.rs` counts seats
+     on purpose, being CR 102.2's two-player answer that asserts above two.
+     Untapped lands have no copies: the `!entry.tapped` reads are tap-cost
+     checks. The `can_pay` pair stays here; the filter pair is item 229's,
+     and the frame-capture pair item 236's.
+
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
 216. **~~The review pictures are drawn by a test no CI step runs.~~ — ✅
@@ -9371,6 +9413,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** one helper passing `ResolutionContext::effect_source`, at six
      sites, ~20 lines.
      **Slotted:** TR-3c, whose Manticore fixture is its first reader.
+     **The triggers midpoint audit (2026-10-08):** `object_matches_filter` is
+     `object_matches_filter_for_instance` with no identity, the same frame
+     cell and the same call (`similar_functions.py`, 0.87); the helper this
+     item adds makes the first a call to the second.
 
 230. **CR 610.3a/b is answered only for a leaving.** An "until" whose event
      is anything else cannot say whether the event happened after the spell
@@ -9437,3 +9483,156 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      it.
      **Reachability (2026-10-08):** closed — PR #232.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 224".
+
+### Found by the triggers midpoint audit (2026-10-08)
+
+`roadmap-v2.md` A6k, under `engineering-practices.md` §9's midpoint rule:
+§9's hygiene pass, and a shape review of the trigger code TR-3c–TR-7 extend
+(`engine/triggers/`, `engine/returns.rs`, `events/event.rs`,
+`types/triggers.rs`), asking which lists hand a position across a call,
+which facts the rules fix at a moment are recomputed later, where matching
+is done outside the one matcher, and what a per-event path scans. Items 40,
+138, 175, 215 and 229 gained a dated paragraph each, and
+`triggers-architecture.md` §6.1's count of the leaves that read a departed
+source live is corrected in place.
+
+231. **`TriggerEvent`'s projections and the matcher end in a wildcard, so a
+     new arm compiles with no "that object" and never matches; and
+     `occurrences_of` has never had a caller.** `types/triggers.rs`'s module
+     doc, `triggers-architecture.md` §3.4 and `plans/glossary.md`'s
+     **occurrence** say the four per-arm projections are exhaustive matches
+     with no wildcard, so a new arm "cannot compile until it says what its
+     'that object', 'that player', 'that many' and 'one occurrence' are".
+     Each closes with `_ =>`: `subject_of`, `player_of` and `amount_of` with
+     `None`, `occurrences_of` with `0`, and `occurrences_matching_arm`
+     (`dispatch.rs`) with `Vec::new()`. They have since TR-1 (`85a81bf`): a
+     match over (arm, record) pairs needs a last arm for the pairs that do
+     not belong together, and that arm also takes an arm the function never
+     names. So TR-4's `BecomesAttached` or TR-5's counter arms would compile
+     with no subject, player or amount, and never match; only `looks_back`,
+     `record_kinds`, `subject` and `multiplicity` refuse to compile. And
+     `occurrences_of`, which §4.4 and the glossary give as where an
+     occurrence is defined, has had no caller since TR-1 shipped it:
+     `occurrences_matching_arm` returns one subject per occurrence, one per
+     attacker for `Attacks`, and nothing else counts them.
+     **Reachability (2026-10-08):** unreachable — every arm today is named in
+     all five.
+     **Sized:** ~80–120 lines, no behavior change: each wildcard becomes a
+     last arm naming every `TriggerEvent` variant with `_` for the record, so
+     a new variant fails to compile in each; `occurrences_of` deleted, and
+     §3.4, §4.4 and the glossary pointed at `occurrences_matching_arm`. Shown
+     on the pre-fix tree by a scratch arm that compiles there and not after.
+     **Slotted:** A6k's code-fix PR, before TR-4 adds an arm.
+
+232. **`bound_reads` files `Primitive::ExileUntil` as reading nothing, and it
+     reads its source.** `ExileUntil` resolves off `ctx.ability_source` twice:
+     CR 610.3a/b's "has the event already happened" (`until_has_happened`),
+     and the object its return watches (`wait_to_return`), the "this" of
+     "until this leaves the battlefield". `bound_reads.rs` lists it with the
+     verbs that read no fact of the entry, so placement's ordering elision
+     (`trigger_order_cannot_change_outcome`) and CR 603.7b's
+     (`choose_delayed_cause`) compare two entries of one def without their
+     sources. Two untargeted entries of one def from two sources, such as two
+     copies of a card that exiles "that creature until this leaves the
+     battlefield" over one creature, would go on the stack unasked, though
+     the order decides whose leaving returns it: the second finds the
+     creature gone (CR 400.7).
+     **Reachability (2026-10-08):** unreachable — the one registered
+     `ExileUntil`, Banishing Light's, targets, and an entry with a target is
+     never elided.
+     **Sized:** ~10 lines: the arm reads `SOURCE`, and a unit test on the
+     def's reads.
+     **Slotted:** A6k's code-fix PR.
+
+233. **Three prompts in the trigger code hold what they have decided off
+     `GameState`.** Item 40's invariant, at three sites its table does not
+     list, all TR-1–TR-3b's:
+     - **CR 603.3d's targets** (`place_one`, `placement.rs`). The entry is off
+       `pending_triggers`, and its object on the stack with no `StackEntry`,
+       when `announce_targets` asks. A fork there resumes with the trigger
+       gone and a stack object nothing describes. The drain's doc says a
+       clone at the *ordering* prompt resumes, which holds; the target
+       prompt inside it does not. This is the trigger's half of item 40's
+       violator 2, CR 601.2's announcement.
+     - **CR 603.7b's choice** (`queue_delayed`, `delayed.rs`). A `Once` entry
+       is removed from `delayed_triggers` before its controller is asked
+       which event caused it, and the window's other matches, the
+       `AbilityTriggered` records still to be emitted for CR 603.3b's second
+       tier and the returns `take_returns_due` took off `until_returns` are
+       locals of `dispatch_inner`.
+     - **CR 303.4f's host** (`return_until`, `returns.rs`). The due returns
+       are off `until_returns`, and the batch is a local, when the player
+       chooses what a returning Aura enchants.
+     A fork at any of them resumes a different game: a delayed trigger that
+     never triggers, a return never made, a trigger lost.
+     **Reachability (2026-10-08):** unreachable — nothing forks but at a
+     priority round's start (item 41's test); the rest of a round is item
+     140's.
+     **Sized:** ~100–150 lines: the entry being announced kept on `GameState`
+     until its `StackEntry` is set (violator 2's `PendingCast`, for a
+     trigger), the `Once` entry removed after its answer, and the due
+     returns taken off the list after they move. What makes it a question
+     now is what TR-4–TR-7 add: each brings prompts to these paths (CR
+     603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
+     what it has decided on `GameState`, the drain's shape, needs no
+     migration later.
+     **Slotted:** the rule for new prompts is the owner's call at A6k's
+     review, recommended for `triggers-architecture.md` §5 with A6k's
+     code-fix PR; the three fixes go with item 40's violators, at the first
+     fork-based harness (item 140's slot).
+
+234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
+     delayed triggers and the extra turns beside them.** `UntilReturn` has no
+     id and `wait_to_return` emits no record, where a delayed trigger has
+     `DelayedTriggerId` and `DelayedTriggerCreated` and an extra turn
+     `ExtraTurnId`. So `ui::waiting::WaitingReturn` is the one waiting row
+     without an id: a client lists returns by their place in
+     `until_returns`, and a log cannot name a return until its object comes
+     back. Nothing in the engine hands that place across a call:
+     `take_returns_due` partitions the list rather than collecting indices
+     into it (TR-3b's review). The TR-3b dev GUI PR draws the returns in the
+     Waiting panel, the first client to hold such a row across frames.
+     `WaitingReturn`'s doc is stale beside it: the return waits "for its
+     object to leave the battlefield", and since TR-3b's review an "until"
+     waits on any event.
+     **Reachability (2026-10-08):** reachable — not wrong: a return's place
+     in the list is read for display only.
+     **Sized:** ~30–50 lines: an `UntilReturnId` minted beside
+     `next_delayed_trigger_id` and carried on `WaitingReturn`, and a creation
+     record beside `DelayedTriggerCreated` if the log is to name a return.
+     **Slotted:** the TR-3b dev GUI PR, as its engine half.
+
+235. **A delayed trigger's and an until return's "its owner" is the
+     controller once the store has lost the source.** `delayed_referents`
+     and `is_due` (`delayed.rs`) take `TriggerReferents.owner` from the
+     store, and `map_or(controller, ...)` when the source is gone from it: a
+     token that ceased to exist (CR 704.5d), an object that left the game
+     with its owner (CR 800.4a). An object's owner does not change (CR
+     108.3), and both entries are made while the source is there to ask, so
+     the fallback answers "its controller" for a fact fixed when the entry
+     was made.
+     **Reachability (2026-10-08):** unreachable — no registered delayed
+     trigger or "until" event names `PlayerRef::Owner`.
+     **Sized:** ~10 lines: the owner stored on `DelayedTrigger` and
+     `UntilReturn` as each is made, and read there; a fixture with a token
+     source.
+     **Slotted:** A6k's code-fix PR.
+
+236. **The dispatcher's frame capture is written twice, twice.**
+     - `capture_named_frame` and `capture_departure_frame` (`dispatch.rs`)
+       are one function and a guard: the second is the first behind "on the
+       battlefield" (`similar_functions.py`, 0.82).
+     - `objects_entries_name` and `hand_over_departed_frame` each walk the
+       four places an entry names an object (pending, stacked, resolving,
+       and a delayed trigger's source), and must find the same ones: the
+       first decides which movers to frame, the second hands each frame to
+       the entries naming it. One walk extended without the other frames a
+       mover no entry receives, or hands nothing to an entry that needed it
+       (`engineering-practices.md` §2c). TR-4a, whose `LastKnownInformation`
+       replaces the frame, changes both, and CR 603.7c's referred objects and
+       CR 610.3's returns name objects that neither walks.
+     **Reachability (2026-10-08):** reachable — not wrong: the two walks agree
+     today.
+     **Sized:** ~40 lines: one iterator over (entry, named object) that both
+     read, and the battlefield guard at the one caller that needs it.
+     **Slotted:** A6k's code-fix PR, ahead of TR-4a.

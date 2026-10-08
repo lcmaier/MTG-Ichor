@@ -174,14 +174,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 288 |
+| Numbered items | 294 |
 | …closed, still recorded | 108 |
-| …open — unreachable, and says why | 115 |
+| …open — unreachable, and says why | 119 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 33 |
+| …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 175 of 180 |
+| …open, carrying an explicit `**Sized:**` | 181 of 186 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -215,6 +215,7 @@ discipline. → `engineering-practices.md` §5.
 is an open plate.
 
 - `plans/handoffs/tr-3b-devgui-notes.md`
+- `plans/handoffs/triggers-midpoint-audit.md`
 
 ## What this file deliberately does not know
 
