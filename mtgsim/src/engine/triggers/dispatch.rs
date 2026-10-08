@@ -31,8 +31,9 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
+use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
+use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DamageRecipient, DepartedFrame, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger,
@@ -443,18 +444,19 @@ impl GameState {
         if window_kinds.is_empty() {
             return Vec::new();
         }
-        let summary = self.continuous_effects.summary();
-        let unattributed = summary.unattributed_trigger_zones;
+        let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         let readers = self.battlefield_readers(window_kinds);
+        let named = self.named_trigger_carriers(window_kinds);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
             })
         });
-        // Only the battlefield probe reads the mask. The zone map is keyed by
-        // ability, and the granted, copied and departed legs read lists no
-        // registration saw, so they keep their whole walk.
+        // The battlefield probe and the named rows read the mask. The zone
+        // map is keyed by ability, and a `Filter` row's zones and the departed
+        // leg read lists no registration saw, so they keep their whole walk.
         if readers.is_empty()
+            && named.is_empty()
             && self.zone_trigger_sources.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
@@ -462,7 +464,7 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, unattributed, snapshots, ordinals)
+        self.find_matches(window, readers, named, unattributed, snapshots, ordinals)
     }
 
     /// Steps 4 and 5, for the matches `detect` found.
@@ -537,6 +539,31 @@ impl GameState {
             .collect();
         readers.sort_unstable_by_key(|&(timestamp, _)| timestamp);
         readers.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// The objects a row naming them (`SourceOnly`, `Fixed`, `Host`) puts a
+    /// triggered ability on that reads a kind `window_kinds` carries, read
+    /// off the rows wherever the objects are — the replacement gather's
+    /// named leg, with the printed leg's mask. Unordered: `live_candidates`
+    /// puts every candidate in CR 613.7 order.
+    fn named_trigger_carriers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+        if !self.continuous_effects.summary().named_unattributed_trigger_kinds.intersects(window_kinds) {
+            return Vec::new();
+        }
+        let mut named: Vec<ObjectId> = Vec::new();
+        for row in self.continuous_effects.iter() {
+            if !triggered_ability_kinds(row).intersects(window_kinds) {
+                continue;
+            }
+            match &row.affected_objects {
+                ObjectSet::SourceOnly => named.push(row.source),
+                ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
+                // A host is a permanent (CR 301.5, 303.4).
+                ObjectSet::Host => named.extend(self.battlefield.get(&row.source).and_then(|e| e.attached_to)),
+                ObjectSet::Filter { .. } => {}
+            }
+        }
+        named
     }
 
     /// Whether performing these decided actions can change which triggered
@@ -711,9 +738,9 @@ impl GameState {
     /// trigger of, each with the existence it has now and its frame: every
     /// permanent that printed a triggered ability, the cards off the
     /// battlefield whose triggered ability works in the zone they are in,
-    /// and, while an effect grants or copies a triggered ability, every
-    /// object in the zones that effect reaches. Read before the batch
-    /// performs, since the departure about to happen may end that very
+    /// and, while an effect grants or copies a triggered ability, the objects
+    /// it names or every object in the zones it reaches. Read before the
+    /// batch performs, since the departure about to happen may end that very
     /// effect. The frames are memo hits: nothing has changed since the batch
     /// began deciding.
     pub(crate) fn look_back_frames(&self) -> Vec<ObjectSnapshot> {
@@ -721,7 +748,8 @@ impl GameState {
         // Every printed source, not the ones whose kinds a look-back arm
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
-        self.live_candidates(self.battlefield_readers(EventKindMask::ALL), unattributed)
+        let named = self.named_trigger_carriers(EventKindMask::ALL);
+        self.live_candidates(self.battlefield_readers(EventKindMask::ALL), named, unattributed)
             .into_iter()
             .filter_map(|id| self.object_snapshot(id))
             .collect()
@@ -738,17 +766,27 @@ impl GameState {
         })
     }
 
-    /// The live objects a dispatch asks, in CR 613.7 order: `readers` on the
-    /// battlefield, or every permanent while an effect grants or copies a
-    /// triggered ability onto the battlefield; then the objects elsewhere
-    /// whose triggered ability works in the zone they are in (CR 113.6k) —
-    /// a record's own subject in a graveyard is one — plus every object in
-    /// the other zones such an effect reaches, while it exists.
-    fn live_candidates(&self, readers: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
+    /// The live objects a dispatch asks, in CR 613.7 order: `readers` and the
+    /// `named` objects on the battlefield, or every permanent while a
+    /// `Filter` row grants or copies a triggered ability onto the
+    /// battlefield; then the objects elsewhere whose triggered ability works
+    /// in the zone they are in (CR 113.6k) — a record's own subject in a
+    /// graveyard is one — plus the `named` objects there, and every object in
+    /// the other zones a `Filter` row reaches, while it exists.
+    fn live_candidates(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
-        } else {
+        } else if named.is_empty() {
             readers
+        } else {
+            let mut on_battlefield: Vec<(Timestamp, ObjectId)> = readers
+                .iter()
+                .chain(&named)
+                .filter_map(|&id| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
+                .collect();
+            on_battlefield.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+            on_battlefield.dedup_by_key(|&mut (_, id)| id);
+            on_battlefield.into_iter().map(|(_, id)| id).collect()
         };
         let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
             .zone_trigger_sources
@@ -756,6 +794,12 @@ impl GameState {
             .map(|&id| (self.object_timestamp(id), id))
             .collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        let named_elsewhere = named.iter().copied().filter(|id| !self.battlefield.contains_key(id) && self.objects.contains_key(id));
+        for id in named_elsewhere {
+            if seen.insert(id) {
+                elsewhere.push((self.object_timestamp(id), id));
+            }
+        }
         for zone in unattributed.beyond_battlefield().iter() {
             for id in self.zone_ids_ordered(zone) {
                 if seen.insert(id) {
@@ -775,11 +819,12 @@ impl GameState {
         &self,
         window: &[EventSeq],
         readers: Vec<ObjectId>,
+        named: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
         ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
-        let mut live = self.live_candidates(readers, unattributed);
+        let mut live = self.live_candidates(readers, named, unattributed);
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after
