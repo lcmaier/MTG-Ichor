@@ -7,20 +7,25 @@
 //!    611.3b).
 //! 2. What a delayed trigger refers to (CR 603.7c): `Effect::Remember`'s
 //!    objects and players, each object by identity (CR 400.7).
+//! 3. Flickerwisp: the return (`Primitive::ReturnToBattlefield`), its four
+//!    rulings, and an Aura that returns (CR 303.4f/g).
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, dies, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_lh_cards::{cobbled_wings, holy_strength};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re_cards::parallel_lives;
+use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, RecordingDecisionProvider,
+    put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::costs::Cost;
@@ -29,10 +34,13 @@ use mtgsim::types::effects::{
     TokenDef,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -472,4 +480,185 @@ fn the_window_holds_a_resolutions_records_until_it_ends() {
     activate_and_resolve(&mut game, 0, totem);
     assert!(game.events.held().is_empty(), "flushed as the resolution ended");
     assert_eq!(game.delayed_triggers[0].referred.objects.len(), 1, "read before the flush");
+}
+
+// ---------------------------------------------------------------------------
+// 3. Flickerwisp
+// ---------------------------------------------------------------------------
+
+/// Flickerwisp enters for `player` and its trigger resolves, exiling whatever
+/// `dp` targets.
+fn flicker(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
+    let wisp = put_on_battlefield(game, flickerwisp(), player);
+    game.perform_sba_and_triggers(dp).unwrap();
+    game.resolve_top_of_stack(dp).unwrap();
+    game.perform_sba_and_triggers(dp).unwrap();
+    wisp
+}
+
+fn zone(game: &GameState, id: ObjectId) -> Zone {
+    game.get_object(id).unwrap().zone
+}
+
+/// Flickerwisp cast from hand with exactly its cost, through the mana window
+/// a shipped client pays from: it enters, exiles the opponent's creature, and
+/// the card comes back under its owner's control at the next end step.
+// COVERS: ATOM-603.7e-001
+#[test]
+fn flickerwisp_cast_from_hand_returns_the_card_it_exiled_at_the_next_end_step() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let wisp = put_in_hand(&mut game, flickerwisp(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 3);
+    game.cast_spell(0, wisp, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Exile);
+    assert_eq!(game.delayed_triggers.len(), 1);
+    assert_eq!(game.delayed_triggers[0].source, game.object_ref(wisp).unwrap(), "Flickerwisp's (CR 603.7e)");
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert_eq!(get_effective_controller(&game, bears), Some(1), "under its owner's control");
+}
+
+// RULING: Flickerwisp #1 - "The exiled card will return to the battlefield at
+//   the beginning of the end step even if Flickerwisp is no longer on the
+//   battlefield."
+#[test]
+fn flickerwisps_card_returns_though_flickerwisp_has_left() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let wisp = flicker(&mut game, 0, &test_dp());
+    sacrifice(&mut game, wisp);
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+}
+
+/// "At the beginning of the end step, you gain 1 life."
+fn end_step_creature() -> Arc<CardData> {
+    CardDataBuilder::new("Dusk Keeper")
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .ability(triggered_ability(
+            "At the beginning of the end step, you gain 1 life.",
+            whenever(
+                at_beginning_of(StepType::End, Whose::Each),
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            ),
+        ))
+        .build()
+}
+
+// RULING: Flickerwisp #2 - "If the permanent that returns to the battlefield
+//   has any abilities that trigger at the beginning of the end step, those
+//   abilities won't trigger that turn."
+#[test]
+fn a_returned_permanents_end_step_ability_waits_for_the_next_end_step() {
+    let mut game = setup_two_player_game();
+    let keeper = put_on_battlefield(&mut game, end_step_creature(), 1);
+    flicker(&mut game, 0, &test_dp());
+    assert_eq!(zone(&game, keeper), Zone::Exile);
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, keeper), Zone::Battlefield);
+    assert_eq!(life(&game, 1), 20, "it entered after this end step began");
+
+    advance_to(&mut game, 1, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(life(&game, 1), 21, "and triggers at the next");
+}
+
+// RULING: Flickerwisp #3 - "Auras attached to the exiled permanent will be put
+//   into their owners' graveyards. Equipment attached to the exiled permanent
+//   will become unattached and remain on the battlefield. Any counters on the
+//   exiled permanent will cease to exist. Once the exiled permanent returns,
+//   it's considered a new object with no relation to the object that it was."
+#[test]
+fn flickerwisps_card_returns_as_a_new_object() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 1);
+    let wings = put_on_battlefield(&mut game, cobbled_wings(), 1);
+    game.attach(strength, bears);
+    game.attach(wings, bears);
+    game.add_counters(bears, CounterType::PlusOnePlusOne, 1);
+    let before = game.object_ref(bears).unwrap();
+
+    flicker(&mut game, 0, &RecordingDecisionProvider::picking(0));
+    assert_eq!(zone(&game, bears), Zone::Exile);
+    assert_eq!(zone(&game, strength), Zone::Graveyard, "the Aura went to its owner's graveyard (CR 704.5m)");
+    assert_eq!(zone(&game, wings), Zone::Battlefield);
+    assert_eq!(game.battlefield[&wings].attached_to, None, "the Equipment stayed, unattached");
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert_ne!(game.object_ref(bears), Some(before), "a new object (CR 400.7)");
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 0, "its counters ceased to exist");
+    assert_eq!(game.battlefield[&wings].attached_to, None);
+}
+
+// RULING: Flickerwisp #4 - "If a token is exiled this way, it will cease to
+//   exist and won't return to the battlefield."
+#[test]
+fn a_token_flickerwisp_exiles_does_not_return() {
+    let mut game = setup_two_player_game();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1 }, &test_ctx()).unwrap();
+    let soldier = tokens_named(&game, "Soldier")[0];
+    flicker(&mut game, 0, &test_dp());
+    assert!(game.get_object(soldier).is_err(), "it ceased to exist in exile (CR 704.5d)");
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert!(tokens_named(&game, "Soldier").is_empty(), "nothing came back");
+}
+
+/// CR 303.4f: an Aura returning enchants what the player it enters under
+/// chooses, among what it could enchant, and not as a target: an opponent's
+/// hexproof creature is a legal choice (Banisher Priest's and Banishing
+/// Light's Aura ruling). Two candidates, so it asks.
+#[test]
+fn an_aura_flickerwisp_returns_enchants_what_its_owner_chooses() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 0);
+    game.attach(strength, bears);
+    let warded = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Hexproof]), 1);
+    flicker(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    assert_eq!(zone(&game, strength), Zone::Exile, "Flickerwisp exiled the Aura");
+
+    advance_to(&mut game, 0, StepType::End);
+    let dp = RecordingDecisionProvider::picking(1);
+    game.perform_sba_and_triggers(&dp).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&dp).unwrap();
+        game.perform_sba_and_triggers(&dp).unwrap();
+    }
+    assert_eq!(zone(&game, strength), Zone::Battlefield);
+    assert!(dp.kinds().iter().any(|k| k == "SelectRecipients"), "the owner was asked");
+    assert_eq!(game.battlefield[&strength].attached_to, Some(warded), "the second option, the hexproof creature");
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+}
+
+/// CR 303.4g: an Aura returning with nothing it could enchant stays where it
+/// is, in exile.
+#[test]
+fn an_aura_with_nothing_to_enchant_stays_in_exile() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 0);
+    game.attach(strength, bears);
+    let wisp = flicker(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    assert_eq!(zone(&game, strength), Zone::Exile);
+    sacrifice(&mut game, bears);
+    sacrifice(&mut game, wisp);
+
+    advance_to(&mut game, 0, StepType::End);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, strength), Zone::Exile, "no creature to enchant (CR 303.4g)");
 }

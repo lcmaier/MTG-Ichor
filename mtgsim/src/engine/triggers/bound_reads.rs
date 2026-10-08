@@ -194,7 +194,7 @@ fn primitive(p: &Primitive) -> BoundReads {
         | Primitive::Exile
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
-        | Primitive::ReturnToBattlefield
+        | Primitive::ReturnToBattlefield(_)
         | Primitive::PutOnTopOfLibrary
         | Primitive::PutOnBottomOfLibrary
         | Primitive::ShuffleIntoLibrary

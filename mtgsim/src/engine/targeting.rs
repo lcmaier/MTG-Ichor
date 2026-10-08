@@ -494,6 +494,17 @@ impl GameState {
         Ok(())
     }
 
+    /// Whether Aura `aura`, whose enchant ability is `filter`, may enchant
+    /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
+    /// leaves attached and what CR 303.4f offers an Aura entering the
+    /// battlefield. Not targeting, so hexproof and shroud do not apply. Asked
+    /// outside CR 601.2c's loop, so an `OtherThanInstance` leaf is refused
+    /// rather than answered; "this" is the Aura.
+    pub(crate) fn can_enchant(&self, filter: &SelectionFilter, aura: ObjectId, host: ObjectId, you: PlayerId) -> bool {
+        let identity = FilterIdentity::for_text_of(aura, EarlierTargets::None);
+        self.validate_selection(filter, &ResolvedTarget::Object(host), you, identity).is_ok()
+    }
+
     /// Validate a single selected object/player against a SelectionFilter.
     ///
     /// `you` resolves an `ObjectFilter::ByController(PlayerRef::You)` node

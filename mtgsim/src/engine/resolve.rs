@@ -12,7 +12,7 @@ use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -1652,10 +1652,24 @@ impl GameState {
                 Ok(())
             }
 
+            // Each object from where it is now, as one event (CR 608.2f),
+            // under its owner's control or the effect's controller's.
+            Primitive::ReturnToBattlefield(under) => {
+                let mut returns = Vec::new();
+                for target in targets {
+                    let ResolvedTarget::Object(id) = *target else { continue };
+                    let controller = match under {
+                        ReturnUnder::Owner => self.get_object(id)?.owner,
+                        ReturnUnder::You => ctx.controller,
+                    };
+                    returns.push((id, controller));
+                }
+                self.return_to_battlefield(&returns, &actx)
+            }
+
             // === Unimplemented primitives — `backlog.md` §2.5 ===
 
             Primitive::ReturnToHand
-            | Primitive::ReturnToBattlefield
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
             | Primitive::ShuffleIntoLibrary

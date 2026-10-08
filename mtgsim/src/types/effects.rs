@@ -959,6 +959,16 @@ pub enum PatternFill {
     ChosenDamageSource,
 }
 
+/// Whose control a returned permanent enters under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnUnder {
+    /// "Under its owner's control", and CR 610.3c's default for a return
+    /// that does not say.
+    Owner,
+    /// "Under your control": the effect's controller.
+    You,
+}
+
 /// How many targets/choices to select
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetCount {
@@ -1559,8 +1569,11 @@ pub enum Primitive {
     Sacrifice,
     /// Return to owner's hand ("bounce")
     ReturnToHand,
-    /// Return to the battlefield (from exile/graveyard)
-    ReturnToBattlefield,
+    /// Return to the battlefield from wherever it is, under the control
+    /// [`ReturnUnder`] says (CR 610.3c's owner unless the card says
+    /// otherwise). Every object one resolution returns enters as one event,
+    /// and an Aura chooses what it enchants as it enters (CR 303.4f).
+    ReturnToBattlefield(ReturnUnder),
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library
@@ -1951,7 +1964,7 @@ impl Primitive {
             | Primitive::CounterSpell => Some(Zone::Graveyard),
             Primitive::Exile => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
-            Primitive::ReturnToBattlefield | Primitive::CreateToken(..) => Some(Zone::Battlefield),
+            Primitive::ReturnToBattlefield(_) | Primitive::CreateToken(..) => Some(Zone::Battlefield),
             Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
                 Some(Zone::Library)
             }

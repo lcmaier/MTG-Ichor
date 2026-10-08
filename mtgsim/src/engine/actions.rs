@@ -1830,7 +1830,7 @@ impl GameState {
     /// It carries CR 110.5b's default and nothing else. What the rules give an
     /// object as it enters beyond that is an ability of the object (CR 306.5b's
     /// loyalty), which the pipeline gathers like any other (`layers::intrinsic`).
-    fn entry_proposal(
+    pub(crate) fn entry_proposal(
         &mut self,
         object: ObjectId,
         from: Option<Zone>,
