@@ -9,6 +9,8 @@
 //!    objects and players, each object by identity (CR 400.7).
 //! 3. Flickerwisp: the return (`Primitive::ReturnToBattlefield`), its four
 //!    rulings, and an Aura that returns (CR 303.4f/g).
+//! 4. CR 610.3's "until": Banishing Light, its four rulings, and §13's six
+//!    CR 610.3 atoms.
 
 use std::sync::Arc;
 
@@ -17,21 +19,22 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::{cobbled_wings, holy_strength};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re_cards::parallel_lives;
-use mtgsim::cards::phase_tr3b_cards::flickerwisp;
+use mtgsim::cards::phase_tr1_cards::soul_warden;
+use mtgsim::cards::phase_tr3b_cards::{banishing_light, flickerwisp};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
-    RecordingDecisionProvider,
+    card_of_type, put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp,
+    vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
-    TokenDef,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    TargetCount, TokenDef, UntilLeaves,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::effects::CounterType;
@@ -80,11 +83,15 @@ fn activate_and_resolve_with(game: &mut GameState, player: PlayerId, source: Obj
 /// Put every waiting trigger on the stack and resolve the stack, taking the
 /// first option at any prompt on the way.
 fn place_and_resolve(game: &mut GameState) {
-    let dp = RecordingDecisionProvider::picking(0);
-    game.perform_sba_and_triggers(&dp).unwrap();
+    resolve_all(game, &RecordingDecisionProvider::picking(0));
+}
+
+/// [`place_and_resolve`], answering every prompt with `dp`.
+fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.perform_sba_and_triggers(dp).unwrap();
     while !game.stack.is_empty() {
-        game.resolve_top_of_stack(&dp).unwrap();
-        game.perform_sba_and_triggers(&dp).unwrap();
+        game.resolve_top_of_stack(dp).unwrap();
+        game.perform_sba_and_triggers(dp).unwrap();
     }
 }
 
@@ -490,9 +497,7 @@ fn the_window_holds_a_resolutions_records_until_it_ends() {
 /// `dp` targets.
 fn flicker(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
     let wisp = put_on_battlefield(game, flickerwisp(), player);
-    game.perform_sba_and_triggers(dp).unwrap();
-    game.resolve_top_of_stack(dp).unwrap();
-    game.perform_sba_and_triggers(dp).unwrap();
+    resolve_all(game, dp);
     wisp
 }
 
@@ -661,4 +666,304 @@ fn an_aura_with_nothing_to_enchant_stays_in_exile() {
     advance_to(&mut game, 0, StepType::End);
     place_and_resolve(&mut game);
     assert_eq!(zone(&game, strength), Zone::Exile, "no creature to enchant (CR 303.4g)");
+}
+
+// ---------------------------------------------------------------------------
+// 4. CR 610.3's "until"
+// ---------------------------------------------------------------------------
+
+/// Banishing Light enters for `player` and its trigger resolves, exiling
+/// whatever `dp` targets.
+fn banish(game: &mut GameState, player: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
+    let light = put_on_battlefield(game, banishing_light(), player);
+    resolve_all(game, dp);
+    light
+}
+
+/// Banisher Priest's shape with no controller in its filter: "When this
+/// creature enters, exile target creature until this creature leaves the
+/// battlefield", returning under `under`'s control.
+fn banisher(under: ReturnUnder) -> Arc<CardData> {
+    CardDataBuilder::new("Banisher")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability(
+            "When this creature enters, exile target creature until this creature leaves the battlefield.",
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                Effect::Atom(
+                    Primitive::ExileUntil { leaves: UntilLeaves::ThisObject, under },
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                ),
+            ),
+        ))
+        .build()
+}
+
+/// Calix, Destiny's Hand's shape as an instant: "Exile target creature until
+/// target enchantment you control leaves the battlefield."
+fn calix_instant() -> Arc<CardData> {
+    let yours = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Enchantment)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    );
+    let text = "Exile target creature until target enchantment you control leaves the battlefield.";
+    CardDataBuilder::new("Calix's Edict")
+        .mana_cost(mtgsim::types::mana::ManaCost::build(&[ManaType::White], 0))
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            rules_text: text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::ExileUntil {
+                    leaves: UntilLeaves::Target(EffectRecipient::Target(
+                        SelectionFilter::Permanent(yours),
+                        TargetCount::Exactly(1),
+                    )),
+                    under: ReturnUnder::Owner,
+                },
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// Cast `card` from `player`'s hand with exactly one white mana, its targets
+/// each the one legal choice.
+fn cast_for_white(game: &mut GameState, player: PlayerId, card: Arc<CardData>) -> ObjectId {
+    let id = put_in_hand(game, card, player);
+    game.players[player].mana_pool.add(ManaType::White, 1);
+    game.cast_spell(player, id, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    id
+}
+
+/// Banishing Light cast from hand with exactly its cost: it exiles the
+/// opponent's creature until it leaves, and its leaving returns the card at
+/// once, with no stack (CR 610.3).
+// COVERS: ATOM-610.3-001
+#[test]
+fn banishing_light_returns_the_card_as_it_leaves() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let light = put_in_hand(&mut game, banishing_light(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 3);
+    game.cast_spell(0, light, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Exile);
+    assert_eq!(game.until_returns.len(), 1);
+
+    sacrifice(&mut game, light);
+    assert_eq!(zone(&game, bears), Zone::Battlefield, "back as Banishing Light's departure was dispatched");
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty(), "no triggered ability, no stack");
+    assert!(game.until_returns.is_empty());
+    assert_eq!(get_effective_controller(&game, bears), Some(1));
+}
+
+// RULING: Banishing Light #3 - "If Banishing Light leaves the battlefield
+//   before its triggered ability resolves, the target permanent won't be
+//   exiled."
+// COVERS: ATOM-610.3b-001
+#[test]
+fn banishing_light_gone_before_its_trigger_resolves_exiles_nothing() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let light = put_on_battlefield(&mut game, banishing_light(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "the enters trigger, targeting the creature");
+    game.change_zone(light, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, bears), Zone::Battlefield, "CR 610.3b: the event came after it triggered");
+    assert!(game.until_returns.is_empty());
+}
+
+/// CR 610.3a's spell: "exile target creature until target enchantment you
+/// control leaves the battlefield", with the enchantment destroyed in
+/// response. The event has happened since the spell was cast, so nothing
+/// moves.
+// COVERS: ATOM-610.3a-001
+#[test]
+fn an_until_whose_event_happened_before_the_spell_resolved_moves_nothing() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let charm = put_on_battlefield(&mut game, card_of_type("Lucky Charm", CardType::Enchantment), 0);
+    cast_for_white(&mut game, 0, calix_instant());
+    sacrifice(&mut game, charm);
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert!(game.until_returns.is_empty());
+}
+
+/// Calix's shape with its enchantment still there: the exile waits on the
+/// targeted enchantment, not on the spell's source.
+#[test]
+fn an_until_watching_a_target_returns_as_the_target_leaves() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let charm = put_on_battlefield(&mut game, card_of_type("Lucky Charm", CardType::Enchantment), 0);
+    cast_for_white(&mut game, 0, calix_instant());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, bears), Zone::Exile);
+
+    sacrifice(&mut game, charm);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+}
+
+/// CR 610.3c: a creature its owner's opponent controlled when it was exiled
+/// returns under its owner's control.
+// COVERS: ATOM-610.3c-001
+#[test]
+fn an_until_return_is_under_its_owners_control() {
+    let mut game = setup_two_player_game();
+    let stolen = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.continuous_effects.add(ContinuousEffect {
+        duration: Duration::Indefinite,
+        ..registered(stolen, Layer::Layer2Control, 200, EffectModification::SetController(PlayerRef::Player(0)))
+    });
+    assert_eq!(get_effective_controller(&game, stolen), Some(0));
+    let priest = put_on_battlefield(&mut game, banisher(ReturnUnder::Owner), 0);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, stolen), Zone::Exile);
+
+    sacrifice(&mut game, priest);
+    assert_eq!(zone(&game, stolen), Zone::Battlefield);
+    assert_eq!(get_effective_controller(&game, stolen), Some(1), "its owner's");
+}
+
+/// CR 610.3c's "unless otherwise specified": "return it under your control".
+// COVERS: ATOM-610.3c-002
+#[test]
+fn an_until_return_that_says_your_control_is_under_yours() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let priest = put_on_battlefield(&mut game, banisher(ReturnUnder::You), 0);
+    place_and_resolve(&mut game);
+    assert_eq!(zone(&game, bears), Zone::Exile);
+
+    sacrifice(&mut game, priest);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert_eq!(get_effective_controller(&game, bears), Some(0), "the exile's controller's");
+}
+
+/// CR 610.3d: two Banishing Lights leaving at once return their cards at
+/// once, so each returned Soul Warden sees the other enter.
+// COVERS: ATOM-610.3d-001
+#[test]
+fn two_until_returns_from_one_event_are_one_event() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, soul_warden(), 1);
+    let second = put_on_battlefield(&mut game, soul_warden(), 1);
+    place_and_resolve(&mut game);
+    let before = life(&game, 1);
+    let dp = RecordingDecisionProvider::picking(0);
+    let lights = [banish(&mut game, 0, &dp), banish(&mut game, 0, &dp)];
+    assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Exile, Zone::Exile));
+
+    let destroy = |id| GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction };
+    game.execute_actions(lights.iter().map(|&id| destroy(id)).collect(), &ActionContext::new(&dp)).unwrap();
+    assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Battlefield, Zone::Battlefield));
+    place_and_resolve(&mut game);
+    assert_eq!(life(&game, 1), before + 2, "each Warden saw the other enter");
+}
+
+// RULING: Banishing Light #1 - "If an Aura is exiled this way, its owner
+//   chooses what it will enchant as it returns to the battlefield. An Aura put
+//   onto the battlefield this way doesn't target anything (so it could be
+//   attached to a permanent an opponent controls with hexproof, for example),
+//   but the Aura's enchant ability restricts what it can be attached to."
+#[test]
+fn banishing_lights_aura_returns_enchanting_what_its_owner_chooses() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 1);
+    game.attach(strength, bears);
+    let warded = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Hexproof]), 0);
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    assert_eq!(zone(&game, strength), Zone::Exile, "the second option, the Aura");
+
+    let dp = RecordingDecisionProvider::picking(1);
+    game.execute_actions(
+        vec![GameAction::Destroy { object: light, source: DestructionSource::StateBasedAction }],
+        &ActionContext::new(&dp),
+    )
+    .unwrap();
+    assert!(dp.kinds().iter().any(|k| k == "SelectRecipients"), "its owner chose");
+    assert_eq!(game.battlefield[&strength].attached_to, Some(warded), "the opponent's hexproof creature");
+}
+
+// RULING: Banishing Light #1 - "If the Aura can't legally be attached to
+//   anything, it remains in exile for the rest of the game."
+#[test]
+fn banishing_lights_aura_with_nothing_to_enchant_stays_in_exile() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 1);
+    game.attach(strength, bears);
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    sacrifice(&mut game, bears);
+
+    sacrifice(&mut game, light);
+    assert_eq!(zone(&game, strength), Zone::Exile, "CR 303.4g");
+    assert!(game.until_returns.is_empty(), "and no return is left waiting");
+}
+
+// RULING: Banishing Light #2 - "Auras attached to the exiled permanent will
+//   be put into their owners' graveyards. Any Equipment will become unattached
+//   and remain on the battlefield. Any counters on the exiled permanent will
+//   cease to exist. When the card returns to the battlefield, it will be a new
+//   object with no connection to the card that was exiled."
+#[test]
+fn banishing_lights_card_returns_as_a_new_object() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let strength = put_on_battlefield(&mut game, holy_strength(), 1);
+    let wings = put_on_battlefield(&mut game, cobbled_wings(), 1);
+    game.attach(strength, bears);
+    game.attach(wings, bears);
+    game.add_counters(bears, CounterType::PlusOnePlusOne, 1);
+    let before = game.object_ref(bears).unwrap();
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(0));
+    assert_eq!(zone(&game, bears), Zone::Exile);
+    assert_eq!(zone(&game, strength), Zone::Graveyard);
+    assert_eq!(game.battlefield[&wings].attached_to, None);
+
+    sacrifice(&mut game, light);
+    assert_eq!(zone(&game, bears), Zone::Battlefield);
+    assert_ne!(game.object_ref(bears), Some(before), "a new object (CR 400.7)");
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 0);
+}
+
+// RULING: Banishing Light #4 - "If a token is exiled this way, it will cease
+//   to exist and won't return to the battlefield."
+#[test]
+fn a_token_banishing_light_exiles_does_not_return() {
+    let mut game = setup_two_player_game();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1 }, &test_ctx()).unwrap();
+    let soldier = tokens_named(&game, "Soldier")[0];
+    let light = banish(&mut game, 0, &test_dp());
+    assert!(game.get_object(soldier).is_err(), "it ceased to exist in exile (CR 704.5d)");
+
+    sacrifice(&mut game, light);
+    assert!(tokens_named(&game, "Soldier").is_empty());
+    assert!(game.until_returns.is_empty());
+}
+
+/// The Waiting view lists an "until" return by what it watches and what it
+/// would return.
+#[test]
+fn the_waiting_view_shows_an_until_return() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    banish(&mut game, 0, &test_dp());
+    let waiting = mtgsim::ui::waiting::what_is_waiting(&game);
+    assert_eq!(waiting.until_returns.len(), 1);
+    assert!(waiting.until_returns[0].watched.contains("Banishing Light"));
+    assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
 }

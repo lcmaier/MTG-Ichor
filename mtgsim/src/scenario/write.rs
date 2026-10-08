@@ -119,6 +119,7 @@ impl<'g> Writer<'g> {
             pending_triggers,
             next_trigger_seq: _,
             delayed_triggers,
+            until_returns,
             next_delayed_trigger_id: _, // a counter
             action_taken_this_turn: _, // `this turn:` lines, in `cards`
             triggered_this_turn: _,
@@ -154,6 +155,9 @@ impl<'g> Writer<'g> {
         }
         if !delayed_triggers.is_empty() {
             self.report(format!("{} delayed triggered abilities waiting for their events (CR 603.7)", delayed_triggers.len()));
+        }
+        if !until_returns.is_empty() {
+            self.report(format!("{} \"until\" returns waiting for their events (CR 610.3)", until_returns.len()));
         }
         if !turn_queue.is_empty() || extra_turn.is_some() || *turn_rotation != active {
             self.report("an extra turn (CR 500.7)");

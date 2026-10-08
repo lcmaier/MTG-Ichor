@@ -86,7 +86,7 @@ impl GameState {
     /// move. The callers are the movers whose record follows the move at
     /// once: `perform_zone_change` and a player leaving (CR 800.4a).
     pub(crate) fn note_delayed_source_moving(&mut self, id: ObjectId) {
-        if self.delayed_triggers.is_empty() {
+        if self.delayed_triggers.is_empty() && self.until_returns.is_empty() {
             return;
         }
         if let Some(object) = self.object_ref(id) {
@@ -107,6 +107,12 @@ impl GameState {
                 if referred.object == object && referred.left_at.is_none() {
                     referred.left_at = Some(at);
                 }
+            }
+        }
+        // And CR 610.3's "until [it] leaves the battlefield".
+        for until in self.until_returns.iter_mut() {
+            if until.watched.object == object && until.watched.left_at.is_none() {
+                until.watched.left_at = Some(at);
             }
         }
     }

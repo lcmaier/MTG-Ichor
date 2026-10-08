@@ -192,6 +192,7 @@ fn primitive(p: &Primitive) -> BoundReads {
     match p {
         Primitive::Destroy
         | Primitive::Exile
+        | Primitive::ExileUntil { .. }
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
         | Primitive::ReturnToBattlefield(_)

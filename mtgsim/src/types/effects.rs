@@ -959,6 +959,19 @@ pub enum PatternFill {
     ChosenDamageSource,
 }
 
+/// CR 610.3 — the object whose leaving the battlefield ends an "until"
+/// exile. Every printed "until" exile waits for a leaving.
+#[derive(Debug, Clone, PartialEq)]
+pub enum UntilLeaves {
+    /// "Until this [permanent] leaves the battlefield": the ability's source.
+    ThisObject,
+    /// "Until target enchantment you control leaves the battlefield" (Calix,
+    /// Destiny's Hand): an `EffectRecipient::Target` the instruction declares
+    /// after its own, so it is announced and re-checked (CR 608.2b) as any
+    /// target is.
+    Target(EffectRecipient),
+}
+
 /// Whose control a returned permanent enters under.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReturnUnder {
@@ -1553,6 +1566,12 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
+    /// CR 610.3 — "exile [it] until [an object] leaves the battlefield": the
+    /// exile, and the return it waits to make, which CR 610.3 creates
+    /// immediately after that object leaves and which uses no stack. If the
+    /// object has already left since the spell was cast or the ability
+    /// triggered (610.3a, 610.3b), nothing moves.
+    ExileUntil { leaves: UntilLeaves, under: ReturnUnder },
     /// Sacrifice (CR 701.21a): "its controller moves it from the battlefield
     /// directly to its owner's graveyard". The recipient is the permanent, as
     /// [`Self::Destroy`]'s is: `ThisObject` for "sacrifice this enchantment",
@@ -1962,7 +1981,7 @@ impl Primitive {
             | Primitive::Mill(_)
             | Primitive::Discard(..)
             | Primitive::CounterSpell => Some(Zone::Graveyard),
-            Primitive::Exile => Some(Zone::Exile),
+            Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
             Primitive::ReturnToBattlefield(_) | Primitive::CreateToken(..) => Some(Zone::Battlefield),
             Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
@@ -2269,14 +2288,23 @@ impl Effect {
     /// when `f` returns `false`.
     fn for_each_instance<'a>(&'a self, f: &mut impl FnMut(&'a EffectRecipient) -> bool) -> bool {
         match self {
-            Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
-                f(recipient)
+            Effect::Atom(primitive, recipient) => {
+                let own = match recipient {
+                    EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => f(recipient),
+                    // "Target player sacrifices a creature": the chooser is the instance.
+                    EffectRecipient::ChosenBy(choice) => match &choice.chooser {
+                        chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
+                        _ => true,
+                    },
+                    _ => true,
+                };
+                // "Until target enchantment leaves the battlefield": the verb's
+                // second instance, after its own.
+                own && match primitive {
+                    Primitive::ExileUntil { leaves: UntilLeaves::Target(watched), .. } => f(watched),
+                    _ => true,
+                }
             }
-            // "Target player sacrifices a creature": the chooser is the instance.
-            Effect::Atom(_, EffectRecipient::ChosenBy(choice)) => match &choice.chooser {
-                chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
-                _ => true,
-            },
             Effect::Sequence(effects) => effects.iter().all(|sub| sub.for_each_instance(f)),
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.

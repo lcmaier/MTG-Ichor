@@ -499,10 +499,13 @@ impl GameState {
         // The registry's leg (§4.6), which has no shortcut for the audit to
         // check: every entry reading a kind of the window is asked.
         let delayed = self.detect_delayed(window, window_kinds, ordinals);
-        if matches.is_empty() && delayed.is_empty() {
+        let until = self.departures_ending_an_until(window);
+        if matches.is_empty() && delayed.is_empty() && until.is_empty() {
             return Ok(());
         }
-        self.queue_matches(matches, delayed, ctx)
+        self.queue_matches(matches, delayed, ctx)?;
+        // CR 610.3 — "immediately after the specified event", and no stack.
+        self.return_until(until, ctx)
     }
 
     /// Steps 1 to 3 of `dispatch_inner`'s five, for the objects' abilities:

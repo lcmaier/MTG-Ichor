@@ -12,7 +12,7 @@ use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    ReturnUnder, SelectionFilter, TargetCount,
+    ReturnUnder, SelectionFilter, TargetCount, UntilLeaves,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -20,6 +20,7 @@ use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+use crate::engine::returns::Return;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::types::triggers::{DelayedProvenance, DelayedTurn, Referred, RememberedObject, TriggerEvent, TriggerTurn};
 use crate::ui::decision::DecisionProvider;
@@ -720,6 +721,41 @@ impl GameState {
                 }
                 let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // CR 610.3 — the exile, unless its event has already happened
+            // since the spell was cast or the ability triggered (610.3a, b):
+            // the watched object is gone, or is a new object. Then the return
+            // it waits to make, of what it exiled.
+            Primitive::ExileUntil { leaves, under } => {
+                let watched = match leaves {
+                    UntilLeaves::ThisObject if ctx.ability_source.is_none() => {
+                        return Err(format!("{:?}: a spell is never on the battlefield to leave it", ctx.source));
+                    }
+                    UntilLeaves::ThisObject => self.this_object(ctx),
+                    UntilLeaves::Target(_) => {
+                        let ix = walk.instance_cursor;
+                        walk.instance_cursor += 1;
+                        ctx.targets.instance(ix).iter().find_map(|t| match t {
+                            ResolvedTarget::Object(id) => Some(*id),
+                            ResolvedTarget::Player(_) => None,
+                        })
+                    }
+                };
+                let Some(watched) =
+                    watched.filter(|id| self.battlefield.contains_key(id)).and_then(|id| self.object_ref(id))
+                else {
+                    return Ok(());
+                };
+                let mark = self.events.next_seq();
+                let batch = self.events_for(&Primitive::Exile, targets, ctx)?;
+                if batch.is_empty() {
+                    return Ok(());
+                }
+                self.execute_actions(batch, &actx)?;
+                let returns = self.exiled_since(ctx.stamp(), mark);
+                self.wait_to_return(watched, returns, *under, ctx.controller);
                 Ok(())
             }
 
@@ -1657,14 +1693,14 @@ impl GameState {
             Primitive::ReturnToBattlefield(under) => {
                 let mut returns = Vec::new();
                 for target in targets {
-                    let ResolvedTarget::Object(id) = *target else { continue };
+                    let ResolvedTarget::Object(object) = *target else { continue };
                     let controller = match under {
-                        ReturnUnder::Owner => self.get_object(id)?.owner,
+                        ReturnUnder::Owner => self.get_object(object)?.owner,
                         ReturnUnder::You => ctx.controller,
                     };
-                    returns.push((id, controller));
+                    returns.push(Return { object, to: Zone::Battlefield, controller });
                 }
-                self.return_to_battlefield(&returns, &actx)
+                self.return_objects(&returns, &actx)
             }
 
             // === Unimplemented primitives — `backlog.md` §2.5 ===

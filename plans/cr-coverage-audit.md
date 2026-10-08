@@ -554,6 +554,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     (603.12): both are TR-3b's, planned in `triggers-architecture.md` §3.9.
   - `next_extra_turn_id` and `next_delayed_trigger_id`: the counters the
     two ids come from; no fact about the game.
+- **Added by TR-3b (2026-10-08)**:
+  - `until_returns`: CR 610.3's returns waiting for their events, which are
+    one-shot effects and no triggered abilities, so they are not on
+    `delayed_triggers`. Each holds the object whose leaving the battlefield
+    is the event, by identity; what the exile moved, by identity, with its
+    previous zone; and whose control a returned permanent enters under
+    (610.3c). Every printed "until" exile waits for a leaving (135 cards,
+    `o:/until .* leaves the battlefield/`).
 
 ---
 
