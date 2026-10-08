@@ -29,7 +29,7 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Multiplicity,
-    PendingTrigger, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq,
+    PendingTrigger, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerTurn,
 };
 use crate::ui::ask::ask_choose_delayed_trigger_event;
 use crate::ui::choice_types::ChoiceOption;
@@ -104,8 +104,20 @@ impl GameState {
     pub(crate) fn drop_delayed_triggers_of_gone_turns(&mut self) {
         let current = self.extra_turn;
         let queue = &self.turn_queue;
-        self.delayed_triggers
-            .retain(|d| d.turn.is_none_or(|turn| current == Some(turn) || queue.iter().any(|e| e.id == turn)));
+        self.delayed_triggers.retain(|d| match d.turn {
+            TriggerTurn::Extra(turn) => current == Some(turn) || queue.iter().any(|e| e.id == turn),
+            TriggerTurn::Any | TriggerTurn::LaterThan(_) => true,
+        });
+    }
+
+    /// Whether the turn in progress is one a delayed trigger bound to `turn`
+    /// may trigger in.
+    fn in_turn(&self, turn: TriggerTurn) -> bool {
+        match turn {
+            TriggerTurn::Any => true,
+            TriggerTurn::LaterThan(created) => self.turn_number > created,
+            TriggerTurn::Extra(extra) => self.extra_turn == Some(extra),
+        }
     }
 
     /// The registry's leg of a dispatch (§4.6): each entry whose def reads a
@@ -122,8 +134,7 @@ impl GameState {
         }
         let mut found = Vec::new();
         for delayed in &self.delayed_triggers {
-            // "That turn" (CR 500.7): only during the extra turn it names.
-            if !delayed.def.record_kinds().intersects(window_kinds) || delayed.turn.is_some_and(|t| self.extra_turn != Some(t)) {
+            if !delayed.def.record_kinds().intersects(window_kinds) || !self.in_turn(delayed.turn) {
                 continue;
             }
             let occurrences = self.delayed_occurrences(delayed, window, ordinals);

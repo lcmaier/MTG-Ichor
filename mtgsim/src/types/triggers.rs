@@ -691,17 +691,33 @@ pub enum DelayedDuration {
     ThisTurn,
 }
 
-/// Which turn a delayed triggered ability may trigger in.
+/// Which turn a delayed triggered ability may trigger in, as a card prints it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayedTurn {
     /// Whichever turn its event comes in: "at the beginning of the next end
     /// step".
     Any,
+    /// A turn after the one it is created in: the Ice Age cantrips' "at the
+    /// beginning of the next turn's upkeep", which a second upkeep this turn
+    /// (CR 500.10) is not.
+    NextTurn,
     /// "That turn": the extra turn the same resolution scheduled before
     /// creating it (CR 500.7), Final Fortune's "at the beginning of that
     /// turn's end step". A skipped extra turn never comes (CR 614.10a), and
     /// the trigger goes with it.
     ThatExtraTurn,
+}
+
+/// The turns a registered delayed trigger may trigger in: its template's
+/// `DelayedTurn`, fixed as it was created.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TriggerTurn {
+    Any,
+    /// A turn numbered past this one. A skipped turn advances no number (CR
+    /// 614.10a), so the first is the next turn that begins.
+    LaterThan(u32),
+    /// The one extra turn (CR 500.7).
+    Extra(ExtraTurnId),
 }
 
 /// What `Primitive::CreateDelayedTrigger` creates (CR 603.7), as a card
@@ -754,8 +770,8 @@ pub struct DelayedTrigger {
     pub duration: DelayedDuration,
     /// CR 107.3n — the X of the spell or ability that created it.
     pub x_value: Option<u64>,
-    /// "That turn": the one extra turn it may trigger in (CR 500.7).
-    pub turn: Option<ExtraTurnId>,
+    /// The turns it may trigger in.
+    pub turn: TriggerTurn,
     /// CR 601.2c's instances of "target" its def declares, announced as it
     /// is put on the stack (603.3d).
     pub instances: Vec<EffectRecipient>,
@@ -779,7 +795,7 @@ pub struct DelayedProvenance {
     pub controller: PlayerId,
     pub created_by: Option<AbilityIdentity>,
     pub x_value: Option<u64>,
-    pub turn: Option<ExtraTurnId>,
+    pub turn: TriggerTurn,
 }
 
 /// An object's last known information (CR 113.7a, 608.2h), kept by an entry

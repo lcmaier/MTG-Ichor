@@ -44,7 +44,7 @@ use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, IdentityRef, TriggerEvent, TriggerOrigin,
-    TriggerSubject,
+    TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -728,7 +728,7 @@ fn a_special_actions_delayed_trigger_is_its_static_abilitys_objects() {
             controller: 0,
             created_by: None,
             x_value: None,
-            turn: None,
+            turn: TriggerTurn::Any,
         },
     );
     give_control(&mut game, altar, 1);

@@ -20,7 +20,7 @@ use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-use crate::types::triggers::{DelayedProvenance, DelayedTurn};
+use crate::types::triggers::{DelayedProvenance, DelayedTurn, TriggerTurn};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -696,8 +696,9 @@ impl GameState {
                         .ok_or_else(|| format!("the source {} of a delayed triggered ability is not in the game", ctx.source))?,
                 };
                 let turn = match template.turn {
-                    DelayedTurn::Any => None,
-                    DelayedTurn::ThatExtraTurn => Some(walk.extra_turn.ok_or_else(|| {
+                    DelayedTurn::Any => TriggerTurn::Any,
+                    DelayedTurn::NextTurn => TriggerTurn::LaterThan(self.turn_number),
+                    DelayedTurn::ThatExtraTurn => TriggerTurn::Extra(walk.extra_turn.ok_or_else(|| {
                         format!(
                             "a delayed trigger on {} names \"that turn\", and its resolution scheduled no extra turn before it",
                             ctx.source
