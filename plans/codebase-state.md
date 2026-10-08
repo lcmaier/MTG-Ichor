@@ -9412,7 +9412,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      identity (`ObjectRef`), the prune spares it, and the damage says which
      existence dealt it, as `source_frame` already says that one left; a
      Perilous Myr fixture under Circle of Protection: Red.
-     **Slotted:** TR-3b, beside Cornered Crook, which makes it reachable.
+     **Slotted:** TR-3b, beside Cornered Crook, which makes it reachable
+     (the owner, 2026-10-08).
+
+226. **Cobbled Wings costs {1}; it prints {2}.** `phase_lh_cards::cobbled_wings`
+     builds `ManaCost::build(&[], 1)` under a doc that says "{2}", and
+     Scryfall prints {2} (checked 2026-10-08). Found writing Loxodon
+     Warhammer beside it in #233.
+     **Reachability (2026-10-08):** reachable — wrong today: the card is
+     registered, so every `stress` game can cast it a mana early.
+     **Sized:** one token, and an assertion on its cost.
+     **Slotted:** the next engine PR, TR-3b (the owner, 2026-10-08), whose
+     pooled Flickerwisp and Banishing Light re-record `stress` anyway, so
+     the fix moves no table a second time.
 
 ### Found by TR-3a — the delayed-trigger registry (2026-10-07)
 

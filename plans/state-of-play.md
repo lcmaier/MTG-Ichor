@@ -173,14 +173,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 283 |
+| Numbered items | 284 |
 | …closed, still recorded | 105 |
 | …open — unreachable, and says why | 113 |
-| **…open — reachable, wrong today** | **4** |
+| **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 173 of 178 |
+| …open, carrying an explicit `**Sized:**` | 174 of 179 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
