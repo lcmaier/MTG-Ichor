@@ -9305,14 +9305,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Doppelganger, which waits on TR-7's graveyard targets.
 
 222. **~~A copy row that carries a triggered ability opens the dispatcher's
-     gate for the whole battlefield.~~ — ✅ CLOSED 2026-10-07 (TR-3a).** —
+     gate for the whole battlefield.~~ — ✅ CLOSED 2026-10-07 (PR #232).** —
      archived. A row naming its objects files the record kinds its
      triggered abilities read, and the dispatcher reads the objects off the
      rows only for a window carrying one of those kinds. On `performance`,
      `Candidate visits` 797.4 → 44.8 a game at two seats and 2,090.8 → 140.3
      at four, every gameplay row `IDENTICAL` and the audit agreeing;
      instructions per decision −1.21%.
-     **Reachability (2026-10-07):** closed — TR-3a.
+     **Reachability (2026-10-07):** closed — PR #232.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 222".
 
 ### Found at #231's review (2026-10-07)

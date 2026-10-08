@@ -3598,7 +3598,7 @@ Season, and then enters as an Essence of Might with no counter
      §6, `copy-by-counters`). CR 616.2 allows the shape all the same, so no
      card will bring the fix, and CV-1b is the next copy phase on the route.
 
-### Item 222 — closed 2026-10-07 by TR-3a's PR
+### Item 222 — closed 2026-10-07 by PR #232
 
 Closed as sized, as TR-3a's first commit and its own close-out arm. A row
 naming its objects (`SourceOnly`, `Fixed`, `Host`) adds the record kinds its
