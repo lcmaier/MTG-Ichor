@@ -506,6 +506,43 @@ fn simultaneous_events_trigger_a_once_delayed_trigger_once_by_its_controllers_ch
     assert_eq!(life(&game, 0), 23);
 }
 
+/// Item 224: attackers are declared outside any batch, so CR 603.7b's choice
+/// had no provider when one `Once` delayed trigger matched two attackers.
+/// The declaration's dispatch carries its step's provider: the controller
+/// chooses which attack causes it, and it triggers once.
+#[test]
+fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
+    use mtgsim::state::game_state::{Phase, PhaseType};
+    let mut game = setup_two_player_game();
+    let small = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let big = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let you_control = ObjectFilter::And(Box::new(a_creature()), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let spell = resolve_spell(
+        &mut game,
+        instant(
+            "Next Charge",
+            ManaCost::build(&[ManaType::Red], 0),
+            create(template(
+                TriggerEvent::Attacks { attacker: TriggerSubject::Filter(you_control), multiplicity: mtgsim::types::triggers::Multiplicity::PerOccurrence },
+                Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower), EffectRecipient::Controller),
+                DelayedDuration::Once,
+            )),
+        ),
+        0,
+    );
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    dp.expect_choice(ChoiceKind::ChooseDelayedTriggerEvent { source: spell }, vec![ChoiceOption::Object(big)]);
+    game.process_declare_attackers(&dp).unwrap();
+    assert!(dp.is_empty(), "both attacked, and the controller chose");
+    assert_eq!(the_delayed_pending(&game).binding.subject.map(|s| s.id), Some(big));
+    let _ = small;
+    place_and_resolve(&mut game);
+    assert_eq!(life(&game, 0), 23);
+}
+
 /// The choice is asked only between events that give different games: a
 /// "draw a card" reads nothing of its event, so two deaths at once are one
 /// answer, and nobody is asked (CR 102.2; item 163's reading).

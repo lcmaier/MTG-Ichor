@@ -293,10 +293,9 @@ impl GameState {
             return distinct.pop();
         }
         let Some(ctx) = ctx else {
-            // A batch's window is the only one with two simultaneous
-            // occurrences of a kind a `Once` entry reads, save `Attacks` over
-            // the unbatched `AttackersDeclared` (`codebase-state.md` item 224).
-            debug_assert!(false, "CR 603.7b's choice reached an unbatched dispatch, with no provider to ask");
+            // Two occurrences of one arm come only in a batch's window or in
+            // `AttackersDeclared`, and both dispatch with a provider.
+            debug_assert!(false, "CR 603.7b's choice reached a dispatch with no provider to ask");
             return distinct.into_iter().next();
         };
         // Each cause by its object, or by its record where objects do not

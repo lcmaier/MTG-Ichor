@@ -381,14 +381,15 @@ impl GameState {
         result
     }
 
-    /// One record emitted outside any batch — a phase beginning, a cast, an
-    /// activation, a trigger triggering — dispatched inside `emit_event`.
-    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq) {
-        // No `ActionContext` reaches an emission, and none is needed: a mana
-        // trigger's event (`ManaAdded`) is performed inside a batch, so the
-        // only path that resolves at dispatch never runs here.
+    /// One record emitted outside any batch — a cast, an activation, an
+    /// ability's resolution, a trigger triggering, attackers declared —
+    /// dispatched inside `emit_event`. `ctx` is the emitter's provider, where
+    /// the dispatch may have to ask (`emit_event_with_provider`); a mana
+    /// trigger's event (`ManaAdded`) is performed inside a batch, so the one
+    /// path that resolves at dispatch never runs here.
+    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
-        let _ = self.dispatch(&[seq], None, &[], audit.as_deref());
+        let _ = self.dispatch(&[seq], ctx, &[], audit.as_deref());
         self.flush_window_unless_nested();
     }
 
