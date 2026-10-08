@@ -1,6 +1,9 @@
-//! What the game is holding for later: each delayed triggered ability waiting
-//! for its event (CR 603.7) and each extra turn waiting in the queue (CR
-//! 500.7), as plain data for a client to lay out.
+//! What the game is holding for a later event or turn: each delayed
+//! triggered ability waiting for its event (CR 603.7) and each extra turn
+//! waiting in the queue (CR 500.7), as plain data for a client to lay out.
+//! Not a triggered ability waiting to be put on the stack, which goes there
+//! the next time a player would receive priority (CR 117.2a) and is the
+//! stack's to show.
 //!
 //! Read off the state, so a row is gone the moment the thing it describes
 //! is: a delayed trigger that has triggered once or whose duration or turn
@@ -12,7 +15,8 @@ use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId};
 use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerTurn};
 use crate::ui::display::{named, object_label};
 
-/// Everything waiting, each kind in its own order.
+/// The delayed triggers and the extra turns waiting, each kind in its own
+/// order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Waiting {
     /// The delayed triggered abilities, in the order they were created.

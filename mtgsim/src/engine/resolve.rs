@@ -2522,18 +2522,13 @@ impl GameState {
     /// ("when this creature dies") looks back (CR 603.10a) and is named by
     /// the object it left as, so it reads the departure record's frame; any
     /// other, the frame its entry kept as the source went. `None` while the
-    /// source is there, and for a spell, which resolves where it was cast. A
-    /// source no frame was kept for reads where it is now.
+    /// source is there, since a frame is kept only for an existence that has
+    /// left, and for a spell, which resolves where it was cast. A source no
+    /// frame was kept for reads where it is now.
     fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
         let source = ctx.ability_source?;
         let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
-        if let Some(frame) = looked_back.and_then(crate::engine::triggers::binding::departure_frame) {
-            return Some(frame);
-        }
-        if self.object_ref(source.id) == Some(source) {
-            return None;
-        }
-        self.departed_frame(source)
+        looked_back.and_then(crate::engine::triggers::binding::departure_frame).or_else(|| self.departed_frame(source))
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,
