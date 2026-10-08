@@ -24,7 +24,7 @@ use super::history::TurnOrdinals;
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::trace_records;
-use crate::events::event::EventSeq;
+use crate::events::event::{EventRecord, EventSeq};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
@@ -146,91 +146,121 @@ impl GameState {
     }
 
     /// One entry against the window: every occurrence that triggers it, in
-    /// window order, with "one or more" folded per arm (CR 603.2c).
+    /// window order. A record counts if the entry existed before it (CR
+    /// 603.7a) and one of its arms reads the record's kind; it is matched the
+    /// way an object's ability is (`match_delayed`), the verdict is traced,
+    /// and a match adds its occurrences (`add_occurrences`).
     fn delayed_occurrences(
         &self,
         delayed: &DelayedTrigger,
         window: &[EventSeq],
         ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
-        let identity = delayed.identity();
-        let source = delayed.source.id;
-        let referents = TriggerReferents {
-            this: ThisObject::Remembered { object: delayed.source, left_at: delayed.source_left_at },
-            controller: delayed.controller,
-            owner: self.objects.get(&source).map_or(delayed.controller, |o| o.owner),
-            host: None,
-            this_ability: delayed.created_by,
-        };
-        let zone = self.objects.get(&source).map(|o| o.zone);
+        let referents = self.delayed_referents(delayed);
+        let arms = delayed.def.condition.events();
         let mut occurrences: Vec<MatchedTrigger> = Vec::new();
-        // "One or more" accumulates across the window: event -> index into `occurrences`.
-        let mut once: Vec<(EventIndex, usize)> = Vec::new();
         for seq in window {
             let Some(record) = self.events.record(*seq) else { continue };
-            // CR 603.7a: nothing from before it was created, nor of the event
-            // it was created during.
-            if *seq < delayed.created_at || delayed.created_in.is_some_and(|batch| record.stamp.batch == Some(batch)) {
+            if !existed_before(delayed, record) || !arms.iter().any(|arm| arm.reads(&record.event)) {
                 continue;
             }
-            let arms = delayed.def.condition.events();
-            if !arms.iter().any(|arm| arm.reads(&record.event)) {
-                continue;
-            }
-            let matched = arms.iter().enumerate().find_map(|(index, arm)| {
-                let subjects = if arm.reads(&record.event) {
-                    self.occurrences_matching_arm(arm, &referents, *seq, &record.event)
-                } else {
-                    Vec::new()
-                };
-                (!subjects.is_empty()).then_some((EventIndex(index), subjects))
-            });
-            let refusal = match &matched {
-                None => Some(Refusal::TriggerCondition),
-                Some(_) if !self.within_once_per_turn_limit(&delayed.def, identity, delayed.controller, *seq, ordinals) => {
-                    Some(Refusal::Limit)
-                }
-                // CR 603.4 at the trigger, "you" its controller (CR 109.5).
-                Some(_)
-                    if delayed
-                        .def
-                        .intervening_if
-                        .as_ref()
-                        .is_some_and(|c| !settled_holds(c, self, source, Some(delayed.controller))) =>
-                {
-                    Some(Refusal::InterveningIf)
-                }
-                Some(_) => None,
-            };
-            if let Some(zone) = zone {
-                self.trace(|| {
-                    trace_records::trigger(self, *seq, &identity, zone, refusal.is_none(), refusal.map(Refusal::name), false)
-                });
-            }
-            let Some((event, subjects)) = matched.filter(|_| refusal.is_none()) else { continue };
-            let occurrence = |subject: Option<ObjectId>| MatchedTrigger {
-                identity,
-                controller: delayed.controller,
-                def: Arc::clone(&delayed.def),
-                source_card: Arc::clone(&delayed.source_card),
-                instances: delayed.instances.clone(),
-                event,
-                records: vec![record.clone()],
-                subject: subject.and_then(|id| self.object_ref(id)),
-                mana: false,
-            };
-            match arms[event.0].multiplicity() {
-                Multiplicity::PerOccurrence => occurrences.extend(subjects.into_iter().map(occurrence)),
-                Multiplicity::OncePerEvent => match once.iter().find(|(e, _)| *e == event) {
-                    Some(&(_, at)) => occurrences[at].records.push(record.clone()),
-                    None => {
-                        once.push((event, occurrences.len()));
-                        occurrences.push(occurrence(None));
-                    }
-                },
+            let verdict = self.match_delayed(delayed, &referents, record, ordinals);
+            self.trace_delayed_verdict(delayed, record.seq, verdict.as_ref().err().copied());
+            if let Ok((event, subjects)) = verdict {
+                self.add_occurrences(&mut occurrences, delayed, record, event, subjects);
             }
         }
         occurrences
+    }
+
+    /// What an entry's words for itself mean (CR 603.7c–g): "this object" is
+    /// its source as remembered, "you" its controller, "its owner" the
+    /// source's owner while the store holds it, and "this ability" the one
+    /// that created it (CR 603.7h).
+    fn delayed_referents(&self, delayed: &DelayedTrigger) -> TriggerReferents {
+        TriggerReferents {
+            this: ThisObject::Remembered { object: delayed.source, left_at: delayed.source_left_at },
+            controller: delayed.controller,
+            owner: self.objects.get(&delayed.source.id).map_or(delayed.controller, |o| o.owner),
+            host: None,
+            this_ability: delayed.created_by,
+        }
+    }
+
+    /// The entry against one record, as `match_def` is for an object's
+    /// ability: the first arm that matches and its occurrences' subjects,
+    /// then the def's once-per-turn limit and its intervening "if". `Err`
+    /// names the predicate that refused.
+    fn match_delayed(
+        &self,
+        delayed: &DelayedTrigger,
+        referents: &TriggerReferents,
+        record: &EventRecord,
+        ordinals: &TurnOrdinals,
+    ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
+        let matched = delayed
+            .def
+            .condition
+            .events()
+            .iter()
+            .enumerate()
+            .filter(|(_, arm)| arm.reads(&record.event))
+            .find_map(|(index, arm)| {
+                let subjects = self.occurrences_matching_arm(arm, referents, record.seq, &record.event);
+                (!subjects.is_empty()).then_some((EventIndex(index), subjects))
+            })
+            .ok_or(Refusal::TriggerCondition)?;
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.seq, ordinals) {
+            return Err(Refusal::Limit);
+        }
+        // CR 603.4 at the trigger, "you" its controller (CR 109.5).
+        if let Some(condition) = &delayed.def.intervening_if
+            && !settled_holds(condition, self, delayed.source.id, Some(delayed.controller))
+        {
+            return Err(Refusal::InterveningIf);
+        }
+        Ok(matched)
+    }
+
+    /// The trace's `trigger` record of an entry's verdict on record `seq`,
+    /// under the zone its source is in; none once the store has no source.
+    fn trace_delayed_verdict(&self, delayed: &DelayedTrigger, seq: EventSeq, refusal: Option<Refusal>) {
+        let Some(zone) = self.objects.get(&delayed.source.id).map(|o| o.zone) else { return };
+        self.trace(|| {
+            trace_records::trigger(self, seq, &delayed.identity(), zone, refusal.is_none(), refusal.map(Refusal::name), false)
+        });
+    }
+
+    /// A record's match on arm `event`, added to the entry's occurrences: one
+    /// per subject, or, for a "one or more" arm (CR 603.2c), the record joins
+    /// that arm's single occurrence across the window. An arm is one kind or
+    /// the other, so an occurrence of a "one or more" arm is its fold.
+    fn add_occurrences(
+        &self,
+        occurrences: &mut Vec<MatchedTrigger>,
+        delayed: &DelayedTrigger,
+        record: &EventRecord,
+        event: EventIndex,
+        subjects: Vec<Option<ObjectId>>,
+    ) {
+        let occurrence = |subject: Option<ObjectId>| MatchedTrigger {
+            identity: delayed.identity(),
+            controller: delayed.controller,
+            def: Arc::clone(&delayed.def),
+            source_card: Arc::clone(&delayed.source_card),
+            instances: delayed.instances.clone(),
+            event,
+            records: vec![record.clone()],
+            subject: subject.and_then(|id| self.object_ref(id)),
+            mana: false,
+        };
+        match delayed.def.condition.events()[event.0].multiplicity() {
+            Multiplicity::PerOccurrence => occurrences.extend(subjects.into_iter().map(occurrence)),
+            Multiplicity::OncePerEvent => match occurrences.iter_mut().find(|o| o.event == event) {
+                Some(folded) => folded.records.push(record.clone()),
+                None => occurrences.push(occurrence(None)),
+            },
+        }
     }
 
     /// Queue the registry's matches, after the objects' (§4.6). A `ThisTurn`
@@ -315,6 +345,13 @@ impl GameState {
         let chosen = ask_choose_delayed_trigger_event(ctx.dp, self, controller, source, &options);
         distinct.into_iter().nth(chosen)
     }
+}
+
+/// CR 603.7a: whether `delayed` existed before the event `record` is part of
+/// — created ahead of the record, and not during that event, which a rider's
+/// batch performs on both sides of the rider.
+fn existed_before(delayed: &DelayedTrigger, record: &EventRecord) -> bool {
+    record.seq >= delayed.created_at && !delayed.created_in.is_some_and(|batch| record.stamp.batch == Some(batch))
 }
 
 /// A delayed trigger's match as the queue's entry, its sequence number still
