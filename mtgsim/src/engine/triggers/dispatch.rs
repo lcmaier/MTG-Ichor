@@ -719,7 +719,8 @@ impl GameState {
     }
 
     /// The objects a queued, stacked or resolving entry names: its source,
-    /// and its trigger's subject. Empty or short on the common board.
+    /// and its trigger's subject; and each waiting delayed trigger's source.
+    /// Empty or short on the common board.
     fn objects_entries_name(&self) -> Vec<ObjectRef> {
         let mut named: Vec<ObjectRef> = Vec::new();
         let mut name = |object: Option<ObjectRef>| {
@@ -741,6 +742,9 @@ impl GameState {
             name(resolving.identity.map(|identity| identity.source));
             name(resolving.subject);
         }
+        for delayed in &self.delayed_triggers {
+            name(Some(delayed.source));
+        }
         named
     }
 
@@ -756,8 +760,9 @@ impl GameState {
     }
 
     /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
-    /// each queued, stacked or resolving entry that names it keeps the frame
-    /// its batch took. That is `lki`, the record's own, for a permanent, and
+    /// each queued, stacked or resolving entry that names it, and each
+    /// delayed trigger waiting with it as source, keeps the frame its batch
+    /// took. That is `lki`, the record's own, for a permanent, and
     /// for any other mover the one `capture_departure_frames` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
@@ -771,6 +776,11 @@ impl GameState {
         };
         let Some(object) = self.object_ref(id) else { return };
         let departed = || DepartedFrame { object, frame: Arc::clone(&frame) };
+        for delayed in &mut self.delayed_triggers {
+            if delayed.source == object {
+                delayed.source_frame = Some(Arc::clone(&frame));
+            }
+        }
         for pending in &mut self.pending_triggers {
             if pending.origin.source_ref() == object || pending.binding.subject == Some(object) {
                 pending.departed.push(departed());

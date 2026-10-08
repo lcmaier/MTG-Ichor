@@ -26,6 +26,7 @@ use mtgsim::cards::phase_re_cards::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::events::event::CounterSubject;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::is_creature;
@@ -420,6 +421,59 @@ fn a_delayed_trigger_sees_its_own_source_leave() {
     assert_eq!(the_delayed_pending(&game).origin.source(), sentinel);
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 23);
+}
+
+/// CR 113.7a, 608.2h: a delayed trigger whose source has left reads the
+/// source as it last existed. The creature leaves as a 4/4 before its end
+/// step trigger fires: the registry keeps the frame it left with, and the
+/// trigger carries it onto the stack, where the source's characteristics are
+/// read from it.
+#[test]
+fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
+    let mut game = setup_two_player_game();
+    let herald = creature("Lingering Herald", vec![activated(false, at_the_next_end_step(gain_one()))]);
+    let herald = put_on_battlefield(&mut game, herald, 0);
+    let herald_then = game.object_ref(herald).unwrap();
+    activate_and_resolve(&mut game, 0, herald, 0);
+    let counters = GameAction::AddCounters {
+        subject: CounterSubject::Object(herald),
+        counter: CounterType::PlusOnePlusOne,
+        n: 2,
+        by: 0,
+    };
+    game.execute_action(counters, &test_ctx()).unwrap();
+    assert!(game.delayed_triggers[0].source_frame.is_none(), "its source is still there");
+
+    game.change_zone(herald, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    let kept = game.delayed_triggers[0].source_frame.as_ref().map(|frame| frame.power);
+    assert_eq!(kept, Some(Some(4)), "the 4/4 that left");
+
+    advance_to(&mut game, 0, StepType::End);
+    let departed = &the_delayed_pending(&game).departed;
+    assert_eq!(departed.iter().map(|d| (d.object, d.frame.power)).collect::<Vec<_>>(), vec![(herald_then, Some(4))]);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    let on_stack = &game.stack_entries[game.stack.last().unwrap()];
+    assert_eq!(on_stack.departed.iter().map(|d| d.object).collect::<Vec<_>>(), vec![herald_then], "onto the stack");
+    place_and_resolve(&mut game);
+    assert_eq!(life(&game, 0), 21);
+}
+
+/// The same for a spell's delayed trigger, whose source is the spell (CR
+/// 603.7d): the spell is framed as it leaves the stack, where it last
+/// existed as that object.
+#[test]
+fn a_spells_delayed_trigger_keeps_the_spell_as_it_left_the_stack() {
+    let mut game = setup_two_player_game();
+    let mend = instant("Delayed Mend", ManaCost::build(&[ManaType::White], 0), at_the_next_end_step(gain_one()));
+    let mend = put_in_hand(&mut game, mend, 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    game.cast_spell(0, mend, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    let cast = game.object_ref(mend).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    let delayed = &game.delayed_triggers[0];
+    assert_eq!(delayed.source, cast);
+    let frame = delayed.source_frame.as_ref().map(|frame| frame.types.contains(&CardType::Instant));
+    assert_eq!(frame, Some(true), "the instant spell, framed as it left the stack");
 }
 
 /// CR 603.7b: "a delayed triggered ability will trigger only once — the next

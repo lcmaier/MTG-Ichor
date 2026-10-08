@@ -28,8 +28,8 @@ use crate::events::event::{EventRecord, EventSeq};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Multiplicity,
-    PendingTrigger, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerTurn,
+    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, DepartedFrame, EventIndex, EventKindMask,
+    Multiplicity, PendingTrigger, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerTurn,
 };
 use crate::ui::ask::ask_choose_delayed_trigger_event;
 use crate::ui::choice_types::ChoiceOption;
@@ -52,6 +52,7 @@ impl GameState {
             def: Arc::clone(&template.def),
             source: provenance.source,
             source_left_at: None,
+            source_frame: None,
             source_card: provenance.source_card,
             controller: provenance.controller,
             created_at: self.events.next_seq(),
@@ -275,9 +276,10 @@ impl GameState {
     ) {
         for DelayedMatch { id, occurrences } in matched {
             let Some(at) = self.delayed_triggers.iter().position(|d| d.id == id) else { continue };
-            let x_value = self.delayed_triggers[at].x_value;
-            let entries: Vec<PendingTrigger> = occurrences.into_iter().map(|m| pending_of(m, x_value)).collect();
-            let triggered = match self.delayed_triggers[at].duration {
+            let delayed = &self.delayed_triggers[at];
+            let duration = delayed.duration;
+            let entries: Vec<PendingTrigger> = occurrences.into_iter().map(|m| pending_of(m, delayed)).collect();
+            let triggered = match duration {
                 DelayedDuration::ThisTurn => entries,
                 DelayedDuration::Once => {
                     let source = self.delayed_triggers.remove(at).source.id;
@@ -355,8 +357,9 @@ fn existed_before(delayed: &DelayedTrigger, record: &EventRecord) -> bool {
 }
 
 /// A delayed trigger's match as the queue's entry, its sequence number still
-/// to be given.
-fn pending_of(m: MatchedTrigger, x_value: Option<u64>) -> PendingTrigger {
+/// to be given. It carries the entry's X (CR 107.3n) and, once the source has
+/// left, the frame the source left with (CR 113.7a).
+fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
     PendingTrigger {
         seq: TriggerSeq(0),
         origin: TriggerOrigin::Delayed(m.identity),
@@ -371,7 +374,11 @@ fn pending_of(m: MatchedTrigger, x_value: Option<u64>) -> PendingTrigger {
             triggered_by: None,
         },
         is_state_trigger: false,
-        departed: Vec::new(),
-        x_value,
+        departed: delayed
+            .source_frame
+            .iter()
+            .map(|frame| DepartedFrame { object: delayed.source, frame: Arc::clone(frame) })
+            .collect(),
+        x_value: delayed.x_value,
     }
 }

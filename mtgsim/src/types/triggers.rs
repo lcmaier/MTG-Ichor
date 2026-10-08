@@ -754,6 +754,12 @@ pub struct DelayedTrigger {
     /// leaves the battlefield" knows its own departure and no later move of
     /// a new object with the same id.
     pub source_left_at: Option<EventSeq>,
+    /// CR 113.7a, 608.2h — `source` as it last existed in the zone it was in
+    /// when this was created, framed as it left. Its trigger carries the frame
+    /// to the stack, where the source's characteristics are read from it.
+    /// `None` while the source is still there, and after a move nothing
+    /// frames: CR 601.2a's, out of a hidden zone.
+    pub source_frame: Option<Arc<EffectiveCharacteristics>>,
     /// What its stack object is built from (CR 603.3's "the text of the
     /// ability that created it"), held because the source may be gone by
     /// then.
