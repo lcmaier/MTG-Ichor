@@ -965,3 +965,125 @@ code's overage is the `TriggerReferents` refactor (`ArmReader` as it was
 first written) and the two findings above. The review round (2026-10-08)
 added code +120 and tests +91: item 224, `source_frame`, the
 `delayed_occurrences` split and the explainers, for +2,489 in all.
+
+#### TR-3b — the returns and "until", with Flickerwisp and Banishing Light — ✅ landed 2026-10-08
+
+*Evicted 2026-10-08 from `plans/triggers-architecture.md` §12, where the heading and a stub remain, with TR-3c's section after it.*
+
+### The plan as sized (TR-3b, as §12 carried it on 2026-10-08)
+
+TR-3's other half, by the 2026-09-24 re-count (the last subsection); TR-3a's
+stub says what landed of the plan.
+
+| Piece |
+|---|
+| `Effect::Reflexive` and the immediate check over the resolution's own records (§4.6); `refs`, the objects a creating instruction names, filled from those records (Flickerwisp's "that card", the Tatsumasa board's "that token"), each with a departure record as the source has; `UntilEvent` resolved at dispatch (610.3) |
+| `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm in `resolve.rs`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser |
+| **`codebase-state.md` item 223's row half**, carried by `plans/handoffs/item-223-rows.md` (the owner's split at #233's design review, 2026-10-08), ~170 lines: the ten sites that write a resolution's registry row read `ResolutionContext::effect_source`, and `cleanup_zone_state`'s sweep ends only the rows that end with their source, a static ability's (CR 611.3b) and a "for as long as" (611.2b), beside 610.3's "until"; closes items 223 and 95. **Item 225**, ~70 lines: a chosen-source shield kept past its source's departure, since Cornered Crook killed in response deals its damage as it last existed. **Item 226**, one token: Cobbled Wings' printed {2}, riding this phase's `stress` re-record |
+| cards: **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) |
+| tests: §13's 7 TR-3b atoms; Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); the Tatsumasa board, under a doubler; Sneak Attack's ruling as a fixture board; Flickerwisp's second ruling and Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) |
+
+**Re-counted 2026-10-08: the card-by-card gap hunt** (`engineering-practices.md`
+§4), at TR-3b's sizing. Every clause of the three cards and every test board
+was read against the tree. The rows stand, with three corrections: Banishing
+Light's "leaves before the trigger resolves" is CR 610.3b, since its ability is
+triggered; `ReturnToHand` moves to TR-4 with Rancor, because ATOM-610.3b-001's
+bounce is the test's own proposal; and §3.9's "610.3d's simultaneity falling out
+of the window" does not hold (item 3). Ten facilities the rows did not list:
+
+1. **The window does not hold a resolution's records.**
+   `flush_window_unless_nested` (`engine/triggers/dispatch.rs`) empties it at
+   the close of every outermost batch, and each instruction of a resolution is
+   one. By the time "when you do" or "that card" is reached, the records it
+   reads are gone. §4.6's reader, `resolution_records(stamp)`, needs the
+   resolution counted as a reader: the window holds until it ends.
+2. **"Another" at resolution.** `object_matches_filter` carries no source, so
+   `ObjectFilter::NotSource` refuses there, and `choose_as_it_applies` reads
+   the refusal as no candidate. Heart-Piercer Manticore's "sacrifice another
+   creature" would sacrifice nothing. The five resolution-time
+   `FilteredPermanents` sweeps in `resolve.rs` have the same gap, and no
+   registered card reaches one. One helper that passes the effect's source
+   answers all six.
+3. **CR 610.3d is one batch.** A return proposed per entry is a batch per
+   entry, so the returns one event causes are proposed together.
+4. **The until-event's object can be a target**: Calix, Destiny's Hand's "until
+   target enchantment you control leaves the battlefield", which is
+   ATOM-610.3a-001's board. Of 135 printed "until … leaves the battlefield"
+   cards (`o:/until .* leaves the battlefield/`), the other 134 watch the
+   source.
+5. **A return names its controller.** CR 610.3c's "unless otherwise specified"
+   and Flickerwisp's "under its owner's control" need it. ATOM-610.3c-002 is a
+   fixture, since no printed until-exile says "under your control".
+6. **CR 303.4f/g's host choice.** Who chooses: the player under whose control
+   the Aura enters. From what: what CR 704.5m's check accepts, among
+   permanents already on the battlefield (Calix's last ruling). Which prompt.
+   And 303.4g's "remains in its current zone".
+7. **An Aura that enchants a player has no host to enter attached to**, since
+   `PermanentState::attached_to` names objects. There are 47 printed, 46 of
+   them legal in Commander (`o:"enchant player" t:aura`), all Curses, and none
+   registered. CR 303.4f refuses one loudly; a new `codebase-state.md` item is
+   to be slotted at the review.
+8. **A replaced move refers to nothing.** A card Rest in Peace exiles instead
+   of a graveyard is not "that card" in the graveyard, so a reference is
+   taken only where its record put the object. *(Corrected at the build: the
+   example first given, a commander Flickerwisp exiles, is CR 903.9a's
+   state-based action, not a replacement; it ends as a new object all the
+   same.)*
+9. **Item 225's identity.** The shield's chosen source and the damage's dealer
+   are both an `ObjectId`, and an id survives a move (only the epoch changes).
+   Dropping the prune alone would let the shield see the new object's damage.
+10. **Item 99's other legs.** "An object referred to by an object on the
+    stack" is what lets Circle of Protection: Red choose Cornered Crook after
+    it died in response. These are the delayed leg's candidates read off two
+    more collections, so they are one enumeration.
+
+**Size**, in code and tests. The returns half: about 780 in code and 960 in
+tests. The reflexive half: about 320 and 480. Whole, that is about 2,550, and
+about 2,900 with code at its usual 1.3× of the count, against the band's
+2,500. The proposed split follows the seam the brief named:
+- **TR-3b**, the returns, about 1,750–2,000: the held window, `refs`,
+  `ReturnToBattlefield`, CR 303.4f/g, CR 610.3 with its six atoms, item 223's
+  rows, item 226, and Flickerwisp and Banishing Light pooled.
+- **TR-3c**, the reflexive trigger, about 800–950: CR 603.12, the
+  source-relative filter, item 225, item 99's three legs, and Cornered Crook,
+  with Heart-Piercer Manticore's rulings as fixtures.
+
+Whole or split is decided at the design review.
+
+### As landed (2026-10-08)
+
+**The design review** (#234) took four decisions:
+- item 225's damage names its dealer's existence through the departed frame
+  it already carries;
+- CR 303.4f's host is asked through the existing non-targeting
+  `SelectRecipients`, and Auras that enchant a player go to Phase 8
+  (`codebase-state.md` item 227);
+- `refs` is `Effect::Remember`, marking the instruction rather than naming a
+  zone, after the owner asked why the affected objects' ids would not do. The
+  ids are what is stored, and the question is which ones: a zone rule misses
+  a target that never moves (Slave of Bolas) and every player;
+- CR 610.3's return is a list of its own.
+
+The owner then split the phase: TR-3c is the reflexive half.
+
+Seven commits:
+1. Item 223's rows, with the handoff's three tests failing on the pre-fix
+   tree, and the pump test failing with the sites moved and the sweep not.
+2. `Effect::Remember`, with the held window; four of its tests fail without
+   the hold.
+3. `ReturnToBattlefield`, CR 303.4f/g and Flickerwisp.
+4. CR 610.3 and Banishing Light, whose 610.3d test fails when each return is
+   its own batch.
+5. Item 226.
+6. The registration.
+7. The close-out.
+
+**Where the band went.** Code +999 against a count of about 780, which ran at
+the usual multiple: exhaustive matches answering three new variants, a
+`moves_into` table over every primitive, and the doc comments. Tests +1,017
+for thirty-one tests and their fixtures.
+
+**prompt_subject_test** walks decks cut from the sorted registry, and two new
+names shift every window after them. At forty turns it raised 367 prompts
+and no blockers; at fifty it raises 548 with every kind it guards. Blockers
+are at one in every variant tried, so the guard is still near its edge.

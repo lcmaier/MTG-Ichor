@@ -3660,3 +3660,137 @@ so no game moves.
      **Sized:** ~20–40 lines: declare attackers inside a batch, or carry the
      choice to placement, where a provider is.
      **Slotted:** TR-5a, combat's shapes, which rebuilds the attack record.
+
+### Item 95 — closed 2026-10-08 by PR #234 (TR-3b)
+
+Closed with item 223's row half, which absorbed it. `Primitive::Regenerate`
+writes its shield's row with `ResolutionContext::effect_source`, so the row
+names the permanent whose ability made it, which is what CR 616.1's prompt
+offers. `phase_tr3b_integration_test::a_regeneration_shield_from_an_activated_ability_names_the_permanent`
+fails on the pre-fix tree.
+
+*Original entry:*
+
+95. **The row a `Primitive::Regenerate` makes still names the ephemeral
+    ability object; a `CreateReplacement` row names the permanent.**
+    CR 113.7a makes an ability's source the object that has it, so
+    `CreateReplacement` writes `ctx.ability_source.unwrap_or(ctx.source)` and
+    Samite Healer's row names the Healer — which outlives the stack object
+    CR 608.2n deletes and is what `ask_choose_replacement` offers a UI.
+    `Regenerate` keeps `ctx.source`; no registered card regenerates from an
+    activated ability, so its rows are never offered under a dead id.
+
+    **Reachability (2026-09-09):** unreachable — `Primitive::Regenerate` has
+    no registered producer at all; the row's `source` is read only by the
+    CR 616.1 prompt and by `remove_by_source`, which nothing calls.
+
+    **Sized:** one token, in the PR that registers the first regenerating
+    card.
+
+    **Absorbed (2026-10-07):** into item 223, which owns every site that
+    attributes an effect to the ability's stack object; this closes with it.
+    Since #233's split (2026-10-08) `Regenerate` is a row site, so this
+    closes with item 223's row half in TR-3b
+    (`plans/handoffs/item-223-rows.md`).
+
+### Item 223 — closed 2026-10-08 by PR #234 (TR-3b)
+
+The row half, carried by `plans/handoffs/item-223-rows.md` (deleted in this
+PR). The ten sites that write a resolution's registry row read
+`ResolutionContext::effect_source`. The battlefield sweep
+(`cleanup_zone_state`) ends only the rows that end with their source
+(`ContinuousEffect::ends_with_its_source`): a static ability's (CR 611.3b)
+and a resolution's "for as long as" (611.2b). The look-back gate
+(`RegistryScopeSummary::ability_list_sources`) takes the same predicate. The
+handoff's three tests fail on the pre-fix tree, and the pump test fails on a
+tree that moves the sites without narrowing the sweep. Gameplay matched
+`main` on both pools (`fuzz-record.md`, TR-3b).
+
+*Original entry:*
+
+223. **A resolving ability's effects are attributed to its stack object,
+     not to the object that has the ability.** `ResolutionContext::source`
+     is the resolving stack object, which CR 608.2n removes, and fifteen
+     sites in `engine/resolve.rs` attribute to it: `DealDamage`,
+     `GainLife`, `SetLifeTotal`, `ProduceMana`, `Destroy`'s
+     `DestructionSource`, and the registry rows of `ModifyPowerToughness`,
+     `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`,
+     `ChangeType`, `Regenerate` (item 95), `Restrict`, `GainControl`, a
+     granted ability (`register_resolution_ability_effect`) and a copy
+     (`apply_copy`). Two already read
+     `ctx.ability_source.map_or(ctx.source, ..)` with CR 113.7a's reason:
+     `CreateReplacement`'s row (Samite Healer's shield, item 95's other
+     half) and the conditions' "this". CR 120.2b has an ability name the
+     object that deals its damage, and CR 608.2h says "it's the object ...
+     that does it, not the ability", so the damage half is a rules error:
+     lifelink (702.15b), deathtouch (702.2b), a source chosen for Circle of
+     Protection: Red (609.7a, registered) and "whenever this deals damage"
+     all read the source. Found in #231's `fizzle_log.png`: `LifeChanged:
+     P0 20 -> 21 (source: #22)`, Blood Artist's gain named by its
+     trigger's object, gone by the time the log reads it.
+     **Reachability (2026-10-08):** reachable — not wrong today: the event
+     half closed in #233, and what is left is the registry rows' source,
+     which the why panel's "from" line shows and nothing that decides play
+     reads; no registered card regenerates, so CR 616.1's prompt never
+     shows item 95's row.
+     **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
+     accessor naming the object an effect is attributed to, read at each
+     site; the tests the log's line, lifelink and Circle of Protection:
+     Red's chosen source over a fixture whose ability deals damage, and the
+     owner's board (2026-10-08): Dragonhawk, Fate's Tempest's delayed
+     "Dragonhawk deals 2 damage to each opponent" with Loxodon Warhammer,
+     which lifelinks if the Warhammer is attached as the trigger resolves, or
+     was attached when Dragonhawk left (CR 113.7a, off
+     `DelayedTrigger::source_frame`), and not if it was attached at
+     neither. The fixture drops "for each of those cards that are still
+     exiled", which names the cards the creating ability exiled: TR-3b's
+     `refs`. First
+     count what keys on a row's source (`remove_by_source`, CR 616.1's
+     prompt), since a row naming the permanent outlives the stack object:
+     that is the point, and a behavior change the A/B shows. Absorbs item
+     95.
+     **Split (2026-10-08, the owner, at #233's design review):** the six
+     sites whose effect is an event landed in #233: the damage's source, a
+     life gain and a set life total, produced mana, an effect's destruction
+     and "its owner", each through `ResolutionContext::effect_source`, with a
+     source that left dealing its damage as it last existed
+     (`GameAction::DealDamage::source_frame`, CR 608.2h, 702.15c, 702.2e).
+     The ten sites whose effect is a registry row wait with the sweep they
+     need, so neither half lands wrong.
+     **Slotted:** the row half in TR-3b, a row of its pieces table
+     (`triggers-architecture.md`), carried by
+     `plans/handoffs/item-223-rows.md`, which TR-3b's landing PR deletes
+     with this item and item 95 closed. TR-3b's "until" is the same
+     question, an effect that ends when its source leaves (CR 610.3), as
+     the sweep's "for as long as" (611.2b).
+     **Counted (2026-10-08):** 51 lines of `resolve.rs` read `ctx.source`.
+     The fifteen above attribute; `PlayerRef::Owner` (the activator, read
+     off the stack object) is a sixteenth; the rest name the resolving
+     object as itself (prompts, `countered_by`, X, errors). What keys on a
+     row's source is the opposite of the guess: `cleanup_zone_state`'s
+     `remove_by_source` drops *every* row naming a permanent that leaves,
+     a resolution's included, so a row naming the permanent would end with
+     it (against CR 611.2a). The sweep narrows to the rows that end with
+     their source — a static ability's (611.3b) and a resolution's "for
+     as long as" (611.2b) — and the look-back gate's
+     `ability_list_sources` takes the same predicate. Replacement and
+     restriction rows are never swept by source; CR 616.1's prompt reads
+     the sources for display and is answered by index.
+
+### Item 226 — closed 2026-10-08 by PR #234 (TR-3b)
+
+Cobbled Wings costs {2}, with a test on its cost that fails at {1}. It rode
+TR-3b's `stress` re-record.
+
+*Original entry:*
+
+226. **Cobbled Wings costs {1}; it prints {2}.** `phase_lh_cards::cobbled_wings`
+     builds `ManaCost::build(&[], 1)` under a doc that says "{2}", and
+     Scryfall prints {2} (checked 2026-10-08). Found writing Loxodon
+     Warhammer beside it in #233.
+     **Reachability (2026-10-08):** reachable — wrong today: the card is
+     registered, so every `stress` game can cast it a mana early.
+     **Sized:** one token, and an assertion on its cost.
+     **Slotted:** the next engine PR, TR-3b (the owner, 2026-10-08), whose
+     pooled Flickerwisp and Banishing Light re-record `stress` anyway, so
+     the fix moves no table a second time.

@@ -291,5 +291,7 @@ draws that zone as it draws Exile: a collapsing header, closed until opened,
 shown only while something waits. A row goes when its trigger fires or
 expires, or its turn is taken, skipped, or lost with its player.
 `tests/scenarios/waiting.scenario` is its board and `waiting.png` its picture.
-TR-3b's "until" effects, prevention and regeneration shields, and skipped
-steps would join it as kinds of row, not panels of their own.
+TR-3b's "until" returns are in the engine's view already
+(`Waiting::until_returns`) and wait for the dev GUI PR that draws them;
+prevention and regeneration shields, and skipped steps, would join it as
+kinds of row, not panels of their own.
