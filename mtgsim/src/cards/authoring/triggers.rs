@@ -127,7 +127,8 @@ impl CountableEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
-            | TriggerEvent::AbilityTriggers { .. } => {
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
             }
         }

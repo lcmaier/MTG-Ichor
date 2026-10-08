@@ -3595,6 +3595,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** one token, in the PR that registers the first regenerating
     card.
 
+    **Absorbed (2026-10-07):** into item 223, which owns every site that
+    attributes an effect to the ability's stack object; this closes with it.
+
 ### Found by the RD-2 review (2026-09-09)
 
 Fourteen comments on PR #120, captured in `plans/handoffs/rd-2-review.md`,
@@ -3676,9 +3679,12 @@ this PR added the fields it names.
     effect choosing its own resolving spell as the source of future damage is
     the only thing that loses, and nothing printed does it.
 
-    **Reachability (2026-09-09):** unreachable — neither category exists on any
-    board the engine can build, and the resolving-object gap is asked for by no
-    printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
+    **Reachability (2026-10-07):** unreachable — the command zone is empty,
+    and TR-3a's registry exists but its entries refer to an object only as
+    their source (CR 603.7d–g): no registered delayed trigger's text names
+    one (Final Fortune's and Blessed Wine's), so (a)'s delayed leg has no
+    referent until TR-3b's `refs`. The resolving-object gap is asked for by
+    no printed card. `ATOM-609.7a-001` and `BOUNDARY-DEF-609.7a-001` are
     `COVERS-PARTIAL` naming exactly the two categories.
 
     **Sized:** (a) is a `referred_to: Vec<ObjectId>` on `StackEntry` plus the
@@ -9298,18 +9304,74 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** the first registered activated "this ability" copy, Dimir
      Doppelganger, which waits on TR-7's graveyard targets.
 
-222. **A copy row that carries a triggered ability opens the dispatcher's
-     gate for the whole battlefield.** `RegistryScopeSummary` adds a `Fixed`
-     row's `carries` to `unattributed_trigger_zones` as `BATTLEFIELD`, so
-     every window visits every permanent while one exists.
-     Cryptoplasm's copies always carry its trigger, which keeps the gate open
-     from its first copy to its last. On `performance` with it pooled,
-     `Candidate visits` read 45.1 → 797.4 a game at two seats and 124.4 →
-     2,091.3 at four (`fuzz-record.md`, CV-1b's block).
-     **Reachability (2026-10-06):** reachable — not wrong in any game: the
-     dispatcher's cost.
-     **Sized:** ~30 lines. A named row adds its named objects to the
-     candidates, as `any_named_unattributed_replacement` names the
-     replacement gate's, and a `Filter` row keeps opening its zones.
-     **Slotted:** TR-3a, the next PR on the route, which touches the
-     dispatcher.
+222. **~~A copy row that carries a triggered ability opens the dispatcher's
+     gate for the whole battlefield.~~ — ✅ CLOSED 2026-10-07 (PR #232).** —
+     archived. A row naming its objects files the record kinds its
+     triggered abilities read, and the dispatcher reads the objects off the
+     rows only for a window carrying one of those kinds. On `performance`,
+     `Candidate visits` 797.4 → 44.8 a game at two seats and 2,090.8 → 140.3
+     at four, every gameplay row `IDENTICAL` and the audit agreeing;
+     instructions per decision −1.21%.
+     **Reachability (2026-10-07):** closed — PR #232.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 222".
+
+### Found at #231's review (2026-10-07)
+
+223. **A resolving ability's effects are attributed to its stack object,
+     not to the object that has the ability.** `ResolutionContext::source`
+     is the resolving stack object, which CR 608.2n removes, and fifteen
+     sites in `engine/resolve.rs` attribute to it: `DealDamage`,
+     `GainLife`, `SetLifeTotal`, `ProduceMana`, `Destroy`'s
+     `DestructionSource`, and the registry rows of `ModifyPowerToughness`,
+     `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`,
+     `ChangeType`, `Regenerate` (item 95), `Restrict`, `GainControl`, a
+     granted ability (`register_resolution_ability_effect`) and a copy
+     (`apply_copy`). Two already read
+     `ctx.ability_source.map_or(ctx.source, ..)` with CR 113.7a's reason:
+     `CreateReplacement`'s row (Samite Healer's shield, item 95's other
+     half) and the conditions' "this". CR 120.2b has an ability name the
+     object that deals its damage, and CR 608.2h says "it's the object ...
+     that does it, not the ability", so the damage half is a rules error:
+     lifelink (702.15b), deathtouch (702.2b), a source chosen for Circle of
+     Protection: Red (609.7a, registered) and "whenever this deals damage"
+     all read the source. Found in #231's `fizzle_log.png`: `LifeChanged:
+     P0 20 -> 21 (source: #22)`, Blood Artist's gain named by its
+     trigger's object, gone by the time the log reads it.
+     **Reachability (2026-10-07):** reachable — wrong today: every life
+     change an ability makes names its stack object, which only the log
+     reads, and Soul Warden and Blood Artist are pooled. The damage half is
+     unreachable: `DealDamage` is in five registered spells and no ability,
+     until TR-5a registers Hellrider.
+     **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
+     accessor naming the object an effect is attributed to, read at each
+     site; the tests the log's line, lifelink and Circle of Protection:
+     Red's chosen source over a fixture whose ability deals damage, and the
+     owner's board (2026-10-08): Dragonhawk, Fate's Tempest's delayed
+     "Dragonhawk deals 2 damage to each opponent" with Loxodon Warhammer,
+     which lifelinks if the Warhammer is attached as the trigger resolves, or
+     was attached when Dragonhawk left (CR 113.7a, off
+     `DelayedTrigger::source_frame`), and not if it was attached at
+     neither. The fixture drops "for each of those cards that are still
+     exiled", which names the cards the creating ability exiled: TR-3b's
+     `refs`. First
+     count what keys on a row's source (`remove_by_source`, CR 616.1's
+     prompt), since a row naming the permanent outlives the stack object:
+     that is the point, and a behavior change the A/B shows. Absorbs item
+     95.
+     **Slotted:** the dev GUI PR after TR-3a (the owner, 2026-10-07), as its
+     engine half. Back-stop: before TR-5a, whose Hellrider is the first
+     registered ability to deal damage and whose "ability damage" piece
+     reads this. TR-3a's delayed triggers take their provenance from
+     `ability_source` (`triggers-architecture.md` §3.9), so they add no
+     site.
+
+### Found by TR-3a — the delayed-trigger registry (2026-10-07)
+
+224. **~~CR 603.7b's choice has no provider at an unbatched record.~~ — ✅
+     CLOSED 2026-10-08 (PR #232, at its review).** — archived.
+     `AttackersDeclared` dispatches with the declare-attackers step's
+     provider (`emit_event_with_provider`), and a `Once` delayed trigger over
+     `Attacks` with two attackers asks its controller which attack causes
+     it.
+     **Reachability (2026-10-08):** closed — PR #232.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 224".

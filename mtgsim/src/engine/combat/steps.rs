@@ -85,9 +85,9 @@ impl GameState {
         self.attacks_declared = true;
 
         let attacker_ids: Vec<ObjectId> = proposed.iter().map(|(id, _)| *id).collect();
-        self.emit_event(GameEvent::AttackersDeclared {
-            attackers: attacker_ids,
-        });
+        // With the step's provider: the one unbatched record that can carry
+        // two occurrences of one arm, which CR 603.7b's choice asks between.
+        self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers: attacker_ids }, &actx);
 
         Ok(true)
     }

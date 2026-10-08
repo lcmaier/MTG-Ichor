@@ -9,6 +9,7 @@ use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectModificatio
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
+use crate::types::triggers::EventKindMask;
 use crate::types::zones::ZoneSet;
 
 /// CR 613.7's storage order: layer first, then timestamp, with the registry's
@@ -178,14 +179,23 @@ pub struct RegistryScopeSummary {
     pub any_copied_cost_modification: bool,
 
     /// Where an object may carry a triggered ability it did not print — a
-    /// Layer 6 grant, or a copy whose captured list carries one (CR 707.2a).
-    /// A `Filter` row names zones, a named row the battlefield.
+    /// Layer 6 grant, or a copy whose captured list carries one (CR 707.2a)
+    /// — when the row names zones: a `Filter` row, whose zones the
+    /// dispatcher walks whole while it exists.
     ///
     /// One field and not the granted and copied pair it was, for
     /// `unattributed_replacement_zones`' reason: the dispatcher's gate only
     /// ever reads the two OR-ed, so the split was a distinction no reader
     /// made.
     pub unattributed_trigger_zones: ZoneSet,
+
+    /// The record kinds the triggered abilities read that a row naming its
+    /// objects puts on them (`SourceOnly`, `Fixed`, `Host`): a Cryptoplasm's
+    /// copy of itself, a grant to one creature. `EMPTY` is no such row. The
+    /// dispatcher reads the named objects off the rows, as the replacement
+    /// gather's named leg does, and only for a window carrying one of these
+    /// kinds, as the printed leg's mask does (`triggers-architecture.md` §11).
+    pub named_unattributed_trigger_kinds: EventKindMask,
 
     /// The sources of every row that writes an ability list — a copy (Layer
     /// 1), a Layer 6 grant or removal of an ability, or a Layer 4 type change,
@@ -258,10 +268,18 @@ impl RegistryScopeSummary {
                     }
                 }
             }
-            let carries = match &effect.affected_objects {
-                ObjectSet::Filter { zones, .. } => *zones,
-                ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::BATTLEFIELD,
-            };
+            // A triggered ability this row puts on what it reaches: a
+            // `Filter` row's zones are walked whole, a named row's objects are
+            // read by name, for the kinds its abilities read.
+            let triggered_kinds = triggered_ability_kinds(effect);
+            if !triggered_kinds.is_empty() {
+                match &effect.affected_objects {
+                    ObjectSet::Filter { zones, .. } => summary.unattributed_trigger_zones |= *zones,
+                    ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => {
+                        summary.named_unattributed_trigger_kinds |= triggered_kinds
+                    }
+                }
+            }
             if matches!(
                 effect.modification,
                 EffectModification::CopyFrom(_)
@@ -289,9 +307,6 @@ impl RegistryScopeSummary {
                     if def.effect.as_cost_modification().is_some() {
                         summary.any_granted_cost_modification = true;
                     }
-                    if matches!(def.effect, Effect::Triggered(_)) {
-                        summary.unattributed_trigger_zones |= carries;
-                    }
                 }
                 // CR 707.2a — the captured list is scanned rather than counted,
                 // because both gates ask about a *body*, not about a copy. A
@@ -304,9 +319,6 @@ impl RegistryScopeSummary {
                         if ability.effect.as_cost_modification().is_some() {
                             summary.any_copied_cost_modification = true;
                         }
-                        if matches!(ability.effect, Effect::Triggered(_)) {
-                            summary.unattributed_trigger_zones |= carries;
-                        }
                     }
                 }
                 _ => {}
@@ -317,26 +329,35 @@ impl RegistryScopeSummary {
 
 }
 
+/// The record kinds the triggered abilities a row puts on the objects it
+/// reaches can read — a Layer 6 grant of one, or a copy whose captured list
+/// carries them (CR 707.2a) — and `EMPTY` for a row that puts none: the
+/// dispatcher's granted and copied legs, `puts_a_replacement_ability`'s twin.
+/// Asked by the summary to say where such an object can be and what it can
+/// read, and by the dispatcher to read a named row's objects for a window of
+/// one of those kinds.
+pub fn triggered_ability_kinds(effect: &ContinuousEffect) -> EventKindMask {
+    use crate::engine::layers::types::EffectModification;
+    use crate::types::effects::Effect;
+    let kinds = |def: &crate::objects::card_data::AbilityDef| match &def.effect {
+        Effect::Triggered(trigger) => trigger.record_kinds(),
+        _ => EventKindMask::EMPTY,
+    };
+    match &effect.modification {
+        EffectModification::GrantAbility(def) => kinds(def),
+        EffectModification::CopyFrom(values) => {
+            values.abilities.iter().fold(EventKindMask::EMPTY, |mask, ability| mask | kinds(ability))
+        }
+        _ => EventKindMask::EMPTY,
+    }
+}
+
 /// Does this row put a static replacement ability on the objects it affects —
 /// a Layer 6 grant of one, or a copy whose captured list carries one
 /// (CR 707.2a)? Through an "as long as" clause too, since the gather sees
 /// through it. Asked by the summary to say *where* such an object can be,
 /// and by `engine::replacement::gather`'s named leg to read the rows that
 /// say *which* object.
-/// Whether a row puts a triggered ability on the objects it reaches — the
-/// dispatcher's granted and copied legs, `puts_a_replacement_ability`'s twin.
-pub fn puts_a_triggered_ability(effect: &ContinuousEffect) -> bool {
-    use crate::engine::layers::types::EffectModification;
-    use crate::types::effects::Effect;
-    match &effect.modification {
-        EffectModification::GrantAbility(def) => matches!(def.effect, Effect::Triggered(_)),
-        EffectModification::CopyFrom(values) => {
-            values.abilities.iter().any(|a| matches!(a.effect, Effect::Triggered(_)))
-        }
-        _ => false,
-    }
-}
-
 pub fn puts_a_replacement_ability(effect: &ContinuousEffect) -> bool {
     use crate::engine::layers::types::EffectModification;
     match &effect.modification {

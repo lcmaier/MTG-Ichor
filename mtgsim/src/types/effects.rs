@@ -1674,6 +1674,19 @@ pub enum Primitive {
     /// drainer reaches it, which is what a skip replaces (CR 614.10).
     ExtraPhases(Vec<PhaseType>),
 
+    // === Delayed triggered abilities (rule 603.7) ===
+    /// Create a delayed triggered ability (CR 603.7, 610.2): "at the
+    /// beginning of the next end step, ...", "when this creature leaves the
+    /// battlefield, ...". Registered, not performed: nothing happens until
+    /// its event, and the registry entry is what the dispatcher asks.
+    ///
+    /// The template is the card's; the source, the controller and X are the
+    /// creating instant's (CR 603.7d–f, 107.3n), read off the resolution:
+    /// an ability's source (`ResolutionContext::ability_source`), else the
+    /// resolving spell or the replacement's object. The recipient is
+    /// `Controller`, and names nothing the trigger reads.
+    CreateDelayedTrigger(Box<crate::types::triggers::DelayedTriggerTemplate>),
+
     // === Mana ===
     /// Produce mana (for mana abilities, rule 605)
     ProduceMana(ManaOutput),
@@ -2072,6 +2085,11 @@ impl Effect {
                 for exception in except {
                     exception.for_each_ability_def_mut(f);
                 }
+            }
+            // A def the delayed trigger's effect grants or makes, which the
+            // card builds with it.
+            Effect::Atom(Primitive::CreateDelayedTrigger(template), _) => {
+                std::sync::Arc::make_mut(&mut template.def).effect.for_each_ability_def_mut(f);
             }
             Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}
             Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {

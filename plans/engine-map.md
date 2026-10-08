@@ -129,7 +129,7 @@ each, and reads these seams for a fifth loop, finding none.
 | `engine/restriction/` | CR 101.2 and 614.17: `predicate.rs` `is_prohibited`, the one reader of every "can't" |
 | `engine/cost_determination/` | CR 601.2f: `gather.rs` which cost effects apply; `total.rs` the arithmetic and its order |
 | `engine/layers/` | CR 613: `compute.rs` `compute_characteristics` and the memo's door; `board.rs` the board-wide pass, the accessor pair and CR 613.8's order; `lookahead.rs` the CR 614.12 overlay; `copy.rs` copiable values; `cda.rs` CDAs at layers 4, 5 and 7a; `condition.rs` "as long as"; `intrinsic.rs` CR 306.5b's loyalty ability; `land_types.rs` CR 305.6–305.7; `types.rs` the vocabulary |
-| `engine/triggers/` | CR 603: `dispatch.rs` detection at a window's close and the CR 603.10 frames; `placement.rs` CR 603.3; `binding.rs` the bound facts at resolution; `bound_reads.rs` what a def reads, for the ordering elision; `history.rs` the histories' one writer; `audit.rs` the dispatch audit |
+| `engine/triggers/` | CR 603: `dispatch.rs` detection at a window's close and the CR 603.10 frames; `delayed.rs` CR 603.7's registry, a leg of every dispatch; `placement.rs` CR 603.3; `binding.rs` the bound facts at resolution; `bound_reads.rs` what a def reads, for the ordering elision; `history.rs` the histories' one writer; `audit.rs` the dispatch audit |
 | `engine/stack.rs`, `engine/resolve.rs` | CR 608: resolution and fizzle; `ResolutionContext` and each `Primitive` turned into proposals and registry rows |
 | `engine/put_on_stack.rs` | CR 601.2 and 602.2: `cast_spell`, `activate_ability`, the announcement, the mana window |
 | `engine/priority.rs`, `engine/sba.rs`, `engine/turns.rs` | CR 117 priority rounds and CR 117.5's `perform_sba_and_triggers`; CR 704; CR 500's turn, phase and step proposals and the turn-based actions |
@@ -211,7 +211,7 @@ board the gate skips. Layer 3, text change, is the route with no leg yet.
 | replacement | `gather` `engine/replacement/gather.rs:180`; the gate at `engine/replacement/gather.rs:262` | `replacement_ability_sources`, `zone_replacement_ability_sources` | one pair for both since RF: `unattributed_replacement_zones`, `any_named_unattributed_replacement` |
 | restriction | `is_prohibited` `engine/restriction/predicate.rs:60`; the gate at `engine/restriction/predicate.rs:82` | `restriction_ability_sources` | `any_granted_restriction`, `any_copied_restriction` |
 | cost | `cost_modifications_for` `engine/cost_determination/gather.rs:54`; the gate at `engine/cost_determination/gather.rs:63` | `cost_modification_ability_sources` | `any_granted_cost_modification`, `any_copied_cost_modification` |
-| trigger | `detect` `engine/triggers/dispatch.rs:430`; the gate at `engine/triggers/dispatch.rs:446` | `trigger_sources`, `zone_trigger_sources` | `unattributed_trigger_zones`, one set for both; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
+| trigger | `detect` `engine/triggers/dispatch.rs:430`; the gate at `engine/triggers/dispatch.rs:446` | `trigger_sources`, `zone_trigger_sources` | one pair for both: `unattributed_trigger_zones` for a `Filter` row's zones, `named_unattributed_trigger_kinds` for a named row's objects; a departure's CR 603.10a frame and a look-back snapshot are two more probes |
 
 The printed legs are written by `register_static_effects`
 `state/game_state.rs:1583` as an object arrives; the other two are

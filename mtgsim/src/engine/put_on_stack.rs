@@ -109,6 +109,9 @@ impl GameState {
         // field says Stack, and CR 903.8 / "cast from exile" both need to know
         // where it came from. See `StackEntry::cast_from`.
         let cast_from = self.get_object(card_id)?.zone;
+        // The card as it was, for a delayed trigger whose source it is: the
+        // move below ends that object, and its record is 601.2i's.
+        let card_before_cast = self.object_ref(card_id);
         // CAST-ROLLBACK: silent in both directions. Nothing in the CR replaces
         // a card being put onto the stack — a "can't cast" is CR 601.3's
         // question, asked of the player ahead of this step — so the move is
@@ -294,6 +297,9 @@ impl GameState {
         // onto the stack, its targets, then cast. No LKI: nothing is cast from
         // the battlefield. The mana abilities activated at 601.2g are already
         // in the log, where CR 732.1 leaves them even when a cast rewinds.
+        if let Some(card) = card_before_cast {
+            self.note_delayed_source_left(card);
+        }
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
         self.announce_targeted_records(card_id);
         self.emit_event(GameEvent::SpellCast {

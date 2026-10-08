@@ -23,6 +23,7 @@ use super::phase_a4i_cards;
 use super::phase_tr1_cards;
 use super::phase_tr2a_cards;
 use super::phase_tr2b_cards;
+use super::phase_tr3a_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -838,6 +839,12 @@ impl CardRegistry {
         registry.register("Nykthos Paragon", phase_tr2b_cards::nykthos_paragon);
         registry.register("Psychosis Crawler", phase_tr2b_cards::psychosis_crawler);
         registry.register("Cosi's Trickster", phase_tr2b_cards::cosis_trickster);
+
+        // TR-3a: the delayed-trigger registry. Neither is pooled: Final
+        // Fortune for Time Walk's reason, an extra turn moves `Avg turns/game`
+        // by design; Blessed Wine because §12 pools the registry with TR-3b.
+        registry.register("Final Fortune", phase_tr3a_cards::final_fortune);
+        registry.register("Blessed Wine", phase_tr3a_cards::blessed_wine);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

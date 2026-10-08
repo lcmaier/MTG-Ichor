@@ -59,7 +59,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
-    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin,
+    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
@@ -1995,12 +1995,7 @@ fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
         });
     }
     let identities = |game: &GameState| -> Vec<AbilityIdentity> {
-        game.pending_triggers
-            .iter()
-            .map(|t| match t.origin {
-                TriggerOrigin::Object(identity) => identity,
-            })
-            .collect()
+        game.pending_triggers.iter().map(|t| t.origin.identity()).collect()
     };
 
     put_on_battlefield(&mut game, grizzly_bears(), 0);

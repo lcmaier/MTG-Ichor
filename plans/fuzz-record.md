@@ -37,6 +37,106 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-07 for TR-3a** (the delayed-trigger registry;
+`triggers-architecture.md` §12). Final Fortune and Blessed Wine join the
+registry, neither pooled (182 → 184), so the `stress` §3 column is a new
+baseline; item 222 moves the `performance` column's cost rows and none of its
+gameplay. `close_out.py` against **main** `570eadd` (#231's merge), with three
+arms: **item222** `b79a1bf`, **registry** `2c165a9` (the last engine commit,
+the cards unregistered) and **shipped** `591ce93`. A second sitting read
+item222's instructions alone.
+
+**Predictions, before any arm ran:** item222 and registry `IDENTICAL` on every
+gameplay row, both pools, two seats and four; `Candidate visits` back near
+their pre-Cryptoplasm 45.1 and 124.4 a game on `performance`; shipped
+`IDENTICAL` on `performance` and a re-record on `stress`; instructions per
+decision down by at most a few percent for item222, the registry within +0.5%
+of it.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, item222 vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, registry vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Candidate visits`, `main` → item222 = registry, performance / stress | 797.4 → 44.8 / 215.9 → 49.4 | 2,090.8 → 140.3 / 1,511.2 → 167.9 |
+| `Windows past gate`, the same | 60.6 → 40.4 / 51.4 → 44.8 | 151.8 → 110.2 / 165.4 → 138.0 |
+| `Memo hits`, the same | 57,266 → 56,507 / 65,552 → 65,386 | 176,705 → 174,734 / 251,486 → 250,143 |
+| audit, registry, performance / stress, dispatches agreed | 165,363 / 170,317 | 337,395 / 381,392 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / differ (the pool) | **IDENTICAL** / differ (the pool) |
+| instructions / decision, item222 vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6518 M → 0.6439 M, **−1.21%** |
+| instructions / decision, registry vs `main`, the same board | | 0.6519 M → 0.6431 M, **−1.35%** |
+
+Every prediction held. The registry's own cost, by the two readings, is about
+−0.1% against item222, though `GameEvent` grew from 64 to 72 bytes and every
+dispatch and every move probes the empty registry; a code-only change moves
+±0.3%, and the refactored arm matcher may have saved what those cost. The
+cost rows of registry and item222 agree to the digit: the new
+`AbilityResolved` kind took no window past the gate on these pools. The
+sittings ran in 158 s and 77 s.
+
+**Reachability**, shipped, `--require "Final Fortune,Blessed Wine"`, `stress`,
+200 games. At two seats, about 1.2 copies a deck: Final Fortune cast 129 times
+in 127 games (64%), Blessed Wine 135 times in 101 (50%). At four, about 2.4
+copies: Final Fortune 7 times in 7 games, Blessed Wine 99 in 88 (44%). In
+natural `stress` decks, before the owner added Blessed Wine, Final Fortune ended
+29 of 200 two-seat games at its extra turn. Floors 2 and 3, CI's release
+`clone_bound_test`: ≤ 41 allocations and ≤ 94.4 KB a clone over 196 readings,
+CV-1b's worst cases unchanged.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** `stress` is a
+new baseline; `performance` keeps CV-1b's gameplay rows to the digit, and its
+cost rows are item 222's.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 28 (56.0%) / 22 (44.0%) | 25 (50.0%) / 25 (50.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.4 | 27.6 |
+| Spells cast | 22.2 | 23.2 |
+| Lands played | 16.7 | 17.1 |
+| Combat w/ atk | 10.4 | 9.2 |
+| Creatures died | 7.2 | 5.3 |
+| Damage events | 21.2 | 20.3 |
+| Total damage | 57.0 | 57.8 |
+| Life changes | 15.0 | 15.1 |
+| **Layer walks** | **334** | **415** |
+| **Board walks** | **205** | **244** |
+| **Memo hits** | **51,433** | **65,298** |
+| **Layer frames** | **3,779** | **4,853** |
+| **Frames/walk** | **11.32** | **11.70** |
+| **Dependency checks** | **47** | **30** |
+| **Replacement gathers** | **988** | **1043** |
+| **Restriction queries** | **989** | **1045** |
+| Mana productions | 70 | 90 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.26 | 0.86 |
+| Max batch depth | 5 | 7 |
+| Decisions | 192 | 246 |
+| Priority decisions | 69 | 93 |
+| Actions reversed | 0.2 | 0.3 |
+| Triggers placed | 2.3 | 2.1 |
+| Windows past gate | 42.7 | 53.2 |
+| Candidate visits | 47.8 | 59.6 |
+| Trigger matches | 3.7 | 2.9 |
+
+**The review round, 2026-10-08:** four engine commits — the names, item 224,
+`delayed_occurrences` in named steps, and `source_frame`. `close_out.py`
+against **tr3a_landed** `141b85b` (TR-3a as opened), one arm,
+**tr3a_review** `206552f`. **Predictions, before the arms ran:** every
+gameplay row and the dispatcher's counters `IDENTICAL`, since no pooled card
+creates a delayed trigger and the two new registry loops run over an empty
+registry; instructions per decision within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, tr3a_review vs tr3a_landed, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, tr3a_review, performance / stress, dispatches agreed | 165,363 / 184,810 | 337,395 / 357,790 |
+| instructions / decision, tr3a_review vs tr3a_landed, the same board | | 0.6436 M → 0.6436 M, **−0.01%** |
+
+Every prediction held: `Candidate visits` read 44.8 and 140.3 a game on
+`performance` in both arms. `--require "Final Fortune,Blessed Wine"` on
+`stress` reads the landing's counts to the game, each spell now framed as it
+leaves the stack. The sitting ran in 125 s.
+
 **Measured 2026-10-07 for CV-1b's dev GUI notes** (#231). Two engine
 changes, both records no trigger reads: `AbilityFizzled` and
 `AbilityCountered` named by identity, and `Targeted` at the three places CR

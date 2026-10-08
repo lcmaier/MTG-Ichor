@@ -616,6 +616,18 @@ pub enum TriggerOrigin {
 }
 ```
 
+**As built (TR-3a, 2026-10-07): `Delayed(AbilityIdentity)`, not
+`Delayed(DelayedTriggerId)`.** Every reader of an origin wants its source and
+its identity: placement builds the stack entry's `ability_identity`, CR
+603.7h's count keys on it, and the departed frames name the source. A `Once`
+entry leaves the registry as it queues, so an id alone would name nothing by
+placement. The identity is the entry's source (CR 603.7d–g) and
+`AbilityId::delayed` of its registry number, a derivation in the role
+`UNASSIGNED` leaves free above zero, so a delayed trigger's resolution never
+advances its creator's count. The arm's tag grows `GameEvent` from 64 to 72
+bytes (`AbilityTriggered` carries the origin), priced in `fuzz-record.md`'s
+TR-3a block.
+
 ### 3.9 The delayed-trigger registry (CR 603.7)
 
 ```rust
@@ -678,11 +690,51 @@ effects read it there: Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant
 and Trouble in Pairs replace "a player would begin an extra turn" (CR
 614.10). Today `next_turn_taker` pops the queue and proposes the turn with its
 player and number only, and `BeginTurn`'s own doc says who takes the turn is
-not on the event. The proposal carries `extra: Option<ExtraTurnId>`, the
+not on the event. The proposal carries `extra_turn: Option<ExtraTurnId>`, the
 turn's `EventPattern` arm reads it, and the turn that begins takes it from the
 proposal. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a
 duration on the same id. ~20–30 lines, with this id or with the first of the
 four cards.
+
+**As built (TR-3a, 2026-10-07).** `engine/triggers/delayed.rs`, with these
+departures from the sketch, each forced by a board:
+
+- **The def, not a condition and an effect**: the entry holds an
+  `Arc<TriggerDef>`, so an intervening "if" and the binding come as they do
+  for an object's trigger, and placement needs nothing new.
+- **`source: ObjectRef` and `source_card`, not a `DelayedSource` enum**: every
+  CR 603.7d–g rule fixes its source and controller at creation, after which
+  nothing reads which rule it was. The resolution reads the context: an
+  ability's `ability_source` (603.7e), else the resolving spell or the
+  rider's object (603.7d, 603.7f), never `ctx.source` for an ability
+  (`codebase-state.md` item 223). `register_delayed_trigger` is the one
+  door, and 603.7g's special action will call it.
+- **`source_left_at`**: a departure record names the object's id and not
+  which existence of it moved, so the movers note the record that ended a
+  delayed trigger's source. "When this creature leaves the battlefield"
+  matches that record and no later object's.
+- **`source_frame`**, added at the review: CR 113.7a's last known
+  information, the frame the source left with. `hand_over_departed_frame`,
+  the one writer of departed frames, gives it to the entry as it gives it to
+  every entry naming the mover, and `objects_entries_name` names the
+  registry's sources, so a spell is framed as it leaves the stack. The
+  trigger carries it to the stack as a departed frame; its first reader is
+  item 223's attribution (Dragonhawk's damage, lifelink read off the frame).
+- **`created_at` and `created_in` replace `created`**: CR 603.7a is the
+  filter, and its batch half was found by a test. A rider runs inside the
+  batch it rides on, and Destroy's move closes its own nested batch, so a
+  rider can run between two members of one simultaneous event. An entry it
+  creates reads nothing of that batch.
+- **`turn: TriggerTurn`**: `Any`, `LaterThan` the creating turn (the Ice Age
+  cantrips' "the next turn's upkeep", which a second upkeep this turn, CR
+  500.10, is not), or the one `Extra` turn "that turn" names. `ExtraTurnId`
+  rides `GameAction::BeginTurn` as `extra_turn` and becomes `GameState::extra_turn`;
+  the turn's `EventPattern` field waits for the first of the four cards. An
+  `Extra` entry is dropped as the next turn begins if its turn has gone.
+- **No `refs` and no `reflexive` yet**: no TR-3a board names an object other
+  than its source. Objects a creating instruction names, Flickerwisp's "that
+  card" and the Tatsumasa board's "that token", come with TR-3b, beside the
+  reflexive window, both reading the resolution's own records.
 
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
@@ -1266,6 +1318,24 @@ this reader, never a count kept beside it. A reflexive whose action is
 making a token — Ajani, Nacatl Avenger, Generous Plunderer — needs
 `CreatesToken` (§3.3), which is TR-5's; Ajani's two rulings are TR-5
 fixtures, and the few such cards are not a reason to move the arm.
+
+**As built (TR-3a, 2026-10-07).** The registry is a leg of every dispatch,
+asked after the objects' and outside the audit's comparison: it has no
+shortcut to check, since every entry reading a kind of the window is asked,
+in creation order. Its arms run through the objects' matcher, which reads
+`TriggerReferents` — "this object", "you", the owner, the host and "this
+ability" — so a delayed trigger's "this creature" is its source remembered
+by identity. Each record is matched as `match_def` matches an object's
+ability (`match_delayed`): first arm, then the limit, then the intervening
+"if".
+CR 603.7b's choice is asked only between occurrences that disagree on what
+the def reads (`entries_agree_on`, item 163's reading), and only with two or
+more; its options name each event by its object, or by its record's number
+where objects do not tell them apart. The one unbatched record that can
+carry two occurrences of an arm, `AttackersDeclared`, dispatches with its
+step's provider (`emit_event_with_provider`; `codebase-state.md` item 224,
+closed at the review). "603.7a and 513.2 need no code" did not hold:
+see §3.9's `created_in`.
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
@@ -2263,19 +2333,57 @@ on `performance`; Crawler places 0.7 of them at two seats.
 → `plans/archive/triggers-architecture-landed.md`, "TR-2b" (the design as
 reviewed, what landing and the code review changed, and no trace page).
 
-### TR-3 — delayed, reflexive, and "until" — TR-3a and TR-3b (2,800–3,600)
+### TR-3a — the delayed-trigger registry, with Final Fortune and Blessed Wine — ✅ landed 2026-10-07
 
-| Piece | ~additions |
-|---|---|
-| the registry, `DelayedTrigger`, `DelayedSource`, `DelayedDuration`, `ObjectRef`, `Instant`, `ExtraTurnId` on `turn_queue` and `current_turn_origin`, `Primitive::CreateDelayedTrigger`, provenance from `ResolutionContext` and from a rider, 107.3n's X, `ChooseDelayedTriggerEvent`, cleanup expiry of `ThisTurn`; `Effect::Reflexive` and the immediate check; `UntilEvent` resolved at dispatch (610.3) | ~520 |
-| `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm at `resolve.rs:1417`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser | ~120 |
-| cards: **Final Fortune** (603.7d, a named extra turn; its ruling — a skipped extra turn loses nothing — is the `ExtraTurnId` test), **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) | ~320 |
-| tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card's indefinite haste is expressible since CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
-| docs, ledger, record | ~250 |
+*Body evicted 2026-10-07 to `plans/archive/triggers-architecture-landed.md`,
+"TR-3a", with the TR-3 plan as sized.*
 
-**Split 2026-09-24**, by the re-count below. **TR-3a** is the delayed
-registry, with Final Fortune. **TR-3b** is reflexive triggers, the returns
-and "until" (610.3), with Flickerwisp, Cornered Crook and Banishing Light.
+**What shipped.** `engine/triggers/delayed.rs`: the registry, its one door
+`register_delayed_trigger`, and its leg of every dispatch through the
+objects' arm matcher, which reads `TriggerReferents` (§4.6).
+`Primitive::CreateDelayedTrigger` with CR 603.7d–f's provenance off the
+resolution and 107.3n's X; `TriggerOrigin::Delayed` on `AbilityId::delayed`
+(§3.8); CR 603.7b's choice, `ChooseDelayedTriggerEvent`, asked only between
+causes that differ; `ThisTurn` ended at cleanup; the extra turn's id on the
+queue and on `BeginTurn`, which "that turn" reads, and `NextTurn` for "the
+next turn's"; a source's departure record and last frame (`source_left_at`,
+`source_frame`) and the creation filter (§3.9's as-built list); `TriggerEvent::AbilityResolves` for CR 603.7h, and `AmountExpr::X` at
+resolution. Item 222, the named copy and grant rows' leg, as its own commit.
+Two cards, neither pooled: Final Fortune and Blessed Wine (182 → 184
+registered). Twenty-seven tests; §13's fourteen TR-3a atoms are covered and
+`owed` is clean for them; the review closed item 224 and added `source_frame`.
+
+**What moved on the way in.** The owner added Blessed Wine beside Final
+Fortune: every "that turn" card makes its caster lose, and Final Fortune
+ended 29 of 200 two-seat stress games at its extra turn. CR 603.7a needed
+code after all: a rider runs between the members of one simultaneous event,
+so an entry skips its creating batch. The Tatsumasa and Flickerwisp boards
+wait for TR-3b's `refs`; 603.7b-002 and 603.7e-001 are covered on the rule's
+own boards. `GameEvent` grew from 64 to 72 bytes. It landed at +2,278 in code
+and tests (code +1,205, tests +1,073) against the re-count's 1,600–1,980,
+inside the band, and the review brought it to +2,489 (code +1,325, tests
++1,164), 11 lines inside the band's ceiling.
+
+**Measured** (`fuzz-record.md`, the TR-3a block). The item 222 and registry
+arms play every gameplay row as `main` does on both pools at two seats and
+four, and the audit agrees on every dispatch. `Candidate visits` fall from
+797.4 to 44.8 a game at two seats and from 2,090.8 to 140.3 at four.
+Instructions per decision: item 222 −1.21% against `main`, the registry
+−0.1% against item 222.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-3a".
+
+### TR-3b — reflexive triggers, the returns and "until" (1,410–1,640)
+
+TR-3's other half, by the 2026-09-24 re-count (the last subsection); TR-3a's
+stub says what landed of the plan.
+
+| Piece |
+|---|
+| `Effect::Reflexive` and the immediate check over the resolution's own records (§4.6); `refs`, the objects a creating instruction names, filled from those records (Flickerwisp's "that card", the Tatsumasa board's "that token"), each with a departure record as the source has; `UntilEvent` resolved at dispatch (610.3) |
+| `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm in `resolve.rs`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser |
+| cards: **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) |
+| tests: §13's 7 TR-3b atoms; Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); the Tatsumasa board, under a doubler; Sneak Attack's ruling as a fixture board; Flickerwisp's second ruling and Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) |
 
 ### TR-4 — the look-back list, the frame, unattach, control — TR-4a and TR-4b (2,640–3,460)
 
@@ -2392,18 +2500,19 @@ their trigger half lands.
 | **TR-1** | 117.2a-001; 500.6-001; 502.4-001; 503.1a-001; COMP-UNTAP-TRIGGER-UPKEEP-001; 508.1m-001; 511.2-001; 405.3-001, -002; 603.2-001; 603.2b-001; 603.2c-001; 603.2e-001 (fixture); 603.2f-001; 603.2g-001; 603.3-001; 603.3a-001; 603.3b-001, -002 (the tier, by fixture; Strict Proctor's card waits for CP-1); 603.3d-001; 603.4-001, -002, -003; 603.6-001; 603.6a-001; 603.6b-001, -002; 603.6c-001, -002; 603.10a-001, -002 (partial → full); 605.1b-001; 605.4a-001; 605.5a-001; 106.12a-001 (partial → full); 119.9-001, -002; 113.9-003; 608.2-001; 608.2a-001; 608.2k-001; 614.6-001, 614.8-002, 615.6-001 (partial → full); COMP-CLEANUP-RELOOP-001; 800.4d-001 (partial → full) | 46 — 44 of them Phase 7; ATOM-603.10a-001 carries no phase in the corpus and ATOM-800.4d-001 is Phase 9's, and both are claimed here because their trigger half is this phase's |
 | **TR-2a** | 603.1b-001 (fixture); 603.2h-001; 603.2h-002 (partial — its board is Nykthos Paragon's "may"); 608.2h-001; 608.2p-001 (fixture); and 121.2c-001, a Phase 8 atom item 122's rule closes | 6 — 5 of them Phase 7 |
 | **TR-2b** | 603.2h-002 (partial → full); 603.5-001; 118.12-001; 121.5-001 (partial → full); 118.12-002 (partial — a Phase 8 atom whose rule §6.2's amendment builds; its Dermoplasm board waits for morph) | 5 — 4 of them Phase 7, one shared with TR-2a |
-| **TR-3** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 603.12-001; 107.3n-001; 513.2-001, -002; 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 20 |
+| **TR-3a** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 107.3n-001; 513.2-001, -002; and 400.7-001, whose whole board is a delayed trigger, from the deferred row | 14 — 13 of TR-3's 20, and CV-1b's partial |
+| **TR-3b** | 603.12-001; 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 7 |
 | **TR-4** | 603.6e-001, -002; 400.7e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 14 |
 | **TR-5** | 508.2a-001; 603.2d-001; 122.7-001; 120.10-001 | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
-| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 400.7-001 (the rule itself — CV-1b, partial there: the atom's board is a delayed trigger, so its whole board is TR-3a's); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 41 |
+| **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
-Ninety-two of the 133 Phase 7 atoms are owed across the six phases (plus
+Ninety-three of the 133 Phase 7 atoms are owed across the six phases (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
 and the one TR-2b claims in part),
-forty-one are deferred with an owner each; 92 + 41 = 133, no atom listed twice and none unlisted — checked
-against `spec.sqlite` on 2026-09-18, and worth re-checking the same way
-at each close. The deferrals are re-read at item 6's close audit
+forty are deferred with an owner each; 93 + 40 = 133, no atom listed twice and none unlisted — checked
+against `spec.sqlite` on 2026-09-18 (400.7-001 moved from the deferrals to
+TR-3a on 2026-10-07), and worth re-checking the same way at each close. The deferrals are re-read at item 6's close audit
 (`engineering-practices.md` §9 pass 1) and any whose owner has landed by
 then is claimed there.
 

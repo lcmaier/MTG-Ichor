@@ -218,6 +218,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ApplyOptionalEffect { source: object },
         ChoiceKind::AllocateNextDamage { source: object, remaining: 2 },
         ChoiceKind::ChooseDamageSource { source: object },
+        ChoiceKind::ChooseDelayedTriggerEvent { source: object },
         ChoiceKind::ChooseEnteringController { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: object },
@@ -247,17 +248,18 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ApplyOptionalEffect { .. } => 16,
         ChoiceKind::AllocateNextDamage { .. } => 17,
         ChoiceKind::ChooseDamageSource { .. } => 18,
-        ChoiceKind::ChooseEnteringController { .. } => 19,
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 20,
-        ChoiceKind::ChooseCopySource { .. } => 21,
-        ChoiceKind::CommanderToCommandZoneSba { .. } => 22,
-        ChoiceKind::Discard { .. } => 23,
-        ChoiceKind::Scry { .. } => 24,
-        ChoiceKind::ScryOrder { .. } => 25,
-        ChoiceKind::LegendRule { .. } => 26,
+        ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
+        ChoiceKind::ChooseEnteringController { .. } => 20,
+        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 21,
+        ChoiceKind::ChooseCopySource { .. } => 22,
+        ChoiceKind::CommanderToCommandZoneSba { .. } => 23,
+        ChoiceKind::Discard { .. } => 24,
+        ChoiceKind::Scry { .. } => 25,
+        ChoiceKind::ScryOrder { .. } => 26,
+        ChoiceKind::LegendRule { .. } => 27,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..27).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..28).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

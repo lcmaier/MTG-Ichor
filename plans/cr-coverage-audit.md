@@ -538,6 +538,22 @@ is derivable; where each name was read is not, and the gate needs the names.
   continue it. A fact about the run and not the game: the board is the
   prompt's, no rule reads it, and there is nothing in it for the CR to
   require.
+- **Added by TR-3a (2026-10-07)**, each asked §2's question as it landed:
+  - `extra_turn`: the CR 500.7 extra turn the turn in progress is, by its
+    queue entry's id, taken from `GameAction::BeginTurn`, where CR 614.10's
+    "would begin an extra turn" reads it (pass 4's finding above). "During
+    that turn" (Alchemist's Gambit) is a duration over the same id and needs
+    no other fact; CR 500.7's extra turns for several players are an id
+    each.
+  - `delayed_triggers`: CR 603.7's registry. Each entry holds what CR
+    603.7d–g fix as it is created (its source by identity, its controller,
+    the creating ability, X), when it was created (603.7a), the turns it
+    may trigger in, and, once its source has left, the frame the source left
+    with (CR 113.7a's last known information). It cannot yet name an object other than its source that
+    the creating instruction made or moved, nor a reflexive trigger's window
+    (603.12): both are TR-3b's, planned in `triggers-architecture.md` §3.9.
+  - `next_extra_turn_id` and `next_delayed_trigger_id`: the counters the
+    two ids come from; no fact about the game.
 
 ---
 

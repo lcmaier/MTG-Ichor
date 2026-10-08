@@ -89,6 +89,8 @@ impl<'g> Writer<'g> {
             priority_player,
             phase,
             turn_queue,
+            extra_turn,
+            next_extra_turn_id: _, // a counter
             turn_plan,
             turn_rotation,
             attacks_declared,
@@ -116,6 +118,8 @@ impl<'g> Writer<'g> {
             last_sba_check_epoch: _,
             pending_triggers,
             next_trigger_seq: _,
+            delayed_triggers,
+            next_delayed_trigger_id: _, // a counter
             action_taken_this_turn: _, // `this turn:` lines, in `cards`
             triggered_this_turn: _,
             resolutions_this_turn: _,
@@ -148,7 +152,10 @@ impl<'g> Writer<'g> {
         if !pending_triggers.is_empty() {
             self.report(format!("{} triggered abilities waiting to be put on the stack", pending_triggers.len()));
         }
-        if !turn_queue.is_empty() || *turn_rotation != active {
+        if !delayed_triggers.is_empty() {
+            self.report(format!("{} delayed triggered abilities waiting for their events (CR 603.7)", delayed_triggers.len()));
+        }
+        if !turn_queue.is_empty() || extra_turn.is_some() || *turn_rotation != active {
             self.report("an extra turn (CR 500.7)");
         }
         if turn_plan.phases != TurnPlan::natural().phases {

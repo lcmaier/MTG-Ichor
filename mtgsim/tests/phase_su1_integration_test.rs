@@ -428,7 +428,7 @@ battlefield: Platinum Angel | controller 0");
 fn the_writer_reports_what_it_cannot_write() {
     let mut game = load("battlefield: Grizzly Bears | controller 0");
     game.state.players[0].mana_pool.add(mtgsim::types::mana::ManaType::Red, 1);
-    game.state.turn_queue.push(1);
+    game.state.schedule_extra_turn(1);
     let written = Scenario::write(&game.state);
     assert_eq!(written.unwritten.len(), 2, "{:?}", written.unwritten);
     assert!(written.to_string().starts_with("# not written: an extra turn (CR 500.7)\n# not written: player 0's mana pool"));

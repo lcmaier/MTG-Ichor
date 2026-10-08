@@ -18,8 +18,9 @@ use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+use crate::types::triggers::{DelayedProvenance, DelayedTurn, TriggerTurn};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -100,12 +101,15 @@ impl ResolutionContext {
 struct ResolutionWalk {
     instance_cursor: usize,
     last_cost_answer: Option<CostAnswer>,
+    /// The extra turn this resolution's last `ExtraTurn` scheduled: what
+    /// "that turn" names (Final Fortune; CR 500.7).
+    extra_turn: Option<ExtraTurnId>,
 }
 
 impl ResolutionWalk {
     /// Before the effect's first atom: no instance used, no action taken.
     fn start() -> Self {
-        ResolutionWalk { instance_cursor: 0, last_cost_answer: None }
+        ResolutionWalk { instance_cursor: 0, last_cost_answer: None, extra_turn: None }
     }
 }
 
@@ -670,7 +674,49 @@ impl GameState {
             // created turn will be taken first".
             Primitive::ExtraTurn => {
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
-                self.turn_queue.push(player);
+                walk.extra_turn = Some(self.schedule_extra_turn(player));
+                Ok(())
+            }
+
+            // CR 603.7 — registered as the resolution reaches it, with CR
+            // 603.7d–f's provenance off the context (§3.9). An ability's
+            // delayed trigger is its source's and its controller's as it
+            // resolved (603.7e); otherwise the context's own object is the
+            // source: the spell as it resolves (603.7d), or the object whose
+            // replacement a rider is, under its controller as it applied
+            // (603.7f, `Rider`). Never `ctx.source` for an ability: that is
+            // the stack object CR 608.2n removes (`codebase-state.md` item
+            // 223). X is CR 107.3n's, the resolving spell's or ability's.
+            Primitive::CreateDelayedTrigger(template) => {
+                let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
+                let source = match ctx.ability_source {
+                    Some(source) => source,
+                    None => self
+                        .object_ref(ctx.source)
+                        .ok_or_else(|| format!("the source {} of a delayed triggered ability is not in the game", ctx.source))?,
+                };
+                let turn = match template.turn {
+                    DelayedTurn::Any => TriggerTurn::Any,
+                    DelayedTurn::NextTurn => TriggerTurn::LaterThan(self.turn_number),
+                    DelayedTurn::ThatExtraTurn => TriggerTurn::Extra(walk.extra_turn.ok_or_else(|| {
+                        format!(
+                            "a delayed trigger on {} names \"that turn\", and its resolution scheduled no extra turn before it",
+                            ctx.source
+                        )
+                    })?),
+                };
+                let provenance = DelayedProvenance {
+                    source,
+                    // The resolving object's card: the spell's, or for an
+                    // ability the source's, which its stack object was built
+                    // from.
+                    source_card: std::sync::Arc::clone(&self.get_object(ctx.source)?.card_data),
+                    controller: ctx.controller,
+                    created_by: resolving.and_then(|r| r.identity),
+                    x_value: resolving.and_then(|r| r.x_value),
+                    turn,
+                };
+                self.register_delayed_trigger(template, provenance);
                 Ok(())
             }
 
@@ -2272,11 +2318,16 @@ impl GameState {
     ) -> Result<u64, String> {
         match expr {
             AmountExpr::Fixed(n) => Ok(*n),
-            AmountExpr::X => {
-                // `StackEntry::x_value` has held it since the cast; reading it here is main
-                // item 90's PR (`codebase-state.md`), with the card that needs it.
-                Err("X amount resolution not yet implemented".to_string())
-            }
+            // CR 107.3 — the X chosen for the spell or ability resolving, which
+            // its stack entry carried since the cast, and a delayed trigger's
+            // its creator's (107.3n). A rider resolves no stack object, and has
+            // none.
+            AmountExpr::X => self
+                .resolving
+                .as_ref()
+                .filter(|resolving| resolving.id == _ctx.source)
+                .and_then(|resolving| resolving.x_value)
+                .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
             AmountExpr::CountOf(_selector) => {
                 Err("CountOf amount resolution not yet implemented".to_string())
             }

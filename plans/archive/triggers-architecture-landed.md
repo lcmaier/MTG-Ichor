@@ -879,3 +879,89 @@ The round's head played the same games as the landing head: every counter
 `IDENTICAL` on both pools at two seats and four, and the audit agreed on the
 same dispatches (`fuzz-record.md`, TR-2b).
 
+#### TR-3a — the delayed-trigger registry, with Final Fortune and Blessed Wine — ✅ landed 2026-10-07
+
+*Evicted 2026-10-07 from `plans/triggers-architecture.md` §12, where the heading and a stub remain. TR-3 was sized whole; the plan below is that sizing as written, and TR-3b's half of it stays live in §12.*
+
+### The plan as sized (TR-3, as §12 carried it on 2026-10-07)
+
+| Piece | ~additions |
+|---|---|
+| the registry, `DelayedTrigger`, `DelayedSource`, `DelayedDuration`, `ObjectRef`, `Instant`, `ExtraTurnId` on `turn_queue` and `current_turn_origin`, `Primitive::CreateDelayedTrigger`, provenance from `ResolutionContext` and from a rider, 107.3n's X, `ChooseDelayedTriggerEvent`, cleanup expiry of `ThisTurn`; `Effect::Reflexive` and the immediate check; `UntilEvent` resolved at dispatch (610.3) | ~520 |
+| `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm at `resolve.rs:1417`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser | ~120 |
+| cards: **Final Fortune** (603.7d, a named extra turn; its ruling — a skipped extra turn loses nothing — is the `ExtraTurnId` test), **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) | ~320 |
+| tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card's indefinite haste is expressible since CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
+| docs, ledger, record | ~250 |
+
+**Split 2026-09-24**, by the re-count below. **TR-3a** is the delayed
+registry, with Final Fortune. **TR-3b** is reflexive triggers, the returns
+and "until" (610.3), with Flickerwisp, Cornered Crook and Banishing Light.
+
+### As landed (2026-10-07)
+
+Six commits: item 222, the extra turn's id, the registry, its atoms' tests,
+"the next turn's" binding, and the two cards.
+
+**Item 222, first, as its own arm.** A copy or grant row naming its objects
+(`SourceOnly`, `Fixed`, `Host`) files the record kinds its triggered
+abilities read in `RegistryScopeSummary::named_unattributed_trigger_kinds`,
+and the dispatcher reads the named objects off the rows only for a window
+carrying one of them: the replacement gather's named leg with the printed
+leg's mask. A `Filter` row keeps opening its zones. The unused
+`puts_a_triggered_ability` became `triggered_ability_kinds`, which both read.
+
+**The extra turn's id** (§3.9's 2026-09-24 amendment). `turn_queue` holds
+`ExtraTurn { id, player }`, minted by `schedule_extra_turn`;
+`next_turn_taker` hands the id back; `GameAction::BeginTurn` carries it as
+`extra`, and its performer records `GameState::extra_turn`. The turn's
+`EventPattern` field waits for the first of the four cards that replace "a
+player would begin an extra turn".
+
+**The registry** (§3.9 and §4.6's as-built notes have the decisions):
+`engine/triggers/delayed.rs` and the dispatcher's second leg; the arm
+matcher reading `TriggerReferents`; `TriggerOrigin::Delayed(AbilityIdentity)` on
+`AbilityId::delayed`; a source's departure record, noted by the three
+movers whose record follows the move (`perform_zone_change`, a player leaving, CR 601.2i's cast);
+`created_at` and `created_in`; `ChooseDelayedTriggerEvent` through every
+list of prompt kinds; `TriggerEvent::AbilityResolves`, with `EventKind`'s
+seventeenth kind; `AmountExpr::X` reading the resolving object's X; the
+cleanup and turn-begin expiries; the scenario writer reporting a delayed
+trigger and an extra turn in progress as unwritten.
+
+**Two findings while building.**
+- *CR 603.7a needed code.* "The window is the future" holds for a
+  resolution, which runs outside any batch, and fails for a rider: it runs
+  inside the batch it rides on, and Destroy's move closes its own nested
+  batch with its riders, before the batch's next member is destroyed. A
+  rider's "the next time a creature dies" saw the other creature of the same
+  wipe die. An entry now skips the batch it was created in, and the test
+  failed before that.
+- *"The next turn's upkeep" is not "the next upkeep".* A second upkeep this
+  turn (CR 500.10) is not the next turn's. Nothing makes one yet, so the
+  binding is written for the CR's case: `DelayedTurn::NextTurn` resolves to
+  `TriggerTurn::LaterThan` the creating turn, and Blessed Wine's test proposes
+  a second upkeep by hand.
+
+**The cards, and the owner's call.** The brief named Final Fortune,
+registered and not pooled. Measured before landing, at seed 12345: it ended
+29 of 200 natural two-seat stress games at its extra turn, was cast 3 times
+in 200 four-seat games, and with a copy forced into every deck the random
+agent cast it in 65% of two-seat games. Every printed "that turn" card makes
+its caster lose (Final Fortune, Last Chance, Warrior's Oath, Alchemist's
+Gambit), so no other card spares stress that. The owner kept Final Fortune,
+for the shapes stress hunts (its caster leaving mid-turn at four seats, CR
+800.4), and added Blessed Wine, an Ice Age cantrip whose delayed draw ends no
+game. Neither is pooled: §12 pools the registry with TR-3b's two cards.
+
+**What TR-3a left for TR-3b.** `refs`: a trigger naming an object other than
+its source. The atom 603.7b-002's own board is Tatsumasa's "that token"
+under a doubler, and 603.7e-001's card is Flickerwisp; both atoms are covered
+on the rule's own boards (two deaths at once under a filter; an activated
+ability and a token's enters trigger), and the boards wait for `refs`.
+
+**Size.** +2,278 in code and tests: code +1,205, tests +1,073, against the
+re-count's 1,600–1,980. The tests ran at their usual multiple, and the
+code's overage is the `TriggerReferents` refactor (`ArmReader` as it was
+first written) and the two findings above. The review round (2026-10-08)
+added code +120 and tests +91: item 224, `source_frame`, the
+`delayed_occurrences` split and the explainers, for +2,489 in all.

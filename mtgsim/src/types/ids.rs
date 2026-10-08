@@ -113,13 +113,13 @@ impl std::fmt::Display for ObjectId {
 /// means "this ability, whichever instance" — CR 113.10b's removal, the mana
 /// window — compares [`Self::definition`]s (`triggers-architecture.md` §3.6).
 ///
-/// The definition's top two bits say where it came from, so the three
+/// The definition's top two bits say where it came from, so the
 /// derivations can never collide with each other; the rest is the
 /// derivation's own:
 ///
 /// | bits | role | derived from |
 /// |---|---|---|
-/// | `00` | [`Self::UNASSIGNED`] | — |
+/// | `00` | [`Self::UNASSIGNED`] at zero; above it, a delayed triggered ability's | its registry number ([`Self::delayed`]) |
 /// | `01` | printed | the card's name and the def's ordinal in a walk of the card ([`Self::printed`]) |
 /// | `10` | on an object | the object and a tag ([`Self::derived_on`]) |
 /// | `11` | a test's | a process counter ([`new_ability_id`]) |
@@ -184,6 +184,15 @@ impl AbilityId {
     /// a function of the object and of `ability`, which says which one it is.
     pub fn derived_on(object: ObjectId, ability: SynthesizedAbility) -> AbilityId {
         AbilityId::defined(ROLE_ON_OBJECT | (((object.0 << 8) | ability as u64) & !ROLE_MASK))
+    }
+
+    /// A delayed triggered ability's (CR 603.7), by its registry number,
+    /// which starts at one. It is printed on no card and derived on no
+    /// object, and it must not be the ability that created it: that one's CR
+    /// 603.7h count would otherwise advance each time the delayed one
+    /// resolved.
+    pub fn delayed(id: DelayedTriggerId) -> AbilityId {
+        AbilityId::defined(id.0 & !ROLE_MASK)
     }
 
     /// This ability as the Layer 6 row `row` grants it, minted where the
@@ -380,6 +389,28 @@ pub struct ObjectRef {
     pub id: ObjectId,
     pub zone_change_epoch: ZoneChangeEpoch,
 }
+
+/// One CR 500.7 extra turn, from the effect that creates it until it begins
+/// or is skipped: which entry of the turn queue a turn came from. "That turn"
+/// (Final Fortune) names one turn by it, and a skipped extra turn (CR
+/// 614.10a) is never taken for the turn after it. Minted per game from
+/// `GameState::next_extra_turn_id`, never reused, and nonzero, so an
+/// `Option` of one is a word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtraTurnId(std::num::NonZeroU64);
+
+impl ExtraTurnId {
+    /// The id of the game's `n`th extra turn, counting from zero.
+    pub(crate) fn nth(n: u64) -> ExtraTurnId {
+        ExtraTurnId(std::num::NonZeroU64::MIN.saturating_add(n))
+    }
+}
+
+/// A delayed triggered ability's number (CR 603.7): the registry's key, and
+/// the ability half of its identity ([`AbilityId::delayed`]). Minted per game
+/// from `GameState::next_delayed_trigger_id`, from one, never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DelayedTriggerId(pub u64);
 
 /// A `HashMap` keyed by an id or an id pair.
 pub type IdMap<K, V> = HashMap<K, V, IdHash>;

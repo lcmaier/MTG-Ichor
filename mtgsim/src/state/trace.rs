@@ -44,6 +44,7 @@ use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::engine::actions::ActionContext;
 use crate::engine::layers::compute_characteristics;
 use crate::events::event::{GameEvent, NamesAsAnnounced};
 use crate::state::game_state::GameState;
@@ -839,17 +840,26 @@ impl GameState {
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
     pub(crate) fn emit_event(&mut self, event: GameEvent) {
-        self.emit_record(event, false);
+        self.emit_record(event, false, None);
+    }
+
+    /// The same door for a record emitted outside any batch whose dispatch
+    /// may have to ask a player something: `AttackersDeclared`, the one such
+    /// record that can carry two occurrences of one arm, which CR 603.7b's
+    /// choice for a delayed trigger asks between. The turn-based action that
+    /// emits it holds the provider.
+    pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) {
+        self.emit_record(event, false, Some(ctx));
     }
 
     /// The same door for a record that carries no batch and no resolution
     /// whatever is ambient — `GameEvent::AbilityTriggered`, a consequence of
     /// an event rather than part of it (`triggers-architecture.md` §4.8).
     pub(crate) fn emit_event_unstamped(&mut self, event: GameEvent) {
-        self.emit_record(event, true);
+        self.emit_record(event, true, None);
     }
 
-    fn emit_record(&mut self, event: GameEvent, unstamped: bool) {
+    fn emit_record(&mut self, event: GameEvent, unstamped: bool, ctx: Option<&ActionContext>) {
         let stamp = if unstamped {
             crate::events::event::EventStamp::default()
         } else {
@@ -874,7 +884,7 @@ impl GameState {
         // matcher runs before this returns (§4.1). A batched record waits for
         // its batch's close in `execute_actions`.
         if stamp.batch.is_none() {
-            self.dispatch_unbatched(seq);
+            self.dispatch_unbatched(seq, ctx);
         }
     }
 
