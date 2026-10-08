@@ -381,6 +381,22 @@ pub struct ObjectRef {
     pub zone_change_epoch: ZoneChangeEpoch,
 }
 
+/// One CR 500.7 extra turn, from the effect that creates it until it begins
+/// or is skipped: which entry of the turn queue a turn came from. "That turn"
+/// (Final Fortune) names one turn by it, and a skipped extra turn (CR
+/// 614.10a) is never taken for the turn after it. Minted per game from
+/// `GameState::extra_turns_created`, never reused, and nonzero, so an
+/// `Option` of one is a word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtraTurnId(std::num::NonZeroU64);
+
+impl ExtraTurnId {
+    /// The id of the game's `n`th extra turn, counting from zero.
+    pub(crate) fn nth(n: u64) -> ExtraTurnId {
+        ExtraTurnId(std::num::NonZeroU64::MIN.saturating_add(n))
+    }
+}
+
 /// A `HashMap` keyed by an id or an id pair.
 pub type IdMap<K, V> = HashMap<K, V, IdHash>;
 /// A `HashSet` of ids or id pairs.

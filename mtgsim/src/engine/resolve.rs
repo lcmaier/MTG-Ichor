@@ -670,7 +670,7 @@ impl GameState {
             // created turn will be taken first".
             Primitive::ExtraTurn => {
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
-                self.turn_queue.push(player);
+                self.schedule_extra_turn(player);
                 Ok(())
             }
 

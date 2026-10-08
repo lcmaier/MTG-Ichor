@@ -199,7 +199,7 @@ fn test_a_nexus_of_fate_that_resolves_takes_an_extra_turn_and_returns_to_the_lib
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
-    assert_eq!(game.turn_queue, vec![0], "an extra turn for its controller");
+    assert_eq!(game.turn_queue.iter().map(|t| t.player).collect::<Vec<_>>(), vec![0], "an extra turn for its controller");
     assert_eq!(zone_of(&game, nexus), Zone::Library, "CR 608.2n's move was replaced");
     assert!(game.players[0].graveyard.is_empty());
     assert_eq!(shuffles(&game, 0), 1);

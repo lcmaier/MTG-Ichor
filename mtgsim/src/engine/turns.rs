@@ -1,8 +1,8 @@
 use crate::engine::actions::{ActionContext, DrawCause, GameAction};
 use crate::state::game_state::{
-    initial_step, next_step, GameState, PhaseType, StepType, TurnPlan,
+    initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 
 /// Turn structure engine — CR 500, and CR 614.10's three replaceable units.
@@ -69,7 +69,7 @@ impl GameState {
         let player = self.active_player;
         let turn = 1;
         let performed =
-            self.execute_actions(vec![GameAction::BeginTurn { player, turn }], ctx)?;
+            self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra: None }], ctx)?;
         if performed.is_empty() {
             return Err(
                 "the game's first turn was replaced, which CR 614.4 makes impossible \
@@ -156,7 +156,7 @@ impl GameState {
                         self.on_turn_end()?;
                         turn_began = false;
                     }
-                    let Some(player) = self.next_turn_taker() else {
+                    let Some((player, extra)) = self.next_turn_taker() else {
                         // Every player has left the game (CR 104.2a), so there
                         // is no turn to advance to. The position stays where it
                         // is and `GameState::result`, settled by the batch that performed
@@ -165,7 +165,7 @@ impl GameState {
                     };
                     let turn = self.turn_number + 1;
                     let performed =
-                        self.execute_actions(vec![GameAction::BeginTurn { player, turn }], ctx)?;
+                        self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra }], ctx)?;
                     if performed.is_empty() {
                         // CR 614.10a — a skipped turn advances no turn number
                         // and expires nothing. The cursor does not move, so the
@@ -183,7 +183,8 @@ impl GameState {
     }
 
     /// Who takes the next turn — CR 500.7's queue first, then the natural
-    /// rotation — or `None` when no player is left to take one.
+    /// rotation — with the queue entry's id for an extra turn, or `None` when
+    /// no player is left to take one.
     ///
     /// **Consumes what it reads**, and both halves have to. A queued extra turn
     /// that gets skipped is spent on being skipped (CR 614.10a), and a natural
@@ -206,10 +207,10 @@ impl GameState {
     /// specific point in that turn" — has no rows: step- and phase-scoped
     /// durations are `backlog.md` §2.12's. `turn_number + 1` is the number that
     /// turn would have carried, since nothing has advanced it yet.
-    fn next_turn_taker(&mut self) -> Option<PlayerId> {
-        while let Some(player) = self.turn_queue.pop() {
+    fn next_turn_taker(&mut self) -> Option<(PlayerId, Option<ExtraTurnId>)> {
+        while let Some(ExtraTurn { id, player }) = self.turn_queue.pop() {
             if !self.player_lost[player] {
-                return Some(player);
+                return Some((player, Some(id)));
             }
             // A queued extra turn is a turn of theirs too, and CR 500.7 puts
             // it at the same place in the rotation this one would have been.
@@ -219,11 +220,21 @@ impl GameState {
         for _ in 0..n {
             self.turn_rotation = (self.turn_rotation + 1) % n;
             if !self.player_lost[self.turn_rotation] {
-                return Some(self.turn_rotation);
+                return Some((self.turn_rotation, None));
             }
             self.expire_until_your_next_turn(self.turn_rotation, self.turn_number + 1);
         }
         None
+    }
+
+    /// CR 500.7 — give `player` an extra turn directly after this one: the
+    /// queue's newest entry, so the most recently created turn is taken
+    /// first. Returns its id, which "that turn" names.
+    pub fn schedule_extra_turn(&mut self, player: PlayerId) -> ExtraTurnId {
+        let id = ExtraTurnId::nth(self.extra_turns_created);
+        self.extra_turns_created += 1;
+        self.turn_queue.push(ExtraTurn { id, player });
+        id
     }
 
     /// Propose `phase`'s beginning; report whether it happened.
