@@ -1097,7 +1097,7 @@ are at one in every variant tried, so the guard is still near its edge.
   whose leaving ended the exile. The owner asked why a leaving was built into
   the type when a return can wait on something that is no object's, and
   Palace Jailer's "until an opponent becomes the monarch" is such a card. The
-  event is now read by the trigger matcher (`events_ending_an_until`), and
+  event is now read by the trigger matcher (`take_returns_due`), and
   `refers_to` carries Calix's target as `TriggerSubject::Referred`. CR
   610.3a/b's "already occurred" needs the event's history since the trigger,
   which is kept only for a leaving, so any other event's resolution is
@@ -1112,6 +1112,7 @@ are at one in every variant tried, so the guard is still near its edge.
   sweep over the replacement and restriction registries reads the same
   predicate as the continuous one.
 
-+334 in code and tests, so the phase closes at +2,242. Against shipped
+The review added 345 lines of code and tests and removed 127, most of them
+this phase's own, so the phase closes at +2,235 against `main`. Against shipped
 `a8fc1da`, every row outside timing played identically on both pools at two
 seats and four (`fuzz-record.md`, TR-3b).

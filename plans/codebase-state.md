@@ -9382,7 +9382,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-10-08):** unreachable — every registered "until"
      waits for a leaving.
      **Sized:** the event's records since the trigger's stamp, read by the
-     same matcher, ~40 lines with the monarch's designation record.
+     same matcher, ~40 lines with the monarch's designation record. One more
+     leg with it: an event recorded outside a batch (a cast, attackers
+     declared) is dispatched by `dispatch_unbatched`, whose provider is
+     optional and whose result is dropped, so a return due on one would be
+     lost; `return_until` asserts against it in debug builds.
      **Slotted:** Phase 9, with the monarch (CR 724), where §13 already
      defers the designation atoms on §3.8's arm.
 

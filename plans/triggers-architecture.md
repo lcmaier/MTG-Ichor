@@ -764,7 +764,7 @@ object (CR 603.7c). CR 610.3's return is not `DelayedDuration::UntilEvent`:
 it is no triggered ability, so it lives on `GameState::until_returns`
 (`engine/returns.rs`), made by `Primitive::ExileUntil` and performed at a
 dispatch as one batch for one event (610.3d). Its event is any
-`TriggerEvent`, matched as a trigger arm is (`events_ending_an_until`), and
+`TriggerEvent`, matched as a trigger arm is (`take_returns_due`), and
 `refers_to` names a target the event watches as `TriggerSubject::Referred`
 (Calix, Destiny's Hand). CR 610.3a/b's "already occurred" is answered for a
 leaving, by identity, and refused for any other event until that event's
@@ -2441,8 +2441,8 @@ half is TR-3c. Three corrections to the plan: the window flushed at every
 batch's close, so a resolution could not read its own records; 610.3d is one
 batch, which the window alone did not give; and the return is no triggered
 ability, so it is not a `DelayedDuration`. `ReturnToHand` moved to TR-4 with
-Rancor. The review generalized the until-event and took CR 111.8 in. +2,242
-in code and tests (code +1,097, tests +1,145).
+Rancor. The review generalized the until-event and took CR 111.8 in. +2,235
+in code and tests (code +1,090, tests +1,145).
 
 **Measured** (`fuzz-record.md`, the TR-3b block). The engine arm plays every
 gameplay row as `main` does on both pools at two seats and four, and the
