@@ -3595,6 +3595,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** one token, in the PR that registers the first regenerating
     card.
 
+    **Absorbed (2026-10-07):** into item 223, which owns every site that
+    attributes an effect to the ability's stack object; this closes with it.
+
 ### Found by the RD-2 review (2026-09-09)
 
 Fourteen comments on PR #120, captured in `plans/handoffs/rd-2-review.md`,
@@ -9313,3 +9316,45 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      replacement gate's, and a `Filter` row keeps opening its zones.
      **Slotted:** TR-3a, the next PR on the route, which touches the
      dispatcher.
+
+### Found at #231's review (2026-10-07)
+
+223. **A resolving ability's effects are attributed to its stack object,
+     not to the object that has the ability.** `ResolutionContext::source`
+     is the resolving stack object, which CR 608.2n removes, and fifteen
+     sites in `engine/resolve.rs` attribute to it: `DealDamage`,
+     `GainLife`, `SetLifeTotal`, `ProduceMana`, `Destroy`'s
+     `DestructionSource`, and the registry rows of `ModifyPowerToughness`,
+     `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`,
+     `ChangeType`, `Regenerate` (item 95), `Restrict`, `GainControl`, a
+     granted ability (`register_resolution_ability_effect`) and a copy
+     (`apply_copy`). Two already read
+     `ctx.ability_source.map_or(ctx.source, ..)` with CR 113.7a's reason:
+     `CreateReplacement`'s row (Samite Healer's shield, item 95's other
+     half) and the conditions' "this". CR 120.2b has an ability name the
+     object that deals its damage, and CR 608.2h says "it's the object ...
+     that does it, not the ability", so the damage half is a rules error:
+     lifelink (702.15b), deathtouch (702.2b), a source chosen for Circle of
+     Protection: Red (609.7a, registered) and "whenever this deals damage"
+     all read the source. Found in #231's `fizzle_log.png`: `LifeChanged:
+     P0 20 -> 21 (source: #22)`, Blood Artist's gain named by its
+     trigger's object, gone by the time the log reads it.
+     **Reachability (2026-10-07):** reachable — wrong today: every life
+     change an ability makes names its stack object, which only the log
+     reads, and Soul Warden and Blood Artist are pooled. The damage half is
+     unreachable: `DealDamage` is in five registered spells and no ability,
+     until TR-5a registers Hellrider.
+     **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
+     accessor naming the object an effect is attributed to, read at each
+     site; the tests the log's line, lifelink and Circle of Protection:
+     Red's chosen source over a fixture whose ability deals damage. First
+     count what keys on a row's source (`remove_by_source`, CR 616.1's
+     prompt), since a row naming the permanent outlives the stack object:
+     that is the point, and a behavior change the A/B shows. Absorbs item
+     95.
+     **Slotted:** the dev GUI PR after TR-3a (the owner, 2026-10-07), as its
+     engine half. Back-stop: before TR-5a, whose Hellrider is the first
+     registered ability to deal damage and whose "ability damage" piece
+     reads this. TR-3a's delayed triggers take their provenance from
+     `ability_source` (`triggers-architecture.md` §3.9), so they add no
+     site.
