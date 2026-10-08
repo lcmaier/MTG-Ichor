@@ -204,8 +204,8 @@ history grep over every touched file before opening the PR**, and read the
 doc comments for stale claims as a step of its own — a shorter comment that is
 wrong is not an improvement.
 
-**Third application — 2026-10-08, the triggers midpoint audit (A6k), 81 PRs
-after the second.** Reproduced before it was read, as the first two records'
+**Third application — 2026-10-08, the triggers midpoint audit (A6k, PR
+#235 for the plan), 81 PRs after the second.** Reproduced before it was read, as the first two records'
 wording made necessary. The wide tier reproduces exactly: its grep over
 comment lines in `.rs` files and every line of live `plans/` reads the first
 record's 456 (133 in `cards/`), 140 and 1,049 at its tree, `949a519`. So does
