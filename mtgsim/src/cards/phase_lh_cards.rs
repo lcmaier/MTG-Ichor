@@ -236,3 +236,51 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
 }
+
+/// Loxodon Warhammer — {3}
+/// Artifact — Equipment
+///
+/// Equipped creature gets +3/+0 and has trample and lifelink.
+/// Equip {3}
+///
+/// (Oracle text verified on Scryfall, 2026-10-08. No rulings.)
+///
+/// # Why this one
+///
+/// Lifelink a creature has only while it is equipped, so whether it had it
+/// is a question about a moment: as its ability's damage is dealt, or as it
+/// left the battlefield before that (CR 702.15c). That is
+/// `codebase-state.md` item 223's board. One static ability in two layers,
+/// a Layer 7c pump beside two Layer 6 grants, as Opalescence's is in two
+/// (CR 613.6).
+///
+/// Registered, not pooled: it opens no engine path Bonesplitter and Cobbled
+/// Wings do not.
+pub fn loxodon_warhammer() -> Arc<CardData> {
+    let equipped = |primitive| Effect::Atom(primitive, EffectRecipient::Host);
+    CardDataBuilder::new("Loxodon Warhammer")
+        .card_type(CardType::Artifact)
+        .subtype(Subtype::Artifact(ArtifactType::Equipment))
+        .mana_cost(ManaCost::build(&[], 3))
+        .rules_text("Equipped creature gets +3/+0 and has trample and lifelink.\nEquip {3}")
+        .ability(AbilityDef {
+            rules_text: "Equipped creature gets +3/+0 and has trample and lifelink.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                equipped(Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(3),
+                    AmountExpr::Fixed(0),
+                    Duration::WhileSourceOnBattlefield,
+                )),
+                equipped(Primitive::GrantKeywordFlag(KeywordFlag::Trample, Duration::WhileSourceOnBattlefield)),
+                equipped(Primitive::GrantKeywordFlag(KeywordFlag::Lifelink, Duration::WhileSourceOnBattlefield)),
+            ]),
+        })
+        .ability(equip("Equip {3}", vec![Cost::Mana(ManaCost::build(&[], 3))]))
+        .build()
+}

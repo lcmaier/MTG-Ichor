@@ -150,7 +150,7 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 184 |
+| Cards registered | 185 |
 | …of them in `PERFORMANCE_POOL` | 104 |
 | `#[test]` functions | 2135 |
 

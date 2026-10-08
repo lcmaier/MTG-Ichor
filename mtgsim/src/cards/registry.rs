@@ -729,6 +729,7 @@ impl CardRegistry {
         registry.register("Holy Strength", phase_lh_cards::holy_strength);
         registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
         registry.register("Cobbled Wings", phase_lh_cards::cobbled_wings);
+        registry.register("Loxodon Warhammer", phase_lh_cards::loxodon_warhammer);
 
         // The CR 613.8 boards the rulings walk. Urborg is the existence
         // dependency and pooled; Ashaya is the applies-to dependency on a
