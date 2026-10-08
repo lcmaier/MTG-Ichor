@@ -152,7 +152,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 184 |
 | …of them in `PERFORMANCE_POOL` | 104 |
-| `#[test]` functions | 2132 |
+| `#[test]` functions | 2135 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -174,13 +174,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 282 |
-| …closed, still recorded | 104 |
-| …open — unreachable, and says why | 113 |
+| …closed, still recorded | 105 |
+| …open — unreachable, and says why | 112 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 173 of 178 |
+| …open, carrying an explicit `**Sized:**` | 172 of 177 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

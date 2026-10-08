@@ -547,11 +547,12 @@ is derivable; where each name was read is not, and the gate needs the names.
     each.
   - `delayed_triggers`: CR 603.7's registry. Each entry holds what CR
     603.7d–g fix as it is created (its source by identity, its controller,
-    the creating ability, X), when it was created (603.7a), and the turns it
-    may trigger in. It cannot yet name an object other than its source that
+    the creating ability, X), when it was created (603.7a), the turns it
+    may trigger in, and, once its source has left, the frame the source left
+    with (CR 113.7a's last known information). It cannot yet name an object other than its source that
     the creating instruction made or moved, nor a reflexive trigger's window
     (603.12): both are TR-3b's, planned in `triggers-architecture.md` §3.9.
-  - `extra_turns_created` and `delayed_triggers_created`: the counters the
+  - `next_extra_turn_id` and `next_delayed_trigger_id`: the counters the
     two ids come from; no fact about the game.
 
 ---

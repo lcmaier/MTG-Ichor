@@ -118,6 +118,25 @@ cost rows are item 222's.
 | Candidate visits | 47.8 | 59.6 |
 | Trigger matches | 3.7 | 2.9 |
 
+**The review round, 2026-10-08:** four engine commits — the names, item 224,
+`delayed_occurrences` in named steps, and `source_frame`. `close_out.py`
+against **tr3a_landed** `141b85b` (TR-3a as opened), one arm,
+**tr3a_review** `206552f`. **Predictions, before the arms ran:** every
+gameplay row and the dispatcher's counters `IDENTICAL`, since no pooled card
+creates a delayed trigger and the two new registry loops run over an empty
+registry; instructions per decision within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, tr3a_review vs tr3a_landed, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, tr3a_review, performance / stress, dispatches agreed | 165,363 / 184,810 | 337,395 / 357,790 |
+| instructions / decision, tr3a_review vs tr3a_landed, the same board | | 0.6436 M → 0.6436 M, **−0.01%** |
+
+Every prediction held: `Candidate visits` read 44.8 and 140.3 a game on
+`performance` in both arms. `--require "Final Fortune,Blessed Wine"` on
+`stress` reads the landing's counts to the game, each spell now framed as it
+leaves the stack. The sitting ran in 125 s.
+
 **Measured 2026-10-07 for CV-1b's dev GUI notes** (#231). Two engine
 changes, both records no trigger reads: `AbilityFizzled` and
 `AbilityCountered` named by identity, and `Targeted` at the three places CR

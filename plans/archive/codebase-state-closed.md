@@ -3633,3 +3633,30 @@ pools, and the audit agreed on every dispatch; instructions per decision
      replacement gate's, and a `Filter` row keeps opening its zones.
      **Slotted:** TR-3a, the next PR on the route, which touches the
      dispatcher.
+
+### Item 224 — closed 2026-10-08 by PR #232, at its review
+
+Closed in the PR that found it, ahead of its TR-5a slot, at the owner's
+review. The record is still emitted outside any batch; the step that emits
+it holds a provider, and `emit_event_with_provider` hands it to the
+unbatched dispatch, the one record emitted that way whose dispatch can ask.
+`phase_tr3a_integration_test::two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller`
+declares two attackers under a `Once` delayed trigger over `Attacks`: the
+controller is asked, chooses the 3/3, and gains 3. On the pre-fix tree the
+registry's debug assertion fires. No pooled card creates a delayed trigger,
+so no game moves.
+
+*Original entry:*
+
+224. **CR 603.7b's choice has no provider at an unbatched record.**
+     `AttackersDeclared` is emitted outside any batch, and an unbatched
+     dispatch has no `ActionContext` to ask with. A `Once` delayed trigger
+     over `Attacks` whose window holds two matching attackers needs its
+     controller to choose which attack causes it; the registry takes the
+     first and debug-asserts.
+     **Reachability (2026-10-07):** unreachable — no registered delayed
+     trigger reads `Attacks`, and every other arm reads at most one
+     occurrence of an unbatched record (a cast, a resolution, a trigger).
+     **Sized:** ~20–40 lines: declare attackers inside a batch, or carry the
+     choice to placement, where a provider is.
+     **Slotted:** TR-5a, combat's shapes, which rebuilds the attack record.

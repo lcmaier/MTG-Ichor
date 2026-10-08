@@ -919,7 +919,7 @@ player would begin an extra turn".
 
 **The registry** (§3.9 and §4.6's as-built notes have the decisions):
 `engine/triggers/delayed.rs` and the dispatcher's second leg; the arm
-matcher reading an `ArmReader`; `TriggerOrigin::Delayed(AbilityIdentity)` on
+matcher reading `TriggerReferents`; `TriggerOrigin::Delayed(AbilityIdentity)` on
 `AbilityId::delayed`; a source's departure record, noted by the three
 movers whose record follows the move (`perform_zone_change`, a player leaving, CR 601.2i's cast);
 `created_at` and `created_in`; `ChooseDelayedTriggerEvent` through every
@@ -961,4 +961,7 @@ ability and a token's enters trigger), and the boards wait for `refs`.
 
 **Size.** +2,278 in code and tests: code +1,205, tests +1,073, against the
 re-count's 1,600–1,980. The tests ran at their usual multiple, and the
-code's overage is the `ArmReader` refactor and the two findings above.
+code's overage is the `TriggerReferents` refactor (`ArmReader` as it was
+first written) and the two findings above. The review round (2026-10-08)
+added code +120 and tests +91: item 224, `source_frame`, the
+`delayed_occurrences` split and the explainers, for +2,489 in all.

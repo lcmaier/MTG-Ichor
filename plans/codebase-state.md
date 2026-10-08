@@ -9345,7 +9345,15 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~40 lines and a test per reader: one `ResolutionContext`
      accessor naming the object an effect is attributed to, read at each
      site; the tests the log's line, lifelink and Circle of Protection:
-     Red's chosen source over a fixture whose ability deals damage. First
+     Red's chosen source over a fixture whose ability deals damage, and the
+     owner's board (2026-10-08): Dragonhawk, Fate's Tempest's delayed
+     "Dragonhawk deals 2 damage to each opponent" with Loxodon Warhammer,
+     which lifelinks if the Warhammer is attached as the trigger resolves, or
+     was attached when Dragonhawk left (CR 113.7a, off
+     `DelayedTrigger::source_frame`), and not if it was attached at
+     neither. The fixture drops "for each of those cards that are still
+     exiled", which names the cards the creating ability exiled: TR-3b's
+     `refs`. First
      count what keys on a row's source (`remove_by_source`, CR 616.1's
      prompt), since a row naming the permanent outlives the stack object:
      that is the point, and a behavior change the A/B shows. Absorbs item
@@ -9359,15 +9367,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by TR-3a — the delayed-trigger registry (2026-10-07)
 
-224. **CR 603.7b's choice has no provider at an unbatched record.**
-     `AttackersDeclared` is emitted outside any batch, and an unbatched
-     dispatch has no `ActionContext` to ask with. A `Once` delayed trigger
-     over `Attacks` whose window holds two matching attackers needs its
-     controller to choose which attack causes it; the registry takes the
-     first and debug-asserts.
-     **Reachability (2026-10-07):** unreachable — no registered delayed
-     trigger reads `Attacks`, and every other arm reads at most one
-     occurrence of an unbatched record (a cast, a resolution, a trigger).
-     **Sized:** ~20–40 lines: declare attackers inside a batch, or carry the
-     choice to placement, where a provider is.
-     **Slotted:** TR-5a, combat's shapes, which rebuilds the attack record.
+224. **~~CR 603.7b's choice has no provider at an unbatched record.~~ — ✅
+     CLOSED 2026-10-08 (PR #232, at its review).** — archived.
+     `AttackersDeclared` dispatches with the declare-attackers step's
+     provider (`emit_event_with_provider`), and a `Once` delayed trigger over
+     `Attacks` with two attackers asks its controller which attack causes
+     it.
+     **Reachability (2026-10-08):** closed — PR #232.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 224".

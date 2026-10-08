@@ -690,7 +690,7 @@ effects read it there: Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant
 and Trouble in Pairs replace "a player would begin an extra turn" (CR
 614.10). Today `next_turn_taker` pops the queue and proposes the turn with its
 player and number only, and `BeginTurn`'s own doc says who takes the turn is
-not on the event. The proposal carries `extra: Option<ExtraTurnId>`, the
+not on the event. The proposal carries `extra_turn: Option<ExtraTurnId>`, the
 turn's `EventPattern` arm reads it, and the turn that begins takes it from the
 proposal. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a
 duration on the same id. ~20–30 lines, with this id or with the first of the
@@ -713,6 +713,13 @@ departures from the sketch, each forced by a board:
   which existence of it moved, so the movers note the record that ended a
   delayed trigger's source. "When this creature leaves the battlefield"
   matches that record and no later object's.
+- **`source_frame`**, added at the review: CR 113.7a's last known
+  information, the frame the source left with. `hand_over_departed_frame`,
+  the one writer of departed frames, gives it to the entry as it gives it to
+  every entry naming the mover, and `objects_entries_name` names the
+  registry's sources, so a spell is framed as it leaves the stack. The
+  trigger carries it to the stack as a departed frame; its first reader is
+  item 223's attribution (Dragonhawk's damage, lifelink read off the frame).
 - **`created_at` and `created_in` replace `created`**: CR 603.7a is the
   filter, and its batch half was found by a test. A rider runs inside the
   batch it rides on, and Destroy's move closes its own nested batch, so a
@@ -721,7 +728,7 @@ departures from the sketch, each forced by a board:
 - **`turn: TriggerTurn`**: `Any`, `LaterThan` the creating turn (the Ice Age
   cantrips' "the next turn's upkeep", which a second upkeep this turn, CR
   500.10, is not), or the one `Extra` turn "that turn" names. `ExtraTurnId`
-  rides `GameAction::BeginTurn` as `extra` and becomes `GameState::extra_turn`;
+  rides `GameAction::BeginTurn` as `extra_turn` and becomes `GameState::extra_turn`;
   the turn's `EventPattern` field waits for the first of the four cards. An
   `Extra` entry is dropped as the next turn begins if its turn has gone.
 - **No `refs` and no `reflexive` yet**: no TR-3a board names an object other
@@ -1315,15 +1322,19 @@ fixtures, and the few such cards are not a reason to move the arm.
 **As built (TR-3a, 2026-10-07).** The registry is a leg of every dispatch,
 asked after the objects' and outside the audit's comparison: it has no
 shortcut to check, since every entry reading a kind of the window is asked,
-in creation order. Its arms run through the objects' matcher, which reads an
-`ArmReader` — "this object", "you", the owner, the host and "this ability" —
-so a delayed trigger's "this creature" is its source remembered by identity.
+in creation order. Its arms run through the objects' matcher, which reads
+`TriggerReferents` — "this object", "you", the owner, the host and "this
+ability" — so a delayed trigger's "this creature" is its source remembered
+by identity. Each record is matched as `match_def` matches an object's
+ability (`match_delayed`): first arm, then the limit, then the intervening
+"if".
 CR 603.7b's choice is asked only between occurrences that disagree on what
 the def reads (`entries_agree_on`, item 163's reading), and only with two or
 more; its options name each event by its object, or by its record's number
-where objects do not tell them apart. An unbatched record has no provider to
-ask, and the one arm that can carry two occurrences there is `Attacks`
-(`codebase-state.md` item 224). "603.7a and 513.2 need no code" did not hold:
+where objects do not tell them apart. The one unbatched record that can
+carry two occurrences of an arm, `AttackersDeclared`, dispatches with its
+step's provider (`emit_event_with_provider`; `codebase-state.md` item 224,
+closed at the review). "603.7a and 513.2 need no code" did not hold:
 see §3.9's `created_in`.
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
@@ -2329,18 +2340,18 @@ reviewed, what landing and the code review changed, and no trace page).
 
 **What shipped.** `engine/triggers/delayed.rs`: the registry, its one door
 `register_delayed_trigger`, and its leg of every dispatch through the
-objects' arm matcher, which reads an `ArmReader` (§4.6).
+objects' arm matcher, which reads `TriggerReferents` (§4.6).
 `Primitive::CreateDelayedTrigger` with CR 603.7d–f's provenance off the
 resolution and 107.3n's X; `TriggerOrigin::Delayed` on `AbilityId::delayed`
 (§3.8); CR 603.7b's choice, `ChooseDelayedTriggerEvent`, asked only between
 causes that differ; `ThisTurn` ended at cleanup; the extra turn's id on the
 queue and on `BeginTurn`, which "that turn" reads, and `NextTurn` for "the
-next turn's"; a source's departure record (`source_left_at`) and the
-creation filter (§3.9's as-built list); `TriggerEvent::AbilityResolves` for CR 603.7h, and `AmountExpr::X` at
+next turn's"; a source's departure record and last frame (`source_left_at`,
+`source_frame`) and the creation filter (§3.9's as-built list); `TriggerEvent::AbilityResolves` for CR 603.7h, and `AmountExpr::X` at
 resolution. Item 222, the named copy and grant rows' leg, as its own commit.
 Two cards, neither pooled: Final Fortune and Blessed Wine (182 → 184
-registered). Twenty-four tests; §13's fourteen TR-3a atoms are covered, and
-`owed` is clean for them.
+registered). Twenty-seven tests; §13's fourteen TR-3a atoms are covered and
+`owed` is clean for them; the review closed item 224 and added `source_frame`.
 
 **What moved on the way in.** The owner added Blessed Wine beside Final
 Fortune: every "that turn" card makes its caster lose, and Final Fortune
@@ -2350,7 +2361,8 @@ so an entry skips its creating batch. The Tatsumasa and Flickerwisp boards
 wait for TR-3b's `refs`; 603.7b-002 and 603.7e-001 are covered on the rule's
 own boards. `GameEvent` grew from 64 to 72 bytes. It landed at +2,278 in code
 and tests (code +1,205, tests +1,073) against the re-count's 1,600–1,980,
-inside the band.
+inside the band, and the review brought it to +2,489 (code +1,325, tests
++1,164), 11 lines inside the band's ceiling.
 
 **Measured** (`fuzz-record.md`, the TR-3a block). The item 222 and registry
 arms play every gameplay row as `main` does on both pools at two seats and
