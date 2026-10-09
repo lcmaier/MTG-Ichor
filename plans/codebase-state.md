@@ -9598,23 +9598,12 @@ source live is corrected in place.
      of this shape; the three fixes go with item 40's violators, at the first
      fork-based harness (item 140's slot).
 
-234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
-     delayed triggers and the extra turns beside them.** `UntilReturn` has no
-     id and `wait_to_return` emits no record, where a delayed trigger has
-     `DelayedTriggerId` and `DelayedTriggerCreated` and an extra turn
-     `ExtraTurnId`. So `ui::waiting::WaitingReturn` is the one waiting row
-     without an id: a client lists returns by their place in
-     `until_returns`, and a log cannot name a return until its object comes
-     back. Nothing in the engine hands that place across a call:
-     `take_returns_due` partitions the list rather than collecting indices
-     into it (TR-3b's review). The TR-3b dev GUI PR draws the returns in the
-     Waiting panel, the first client to hold such a row across frames.
-     **Reachability (2026-10-08):** reachable — not wrong: a return's place
-     in the list is read for display only.
-     **Sized:** ~30–50 lines: an `UntilReturnId` minted beside
-     `next_delayed_trigger_id` and carried on `WaitingReturn`, and a creation
-     record beside `DelayedTriggerCreated` if the log is to name a return.
-     **Slotted:** the TR-3b dev GUI PR, as its engine half.
+234. **~~CR 610.3's waiting returns carry no id and announce nothing.~~ — ✅
+     CLOSED 2026-10-09 (PR #238).** — archived.
+     `UntilReturnId` on the return and its Waiting row; `UntilReturnMade`
+     names it in the log.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 234".
 
 235. **~~A delayed trigger's and an until return's "its owner" is the
      controller once the store has lost the source.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.

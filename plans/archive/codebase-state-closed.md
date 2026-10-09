@@ -3864,6 +3864,35 @@ plain exile beside it the control.
      def's reads.
      **Slotted:** A6k's code-fix PR.
 
+### Item 234 — closed 2026-10-09 by PR #238 (the TR-3b dev GUI PR)
+
+An `UntilReturnId`, minted from `next_until_return_id` as a delayed
+trigger's number is, stored on `UntilReturn` and carried on
+`WaitingReturn`; `wait_to_return` announces `GameEvent::UntilReturnMade`
+ahead of the entry. The Waiting panel's return rows read the number its log
+line gave. A test sacrifices the first of two Banishing Lights and finds the
+second's return still number 2; it failed against a place-numbered id.
+
+*Original entry:*
+
+234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
+     delayed triggers and the extra turns beside them.** `UntilReturn` has no
+     id and `wait_to_return` emits no record, where a delayed trigger has
+     `DelayedTriggerId` and `DelayedTriggerCreated` and an extra turn
+     `ExtraTurnId`. So `ui::waiting::WaitingReturn` is the one waiting row
+     without an id: a client lists returns by their place in
+     `until_returns`, and a log cannot name a return until its object comes
+     back. Nothing in the engine hands that place across a call:
+     `take_returns_due` partitions the list rather than collecting indices
+     into it (TR-3b's review). The TR-3b dev GUI PR draws the returns in the
+     Waiting panel, the first client to hold such a row across frames.
+     **Reachability (2026-10-08):** reachable — not wrong: a return's place
+     in the list is read for display only.
+     **Sized:** ~30–50 lines: an `UntilReturnId` minted beside
+     `next_delayed_trigger_id` and carried on `WaitingReturn`, and a creation
+     record beside `DelayedTriggerCreated` if the log is to name a return.
+     **Slotted:** the TR-3b dev GUI PR, as its engine half.
+
 ### Item 235 — closed 2026-10-08 by PR #237 (A6k)
 
 `DelayedTrigger.owner` and `UntilReturn.owner`, read by `owner_now_or` as
