@@ -563,8 +563,9 @@ it can trigger repeatedly if one event contains multiple occurrences", so a
 wipe of three lands is three triggers for "whenever a land is put into a
 graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
 (`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
-arm says one of its events is (`TriggerEvent::occurrences_of`: a record for
-most kinds, an attacker for the attack shape, a counter for the counter arms).
+arm says one of its events is (a subject `occurrences_matching_arm` returns: a
+record for most kinds, an attacker for the attack shape, a counter for the
+counter arms).
 The CR gives the occurrence a name and the choice between the two none, so this
 one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
 

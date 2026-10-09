@@ -391,10 +391,12 @@ pub struct TriggerBinding {
 ```
 
 **The projections live on the arm, and they are exhaustive matches.**
-`TriggerEvent` carries four methods — `subject_of(&GameEvent) ->
+`TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
 Option<ObjectId>`, `player_of(..) -> Option<PlayerId>`, `amount_of(..) ->
-Option<u64>`, `occurrences_of(..) -> u32` — each a `match` over the arms
-with no wildcard, so a new arm must say what its "that many" is (damage
+Option<u64>` — and the dispatcher's `occurrences_matching_arm` one more,
+each a `match` whose last arm names every arm with `_` for the record (the
+triggers midpoint audit, item 231: a bare wildcard had stood there since
+TR-1). So a new arm must say what its "that many" is (damage
 dealt, cards looked at, counters put on, damage prevented) or fail to
 compile, and must say what an occurrence is (a record for most kinds; a
 counter for the counter arms, per Protean Hydra's ruling; an attacker for
@@ -1226,11 +1228,11 @@ both batch orders.
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm
-gives. The *occurrence* it counts is `occurrences_of`'s, below; the word is
-the project's, and `plans/glossary.md` carries it.
+gives. The *occurrence* it counts is one subject `occurrences_matching_arm`
+returns, below; the word is the project's, and `plans/glossary.md` carries it.
 
 - **`PerOccurrence`** (the default): one trigger per occurrence, and the
-  arm's `occurrences_of` says what an occurrence is — a record for most
+  matcher's arm for each says what an occurrence is — a record for most
   kinds, a counter for the counter arms (Protean Hydra's ruling: several
   removed at once trigger that many times), an attacker for the attack
   shapes. A wipe of three lands is three `ZoneChange`s in one batch and

@@ -1410,7 +1410,28 @@ impl GameState {
             ) => one(referents.this_ability.is_some_and(|this| {
                 this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
             })),
-            _ => Vec::new(),
+            // Every arm, by name, so a new arm does not compile until it is matched
+            // here; a record of another kind holds no occurrence of it.
+            (
+                TriggerEvent::ZoneChange { .. }
+                | TriggerEvent::BecomesTapped { .. }
+                | TriggerEvent::BecomesUntapped { .. }
+                | TriggerEvent::DrawsCard { .. }
+                | TriggerEvent::ManaAdded { .. }
+                | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::PhaseBegins { .. }
+                | TriggerEvent::StepBegins { .. }
+                | TriggerEvent::TurnBegins { .. }
+                | TriggerEvent::GainsLife { .. }
+                | TriggerEvent::LosesLife { .. }
+                | TriggerEvent::EntersBattlefield { .. }
+                | TriggerEvent::Attacks { .. }
+                | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::AbilityTriggers { .. }
+                | TriggerEvent::AbilityResolves { .. },
+                _,
+            ) => Vec::new(),
         }
     }
 
