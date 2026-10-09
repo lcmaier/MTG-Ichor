@@ -669,14 +669,14 @@ fn the_manticore_deals_damage_equal_to_the_sacrificed_creatures_power() {
     assert!(lines[0].contains("reflexive"));
 }
 
-// RULING: Heart-Piercer Manticore #3 - "When it enters the battlefield, its
-//   triggered ability goes on the stack without a target. While that ability
-//   is resolving, you may sacrifice a creature. If you do, a second ability
-//   triggers and you pick a target that will be dealt damage. This is
-//   different from other abilities that say "If you do . . ." in that players
-//   may cast spells and activate abilities before a creature is sacrificed
-//   and then again after the creature is sacrificed but before damage is
-//   dealt."
+/// Heart-Piercer Manticore's ruling #3, on its fixture, since the card is
+/// unregistered and the ledger holds no ruling to link: "When it enters the
+/// battlefield, its triggered ability goes on the stack without a target. While
+/// that ability is resolving, you may sacrifice a creature. If you do, a second
+/// ability triggers and you pick a target that will be dealt damage. This is
+/// different from other abilities that say "If you do . . ." in that players
+/// may cast spells and activate abilities before a creature is sacrificed and
+/// then again after the creature is sacrificed but before damage is dealt."
 #[test]
 fn the_manticores_first_trigger_has_no_target_and_its_second_waits_for_responses() {
     let mut game = setup_two_player_game();
@@ -692,10 +692,11 @@ fn the_manticores_first_trigger_has_no_target_and_its_second_waits_for_responses
     assert_eq!(life(&game, 1), 20, "and the damage waits on the stack, where players may respond");
 }
 
-// RULING: Heart-Piercer Manticore #4 - "Heart-Piercer Manticore's
-//   damage-dealing ability triggers only when you sacrifice a creature as a
-//   result of the instruction of its triggered ability. It won't trigger if
-//   you sacrifice a creature for any other reason."
+/// Heart-Piercer Manticore's ruling #4, on its fixture, since the card is
+/// unregistered and the ledger holds no ruling to link: "Heart-Piercer
+/// Manticore's damage-dealing ability triggers only when you sacrifice a
+/// creature as a result of the instruction of its triggered ability. It won't
+/// trigger if you sacrifice a creature for any other reason."
 #[test]
 fn only_the_triggers_own_sacrifice_makes_the_manticore_deal_damage() {
     let mut game = setup_two_player_game();
@@ -717,8 +718,10 @@ fn only_the_triggers_own_sacrifice_makes_the_manticore_deal_damage() {
     assert_eq!(reflexive_lines(&game).len(), 1, "though the trigger was made, and checked");
 }
 
-// RULING: Heart-Piercer Manticore #6 - "The sacrificed creature's last known
-//   existence on the battlefield is checked to determine its power."
+/// Heart-Piercer Manticore's ruling #6, on its fixture, since the card is
+/// unregistered and the ledger holds no ruling to link: "The sacrificed
+/// creature's last known existence on the battlefield is checked to determine
+/// its power."
 #[test]
 fn the_sacrificed_creatures_power_is_read_as_it_last_existed() {
     let mut game = setup_two_player_game();
@@ -734,8 +737,9 @@ fn the_sacrificed_creatures_power_is_read_as_it_last_existed() {
     assert_eq!(life(&game, 1), 17, "3: the anthem's +1/+1 as it last existed");
 }
 
-// RULING: Heart-Piercer Manticore #10 - "You can't sacrifice multiple
-//   creatures to deal damage multiple times."
+/// Heart-Piercer Manticore's ruling #10, on its fixture, since the card is
+/// unregistered and the ledger holds no ruling to link: "You can't sacrifice
+/// multiple creatures to deal damage multiple times."
 #[test]
 fn the_manticore_sacrifices_one_creature_and_triggers_once() {
     let mut game = setup_two_player_game();
