@@ -52,6 +52,7 @@ impl GameState {
     ) -> DelayedTriggerId {
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
+        let owner = self.owner_now_or(provenance.source.id, provenance.controller);
         self.emit_event(GameEvent::DelayedTriggerCreated {
             id,
             source: provenance.source.id,
@@ -67,6 +68,7 @@ impl GameState {
             source_frame: None,
             source_card: provenance.source_card,
             controller: provenance.controller,
+            owner,
             created_at: self.events.next_seq(),
             created_in: self.events.current_stamp().batch,
             created_by: provenance.created_by,
@@ -78,6 +80,14 @@ impl GameState {
             referred,
         });
         id
+    }
+
+    /// An entry's "its owner" as it is made (CR 108.3): `id`'s owner, or
+    /// `fallback` for a source already gone from the store, which only an
+    /// owner leaving the game takes (CR 800.4a), so no later read could do
+    /// better.
+    pub(crate) fn owner_now_or(&self, id: ObjectId, fallback: PlayerId) -> PlayerId {
+        self.objects.get(&id).map_or(fallback, |o| o.owner)
     }
 
     /// CR 400.7: object `id` is about to move, and the next record is that
@@ -141,7 +151,7 @@ impl GameState {
         let referents = TriggerReferents {
             this: ThisObject::Remembered(until.source),
             controller: until.controller,
-            owner: self.objects.get(&until.source.object.id).map_or(until.controller, |o| o.owner),
+            owner: until.owner,
             host: None,
             this_ability: None,
             referred: &until.referred,
@@ -237,13 +247,13 @@ impl GameState {
 
     /// What an entry's words for itself mean (CR 603.7c–g): "this object" is
     /// its source as remembered, "you" its controller, "its owner" the
-    /// source's owner while the store holds it, "this ability" the one that
-    /// created it (CR 603.7h), and "that token" what it refers to.
+    /// source's owner as it was made, "this ability" the one that created it
+    /// (CR 603.7h), and "that token" what it refers to.
     fn delayed_referents<'a>(&self, delayed: &'a DelayedTrigger) -> TriggerReferents<'a> {
         TriggerReferents {
             this: ThisObject::Remembered(RememberedObject { object: delayed.source, left_at: delayed.source_left_at }),
             controller: delayed.controller,
-            owner: self.objects.get(&delayed.source.id).map_or(delayed.controller, |o| o.owner),
+            owner: delayed.owner,
             host: None,
             this_ability: delayed.created_by,
             referred: &delayed.referred.objects,
@@ -443,5 +453,52 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             .map(|frame| DepartedFrame { object: delayed.source, frame: Arc::clone(frame) })
             .collect(),
         x_value: delayed.x_value,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::cards::authoring::whenever;
+    use crate::cards::creatures::grizzly_bears;
+    use crate::engine::actions::GameAction;
+    use crate::test_support::{put_on_battlefield_under, setup_two_player_game, test_ctx};
+    use crate::types::effects::{Effect, PlayerRef};
+    use crate::types::triggers::{
+        DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Referred,
+        TriggerEvent, TriggerTurn,
+    };
+
+    /// CR 108.3: a delayed trigger's "its owner" is its source's owner, fixed
+    /// as the trigger is made, and stays so once the store has lost the source
+    /// (item 235). The source is P0's under P1's control, so a fallback to the
+    /// controller watches the wrong player.
+    #[test]
+    fn its_owner_is_the_sources_after_the_source_is_gone() {
+        let mut game = setup_two_player_game();
+        let card = grizzly_bears();
+        let source = put_on_battlefield_under(&mut game, Arc::clone(&card), 0, 1);
+        let owner_gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
+        let template = DelayedTriggerTemplate {
+            def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
+            duration: DelayedDuration::Once,
+            turn: DelayedTurn::Any,
+            rules_text: "When its owner next gains life, nothing.".into(),
+        };
+        let provenance = DelayedProvenance {
+            source: game.object_ref(source).unwrap(),
+            source_card: card,
+            controller: 1,
+            created_by: None,
+            x_value: None,
+            turn: TriggerTurn::Any,
+        };
+        game.register_delayed_trigger(&template, provenance, Referred::default());
+        game.remove_from_game(source).unwrap();
+
+        game.execute_action(GameAction::GainLife { player: 0, amount: 1, source }, &test_ctx()).unwrap();
+        assert_eq!(game.pending_triggers.len(), 1, "the owner, P0, gained life");
+        assert!(game.delayed_triggers.is_empty());
     }
 }

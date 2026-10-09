@@ -128,6 +128,7 @@ impl GameState {
             return;
         }
         let created_at = self.events.next_seq();
+        let owner = self.owner_now_or(source.id, controller);
         self.until_returns.push(UntilReturn {
             until,
             source: RememberedObject::now(source),
@@ -135,6 +136,7 @@ impl GameState {
             returns,
             under,
             controller,
+            owner,
             created_at,
         });
     }
@@ -199,7 +201,7 @@ impl GameState {
 mod tests {
     use crate::cards::creatures::grizzly_bears;
     use crate::engine::actions::GameAction;
-    use crate::test_support::{put_in_exile, put_on_battlefield, setup_two_player_game, test_ctx};
+    use crate::test_support::{put_in_exile, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, test_ctx};
     use crate::types::effects::{PlayerRef, ReturnUnder};
     use crate::types::triggers::{Multiplicity, TriggerEvent};
     use crate::types::zones::Zone;
@@ -221,5 +223,23 @@ mod tests {
         game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: source.id }, &test_ctx()).unwrap();
         assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Battlefield);
         assert!(game.until_returns.is_empty());
+    }
+
+    /// CR 108.3: "its owner" is the source's owner, fixed as the return is
+    /// made, and stays so once the store has lost the source (item 235). The
+    /// source is P0's under P1's control, so a fallback to the controller
+    /// waits on the wrong player.
+    #[test]
+    fn an_until_reads_its_sources_owner_after_the_source_is_gone() {
+        let mut game = setup_two_player_game();
+        let source = put_on_battlefield_under(&mut game, grizzly_bears(), 0, 1);
+        let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
+        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
+        let (source_ref, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
+        game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1);
+        game.remove_from_game(source).unwrap();
+
+        game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: exiled }, &test_ctx()).unwrap();
+        assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Battlefield, "the owner, P0, gained life");
     }
 }

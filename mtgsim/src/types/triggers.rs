@@ -844,6 +844,9 @@ pub struct DelayedTrigger {
     pub source_card: Arc<CardData>,
     /// CR 603.7d–g's controller, as of the moment it was created.
     pub controller: PlayerId,
+    /// "Its owner": the source's (CR 108.3), read as it was created, since
+    /// the store may lose the source before the trigger reads it.
+    pub owner: PlayerId,
     /// The first record performed after it was created, and the batch it was
     /// created during, if any: CR 603.7a's "won't trigger until it has
     /// actually been created". A rider (CR 615.5) creates one inside the
