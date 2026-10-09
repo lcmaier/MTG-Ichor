@@ -918,6 +918,16 @@ pub struct Status {
 }
 ```
 
+**Amended 2026-10-09 (A6k's review, item 235): the owner** (CR 108.3; CR
+111.2 for a token). A delayed trigger or an "until" return stores its
+source's owner as it is made, since "its owner" is fixed. A source already
+gone from the store by then has only its last known information left to say
+who owned it: a token that ceased to exist before its ability resolved (CR
+704.5d), or an object whose owner has left the game (CR 800.4a). Until this
+type carries an `owner` and the resolving entry's departed frame is read for
+it, `owner_now_or` falls back to the entry's controller, right for a token
+nobody stole and wrong once its owner has left.
+
 `ZoneChange.lki`, `LeftTheGame.lki` and the new `ControlChanged.lki` carry
 `Option<Box<LastKnownInformation>>` in place of `Option<Box<EffectiveCharacteristics>>`
 — three field sites, seven literal sites — and the capture in

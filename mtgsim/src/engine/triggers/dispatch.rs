@@ -109,10 +109,10 @@ pub struct DepartureFrame {
     frame: Option<Arc<EffectiveCharacteristics>>,
 }
 
-/// Where an entry keeps the frame of an object it names that leaves (CR
-/// 113.7a, 608.2h): a queued, stacked or resolving entry's list, or a delayed
-/// trigger's one source frame.
-enum FrameKeeper<'a> {
+/// The slot an entry keeps a departed object's frame in (CR 113.7a, 608.2h):
+/// a queued, stacked or resolving entry's list, one frame per object it names
+/// that left, or a delayed trigger's one frame of its source.
+enum DepartedFrameSlot<'a> {
     List(&'a mut Vec<DepartedFrame>),
     Source(&'a mut Option<Arc<EffectiveCharacteristics>>),
 }
@@ -753,21 +753,21 @@ impl GameState {
     /// entry's source and its trigger's subject, and a waiting delayed
     /// trigger's source. The one list of who names what, so the capture
     /// (`objects_entries_name`) and the hand-over cannot disagree.
-    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], FrameKeeper<'_>)) {
+    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], DepartedFrameSlot<'_>)) {
         for pending in &mut self.pending_triggers {
             let named = [Some(pending.origin.source_ref()), pending.binding.subject];
-            each(named, FrameKeeper::List(&mut pending.departed));
+            each(named, DepartedFrameSlot::List(&mut pending.departed));
         }
         for entry in self.stack_entries.values_mut() {
             let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
-            each(named, FrameKeeper::List(&mut entry.departed));
+            each(named, DepartedFrameSlot::List(&mut entry.departed));
         }
         if let Some(resolving) = &mut self.resolving {
             let named = [resolving.identity.map(|identity| identity.source), resolving.subject];
-            each(named, FrameKeeper::List(&mut resolving.departed));
+            each(named, DepartedFrameSlot::List(&mut resolving.departed));
         }
         for delayed in &mut self.delayed_triggers {
-            each([Some(delayed.source), None], FrameKeeper::Source(&mut delayed.source_frame));
+            each([Some(delayed.source), None], DepartedFrameSlot::Source(&mut delayed.source_frame));
         }
     }
 
@@ -801,13 +801,13 @@ impl GameState {
             },
         };
         let Some(object) = self.object_ref(id) else { return };
-        self.for_each_naming_entry(|named, keeper| {
+        self.for_each_naming_entry(|named, slot| {
             if !named.contains(&Some(object)) {
                 return;
             }
-            match keeper {
-                FrameKeeper::List(list) => list.push(DepartedFrame { object, frame: Arc::clone(&frame) }),
-                FrameKeeper::Source(slot) => *slot = Some(Arc::clone(&frame)),
+            match slot {
+                DepartedFrameSlot::List(list) => list.push(DepartedFrame { object, frame: Arc::clone(&frame) }),
+                DepartedFrameSlot::Source(source_frame) => *source_frame = Some(Arc::clone(&frame)),
             }
         });
     }

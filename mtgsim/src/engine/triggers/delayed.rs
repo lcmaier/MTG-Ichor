@@ -82,10 +82,14 @@ impl GameState {
         id
     }
 
-    /// An entry's "its owner" as it is made (CR 108.3): `id`'s owner, or
-    /// `fallback` for a source already gone from the store, which only an
-    /// owner leaving the game takes (CR 800.4a), so no later read could do
-    /// better.
+    /// The source's owner as an entry naming it is made (CR 108.3), read now
+    /// because the store can lose the source before the entry reads it (item
+    /// 235). `fallback`, the entry's controller, stands in for a source
+    /// already gone: a token that ceased to exist before its ability resolved
+    /// (CR 704.5d), whose controller is its owner unless control changed, or
+    /// an object whose owner has left the game (CR 800.4a). Neither is exact
+    /// until last known information carries the owner
+    /// (`triggers-architecture.md` §3.11, TR-4a).
     pub(crate) fn owner_now_or(&self, id: ObjectId, fallback: PlayerId) -> PlayerId {
         self.objects.get(&id).map_or(fallback, |o| o.owner)
     }
