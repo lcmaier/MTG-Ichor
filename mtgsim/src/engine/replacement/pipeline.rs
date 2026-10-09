@@ -3245,7 +3245,7 @@ pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId
     if game.entry_selection.chosen.contains(&id) {
         return Some(NotAuxiliary::AlreadyChosen);
     }
-    if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
+    if !crate::engine::targeting::matched(game.object_matches_filter(id, &aux.filter, you)) {
         return Some(NotAuxiliary::NotMatched);
     }
     // CR 101.2 on the move this choice would produce — the resolution-time choice's

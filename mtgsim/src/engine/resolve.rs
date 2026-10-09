@@ -5,13 +5,13 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, EarlierTargets, FilterIdentity, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
@@ -445,10 +445,7 @@ impl GameState {
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
                         .into_iter()
-                        .filter(|&id| {
-                            self.object_matches_filter(id, filter, ctx.controller)
-                                .unwrap_or(false)
-                        })
+                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .map(DamageTarget::Object)
                         .collect(),
                     _ => targets
@@ -929,10 +926,7 @@ impl GameState {
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
                         .into_iter()
-                        .filter(|&id| {
-                            self.object_matches_filter(id, filter, ctx.controller)
-                                .unwrap_or(false)
-                        })
+                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .collect(),
                     // CR 608.2b: a spell whose targets are not *all* illegal still resolves
                     // and does as much as it can, so a target that has left is skipped. The
@@ -1343,10 +1337,7 @@ impl GameState {
                         );
                         self.battlefield_ids_ordered()
                             .into_iter()
-                            .filter(|id| {
-                                self.object_matches_filter(*id, filter, ctx.controller)
-                                    .unwrap_or(false)
-                            })
+                            .filter(|id| self.matches_for_effect(*id, filter, ctx))
                             .map(fill_object)
                             .collect()
                     }
@@ -1891,10 +1882,7 @@ impl GameState {
                     .battlefield_ids_ordered()
                     .into_iter()
                     .filter(|&id| !(*exclude_donor && id == donor))
-                    .filter(|&id| {
-                        self.object_matches_filter(id, filter, ctx.controller)
-                            .unwrap_or(false)
-                    })
+                    .filter(|&id| self.matches_for_effect(id, filter, ctx))
                     .collect();
                 (donor, affected)
             }
@@ -2177,7 +2165,7 @@ impl GameState {
                     ChoiceScope::ChoosersPermanents => {
                         for id in self.battlefield_ids_ordered() {
                             if controls(self, id, player)
-                                && self.object_matches_filter(id, &pick.filter, ctx.controller).unwrap_or(false)
+                                && self.matches_for_effect(id, &pick.filter, ctx)
                                 && self.admits(primitive, id, &[], ctx)?
                             {
                                 candidates.push(ResolvedTarget::Object(id));
@@ -2293,6 +2281,15 @@ impl GameState {
         })
     }
 
+    /// `filter` asked of `id` for this resolution's effect: "you" is its
+    /// controller (CR 109.5) and "another" is other than its source, the
+    /// object `ResolutionContext::effect_source` names (`codebase-state.md`
+    /// item 229).
+    fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
+        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None);
+        crate::engine::targeting::matched(self.object_matches_filter_for_instance(id, filter, ctx.controller, identity))
+    }
+
     /// The permanents a one-shot continuous effect applies to: its resolved
     /// targets, or for "each [permanent] you control" every permanent the
     /// filter matches now. CR 611.2c fixes that set as the effect begins, so
@@ -2308,7 +2305,7 @@ impl GameState {
             EffectRecipient::FilteredPermanents(filter) => self
                 .battlefield_ids_ordered()
                 .into_iter()
-                .filter(|&id| self.object_matches_filter(id, filter, ctx.controller).unwrap_or(false))
+                .filter(|&id| self.matches_for_effect(id, filter, ctx))
                 .collect(),
             _ => self.collect_battlefield_targets(targets),
         }

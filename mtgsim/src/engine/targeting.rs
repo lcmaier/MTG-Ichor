@@ -307,6 +307,15 @@ impl<'a> FilterIdentity<'a> {
     }
 }
 
+/// A filter's answer where its `Err` can only be a card-authoring error — a
+/// leaf the context cannot answer, an object with no power — read as no
+/// match, and loud in a debug build, since the card would otherwise
+/// silently do nothing (`codebase-state.md` item 103).
+pub(crate) fn matched(answer: Result<bool, String>) -> bool {
+    debug_assert!(answer.is_ok(), "a filter refused to answer: {:?}", answer.as_ref().err());
+    answer.unwrap_or(false)
+}
+
 /// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
 /// back to one (`EffectRecipient::SameInstanceAs`).
 ///
@@ -708,25 +717,15 @@ impl GameState {
         filter: &ObjectFilter,
         you: PlayerId,
     ) -> Result<bool, String> {
-        self.get_object(id)?;
-        // One layer walk for the whole filter, and only if a leaf reads a
-        // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
-        // Peace's "cards" stays free on every graveyard-bound zone change.
-        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
-            std::cell::OnceCell::new();
-        self.object_matches_filter_with(id, filter, you, FilterIdentity::NONE, &|| {
-            frame
-                .get_or_init(|| compute_characteristics(self, id))
-                .as_deref()
-                .ok_or_else(|| format!("Object {} not found", id))
-        })
+        self.object_matches_filter_for_instance(id, filter, you, FilterIdentity::NONE)
     }
 
     /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where the
     /// instances announced so far are known — so
     /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
     /// and the object whose text is announced, which
-    /// [`ObjectFilter::NotSource`] is other than.
+    /// [`ObjectFilter::NotSource`] is other than. A resolution asks it with
+    /// its effect's source and no instances (`codebase-state.md` item 229).
     ///
     /// The selection-side twin of [`Self::object_matches_filter_of_source`],
     /// and the two identity facts are deliberately separate: "another target
@@ -741,6 +740,9 @@ impl GameState {
         identity: FilterIdentity<'_>,
     ) -> Result<bool, String> {
         self.get_object(id)?;
+        // One layer walk for the whole filter, and only if a leaf reads a
+        // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
+        // Peace's "cards" stays free on every graveyard-bound zone change.
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
         self.object_matches_filter_with(id, filter, you, identity, &|| {
