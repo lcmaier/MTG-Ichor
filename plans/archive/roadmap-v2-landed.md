@@ -429,6 +429,18 @@ Next after CV-2b, ahead of the rest of A6c (the owner: "probably soon"; movable)
 
 `backlog.md` §2.22's "before the GUI", and all three were back-stopped before A6g: a GUI seat needs auto-yield, the switch and no `[Pass]`-only prompts from its first game. **What the row did not predict, three things.** The migration ran at its count, 72 failing tests and the 148 + 112 expectations behind them, but twelve tests whose subject is every priority grant could not migrate, and four CR 104.1 boards would have passed vacuously, an agent's strict script no longer seeing a grant the CR does not make; so `SeatMode`'s stop is a field any provider may set, beside the person's. The GUI seat's shortcut had answered only `[Pass]`-only priority prompts, 9,330 and 11,187 across 40 seeds a pool, so all of it went. And the code came to 476 lines added, 391 net, against 300–450: the two new decorators are 278 of them, about half of it the trait's forwarding, five methods each. Every gameplay counter `IDENTICAL`, both pools, two seats and four; instructions per decision −0.75% (`fuzz-record.md`)
 
+## A6k — the triggers midpoint audit
+
+*Evicted 2026-10-08 from `plans/roadmap-v2.md` §3a's A6k row, which keeps its date, its PRs and what it delivered. The two cells, unchanged.*
+
+### Do this
+
+**The triggers midpoint audit** (`engineering-practices.md` §9's midpoint rule): §9's hygiene pass — §2.1's comment sweep, the `TODO`s, clippy's allows re-counted, helpers built more than once — and a shape review of the trigger code TR-3c–TR-7 extend; the findings are `codebase-state.md`'s "Found by the triggers midpoint audit"
+
+### Why here
+
+81 PRs since the last sweep against §2.1's 15–20, and about eight engine PRs before item 6's close audit (A6e): the trigger code is read before TR-4–TR-7 copy its shapes
+
 ## A6i — the feedback-loop census
 
 *Evicted 2026-10-06 from `plans/roadmap-v2.md` §3a's A6i row, which keeps its date, its PR and what it delivered. The two cells, unchanged.*
