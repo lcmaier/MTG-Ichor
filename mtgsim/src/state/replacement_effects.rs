@@ -55,7 +55,7 @@ use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::targeting::TargetRef;
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{ReplacementDef, Uses};
 
 /// Unique identifier for a registered replacement effect.
@@ -129,24 +129,22 @@ impl DurationRow for RegisteredReplacementEffect {
         self.created_on_turn
     }
     fn sort_key(&self) -> Self::SortKey {}
+    /// Not its chosen source of damage, which it names by identity: a source
+    /// that has left still deals damage as it last existed (CR 608.2h), and a
+    /// player may choose one that already has (CR 609.7a).
     fn refers_to(&self, object: ObjectId) -> bool {
-        self.def.affected_objects.refers_to(object) || self.def.pattern.chosen_damage_source() == Some(object)
+        self.def.affected_objects.refers_to(object)
     }
-    /// A shield watching damage from a source that is gone can never apply,
-    /// so it goes whatever else it names.
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
-        if self.def.pattern.chosen_damage_source() == Some(object) {
-            return false;
-        }
         self.def.affected_objects.remove_reference_to(object) || self.def.affected_players.can_contain_a_player()
     }
 }
 
 impl RegisteredReplacementEffect {
-    /// CR 400.7c — a prevention effect watching damage from `object`, which
-    /// a permanent spell keeps as it becomes the permanent.
-    pub fn prevents_damage_from(&self, object: ObjectId) -> bool {
-        self.def.is_prevention() && self.def.pattern.chosen_damage_source() == Some(object)
+    /// CR 400.7c — a prevention effect watching damage from `spell`, which
+    /// keeps watching the permanent it becomes.
+    pub fn prevents_damage_from(&self, spell: ObjectRef) -> bool {
+        self.def.is_prevention() && self.def.pattern.chosen_damage_source() == Some(spell)
     }
 }
 

@@ -289,9 +289,11 @@ fn a_permanent_spell_keeps_its_color_change_and_loses_its_restriction() {
 
 /// CR 609.7a's chosen source is chosen once. Circle of Protection: Red's
 /// shield watches the creature it chose; once that creature has died and
-/// come back it is a new object, and the shield watches nothing.
+/// come back it is a new object, which the shield does not watch. The
+/// shield stays: the creature that died can still deal damage as it last
+/// existed (CR 608.2h; `codebase-state.md` item 225).
 #[test]
-fn a_shield_against_a_chosen_source_ends_when_the_source_moves() {
+fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
     let mut game = setup_two_player_game();
     let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 0);
     let red = put_on_battlefield(&mut game, red_creature(4), 1);
@@ -310,7 +312,7 @@ fn a_shield_against_a_chosen_source_ends_when_the_source_moves() {
     assert_eq!(game.replacement_effects.len(), 1);
 
     leave_and_return(&mut game, red, Zone::Graveyard, ZoneChangeCause::Destroyed);
-    assert!(game.replacement_effects.is_empty(), "the source it chose is gone");
+    assert_eq!(game.replacement_effects.len(), 1, "it watches the existence it chose, by identity");
 
     deal_damage(&mut game, red, DamageTarget::Player(0), 4);
     assert_eq!(life(&game, 0), 16, "the returned creature is not the chosen source");

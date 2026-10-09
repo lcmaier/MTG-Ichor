@@ -13,18 +13,19 @@ use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::TriggerBinding;
+use crate::types::triggers::{DepartedFrame, TriggerBinding};
 
 /// The subject as it was in the zone it left, when the matched event was its
-/// own departure: the record's CR 603.10a frame.
-pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
+/// own departure: the record's CR 603.10a frame, naming the existence that
+/// left.
+pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<&DepartedFrame> {
     let subject = binding.subject?;
     match &binding.records.first()?.event {
         GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
         | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
             if *object_id == subject.id =>
         {
-            Some(Arc::clone(frame))
+            Some(frame)
         }
         _ => None,
     }
@@ -69,7 +70,7 @@ impl GameState {
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
         match departure_frame(binding) {
-            Some(frame) => Some(frame),
+            Some(departed) => Some(Arc::clone(&departed.frame)),
             None => match self.bound_object(binding) {
                 Some(id) => compute_characteristics(self, id),
                 None => self.departed_frame(subject),

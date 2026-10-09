@@ -308,7 +308,7 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
         "and nothing else does: no other zone has a permanent to look back at"
     );
     let lki = game.recorded_events().events().find_map(|e| match e {
-        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == permanent => lki.clone(),
+        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == permanent => lki.as_ref().map(|d| d.frame.clone()),
         _ => None,
     });
     assert_eq!(lki.expect("a frame").power, Some(2), "and it is the permanent as it was");
@@ -335,7 +335,7 @@ fn the_frame_a_permanent_leaves_the_game_with_is_the_one_the_board_made() {
     departs(&mut game, 1, &test_dp());
 
     let lki = game.recorded_events().events().find_map(|e| match e {
-        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == bears => lki.clone(),
+        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == bears => lki.as_ref().map(|d| d.frame.clone()),
         _ => None,
     });
     let lki = lki.expect("a frame");

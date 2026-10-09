@@ -93,7 +93,7 @@ fn lki_for(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristic
         if let GameEvent::ZoneChange { object_id, lki, .. } = e
             && *object_id == id {
             assert!(found.is_none(), "expected exactly one zone change for {}", id);
-            found = Some(lki.clone());
+            found = Some(lki.as_ref().map(|d| d.frame.clone()));
         }
     }
     found.expect("no zone change for that object")
@@ -672,7 +672,7 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
             GameEvent::ZoneChange { object_id, owner, from, to, cause, lki }
                 if *object_id == died =>
             {
-                Some((*owner, *from, *to, *cause, lki.as_deref()))
+                Some((*owner, *from, *to, *cause, lki.as_ref().map(|d| d.chars())))
             }
             _ => None,
         })

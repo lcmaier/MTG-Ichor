@@ -938,16 +938,25 @@ impl RememberedObject {
     }
 }
 
-/// An object's last known information (CR 113.7a, 608.2h), kept by an entry
-/// that names it — its source, or its trigger's subject — when the object
-/// leaves the zone the entry expected it in (`triggers-architecture.md`
-/// §6.1). The binding's records cannot hold it, since the departure is a later
-/// event than the one that triggered. TR-4a makes the frame a
-/// `LastKnownInformation`.
+/// An object's last known information (CR 113.7a, 608.2h): the existence
+/// that left (CR 400.7) and its characteristics as it last existed in the zone
+/// it left. A departure record carries one (CR 603.10a), and so does damage a
+/// source deals after it left (item 225). An entry that names an object — its
+/// source, or its trigger's subject — keeps one when the object leaves the
+/// zone the entry expected it in (`triggers-architecture.md` §6.1), since the
+/// departure is a later event than the one that triggered. TR-4a makes the
+/// frame a `LastKnownInformation`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DepartedFrame {
     pub object: ObjectRef,
     pub frame: Arc<EffectiveCharacteristics>,
+}
+
+impl DepartedFrame {
+    /// The characteristics it last had.
+    pub fn chars(&self) -> &EffectiveCharacteristics {
+        &self.frame
+    }
 }
 
 /// An ability that has triggered and not yet been put onto the stack

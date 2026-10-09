@@ -4,14 +4,12 @@
 // resolution (lifelink, deathtouch) rather than during combat damage
 // assignment. Called from perform_action in actions.rs.
 
-use std::sync::Arc;
-
-use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::damage_source_characteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
+use crate::types::triggers::DepartedFrame;
 
 /// Whether `source` deals damage with `keyword`: as it last existed when
 /// the damage carries its `frame` (CR 702.15c, 702.2e), and as it is
@@ -19,7 +17,7 @@ use crate::types::keywords::KeywordFlag;
 fn deals_damage_with(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&Arc<EffectiveCharacteristics>>,
+    frame: Option<&DepartedFrame>,
     keyword: KeywordFlag,
 ) -> bool {
     damage_source_characteristics(game, source, frame).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
@@ -37,7 +35,7 @@ fn deals_damage_with(
 pub fn apply_deathtouch_flag(
     game: &mut GameState,
     source: ObjectId,
-    frame: Option<&Arc<EffectiveCharacteristics>>,
+    frame: Option<&DepartedFrame>,
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: the read borrows objects)
@@ -71,14 +69,14 @@ pub fn add_lifelink_gain(
     game: &GameState,
     gains: &mut Vec<LifelinkGain>,
     source: ObjectId,
-    frame: Option<&Arc<EffectiveCharacteristics>>,
+    frame: Option<&DepartedFrame>,
     amount: u64,
 ) {
     if !deals_damage_with(game, source, frame, KeywordFlag::Lifelink) {
         return;
     }
     let controller = match frame {
-        Some(frame) => Some(frame.controller),
+        Some(frame) => Some(frame.chars().controller),
         None => crate::oracle::characteristics::get_effective_controller(game, source),
     };
     let Some(player) = controller.or_else(|| game.objects.get(&source).map(|obj| obj.owner)) else {

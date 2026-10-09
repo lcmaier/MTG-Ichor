@@ -22,7 +22,9 @@ use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::Return;
 use crate::engine::triggers::bound_reads::BoundReads;
-use crate::types::triggers::{DelayedProvenance, DelayedTurn, Referred, RememberedObject, TriggerEvent, TriggerTurn};
+use crate::types::triggers::{
+    DelayedProvenance, DelayedTurn, DepartedFrame, Referred, RememberedObject, TriggerEvent, TriggerTurn,
+};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -2084,18 +2086,7 @@ impl GameState {
             pattern.object
         );
 
-        let candidates: Vec<ObjectId> = crate::oracle::legality::enumerate_legal_selections(
-            self,
-            &SelectionFilter::DamageSource,
-            None,
-            ctx.controller,
-        )
-        .into_iter()
-        .filter_map(|t| match t {
-            ResolvedTarget::Object(id) => Some(id),
-            ResolvedTarget::Player(_) => None,
-        })
-        .collect();
+        let candidates = crate::oracle::legality::damage_sources(self, None);
         // CR 102.2 — one candidate is not a choice; none is CR 101.3's
         // impossible instruction and the effect does nothing.
         let chosen = match candidates.len() {
@@ -2552,17 +2543,21 @@ impl GameState {
     }
 
     /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
-    /// has left the zone it was in. A trigger on its source's own departure
-    /// ("when this creature dies") looks back (CR 603.10a) and is named by
-    /// the object it left as, so it reads the departure record's frame; any
+    /// has left the zone it was in, and which existence that was (CR 400.7).
+    /// A trigger on its source's own departure ("when this creature dies")
+    /// looks back (CR 603.10a) and is named by the object it left as, so it
+    /// reads the departure record's frame, the creature that died; any
     /// other, the frame its entry kept as the source went. `None` while the
     /// source is there, since a frame is kept only for an existence that has
     /// left, and for a spell, which resolves where it was cast. A source no
     /// frame was kept for reads where it is now.
-    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
+    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<DepartedFrame> {
         let source = ctx.ability_source?;
         let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
-        looked_back.and_then(crate::engine::triggers::binding::departure_frame).or_else(|| self.departed_frame(source))
+        match looked_back.and_then(crate::engine::triggers::binding::departure_frame) {
+            Some(departed) => Some(departed.clone()),
+            None => self.departed_frame(source).map(|frame| DepartedFrame { object: source, frame }),
+        }
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

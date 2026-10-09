@@ -543,15 +543,12 @@ impl GameState {
     fn validate_damage_source(&self, target: &ResolvedTarget) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
-                if self.battlefield.contains_key(id) {
-                    return Ok(());
-                }
-                if self.is_spell_on_stack(*id) {
+                if crate::oracle::legality::damage_sources(self, None).iter().any(|source| source.id == *id) {
                     return Ok(());
                 }
                 Err(format!(
-                    "Object {} is neither a permanent nor a spell on the stack, so it is \
-                     not a legal source of damage (CR 609.7a)",
+                    "Object {} is neither a permanent, a spell on the stack, nor an object \
+                     something waiting refers to, so it is not a legal source of damage (CR 609.7a)",
                     id
                 ))
             }
@@ -775,6 +772,9 @@ impl GameState {
         source: ObjectId,
         chars: Option<&EffectiveCharacteristics>,
     ) -> Result<bool, String> {
+        if chars.is_none() {
+            self.get_object(id)?;
+        }
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
         let identity = FilterIdentity { source: Some(source), earlier_targets: EarlierTargets::None };
@@ -790,7 +790,9 @@ impl GameState {
     /// [`Self::object_matches_filter`] against a frame the caller already
     /// holds — CR 614.12's look-ahead for an entering permanent
     /// (`engine::replacement::EntryFrame`), where the finished board would
-    /// answer for the card and not for the permanent it is about to become.
+    /// answer for the card and not for the permanent it is about to become —
+    /// or a damage source's last known information (CR 608.2h), which answers
+    /// for a token the store no longer holds.
     pub(crate) fn object_matches_filter_in_frame(
         &self,
         id: ObjectId,
@@ -821,7 +823,9 @@ impl GameState {
         identity: FilterIdentity<'_>,
         frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, String>,
     ) -> Result<bool, String> {
-        let obj = self.get_object(id)?;
+        // Read only by the leaves no frame answers: a frame may stand for an
+        // object the store has lost (CR 608.2h).
+        let obj = || self.get_object(id);
         match filter {
             ObjectFilter::All => Ok(true),
             ObjectFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
@@ -837,22 +841,23 @@ impl GameState {
                     PlayerRef::You => controller == you,
                     PlayerRef::Opponent => controller != you,
                     PlayerRef::Player(pid) => controller == *pid,
-                    PlayerRef::Owner => controller == obj.owner,
+                    PlayerRef::Owner => controller == obj()?.owner,
                 })
             }
             // CR 111.1 / 707.2 — being a token is a property of the *object*,
             // not of its characteristics, so it is read off `GameObject` rather
             // than off the layer frame. A copy effect does not make a nontoken
             // permanent a token (CR 707.2: copiable values do not include it).
-            ObjectFilter::Token => Ok(obj.is_token),
+            ObjectFilter::Token => Ok(obj()?.is_token),
             // CR 108.3 / 400.3 — ownership, not control. See the variant's doc:
             // the two diverge the moment control moves, and a card always goes
             // to its *owner's* graveyard.
             ObjectFilter::ByOwner(player_ref) => {
                 use crate::types::effects::PlayerRef;
+                let owner = obj()?.owner;
                 Ok(match player_ref {
-                    PlayerRef::You => obj.owner == you,
-                    PlayerRef::Opponent => obj.owner != you,
+                    PlayerRef::You => owner == you,
+                    PlayerRef::Opponent => owner != you,
                     // Tautological here, and forced by the signature: this function takes
                     // `you` and no source id, so `Owner` can only mean the tested object's own
                     // owner, which the `ByController` arm above already reads it as.
@@ -860,7 +865,7 @@ impl GameState {
                     // owner, because a `FilterPlayers` has the source; the disagreement is
                     // recorded in `codebase-state.md`, since no card reads either spelling yet.
                     PlayerRef::Owner => true,
-                    PlayerRef::Player(pid) => obj.owner == *pid,
+                    PlayerRef::Player(pid) => owner == *pid,
                 })
             }
             // "Each other" is relative to an effect's source: an affected set has
@@ -1068,22 +1073,10 @@ impl GameState {
                     .count()
                     >= n
             }
-            // CR 609.7a's two reachable categories, in the order
-            // `enumerate_legal_selections` offers them. Cheaper than the
-            // `_` arm below and not the same answer: a source of damage
-            // needs no `validate_selection` walk at all.
+            // CR 609.7a's enumeration, as an id names each: a source of
+            // damage needs no `validate_selection` walk at all.
             SelectionFilter::DamageSource => {
-                let permanents = self
-                    .battlefield_ids_ordered()
-                    .into_iter()
-                    .filter(|&id| Some(id) != exclude_id)
-                    .count();
-                let spells = self
-                    .stack
-                    .iter()
-                    .filter(|&&id| Some(id) != exclude_id && self.is_spell_on_stack(id))
-                    .count();
-                permanents + spells >= n
+                crate::oracle::legality::enumerate_legal_selections(self, filter, exclude_id, you).len() >= n
             }
             _ => {
                 let mut found = 0usize;

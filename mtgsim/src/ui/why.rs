@@ -226,7 +226,9 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
             vec![*attacker, *id]
         }
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
-        ChoiceOption::Action(PriorityAction::Pass)
+        // No object on the board: the existence has left.
+        ChoiceOption::Departed(_)
+        | ChoiceOption::Action(PriorityAction::Pass)
         | ChoiceOption::Player(_)
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)

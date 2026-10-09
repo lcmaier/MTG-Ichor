@@ -792,9 +792,9 @@ impl GameState {
     /// for any other mover the one `capture_departure_frames` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&Arc<EffectiveCharacteristics>>) {
+    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&DepartedFrame>) {
         let frame = match lki {
-            Some(frame) => Arc::clone(frame),
+            Some(lki) => Arc::clone(&lki.frame),
             None => match self.take_named_frame(id) {
                 Some(frame) => frame,
                 None => return,
@@ -822,7 +822,7 @@ impl GameState {
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
+    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<DepartedFrame> {
         let object = self.object_ref(id)?;
         let taken = self
             .departure_frames
@@ -831,7 +831,9 @@ impl GameState {
             .and_then(|d| d.frame.take());
         // Every departure is decided by a batch, which framed it first.
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
-        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
+        taken
+            .or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
+            .map(|frame| DepartedFrame { object, frame })
     }
 
     /// The objects the dispatch at the window's close could ask a look-back
@@ -964,7 +966,7 @@ impl GameState {
             .filter_map(|(_, r)| match &r.event {
                 GameEvent::ZoneChange { object_id, owner, from, lki: Some(frame), .. }
                 | GameEvent::LeftTheGame { object_id, owner, from, lki: Some(frame) } => {
-                    Some((*object_id, *owner, *from, frame.as_ref()))
+                    Some((*object_id, *owner, *from, frame.chars()))
                 }
                 _ => None,
             })
@@ -1265,7 +1267,7 @@ impl GameState {
                     && to.is_none_or(|z| z == *rt)
                     && cause.is_none_or(|c| c == *rc)
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
             // triggers on it and nothing narrower — no `to`, no cause.
@@ -1277,7 +1279,7 @@ impl GameState {
                     && to.is_none()
                     && cause.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
@@ -1319,7 +1321,7 @@ impl GameState {
                 };
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
-                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_deref()),
+                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_ref().map(DepartedFrame::chars)),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
@@ -1558,7 +1560,7 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// The CR 603.10a frame a record carries, if it carries one.
 fn frame_of(event: &GameEvent) -> Option<&EffectiveCharacteristics> {
     match event {
-        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_deref(),
+        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(DepartedFrame::chars),
         _ => None,
     }
 }

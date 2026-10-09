@@ -6,11 +6,10 @@ use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
-use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{DelayedDuration, DepartedFrame, TriggerOrigin, TriggerSeq};
 
 
 /// Game events that can be observed by triggered abilities and logging systems.
@@ -50,7 +49,9 @@ pub enum GameEvent {
         /// Behind an `Arc`, and the layer memo's own: the widest type in the
         /// engine is shared rather than copied, so a trigger binding that
         /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
-        lki: Option<Arc<EffectiveCharacteristics>>,
+        /// It names the existence that left (CR 400.7), which `object_id`
+        /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
+        lki: Option<DepartedFrame>,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -108,7 +109,7 @@ pub enum GameEvent {
         /// The proposal's `source_frame`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
         /// what dealt it reads what the damage's results read (CR 608.2h).
-        source_frame: Option<Arc<EffectiveCharacteristics>>,
+        source_frame: Option<DepartedFrame>,
     },
 
     // --- Turn structure ---
@@ -358,7 +359,7 @@ pub enum GameEvent {
         object_id: ObjectId,
         owner: PlayerId,
         from: Zone,
-        lki: Option<Arc<EffectiveCharacteristics>>,
+        lki: Option<DepartedFrame>,
     },
 
     // --- Tokens ---

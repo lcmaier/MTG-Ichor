@@ -1774,7 +1774,7 @@ mod tests {
     /// The chosen source on the one row in the registry.
     fn chosen_source(game: &GameState) -> Option<crate::types::ids::ObjectId> {
         match &rows(game)[0].def.pattern {
-            EventPattern::DealDamage { source: Some(p), .. } => p.object,
+            EventPattern::DealDamage { source: Some(p), .. } => p.object.map(|chosen| chosen.id),
             _ => None,
         }
     }

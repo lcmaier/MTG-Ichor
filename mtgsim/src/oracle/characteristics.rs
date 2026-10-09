@@ -29,10 +29,10 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
 pub fn damage_source_characteristics(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&Arc<EffectiveCharacteristics>>,
+    frame: Option<&crate::types::triggers::DepartedFrame>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
     match frame {
-        Some(frame) => Some(Arc::clone(frame)),
+        Some(departed) => Some(Arc::clone(&departed.frame)),
         None => compute_characteristics(game, source),
     }
 }

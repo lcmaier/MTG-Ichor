@@ -573,7 +573,7 @@ fn extract_stats<'a>(
                 // does. The CR 603.10a frame says what it was.
                 if *from == Zone::Battlefield && *to == Zone::Graveyard {
                     let was_creature = lki.as_ref().is_some_and(|f| {
-                        f.types.contains(&mtgsim::types::card_types::CardType::Creature)
+                        f.chars().types.contains(&mtgsim::types::card_types::CardType::Creature)
                     });
                     if was_creature {
                         stats.creatures_died += 1;
