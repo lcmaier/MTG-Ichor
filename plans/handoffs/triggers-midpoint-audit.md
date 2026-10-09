@@ -201,7 +201,7 @@ sites), 229 (the filter twin). Rewritten in place:
 | PR | what | status |
 |---|---|---|
 | 1 | this plan, the findings, §2.1's third record, the A6k row, §9's midpoint rule; docs only | merged, #235 |
-| 2 | the comment sweep (§1.1), with `Cargo.toml`'s five counts dated, and the stale comments pass 2 met: `GameEvent`'s "will be handled by a replacement effect registry" and its pointer to module docs that do not exist, `AbilityResolved`'s link to a `StackObjectResolved` that does not exist and its "an activated ability", `dispatch.rs`'s "before this phase" | — |
+| 2 | the comment sweep (§1.1), with `Cargo.toml`'s five counts dated, and the stale comments pass 2 met: `GameEvent`'s "will be handled by a replacement effect registry" and its pointer to module docs that do not exist, `AbilityResolved`'s link to a `StackObjectResolved` that does not exist and its "an activated ability", `dispatch.rs`'s "before this phase"; and item 233's rule (§5) | open, #236: 596 comment lines out, a 1,729-line diff |
 | 3 | items 231, 232, 235 and 236, each shown failing on the pre-fix tree first (231 by a scratch arm that compiles there); `fuzz_ab.py` against `main` on both pools at two seats and four, `IDENTICAL` predicted | — |
 | last | deletes this file, writes the audited heading | — |
 

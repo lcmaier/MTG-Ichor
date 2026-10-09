@@ -238,7 +238,18 @@ first. The tight tier's undated list is the floor again, apart from two
 undated numbers in `layers/types.rs`. The comments whose numbers had moved
 most were outside the grep's reach: `Cargo.toml`'s five clippy allows each
 give a site count, and four had moved (4 → 6, 3 → 4, 3 → 7, 3 → 4, with 11
-holding), with nothing to say so.
+holding), with nothing to say so. **Applied in PR #236**: comment lines
+21,295 → 20,699, inline blocks over four lines 1,918 → 1,150, blocks narrating
+history 107 (1,814 lines) → 84 (1,378), a 1,729-line source diff over 41
+files. As in the second application, the read found comments the code had
+outgrown, each corrected rather than shortened:
+- an event doc still promising the replacement registry;
+- a link to a variant that never existed;
+- "a fresh `ObjectId` per cast", where a spell keeps its card's id;
+- CR 113.6k called future work after it shipped;
+- `is_spell` "false for exactly one thing", which is two;
+- three phase codes naming work since done;
+- a count of 45 emission sites, which is 58.
 
 **What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
 lines and every section costs another; the rule it already has is the right
