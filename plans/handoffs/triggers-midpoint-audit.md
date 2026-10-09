@@ -186,7 +186,7 @@ profile is `main`'s; the code-fix PR reads its own arms.
 |---|---|---|---|
 | 231 | the projections and the matcher end in a wildcard; `occurrences_of` has never had a caller | no | the code-fix PR, before TR-4's arms |
 | 232 | `bound_reads` files `ExileUntil` as reading nothing | no | the code-fix PR |
-| 233 | three prompts in the trigger code hold what they decide off `GameState` | no | the owner's call (§5) |
+| 233 | three prompts in the trigger code hold what they decide off `GameState` | no | the rule now (`triggers-architecture.md` §5.6, PR 2); the fixes at item 40's slot |
 | 234 | CR 610.3's returns have no id and no record | not wrong | the TR-3b dev GUI PR's engine half |
 | 235 | a delayed trigger's "its owner" falls back to its controller | no | the code-fix PR |
 | 236 | the frame capture written twice, twice | not wrong | the code-fix PR, ahead of TR-4a |
@@ -200,7 +200,7 @@ sites), 229 (the filter twin). Rewritten in place:
 
 | PR | what | status |
 |---|---|---|
-| 1 | this plan, the findings, §2.1's third record, the A6k row, §9's midpoint rule; docs only, a draft | open |
+| 1 | this plan, the findings, §2.1's third record, the A6k row, §9's midpoint rule; docs only | merged, #235 |
 | 2 | the comment sweep (§1.1), with `Cargo.toml`'s five counts dated, and the stale comments pass 2 met: `GameEvent`'s "will be handled by a replacement effect registry" and its pointer to module docs that do not exist, `AbilityResolved`'s link to a `StackObjectResolved` that does not exist and its "an activated ability", `dispatch.rs`'s "before this phase" | — |
 | 3 | items 231, 232, 235 and 236, each shown failing on the pre-fix tree first (231 by a scratch arm that compiles there); `fuzz_ab.py` against `main` on both pools at two seats and four, `IDENTICAL` predicted | — |
 | last | deletes this file, writes the audited heading | — |
@@ -208,14 +208,9 @@ sites), 229 (the filter twin). Rewritten in place:
 Anything that changes how games play gets its own PR and a
 `fuzz-record.md` block; nothing found so far does.
 
-## 5. Open for the owner
+## 5. Decided
 
-- **Item 233: when.** The three prompts are unreachable until something
-  forks inside a round, and item 40's two violators wait for the first
-  fork-based harness. What is cheap now is the rule for the prompts TR-4–TR-7
-  add (CR 603.3c's modes, CR 603.5's "may"): a prompt in detection,
-  placement or a return keeps what it has decided on `GameState`, the
-  drain's shape. Recommended: the rule into `triggers-architecture.md` §5
-  with PR 3, the three fixes at item 40's slot.
-- **The midpoint rule.** Written into §9 as the brief stated it; strike it
-  there if not.
+- **Item 233** (the owner, at #235's review): the rule now, the fixes at
+  item 40's slot. The rule is `triggers-architecture.md` §5.6, written in PR
+  2 rather than PR 3 because PR 2 lands first.
+- **The midpoint rule** stays in §9 as written; #235 merged it.

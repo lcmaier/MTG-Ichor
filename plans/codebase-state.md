@@ -9576,9 +9576,9 @@ source live is corrected in place.
      603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
      what it has decided on `GameState`, the drain's shape, needs no
      migration later.
-     **Slotted:** the rule for new prompts is the owner's call at A6k's
-     review, recommended for `triggers-architecture.md` §5 with A6k's
-     code-fix PR; the three fixes go with item 40's violators, at the first
+     **Slotted:** the rule for new prompts is `triggers-architecture.md`
+     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none
+     of this shape; the three fixes go with item 40's violators, at the first
      fork-based harness (item 140's slot).
 
 234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
