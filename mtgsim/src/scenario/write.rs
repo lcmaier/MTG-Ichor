@@ -121,6 +121,7 @@ impl<'g> Writer<'g> {
             delayed_triggers,
             until_returns,
             next_delayed_trigger_id: _, // a counter
+            next_until_return_id: _,
             action_taken_this_turn: _, // `this turn:` lines, in `cards`
             triggered_this_turn: _,
             resolutions_this_turn: _,

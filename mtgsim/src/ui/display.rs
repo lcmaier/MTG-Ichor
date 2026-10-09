@@ -915,6 +915,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 rules_text.words
             )
         }
+        UntilReturnMade { id, source, controller, returns } => {
+            let returns: Vec<String> = returns.iter().map(|object| obj_name(game, *object)).collect();
+            format!("UntilReturnMade: {}'s return {} [P{}]: {}", obj_name(game, *source), id.0, controller, returns.join(", "))
+        }
         Targeted { target, by, ability_source, controller, instances } => {
             let target = match target {
                 TargetRef::Object(object) => obj_name(game, object.id),

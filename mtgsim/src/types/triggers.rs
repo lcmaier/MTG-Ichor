@@ -227,7 +227,8 @@ impl EventKind {
             | GameEvent::StateBasedActionPerformed
             | GameEvent::Targeted { .. }
             | GameEvent::TokenCeasedToExist { .. }
-            | GameEvent::TokenCreated { .. } => return None,
+            | GameEvent::TokenCreated { .. }
+            | GameEvent::UntilReturnMade { .. } => return None,
         })
     }
 

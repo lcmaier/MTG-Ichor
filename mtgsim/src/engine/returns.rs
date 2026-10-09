@@ -9,7 +9,7 @@ use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeCause};
 use crate::ui::decision::DecisionProvider;
@@ -114,7 +114,8 @@ impl GameState {
     }
 
     /// CR 610.3 — make the return an "until" exile waits to make: what it
-    /// exiled, back when `until` happens.
+    /// exiled, back when `until` happens. Announced first, so its making is
+    /// no record its event can be.
     pub(crate) fn wait_to_return(
         &mut self,
         until: TriggerEvent,
@@ -127,9 +128,18 @@ impl GameState {
         if returns.is_empty() {
             return;
         }
+        let id = UntilReturnId(self.next_until_return_id);
+        self.next_until_return_id += 1;
+        self.emit_event(GameEvent::UntilReturnMade {
+            id,
+            source: source.id,
+            controller,
+            returns: returns.iter().map(|(object, _)| object.id).collect(),
+        });
         let created_at = self.events.next_seq();
         let owner = self.owner_now_or(source.id, controller);
         self.until_returns.push(UntilReturn {
+            id,
             until,
             source: RememberedObject::now(source),
             referred: referred.iter().copied().map(RememberedObject::now).collect(),

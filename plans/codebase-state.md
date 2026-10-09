@@ -217,6 +217,15 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+**Every open item names its home on a `**Slotted:**` line (gated 2026-10-09).**
+The line names a phase code or `roadmap-v2.md` §3a row still to come (Phases 9
+and 10 by name, which have no rows yet); or "with the first registered card
+that …" and the card or class; or "none — a record". An item is slotted in the
+commit that files it, a phase reads its list at its first ticket (`python
+plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
+item with no home, on one slotted only to phases that have landed, and on a
+number used twice in one run.
+
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
 **fixed in the PR that found it**, not recorded. This list is what a *later
@@ -682,39 +691,21 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
    pair lands with Equip.
 
    **Phase (2026-09-19):** the counter half — CR 704.5q's annihilation — is TR-5's: two `RemoveCounters` proposals in the state-based batch, `CountersAnnihilated` deleted (`triggers-architecture.md` §3.3, §12); Protean Hydra's rulings are why it is a removal event. The detach and the token halves stay here.
+   **Slotted:** TR-5b, which routes CR 704.5q's annihilation as two
+   `RemoveCounters` proposals; TR-4b, which re-emits the state-based detaches,
+   routes 704.5n/p and the 704.5d token sweep.
 
 7. **The early stack pop — ✅ DELETED 2026-09-01 (phase RC-1).** — archived.
     **Reachability (2026-09-03):** closed — RC-1, PR #80 (093e12a).
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Replacement
     effects (CR 614–616)" item 7.
 
-8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `put_on_stack.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/put_on_stack.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **Scheduled 2026-09-01 as Phase LH-1** (`layers-architecture.md` §13a), and deliberately *not* as its own PR: **zero registered cards carry an `enchant_filter`**, so the shared helper returns exactly what the three copies return today for every card that exists. Shipping it alone would put a new arm in front of the performance pool that no card can open -- the failure `engineering-practices.md` §3 is written against -- so it ships with Holy Strength, which makes it live. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `ObjectSet` names an Aura's host — `static_object_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
-
-   **Reachability (2026-09-03):** unreachable — `put_on_stack.rs` still never reads
-   `enchant_filter`, so no Aura is castable and none is registered; the board
-   needs LH-1 (`layers-architecture.md` §13a, ~730 additions), which carries
-   this fix.
-
-   **Sized:** above (2026-09-01) — one shared helper, not three; ships inside
-   LH-1 with Holy Strength.
-
-   **Closed 2026-09-04 — LH-1 ✅ (`layers/lh-1-host-addressable`).** One
-   helper, `engine/targeting.rs::spell_recipient(&CardData)`: an Aura's
-   recipient is its enchant ability (CR 303.4a), anything else's is the spell
-   ability's through `effect_recipient`, which is the fourteen lines kept once
-   and shared with `activate_ability`. The resolution does not derive a fourth
-   time — `StackEntry` records the recipient the targets were chosen against,
-   so CR 608.2b re-checks the question 601.2c asked. `attach_aura_on_etb` was
-   deleted rather than made the path. The four tests that pinned this
-   (`tests/phase_lh_integration_test.rs`) were shown failing against the
-   pre-fix tree at the first assertion each makes.
-
-   **Reachability (2026-09-04):** closed — LH-1. One honest residue: the
-   fizzle arm is covered and reachable in principle (a Bolt in response),
-   but in 200 stress games at seed 12345 Holy Strength was countered 3 times
-   and fizzled **0**, with or without `--require` — the random agent does not
-   answer an Aura by killing its target. CR 704.5m/n, the other half of the
-   Aura row, went 0 → 23 in the same run.
+8. **~~CR 608.3b is unimplemented: a permanent spell with an illegal target
+   does not fizzle.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+   Closed by LH-1 (2026-09-04): `engine/stack.rs` re-checks an Aura spell's
+   target as it resolves (CR 608.3b).
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "Item 8".
 
 ### Found by a judge-corpus pass (2026-08-26)
 
@@ -878,6 +869,9 @@ here. None is blocking RB.
     **Sized:** derive `is_mana_ability` for an activated def at the three
     dispatch sites (`mana.rs`, `priority.rs`, `activatable_abilities`)
     instead of reading the tag, ~60–100 lines plus the Toph-named test.
+    **Slotted:** MA-3, whose riders bring mana abilities with other effects: CR
+    605.1a derived for an activated def at the three dispatch sites, with
+    Toph's test.
 
 12. **`EffectiveCharacteristics.toughness: Option<i32>` is load-bearing, and
     `unwrap_or(0)` in the SBA sweep is doing rules work (found 2026-08-26, via
@@ -903,6 +897,9 @@ here. None is blocking RB.
     **Sized:** the two `unwrap_or(0)` reads (`sba.rs:242`, `:254`)
     become an explicit `None` arm whose answer CR 721.2c decides, ~10 lines plus
     a test; lands with the first Station card (Phase 8).
+    **Slotted:** with the first registered card that has station (Scryfall:
+    `kw:station`), whose PR gives the two `unwrap_or(0)` reads in `sba.rs` CR
+    721.2c's `None` arm.
 
 ### Found by the "can't" design pass (2026-08-27)
 
@@ -910,34 +907,12 @@ Three facts recorded by `plans/cant-effects-architecture.md`, which is now the
 authority for CR 101.2 / 614.17 / 613.11. The design is written; none of it is
 built, and none of it blocks RC-1 through RC-3.
 
-13. **Ticket `L15` is superseded and was never built.** `plans/archive/
-    implementation-plan-final.md`'s "Post-layer pass" specified a
-    `PlayerActionRestriction` enum with `CantCastSpells(PlayerId)`,
-    `CantGainLife(PlayerId)`, `CantAttack(PlayerId)`,
-    `CantActivateAbilities(PlayerId, Option<String>)` and
-    `CantDrawExtraCards(PlayerId)` as sibling variants. Grep confirms none of it
-    exists in `src/`. It is a variant per card wearing a rule's name —
-    `CantGainLife` and `CantDrawExtraCards` are the same restriction with
-    different `EventPattern`s — and `cant-effects-architecture.md` §6.2 replaces
-    it. **What L15 owned that the restriction model does not:** `lands_per_turn`
-    is still a raw field (`state/player.rs:23`, read directly by
-    `PlayerState::can_play_land`) and is a *computed player-scoped value*, not a
-    restriction. ~~It belongs with the cost-modification phase, the other
-    CR 613.11 consumer (Before Layers item 3).~~ **Re-homed 2026-09-07:**
-    `cost-architecture.md` §3.9 owns CR 613.11's *cost* half only and split
-    this out — a player-scoped value applied in timestamp order is the rule's
-    other sentence, and shares its surface with `max_hand_size` and player
-    hexproof, which `backlog.md` §2.15 holds as one entry. That entry owns
-    it. Two corpus atoms still carry the `L15` ticket: `ATOM-601.3-001` and
-    `ATOM-613.10-001`; `ATOM-613.11-001/002` were re-filed to CM-1.
-
-    **Reachability (2026-09-03):** nothing owed here — a record.
-    `lands_per_turn` is still a raw field (`player.rs:23`) and no registered
-    card changes it.
-
-    **Sized:** the field becomes a computed player-scoped value inside
-    `backlog.md` §2.15's surface, ~40 lines of its small-to-medium; the two
-    remaining `L15` atoms move with it.
+13. **~~Ticket L15 is superseded and was never built.~~ — ✅ CLOSED 2026-10-09
+    (PR #238).** — archived.
+    A record held where it belongs: `cant-effects-architecture.md`'s header
+    (L15 superseded, never built) and `backlog.md` §2.15 (`lands_per_turn`).
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 13".
 
 14. **A duration CR 608.2c does not give it — the scope is too *broad*.**
     ⚠️ **RELOCATED, NOT FIXED, by RS-1 (2026-08-31).** `turns.rs`'s
@@ -983,6 +958,9 @@ built, and none of it blocks RC-1 through RC-3.
     hook at the end of the top-level `resolve_effect` call, ~60–80 lines in
     `duration_registry.rs` and `resolve.rs`, plus a one-argument change per
     card; RS-2 owns it as the next phase touching `Primitive::Restrict`.
+    **Slotted:** RS-2, the next phase touching `Primitive::Restrict`: a
+    resolution-scoped `Duration`, retired at the end of the top-level
+    `resolve_effect`.
 
 15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
     `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`
@@ -1001,6 +979,8 @@ built, and none of it blocks RC-1 through RC-3.
     `targeting.rs:302` plus `enumerate_legal_selections`, RS-2 (Tier 1a/1d; the
     same change as "Before card breadth" item 7); menace and intimidate are ~60
     lines in combat validation, RS-3.
+    **Slotted:** RS-2 for hexproof and shroud at targeting and enumeration;
+    RS-3a for menace and intimidate in combat validation.
 
 16. **Two ETB-time scans read *printed* abilities, and a Layer 1 copy defeats
     both (found 2026-08-29, writing `copy-effects-architecture.md` §4.7).**
@@ -1048,6 +1028,8 @@ built, and none of it blocks RC-1 through RC-3.
 
     **Sized:** one leg on each gate (`gather.rs`, `predicate.rs`),
     ~20 lines each, in the PR that gives Layer 3 a producer.
+    **Slotted:** C2, whose Layer 3 build gives each gate (`gather.rs`,
+    `predicate.rs`) its Layer 3 leg.
 
 ### Found by CV-1 (2026-09-02)
 
@@ -1103,6 +1085,9 @@ registered card returns an object.
     (2026-09-28): neither of CV-2's A/B arms needs a state diff, since the
     engine arm reads `IDENTICAL` and the shipped arm is a pool change, and
     main item 10's state error, which CV-1b fixes, is its other customer.
+    **Slotted:** CV-3, the next copy phase: its output is a characteristic
+    change no event diff sees, so `--dump-state` lands with it. CV-1b, named
+    before, landed without it.
 
 67. **~~`CopiableValues::apply_to` deep-clones a `Vec<AbilityDef>` into every
     frame of every copied object (C5)~~ ✅ CLOSED 2026-09-16 (A4f, PR #157) —
@@ -1135,6 +1120,9 @@ registered card returns an object.
     review enforces it.
 
     **Sized:** none.
+    **Slotted:** none — a record of the rule that a `ChoiceKind` names the
+    question, never the card, which review applies beside
+    `engineering-practices.md` §2b.
 
 69. **~~Every performance number this project owns is two-player, and v1's
     profile is four~~ ✅ CLOSED 2026-09-15 (the post-RE audit, pass 3) —
@@ -1193,6 +1181,9 @@ registered card returns an object.
     sized there as small.
 
     **Sized:** none here.
+    **Slotted:** none — a record of the random agent's tap preference and the
+    `--require` copies-per-deck lesson; the CR 732.1 prompt it leaves is item
+    163's, at TR-7.
 
 16e. **96% of layer walks repeat an object nothing has touched, so item 7's
     memoization half is split out as 7a and moved ahead of triggers
@@ -1274,6 +1265,9 @@ registered card returns an object.
     `Primitive::Restrict` (a duration the card writes), and no registered card
     uses either; static replacement and restriction abilities never register a
     row.
+    **Slotted:** with the first registered card that resolves a "for as long
+    as" duration (78 cards, the body's two queries); the control leg reads
+    TR-4b's `ControlChanged`.
 
 ### Found by the theme C+E pass (2026-08-30)
 
@@ -1295,20 +1289,15 @@ registered card returns an object.
     phase.
 
     **Sized:** none.
+    **Slotted:** none — a record that `GameState::remove_from_combat` is CR
+    506.4's implementation, for RS-3a's and TR-5a's combat work to reuse.
 
-19. **`zone_change_epoch` has one consumer and two counters behind it
-    (`rb-review.md` E3).** `GameObject.zone_change_epoch` plus
-    `GameState::next_zone_change_epoch` and the SBA-check tick exist for
-    CR 704.6d alone — "was put into that zone since the last time state-based
-    actions were checked", which nothing about an object answers a moment later.
-    Recording an unrecoverable fact is the right call and item 10 wants the same
-    tick for CR 400.7, so this is not debt to pay down; it is a **re-confirm
-    when item 10 lands**. If 400.7 arrives and does *not* use the field, three
-    pieces of plumbing serve one rule and the question becomes live again.
-
-    **Reachability (2026-09-03):** nothing owed — re-confirm when item 10 lands.
-
-    **Sized:** none.
+19. **~~`zone_change_epoch` has one consumer and two counters behind it.~~ — ✅
+    CLOSED 2026-10-09 (PR #238).** — archived.
+    Answered by CV-1b's item 10 (CR 400.7): `ObjectRef` pairs an id with the
+    epoch, the field's second rule.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 19".
 
 20. **The CR 514.2 cleanup damage wipe has no enforcement point, and seven cards
     want one (found 2026-08-30, answering `rb-review.md` E4).** `turns.rs:133`
@@ -1336,29 +1325,18 @@ registered card returns an object.
     **Reachability (2026-09-03):** unreachable — RS-1 landed, so the
     prerequisite is met, and `turns.rs:137` still zeroes unconditionally; none
     of the seven cards is registered.
+    **Slotted:** with the first registered card that keeps damage from being
+    removed in cleanup (Scryfall: `o:/damage isn.t removed/`, 7 cards): a
+    filter on CR 514.2's wipe.
 
 ### Found by the theme H pass (2026-08-30)
 
-21. **CR 903.9b's "its owner's hand or library" needs no check, and the one it
-    had was a tautology (found 2026-08-30, closing `rb-review.md` H3).**
-    `commander_zone_replacement` guarded on
-    `obj.owner != owner_of_destination(game, object)`, and that helper ignored
-    the action and returned `game.objects[object].owner` — the same field, so
-    the comparison was always false. Its comment promised it would "become the
-    check that stops 903.9b firing" once an effect put a card into a different
-    player's library. **It cannot, and no such effect can exist:** CR 400.3 —
-    "if an object would go to any library, graveyard, or hand other than its
-    owner's, it goes to its owner's corresponding zone". A hand or library
-    destination *is* the owner's, by rule, which is also why
-    `add_to_zone_collection` files by `obj.owner` and why
-    `GameAction::ZoneChange` carries no destination player. Guard and helper are
-    deleted and the CR 400.3 argument is in the function — **recorded here so
-    nobody re-adds the guard**, which is the same job H2's inverted test does.
-    Nothing owed.
-
-    **Reachability (2026-09-03):** nothing owed.
-
-    **Sized:** none.
+21. **~~CR 903.9b's "its owner's hand or library" needs no check.~~ — ✅ CLOSED
+    2026-10-09 (PR #238).** — archived.
+    A record the code holds: `engine/replacement/gather.rs` says why the
+    destination needs no check (CR 400.3).
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 21".
 
 ### Found by the theme D+F+H pass (2026-08-30)
 
@@ -1385,6 +1363,8 @@ registered card returns an object.
     **Reachability (2026-09-03):** reachable — not wrong; perf only.
     `any_replacement_counter` (`gather.rs:630`) runs on every proposed action of
     every game and has measured flat at pool size.
+    **Slotted:** Phase 10's profile-driven performance, once TR-5b routes CR
+    704.5q (item 6) so a counter set is sound; measured before it is paid for.
 
 23. **Counters cannot exist on an object that is not on the battlefield, and
     three separate rules want them to (`rb-review.md` F1).** The map lives on
@@ -1409,6 +1389,9 @@ registered card returns an object.
     **Reachability (2026-09-03):** unreachable — no registered card puts a
     counter on a card outside the battlefield; suspend, off-battlefield keyword
     counters and Skullbriar are all unregistered.
+    **Slotted:** with the first registered card that puts a counter on a card
+    outside the battlefield (suspend, Scryfall: `kw:suspend`), which moves
+    `counters` onto `GameObject`.
 
 24. **~~`ReplacementDef.then` is rich enough; the `Effect` tree is not
     (`rb-review.md` F4).~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -1462,6 +1445,9 @@ registered card returns an object.
     inside out, a per-member state machine under an outer APNAP round-robin.
     **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
     anyway; not at RD, which is finished.
+    **Slotted:** B3, CR 800 at four seats, where a redirect onto another seat's
+    permanent stops being an accident: phase 1 becomes an APNAP round-robin
+    over its groups (CR 101.4d).
 
 26. **Batch phase 2 does not re-check member legality, and CR 608.2b says it
     should (`rb-review.md` H7).** If a batch carries two members naming one
@@ -1484,6 +1470,9 @@ registered card returns an object.
     dedupes per object, combat and untap batches are per-object unique, RC-5's
     auxiliary batch names each object once by CR 614.13b, and no registered
     spell proposes one object twice.
+    **Slotted:** with the first registered card that proposes one object twice
+    in one batch (two "destroy target creature" clauses, CR 115.3), which gives
+    phase 2 its `still_legal` check.
 
 ### Found by a rider read-through (2026-08-30)
 
@@ -1493,47 +1482,12 @@ where the *next* phase will find a channel missing rather than wrong. §4.1a
 settled *when* a rider runs — these are about *what it can reach*, which that
 section never asked.
 
-27. ~~**A rider cannot name the affected player, because `Rider` flattens the
-    subject to an object.**~~ **Closed by RD-1 (2026-09-08)**, exactly as
-    sized: `Rider.subject` is an `EventSubject` and `resolve_rider` emits
-    `ResolvedTarget::Player`. Angel of Suffering's "mill twice that many cards"
-    is the registered card that exercises it, and it is registered in the
-    stress pool.
-
-    **Refined by RD-4 (2026-09-09).** The subject a rider carries is now the
-    subject of the first *member* the application touched, read before that
-    member's own rewrite — not the group's key. CR 614.9 can move a member's
-    subject mid-loop, so the two came apart; CR 615.5's "that much" is about
-    the event the effect replaced, which is the pre-rewrite reading.
-    `replacement-architecture.md` §11 item 35.
-
-    The original entry follows.
-
-    **A rider cannot name the affected player, because `Rider` flattens the
-    subject to an object.** `subject_object` (`engine/replacement/pipeline.rs`)
-    maps `EventSubject::Player(_)` to `None`, and `resolve_rider`
-    (`engine/actions.rs`) then builds a `ResolutionContext` with empty
-    `targets`. So for a rider on `DrawCard`, `GainLife`, `LoseLife` or damage
-    dealt to a **player**, the only recipient that resolves is
-    `EffectRecipient::Controller` — the *effect's* controller, which is in
-    general a different player from the one the event was about.
-
-    **Accidentally correct on the one card that exercises it.** Notion Thief's
-    rider is "you draw a card", and "you" *is* the effect's controller (CR
-    109.5). A rider phrased "… instead that player loses 1 life" has no channel
-    at all, and would quietly act for the wrong player rather than erroring —
-    which is the shape that reads as a card doing something subtly wrong.
-
-    **Sized: two call sites.** Carry `EventSubject` verbatim on `Rider` instead
-    of `Option<ObjectId>`, and emit `ResolvedTarget::Player(pid)` for the player
-    case in `resolve_rider`. `ResolvedTarget` already has the variant and
-    `resolve_player_for_self` already reads it, so nothing new is invented.
-    **Trigger:** RD — prevention riders are the first that ride routinely on
-    player-subject events. → `replacement-architecture.md` §11 item 16.
-
-    **Reachability (2026-09-03):** unreachable — no registered card carries a
-    rider on a player-subject event; Kalitas's rider rides a `ZoneChange`, and
-    Notion Thief is a test fixture only.
+27. **~~A rider cannot name the affected player.~~ — ✅ CLOSED 2026-10-09 (PR
+    #238).** — archived.
+    Closed by RD-1 (2026-09-08): `Rider.subject` is an `EventSubject`, resolved
+    as a player or an object.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 27".
 
 28. **A rider reaches exactly one object — its subject — because
     `resolve_primitive` ignores the `EffectRecipient` for everything that
@@ -1574,51 +1528,16 @@ section never asked.
     at resolution time, with the object-reaching arms reading `ctx.targets`
     through it — is ~150–250 lines; lands with the first set-phrased rider
     (RD/RE) or the first mass-removal spell, whichever comes first.
+    **Slotted:** with the first registered card whose rider acts on a set (item
+    24's "put a +1/+1 counter on each of them"), through a resolution-time
+    `recipients_for`.
 
-29. **`apply_replacements`'s `inherited` applied-set is empty at its only call
-    site, so §3.2d's lineage rule ships with no producer.**
-    `execute_batch_inner` builds `let inherited = HashSet::new()` and hands the
-    same empty set to every batch member. The parameter is CR 614.5's
-    *termination* argument, not a nicety: a **decomposed** event continues its
-    parent's applied set, a **contained** event of a different kind starts a
-    fresh one, and without inheritance on decomposition Teferi's Ageless Insight
-    re-applies to its own output and the game **hangs** rather than answering
-    wrongly.
-
-    **Correct today because nothing decomposes.** `Rewrite` is 1→1 by §3.2d, and
-    every nested call RB makes is containment, which wants the fresh set it
-    already gets. Decomposition lives in a *performer*, never in a rewrite:
-    CR 121.2 carries out "draw N" as N individual draws, and
-    `GameAction::DrawCard { player }` has no count field yet.
-
-    **Trigger: RE**, the draw replacement — *not* RD, whose CR 120.3
-    results-of-damage split is containment and is already right. **Sized: one
-    call site**, in the first performer that decomposes; the parameter, the
-    clone and the doc comment all exist, so nothing is re-threaded. §3.2d
-    already names the regression this owes —
-    `test_two_teferis_draw_four_not_infinity` — and notes it needs a bounded
-    iteration guard, because it hangs rather than fails if the rule is wrong.
-    → `replacement-architecture.md` §11 item 18.
-
-    **Reachability (2026-09-03):** unreachable — nothing decomposes:
-    `GameAction::DrawCard { player }` still has no count field, so every nested
-    call is containment.
-
-    **Owner (2026-09-11):** RE-2 — `replacement-architecture.md` §9, RE
-    decision 1; the outer `DrawCards` performer is the producer.
-
-    **~~Closed 2026-09-11 by RE-2.~~** `GameAction::DrawCards`'s performer hands
-    each of its `n` inner `DrawCard`s the applied set the outer's own CR 616.1
-    loop accumulated, which took four signatures rather than the one call site
-    this item sized: `apply_replacements` returns the group's applied set,
-    `execute_batch_inner` carries it per member into phase 2, `perform_action`
-    takes it, and `execute_actions_inheriting` hands it back down. The
-    regression is `test_two_thought_reflections_draw_four_not_infinity` — Thought
-    Reflection and not the Teferi §3.2d named, because Teferi's Ageless Insight
-    is legendary. **The sizing's one thing worth keeping**: it called the failure
-    a hang, and it is worse than that — the recursion overflows the stack, which
-    aborts the whole test binary rather than one test. The bound is in the
-    provider, not the engine.
+29. **~~`apply_replacements`'s `inherited` applied-set is empty at its only
+    call.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    Closed by RE-2 (2026-09-11): a performer's nested proposal inherits the
+    applied set.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 29".
 
 30. **Nothing records what was spent to pay a cost, and five rules want it
     (found 2026-08-31 by the type-surface audit; `cr-coverage-audit.md` §5.1).**
@@ -1753,6 +1672,9 @@ section never asked.
 
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (CV-4) and no CR 700.14 card is registered.
+    **Slotted:** CV-4, the first reader through CR 707.10, or a Fling-shaped
+    card if one comes first: the payment's chosen objects and players beside
+    `CostChoices`.
 
 31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
     (found 2026-08-31 by the D3b slice-1 triage).** Declared at
@@ -1776,6 +1698,8 @@ section never asked.
 
     **Sized:** owned by `backlog.md` §2.7, one phase; the field
     costs nothing until then.
+    **Slotted:** B7, whose `backlog.md` §2.7 modal spells are the field's first
+    writer and reader.
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
@@ -1800,6 +1724,8 @@ section never asked.
     cap in `random_deck` if the harness is to be held to it; lands with the
     `GameConfig::commander()` constructor, whose 100-card singleton limit is the
     first one a fuzz deck would actually break.
+    **Slotted:** B2, whose `GameConfig::commander()` brings the first limit a
+    fuzz deck breaks; `validate` is called from `Game::new`.
 
 33. **The CR 106.6 subsystem has no production consumer on the payment side
     (found 2026-08-31 by a card-population probe — `o:"this mana"`, 227 cards —
@@ -1863,69 +1789,17 @@ section never asked.
     An inventory entry carries its restriction and the check takes the
     cost's purpose; `{S}` is a type bit. The per-unit record, its payment
     and the source axis stay this item's pass, after MA-1.
+    **Slotted:** B9, mana provenance: the per-unit record, T12c's
+    `SpendContext` routing and T12d's cards, after its design pass.
 
 ### Found by the RS-0 refactor (2026-08-31)
 
-34. **§9 finding 7's abort condition did not trigger, and the reason is worth
-    keeping.** `cant-effects-architecture.md` §9 finding 7 said to stop and keep
-    three registries if composing them meant the wrapper leaking the generic's
-    internals, naming "`effects_in_layer`'s layer-indexed cache" as the thing
-    that might. **There is no cache.** `effects_in_layer` is two
-    `partition_point` calls over a `Vec` that `add` *maintains* in
-    `(layer, timestamp, id)` order — an ordering invariant, not a memo, and it
-    has exactly one production caller (`compute.rs:242`).
-
-    A second correction, found in review: the shared rules content is **CR 514.2
-    alone**, reaching both registries through CR 611.2a. An earlier draft of the
-    module comment said "CR 514.2 and CR 613.7" — but 613.7 is timestamp
-    ordering, the one axis the registries do *not* share, and `SortKey` exists
-    precisely to let them differ on it. The durable measure of what the generic
-    bought is greppable: the engine now dispatches on a `Duration` variant in
-    **two** places, both in `duration_registry.rs`, and `Duration` is a closed
-    enum item 14 is scheduled to grow.
-
-    That distinction is what let composition work. A memo would have had to live
-    on one side of the boundary and be invalidated from the other; an ordering
-    invariant can simply *move inside* the generic. `DurationRow::SortKey` is
-    where it went: the row type declares its storage key — `(Layer, Timestamp)`
-    for CR 613.7, `()` for CR 616.1's registration order — `DurationRegistry::add`
-    places by `(sort_key, id)`, and the ascending never-reused id makes the
-    unkeyed case degenerate to a push. One `add` and one `is_sorted` serve both
-    registries, and the wrapper only ever reads `as_slice()` to binary-search
-    what the generic already ordered.
-
-    **The premise checked before building on it, since the finding rested on
-    it:** `remove_expired_at_turn_start` diffs to *nothing* between the two
-    registries once the row type is renamed, and `remove_expired_at_cleanup`
-    differs only in the wording of the comment that says it matches its twin.
-
-    **What did not move into the generic, and should not.** The CR 613.6 summary
-    flags and the layer slice, both `ContinuousEffectRegistry`'s. Every
-    `ContinuousEffectRegistry` mutation funnels through a private `mutating()`
-    so a method added later cannot skip the summary rebuild.
-
-    **`ReplacementEffectRegistry` is a type alias, not a wrapper** (revised in
-    review, 2026-08-31). Finding 7 predicted a struct keeping "`Uses::Once`
-    removal, gather-order iteration"; both turned out to *be* generic methods —
-    `remove(id)` and `iter()` — so all nine of its methods were one-line
-    delegations. A wrapper that adds nothing costs a hop at every call site and
-    makes the reader ask what it is for, which is exactly what happened in
-    review. It can grow a method later without becoming a struct again: an
-    inherent `impl DurationRegistry<RegisteredReplacementEffect>` is legal
-    because the generic is crate-local. **The general rule: compose where the
-    wrapper has its own surface, alias where it does not.**
-
-    **Owed by the next customer, not by RS-0.** Item 17's source-scoped expiry
-    hook is now a one-line `retain` closure on the generic that both registries
-    inherit the day it is written — it was two closures before. And the third
-    customer the finding predicted, delayed triggers (CR 603.7), needs a
-    `DurationRow` impl and nothing else.
-
-    **Reachability (2026-09-03):** nothing owed — item 17's hook is one `retain`
-    on the generic; delayed triggers need a `DurationRow` impl, critical-path
-    item 6's.
-
-    **Sized:** none here.
+34. **~~§9 finding 7's abort condition did not trigger.~~ — ✅ CLOSED 2026-10-09
+    (PR #238).** — archived.
+    A record held by `cant-effects-architecture.md` §9 finding 7, "What
+    happened (2026-08-31)".
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 34".
 
 ### Found by the fuzz-tail pass (2026-08-31)
 
@@ -2068,6 +1942,9 @@ section never asked.
     with a color-indicator override, before Phase 8; (b) pick one reading and
     thread `source` through `targeting::object_matches_filter`, ~20 lines,
     with the first card that reads `Owner`; (c) none — a card.
+    **Slotted:** B7, whose `backlog.md` §2.10 derives colors in `build()`; the
+    other two halves with the first registered card that reads
+    `PlayerRef::Owner` or gains control by an Aura.
 
 ### Found by the RS-1 spine (2026-08-31)
 
@@ -2100,6 +1977,9 @@ section never asked.
     **Reachability (2026-09-03):** nothing owed — a sizing lesson.
 
     **Sized:** none.
+    **Slotted:** none — a record of RS-1's line count against
+    `cant-effects-architecture.md` §7's row, which cites it: size in mechanisms
+    or in lines, and say which.
 
 37. **`Primitive::Sacrifice` had to ship for RS-1's headline to be observable,
     and that was not in the plan.** §4.9 makes "Sigarda produces no prompt" a
@@ -2123,26 +2003,15 @@ section never asked.
     targeting sites.
 
     **Sized:** none.
+    **Slotted:** none — a record of why `Primitive::Sacrifice` carries two
+    filters, read by RS-2 when it takes the cast-time and targeting sites.
 
-38. **The keyword-derived restriction sweep is asked only of the event's
-    subject, and the `debug_assert` is what keeps that sound.** Indestructible is
-    `ObjectSet::SourceOnly`, so the only object whose synthesized restriction
-    can match an event about X is X itself — sweeping the battlefield would cost
-    one full `compute_characteristics` walk *per permanent per proposed action*,
-    where asking the subject costs the one walk `is_blocked` already paid. §3.5's
-    commitment 2 says keyword restrictions do not need the gate, and this is why
-    they can afford not to.
-
-    **The next keyword restriction that is not `SourceOnly` breaks it silently**,
-    which is why `keyword_prohibits` asserts the shape rather than assuming it.
-    Hexproof, shroud, menace and intimidate (item 15) are all axis-2 and none of
-    them lands here, so the assertion has no near-term customer — it has a
-    near-term *reader*, which is the point.
-
-    **Reachability (2026-09-03):** nothing owed — the `debug_assert` guards the
-    shape.
-
-    **Sized:** none.
+38. **~~The keyword-derived restriction sweep is asked only of the event's
+    subject.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    A record the code holds: `engine/restriction/predicate.rs`'s `debug_assert`
+    says why, beside `cant-effects-architecture.md` §3.5.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 38".
 
 39. **Perf did not move, measured interleaved in one sitting.** Six alternating
     200-game runs at `--seed 12345` on the frozen `PERFORMANCE_POOL`, first pair
@@ -2198,6 +2067,8 @@ section never asked.
     **Reachability (2026-09-03):** nothing owed — a measurement record.
 
     **Sized:** none.
+    **Slotted:** none — a record of RS-1's interleaved A/B and the open path's
+    ~1% card cost; ending the pool freeze is `engineering-practices.md` §3's.
 
 ### Found by the fork-and-search question (2026-09-01)
 
@@ -2305,6 +2176,8 @@ section never asked.
     trigger code and not in the table: CR 603.3d's targets at placement, CR
     603.7b's choice of cause, and CR 303.4f's host for a returning Aura. Item
     233.
+    **Slotted:** Phase 10, whose fork-based harness needs `PendingReplacement`
+    and `PendingCast` on `GameState`, with item 233's three trigger sites.
 
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
@@ -2451,6 +2324,8 @@ section never asked.
     **Sized:** five lines at `predicate.rs:107` — `gather`'s
     per-permanent gate — with the first cheap or colorless restriction card,
     RS-2.
+    **Slotted:** RS-2, whose first cheap or colorless restriction card opens
+    the sweep: `gather`'s per-permanent gate at `predicate.rs`.
 
 45. **Engine cost is now a fixture, and it found two determinism violations the
     old rule could not see (added 2026-09-01).** `state/diagnostics.rs` counts
@@ -2484,6 +2359,8 @@ section never asked.
     attribution; whether a clone inherits the counts), neither with a customer.
 
     **Sized:** none until a profiler question needs one.
+    **Slotted:** Phase 10, whose profiler attributes the layer walks and whose
+    fork harness decides whether a clone inherits `Diagnostics`' counts.
 
 ### Found by the look-ahead frame (2026-09-02, RC-4)
 
@@ -2556,39 +2433,21 @@ measurement; what follows is what a later phase has to know.
     recorded, and re-checked against a new arm.
 
     **Sized:** none.
+    **Slotted:** none — a record of why `apply_rewrite` keeps `&mut GameState`,
+    re-checked when MA-4's entry choice writes on the object.
 
-54. **`execute_actions_new_batch` is §4.2's one exception, and the argument it
-    needs is not "these are different".** A nested `execute_actions` joins the
-    enclosing batch on CR 120.3f's grounds: lifelink's life gain is a *result
-    of* the damage. CR 614.13's moves are performed in phase 1, while the entry
-    is still being decided, so there is no entry event for them to be part of;
-    and two devour creatures entering together apply their replacements one
-    after the other, so joining would hand a CR 603.2c "whenever one or more
-    creatures die" one event where the rules have two. **Unreadable today** —
-    nothing consumes a `BatchId` until critical-path item 6 — which is why it
-    is asserted in a test rather than left to be discovered there
-    (`test_the_auxiliary_moves_are_their_own_batch`). A second caller needs the
-    same argument made again, from the CR.
+54. **~~`execute_actions_new_batch` is §4.2's one exception.~~ — ✅ CLOSED
+    2026-10-09 (PR #238).** — archived.
+    A record held by `replacement-architecture.md` §4.2 and `CLAUDE.md`'s
+    chokepoint section.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 54".
 
-    **Reachability (2026-09-03):** nothing owed — asserted by a test; unreadable
-    until critical-path item 6.
-
-    **Sized:** none.
-
-55. **`GameState::entry_selection` is batch-scoped state, and it is the third
-    thing item 40 would have caught.** CR 614.13a's "not the entering object nor
-    anything entering simultaneously" and 614.13b's "not the same object twice"
-    are both read across the CR 616.1 prompt and both change the outcome if
-    lost, so they are on `GameState` rather than on the pipeline's stack —
-    **item 40's table gains no third violator.** Saved and restored by
-    `execute_batch_inner` the way `open_batch`/`close_batch` handle the event
-    stamp, and the chosen set is recorded *before* the moves, so the nested
-    batch cannot lose it. Two mutations pin each half.
-
-    **Reachability (2026-09-03):** nothing owed — done; recorded as item 40's
-    precedent.
-
-    **Sized:** none.
+55. **~~`GameState::entry_selection` is batch-scoped state.~~ — ✅ CLOSED
+    2026-10-09 (PR #238).** — archived.
+    Done, and recorded as item 40's precedent, where item 40 carries it.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 55".
 
 56. **CR 614.13b is redundant until two effects' zones chain, and that is worth
     knowing before the next rule like it.** A sacrificed creature stops matching
@@ -2603,6 +2462,9 @@ measurement; what follows is what a later phase has to know.
     **Reachability (2026-09-03):** nothing owed — a lesson about boards.
 
     **Sized:** none.
+    **Slotted:** none — a record that a mutation pass can flag a weak board,
+    not only a weak assertion: CR 614.13b bites only when two effects' zones
+    chain.
 
 57. **`AmountExpr::SourcePower` has exactly one evaluator, and the other two
     refuse it.** — ✅ closed, archived.
@@ -2611,21 +2473,12 @@ measurement; what follows is what a later phase has to know.
     Full entry: `plans/archive/codebase-state-closed.md`, "Found by RC-5 —
     applying an entry can move the board (2026-09-03)" item 57.
 
-58. **Item 47's predicate has a fourth expiry condition, and RC-5 fired it.**
-    `ordering_cannot_change_outcome`'s theorem has two halves — every member still
-    applies, and the applications commute — and the second was free while
-    `EnterModsTemplate` held literals. It is not free now. The premise added is
-    **exact rather than conservative**: an amount is order-invariant if it is
-    `Fixed`, *or* its instance's source is not the entering object, since only
-    then can `frame_of` return `Some`. Master Biomancer therefore keeps the
-    suppressed prompt and the fuzz pool keeps its zero-prompt property. The rule
-    for whoever adds a fifth is item 47's: revisit the predicate in the same
-    commit.
-
-    **Reachability (2026-09-03):** nothing owed — recorded so the fifth
-    condition follows the rule.
-
-    **Sized:** none.
+58. **~~Item 47's predicate has a fourth expiry condition, and RC-5 fired it.~~
+    — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    A record held by RC-5's landed record and `replacement-architecture.md`'s
+    feeds table.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 58".
 
 59. **Sutured Ghoul's power and toughness are missing, not wrong.** Its `*/*`
     box is a CDA (CR 208.2) whose text reads "the exiled cards", which CR 614.14
@@ -2662,6 +2515,8 @@ measurement; what follows is what a later phase has to know.
     unchanged, and the loud 0/0 stays in the stress pool on purpose — taking
     the Ghoul out is a pool move for a wrong answer the §2.2 phase fixes
     whole.
+    **Slotted:** B7, the lattice's `backlog.md` §2.2 linked abilities (CR 607),
+    whose per-pair exile record Sutured Ghoul's `*/*` CDA reads.
 
 60. **~~Master Biomancer's Mutant clause is unimplemented, and it is not one
     field.~~ — ✅ CLOSED 2026-09-28 (RG).** — archived. The Mutant is a
@@ -2708,6 +2563,9 @@ measurement; what follows is what a later phase has to know.
     **Reachability (2026-09-03):** unreachable — re-checked: no multi-entry
     batch (item 46) and nothing grants devour; `grants_devour` in
     `phase_rc5_integration_test.rs` is the only board.
+    **Slotted:** with the first registered card that makes two devour creatures
+    enter at once (Dragon Broodmother under Doubling Season; Scryfall:
+    `o:devour -keyword:devour`).
 
 62. **`AuxiliaryMove` has no chooser field, so "you" is the effect's
     controller — and the two printed shapes disagree.** CR 614.13a says "**you**
@@ -2728,6 +2586,8 @@ measurement; what follows is what a later phase has to know.
 
     **Reachability (2026-09-03):** unreachable — no registered card takes the
     granted-devour road; the same fixture is the only board.
+    **Slotted:** with the first registered card that grants devour (only the
+    Jund plane does, CR 614.13b; Scryfall: `t:plane o:devour include:extras`).
 
 63. **`per_chosen` is a constant per object, and Thromok the Insatiable's is
     not.** "Devour X, where X is the number of creatures devoured this way" —
@@ -2742,6 +2602,8 @@ measurement; what follows is what a later phase has to know.
     registered.
 
     **Sized:** ~20 lines with the card, as the entry says.
+    **Slotted:** with the first registered card that devours by a count,
+    Thromok the Insatiable: `PerChosen::Count`, ~20 lines.
 
 64. **~~`PermanentFilter` filters objects in zones where nothing is a
     permanent, and the name now lies.~~ ✅ Renamed to `ObjectFilter` 2026-09-07
@@ -2750,45 +2612,12 @@ measurement; what follows is what a later phase has to know.
     Full entry: `plans/archive/codebase-state-closed.md`, "Found by RC-5 —
     applying an entry can move the board (2026-09-03)" item 64.
 
-65. **`order_invariant_entry_bucket` was named after its implementation, not its
-    question.** The question is "does CR 616.1's ordering prompt have more than
-    one outcome here" — §11 item 19's rule that the engine must not ask a
-    player a question whose answer cannot matter. "Bucket" is CR 616.1a–e's
-    forced-choice class, which a reader has to already know to parse the name.
-    `entry_ordering_is_observable` (negated at the call site) says the question;
-    the counter-argument is that "bucket" is the codebase's word for the thing
-    the function takes, and renaming the predicate without renaming
-    `forced_bucket` trades one mismatch for another. **Decide with the rename in
-    item 64's PR or leave it**; recorded because the confusion was reported
-    rather than guessed at.
-
-    **Reachability (2026-09-03):** reachable — not wrong; a name, decided with
-    item 64.
-
-    **Sized:** none beyond item 64's PR.
-
-    **Closed by RD-2 (2026-09-09), and the counter-argument was wrong on a
-    fact.** The predicate is `ordering_cannot_change_outcome`, renamed when the
-    second admissible shape arrived (item 47) because a name saying "entry" had
-    become wrong as well as implementation-shaped. The counter-argument above —
-    leave it, because "bucket" is the codebase's word for what the function
-    takes — assumed the word was the CR's. **It is not**: CR 616.1a–e is a
-    ladder of *steps*, each reading "if any … one of them must be chosen. If
-    not, proceed to [the next]", and "bucket" appears nowhere in the rule. So
-    the mismatch was real in both directions and `forced_bucket` was renamed
-    with it, to `must_choose_among` — 616.1a's own sentence — with the local
-    `bucket` becoming `choosable` and the ~25 doc uses of the word in the
-    616.1 sense becoming "step". The word survives only in the
-    `DecisionProvider::allocate` API, where it means a bucket to allocate a
-    total across and is nobody's confusion.
-
-    **The finding underneath, worth more than the rename:** this is item 89's
-    shape again. The sentence "keeps its name — 'bucket' is CR 616.1a–e's own
-    word there" was written on 2026-09-09 in the RD-2 docs commit, was false
-    when written, and no test could fail on it. It was caught in review by a
-    reader asking what a bucket *was* — which is the only instrument this
-    project has for that class of claim, and the argument for
-    "Before card breadth" item 11's glossary check.
+65. **~~`order_invariant_entry_bucket` was named after its implementation.~~ —
+    ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    Closed by RD-2 (2026-09-09): the names are `ordering_cannot_change_outcome`
+    and `must_choose_among`.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 65".
 
 ### Found by CM-1 — cost modification (2026-09-07)
 
@@ -2863,6 +2692,9 @@ games; with Humility forced beside her, both are on the board in 52%.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
+    **Slotted:** TR-7, whose Krark-Clan Ironworks loop is the Mind Stone
+    puzzle's board: CR 732.1's reverse-all offer, `backlog.md` §2.22 row 9,
+    with item 163.
 
 73. **~~A conditional replacement or restriction static is inert.~~ — ✅
     closed 2026-09-12 (RE-6).** `register_static_effects` records a source
@@ -2969,6 +2801,9 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     already OR'd into source 2's gate and are what catches it, so the cost of
     forgetting is bounded to whatever builds the route. LJ built half the
     route and neither flag needed touching, which is that sentence holding.
+    **Slotted:** PM-0 (B11), which took `backlog.md` §2.3 and designs CR
+    113.6e's permissions; the gate's two summary flags catch a stack-reaching
+    cost ability.
 
 76. **`Effect::as_…` says what an ability *is*, never where it applies from,
     and all three cost gates are about where.** — ✅ closed, archived.
@@ -3064,6 +2899,9 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     medium risk — the risk is drift between the kept order and the truth,
     which is what the debug audit is for. Nothing depends on it; take it when
     ~5% is worth a PR.
+    **Slotted:** Phase 10's profile-driven performance: a maintained
+    battlefield order in place of the per-call sort, ~5% of a game, with a
+    debug audit.
 
 ### Found by CM-3 — lock-in's payment side (2026-09-07)
 
@@ -3133,6 +2971,9 @@ one, so nothing was wrong in practice and nothing moved.
     without being equal ("an artifact" and "a creature" over one artifact
     creature), so summing counts per filter is wrong. ~80 lines and a
     matching `plan_payment` change, with the first card that prints two.
+    **Slotted:** CP-2, the cost actions, whose per-action resource check (CR
+    118.3) is where a set-cover pre-check over two object-moving costs is
+    designed.
 
 79. **CR 601.2h's payment order is the player's and the engine takes it.**
     "First, they pay all costs that don't involve random elements or moving
@@ -3152,6 +2993,9 @@ one, so nothing was wrong in practice and nothing moved.
     Offering an order that bricks the payment is what would make 732.1's
     cancellation load-bearing, and building the cancellation is the
     alternative to that constraint rather than a companion to it.
+    **Slotted:** with the first registered card that makes CR 601.2h's order
+    observable, Omnath, Locus of Mana beside Momentous Fall
+    (`ATOM-601.2h-003`).
 
 80. **CR 601.2h's second payment group is not modelled, and nothing was
     scheduled to model it.** "First, they pay all costs that don't involve
@@ -3174,6 +3018,9 @@ one, so nothing was wrong in practice and nothing moved.
     it lands:** a group-2 cost is by definition one whose payment cannot be
     predicted, so it is the first cost that can fail *after* a group-1
     sacrifice — item 79's constraint and §3.12's argument both meet it there.
+    **Slotted:** with the first registered card whose cost mills (Deranged
+    Assistant), the first arm in CR 601.2h's second payment group
+    (`ATOM-701.17b-002`).
 
 81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
     shape says otherwise.** Every named variant is a keyword whose keyword
@@ -3196,6 +3043,9 @@ one, so nothing was wrong in practice and nothing moved.
     **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
+    **Slotted:** B7's `backlog.md` §2.7 modal spells, then the first spree card
+    (Scryfall: `keyword:spree`), whose per-mode costs are a `Mandatory`
+    additional cost.
 
 82. **CR 704.5p's first sentence is not implemented: an Equipment that becomes
     a creature stays attached.** — ✅ closed, archived.
@@ -3309,6 +3159,9 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     which is `RandomDecisionProvider`'s policy and its own measurement — ~15
     lines, and it would move every counter again, so it wants its own phase and
     its own A/B rather than a ride on this one.
+    **Slotted:** none — a record of CM-4's one counter movement: a source
+    tapped for mana before its own `{T}` rewinds; an agent-side fix wants its
+    own A/B.
 
 84. **Five free helpers in `ui/decision.rs` had no callers; three are deleted
     and two are recorded.** `auto_allocate_generic` (which also iterated a
@@ -3343,6 +3196,9 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     independently of cost: pre-tapping commits mana before CR 601.2f locks the
     total, so an agent that does it can never activate a mana ability *inside*
     the window — no Ironworks sacrifice mid-cast, no overpay play.
+    **Slotted:** MA-6, a person's seat, which composes the seat's decorators:
+    `backlog.md` §2.22 row 5's combat defaults, on these helpers, beside row
+    7's tap solver.
 
 85. **Nothing bounds CR 601.2g's window against a `DecisionProvider` that
     never stops.** CM-4 removed the engine's stop (item 70) because the CR has
@@ -3365,6 +3221,9 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     window — because only the session layer can tell a legitimate 200-activation
     combo from a loop, and `run_mana_ability_window` cannot. Whoever adds the
     network seat owns it.
+    **Slotted:** Phase 10, whose AI API or network seat first puts an untrusted
+    party behind `DecisionProvider`: a per-seat action budget at the session
+    layer.
 
 ### Found by RD-1 — the damage event's two subjects and its results (2026-09-08)
 
@@ -3423,6 +3282,9 @@ consequences, and only the first was designed:
     which names the three keywords and their CR 120.3 results. The player-side
     counter proposal is the part that is not mechanical; §2.16's player-counter
     map is the same work from the other side.
+    **Slotted:** with the first registered card with infect, wither or toxic
+    (Scryfall: `keyword:infect or keyword:wither or keyword:toxic`), per
+    `backlog.md` §2.6.
 
 87. **CR 120.3h is absent — a battle's defense counters — and so is CR 310.**
     Damage dealt to a battle removes that many defense counters, which is the
@@ -3437,6 +3299,8 @@ consequences, and only the first was designed:
     was filed 2026-09-08 because no doc owned CR 310 at all. The 120.3h result
     itself is one flag on `DamageResults` and one block, the same shape as
     120.3c; everything else about battles is the size.
+    **Slotted:** with the first registered card that is a battle (Scryfall:
+    `t:battle`), `backlog.md` §2.23's PR: CR 310 and the 120.3h result arm.
 
 ### Found by the RD-1 review (2026-09-08)
 
@@ -3451,27 +3315,12 @@ worth more than the comments it corrects.
     verdict had said "it was unreachable …", which the board read as unstated
     until the post-RE audit. → `plans/archive/codebase-state-closed.md`.
 
-89. **A comment can state a measured fact and go stale without any code
-    changing, and nothing in the process re-reads it.** The RD-1 review found
-    three comments in two card files asserting that `fuzz_games::random_deck`
-    "filters nonlands by color", with derived probabilities — "roughly one deck
-    in sixteen", "about a third of decks". That filter was removed on
-    2026-09-03 when the `Everywhere` land landed, and `registry.rs`'s own note
-    records the removal. Nothing connected the two: the claims were true when
-    written, no test could fail on them, and the card files they justify were
-    selected on their basis.
-
-    **Reachability (2026-09-08):** reachable and *actively misleading* — a
-    later phase choosing cards on the stale rule would reject a gold card for a
-    reason that no longer exists. Corrected in all three places.
-
-    **Sized:** the fix is not a rule about comments, and this is the finding.
-    `CLAUDE.md`'s comment rule already says the right thing ("comment the *why*,
-    and only where it is not recoverable from the code plus one rule number"),
-    and no rule about comment *length* would have caught a claim that was true
-    when written. What is missing is a re-read, so it becomes an audit with an
-    instrument, on the Deferred Migrations triage's own cadence —
-    `engineering-practices.md` §2 now carries it.
+89. **~~A comment can state a measured fact and go stale without any code
+    changing.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    A record held by `engineering-practices.md` §2, which carries the finding
+    and the audit it set.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 89".
 
 ### Found by RD-2 — CR 615.7 prevention shields, and the loop's unit (2026-09-09)
 
@@ -3533,6 +3382,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** ~80–120 — a field on the instance and the rider, one
     `EffectRecipient` arm, `resolve_rider` building a context that carries
     both, and the no-op check.
+    **Slotted:** with the first registered card that is Divine Deflection: the
+    row's targets threaded onto `ReplacementInstance` and `Rider`, and the
+    no-op check.
 
 91. ~~**`AmountRewrite::PreventUpTo` has a performer and no printed
     producer.**~~ — ✅ closed, archived.
@@ -3557,25 +3409,16 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 
     **Sized:** unknown until a card asks; the error is the right answer until
     then.
+    **Slotted:** A4l, CR 601.2d's effect divided among its targets: the six
+    printed "prevent the next N … divided as you choose" cards; until then the
+    refusal is the answer.
 
-93. **A later group's doubling moves the member, not the allocation.**
-    CR 615.7's allocation is taken at the members' then-current amounts, the
-    first time the instance is chosen in any group; a later group whose
-    CR 616.1 choice doubles a member ahead of the count applies the stored
-    share to the doubled amount (`min(share, amount)`). §9's RD decision 3
-    records this as CR 616.1's own per-subject ordering showing through —
-    Divine Deflection's "you don't decide until the point at which the damage
-    would be dealt" is satisfied, since the decision is made at that point for
-    the first group and the later group's doubling is its own choice — and
-    RD-2's review is where it is to be argued rather than smoothed over.
-
-    **Reachability (2026-09-09):** unreachable from the pool — it needs a
-    multi-subject count (item 90's card) beside a doubler on the later
-    subject.
-
-    **Sized:** none unless the review reverses the decision; then a re-ask
-    when a bucket's amount changes after allocation, ~40 lines in
-    `next_damage_shares`.
+93. **~~A later group's doubling moves the member, not the allocation.~~ — ✅
+    CLOSED 2026-10-09 (PR #238).** — archived.
+    A decision RD-2 shipped and recorded: `next_damage_shares` keeps the first
+    allocation (`replacement-architecture-landed.md`).
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 93".
 
 94. **Kitsune Palliator's "each creature and each player" has no recipient.**
     `EffectRecipient::FilteredPermanents` makes Samite Censer-Bearer's
@@ -3592,6 +3435,9 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     `EffectRecipient::EachOf(PlayerGroup)` exists now (item 122's), and
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
+    **Slotted:** with the first registered card that is Kitsune Palliator:
+    per-player rows in `CreateReplacement` over
+    `EffectRecipient::EachOf(PlayerGroup)`, ~15 lines.
 
 95. **~~The row a `Primitive::Regenerate` makes still names the ephemeral
     ability object; a `CreateReplacement` row names the permanent.~~ — ✅
@@ -3643,6 +3489,9 @@ claim in it false, which is item 97.
 
     **Sized:** none. The out-of-set half of the boundary atom lands with
     item 6.
+    **Slotted:** A6e, item 6's close audit: `BOUNDARY-DEF-615.1a-001`'s
+    out-of-set member is a `TriggerEvent::DamageDealt` ability now, so its
+    partial is promoted there.
 
 97. **A stale claim written the same day it was found, and only a reader caught
     it.** — ✅ closed, archived.
@@ -3700,29 +3549,12 @@ this PR added the fields it names.
     enumeration leg once the command zone is populated, ~10 lines, and belongs
     to whichever Commander PR fills it.
 
-100. **`Primitive::DealDamage` proposes one batch, and that is now a property
-     other primitives should be checked against.** It looped `execute_action`
-     until RD-3, which opens a batch per target — invisible while every damage
-     effect in the crate had one target, and wrong the moment Pyroclasm
-     arrived: CR 704.3's simultaneity, CR 615.7's "two or more applicable
-     sources at the same time" and CR 603.2c's "one or more" all read the
-     batch. Fixed with the card that made it reachable.
-
-     **The general form is `CLAUDE.md`'s own rule** — "a simultaneous rule needs
-     `execute_actions`, not a loop" — and the audit it implies has not been
-     run: `Primitive::DrawCards` loops on purpose (CR 121.2's "one at a time"),
-     `Primitive::Mill` batches on purpose (701.17a), and the rest of the
-     primitive table has never been asked. Nothing else in the registered pool
-     acts on more than one object at a time, so there is no board to fail on
-     today.
-
-     **Reachability (2026-09-09):** unreachable — `DealDamage` is fixed, and no
-     other primitive has a multi-object recipient, so there is no board on
-     which the unaudited arms differ.
-
-     **Sized:** one pass over `resolve_primitive`'s arms with the recipient in
-     hand, ~30 primitives, an hour. Worth doing in the PR that gives a second
-     primitive a `FilteredPermanents` recipient.
+100. **~~`Primitive::DealDamage` proposes one batch, and that is now a
+     property.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+     Done: every multi-object primitive proposes one batch with its CR cited,
+     `Primitive::Untap` (RE-10) among them.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 100".
 
 101. **`EffectRecipient::FilteredPermanents` now has two readers with the same
     semantics, and its doc said it had none.** — ✅ closed, archived.
@@ -3730,22 +3562,11 @@ this PR added the fields it names.
     Full entry: `plans/archive/codebase-state-closed.md`, "Found by RD-3 —
     sources (2026-09-09)" item 101.
 
-102. **Item 47's condition (d) re-derived at RD-3, and the answer is that the
-     suppression stands.** The multiplier bucket's premise says
-     `ordering_cannot_change_outcome` goes false the day "an
-     `EventPattern::DealDamage` field reads the *amount*". RD-3 added the first
-     two fields that arm has ever had. Neither reads the amount: `source` is a
-     predicate over the object dealing the damage (CR 609.7) and `combat` is
-     CR 510.2's flag on the proposal. So no member of a multiplier bucket can
-     fall out of applicability as another member changes the number, and the
-     debug-build re-gather (`check_order_invariance`) keeps checking it per
-     group member on every board a test or a debug fuzz run reaches. The rule
-     item 47 states for whoever adds such a field — revisit the predicate in
-     the same commit — was followed here; this is the record of it.
-
-     **Reachability (2026-09-09):** nothing owed.
-
-     **Sized:** none.
+102. **~~Item 47's condition (d) re-derived at RD-3.~~ — ✅ CLOSED 2026-10-09
+     (PR #238).** — archived.
+     A record held by RD-3's landed record and closed item 47.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 102".
 
 ### Found by the RD-3 review (2026-09-09)
 
@@ -3813,6 +3634,9 @@ audit is at the end.
      the `Err` arm keeps release behaviour and makes a debug run and `cargo
      test` loud, ~10 lines. The LKI half is separate and larger, and belongs to
      whichever phase gives a damage source a way to die first.
+     **Slotted:** TR-3c, whose item 225 gives a damage source that moved a
+     `DepartedFrame` (the LKI half); the `debug_assert!` on the swallowed `Err`
+     arms rides with it.
 
 104. **The expensive shape is a cheap *repeatable activation*, and the
      registry rows it makes are a fifth of the cost. The first version of this
@@ -3883,44 +3707,16 @@ audit is at the end.
      report is the wanted diagnostic (~20 lines) and is what would have
      answered §9's Circle prediction without a `--dump-events` grep. The §8c
      index is its own piece of work and has no consumer yet.
+     **Slotted:** Phase 10's profile-driven performance: the per-ability
+     activation counter in the fuzz report, and `replacement-architecture.md`
+     §8c's watcher index.
 
-105. **The pool has never contained an ability that can be activated more than
-     once in a turn, and that is an accident to correct rather than a policy to
-     keep.** Audited at the RD-3 review, because item 104's first draft said
-     "the pool boundary is what protects the cost instrument", which reads as a
-     rule and would be a bad one.
-
-     **The audit.** Seven registered cards have a non-mana activated ability;
-     two are pooled (Chainbreaker, Merfolk Thaumaturgist) and both are
-     `{T}`-gated, so at most once per turn each. Dark Sphere sacrifices itself.
-     Circle of Protection: Red is the **only** card in the crate whose ability
-     can be activated repeatedly within a turn, and it is not pooled.
-
-     **Why it is not pooled, accurately.** `engineering-practices.md` §3's rule
-     is one card per new engine path, chosen deliberately; RD-3's new path is a
-     source-side filter evaluated per damage event, and Guardian Seraph is the
-     cheapest card that opens it. The Circle was not excluded for cost — §9's
-     sentence about its `{1}` competing for mana was a *reachability* guess
-     (wrong, see item 104), never a pooling criterion.
-
-     **Reading it as a policy would cascade, and the cascade is the wrong
-     way.** Repeatable activated abilities are ordinary Magic — mana sinks,
-     equip, pump, and most of what a commander does — and v1's target is
-     4-player Commander, where they are most of the late game. A cost
-     instrument that structurally excluded them would drift from the thing it
-     exists to predict, which is the opposite of §3's purpose. The measurement
-     is a *prior*, not a bar: the shape costs ~+29% CPU when forced into every
-     deck, forced is the worst case by construction, and pooled normally it is
-     one card among 76.
-
-     **Reachability (2026-09-09):** reachable — not wrong; the pool is
-     representative today because nothing has needed this shape, and it stops
-     being representative the moment Phase 8 breadth arrives.
-
-     **Sized:** none now. The action is a rule for later, and it is the rule
-     §3 already has: the first phase whose engine path *is* an activated
-     ability pools one deliberately and re-records the table, with item 104's
-     numbers as the expected direction rather than as a reason to decline.
+105. **~~The pool has never contained an ability that can be activated more
+     than once.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+     A rule held by `engineering-practices.md` §3: the first phase whose engine
+     path is an activated ability pools one.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 105".
 
 ### Found by RD-4 — redirection and unpreventable damage (2026-09-09)
 
@@ -3943,23 +3739,16 @@ audit is at the end.
      resolution-side fill, which is item 90's — so it is item 90 plus ~20
      lines, and it lands with the first card that needs it. Not stubbed: the
      arm does not exist, so no card can silently do nothing.
+     **Slotted:** with the first registered card that redirects damage to a
+     target it chose (Glarecaster; Scryfall: `o:"to any target instead"`), on
+     item 90's targets.
 
-107. **CR 614.9's re-check is an existence-and-type check, and the temptation
-     to make it `validate_selection` is a real one with a printed answer.** A
-     redirect's destination has to be on the battlefield and still a creature,
-     planeswalker or battle, or a player still in the game — and that is
-     *all*. It is not CR 608.2b's legality re-check and never becomes one,
-     because **a redirect is not targeting** (CR 115.1): a hexproof or
-     shrouded creature is a perfectly good destination for redirected damage.
-     Divine Deflection's ruling draws the identical line from the rider's side
-     (item 90), and a `validate_selection` at either site would get shroud
-     wrong in the same way.
-
-     Written as `pipeline::redirection_is_legal`, taking *both* ends because
-     the rule names both — "redirected to **or from** a player who has left the
-     game". The "from" leg is unreachable in a two-player game and is built
-     anyway, because it is one `||` of a sentence the engine either implements
-     or does not.
+107. **~~CR 614.9's re-check is an existence-and-type check.~~ — ✅ CLOSED
+     2026-10-09 (PR #238).** — archived.
+     A decision built and recorded: `redirection_is_legal` checks both ends
+     (RD-4).
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 107".
 
 108. **~~A player who has left the game keeps their permanents, and CR 800.4a
      says they should not~~ — ✅ CLOSED 2026-09-13 (RE-7).** CR 800.4a's four
@@ -4005,6 +3794,9 @@ audit is at the end.
      card, not with RD-4, whose scope is redirection. Not stubbed: the filter
      exists and answers `false`, which is the silent-card failure, so this line
      is the record that it does.
+     **Slotted:** with the first registered card whose effect reads "each other
+     creature you control" (Scryfall: `o:"each other creature you control"`),
+     which passes the source.
 
 ### Found by RE's sizing (2026-09-11)
 
@@ -4032,62 +3824,18 @@ named RE PR.
      *Original entry:* `zones.rs:135` set it, `sba.rs:130` read it, no site
      cleared it; unobservable only because the one reader ended the game.
 
-113. **A player who has lost stays in the priority rotation.** ~~The turn
-     half closed 2026-09-11 (RE-1)~~: `GameState::next_turn_taker` reads
-     `player_lost` and passes over a departed player, which is CR 800.4k ("if
-     a player who has left the game would begin a turn, that turn doesn't
-     begin") at the one site that can say it — ahead of the pipeline, because
-     a turn that does not begin is not an event a replacement effect could
-     have replaced. A queued extra turn for a lost player is popped and
-     discarded there too. **What is left is CR 800.4j**: the priority loop
-     still rotates `(priority_player + 1) % n` with no `player_lost` read.
-     The rotation half of "Before Commander" item 4, separated because RE-6
-     builds the `PlayerLoses` performer and a performer that leaves the player
-     in the order is the two-player shape wearing an N-player event; 800.4a–e
-     (their objects) is RE-7's, the PR after — item 108.
+113. **~~A player who has lost stays in the priority rotation.~~ — ✅ CLOSED
+     2026-10-09 (PR #238).** — archived.
+     Closed by RE-1 (the turn half) and RE-6 (the priority half, CR 800.4j).
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 113".
 
-     **Reachability (2026-09-11):** unreachable — `fuzz_games` plays two
-     (`fuzz_games.rs:827`); reachable from `test_support::setup_game(4)`, and
-     the turn half is now covered there
-     (`phase_re1_integration_test::a_lost_players_turn_does_not_begin`).
-
-     **Sized:** ~20 lines at the one remaining site, RE-6, beside the
-     `--players 4` fuzz mode item 4 sized at ~50.
-
-     **✅ The priority half closed 2026-09-12 (RE-6).** `run_priority_round`
-     starts from the active player if they are still in the game and from
-     `next_player_in_game` after them otherwise, rotates through that
-     function, and ends a round when everyone *still in the game* has passed
-     — plus the three turn-based actions a departed active player has nobody
-     to perform (attackers, the draw, the cleanup discard), so the turn
-     "continues to its completion without an active player". CR 104.1 landed
-     at the same loop: nobody receives priority in a game that has ended,
-     where before a player who had just lost kept acting until the phase
-     ended. `--players 4` exists and is measured (item 108). What is left of
-     item 4's multiplayer list is CR 800.4a–e (RE-7) and CR 802.
-
-114. **`Restriction::Event` has no player set.** `{ pattern, affected, by }` —
-     the object set only — so "players can't gain life" (Skullcrack, Leyline
-     of Punishment; 25 cards), "you can't lose the game" (Platinum Angel; 11)
-     and "your opponents can't win" (9) cannot be written as rows.
-     `ReplacementDef.affected_players` (RD-1) and
-     `Restriction::ApplyReplacement.to_players` (RD-4) are the same field on
-     the other two types.
-
-     **Reachability (2026-09-11):** unreachable — no registered card prints a
-     player-scoped "can't" over a proposed event; RD-4's fixture used
-     `ApplyReplacement`.
-
-     **Sized:** one field plus a `set_affects`-style union in
-     `is_prohibited`'s `Event` arm, ~40 lines; RE-3, read by RE-6.
-
-     ~~**Closed by RE-3 (2026-09-12)**~~ — `affected_players: PlayerSet`, unioned
-     by the same `set_affects` call `ReplacementDef` and
-     `Restriction::ApplyReplacement` use. Skullcrack is registered and lands the
-     row in a game; Leyline of Punishment's static form is the extended RD-4
-     fixture. The sizing's "~40 lines" was right for the engine and missed the
-     constructions: 12 literal ones plus one exhaustive destructuring, because
-     an enum variant cannot take a `..Default::default()`.
+114. **~~`Restriction::Event` has no player set.~~ — ✅ CLOSED 2026-10-09 (PR
+     #238).** — archived.
+     Closed by RE-3 (2026-09-12): `Restriction::Event` carries
+     `affected_players: PlayerSet`.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 114".
 
 115. **`turn_rotation` is a second cursor beside `active_player`, and
      nothing enforces that they agree.** RE-1 added it because CR 500.7
@@ -4109,39 +3857,16 @@ named RE PR.
      call sites in tests; a `debug_assert` in `advance_turn` that the two
      agree is wrong, because an extra turn is exactly when they do not. Do it
      when a second production writer wants to exist, not before.
+     **Slotted:** none — a record of the two-cursor hazard: `begin_turn` and
+     `next_turn_taker` are the only production writers, and a second writer
+     makes both private.
 
-116. **Extra phases and steps — CR 500.8, 500.9, 500.10 — and this is a
-     pointer.** Filed here at RE-1's close and re-filed twice at its review.
-     First to `backlog.md` §2.17, because `state-of-play.md` draws the line
-     this got wrong: a Deferred Migration is *one code change* owed by
-     scaffolding already in the tree, and a backlog entry is *one mechanic* the
-     engine will need. Then **CR 500.8's half graduated to
-     `replacement-architecture.md` §9, RE-10**, which is where its design,
-     sizing and card now live. CR 500.9/500.10's half stays in §2.17 and is
-     item 6's, because Obeka is a triggered ability.
-
-     **Reachability (2026-09-15):** nothing owed — a record pointing at the
-     two docs that own the halves: the phase half landed with RE-10 (below),
-     and the step half is `backlog.md` §2.17's, waiting on item 6. (The
-     2026-09-11 verdict said "nothing to build", which the board does not
-     read as a class; re-worded at the post-RE audit.)
-
-     **Sized:** RE-10 is ~1,100–1,300; the step half is one
-     `Option<Vec<StepType>>` field and waits on item 6.
-     `replacement-architecture.md` §11 item 49 is the finding that turned a
-     deferral into a decision.
-
-     **✅ The phase half landed 2026-09-14 (RE-10), at +1,066 / −171.**
-     `GameState.turn_plan` is CR 500.1's sequence as data; `next_phase`'s chain
-     is deleted. **The position is now two facts** — `phase`, which everything
-     reads, and `turn_plan.cursor`, which the drainer reads — and
-     `GameState::set_position` is the only seam that writes both. That is the
-     hazard item 115 above describes, one level down and *with* the enforcement
-     item 115 argues against for its own pair: a `debug_assert` in
-     `advance_turn` is right here precisely because, unlike `active_player` and
-     `turn_rotation`, these two never legitimately disagree at a drain
-     boundary. It found all 40 affected fixtures in one run. **The step half
-     stays in §2.17**, and `PlannedPhase` is the struct its one field goes on.
+116. **~~Extra phases and steps — CR 500.8, 500.9, 500.10.~~ — ✅ CLOSED
+     2026-10-09 (PR #238).** — archived.
+     A pointer whose two targets hold the content: `backlog.md` §2.17 and
+     RE-10's phase half.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 116".
 
 117. **An untap-step skip would not reset land drops.** `process_untap_step`
      calls `reset_lands_played` where CR 502 puts the untap step's turn-based
@@ -4161,6 +3886,9 @@ named RE PR.
      justifies it, ~10 lines; the care is that CR 505.5b counts land plays per
      *turn* and no rule places the reset, so the move needs an argument rather
      than a hunch.
+     **Slotted:** with the first registered card that skips an untap step
+     (Scryfall: `o:skip o:"untap step"`): the land-drop reset moves to
+     `on_turn_begin`, with its argument.
 
 118. **CR 514.3a's repeated cleanup step announces nothing.** — ✅ closed,
      archived.
@@ -4209,41 +3937,15 @@ named RE PR.
      per eligible card per player. **Unblocked as of LK.** The care is the
      ordering ruling above and CR 103.6's interaction with mulligans, which are
      themselves stubbed.
+     **Slotted:** with the first registered card that begins the game on the
+     battlefield (Scryfall: `o:"begin the game with"`, Gemstone Caverns), which
+     gives Leyline of the Void its first clause and CR 103.6 its pregame step.
 
-120. **`AbilityDef` has no named constructors, and five copies of two of them
-     live in three card files.** `static_replacement` and `one_shot` are each
-     written twice (`phase_rd_cards`, `phase_re_cards`) and `static_ability`
-     once (`phase_li_cards`) — one shape, three spellings: build an
-     `AbilityDef` with a fresh id, `is_characteristic_defining: false` and
-     `ActivationRestriction::None`. Every card file a later phase adds writes
-     it again.
-
-     **Not `test_support`**, which is the obvious home and the wrong one: it is
-     behind the `test-support` feature and release builds turn it off, while
-     `src/cards/` ships. The **big test-file migration will not catch these
-     either** — they are card files, not test files.
-
-     **Reachability (2026-09-11):** reachable, not wrong — five correct copies
-     of one constructor. It is a divergence risk rather than a defect: the day
-     two of them disagree about `is_characteristic_defining`, one card file's
-     abilities quietly stop being CDAs.
-
-     **Sized:** named constructors beside the type in
-     `objects/card_data.rs`, the way `ReplacementDef::new` sits beside
-     `ReplacementDef` — three functions and ~30 call sites across three card
-     files, ~120 lines net negative. **Its own PR**, so a mechanical sweep does
-     not ride inside a rules change.
-
-     **Asked and answered 2026-09-14** (`refactor/object-set-rename`, which is
-     item 124's rename): this does **not** ride along, though both are
-     mechanical and neither is a rules change. A rename can be reviewed by
-     checking one claim — every hunk is the same substitution — and proved by
-     byte-identical fuzz counters. Named constructors are new API, and the two
-     questions they raise are what they are called and which `AbilityDef` field
-     each bakes a default into, which is the very thing this item says turns a
-     style choice into a rules bug. That diff has to be *read*, and putting it
-     inside one that only has to be *scanned* costs the rename its review
-     method while the rename's own proof says nothing about the constructors.
+120. **~~`AbilityDef` has no named constructors.~~ — ✅ CLOSED 2026-10-09 (PR
+     #238).** — archived.
+     Merged into "Before card breadth" item 10, which C0 builds.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 120".
 
 121. **~~Eon Hub's two trigger-shaped rulings have no test and cannot have one
      until item 6.~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
@@ -4796,6 +4498,9 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Sized:** read the persistence set off the continuous-effects
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
    T12c.
+   **Slotted:** with the first registered card that keeps unspent mana as steps
+   and phases end (Upwelling, Omnath; Scryfall: `o:"lose unspent"`), beside
+   B9's T12c.
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -4828,6 +4533,10 @@ The layer system's designated single-point change site is `oracle/characteristic
    ~150–250 lines in `apply_effects`, plus CR 613.7a's timestamp for a grantee
    set that moves with the board; lands with the first such card — an
    Aura-granted static after LH, or an Archetype-class lord.
+   **Slotted:** with the first registered card that grants a static ability
+   through a static ability (an Aura granting an anthem, an Archetype-class
+   lord, Rune of Flight's Equipment clause); item 7g, merged here, is the same
+   per-pass derivation.
 
 7a. **Frame cache is live.** — ✅ closed, archived.
     **Reachability (2026-09-03):** closed — and the cross-call half is
@@ -4854,6 +4563,9 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `ContinuousEffectDraft` consumed by `add`, the
     struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
     with main item 64's rename.
+    **Slotted:** A6e, the hygiene pass of item 6's close audit
+    (`engineering-practices.md` §9), which takes the `ContinuousEffectDraft`
+    refactor before Phase 8 grows the ~26 sites.
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
@@ -4873,13 +4585,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 7e.
 
-7g. **A static ability that grants a static ability registers no continuous effect (found 2026-09-06, LI-3).** `register_static_effects` lowers `Primitive::GrantAbility` to a layer-6 row and stops. The rows the *granted* ability itself generates are `resolve::register_granted_static_effects`' job, and that function has exactly one caller — `Primitive::GrantAbility` resolving. So an Aura reading "enchanted permanent has 'Equipped creature has flying'" puts the ability on the host's frame and nothing else happens: the equipped creature does not fly. Verified on the board before LI-3's fixture was written, which is why the fixture is Rune of Flight's *third* line rather than its fourth.
-
-    **Not a missing call.** A resolution knows its grantees — `collect_battlefield_targets` names them once and they never change. A static ability's grantees are its `ObjectSet`, decided per pass: `Host` moves when the Aura is reattached, `Filter` gains and loses members every time the board does. So the derived rows would have to be re-derived per pass rather than registered once, which is a new kind of row (one whose source is another row) and a new question for CR 613.7a clause 2's timestamp. **Related to but not the same as** item 9's zone-reaching `ObjectSet`.
-
-    **Reachability:** unreachable — no registered card is a static ability granting a static ability, and it cannot become one quietly for the *lowering*, which is loud; it becomes one quietly for the *behaviour*, which is exactly this item. **Cards it blocks:** Rune of Flight's Equipment clause, and the "enchanted/equipped permanent has '[static]'" shape generally.
-
-    **Sized:** a per-pass derivation step in `board::applications_in_layer` that reads layer 6's granted abilities off the live frames and produces their rows in the same layer, plus the CR 613.7a clause-2 timestamp for a source that is itself a row, ~150–250 lines. Its own PR, and it wants a test board where the grant and the derived effect are ordered against a third layer-6 effect.
+7g. **~~A static ability that grants a static ability registers no continuous
+    effect.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    Merged into "Before Layers" item 7, whose open half is the same change.
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "'Before Layers' item 7g".
 
 7h. **Two epoch bumps the 7a memo is owed (recorded 2026-09-03).** — ✅ closed,
     archived.
@@ -4953,6 +4663,8 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** the 1a/1b split is CV-6's, ~30 lines
     (`END_OF_LAYER_1` moves and its `debug_assert` fires until it does);
     quadrant ② with its first card.
+    **Slotted:** CV-6, which splits `Layer1Copy` into 1a and 1b (CR 613.2a–b);
+    quadrant ② keywords and "hexproof from" arrive with their first cards.
 
 11. **Filter `PlayerRef` resolution — ✅ done (2026-08-23), ahead of Layer 2.**
     — archived.
@@ -5006,6 +4718,9 @@ The layer system's designated single-point change site is `oracle/characteristic
     **Sized:** `Primitive::GainControl` takes a recipient and the
     resolution arm asks the `DecisionProvider` when more than one opponent
     exists, ~80–120 lines with the first of the nine cards.
+    **Slotted:** with the first registered card that gives control to an
+    untargeted opponent (Akroan Horse; Scryfall: `o:"opponent gains control"
+    -o:"target opponent"`).
 
 14. **The targeting-side `ObjectFilter` could not resolve a `PlayerRef` — ✅
     done (2026-08-23).** — archived.
@@ -5040,6 +4755,9 @@ The layer system's designated single-point change site is `oracle/characteristic
     registrations, `would_be_rows`, `register_copied_static_effects`), or
     the lowering splits a multi-recipient `Sequence` into one group per
     recipient; with the first card that needs it.
+    **Slotted:** with the first registered card that prints one static ability
+    over two recipient sets (yours get +1/+1, the rest −1/−1), in Phase 8's
+    breadth.
 
 ### ~~Test-support duplication — cross-cutting~~ ✅ done (2026-08-22)
 
@@ -5109,27 +4827,15 @@ first.
    **Sized:** a battlefield-only type gate in
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
+   **Slotted:** with the first registered card that is a Vehicle (Scryfall:
+   `t:vehicle`), which gates a noncreature permanent's power and toughness (CR
+   208.3).
 
-2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — graduated 2026-10-05 to `permission-architecture.md`** (item 212's census: 39 Commander-legal cards let any player activate, 5 only an opponent; its §11 gives the v1 shape: a field on `AbilityDef`, read per ability by `can_begin_to_activate`). `engine/put_on_stack.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
-
-   `AbilityDef` has nowhere to record the permission, so this is a missing field rather than a missing check: an `activatable_by` on `AbilityDef` (default: controller only), read by `put_on_stack.rs::activate_ability` and by `oracle::mana_helpers::activatable_abilities`, which currently enumerates only the asking player's permanents. Both halves are needed — a permission the action list never offers is invisible.
-
-   Surfaced during the Layer 2 phase, whose migration rewrote the check but not its scope. The error message now names CR 602.1a and says the exception is unmodeled, rather than asserting the rule is universal.
-
-   **Reachability (2026-09-03):** unreachable — none of the 41 cards is
-   registered.
-
-   **Sized:** `activatable_by` on `AbilityDef` plus the two read
-   sites, ~60–80 lines, with the first such card.
-
-   **Since SU-7 (2026-10-05)** the controller test is one check,
-   `oracle::mana_helpers::can_activate_its_abilities`, which the enumeration
-   asks once a source. CR 602.2's exception is printed on the ability, so the
-   field moves the test into the per-ability check, `can_begin_to_activate`,
-   and the enumeration walks every permanent whose ability the player may
-   activate, not only theirs. Five cards say "only your opponents may
-   activate" (Detention Vortex), beside the 40. Item 212's census counts the
-   family.
+2. **~~"Any player may activate this ability" is unmodeled (CR 602.1a).~~ — ✅
+   CLOSED 2026-10-09 (PR #238).** — archived.
+   Graduated 2026-10-05 to `permission-architecture.md` §3, which B11 builds.
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 2".
 
 3. **Named counters have no representation — `CounterType` is a closed enum.** CR 122.1 lets a counter be named anything, and "counters with the same name or description are interchangeable" makes the *name* the identity. Most named counters have no rules meaning at all: the card counts its own counters and nothing in the engine cares what they are called.
 
@@ -5153,6 +4859,9 @@ first.
    **Sized:** `CounterType::Named(&'static str)` and moving
    `Charge` across the line, ~80 lines, with the first card that needs a named
    counter.
+   **Slotted:** with the first registered card that puts a named counter on a
+   permanent (Scryfall: `o:"counter on" -o:"+1/+1" -o:"loyalty"`), moving
+   `Charge` with it.
 
 4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `PermanentState.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
 
@@ -5183,6 +4892,9 @@ first.
    (`layers-architecture.md` §13a); 613.7m is a decision point (the active
    player orders their own), ~60 lines inside `CreateTokens`' performer, with
    the first distinguishable creation; 613.7n rides LH-2.
+   **Slotted:** with the first registered card that creates distinguishable
+   tokens at once (Academy Manufactor), whose timestamps the active player
+   orders (CR 613.7m).
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 
@@ -5192,6 +4904,9 @@ first.
 
    **Sized:** the leaf plus a 7c timestamp merge in the shape Layer
    6's keyword counters use, ~100–150 lines, with the first doubling card.
+   **Slotted:** with the first registered card that doubles a creature's power
+   (19 cards: Bulk Up, Unnatural Growth), with the affected-power leaf and a 7c
+   merge.
 
 6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs`'s multi-block arm: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1d ignored (the comment there has pointed here since 2026-09-15). Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
 
@@ -5201,38 +4916,26 @@ first.
    **Sized:** read `blocker_damage_divisions` in
    that arm instead of the first living attacker, ~40–60 lines, with
    the first "can block an additional creature" card.
+   **Slotted:** with the first registered card that lets a creature block an
+   additional creature (Scryfall: `o:"block an additional creature"`), per CR
+   510.1d.
 
-7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs`'s `Target` validation (its comments have pointed here rather than at the archived `T22` since 2026-09-15). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
-
-   **Reachability (2026-09-03):** unreachable — no registered card has hexproof
-   or shroud.
-
-   **Sized:** RS-2's Tier 1a/1d, ~40 lines in that validation
-   plus `enumerate_legal_selections` — the same change as main item 15's first
-   half.
+7. **~~Hexproof and shroud are unenforced in spell targeting.~~ — ✅ CLOSED
+   2026-10-09 (PR #238).** — archived.
+   Merged into main item 15, which RS-2 takes with menace and intimidate.
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 7".
 
 8. **~~A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52.~~ ✅ CLOSED 2026-09-13 (RE-4).** The line Dour Port-Mage and Aang would have read no longer exists: a token exiled instead is `TokenCreated { Exile }` with no zone change, asserted absent in `phase_re4_integration_test`. → `plans/archive/codebase-state-closed.md`, main item 52.
 
    **Reachability (2026-09-13):** closed — RE-4.
 
-9. **`can_pay_costs` checks each `Cost::Mana` against the whole pool, and
-   `pay_costs` is not atomic across them (found 2026-09-02, closing 16c).**
-   `assemble_total_cost` (folded into `determine_total_cost` on review) appended an additional cost's mana as its *own*
-   `Cost::Mana` entry, and `check_cost_resource` asks "can the pool pay this
-   one" per entry — so `{1}{R}` with kicker `{R}` passes against a pool of
-   `{R}{R}`, the 601.2g window stops tapping the moment it passes, `pay_costs`
-   pays the base and fails on the kicker, and CR 601.2's rewind returns the
-   card with the base **already spent**. It is the second route to the hole
-   16c closed, and the rollback closes only the stranding half of it.
-   Unreachable today: no registered card carries an additional mana cost
-   (`grep additional_cost src/cards` finds one comment), so no pool can build
-   the board. Reachable with the first kicker card, which `backlog.md` §2.1
-   owns. **Sized:** sum the `Cost::Mana` entries before checking and pay the
-   sum once — that is also what CR 601.2h's "total cost" means — rather than
-   snapshotting the pool around each entry.
-
-   **Reachability (2026-09-03):** unreachable — still no registered card with an
-   additional mana cost (`additional_cost` appears in no card file).
+9. **~~`can_pay_costs` checks each `Cost::Mana` against the whole pool.~~ — ✅
+   CLOSED 2026-10-09 (PR #238).** — archived.
+   Done: `determine_total_cost` merges every `Cost::Mana` into one mana
+   component before the check and the payment.
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 9".
 
 10. **Card files have no shared helper module, so every phase re-writes the
     same `AbilityDef` literal — and the only alternative on offer is
@@ -5411,6 +5114,9 @@ first.
     Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
     above as the same PR's other half: both are "put the card layer in order
     before it triples", and neither is worth doing twice.
+    **Slotted:** C0, which moves cards to per-set files and fixtures to
+    `cards::fixtures`, and rebuilds every ability and instruction literal from
+    `cards/authoring/`.
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
@@ -5490,26 +5196,16 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    ~5 lines, inside whichever of the two arrives second.
 
    **Phase (2026-09-18):** not this phase's — the matcher (TR-1) reads `LeftTheGame` unconditionally and the qualifier lands with phasing, which arrives second; `triggers-architecture.md` §3.3's `LeftTheGame` row and §16.
+   **Slotted:** with the first registered card that phases a permanent out
+   (Scryfall: `keyword:phasing`, 13 cards), which adds CR 603.6c's phased-in
+   test.
 
-8. **"Whenever you create one or more tokens" has one key, and CR 111.13 is
-   where it stops (recorded 2026-09-13, RE-4).** `GameEvent::TokenCreated {
-   object_id, owner, zone }` is announced for every token an effect creates —
-   ahead of `PermanentEnteredBattlefield` for one that enters, alone for one
-   created elsewhere (Hallowed Moonlight's exile) — so a "create" trigger
-   reads one event kind whatever the zone, and a plural creation is one batch
-   of them, the way "one or more creatures die" is a batch of zone changes.
-   The line it must not cross is CR 111.13: a copy of a permanent spell
-   becomes a token as it resolves and "is not 'created' for the purposes of
-   any … triggered abilities that refer to creating a token" — it enters from
-   the stack with a `from`, takes the entry performer's card arm, and gets no
-   `TokenCreated`. CV-4 is where that token first exists; the arm is already
-   the right one.
-
-   **Reachability (2026-09-13):** nothing owed to correctness — a note for
-   item 6's event audit (item 2), so the dispatcher keys "create" on this
-   event and not on `is_token` at entry.
-
-   **Sized:** none; the event exists and is emitted.
+8. **~~"Whenever you create one or more tokens" has one key.~~ — ✅ CLOSED
+   2026-10-09 (PR #238).** — archived.
+   A record held by `triggers-architecture.md` §3.3's `TokenCreated` row (CR
+   111.13).
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 8".
 
 7. **~~CR 800.4d's second sentence has no site until the dispatcher exists.~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
    One `in_game` read at the head of `place_pending_triggers`, with a `pending` trace record per refusal. The four-player fixture is a Blood Artist whose controller loses in the state-based check that kills another creature — its frame sees the death, the trigger queues under the departed player, placement refuses it (`a_trigger_a_departed_player_would_control_is_not_put_on_the_stack`); ATOM-800.4d-001 is `COVERS` there. Astral Slide's delayed shape is TR-3's.
@@ -5545,6 +5241,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     `engine/combat/steps.rs` and its `format_event` arm, ~10 lines.
 
     **Phase (2026-09-18):** TR-5 — the defender on the record, and `BlockersDeclared` becomes one record per declaration step; `triggers-architecture.md` §3.12.
+    **Slotted:** TR-5a, whose `AttackShape` reads each attacker's defender off
+    the declaration record (CR 508.3a, 508.3b, 508.3e).
 
 12. **No event announces a target being chosen (the trigger survey,
     2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
@@ -5568,6 +5266,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     three sites, for the dev GUI's log, with the ability's source beside
     `by`. What is left is the reader, TR-5's `BecomesTarget`; until it
     lands the item stays, unreachable.
+    **Slotted:** TR-5a, whose `BecomesTarget` arm is the reader of #231's
+    `GameEvent::Targeted`.
 
 13. **No event announces a control change (the trigger survey,
     2026-09-18).** CR 603.10d's look-back triggers (126 cards) watch an event
@@ -5586,6 +5286,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     as a state trigger's cousin; the doc's.
 
     **Phase (2026-09-18):** TR-4 — decided: a sweep at the state check, gated on `any_control_changing`, against a materialized `PermanentState.announced_controller`, emitting `ControlChanged`; `triggers-architecture.md` §3.12, §4.5.
+    **Slotted:** TR-4b, whose state-check sweep against `announced_controller`
+    emits `ControlChanged` for CR 603.10d's look-back.
 
 14. **The LKI frame carries characteristics and no status (the trigger
     survey, 2026-09-18).** `EffectiveCharacteristics` is the CR 603.10a frame
@@ -5604,6 +5306,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     CR 603.10's word is "appearance".
 
     **Phase (2026-09-18):** TR-4 — the frame becomes `LastKnownInformation { characteristics, status }`, CR 113.7a's phrase and the tree's `lki`; `triggers-architecture.md` §3.11.
+    **Slotted:** TR-4a, whose `LastKnownInformation { characteristics, status
+    }` carries the counters, attachment and tapped bit the frame lacks.
 
 15. **The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).** CR 603.10a names three look-back classes and the
@@ -5621,6 +5325,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     computed for.
 
     **Phase (2026-09-18):** TR-4 — the capture widens to CR 603.10a's three classes; `triggers-architecture.md` §3.11.
+    **Slotted:** TR-4a, which widens the frame's capture to CR 603.10a's three
+    look-back classes.
 
 16. **No event for a prevention effect applying (the trigger survey,
     2026-09-18).** CR 615.13: "such an ability triggers each time a
@@ -5635,6 +5341,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     applied, ~10 lines; its fields are the doc's.
 
     **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
+    **Slotted:** TR-5b, whose prevention leg announces
+    `GameEvent::DamagePrevented` for CR 615.13, with Selfless Squire.
 
 17. **Counters a permanent enters with announce nothing, and the entry
     record carries no `mods` (the trigger survey, 2026-09-18).** CR 122.6:
@@ -5657,6 +5365,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     replacement side read the two differently.
 
     **Phase (2026-09-18):** TR-5 — question 4 decided: one `CountersChanged` per entry row, announced after the entry inside its batch and never proposed, with `by` on the record; `triggers-architecture.md` §3.12.
+    **Slotted:** TR-5b, which announces one `CountersChanged` per entry row
+    inside the entry's batch (CR 122.6), with Simic Ascendancy.
 
 18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
     2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
@@ -5681,15 +5391,15 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    **Sized:** `GameConfig::commander()`, a designation on
    `Decklist`, and the flag set in `Game::new`, ~80–120 lines with tests; the
    first PR of the Commander interleave.
+   **Slotted:** B2, `GameConfig::commander()` with a designation on `Decklist`,
+   setting `is_commander` at game setup (CR 903.3, 903.7); item 3, merged here,
+   is the same constructor.
 
-3. **`GameConfig::commander()` constructor.** Only the *hand/library* half of command-zone redirection waits on Replacement (903.9b). The graveyard/exile half is CR 704.6d, a state-based action, and can land with this constructor — so a "partial Commander" game here is life=40 + commander damage + 903.9a working, with only 903.9b missing.
-
-   **Reachability (2026-09-03):** unreachable (as item 2) — and the entry is
-   stale: both halves of command-zone redirection landed with RB (CR 704.6d as a
-   state-based action, CR 903.9b as a replacement; PR #62, 78d344c), so nothing
-   here waits on Replacement any more. The constructor is the whole residual.
-
-   **Sized:** with item 2.
+3. **~~`GameConfig::commander()` constructor.~~ — ✅ CLOSED 2026-10-09 (PR
+   #238).** — archived.
+   Merged into "Before Commander" item 2, which B2 builds.
+   **Reachability (2026-10-09):** closed — PR #238.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before Commander' item 3".
 
 4. **Multiplayer priority rotation** (CR 800) — blocking for 3+ player Commander; not blocking for 2-player Commander.
 
@@ -5740,6 +5450,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    `candidate_priority_actions`' attack-target list plus a `ChoiceKind`;
    800.4f–h ~120 with the delegation rule and a fixture each; 800.4i waits on
    the LKI facility and is not sized here.
+   **Slotted:** B3, CR 802's defending-player choice at four seats and CR
+   800.4f–i's choices a departed player would make.
 
 ### Cross-cutting — keep this section honest
 
@@ -5894,9 +5606,10 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 ### Found by LK — CR 113.6 (2026-09-14)
 
-133. **Quadrant ① keyword abilities are frame characteristics, so CR 113.6
+237. **Quadrant ① keyword abilities are frame characteristics, so CR 113.6
     never sees them — a card in a graveyard still reports its printed
-    flying.** `seed_frame` seeds `keyword_flags` off the card in every zone,
+    flying.** (Numbered 133 until 2026-10-09, when the number was found twice.)
+    `seed_frame` seeds `keyword_flags` off the card in every zone,
     and `engine::zone_function` takes an `AbilityDef`; a `KeywordFlag` is not
     one (`plans/glossary.md`, “quadrant”, and `types::keywords`' own doc). So the
     default arm of CR 113.6 — "abilities of all other objects usually function
@@ -5923,56 +5636,21 @@ What the *shape* says, as opposed to what one endpoint suggested:
     CR 113.6 at the one place a *rules* reader asks. ~60–80 lines and a decision
     about where that place is, which is why it waits for a reader rather than
     being guessed at now.
+    **Slotted:** B11, whose permission checks are the first rules readers of a
+    card off the battlefield (flash, madness), where CR 113.6 filters the
+    keyword set.
 
-134. **`cleanup_zone_state`'s battlefield branch removes a source's rows
-    whatever their origin, and CR 611.2a says a resolution's effect does not
-    care where its source went.** `remove_by_source` is origin-blind. CR 611.3b
-    is what the call is for — a static ability applies only while its source is
-    on the battlefield — and CR 611.2a gives a resolution's effect "the duration
-    stated by the spell or ability", which is not the source's lifetime.
-
-    **Found by LK nearly writing the same call on the other branch.** The
-    obvious way to generalize that function for "a static ability functioning
-    in a graveyard leaves the graveyard" is `remove_by_source` again, and that
-    would have deleted every pump spell's effect as the spell hit the
-    graveyard — silently, and in every game. LK wrote the narrow
-    `remove_static_by_source` instead, with
-    `test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard` as
-    the regression. **The battlefield branch is untouched and is not LK's to
-    fix**; this is the record that it is safe by accident.
-
-    **Reachability (2026-09-14):** unreachable, and the bound is exact rather
-    than a survey. A row is only at risk if its origin is `Resolution` *and*
-    its source is a battlefield permanent. A resolution's `source` is
-    `ResolutionContext::source`, the resolving **stack object** — ephemeral for
-    an activated ability (CR 608.2n deletes it) and graveyard-bound for an
-    instant or sorcery, so neither is ever on the battlefield. A permanent
-    spell keeps its `ObjectId`, but CR 608.3 gives it no spell ability to
-    resolve, so it registers nothing. Every other row on a permanent is
-    `EffectOrigin::StaticAbility` — printed, granted
-    (`register_granted_static_effects`) or copied
-    (`register_copied_static_effects`) — and those are exactly the rows
-    CR 611.3b wants removed.
-
-    **Does this reorder the route? No** — asked at the LK review, and the
-    answer is that RE-9 and RE-10 cannot produce the shape. RE-9 is mana and
-    RE-10 the turn cursor; neither registers a continuous effect at all, let
-    alone one sourced at a permanent. The first phase that can is critical-path
-    **item 6**, because a triggered ability's source *is* the permanent rather
-    than the ephemeral stack object an activated ability resolves through — so
-    "whenever this creature deals damage, target creature gets +2/+2 until end
-    of turn" is a row this branch would delete if the creature died first, and
-    CR 611.2a says it should not. Item 6 is several phases out and this is ~10
-    lines, so it can also just be taken between phases; what it must not do is
-    land *after* item 6 builds tests against the wrong answer.
-
-    **Sized:** swap the call for `remove_static_by_source`, which already
-    exists, and decide what CR 611.3b means for a *granted* static ability
-    whose grantee leaves — ~10 lines and one question.
+238. **~~`cleanup_zone_state`'s battlefield branch removes a source's rows
+    whatever their origin.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
+    Done by TR-3b's item 223: the battlefield branch removes only the rows that
+    end with their source (CR 611.2a, 611.2b, 611.3b).
+    **Reachability (2026-10-09):** closed — PR #238.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 238".
 
 ### Found by the LJ review (2026-09-14)
 
-132. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+239. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+    (Numbered 132 until 2026-10-09, when the number was found twice.)
     LJ's review found a `player.graveyard.clone()` inside
     `engine::layers::condition`'s `CardInYourGraveyard` arm that was never needed —
     both borrows are immutable and it compiles without. It had been added
@@ -5998,6 +5676,9 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
     **Reachability (2026-09-14):** reachable — not wrong; a performance question
     on paths a measured game runs thousands of times a turn.
+    **Slotted:** A6e, item 6's close audit, whose hygiene pass reads the
+    `.clone()` sites in `engine/layers/` and `engine/replacement/` first, with
+    a fuzz A/B behind it.
 
 ### Found by RE-6 — the game's end (2026-09-12)
 
@@ -6059,6 +5740,9 @@ migration.
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
+     **Slotted:** with the first registered card that splits one damage event
+     in two, Harm's Way, whose facility (`backlog.md` §2.25) gives Exquisite
+     Archangel's ruling its choice.
 
 ### Found by RE-4 — tokens (2026-09-13)
 
@@ -6100,6 +5784,9 @@ with its customer named:**
      the template with a draw.
 
      **Sized:** ~15 lines in `substitute`, with Hullbreacher, after §2.19.
+     **Slotted:** with the first registered card that replaces a draw with a
+     token creation, Hullbreacher, once MA-3 gives a Treasure its any-color
+     mana.
 
 127. **A creation template with a *choice* of def has no shape.** Jinnie Fay,
      Jetmir's Second — "you may instead create that many 2/2 green Cat
@@ -6114,6 +5801,8 @@ with its customer named:**
      is unregistered.
 
      **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
+     **Slotted:** with the first registered card that offers a choice of token
+     definitions in a replacement, Jinnie Fay, Jetmir's Second.
 
 128. **"Create … tapped and attacking" has the first half and not the
      second.** `TokenDef::enters_tapped` is CR 110.5b's word on the entry;
@@ -6135,6 +5824,8 @@ Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
+     **Slotted:** TR-5a, whose tests put a token onto the battlefield attacking
+     over this field, never declared as an attacker (CR 508.4).
 
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
 
@@ -6184,6 +5875,9 @@ slot with its first card; proliferate (CR 701.34a) is `backlog.md` §2.5's
 and reads the map this phase built; the additive commutation shapes were
 §2.29's and are built — the review's theme B made the predicate the
 commutation table that entry designed (§11 item 85).
+     **Slotted:** CP-2, whose `Cost::AddCounters` arm is the first cost that
+     puts counters; its proposal carries a cost cause the doublers refuse (CR
+     614.16).
 
 ### Found by RE-8 — the producers: discard and scry (2026-09-14)
 
@@ -6234,6 +5928,9 @@ named:**
      §2.9's per-viewer query answering it; plus the validation half of
      `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
      a flag written by one card is the shape §2.9 exists to replace.
+     **Slotted:** B4, the information model's build, whose per-viewer query
+     answers CR 701.9c's "without being revealed"; reachable once CP-2 checks
+     `Cost::Discard`.
 
 131. **A same-zone substitute leaves no record, so the act it replaced is
      written nowhere** (re-scoped 2026-09-24). **The first two instances closed
@@ -6313,6 +6010,9 @@ beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
 effect making more than one player scry, and the corpus already defers it;
 `Cost::Discard` itself is `backlog.md` §2.5's unimplemented half and was not
 made reachable by this phase.
+     **Slotted:** A6d, items 176 and 177's PR, whose zone-change record
+     contract decides how a same-zone substitute leaves a stamp a mill count
+     can read (CR 701.17c).
 
 ### Found by RE-9 — mana (2026-09-15)
 
@@ -6404,9 +6104,14 @@ closed. **The last of RE's ten PRs.**
      increments and the turn resets, ~20 lines, CM's), the Gnomes after the
      fill arm. The amount field is the one that changes a proof and is owed
      the standing question when it lands.
+     **Slotted:** with the first registered card that replaces mana by type,
+     amount or a chosen permanent: False Dawn, Damping Sphere or Quarum Trench
+     Gnomes.
 
-134. **Three of the six printed type-changers want three facilities RE-9 did
-     not build.** Hall of Gemstone ("that player chooses a color … lands
+240. **Three of the six printed type-changers want three facilities RE-9 did
+     not build.**
+     (Numbered 134 until 2026-10-09, when the number was found twice.)
+     Hall of Gemstone ("that player chooses a color … lands
      tapped for mana produce mana of the chosen color") needs a chosen color
      stored on the permanent by an upkeep trigger — item 6's, plus a
      `ChosenColor` read in the template. Naked Singularity ("Plains produce
@@ -6427,6 +6132,9 @@ closed. **The last of RE's ten PRs.**
      substitution may ask. Contamination and Infernal Darkness need none of
      this — their lines are fixtures in `tests/phase_re9_integration_test.rs`
      and register the day item 6 owns their upkeep halves.
+     **Slotted:** with the first registered card that sets a land's mana type
+     by a choice or its subtypes: Hall of Gemstone, Naked Singularity or
+     Harvest Mage.
 
 135. **A mixed mana production under a fixed retype is refused, not
      decided.** `GameActionTemplate::ProduceMana { amount: Fixed(n) }` on a
@@ -6445,6 +6153,9 @@ closed. **The last of RE's ten PRs.**
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
+     **Slotted:** with the first registered card that makes restricted and
+     unrestricted mana in one ability (none printed as of 2026-09-15), whose
+     ruling decides it.
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
@@ -6483,6 +6194,8 @@ closed. **The last of RE's ten PRs.**
      spine close may not read worse per decision than the last; this
      lever's 1.2% is half of one PR's budget, which ranks it last of the
      levers item 138 lists.
+     **Slotted:** Phase 10's profile-driven performance, where a v1 CPU budget
+     would rank this fast path; item 138 ranks it last of the levers.
 
 137. **`ResolutionContext` carries CR 615.5's two rider numbers as two
      `Option<u64>` fields that every non-rider resolution sets to `None`.**
@@ -6523,6 +6236,8 @@ ordered after this PR as `replacement-architecture.md` §9 said; and the
 `--dump-events` A/B recipe that counted `Tapped:` land lines because the log
 had no mana lines now has `ManaAdded:` lines to count, which is a note for
 whoever next masks a dump and not a migration.
+     **Slotted:** A6e, the hygiene pass of item 6's close audit, as a PR of its
+     own sweeping the ~48 `ResolutionContext` literals to one `rider` field.
 
 ### Found by the post-RE audit (2026-09-15)
 
@@ -6574,6 +6289,9 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
+     **Slotted:** with the first registered card that gives an entry choice a
+     cost (a shockland, Scryfall: `o:"you may pay 2 life"`), beside the first
+     mass entry of nontoken permanents.
 
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
@@ -6896,6 +6614,9 @@ Commander-scale board closes item 69.
      not compare, but the sorts are still the largest single row, and the
      largest cost on a per-event path that grows with the board: the trigger
      dispatcher's own scans read 0.06% (`battlefield_readers`) and below.
+     **Slotted:** A6e, item 6's close audit, whose readiness pass takes the
+     next decisions-per-core-second reading; the levers not yet pulled are
+     Phase 10's.
 
 139. **~~A retry re-prompt offers a list computed before the rejected action
      changed the board~~ ✅ CLOSED 2026-09-16 (A4h) — the enumeration moved
@@ -7016,6 +6737,9 @@ Commander-scale board closes item 69.
      number is the owner's to set. The mechanism is chosen by a spike before
      Phase 10's design: real games through a channel-backed provider, against
      a coroutine prototype.
+     **Slotted:** Phase 10, the parallel-play harness, whose first fork-based
+     search needs a priority round resumed at a seat other than the active
+     player.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
@@ -7105,6 +6829,8 @@ Commander-scale board closes item 69.
      in-process. **Sized:** what remains is `#[derive(Serialize,
      Deserialize)]` on the ids and the vocabulary enums in the wire type,
      ~30 lines, with the harness's adapter (Phase 10); nothing before.
+     **Slotted:** Phase 10, the harness's boundary adapter, which derives
+     `Serialize` on the ids and vocabulary enums of the wire type.
 
 142. **The panic surface, separated into engine and test — the separator is
      `plans/panic_surface.py`.** "341 `.unwrap()` in non-card `src/`"
@@ -7144,6 +6870,8 @@ Commander-scale board closes item 69.
      grows faster than the engine is the finding.
 
      **Sized:** none.
+     **Slotted:** none — a record of the 2026-09-15 panic-surface baseline,
+     which `plans/panic_surface.py` re-reads at item 6's close audit (A6e).
 
 143. **The clone at Commander scale, and memory per fork.** Handoff §4's
      table extended with the same method (2,000 clones a checkpoint, release,
@@ -7186,6 +6914,9 @@ them; item 69 is closed by the Commander-scale measurement and evicted; item
 profile's recipe is `layers-architecture.md` §12's instrument paragraph and
 `engineering-practices.md` §9's readiness pass, not here, because it is a
 procedure and not a migration.
+     **Slotted:** none — a record of the Commander-scale clone table, which
+     `engineering-practices.md` §9's readiness pass extends at each close
+     (A6e).
 
 ### Found by the post-RE audit's pass 4 review — the UUID review (2026-09-16)
 
@@ -7334,6 +7065,8 @@ owner decided it the same day.
      countered", so the restriction leg must not skip a stack source the way
      the gather's skips the entering object — being countered is not
      entering.
+     **Slotted:** RS-2, where casting and countering restrictions land, with a
+     zone leg for `is_prohibited` and Abrupt Decay as its card.
 
 147. **`hollow_hands` owes the tests that show a strip in hand turning off
      what functions there, and none of that exists yet.** The fixture
@@ -7353,6 +7086,9 @@ owner decided it the same day.
      **Sized:** one test per keyword, ~30 lines each, in that keyword's own
      phase file, with this fixture as the negative: the ability is usable
      without Hollow Hands and not with it.
+     **Slotted:** with the first registered card that has an ability
+     functioning from a hand (cycling or channel, CR 113.6j), whose file adds
+     the `hollow_hands` negative.
 
 148. **Exile is the one zone the Colossus family's tests do not move
      *from*, and the reason is a missing cause.** The clause functions in
@@ -7368,6 +7104,9 @@ owner decided it the same day.
 
      **Sized:** the card, its cause, and one test: a Colossus in exile under
      Pull from Eternity is shuffled into its owner's library instead. Phase 8.
+     **Slotted:** with the first registered card that moves a card from exile
+     to a graveyard (Pull from Eternity), which brings its `ZoneChangeCause`
+     and the Colossus test.
 
 ### Found by A4g — process-stable ids (PR #158, 2026-09-16)
 
@@ -7473,6 +7212,8 @@ owner decided it the same day.
      make a measurement wrong. `python plans/check_rulings.py --queue` is the
      list; it is deliberately not copied into this file, because a list that
      is both generated and transcribed goes stale in the transcription.
+     **Slotted:** C1, every registered card's rulings each linked to a passing
+     test, which reads the pooled 103 and the off-pool 205 unread rulings.
 
 ### Found by A4i — several instances of "target" (2026-09-17)
 
@@ -7557,6 +7298,8 @@ place.
      `StackEntry.chosen_modes` — once per cast, which is the rate the stored
      list was built to take castability *off*. The stored list stays the
      pre-601.2b one, and today a `Modal` node declares nothing in it.
+     **Slotted:** B7, whose `backlog.md` §2.7 modal spells make the cast walk
+     only the chosen modes, `StackEntry.chosen_modes` its input.
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is
@@ -7584,6 +7327,9 @@ place.
      it. That is the shape CR 601.2c actually describes, so it is a
      simplification as well as a widening; it was not done here because it
      touches `EffectRecipient`, which 146 sites construct.
+     **Slotted:** B7, with `backlog.md` §2.7's modal spells, eight of which
+     print "each mode must target a different player": the exclusion moves to
+     the clause.
 
 155. **`every_instance_has_a_choice` feeds instances forward greedily, which
      is exact for the shapes that print and not in general.** An "another
@@ -7609,22 +7355,16 @@ place.
      returns one card, Combine Guildmage, and it reuses one filter — so the
      reachability line above stands. This is the sentence a card author checks
      a new "another target" card against.
+     **Slotted:** with the first registered card that prints an "another
+     target" clause narrower than the clause it excludes (none prints one;
+     Combine Guildmage reuses one filter).
 
-156. **The rulings gate has a same-day blind spot: a card registered on the
-     day the ledger was created escapes `--check` unless someone stamps it
-     `read`.** Scope is `read` or `first_seen != created`
-     (`check_rulings.py::in_scope`), and A4i registered five cards on
-     2026-09-17, the day A4b's ledger was created — so all five, and the three
-     rulings between them, were out of scope until the PR hand-stamped them.
-     The stamp is honest (the rulings *were* read), and the gate then refused
-     all three until a test named each.
-
-     **Reachability (2026-09-17):** reachable exactly once, and it already
-     happened. `created` never moves again, so no future registration can
-     collide with it. Recorded rather than fixed because `first_seen ==
-     created` is genuinely ambiguous — every card present at creation carries
-     it — and a finer stamp would be a ledger format change to close a hole
-     that cannot recur.
+156. **~~The rulings gate has a same-day blind spot.~~ — ✅ CLOSED 2026-10-09
+     (PR #238).** — archived.
+     Spent: reachable once, on the ledger's creation day, and `created` never
+     moves (`plans/check_rulings.py`).
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 156".
 
 157. **CR 601.2c's "must be chosen as a target" is unimplemented, and it is the
      third hat of the CR's only combinatorial-optimum rule.**
@@ -7666,6 +7406,8 @@ place.
      all the instances at once instead of deciding them one at a time, which is
      ~40 lines at the `announce_targets` seam. Until then the greedy loop is
      exact, because the set of requirements is empty.
+     **Slotted:** RS-3b, whose bounded-exact requirement search and cap answer
+     CR 601.2c's targeting requirements beside 508.1d and 509.1c.
 
 158. **"Different from that one" has three axes and the engine expresses one.**
      A4i's `ObjectFilter::OtherThanInstance` is distinctness *across instances of
@@ -7694,6 +7436,8 @@ place.
      **Sized:** the modal axis is item 154's ~60 lines (move the exclusion from
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
+     **Slotted:** CV-4, whose CR 707.10d/e per-target copies carry the copy
+     axis; the modal axis is item 154's, at B7.
 
 159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
      and `Primitive::CounterSpell` then puts the ephemeral ability object into
@@ -7967,6 +7711,9 @@ the file.
      **Sized:** the ordering decorator ~40; the reversal prompt ~40 in the engine
      (the clone, the restore, the truncation) and its decorator arm ~15; §2.22
      rows 8 and 9.
+     **Slotted:** TR-7, critical-path item 6's last phase, which takes
+     `backlog.md` §2.22 rows 8 and 9: the ordering decorator, and CR 732.1's
+     reversal prompt with its policy.
 
 164. **~~The `[Pass]`-only priority prompt is still asked of the provider.~~
      — ✅ CLOSED 2026-09-30 (A6j).** — archived. `run_priority_round` takes
@@ -8003,6 +7750,9 @@ the file.
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
+     **Slotted:** CP-1, as a `differ` PR of its own ahead of the payment work,
+     since CP-1 next touches `cost_determination/total.rs`, where the guard
+     sits.
 
 ### Found by A4c — the trace sink (2026-09-18)
 
@@ -8029,6 +7779,9 @@ record, `plans/archive/roadmap-v2-landed.md`.** One thing is owed, by decision 6
      `batch` records and reporting the first `pipeline` or `decision` that
      differs; its first customer is the next stream-moving PR's A/B, which
      today attributes a divergence by hand (`fuzz-record.md`, A4h's block).
+     **Slotted:** MA-6, whose offer at the priority question (item 211) moves
+     the random agent's stream: the first A/B this diff would attribute, built
+     in that PR.
 
 ### Found by TR-1 — the trigger spine (2026-09-19)
 
@@ -8102,6 +7855,8 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
 
      **Sized:** the frame gains the epoch when it becomes
      `LastKnownInformation` (TR-4), ~5 lines at the two captures.
+     **Slotted:** TR-4a, whose `LastKnownInformation` frame carries the
+     departed object's epoch at its two captures.
 
 169. **~~The intervening "if" reads CR 109.5's "you" off the source's frame and
      answers false for a source that has left.~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -8124,20 +7879,15 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
 
      **Sized:** a `ChoiceOption::Trigger { seq, source }` variant and its
      arms, ~20 lines, when a client wants it (Phase 10).
+     **Slotted:** Phase 10, when a client needs two triggers of one source told
+     apart, with a `ChoiceOption::Trigger { seq, source }` variant.
 
-171. **Two `TriggerEvent` arms shipped early and narrow.** `Attacks {
-     attacker, occurrence }` (one attacker is one occurrence; no defender,
-     no shape) because §13 owed ATOM-508.1m-001 here, and `GainsLife {
-     player, occurrence }` because it owed ATOM-119.9-001/-002. TR-5 widens
-     the first to the five shapes with item 11's defender; TR-2 adds
-     `LosesLife`, the other half of the sign split.
-
-     **Reachability (2026-09-19):** nothing owed — a record, so the later phases
-     widen rather than add a second arm.
-
-     **Reachability (2026-09-24, TR-2a):** half closed. `LosesLife { player,
-     multiplicity }` shipped without §3.3's `cause`, whose one customer is CR
-     727's rad counters. `Attacks`' five shapes stay TR-5's.
+171. **~~Two `TriggerEvent` arms shipped early and narrow.~~ — ✅ CLOSED
+     2026-10-09 (PR #238).** — archived.
+     A record held by `triggers-architecture.md`'s arm table: `LosesLife`'s
+     cause waits for CR 727, and `Attacks`' five shapes are TR-5's.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 171".
 
 172. **~~The three bound-fact leaves are `TriggeringObject`, `TriggeringPlayer`
      and `TriggeringAmount`; `TriggeringPower` waits.~~ — ✅ CLOSED 2026-09-24 (TR-2a).** — archived.
@@ -8181,6 +7931,8 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      **Scheduled 2026-09-23 (the trigger rulings pass): TR-4**, beside the
      Ichorid prerequisite its §12 row already names; table three counts 17
      trigger cards stating their zone this way.
+     **Slotted:** TR-4a, whose piece list reads item 173's zone statement off
+     the intervening "if", with Bridge from Below's graveyard test.
 
 174. **~~A departing permanent's CR 603.10a frame is captured when that member
      moves, so it depends on batch order.~~ — ✅ CLOSED 2026-09-22 (TR-1b).** — archived.
@@ -8264,6 +8016,9 @@ and the reading below, which the audit makes and the dispatcher does not.
        which the CR fixes "at the time it triggered".
      Each reads the board after the riders, so the option above, a
      rider-bearing window dispatched per batch, would answer all five.
+     **Slotted:** A6d, items 176 and 177's record design, which takes this item
+     as an input and decides per-batch dispatch (`triggers-architecture.md`
+     §4.1).
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8388,6 +8143,8 @@ linked-ability records an entry makes.
      is in `fuzz-record.md`. Item 131's first two instances were this defect,
      found at RE-8 and scheduled onto critical-path item 6; they closed with
      it.
+     **Slotted:** A6d, items 176 and 177's own PR, which designs the
+     zone-change record's contract before TR-4 widens it.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8436,6 +8193,8 @@ keeps the cost decisions).
 
      It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
      item 176's design settles just before TR-4.
+     **Slotted:** A6d, items 176 and 177's own PR, which puts the stamped epoch
+     on `ZoneChange` beside TR-4's CR 400.7e atoms.
 
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
@@ -8459,6 +8218,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
      **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
      fixture with a flicker effect, ~25.
+     **Slotted:** TR-4b, which touches attachment's performers and registers
+     Grafted Wargear: `this_object(ctx)` replaces the id, with a flicker
+     fixture.
 
 179. **~~TR-2a's `PlayerHistory` grows with the turn count.~~ — ✅ CLOSED
      2026-09-25 (the bounded-state PR).** — archived. Two rows, a running
@@ -8578,6 +8340,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `AbilityDef.effect` and `TriggerDef.effect` `Arc`s, about 250 sites,
      for a copy paid once per push rather than once per fork. **B10 stays
      open:** the entry and its `GameObject` are still copied per fork.
+     **Slotted:** B10, a clone during a deep stack: stack objects shared
+     between forks, copied on write, which also settles `FitOnClone`'s rule.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
@@ -8604,6 +8368,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
+     **Slotted:** with the first registered card that has a static ability with
+     different recipients in one layer (Encroaching Mycosynth, the "creature
+     cards you own" cards).
 
 ### Found by the CV-2 design review (2026-09-28)
 
@@ -8666,6 +8433,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is TR-1b's audit, and its ordering elision `triggers-architecture.md`
      §5.2. The forced choices and the fast-path gates outside the loops stay
      owed.
+     **Slotted:** A6h, the docs audit, which inventories the forced-choice and
+     fast-path elisions left, each with its premise and what holds it.
 
 ### Found by CV-2a's review (2026-09-28)
 
@@ -9035,8 +8804,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      paragraph as its `rules_text` and read at cast off the effective list
      as a cost modification is (CR 601.2f), so Layer 6 removes it like any
      ability and the option's label is its text. Then ~150–300 lines.
-     **Slotted:** before flashback, `backlog.md` §2.3's first PR, the first
-     cast from a zone where an effect strips abilities.
+     **Slotted:** PM-0, the permission design, which designs flashback's
+     graveyard cast (`backlog.md` §2.3, graduated to B11), the first cast from
+     a zone where an effect strips abilities; CR 113.2b's costs as abilities
+     are designed beside it.
 
 204. **Two test cards carry real cards' names: Cerulean Wisps and
      Moonlace.** Each was written narrower than the card on purpose, to test
@@ -9076,9 +8847,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
      **Sized:** ~30–60 lines with the first such card: the CDA in
      `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
-     `Subtypes::insert_every_creature_type`. **Slotted:** Phase 8, with
-     `copy-effects-architecture.md` §4.1's changeling row (Omni-Changeling,
-     Moritte).
+     `Subtypes::insert_every_creature_type`. **Slotted:** with the first
+     registered card that is every creature type (changeling, Scryfall:
+     `kw:changeling`; Omni-Changeling, Moritte, `copy-effects-architecture.md`
+     §4.1's changeling row), which writes the mark.
 
 206. **CR 205.1a's correlated subtypes stay when their card type goes.** An
      effect that removes a card type, or sets card types without it, leaves
@@ -9213,8 +8985,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      land stops being a lone `Pass`, which `backlog.md` §2.22's rule 1
      answers for the seat, so the window and the random agent are asked far
      more: a fixture migration (item 209), and the agent's stream moves.
-     **Slotted:** item 162's design doc (the next PR after SU-7), which owns
-     the mana abilities' offer and the window together.
+     **Slotted:** MA-6, a person's seat, which builds the shape decided below
+     (C): one "add mana" entry offered at a priority question to a seat that
+     asks for it. Item 162's design doc, slotted before, was
+     `mana-architecture.md`, which put it there.
      **Designed (2026-10-05):** `mana-architecture.md` §3.11 prices four
      shapes on `close_out.py`'s board. Offered at every priority point, the
      abilities turn 1,749 forced points a game into decisions; the doc
@@ -9261,6 +9035,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** with MA-7 (`mana-architecture.md` §6, the owner, 2026-10-06),
      which reads every cost per `Cost` arm; the converters and Treasure stay
      MA-3's, about 60 lines of the inventory.
+     **Slotted:** MA-7, the check widened, which reads every cost per `Cost`
+     arm; the converters and Treasure are MA-3's.
 
 214. **The random agent does not pay through Doubling Cube.** MA-1's check
      counts a payment the Cube's doubling makes, and the window offers the
@@ -9279,6 +9055,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      with a test on the Humility board: keep the owed pip's mana, tap toward
      the doubler's `{3}`, activate it, and pay the `{3}` with the other
      units. Slot: MA-2's first commit (B12), or its own PR sooner.
+     **Slotted:** MA-2's first commit (B12), a doubler-aware preference in
+     `ui/random.rs`, with a test on the Humility board.
 
 215. **What MA-1's review left for a hygiene pass.** Three cleanups the
      owner's review of #225 found, each changing no answer:
@@ -9322,6 +9100,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Untapped lands have no copies: the `!entry.tapped` reads are tap-cost
      checks. The `can_pay` pair stays here; the filter pair is item 229's,
      and the frame-capture pair item 236's.
+     **Slotted:** A6e, the hygiene pass of item 6's close audit
+     (`engineering-practices.md` §9), which takes the three cleanups.
 
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
@@ -9354,6 +9134,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      the first PR that gives `evaluate_amount` a new arm. The census's
      `pt-amount` shape (`plans/references/feedback-loops.md` §6) would be its
      first printed customer, and none prints as a static yet.
+     **Slotted:** with the first registered card that needs a new
+     `evaluate_amount` leaf (`cost-architecture.md` §3.7's "where X is"
+     leaves), whose PR lists the wildcard's arms.
 
 ### Found by CV-1b (2026-10-06)
 
@@ -9419,8 +9202,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** an attachment that can name a player, and its readers (CR
      704.5m, `ObjectSet::Host`, the why panel), ~150 lines with the first
      Curse.
-     **Slotted:** Phase 8's card breadth, with the first Curse it registers
-     (the owner, at #234's review, 2026-10-08).
+     **Slotted:** with the first registered card that is an Aura enchanting a
+     player, the first Curse Phase 8's breadth registers (Scryfall:
+     `o:"enchant player" t:aura`; the owner, at #234's review, 2026-10-08).
 
 228. **An Aura that enters attached is attached by a direct write, and
      announces nothing.** `engine/stack.rs`'s Aura branch and
@@ -9578,28 +9362,17 @@ source live is corrected in place.
      603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
      what it has decided on `GameState`, the drain's shape, needs no
      migration later.
-     **Slotted:** the rule for new prompts is `triggers-architecture.md`
-     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none
-     of this shape; the three fixes go with item 40's violators, at the first
-     fork-based harness (item 140's slot).
+     **Slotted:** Phase 10's first fork-based harness, item 140's slot, with
+     item 40's violators. The rule for new prompts is `triggers-architecture.md`
+     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none of
+     this shape.
 
-234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
-     delayed triggers and the extra turns beside them.** `UntilReturn` has no
-     id and `wait_to_return` emits no record, where a delayed trigger has
-     `DelayedTriggerId` and `DelayedTriggerCreated` and an extra turn
-     `ExtraTurnId`. So `ui::waiting::WaitingReturn` is the one waiting row
-     without an id: a client lists returns by their place in
-     `until_returns`, and a log cannot name a return until its object comes
-     back. Nothing in the engine hands that place across a call:
-     `take_returns_due` partitions the list rather than collecting indices
-     into it (TR-3b's review). The TR-3b dev GUI PR draws the returns in the
-     Waiting panel, the first client to hold such a row across frames.
-     **Reachability (2026-10-08):** reachable — not wrong: a return's place
-     in the list is read for display only.
-     **Sized:** ~30–50 lines: an `UntilReturnId` minted beside
-     `next_delayed_trigger_id` and carried on `WaitingReturn`, and a creation
-     record beside `DelayedTriggerCreated` if the log is to name a return.
-     **Slotted:** the TR-3b dev GUI PR, as its engine half.
+234. **~~CR 610.3's waiting returns carry no id and announce nothing.~~ — ✅
+     CLOSED 2026-10-09 (PR #238).** — archived.
+     `UntilReturnId` on the return and its Waiting row; `UntilReturnMade`
+     names it in the log.
+     **Reachability (2026-10-09):** closed — PR #238.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 234".
 
 235. **~~A delayed trigger's and an until return's "its owner" is the
      controller once the store has lost the source.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.

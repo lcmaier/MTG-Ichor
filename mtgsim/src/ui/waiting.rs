@@ -1,6 +1,7 @@
 //! What the game is holding for a later event or turn: each delayed
-//! triggered ability waiting for its event (CR 603.7) and each extra turn
-//! waiting in the queue (CR 500.7), as plain data for a client to lay out.
+//! triggered ability waiting for its event (CR 603.7), each extra turn
+//! waiting in the queue (CR 500.7) and each "until" return waiting for its
+//! event (CR 610.3), as plain data for a client to lay out.
 //! Not a triggered ability waiting to be put on the stack, which goes there
 //! the next time a player would receive priority (CR 117.2a) and is the
 //! stack's to show.
@@ -8,15 +9,15 @@
 //! Read off the state, so a row is gone the moment the thing it describes
 //! is: a delayed trigger that has triggered once or whose duration or turn
 //! has passed, an extra turn taken, skipped (CR 614.10a) or lost with the
-//! player who would have taken it (CR 800.4).
+//! player who would have taken it (CR 800.4), a return made.
 
 use crate::state::game_state::GameState;
-use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId};
+use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId, UntilReturnId};
 use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerSubject, TriggerTurn};
 use crate::ui::display::{named, object_label};
 
-/// The delayed triggers and the extra turns waiting, each kind in its own
-/// order.
+/// The delayed triggers, the extra turns and the returns waiting, each kind
+/// in its own order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Waiting {
     /// The delayed triggered abilities, in the order they were created.
@@ -31,6 +32,11 @@ pub struct Waiting {
 /// One "until" return, waiting for the event it names (CR 610.3).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaitingReturn {
+    /// The number its making's log line gave it.
+    pub id: UntilReturnId,
+    /// The source of the spell or ability that exiled, named as it is: what
+    /// its log line names it by.
+    pub source: String,
     /// The object its event is about, named as it is: "this" or the target
     /// it named. `None` for an event about no object.
     pub watched: Option<String>,
@@ -89,6 +95,8 @@ pub fn what_is_waiting(game: &GameState) -> Waiting {
             .until_returns
             .iter()
             .map(|until| WaitingReturn {
+                id: until.id,
+                source: named(game, until.source.object.id),
                 watched: match until.until.subject() {
                     Some(TriggerSubject::ThisObject) => Some(named(game, until.source.object.id)),
                     Some(TriggerSubject::Referred) => until.referred.first().map(|r| named(game, r.object.id)),

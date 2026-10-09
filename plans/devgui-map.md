@@ -284,14 +284,16 @@ for any line of the file. All of it is `editor.rs`, plain Rust, with
 What the game is holding for later, under the side panel's shared zones (#233):
 each delayed triggered ability waiting for its event, with its card's words,
 whose it is, whether it fires once or each time this turn and the turn it can
-trigger in, then each extra turn in the order it will be taken. The engine
+trigger in; each "until" return (CR 610.3), named by its source and the number
+its log line gave it, with what it returns, whose it is and the object its
+event is about; then each extra turn in the order it will be taken. The engine
 answers it (`ui::waiting::what_is_waiting`, under `mtgsim/tests/waiting_test.rs`),
 the snapshot carries it, `view_model.rs` makes it a zone of rows, and `app.rs`
 draws that zone as it draws Exile: a collapsing header, closed until opened,
 shown only while something waits. A row goes when its trigger fires or
-expires, or its turn is taken, skipped, or lost with its player.
-`tests/scenarios/waiting.scenario` is its board and `waiting.png` its picture.
-TR-3b's "until" returns are in the engine's view already
-(`Waiting::until_returns`) and wait for the dev GUI PR that draws them;
-prevention and regeneration shields, and skipped steps, would join it as
-kinds of row, not panels of their own.
+expires, its return is made, or its turn is taken, skipped, or lost with its
+player. `tests/scenarios/waiting.scenario` is its board and `waiting.png` its
+picture; the same board's Flickerwisp is `hover.png`, a permanent's hover with
+the card now and as printed in equal columns. Prevention and regeneration
+shields, and skipped steps, would join the panel as kinds of row, not panels
+of their own.

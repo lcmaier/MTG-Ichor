@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::recorder::RecorderHandle;
-use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId};
+use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId, UntilReturnId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
@@ -196,6 +196,12 @@ pub enum GameEvent {
         rules_text: AbilityText,
         duration: DelayedDuration,
     },
+    /// An "until" exile made the return it waits to make (CR 610.3), by
+    /// `GameState::wait_to_return`, ahead of any record its event can be. A
+    /// record for a log and a client, as [`Self::DelayedTriggerCreated`] is.
+    /// `source` is the exiling spell or ability's source, `returns` what it
+    /// exiled.
+    UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
     /// A spell was countered (CR 701.6a). `controller` is its controller as
     /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
     SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId },
@@ -426,6 +432,7 @@ impl GameEvent {
             }
             AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
             DelayedTriggerCreated { source, .. } => ([Some(*source), None, None], &[], &[]),
+            UntilReturnMade { source, returns, .. } => ([Some(*source), None, None], returns, &[]),
             LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
             | SpellCountered { spell_id: a, countered_by: b, .. }

@@ -614,6 +614,8 @@ pub struct GameState {
     pub until_returns: Vec<crate::types::zones::UntilReturn>,
     /// The next `DelayedTriggerId` to mint; ids start at one.
     pub(crate) next_delayed_trigger_id: u64,
+    /// The next `UntilReturnId` to mint; ids start at one.
+    pub(crate) next_until_return_id: u64,
     /// CR 603.2h — "do this only once each turn": each ability whose action
     /// its controller has taken this turn, with that controller, since the
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
@@ -943,6 +945,7 @@ impl GameState {
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
+            next_until_return_id: 1,
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),

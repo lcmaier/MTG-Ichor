@@ -771,7 +771,11 @@ dispatch as one batch for one event (610.3d). Its event is any
 (Calix, Destiny's Hand). CR 610.3a/b's "already occurred" is answered for a
 leaving, by identity, and refused for any other event until that event's
 history is kept (`codebase-state.md` item 230). A token the exile moved
-stays where it went (CR 111.8).
+stays where it went (CR 111.8). A return carries an `UntilReturnId`, minted
+as a delayed trigger's number is, and `wait_to_return` announces
+`GameEvent::UntilReturnMade` ahead of it, as `DelayedTriggerCreated` is
+announced; the Waiting panel keeps a row by the number its log line gave it
+(item 234, the TR-3b dev GUI PR).
 
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 

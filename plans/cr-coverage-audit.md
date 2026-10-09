@@ -564,6 +564,9 @@ is derivable; where each name was read is not, and the gate needs the names.
     printed "until" exiles wait for a leaving (`o:/until .* leaves the
     battlefield/`), and Palace Jailer's for a monarch, so the event is not a
     leaving by type (#234's review).
+- **Added by the TR-3b dev GUI PR (2026-10-09)**:
+  - `next_until_return_id`: the counter a return's `UntilReturnId` comes
+    from, which a client keeps a waiting return by; no fact about the game.
 
 ---
 

@@ -37,6 +37,31 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-09 for TR-3b's dev GUI notes** (#238: item 234's
+`UntilReturnId` and `UntilReturnMade` record, the hover's columns and the
+Waiting panel's returns). No card registered and no pool changed, so no §3
+table is re-recorded. `close_out.py` against **main** `cf0fbf6` (#237's
+merge), one arm: **engine** `258129f` (every engine commit; the dev GUI and
+docs commits build the same `fuzz_games`).
+
+**Predicted at the build:** every gameplay and cost row `IDENTICAL` on both
+pools at two seats and four, since the record is read by no trigger kind
+(`EventKind::from_record` is `None`) and by no counter row, and the id is
+read only for display; the audit's dispatch count up by one per "until"
+exile, as #233's creation record moved it; instructions per decision within
+±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay and cost rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, `main`, performance / stress, dispatches agreed | 162,715 / 171,434 | 333,105 / 359,864 |
+| audit, engine, performance / stress, dispatches agreed | 162,763 / 171,446 | 333,199 / 359,903 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6495 M → 0.6496 M, **+0.02%** |
+
+Every prediction held. Each counter file reads `main`'s to the digit outside
+the timing lines and the audit's count; the triggers agreed are the same in
+both arms (659 / 523, 1,725 / 1,251). The sitting ran in 110 s.
+
 **Re-recorded 2026-10-08 for TR-3b** (the returns and "until": item 223's
 row half, `Effect::Remember`, `ReturnToBattlefield` with CR 303.4f/g, CR
 610.3's returns). Flickerwisp and Banishing Light join the registry and the

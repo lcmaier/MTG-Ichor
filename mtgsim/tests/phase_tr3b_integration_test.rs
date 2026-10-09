@@ -41,7 +41,7 @@ use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
     TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
@@ -973,6 +973,35 @@ fn the_waiting_view_shows_an_until_return() {
     assert_eq!(waiting.until_returns.len(), 1);
     assert!(waiting.until_returns[0].watched.as_deref().is_some_and(|w| w.contains("Banishing Light")));
     assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
+    assert!(waiting.until_returns[0].source.contains("Banishing Light"));
+}
+
+/// Item 234: a waiting return keeps the number its making gave it, not its
+/// place in the list. The first of two Lights leaves, so the second's return
+/// moves up a place, and is still number 2; a third is number 3, since a
+/// number is never reused.
+#[test]
+fn a_waiting_return_keeps_its_number_as_the_list_changes() {
+    let mut game = setup_two_player_game();
+    let bears = [put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 1)];
+    let dp = RecordingDecisionProvider::picking(0);
+    let lights = [banish(&mut game, 0, &dp), banish(&mut game, 0, &dp)];
+    let rows = |game: &GameState| -> Vec<(UntilReturnId, Vec<String>)> {
+        mtgsim::ui::waiting::what_is_waiting(game).until_returns.into_iter().map(|row| (row.id, row.returns)).collect()
+    };
+    let waiting = rows(&game);
+    assert_eq!(waiting.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [UntilReturnId(1), UntilReturnId(2)]);
+    let second = waiting[1].1.clone();
+
+    sacrifice(&mut game, lights[0]);
+    let mut zones = bears.map(|b| zone(&game, b));
+    zones.sort_by_key(|z| *z == Zone::Exile);
+    assert_eq!(zones, [Zone::Battlefield, Zone::Exile], "the first Light's card back, the second's still away");
+    assert_eq!(rows(&game), [(UntilReturnId(2), second)], "the second Light's, first in the list now");
+
+    banish(&mut game, 0, &dp);
+    let ids: Vec<UntilReturnId> = rows(&game).into_iter().map(|(id, _)| id).collect();
+    assert_eq!(ids, [UntilReturnId(2), UntilReturnId(3)]);
 }
 
 // ---------------------------------------------------------------------------
