@@ -261,7 +261,7 @@ fn audit_every_member(game: &GameState) {
 
 /// The debug mode §13e decision 6 requires beside the notes: every frame of a
 /// card the pass leaves out is checked against a pass with the card's zone
-/// in it, as LJ's passes had it. The two agree exactly when the guard
+/// in it. The two agree exactly when the guard
 /// (`left_out_zones`) left out only cards the pass would never have read,
 /// which is the claim the notes rest on; the counts are rewound as the memo
 /// audit's are.
@@ -379,9 +379,7 @@ pub(super) fn compute_non_member_recorded(
     }
 
     // The common case, and worth its own exit: with no CDA and no row reaching
-    // its zone there is nothing any layer can do to the object. Before LJ this
-    // said "off the battlefield", and that was the same statement only because
-    // no row could reach further.
+    // its zone there is nothing any layer can do to the object.
     let reaches = |note: &RowNote| {
         matches!(&note.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
     };
@@ -791,15 +789,9 @@ pub(super) fn object_matches_filter(
         ObjectFilter::BySubtype(s) => chars.subtypes.contains(s),
         ObjectFilter::BySupertype(s) => chars.supertypes.contains(s),
         ObjectFilter::ByColor(c) => chars.colors.contains(c),
-        // `chars.controller` is the *effective* controller of the object being
-        // tested — Layer 2 will write it, and this comparison then costs
-        // nothing to keep correct.
-        //
-        // Every variant resolves; none of them asserts. `Opponent` is a
-        // predicate rather than an id on purpose: CR 102.2 makes it exactly one
-        // player in a two-player game, but CR 102.3 makes "your opponents" a
-        // set in multiplayer, and "controlled by someone who isn't you" is the
-        // same answer in both without the type having to lie.
+        // `chars.controller` is the effective controller, as of Layer 2. Every
+        // variant resolves; `Opponent` is a predicate, not an id, since CR 102.3
+        // makes "your opponents" a set above two players (CR 102.2).
         ObjectFilter::ByController(player_ref) => match player_ref {
             PlayerRef::You => chars.controller == players.you(),
             PlayerRef::Opponent => chars.controller != players.you(),
@@ -915,24 +907,14 @@ pub(super) fn evaluate_amount(
                 .map(|v| v + *n as i32)
         }
 
-        // A count over the battlefield, taken at this layer — Keldon Warlord's
-        // "the number of non-Wall creatures you control".
-        //
-        // **Enumerates the real battlefield**, which a permanent that is only
-        // *entering* is not on: the entering object is visible to filters and
-        // invisible to counts (`replacement-architecture.md` §5a; Thassa's ruling
-        // that "the mana symbols in its mana cost won't be counted"). Each member's
-        // frame is the live one, including the object doing the counting, which is
-        // why a modification is resolved before its frame is written. One filter
-        // evaluation per permanent per query is `layers-architecture.md` §12's
-        // quadratic by design.
-        //
-        // "You" is the affected object's own controller for a CDA (CR 109.5, read
-        // off `chars` as of this layer) and the row's controller for a registry
-        // row, exactly as a filter leaf resolves it.
-        // "The number of cards in your hand" (Psychosis Crawler): a count, which
-        // any player may take of any hand (CR 402.3); the cards are not read.
-        // "You" is the CDA's own object's controller, or the row's controller.
+        // A count over the battlefield at this layer (Keldon Warlord). **The real
+        // battlefield**: an entering object is visible to filters and not to counts
+        // (`replacement-architecture.md` §5a, Thassa's ruling). Each member's frame
+        // is the live one, the counter's own included, which is why a modification
+        // resolves before its frame is written; one filter per permanent per query
+        // is `layers-architecture.md` §12's quadratic by design. "You" is a CDA's
+        // object's controller (CR 109.5) or the row's, as a filter leaf resolves
+        // it. A hand's size any player may count (CR 402.3; Psychosis Crawler).
         AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
             debug_assert!(
                 *whose == PlayerRef::You,
@@ -1181,12 +1163,8 @@ fn resolve_without_reads<'m>(modification: &'m EffectModification, row: &Continu
 pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveCharacteristics, object_id: ObjectId) {
     let modification = match resolved {
         // Layer 2. CR 302.6 asks whether control has been *continuous*, so the
-        // clock only restarts when control actually moves. Act of Treason
-        // legally targets a creature you already control; gaining control of
-        // something you control changes nothing, and resetting the epoch here
-        // would invent summoning sickness the CR does not give. (Act of
-        // Treason grants haste, so it would hide the bug; a card that gains
-        // control without haste would not.)
+        // clock restarts only when control moves: gaining control of what you
+        // control (a legal Act of Treason) gives no summoning sickness.
         Resolved::Controller(Some((new_controller, since))) => {
             if chars.controller != *new_controller {
                 chars.controller = *new_controller;
@@ -1214,16 +1192,10 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         }
         // Layer 6
         Resolved::Grant(def, id) => {
-            // CR 604.3a(2) makes an ability characteristic-defining only if it is
-            // printed on the object, granted to a token by the effect that created
-            // the token, or acquired through a copy or text-changing effect. A Layer
-            // 6 grant is none of those, so it is never a CDA here, however its text
-            // reads. The flag on `AbilityDef` asserts only what the text satisfies,
-            // and this arm is where a Layer 6 grant writes the def onto an object
-            // (`CLAUDE.md`). A Clone that copies Tarmogoyf keeps Tarmogoyf's CDA:
-            // Layer 1 hands the def over whole, flag and all. The id is provenance
-            // too: it names the grant, so two grants of one ability are two
-            // instances.
+            // CR 604.3a(2): a Layer 6 grant is none of a CDA's routes, so the flag
+            // clears here, where the grant writes the def onto the object
+            // (`CLAUDE.md`); a Clone of Tarmogoyf keeps its CDA through Layer 1. The
+            // id names the grant, so two grants of one ability are two instances.
             let mut granted = (*def).clone();
             granted.id = *id;
             granted.is_characteristic_defining = false;

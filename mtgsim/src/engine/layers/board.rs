@@ -174,9 +174,9 @@ pub(super) enum AffectedSet {
 ///
 /// Every pass the engine runs leaves them out (`left_out_zones`), and a card
 /// there is walked alone with the pass's notes. The debug audit needs the
-/// answer that walk must match, so it runs one pass with those cards in, as
-/// every pass was before LL (`compute::audit_left_out`). A release build has
-/// no audit, and so no `InPass`.
+/// answer that walk must match, so it runs one pass with those cards in
+/// (`compute::audit_left_out`). A release build has no audit, and so no
+/// `InPass`.
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum HiddenCards {
     LeftOut,
@@ -274,15 +274,11 @@ impl<'l> Board<'l> {
                 members.push(effect.source);
             }
         }
-        // The objects a zone-reaching row can name. Appended **last**, so
-        // `battlefield_entities` keeps naming the prefix every count slices, and
-        // in each zone's own order (CR 404.3 for a graveyard), which is what a
-        // member outside the battlefield has instead of a timestamp.
-        // `beyond_battlefield` is empty on every board that plays no zone-reaching
-        // card, which is what makes this loop free rather than cheap — the
-        // alternative is every library in the game — and `left_out` takes the
-        // libraries and hands back out of it. The look-ahead's own rows are
-        // not consulted: a `would_be` row's candidates are `[source]` alone (§5b).
+        // A zone-reaching row's objects, appended **last** so `battlefield_entities`
+        // stays the prefix every count slices, each zone in its own order (CR
+        // 404.3), a non-battlefield member's stand-in for a timestamp. Free on a
+        // board with no zone-reaching card; `left_out` takes libraries and hands
+        // back out. A `would_be` row's candidates are `[source]` alone (§5b).
         let reached = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
         for zone in reached.without(left_out).iter() {
             for id in game.zone_ids_ordered(zone) {
@@ -357,9 +353,6 @@ impl<'l> Board<'l> {
     /// object whose entry is being decided is still in its source zone and
     /// carries that zone's timestamp, which is older than every permanent on
     /// the board, where CR 614.12 asks what it would be once it has entered.
-    /// Before LK the same distinction was spelled as "has an entity or does
-    /// not", and that stopped working the day an object off the battlefield
-    /// had a timestamp at all.
     pub(super) fn timestamp_of(&self, game: &GameState, id: ObjectId) -> Timestamp {
         match self.entering(id) {
             Some(l) => l.entity_timestamp,
@@ -413,13 +406,10 @@ impl<'l> Board<'l> {
         if let Some(frame) = self.frames.get(&id) {
             return Some(FrameRef::Live(frame));
         }
-        // A member's frame comes from the pass (memoized), never from a lone
-        // walk. Read through `pass_membership` rather than off
-        // `game.battlefield` so it stays the same answer the top-level entry
-        // gives: a member need not be a battlefield entity, and answering one
-        // here with `compute_non_member` would drop exactly the zone-reaching
-        // row that made it a member. Inside a pass every member has a frame, so
-        // what is left to ask is whether the card is one this pass leaves out.
+        // A member's frame is the pass's, never a lone walk's, read through
+        // `pass_membership` as the top-level entry does: a member need not be on
+        // the battlefield, and `compute_non_member` would drop the very row that
+        // made it one. What is left is whether this pass leaves the card out.
         let is_left_out = if self.live {
             game.objects.get(&id).is_some_and(|obj| self.left_out.contains(obj.zone))
         } else {
@@ -842,16 +832,10 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         }
         // A resolution's count, off `GameState`.
         Condition::ResolvedThisTurn(_) => {}
-        // A conjunction reads whatever its clauses read. No wildcard inside, for
-        // this function's own stated reason.
-        //
-        // **`All` alone is not a restriction on what cards can say.** Most printed
-        // "or" sits *inside* a clause: Abzan Kin-Guard's "as long as you control a
-        // white **or** black permanent" (Scryfall, 2026-09-14) is one
-        // `PlayerFact::ControlsPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
-        // disjunction of two whole *conditions* and lands with the first registered
-        // card that needs one, together with its arm here and in
-        // `zone_function::stated_zones` (`layers-architecture.md` §15.1).
+        // A conjunction reads what its clauses read, with no wildcard inside. Most
+        // printed "or" is inside a clause (Abzan Kin-Guard's "white **or** black
+        // permanent" is an `ObjectFilter::Or`); `Condition::Or` lands with the
+        // first card that joins two whole conditions (`layers-architecture.md` §15.1).
         Condition::All(clauses) => {
             for clause in clauses {
                 condition_reads(clause, out, you_channel);
@@ -995,13 +979,10 @@ fn applications_in_layer<'a, 'l: 'a>(
         }
     }
 
-    // CR 614.1c — what a member entered as, at its own timestamp. The copy
-    // (CR 707.5) is that copy from layer 1a on, so a copy effect registered
-    // later applies over it and gives it back when it ends (CR 707.4). Each
-    // edit applies at its own layer, after the member's own static rows at
-    // that timestamp: the order CR 613.7n gives the like case of a resolving
-    // effect that sets an entering permanent's characteristics (CR 611.2e).
-    // A snapshot and an edit read nothing, so neither depends on anything
+    // CR 614.1c — what a member entered as, at its own timestamp: the copy from
+    // layer 1a on (CR 707.5), so a later copy effect applies over it and gives it
+    // back (CR 707.4); each edit at its layer after the member's own static rows,
+    // CR 613.7n's order for the like case (CR 611.2e). Neither reads anything
     // (CR 613.8a).
     for note in &board.entered_as {
         let mut push_own = |own: OwnApplication, modification: EffectModification, tiebreak: Tiebreak| {
@@ -1715,8 +1696,8 @@ pub(super) fn compute_board_recorded<'l>(
     run_pass(game, lookahead, asked, ceiling, recorder, HiddenCards::LeftOut)
 }
 
-/// One full pass with every card in a hidden zone a row reaches in it, as
-/// LJ's passes had them: what the debug audit compares a left-out card's
+/// One full pass with every card in a hidden zone a row reaches in it:
+/// what the debug audit compares a left-out card's
 /// frame against (`layers-architecture.md` §13e decision 6).
 #[cfg(debug_assertions)]
 pub(super) fn compute_board_with_hidden_cards(game: &GameState) -> Board<'static> {
@@ -1847,7 +1828,7 @@ fn source_joins(effect: &ContinuousEffect, source_zone: Zone, left_out: ZoneSet)
 ///   would not be the whole board's. No printed card makes such a pair
 ///   depend; the pre-check's grain makes some of them look as though they
 ///   could (Biotransference's added Artifact beside Arcane Adaptation's
-///   creature cards), and such a board costs what LJ's passes cost.
+///   creature cards), and such a board keeps those zones in its passes.
 ///
 /// Only an effect's *filter* is asked in (b): a condition reads the
 /// battlefield, a graveyard or the source, and a dynamic amount is (a)'s.

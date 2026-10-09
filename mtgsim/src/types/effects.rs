@@ -748,9 +748,8 @@ pub enum EffectRecipient {
     /// happens, not how many times the card said "target", and effects per
     /// clause is whatever the wording needs.
     ///
-    /// Two registered cards make it exact. Written the way this crate encoded
-    /// cards before A4i — each atom carrying the clause it acts on — these are
-    /// the **same tree**:
+    /// Two registered cards make it exact. Written with each atom carrying the
+    /// clause it acts on, these are the **same tree**:
     ///
     /// ```text
     /// Act of Treason     Sequence[ Atom(GainControl,          Target(Creature, Exactly(1))),
@@ -1173,11 +1172,9 @@ pub enum CounterType {
 
     // --- Counters that create a replacement effect (rule 122.1c/d/h) ---
     //
-    // Nothing on any card says what these three do; the rule does, and between
-    // them they exercise destroy replacement, damage prevention, untap
-    // replacement and zone-change replacement across 164 printed cards.
-    // `engine::replacement::gather` synthesizes their effects from the counter
-    // itself, quoting the rule verbatim.
+    // No card says what these three do; the rule does, across 164 printed cards
+    // (RB's census, 2026-08-26), and `replacement::gather` synthesizes their
+    // effects from the counter, quoting the rule verbatim.
     /// CR 122.1c. Creates *two* effects: a replacement against destruction by
     /// an effect, and a prevention effect against damage.
     Shield,
@@ -2132,9 +2129,7 @@ pub enum Effect {
     /// this turn" comes through [`Primitive::Restrict`], which takes the
     /// `Duration` as an argument.
     ///
-    /// Boxed to mirror [`Self::Replacement`] and to keep `Effect` small;
-    /// `RestrictionDef` grows an `unless: Option<Condition>` when Phase 6 gives
-    /// `Condition` a meaning, and `Condition` is not small.
+    /// Boxed to mirror [`Self::Replacement`] and to keep `Effect` small.
     Restriction(Box<crate::types::restriction::RestrictionDef>),
 
     /// CR 601.2f / 613.11 — this ability changes what spells cost to cast.

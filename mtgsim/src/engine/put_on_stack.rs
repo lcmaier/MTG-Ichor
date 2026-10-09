@@ -85,16 +85,10 @@ impl GameState {
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
 
-        // PRE-LAYER ZONE: reads printed abilities and types on purpose. The card
-        // is still in hand here, so it is not a permanent and the layer system has
-        // nothing to contribute -- see "Before Layers" in plans/codebase-state.md.
-        //
-        // The spell's abilities in printed order (CR 608.2c).
-        // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
-        // may not have a spell ability — they resolve by entering the
-        // battlefield. Use an empty Sequence as a no-op effect. The instances
-        // of "target" are a separate question (CR 303.4a: an Aura's is its
-        // enchant ability), answered by `CardData::spell_instances`.
+        // PRE-LAYER ZONE: printed abilities and types on purpose, the card still in
+        // hand. The spell's abilities in printed order (CR 608.2c); a permanent
+        // spell may have none, and resolves by entering. Its instances of "target"
+        // are `CardData::spell_instances`' (an Aura's is its enchant ability, CR 303.4a).
         let effect = if let Some(effect) = crate::objects::card_data::spell_effect(&card_data.abilities) {
             effect
         } else if card_data.types.iter().any(|t| t.is_permanent()) {
@@ -112,13 +106,10 @@ impl GameState {
         // The card as it was, for a delayed trigger whose source it is: the
         // move below ends that object, and its record is 601.2i's.
         let card_before_cast = self.object_ref(card_id);
-        // CAST-ROLLBACK: silent in both directions. Nothing in the CR replaces
-        // a card being put onto the stack — a "can't cast" is CR 601.3's
-        // question, asked of the player ahead of this step — so the move is
-        // not a proposal; and the spell is not cast until 601.2i, so a cast
-        // that rewinds (CR 732.1) must leave no trace of it. Announced at
-        // 601.2i below, once the spell is cast. `rollback_cast_to_hand` is the
-        // other direction.
+        // CAST-ROLLBACK: silent in both directions. Nothing replaces a card put on
+        // the stack (a "can't cast" is CR 601.3's, asked first), and a cast that
+        // rewinds (CR 732.1) leaves no trace; announced at 601.2i, once cast.
+        // `rollback_cast_to_hand` is the other direction.
         self.move_object(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
@@ -581,15 +572,10 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
 
         // CR 601.2g opens the window only "if the total cost includes a mana
-        // payment". Casting Mox Opal offers none, and the judge's warning on the
-        // Ironworks board is that exact card: you cannot sacrifice artifacts for
-        // mana while casting something that asks for none. A component **reduced**
-        // to nothing reads the same way — CR 601.2f's "considered to be {0}" — and
-        // by the time this runs the total is locked, a `Vec<Cost>` with no record
-        // of how it got there, so a free Myr Enforcer behind seven artifacts and a
-        // Mox Opal are one board here. The test is on the component's symbols, not
-        // on whether a `Cost::Mana` entry exists: `determine_total_cost` always
-        // emits one, empty when the cost is {0} (`total.rs::rebuild`).
+        // payment": no Ironworks sacrifices while casting Mox Opal (the judge's
+        // warning on that board), nor a cost reduced to {0} (CR 601.2f). Read off
+        // the component's symbols, since `determine_total_cost` always emits a
+        // `Cost::Mana`, empty for {0}.
         if mana_cost_for_window.symbols.is_empty() {
             return;
         }

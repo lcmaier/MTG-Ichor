@@ -459,15 +459,9 @@ impl GameState {
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
-        // Untap permanents the active player *effectively* controls (CR 502.1).
-        // Two passes because the predicate is a `&self` layer query and the untap
-        // is a `&mut self` write.
-        //
-        // **Ordered, and that is not cosmetic.** Each untap is a replaceable
-        // `GameAction::Untap`, and CR 616.1 prompts the affected permanent's
-        // controller when two effects want one untap (stun counters, CR 122.1d),
-        // so the order the proposals are made in is observable and `HashMap` order
-        // differs per process.
+        // CR 502.1 — what the active player *effectively* controls, in two passes
+        // (a layer query, then the writes). **Ordered**: two effects wanting one
+        // untap (stun counters, CR 122.1d) make a CR 616.1 prompt.
         let to_untap: Vec<ObjectId> = self
             .battlefield_ids_ordered()
             .into_iter()
@@ -487,18 +481,11 @@ impl GameState {
     fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
-        // Through the chokepoint, not straight to `draw_card`: CR 614.11 draw
-        // replacements and CR 614.10 skips both act on the *proposal*, and the
-        // turn-based action is where the proposal is born. The **instruction**
-        // rather than the draw (CR 121.2a): CR 504.1's turn-based action is "draw a
-        // card", one "draw" of one card, and every draw instruction proposes the
-        // outer so that Divination and a pair of cantrips are told apart by `n`.
-        // The engine's one `DrawCause::TurnBased` site (CR 121.1). CR 103.8a's
-        // skip is not here: that draw step never begins (`begin_step`).
-        //
-        // Not for an active player who has left the game (CR 800.4j — "the turn
-        // continues to its completion without an active player"): the turn-based
-        // action is theirs to perform, and there is nobody to perform it.
+        // Proposed (CR 614.11's draw replacements and 614.10's skips read the
+        // proposal), and as the **instruction** (CR 121.2a), CR 504.1's "draw a
+        // card"; the engine's one `DrawCause::TurnBased` site. CR 103.8a's skipped
+        // draw never begins (`begin_step`), and a departed active player draws
+        // nothing (CR 800.4j).
         if self.in_game(active) {
             self.execute_action(
                 GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },

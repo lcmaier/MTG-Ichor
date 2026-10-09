@@ -121,17 +121,10 @@ pub fn assign_trample_damage(
         })
         .collect();
 
-    // Rule 702.19b: trample requires assigning at least lethal damage to
-    // each blocker before excess can trample through to the defending target.
-    // When power < sum(lethals) no overflow to the defender is possible, so
-    // the defending-target bucket is capped at 0 and the per-blocker mins
-    // drop to 0 (the total cannot satisfy them all anyway); the DP divides
-    // freely among blockers.
-    //
-    // Array lengths: blocker-only mins (`alive_blockers.len()`), because
-    // `ask_choose_trample_damage_assignment` appends the defender's min (0)
-    // internally, but maxs for ALL buckets (`+ 1`), because ask.rs passes
-    // maxs straight through to `dp.allocate()`.
+    // CR 702.19b: lethal to each blocker before any tramples over. Below the
+    // lethal total the defender's bucket is capped at 0 and the minimums drop to
+    // 0, the provider dividing freely. Mins are per blocker (the ask appends the
+    // defender's 0); maxs cover every bucket (`+ 1`), passed straight to `allocate`.
     let min_sum: u64 = per_blocker_mins.iter().sum();
     let (effective_blocker_mins, maxs) = if min_sum > damage {
         let mins = vec![0u64; alive_blockers.len()];

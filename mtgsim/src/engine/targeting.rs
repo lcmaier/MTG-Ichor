@@ -273,13 +273,10 @@ impl EarlierTargets<'_> {
 /// control other than this one" is a legal English sentence — so they are
 /// fields rather than an enum.
 ///
-/// **`exclude_id` is not a third field, and the fold was withdrawn after it was
-/// built** (A4i's review, 2026-09-17). It is the same kind of fact, but CR 115.5
-/// — "a spell or ability on the stack is an illegal target for itself" — bites on
-/// the `Spell` and `DamageSource` arms, and those answer membership directly
-/// without ever walking an `ObjectFilter`. A leaf-level fact cannot reach them, so
-/// `exclude_id` stays applied in the enumeration, uniformly, whatever the filter's
-/// shape.
+/// **`exclude_id` is not a third field**, though it is the same kind of fact:
+/// CR 115.5 bites on the `Spell` and `DamageSource` arms, which answer
+/// membership without walking an `ObjectFilter`, so it stays in the enumeration
+/// whatever the filter's shape.
 #[derive(Clone, Copy)]
 pub struct FilterIdentity<'a> {
     /// The source [`ObjectFilter::NotSource`] excludes: the effect's own, or
@@ -316,11 +313,9 @@ impl<'a> FilterIdentity<'a> {
 /// **The stack reads the announcement.** `StackEntry::chosen_targets` recorded
 /// each clause beside its choice, so the index the announcement filled is the
 /// index the resolution reads, and nothing is derived from the effect tree at
-/// resolution. `resolve_effect` used to walk the tree again and rest on the
-/// second walk numbering the atoms as the first had; there is no second walk
-/// now. An Aura's instance comes from its enchant ability and sits in no tree
-/// (CR 303.4a), which is why the announcement is the one list that is right
-/// for every spell.
+/// resolution. An Aura's instance comes from its enchant ability and sits in
+/// no tree (CR 303.4a), which is why the announcement is the one list that is
+/// right for every spell.
 ///
 /// **A bare effect has no announcement** — CR 615.5's rider, and a test that
 /// staged its `ResolutionContext` by hand — so its clauses are read off the
@@ -442,17 +437,10 @@ impl GameState {
             EffectRecipient::Target(filter, count)
             | EffectRecipient::Choose(filter, count) => {
                 self.validate_target_count(count, targets.len())?;
-                // CR 601.2c, first sentence: "the same target can't be chosen
-                // multiple times for any one instance of the word 'target'."
-                // Victimize's "two target creature cards" needs two different
-                // cards; Decimate's four *instances* may share one artifact
-                // land, and do not come through here together.
-                //
-                // `validate_pick_n` already refuses a duplicate *index*, so no
-                // shipped `DecisionProvider` can produce this. That is the
-                // provider contract, not the rule — and the rule is what a
-                // future target-changing effect (CR 115.7) will be checked
-                // against.
+                // CR 601.2c's first sentence: one instance never picks a target twice
+                // (Victimize's two cards; Decimate's four instances may share one).
+                // `validate_pick_n` refuses a duplicate index already, but that is the
+                // provider's contract, and CR 115.7's target changes check the rule.
                 for (i, t) in targets.iter().enumerate() {
                     if targets[..i].contains(t) {
                         return Err(format!(
@@ -873,15 +861,10 @@ impl GameState {
                     PlayerRef::Player(pid) => obj.owner == *pid,
                 })
             }
-            // "Each other" is relative to an effect's source. An *affected set*
-            // has one — Palisade Giant's "other permanents you control" — and a
-            // *selection* does not, so the second is refused rather than
-            // answered `true`: a filter that silently included the source would
-            // be the opposite of the word.
-            //
-            // Answered off the ids, like `compute::object_matches_filter`'s
-            // identical arm: no layer can make an object something other than
-            // itself, so this needs no frame.
+            // "Each other" is relative to an effect's source: an affected set has
+            // one (Palisade Giant), a selection does not, so it is refused there
+            // rather than read as `true`. Off the ids, as in `compute`: no layer
+            // makes an object other than itself.
             ObjectFilter::NotSource => match identity.source {
                 Some(source) => Ok(id != source),
                 None => Err(format!(
@@ -889,15 +872,9 @@ impl GameState {
                     id
                 )),
             },
-            // CR 601.2c's "another target": answered off the ids, like
-            // `NotSource` above and for the same reason.
-            //
-            // **An instance that announced nothing excludes nothing**, which
-            // is not a silent default: the only way to reach this leaf with an
-            // empty instance is a `TargetCount::UpTo` clause the player took
-            // zero targets for (CR 115.6), and "another creature" than no
-            // creature is every creature. An instance the walk never reached
-            // is the refused case below.
+            // CR 601.2c's "another target", off the ids as `NotSource` is. An
+            // instance that announced nothing (an "up to" taken at zero, CR 115.6)
+            // excludes nothing; one the walk never reached is refused below.
             ObjectFilter::OtherThanInstance(ix) => {
                 if *ix >= identity.earlier_targets.len() {
                     return Err(format!(
@@ -946,10 +923,8 @@ impl GameState {
     /// **Two rules, and they are not the same rule.** "If all its targets …
     /// are now illegal, the spell doesn't resolve" is asked across every
     /// instance together; "if *some* are illegal, it resolves but does nothing
-    /// to them" is asked per target. The one-recipient model could only ask the
-    /// first, which is why Plague Spores' land half used to die with its
-    /// creature half and Jagged Lightning used to damage a creature that had
-    /// gained protection (`backlog.md` §2.20).
+    /// to them" is asked per target, so Plague Spores' land half survives its
+    /// creature half (`backlog.md` §2.20).
     ///
     /// **Filtered once, here, not per atom.** CR 608.2b checks targets as the
     /// spell *begins* to resolve, so an earlier atom that changes the board
@@ -971,15 +946,9 @@ impl GameState {
         you: PlayerId,
         this_object: ObjectId,
     ) -> Option<ChosenTargets> {
-        // The announcement, unfiltered, so that `OtherThanInstance` re-reads
-        // what CR 601.2c chose. "Another target creature" was a criterion of
-        // the *announcement*; the objects have not changed, so it stays
-        // satisfied, and re-asking it against a half-filtered list would make
-        // one instance's fizzle silently legalize another's.
-        //
-        // Borrowed from the entry rather than copied: the announcement is
-        // already `instances`, and the only thing the leaf needs of it is a
-        // by-index read.
+        // The announcement, unfiltered: "another target" was a criterion of
+        // CR 601.2c's announcement, and re-asking it against a half-filtered list
+        // would let one instance's fizzle legalize another's. Borrowed, not copied.
         let announced_targets = FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances));
 
         // CR 115.6 — "a spell or ability that requires targets may allow zero
@@ -1015,11 +984,9 @@ impl GameState {
     ///
     /// **`exclude_id` is CR 115.5** — "a spell or ability on the stack is an
     /// illegal target for itself" — and every caller inside CR 601.2c's loop
-    /// passes the object being cast or activated. The older comment here called
-    /// it "the Aura, which can't enchant itself"; that case cannot arise, since
-    /// an Aura spell is on the *stack* when its target is chosen and an enchant
-    /// filter only matches permanents. Where the parameter actually bites is
-    /// the stack-reading filters, `Spell` and `DamageSource`.
+    /// passes the object being cast or activated. It bites on the stack-reading
+    /// filters, `Spell` and `DamageSource`: an Aura spell is on the stack as it
+    /// targets, and an enchant filter matches only permanents.
     ///
     /// For player filters, all players are considered (player hexproof and
     /// shroud are `backlog.md` §2.15's).

@@ -282,12 +282,9 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 614.1a. A *static* replacement ability never reaches here —
-            // `engine::replacement::gather` reads it off the effective list — so this
-            // arm is a replacement effect created by a *resolution*, which CR 614.3
-            // gives a duration. Loud, because the duration is the missing piece:
-            // `Primitive::CreateReplacement` takes it as an argument, and CR 701.19a's
-            // shield comes through `Primitive::Regenerate`, which knows its own.
+            // CR 614.1a. A static replacement ability is `gather`'s, so this is one a
+            // resolution creates, which needs the duration CR 614.3 gives it: loud,
+            // since `CreateReplacement` and `Regenerate` are the arms that carry one.
             Effect::Replacement(_) => Err(
                 "a replacement effect created by a resolution needs a CR 614.3 \
                  duration, which `Effect::Replacement` does not carry. Use \
@@ -300,10 +297,8 @@ impl GameState {
             ),
 
             // CR 101.2's twin of the arm above, loud for the same reason: a static
-            // "can't" is read off the effective list by
-            // `engine::restriction::is_prohibited`, and one a *resolution* creates
-            // needs a scope CR 608.2c hands to a human reader
-            // (`cant-effects-architecture.md` §9 finding 1).
+            // "can't" is `is_prohibited`'s, and a resolution's needs the scope CR
+            // 608.2c leaves to a reader (`cant-effects-architecture.md` §9 finding 1).
             Effect::Restriction(_) => Err(
                 "a \"can't\" effect created by a resolution needs a duration, \
                  which `Effect::Restriction` does not carry. CR 608.2c makes the \
@@ -328,12 +323,9 @@ impl GameState {
                     .to_string(),
             ),
 
-            // "If [condition], [effect]" inside a resolving effect — CR 603.4's
-            // intervening "if" is the def's own field and is checked in
-            // `resolve_taken`; an `if` anywhere else is this, read against the
-            // board as the atom is reached (CR 608.2c's "in the order written").
-            // The clause's own atoms don't answer for the action before it, so
-            // "if you do … if you don't …" reads one answer.
+            // An "if" inside a resolving effect, read as the atom is reached (CR
+            // 608.2c's order); CR 603.4's intervening "if" is the def's field,
+            // `resolve_taken`'s. "If you do … if you don't …" reads one answer.
             Effect::Conditional(condition, inner) => {
                 if self.resolution_condition_holds(condition, ctx, walk) {
                     let answer = walk.last_cost_answer;
@@ -343,11 +335,9 @@ impl GameState {
                 Ok(())
             }
 
-            // A triggered ability is never resolved as written: the
-            // dispatcher reads it off the effective list, and what reaches
-            // the stack is its inner effect with the binding beside it. A
-            // spell cannot carry one (CR 603.1 — a triggered ability is an
-            // ability of an object), so reaching here is a wiring error.
+            // What reaches the stack is a trigger's inner effect with its binding,
+            // and a spell cannot carry a triggered ability (CR 603.1), so reaching
+            // here is a wiring error.
             Effect::Triggered(_) => Err(format!(
                 "a triggered ability reached resolution as an effect of {:?}; `Effect::Triggered` belongs on an `AbilityType::Triggered` ability and is read by `engine::triggers`",
                 ctx.source
@@ -437,13 +427,10 @@ impl GameState {
         match primitive {
             // === One-shot primitives ===
 
-            // **One batch, however many things it hits.** Three rules read the batch
-            // rather than the events in it — CR 704.3's simultaneity, CR 615.7's "two
-            // or more applicable sources" and CR 603.2c's "one or more" — and a loop
-            // of `execute_action` is unreachable from all three (`CLAUDE.md`).
-            // `FilteredPermanents` is resolved here rather than filled into
-            // `ctx.targets`: the recipient means "every permanent matching this
-            // **now**". Ordered, because the members reach a CR 616.1 prompt and a log.
+            // **One batch, however many things it hits**: CR 615.7's "two or more
+            // applicable sources" and CR 603.2c's "one or more" read the batch
+            // (`CLAUDE.md`). `FilteredPermanents` is "every permanent matching this
+            // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let targets: Vec<DamageTarget> = match recipient {
@@ -498,12 +485,9 @@ impl GameState {
 
             Primitive::DrawCards(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
-                // **One instruction per player, whatever `count` is** (CR 121.2a);
-                // its performer does CR 121.2's individual draws. A loop over the
-                // count would make "draw three cards" three instructions, the
-                // distinction Alms Collector's ruling turns on ("count how many
-                // times the word 'draw' is used"). Several players draw one at a
-                // time, in the APNAP order `players_in` gave them (CR 121.2c).
+                // **One instruction per player, whatever `count` is** (CR 121.2a;
+                // Alms Collector's ruling counts the word "draw"), its performer
+                // doing the draws. Players draw in `players_in`'s APNAP order (CR 121.2c).
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::EachOf(_) => targets
                         .iter()
@@ -523,17 +507,10 @@ impl GameState {
                 Ok(())
             }
 
-            // > 701.17a For a player to mill a number of cards, that player
-            // > puts that many cards from the top of their library into their
-            // > graveyard.
-            //
-            // **One batch, N members** — "puts that many cards" is one simultaneous
-            // move, with no CR 121.2 "one at a time" making it the exception, so a
-            // CR 603.2c "one or more cards" trigger fires once for a mill of five.
-            // Each member is still its own event for CR 614.5, so Leyline of the Void
-            // applies to every card (§4.2). CR 701.17b makes a short library "as many
-            // as possible" rather than a failure, and the cards are taken before any
-            // moves because they all move at once.
+            // CR 701.17a — **one batch, N members**: "puts that many cards" is one
+            // move, so a "one or more cards" trigger fires once (CR 603.2c) and each
+            // card is its own event for Leyline of the Void (CR 614.5). A short
+            // library mills what it has (CR 701.17b), every card taken before any moves.
             Primitive::Mill(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
@@ -582,15 +559,10 @@ impl GameState {
                 Ok(())
             }
 
-            // > 701.9a To discard a card, move it from its owner's hand to
-            // > that player's graveyard.
-            //
-            // **One batch, N members**, on `Primitive::Mill`'s argument: the cards
-            // are chosen and then move together, so CR 603.2c's "one or more cards"
-            // fires once for a Mind Rot, while each card is its own member and subject
-            // — Library of Leng's ruling is one CR 616.1 decision per member, in the
-            // batch's order. The chooser is CR 701.9b's: [`DiscardChooser::Affected`]
-            // asks the player, `AtRandom` draws from the game's own `rng`.
+            // CR 701.9a — **one batch, N members**, as `Mill`: chosen, then moved
+            // together, so "one or more cards" fires once for a Mind Rot, and each
+            // card is a CR 616.1 decision of its own (Library of Leng's ruling). CR
+            // 701.9b's chooser: `Affected` asks the player, `AtRandom` reads `rng`.
             Primitive::Discard(amount_expr, chooser) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
@@ -772,15 +744,10 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 603.7 — registered as the resolution reaches it, with CR
-            // 603.7d–f's provenance off the context (§3.9). An ability's
-            // delayed trigger is its source's and its controller's as it
-            // resolved (603.7e); otherwise the context's own object is the
-            // source: the spell as it resolves (603.7d), or the object whose
-            // replacement a rider is, under its controller as it applied
-            // (603.7f, `Rider`). Never `ctx.source` for an ability: that is
-            // the stack object CR 608.2n removes (`codebase-state.md` item
-            // 223). X is CR 107.3n's, the resolving spell's or ability's.
+            // CR 603.7, registered as the resolution reaches it. The source is CR
+            // 603.7d–f's: an ability's source (603.7e), else the spell (603.7d) or the
+            // object whose replacement a rider is (603.7f) — never an ability's stack
+            // object, which CR 608.2n removes. X is CR 107.3n's.
             Primitive::CreateDelayedTrigger(template) => {
                 let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
                 let source = match ctx.ability_source {
@@ -916,17 +883,11 @@ impl GameState {
             // === Destroy and untap ===
 
             Primitive::Destroy => {
-                // CR 701.8a — destroy target permanent.
-                //
-                // **One batch, because CR 608.2f says so**: a board wipe destroys
-                // everything at one instant, so the deaths are one event, which is what
-                // lets a CR 614 replacement apply once *per death* and what CR 615.7's
-                // shield allocation and CR 603.2c's "one or more creatures die" read.
-                // Indestructible is not filtered here: CR 702.12b is a "can't"
-                // (CR 614.17), asked ahead of the pipeline by
-                // `engine::restriction::is_prohibited`, so a CR 614.15 self-replacement
-                // (614.17c) can still see the proposal.
-                // Off the battlefield, destroy does nothing (rule 701.8b).
+                // CR 701.8a. **One batch** (CR 608.2f): a wipe's deaths are one event,
+                // which CR 615.7's allocation and CR 603.2c's "one or more" read.
+                // Indestructible is a "can't" (CR 702.12b, 614.17) that `is_prohibited`
+                // asks ahead of the pipeline, so a self-replacement still sees the
+                // proposal (614.17c). Off the battlefield, destroy does nothing (701.8b).
                 let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
@@ -961,12 +922,9 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // CR 701.26b — untap permanents. `FilteredPermanents` is resolved here
-                // rather than filled into `ctx.targets`, for `DealDamage`'s reason: the
-                // recipient means "every permanent matching this **now**". Ordered,
-                // because the members reach a CR 616.1 prompt and a log — stun counters
-                // (CR 122.1d) make two effects want one untap, and the order they are
-                // proposed in is observable.
+                // CR 701.26b. `FilteredPermanents` is resolved now, as `DealDamage`'s
+                // is, and ordered: stun counters (CR 122.1d) make two effects want one
+                // untap, so the members reach a CR 616.1 prompt.
                 let ids: Vec<ObjectId> = match recipient {
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
@@ -1003,7 +961,7 @@ impl GameState {
                 Ok(())
             }
 
-            // === Phase LB: continuous effect primitives ===
+            // === Continuous effect primitives ===
 
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
@@ -1089,7 +1047,7 @@ impl GameState {
                 Ok(())
             }
 
-            // === Phase LC: Layer 5 color-changing effects ===
+            // === Layer 5: color-changing effects ===
 
             Primitive::ChangeColor(color_change, duration) => {
                 use crate::types::effects::ColorChange;
@@ -1119,7 +1077,7 @@ impl GameState {
                 Ok(())
             }
 
-            // === Phase LD: Layer 4 type-changing effects ===
+            // === Layer 4: type-changing effects ===
 
             Primitive::ChangeType(type_change, duration) => {
                 let target_ids = self.collect_battlefield_targets(targets);
@@ -1231,12 +1189,10 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.7a — create N tokens: **one proposal, whatever N is**. "Create
-            // three 1/1 Soldiers" is one event by CR 111's shape and by CR 614.16's
-            // ("one or more tokens"), and the performer is where its entries become
-            // one batch (`GameState::create_tokens`). The def is repeated `count`
-            // times so a doubler can repeat each def in place and a "one of each"
-            // stay one event (`replacement-architecture.md` §3.1).
+            // CR 701.7a — **one proposal, whatever N is**, one event by CR 614.16's
+            // "one or more tokens"; `create_tokens` makes its entries one batch. The
+            // def repeated `count` times lets a doubler repeat each def in place
+            // (`replacement-architecture.md` §3.1).
             Primitive::CreateToken(token_def, amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
                 let controller = self.resolve_player_for_self(recipient, targets, ctx);
@@ -1256,12 +1212,9 @@ impl GameState {
 
             // === Regeneration (CR 701.19) ===
 
-            // CR 701.19a — "creates a replacement effect that protects the permanent
-            // the next time it would be destroyed this turn."
-            //
-            // Every part of the shield comes from the rule — `Uses::Once` is "the
-            // next time", `Duration::UntilEndOfTurn` "this turn", `Prevent` "instead",
-            // the `then` rider its sentence — so the engine builds it, not a card author.
+            // CR 701.19a's shield, built by the engine because the rule names every
+            // part: `Uses::Once` "the next time", `UntilEndOfTurn` "this turn",
+            // `Prevent` "instead", and the `then` rider its sentence.
             Primitive::Regenerate => {
                 let recorded = self.target_refs(targets);
                 for object in self.collect_battlefield_targets(targets) {
@@ -1290,18 +1243,12 @@ impl GameState {
 
             // === Replacement and prevention effects from a resolution (CR 614.3, 615.7) ===
 
-            // The durational form of `Effect::Replacement`, and `Regenerate`'s
-            // general case: the card authors the def and the duration, the
-            // resolution supplies its targets, its controller (CR 611.2c) and the turn.
-            //
-            // **Which permanents at resolution, and which at the event, is the
-            // recipient's question.** `Target`/`Choose` and `FilteredPermanents` fix
-            // the set *now* — one row per object or player, CR 615.11's shield "for
-            // each applicable creature when the spell or ability … resolves" (Samite
-            // Censer-Bearer's ruling). `Implicit` leaves the def's own `Filter`/
-            // `PlayerSet` to be asked at each event (Safe Passage's opposite ruling).
-            // The authored object set has to be the empty `Fixed` on the per-target
-            // shapes, for `Primitive::Restrict`'s reason; a `debug_assert` says so.
+            // `Effect::Replacement` with a duration: the card authors the def and the
+            // duration, the resolution supplies targets, controller (CR 611.2c) and
+            // turn. The recipient says when the set is fixed: `Target`, `Choose` and
+            // `FilteredPermanents` now, one row each (CR 615.11, Samite
+            // Censer-Bearer's ruling); `Implicit` at each event (Safe Passage's).
+            // Per-target shapes author an empty `Fixed`, as `Restrict` does.
             Primitive::CreateReplacement(def, duration, pattern_fill) => {
                 // CR 113.7a — an ability's source is the object that has it,
                 // so a row an activated ability makes names the permanent, not
@@ -1451,15 +1398,10 @@ impl GameState {
             // `Duration` is the card's, never the engine's: CR 608.2c hands scope to a
             // human reader (`cant-effects-architecture.md` §9 finding 1).
             Primitive::Restrict(def, duration) => {
-                // **A restriction that names nobody at all is the one waiting for the
-                // resolution's targets**: a card file writes an empty `Fixed` beside
-                // `Nobody` and this fills the object in, one row per target, because one
-                // row naming both would make a second copy of the spell a no-op under
-                // CR 614.5. Everything else is complete as authored and gets one row —
-                // Skullcrack's "players can't gain life this turn" is `Everyone` with no
-                // object while its target is the player it then damages. Not CR 608.2b:
-                // a spell whose only target is illegal never reaches `resolve_effect`;
-                // this decides whether a resolved spell's restriction is about its target.
+                // **A restriction naming nobody waits for the resolution's targets**:
+                // an empty `Fixed` beside `Nobody`, filled one row per target, since one
+                // row naming both would make a second copy a no-op under CR 614.5.
+                // Anything else is complete as authored (Skullcrack's `Everyone`).
                 let mut rows: Vec<RestrictionDef> = Vec::new();
                 let (objects, players) = restriction_scope(def);
                 if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
@@ -1487,15 +1429,10 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.21a — "its controller moves it from the battlefield directly to
-            // its owner's graveyard".
-            //
-            // **The choosing player is the *targeted* player, not the spell's
-            // controller** (Diabolic Edict), which makes this the resolution-time
-            // selection path `cant-effects-architecture.md` §4.9 puts its candidate
-            // filter in, so Sigarda produces no prompt rather than a refused one.
-            // Not destruction (CR 701.21b): regeneration and indestructible do not
-            // apply, which is why the cause is its own `ZoneChangeCause` variant.
+            // CR 701.21a. **The targeted player chooses, not the spell's controller**
+            // (Diabolic Edict): the resolution-time selection whose candidates
+            // `cant-effects-architecture.md` §4.9 filters, so Sigarda asks nothing.
+            // Not destruction (CR 701.21b), hence its own `ZoneChangeCause`.
             Primitive::Sacrifice => {
                 // A named permanent is the resolution's controller's to
                 // sacrifice, and only while they control it and no "can't"
@@ -1626,16 +1563,11 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.24a — whose library is the recipient's whole question.
-            // `Controller` is "shuffle your library"; `ThisObject` is the *source's
-            // owner's* — "shuffle it into **its owner's** library" as the rider of
-            // a replacement whose substitute has already made the move, where "it"
-            // is the source (Darksteel Colossus). The owner survives the move (CR
-            // 108.3), so it is read wherever the card went. Moving nothing here is CR 701.24c:
-            // a 903.9b that sent a commander to the command zone instead leaves it
-            // there, and its owner's library is shuffled all the same. A target is
-            // a player, or an object standing for its owner. The filter recipients
-            // are refused by name: no card shuffles a library per matching object.
+            // CR 701.24a — the recipient says whose library. `ThisObject` is the
+            // source's owner's, "shuffle it into its owner's library" on a rider that
+            // already moved it (Darksteel Colossus), read wherever the card went (CR
+            // 108.3); a commander sent to the command zone instead still shuffles it
+            // (CR 701.24c). No card shuffles per matching object, so filters are refused.
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
@@ -1843,18 +1775,12 @@ impl GameState {
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 
             for (layer, modification) in rows {
-                // A granted static ability whose own effect lands in layers 1–5 cannot
-                // apply, and would fail silently: the grant applies AT layer 6, so below
-                // it the CR 604.2 existence check reads a frame that predates the grant.
-                // Assert at the authoring site rather than let a card quietly do nothing.
-                //
-                // Layer 6 itself is fine: the pass applies a layer board-wide in one
-                // sequence, so the existence check at the derived row's turn sees the
-                // grant (CR 613.7a's own example, Rune of Flight), and clause 2's
-                // `max(grantee, grant)` timestamp with the lower id on a tie sorts the
-                // grant at-or-before its derived effect. Layers 1–5 have no CR mechanism
-                // for a layer 6 grant to reach back (CR 613.8a), and a Scryfall search
-                // finds no printed grant of a type-, color- or subtype-defining static.
+                // A granted static whose effect lands in layers 1–5 would fail silently:
+                // below layer 6 the existence check (CR 604.2) reads a frame from before
+                // the grant, and nothing lets a layer 6 grant reach back (CR 613.8a).
+                // No printed grant is of a type-, color- or subtype-defining static.
+                // Layer 6 itself is fine: the pass sees the grant at the derived row's
+                // turn (CR 613.7a's Rune of Flight), and clause 2's timestamp sorts it first.
                 debug_assert!(
                     layer >= Layer::Layer6Ability,
                     concat!(

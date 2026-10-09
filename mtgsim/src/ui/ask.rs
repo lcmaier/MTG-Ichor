@@ -61,10 +61,9 @@ use super::decision::{DecisionProvider, PriorityAction};
 /// **`None` is also every answer that is not well formed**, and that is load
 /// bearing rather than defensive: an allocation this returns is used *without*
 /// [`validate_allocation`] ever running, so anything it answers wrongly is
-/// silent. A `None` falls through to the prompt and the validator, which is
-/// where the loud message has always been — a caller whose minimums exceed the
-/// total, whose one free bucket cannot hold the remainder, or whose bounds
-/// disagree with each other gets the panic it used to get. The generic split's
+/// silent. A `None` falls through to the prompt and the validator, whose panic
+/// a caller still gets when its minimums exceed the total, its one free bucket
+/// cannot hold the remainder, or its bounds disagree. The generic split's
 /// `can_pay` precondition is a `debug_assert`, so in a release fuzz run this is
 /// the only thing standing between a caller bug and an unpayable split that
 /// `ManaPool::pay` refuses and CR 601.2 rewinds — `codebase-state.md` 16c's
@@ -1000,13 +999,9 @@ pub fn ask_scry(
     n: u64,
     source: Option<ObjectId>,
 ) -> (Vec<ObjectId>, Vec<ObjectId>) {
-    // **Not a scry 0** — CR 701.22b makes that no event at all, and
-    // `replacement::never_happens` drops it before any performer runs. This is
-    // a scry of one or more against an **empty library**, which CR 701.22d
-    // says still happens ("even if some or all of those actions were
-    // impossible"): the event is announced, and there is simply nothing to
-    // ask about. Silent for CR 102.2's reason, the same one that skips the
-    // ordering prompts below.
+    // A scry against an **empty library** (a scry 0 never gets here, CR
+    // 701.22b): it still happens (CR 701.22d) and is announced, with nothing to
+    // ask, so it is silent like the ordering prompts below.
     if looked_at.is_empty() {
         return (Vec::new(), Vec::new());
     }

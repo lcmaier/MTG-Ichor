@@ -197,13 +197,9 @@ fn push_modifications(primitive: &Primitive, out: &mut Vec<EffectModification>, 
             }
         }
 
-        // CR 613.4a. `power_expr`/`toughness_expr` are the amounts written on
-        // the *ability* — Tarmogoyf's "the number of card types among cards in
-        // all graveyards" — not the card's printed P/T box, which the walk has
-        // already loaded into `chars` and which this is about to overwrite.
-        //
-        // `from_amount` keeps a literal amount as `PtValue::Fixed` and wraps
-        // anything else as `Dynamic`, to be re-evaluated at every layer.
+        // CR 613.4a — the amounts the *ability* names (Tarmogoyf's), overwriting
+        // the printed box `chars` already holds; anything but a literal stays
+        // `Dynamic`, re-evaluated at every layer.
         Primitive::SetPowerToughness(power_expr, toughness_expr, _) => {
             out.push(EffectModification::SetPowerToughness {
                 power: PtValue::from_amount(power_expr),

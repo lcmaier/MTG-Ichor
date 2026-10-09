@@ -54,7 +54,7 @@ pub enum Layer {
     Layer2Control,
     /// Layer 3 — text-changing effects (CR 612): word swaps in rules text,
     /// whole text boxes, and names. Unbuilt, and owed: about 20 vintage-legal
-    /// cards need it (`codebase-state.md` item 195).
+    /// cards need it (Scryfall, 2026-09-30; `codebase-state.md` item 195).
     Layer3Text,
     /// Layer 4 — type-changing effects (types, subtypes, supertypes).
     Layer4Type,
@@ -181,7 +181,8 @@ pub enum EffectModification {
     /// Behind an `Arc`: `AbilityDef` carries a `Vec<Cost>` and an `Effect`
     /// tree, this enum is stored per registry row and matched at every layer,
     /// and the row is cloned with every fork. A box cost a clone about five
-    /// allocations per grant row; the `Arc` is the card's own def, shared.
+    /// allocations per grant row (measured 2026-09-25, item 180's PR); the
+    /// `Arc` is the card's own def, shared.
     GrantAbility(Arc<AbilityDef>),
     /// CR 113.10b — removes *all* instances of the ability, not the first.
     LoseAbility(AbilityId),

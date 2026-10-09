@@ -20,7 +20,7 @@
 // in the pool decides what is left up for the rest of the step (§3.4), and a
 // split with one legal answer is the engine's (`ui::ask::forced_allocation`)
 // — a prompt with one legal answer belongs to the engine, not to a middleware
-// (`backlog.md` §2.22, which retired the branch that used to answer it here).
+// (`backlog.md` §2.22).
 // `ChooseSacrificeForCost`: which creature dies is a strategic choice, and a
 // client that wants an auto-sacrifice policy stacks its own decorator.
 //

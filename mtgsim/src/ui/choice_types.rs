@@ -114,10 +114,8 @@ pub enum ChoiceKind {
     /// the affected object's controller (or the affected player) must choose
     /// one to apply.
     ///
-    /// **Only asked with two or more candidates.** There is no choice to make
-    /// with one, and that rule is what keeps every existing scripted test green
-    /// now that every `execute_action` traverses the pipeline
-    /// (`replacement-architecture.md` §4.1).
+    /// **Only asked with two or more candidates** (CR 616.1): there is no
+    /// choice with one (`replacement-architecture.md` §4.1).
     ///
     /// `affected_object` is `None` when the event is about the choosing player
     /// rather than about an object.

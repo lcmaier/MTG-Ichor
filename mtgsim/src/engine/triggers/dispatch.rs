@@ -15,9 +15,8 @@
 //! `RegistryScopeSummary`, and the frames the window's departures carry
 //! (CR 603.10a) — plus, for an object that survives a batch which removed
 //! the source of an effect copying, granting or removing abilities, the list
-//! it had before ([`LookBackSnapshot`]). On the pools as they stood before
-//! this phase every set is empty and a dispatch is the probes and nothing
-//! else.
+//! it had before ([`LookBackSnapshot`]). When every set is empty, a dispatch
+//! is the probes and nothing else.
 
 use std::sync::Arc;
 
@@ -518,7 +517,7 @@ impl GameState {
         snapshots: &[LookBackSnapshot],
         ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
-        // --- The gate: five probes, and on the old pools nothing else -------
+        // --- The gate: five probes ------------------------------------------
         if window_kinds.is_empty() {
             return Vec::new();
         }

@@ -48,16 +48,10 @@ impl GameState {
             return Ok(PriorityResult::PhaseEnds);
         }
 
-        // CR 800.4j — players who have left the game are passed over, and a
-        // round ends when everyone *still in the game* has passed in
-        // succession. The active player receives priority first if they are
-        // still here; "if the active player would receive priority, instead
-        // the next player in turn order receives priority" otherwise.
-        //
-        // Counted once per round: a player can only leave between rounds,
-        // because a loss is a state-based action and those run at the top of
-        // this function and after each action, each of which starts a new
-        // round.
+        // CR 800.4j — departed players are passed over, a round ends when everyone
+        // still in has passed in succession, and a departed active player's
+        // priority goes to the next in turn order. Counted once per round: a loss
+        // is a state-based action, so a player leaves only between rounds.
         let players_in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
         let mut consecutive_passes = 0;
         let Some(mut current_priority) = (if self.in_game(self.active_player) {
@@ -71,16 +65,11 @@ impl GameState {
         loop {
             self.priority_player = current_priority;
 
-            // `candidate_priority_actions` is an overapproximation: it includes
-            // e.g. `CastSpell(id)` when affordability is heuristically met but
-            // the current mana pool can't actually cover the cost, and the engine
-            // asks again when execution rejects a DP-chosen action (§2.2 of
-            // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
-            //
-            // The re-ask offers the board's list as it stands, the rejected
-            // action included, and says which action was rejected: the player
-            // may take it again (CR 732.2), and skipping it is an agent's policy,
-            // which lives on the agent's seat (`codebase-state.md` item 193).
+            // `candidate_priority_actions` over-approximates (a cast the pool cannot
+            // pay, `dp-middleware-and-candidate-enumeration.md` §2.2), so a rejected
+            // action is asked again over the board as it stands, the rejection named:
+            // the player may take it again (CR 732.2), and skipping it is an agent's
+            // policy (`codebase-state.md` item 193).
             let mut rejected: Option<Rejection> = None;
             let mut rejections: usize = 0;
 
@@ -89,14 +78,10 @@ impl GameState {
             // ActivateAbility) whether it was a mana ability (which bypasses
             // the post-action SBA pass, per rule 605).
             let executed: (PriorityAction, bool) = loop {
-                // Enumerated per prompt, not per window. A rejected cast's mana
-                // abilities stay activated (CR 732.1 — the reversal is the
-                // player's option and the engine never offers it), so the board a
-                // re-ask is offered from is not the board the last list was built
-                // from, and re-offering that list offers casts no enumeration of
-                // *this* board would. The prompt has to be a function of
-                // `GameState` or a clone taken at one cannot rebuild it —
-                // `codebase-state.md` items 139 and 41.
+                // Enumerated per prompt: a rejected cast's mana abilities stay
+                // activated (CR 732.1), so the board has moved, and a prompt must be
+                // a function of `GameState` for a clone to rebuild it
+                // (`codebase-state.md` items 139 and 41).
                 let available: Vec<PriorityAction> = candidate_priority_actions(self, current_priority);
 
                 // `Pass` is always offered, so a list of one is `[Pass]` alone:

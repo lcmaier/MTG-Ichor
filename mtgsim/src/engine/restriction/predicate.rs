@@ -108,15 +108,11 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
 
-    // The fast-path gate, and it is exact rather than a heuristic — the same
-    // instrument as `replacement_ability_sources`, and it carries the same rule:
-    // **a new source of static restriction abilities must add a leg here, or the
-    // source is silently dead on every board the gate skips.** Three legs —
-    // printed (recorded at ETB, an entry copy's among them), granted and copied (the registry summary's two
-    // flags; CR 707.2a puts a copied ability on the effective list through
-    // neither of the others). All over-approximate — CR 305.7 and Humility
-    // strip a printed ability without touching the set — which costs a layer
-    // walk, never an answer. Layer 3 is the one remaining route without a leg.
+    // The fast-path gate, exact, with `replacement_ability_sources`' rule: **a new
+    // source of static restriction abilities needs a leg here, or it is dead on
+    // every board the gate skips.** Printed (at ETB, an entry copy's included),
+    // granted and copied (the summary's flags; CR 707.2a). Each over-approximates,
+    // costing a walk, never an answer; Layer 3 is the route with no leg.
     let has_static_source = !game.restriction_ability_sources.is_empty()
         || game.continuous_effects.summary().any_granted_restriction
         || game.continuous_effects.summary().any_copied_restriction;

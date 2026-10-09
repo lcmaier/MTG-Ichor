@@ -218,14 +218,9 @@ impl Game {
 
             // 2. Priority round (most steps grant priority)
             //
-            // Rule 508.8 is not read here: it refuses the step at the proposal
-            // site (`GameState::begin_step`), so a declare-blockers or
-            // combat-damage step with no attackers never begins and this loop
-            // never sees one.
-            //
-            // Rule 514.3a: Cleanup normally doesn't grant priority, but if
-            // SBAs are performed during cleanup, players get priority and then
-            // a new cleanup step begins (re-remove damage, re-discard, re-check).
+            // CR 508.8 refuses steps with no attackers at the proposal
+            // (`begin_step`), so this loop never sees one. CR 514.3a: cleanup grants
+            // priority only if something happens in it, and then a new cleanup begins.
             let is_cleanup = matches!(
                 (phase_type, step),
                 (PhaseType::Ending, Some(StepType::Cleanup))
@@ -247,13 +242,9 @@ impl Game {
                         return Ok(());
                     }
 
-                    // "another cleanup step begins" — a second occurrence of
-                    // the step, proposed like the first: CR 614.10's skips
-                    // are per occurrence, so this one is skippable too, and a
-                    // refused one runs no turn-based action. One that begins
-                    // does what the first did: `begin_step` runs CR 514.2 and
-                    // CR 800.4c, and the discard is the first's, CR 800.4j's
-                    // gate included.
+                    // "Another cleanup step begins": proposed like the first, so
+                    // CR 614.10 can skip it, and one that begins does what the
+                    // first did (CR 514.2, 800.4c, and the discard with 800.4j's gate).
                     let actx = ActionContext::new(decisions);
                     if !self.state.begin_step(StepType::Cleanup, &actx)? {
                         break;
@@ -288,14 +279,10 @@ impl Game {
                 return Ok(());
             }
 
-            // ...with one board where it returns without producing one, and
-            // that board is the reason this check is here rather than only
-            // after a priority round. CR 104.4a: every player has left the
-            // game, so `GameState::next_turn_taker` finds nobody to propose a
-            // turn for and the position stays put. The untap step grants no
-            // priority, so nothing else in this loop would notice, and it
-            // would re-enter forever. The batch that performed those losses
-            // settled the result, which is what this reads.
+            // ...except when every player has left (CR 104.4a): `next_turn_taker`
+            // finds nobody, and with no priority in the untap step nothing else
+            // would notice, so the loop would re-enter forever. The losses' batch
+            // settled the result this reads.
             if self.is_over() {
                 return Ok(());
             }

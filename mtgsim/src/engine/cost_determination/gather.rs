@@ -52,14 +52,11 @@ pub struct CostModificationInstance {
 /// enforcement (§3.6). The CR never has to answer that question; the engine
 /// does.
 pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModificationInstance> {
-    // The fast-path gate, the same instrument as `replacement_ability_sources`
-    // and carrying the same rule: a new source of static cost abilities, or a
-    // new route onto the effective list, needs a leg here or it is silently
-    // dead. Three legs — printed (the set, which files an entry copy's too, or
-    // the spell's own card), granted
-    // and copied (the two summary flags). Exact and over-approximating:
-    // CR 305.7 and Humility can strip a printed ability without touching the
-    // set, which costs a walk and never an answer.
+    // The fast-path gate, with `replacement_ability_sources`' rule: a new source
+    // of static cost abilities, or a new route onto the effective list, needs a
+    // leg here or it is dead. Printed (the set, an entry copy's too, or the
+    // spell's own card), granted and copied (the summary's flags); exact, and
+    // over-approximating at the cost of a walk, never an answer.
     let summary = game.continuous_effects.summary();
     let widened = summary.any_granted_cost_modification || summary.any_copied_cost_modification;
     let sweep = widened || !game.cost_modification_ability_sources.is_empty();
@@ -158,15 +155,10 @@ fn applies_to(
     frame: &EffectiveCharacteristics,
 ) -> bool {
     match &def.applies_to {
-        // The frame-side matcher, with "you" the *source's* controller
-        // (CR 109.5) and the spell's controller its caster — so "spells you
-        // cast" is `ByController(You)` and "spells your opponents cast" is
-        // `ByController(Opponent)`, with nothing spell-specific to add.
-        //
-        // **Source 1's alone.** CR 113.6d licenses an object's own ability to
-        // modify what *that particular object* costs and says nothing wider,
-        // so a `Spells` subject printed on the object being cast is not
-        // consulted; source 2 is `Itself` only (`cost-architecture.md` §4).
+        // The frame-side matcher, "you" the source's controller (CR 109.5), so
+        // "spells you cast" is `ByController(You)`. **Source 1's alone**: CR
+        // 113.6d lets an object's own ability modify only what *it* costs, so
+        // source 2 is `Itself` only (`cost-architecture.md` §4).
         CostSubject::Spells(filter) => {
             source != spell
                 && game

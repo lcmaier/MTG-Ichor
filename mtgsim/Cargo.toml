@@ -30,31 +30,36 @@ test-support = []
 # decided. Every lint but the five below was fixed in that PR. None of the five
 # names a refactor the code owes; each is the lint disagreeing with a choice
 # the code made on purpose, and the reason is beside it. Allow a sixth here,
-# with its reason, rather than at the site.
+# with its reason, rather than at the site. Each count below is a re-count
+# with that lint's allow removed, dated: a count nothing recomputes goes stale
+# (four of the five had moved by 2026-10-08, `engineering-practices.md` §2.1).
 [lints.clippy]
-# 11 sites. A performer or an `ask_*` takes the board, the actor, the event and
-# each bound as its own parameter on purpose; a parameter struct is a signature
-# change at every caller and hides which bound a site forgot. The one to
-# revisit is `DecisionProvider::allocate`, and Phase 10 does, when it
-# serializes the choice surface.
+# 11 sites (2026-10-08). A performer or an `ask_*` takes the board, the actor,
+# the event and each bound as its own parameter on purpose; a parameter struct
+# is a signature change at every caller and hides which bound a site forgot.
+# The one to revisit is `DecisionProvider::allocate`, and Phase 10 does, when
+# it serializes the choice surface.
 too_many_arguments = "allow"
-# 4 sites. `Effect` is the one whose size costs anything — every ability atom
-# is one, and the frame clone copies them — and boxing its big variant would
-# make that clone allocate per atom until `codebase-state.md` item 67 puts the
-# list behind an `Arc`. `Rewrite`, `GameActionTemplate` and the harness's
-# `GameOutcome` have dozens of live values per game, so their size is nothing.
+# 6 sites (2026-10-08). `Effect` is the one whose size costs anything: every
+# ability atom is one, and a push copies its def's tree, so boxing the big
+# variant would add an allocation to every copy. `Rewrite`,
+# `GameActionTemplate`, `CopyException`, `explain::StepResult` and the
+# harness's `GameOutcome` have dozens of live values per game, so their size
+# is nothing.
 large_enum_variant = "allow"
-# 3 sites. `ContinuousEffectRegistry`, `DurationRegistry` and
-# `ScriptedDecisionProvider` are built by `new()` and nothing calls `default()`;
-# `cargo clippy --fix` writes the impl, and an impl with no caller is dead code.
+# 4 sites (2026-10-08). `ContinuousEffectRegistry`, `DurationRegistry`,
+# `ScriptedDecisionProvider` and `RecorderHandle` are built by `new()` and
+# nothing calls `default()`; `cargo clippy --fix` writes the impl, and an impl
+# with no caller is dead code.
 new_without_default = "allow"
-# 3 sites. A `type` alias used once is a second name for one thing
-# (`engineering-practices.md` §2a); the tuple is read where it is written.
+# 7 sites (2026-10-08), two in tests. A `type` alias used once is a second
+# name for one thing (`engineering-practices.md` §2a); the tuple is read where
+# it is written.
 type_complexity = "allow"
-# 3 sites. An index into `players` is a `PlayerId` and a row of the dependency
-# matrix is a component number — the index is the identity — and the
-# `enumerate()` rewrite does not borrow-check where `board.rs` reads row k
-# while writing row i.
+# 4 sites (2026-10-08). An index into `players` is a `PlayerId`, a row of the
+# dependency matrix is a component number and an index into a mana bag is a
+# mana type — the index is the identity — and the `enumerate()` rewrite does
+# not borrow-check where `board.rs` reads row k while writing row i.
 needless_range_loop = "allow"
 
 [dev-dependencies]

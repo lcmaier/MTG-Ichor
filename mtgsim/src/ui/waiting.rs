@@ -28,8 +28,7 @@ pub struct Waiting {
     pub until_returns: Vec<WaitingReturn>,
 }
 
-/// One "until" return, waiting for its object to leave the battlefield (CR
-/// 610.3).
+/// One "until" return, waiting for the event it names (CR 610.3).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaitingReturn {
     /// The object its event is about, named as it is: "this" or the target

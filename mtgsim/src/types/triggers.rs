@@ -33,7 +33,6 @@ pub struct TriggerDef {
     /// anywhere else in the text is ordinary `Effect::Conditional`.
     pub intervening_if: Option<Condition>,
     /// The two once-per-turn gates and "for the first time each turn" (§3.5).
-    /// Declared here; the gates and their writers are TR-2's.
     pub limit: Option<TriggerLimit>,
     /// Its targets are `Effect::instances` of this tree, announced at
     /// placement (603.3d); its bound facts read [`TriggerBinding`].
@@ -100,9 +99,8 @@ pub enum TriggerTier {
     Second,
 }
 
-/// The once-per-turn gates (`triggers-architecture.md` §3.5). Two trackers
-/// with two writers, both TR-2's; the def carries the shape now so a card
-/// file can say which it prints.
+/// The once-per-turn gates (`triggers-architecture.md` §3.5): two trackers
+/// with two writers, and the def says which one a card prints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerLimit {
     /// CR 603.2h — "Do this only once each turn": an action-taken gate,
@@ -301,8 +299,8 @@ impl std::ops::BitOrAssign for EventKindMask {
 
 /// One arm per performed event kind, in `GameEvent`'s declaration order
 /// (`triggers-architecture.md` §3.3). `None` on a field means the arm does
-/// not ask. TR-1 ships the arms its cards and fixtures read; the rest land
-/// with their phase and are listed in §3.3's table.
+/// not ask. The arms the registered cards and fixtures read; the rest land
+/// with their phase, listed in §3.3's table.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TriggerEvent {
     /// Dies is `from: Battlefield, to: Graveyard`; leaves the battlefield is
@@ -688,7 +686,7 @@ impl TriggerBinding {
 }
 
 /// Where a pending trigger came from (§3.8). The reflexive and rule-owned
-/// origins land with TR-3b and TR-6.
+/// origins land with TR-3c and TR-6.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.

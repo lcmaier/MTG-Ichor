@@ -183,13 +183,10 @@ impl GameState {
             .iter()
             .copied()
             .filter(|id| {
-                // Two shapes, and between them they are CR 707.10's "a copy
-                // of a spell is not a card" plus everything on the stack that
-                // is not a spell at all. `is_spell` is false for exactly one
-                // thing today — an activated ability — because a spell is the
-                // only stack object a card can be; `is_copy` has no writer
-                // until CV-4 — `copy-effects-architecture.md` names it
-                // "`is_copy`'s first writer" — and is the leg for spell copies.
+                // CR 707.10's "a copy of a spell is not a card", plus what is
+                // no spell at all: `is_spell` is false for an ability, activated
+                // or triggered; `is_copy` is the spell copies' leg, with no
+                // writer until CV-4 (`copy-effects-architecture.md`).
                 let not_a_card = self.stack_entries.get(id).is_some_and(|e| !e.is_spell)
                     || self.objects.get(id).is_some_and(|obj| obj.is_copy);
                 not_a_card && get_effective_controller(self, *id) == Some(player)
