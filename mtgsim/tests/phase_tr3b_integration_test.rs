@@ -973,6 +973,7 @@ fn the_waiting_view_shows_an_until_return() {
     assert_eq!(waiting.until_returns.len(), 1);
     assert!(waiting.until_returns[0].watched.as_deref().is_some_and(|w| w.contains("Banishing Light")));
     assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
+    assert!(waiting.until_returns[0].source.contains("Banishing Light"));
 }
 
 /// Item 234: a waiting return keeps the number its making gave it, not its

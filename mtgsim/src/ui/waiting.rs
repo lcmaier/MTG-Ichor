@@ -34,6 +34,9 @@ pub struct Waiting {
 pub struct WaitingReturn {
     /// The number its making's log line gave it.
     pub id: UntilReturnId,
+    /// The source of the spell or ability that exiled, named as it is: what
+    /// its log line names it by.
+    pub source: String,
     /// The object its event is about, named as it is: "this" or the target
     /// it named. `None` for an event about no object.
     pub watched: Option<String>,
@@ -93,6 +96,7 @@ pub fn what_is_waiting(game: &GameState) -> Waiting {
             .iter()
             .map(|until| WaitingReturn {
                 id: until.id,
+                source: named(game, until.source.object.id),
                 watched: match until.until.subject() {
                     Some(TriggerSubject::ThisObject) => Some(named(game, until.source.object.id)),
                     Some(TriggerSubject::Referred) => until.referred.first().map(|r| named(game, r.object.id)),
