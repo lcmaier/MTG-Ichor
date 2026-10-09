@@ -694,25 +694,28 @@ fn why_panel(ui: &mut egui::Ui, why: &WhyView, inputs: &mut Vec<Input>) {
 /// What a hover shows: the item as it is now, its type line under its first
 /// line as a card prints one, beside each face as printed.
 fn hover(ui: &mut egui::Ui, item: &Item) {
-    ui.horizontal_top(|ui| {
-        if !item.hover.is_empty() {
-            ui.vertical(|ui| {
-                ui.strong("Now");
-                let (first, rest) = item.hover.split_once('\n').unwrap_or((&item.hover, ""));
-                ui.label(first);
-                if let Some(line) = &item.type_line {
-                    type_line(ui, line);
-                }
-                if !rest.is_empty() {
-                    ui.label(rest);
-                }
-            });
+    let faces: &[String] = item.printed.as_deref().unwrap_or_default();
+    let now = usize::from(!item.hover.is_empty());
+    // Equal columns: a wrapped label takes all the width it is offered, so
+    // laid out in a row the first column's text left the next a sliver.
+    // `columns` cannot lay out none.
+    ui.columns((now + faces.len()).max(1), |columns| {
+        if let [column, ..] = columns
+            && now == 1
+        {
+            column.strong("Now");
+            let (first, rest) = item.hover.split_once('\n').unwrap_or((&item.hover, ""));
+            column.label(first);
+            if let Some(line) = &item.type_line {
+                type_line(column, line);
+            }
+            if !rest.is_empty() {
+                column.label(rest);
+            }
         }
-        for face in item.printed.iter().flat_map(|faces| faces.iter()) {
-            ui.vertical(|ui| {
-                ui.strong("As printed");
-                ui.label(face);
-            });
+        for (column, face) in columns[now..].iter_mut().zip(faces) {
+            column.strong("As printed");
+            column.label(face);
         }
     });
     if let Some(hint) = item.why_hint {

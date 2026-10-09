@@ -102,7 +102,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
     results.add(picture(&partway(fizzled()), &header("fizzle.scenario"), None, "fizzle_log"));
-    results.add(clicked_picture(&partway(waiting()), &header("waiting.scenario"), "Waiting (3)", "waiting"));
+    let waiting = partway(waiting());
+    results.add(clicked_picture(&waiting, &header("waiting.scenario"), "Waiting (4)", "waiting"));
+    results.add(hovered_picture(&waiting, &header("waiting.scenario"), "Flickerwisp", "hover"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -283,12 +285,13 @@ fn fizzled() -> WindowState {
 }
 
 /// The click script's board, `waiting.scenario`: player 0 casts Blessed
-/// Wine, then Final Fortune, each passed to resolution, and the window stops
-/// at player 0's next priority with the stack empty.
+/// Wine, then Banishing Light, its trigger targeting the Bears, then Final
+/// Fortune, each passed to resolution, and the window stops at player 0's
+/// next priority with the stack empty.
 fn waiting() -> WindowState {
     let engine = spawn(from_board("waiting.scenario"));
     let mut state = WindowState::default();
-    let mut to_cast = vec!["Blessed Wine", "Final Fortune"];
+    let mut to_cast = vec!["Blessed Wine", "Banishing Light", "Final Fortune"];
     loop {
         state.receive(next(&engine));
         let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
@@ -301,13 +304,14 @@ fn waiting() -> WindowState {
         let pick = match prompt.kind.as_str() {
             "PriorityAction" if ours => labeled(to_cast.remove(0)),
             "ManaAbilityWindow" => labeled("Plains").or(labeled("Mountain")),
+            "SelectRecipients" => labeled("Grizzly Bears"),
             _ => None,
         };
         let input = Input::OptionButton(pick.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
         engine.answers.send(state.input(input).expect("one option answers")).unwrap();
     }
     let shown = state.board_view().and_then(|board| board.waiting).map(|waiting| waiting.name);
-    assert_eq!(shown.as_deref(), Some("Waiting (3)"), "{}", state.log.iter().map(|line| line.text.as_str()).collect::<Vec<_>>().join("
+    assert_eq!(shown.as_deref(), Some("Waiting (4)"), "{}", state.log.iter().map(|line| line.text.as_str()).collect::<Vec<_>>().join("
 "));
     finish(engine);
     state
@@ -365,6 +369,16 @@ fn clicked_picture(state: &WindowState, line: &(String, PathBuf), label: &str, n
     let mut harness = game_window(state, line, None);
     harness.run();
     harness.get_by_label(label).click();
+    harness.run();
+    harness.try_snapshot(name)
+}
+
+/// The game's window with the pointer resting on the one thing whose label
+/// has `label` in it, so its hover is open: the card now beside it as printed.
+fn hovered_picture(state: &WindowState, line: &(String, PathBuf), label: &str, name: &str) -> SnapshotResult {
+    let mut harness = game_window(state, line, None);
+    harness.run();
+    harness.get_by_label_contains(label).hover();
     harness.run();
     harness.try_snapshot(name)
 }

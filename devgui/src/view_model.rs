@@ -1060,8 +1060,9 @@ fn note(title: String, detail: String) -> Item {
 }
 
 /// The Waiting panel: each delayed trigger in the order it was made, its
-/// words and when it can trigger, then each extra turn in the order it will
-/// be taken.
+/// words and when it can trigger; each "until" return in the order it was
+/// made, what it returns and the object its event is about; then each extra
+/// turn in the order it will be taken.
 fn waiting_zone(waiting: &Waiting) -> Option<ZoneView> {
     let triggers = waiting.delayed_triggers.iter().map(|trigger| {
         let fires = match trigger.duration {
@@ -1079,11 +1080,18 @@ fn waiting_zone(waiting: &Waiting) -> Option<ZoneView> {
             format!("\"{}\"\nPlayer {}'s · {fires} · {turn}", trigger.text, trigger.controller),
         )
     });
+    let returns = waiting.until_returns.iter().map(|until| {
+        let watched = until.watched.as_deref().unwrap_or("its event");
+        note(
+            format!("{}'s return {}", until.source, until.id.0),
+            format!("Returns {}\nPlayer {}'s · waits on {watched}", until.returns.join(", "), until.controller),
+        )
+    });
     let turns = waiting.extra_turns.iter().enumerate().map(|(place, turn)| {
         let when = if place == 0 { "taken next" } else { "taken after the one above" };
         note(format!("Player {}'s extra turn", turn.player), when.to_string())
     });
-    let items: Vec<Item> = triggers.chain(turns).collect();
+    let items: Vec<Item> = triggers.chain(returns).chain(turns).collect();
     (!items.is_empty()).then(|| ZoneView { name: format!("Waiting ({})", items.len()), key: "waiting", items, open: false })
 }
 
@@ -1412,11 +1420,15 @@ mod tests {
 
     /// The Waiting panel's rows (`ui::waiting`): Blessed Wine's draw and
     /// Final Fortune's loss in the order they were made, each with its words
-    /// and when it can trigger, then the extra turn; closed until opened.
+    /// and when it can trigger, then Banishing Light's return, by the number
+    /// its log line gives it, then the extra turn; closed until opened.
     #[test]
-    fn the_waiting_panel_lists_each_delayed_trigger_then_each_extra_turn() {
+    fn the_waiting_panel_lists_each_delayed_trigger_then_each_return_then_each_extra_turn() {
+        use mtgsim::cards::creatures::grizzly_bears;
         use mtgsim::cards::phase_tr3a_cards::{blessed_wine, final_fortune};
+        use mtgsim::cards::phase_tr3b_cards::banishing_light;
         use mtgsim::engine::resolve::ResolutionContext;
+        use mtgsim::test_support::test_dp;
         let mut game = setup_two_player_game();
         let wine = put_in_hand(&mut game, blessed_wine(), 0);
         let fortune = put_in_hand(&mut game, final_fortune(), 0);
@@ -1424,8 +1436,12 @@ mod tests {
         assert_eq!(nothing.waiting, None, "not shown while nothing waits");
         for (id, ability) in [(wine, 1), (fortune, 0)] {
             let effect = game.get_object(id).unwrap().card_data.abilities[ability].effect.clone();
-            game.resolve_effect(&effect, &ResolutionContext::untargeted(id, 0), &mtgsim::test_support::test_dp()).unwrap();
+            game.resolve_effect(&effect, &ResolutionContext::untargeted(id, 0), &test_dp()).unwrap();
         }
+        let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let light = put_on_battlefield(&mut game, banishing_light(), 0);
+        game.perform_sba_and_triggers(&test_dp()).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
         let view = WindowState { board: Some(Snapshot::build(&game, 0)), ..WindowState::default() }.board_view().unwrap();
         let waiting = view.waiting.expect("shown once something waits");
 
@@ -1442,10 +1458,14 @@ mod tests {
                     format!("Final Fortune ({fortune})'s delayed trigger 2"),
                     "\"At the beginning of that turn's end step, you lose the game.\"\nPlayer 0's · once · in Player 0's extra turn".to_string(),
                 ),
+                (
+                    format!("Banishing Light ({light})'s return 1"),
+                    format!("Returns Grizzly Bears ({bears})\nPlayer 0's · waits on Banishing Light ({light})"),
+                ),
                 ("Player 0's extra turn".to_string(), "taken next".to_string()),
             ]
         );
-        assert_eq!((waiting.name.as_str(), waiting.open), ("Waiting (3)", false));
+        assert_eq!((waiting.name.as_str(), waiting.open), ("Waiting (4)", false));
         assert!(waiting.items.iter().all(|item| !item.clickable && item.target.is_none()), "nothing in it is a choice");
     }
 
