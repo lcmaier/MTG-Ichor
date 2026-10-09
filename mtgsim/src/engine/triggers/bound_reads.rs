@@ -190,9 +190,11 @@ fn condition(c: &Condition) -> BoundReads {
 
 fn primitive(p: &Primitive) -> BoundReads {
     match p {
+        // The return watches the source, and CR 610.3a/b asks whether it has
+        // already left: two sources' exiles differ in whose leaving returns.
+        Primitive::ExileUntil { .. } => BoundReads::SOURCE,
         Primitive::Destroy
         | Primitive::Exile
-        | Primitive::ExileUntil { .. }
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
         | Primitive::ReturnToBattlefield(_)
@@ -252,5 +254,50 @@ fn duration(d: &Duration) -> BoundReads {
     match d {
         Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => BoundReads::NOTHING,
         Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => BoundReads::SOURCE,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BoundReads;
+    use crate::cards::authoring::{enters, leaves_the_battlefield, whenever};
+    use crate::types::card_types::CardType;
+    use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder};
+    use crate::types::triggers::{TriggerDef, TriggerSubject};
+
+    /// "Whenever a creature enters, exile it until this leaves the
+    /// battlefield": the exile reads the entering creature, and its return
+    /// watches the source. Two entries of it from two sources must not be
+    /// placed unasked, since the order decides whose leaving returns the
+    /// creature (item 232).
+    fn exile_that_creature_until_this_leaves() -> TriggerDef {
+        whenever(
+            enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
+            Effect::Atom(
+                Primitive::ExileUntil {
+                    until: Box::new(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+                    refers_to: None,
+                    under: ReturnUnder::Owner,
+                },
+                EffectRecipient::TriggeringObject,
+            ),
+        )
+    }
+
+    #[test]
+    fn an_exile_until_reads_its_source() {
+        let reads = exile_that_creature_until_this_leaves().bound_reads();
+        assert!(reads.contains(BoundReads::SUBJECT), "the exiled creature");
+        assert!(reads.contains(BoundReads::SOURCE), "the source whose leaving returns it");
+    }
+
+    /// The control: a plain exile of the same creature reads only it.
+    #[test]
+    fn a_plain_exile_reads_only_its_object() {
+        let def = whenever(
+            enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
+            Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject),
+        );
+        assert_eq!(def.bound_reads(), BoundReads::SUBJECT);
     }
 }
