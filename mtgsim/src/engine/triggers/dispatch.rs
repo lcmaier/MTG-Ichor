@@ -109,6 +109,14 @@ pub struct DepartureFrame {
     frame: Option<Arc<EffectiveCharacteristics>>,
 }
 
+/// Where an entry keeps the frame of an object it names that leaves (CR
+/// 113.7a, 608.2h): a queued, stacked or resolving entry's list, or a delayed
+/// trigger's one source frame.
+enum FrameKeeper<'a> {
+    List(&'a mut Vec<DepartedFrame>),
+    Source(&'a mut Option<Arc<EffectiveCharacteristics>>),
+}
+
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
 /// target, triggers from mana being added, and could add mana. CR 605.5a is
 /// the same sentence from the other side — a target or any other event
@@ -699,21 +707,25 @@ impl GameState {
         for action in decided.iter().flatten() {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
-                | GameAction::Destroy { object, .. } => self.capture_departure_frame(*object),
+                | GameAction::Destroy { object, .. } => {
+                    if self.battlefield.contains_key(object) {
+                        self.capture_frame(*object);
+                    }
+                }
                 GameAction::ZoneChange { object, .. } => {
                     let named = named.get_or_insert_with(|| self.objects_entries_name());
                     if self.object_ref(*object).is_some_and(|r| named.contains(&r)) {
-                        self.capture_named_frame(*object);
+                        self.capture_frame(*object);
                     }
                 }
                 GameAction::PlayerLoses { player, .. } => {
                     for id in self.battlefield_ids_ordered() {
-                        self.capture_departure_frame(id);
+                        self.capture_frame(id);
                     }
                     let named = named.get_or_insert_with(|| self.objects_entries_name());
                     for object in named.iter() {
                         if self.objects.get(&object.id).is_some_and(|o| o.owner == *player) {
-                            self.capture_named_frame(object.id);
+                            self.capture_frame(object.id);
                         }
                     }
                 }
@@ -722,38 +734,48 @@ impl GameState {
         }
     }
 
-    /// The objects a queued, stacked or resolving entry names: its source,
-    /// and its trigger's subject; and each waiting delayed trigger's source.
+    /// The objects the entries name (`for_each_naming_entry`), each once.
     /// Empty or short on the common board.
-    fn objects_entries_name(&self) -> Vec<ObjectRef> {
+    fn objects_entries_name(&mut self) -> Vec<ObjectRef> {
         let mut named: Vec<ObjectRef> = Vec::new();
-        let mut name = |object: Option<ObjectRef>| {
-            if let Some(object) = object
-                && !named.contains(&object)
-            {
-                named.push(object);
+        self.for_each_naming_entry(|objects, _| {
+            for object in objects.into_iter().flatten() {
+                if !named.contains(&object) {
+                    named.push(object);
+                }
             }
-        };
-        for pending in &self.pending_triggers {
-            name(Some(pending.origin.source_ref()));
-            name(pending.binding.subject);
-        }
-        for entry in self.stack_entries.values() {
-            name(entry.ability_identity.map(|identity| identity.source));
-            name(entry.trigger.as_ref().and_then(|binding| binding.subject));
-        }
-        if let Some(resolving) = &self.resolving {
-            name(resolving.identity.map(|identity| identity.source));
-            name(resolving.subject);
-        }
-        for delayed in &self.delayed_triggers {
-            name(Some(delayed.source));
-        }
+        });
         named
     }
 
-    /// A named mover's frame, from any zone, unless its batch framed it.
-    fn capture_named_frame(&mut self, id: ObjectId) {
+    /// Every entry that names objects, with the objects it names and where it
+    /// keeps the frame of one that leaves: a queued, stacked or resolving
+    /// entry's source and its trigger's subject, and a waiting delayed
+    /// trigger's source. The one list of who names what, so the capture
+    /// (`objects_entries_name`) and the hand-over cannot disagree.
+    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], FrameKeeper<'_>)) {
+        for pending in &mut self.pending_triggers {
+            let named = [Some(pending.origin.source_ref()), pending.binding.subject];
+            each(named, FrameKeeper::List(&mut pending.departed));
+        }
+        for entry in self.stack_entries.values_mut() {
+            let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
+            each(named, FrameKeeper::List(&mut entry.departed));
+        }
+        if let Some(resolving) = &mut self.resolving {
+            let named = [resolving.identity.map(|identity| identity.source), resolving.subject];
+            each(named, FrameKeeper::List(&mut resolving.departed));
+        }
+        for delayed in &mut self.delayed_triggers {
+            each([Some(delayed.source), None], FrameKeeper::Source(&mut delayed.source_frame));
+        }
+    }
+
+    /// A mover's frame, taken before its batch performs (CR 603.10a for a
+    /// permanent, 113.7a for anything an entry names). One an enclosing batch
+    /// already framed keeps that frame, since a destruction's move is a
+    /// nested batch and the event it belongs to is the outer one.
+    fn capture_frame(&mut self, id: ObjectId) {
         let Some(object) = self.object_ref(id) else { return };
         if self.departure_frames.iter().any(|d| d.object == object) {
             return;
@@ -779,29 +801,15 @@ impl GameState {
             },
         };
         let Some(object) = self.object_ref(id) else { return };
-        let departed = || DepartedFrame { object, frame: Arc::clone(&frame) };
-        for delayed in &mut self.delayed_triggers {
-            if delayed.source == object {
-                delayed.source_frame = Some(Arc::clone(&frame));
+        self.for_each_naming_entry(|named, keeper| {
+            if !named.contains(&Some(object)) {
+                return;
             }
-        }
-        for pending in &mut self.pending_triggers {
-            if pending.origin.source_ref() == object || pending.binding.subject == Some(object) {
-                pending.departed.push(departed());
+            match keeper {
+                FrameKeeper::List(list) => list.push(DepartedFrame { object, frame: Arc::clone(&frame) }),
+                FrameKeeper::Source(slot) => *slot = Some(Arc::clone(&frame)),
             }
-        }
-        for entry in self.stack_entries.values_mut() {
-            let source = entry.ability_identity.map(|identity| identity.source);
-            let subject = entry.trigger.as_ref().and_then(|binding| binding.subject);
-            if source == Some(object) || subject == Some(object) {
-                entry.departed.push(departed());
-            }
-        }
-        if let Some(resolving) = &mut self.resolving
-            && (resolving.identity.map(|identity| identity.source) == Some(object) || resolving.subject == Some(object))
-        {
-            resolving.departed.push(departed());
-        }
+        });
     }
 
     /// The frame a named mover's batch took for it, if any: the non-battlefield
@@ -810,22 +818,6 @@ impl GameState {
     fn take_named_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
         let object = self.object_ref(id)?;
         self.departure_frames.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
-    }
-
-    /// One permanent's frame. A permanent an enclosing batch already framed
-    /// keeps that frame, since a destruction's move is a nested batch and
-    /// the event it belongs to is the outer one.
-    fn capture_departure_frame(&mut self, id: ObjectId) {
-        if !self.battlefield.contains_key(&id) {
-            return;
-        }
-        let Some(object) = self.object_ref(id) else { return };
-        if self.departure_frames.iter().any(|d| d.object == object) {
-            return;
-        }
-        if let Some(frame) = compute_characteristics(self, id) {
-            self.departure_frames.push(DepartureFrame { object, frame: Some(frame) });
-        }
     }
 
     /// The frame the move of `id` off the battlefield carries, taken before
