@@ -13,6 +13,7 @@ use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_cv_cards::cryptoplasm;
 use mtgsim::cards::phase_tr1_cards::soul_warden;
 use mtgsim::cards::phase_tr3a_cards::blessed_wine;
+use mtgsim::cards::phase_tr3b_cards::banishing_light;
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -26,7 +27,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
@@ -431,4 +432,32 @@ fn a_delayed_triggers_creation_is_recorded_once_and_triggers_nothing() {
         rules_text: game.delayed_triggers[0].rules_text,
         duration: DelayedDuration::Once,
     }), None);
+}
+
+// ---------------------------------------------------------------------------
+// An "until" return, from its making to the return
+// ---------------------------------------------------------------------------
+
+/// Item 234: Banishing Light's exile makes a return that waits for the Light
+/// to leave (CR 610.3), and the log says so as it is made, by the number
+/// the Waiting panel lists it under. The record comes before anything the
+/// return's event could be, and nothing triggers on it.
+#[test]
+fn an_until_return_is_announced_as_it_is_made() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let light = put_on_battlefield(&mut game, banishing_light(), 0);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    resolve_top(&mut game);
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Exile);
+
+    let made = format!("UntilReturnMade: Banishing Light ({light})'s return 1 [P0]: Grizzly Bears ({bears})");
+    let log = format_event_log(&game);
+    assert_eq!(log.iter().filter(|l| l.starts_with("UntilReturnMade")).count(), 1, "{log:#?}");
+    assert!(log.contains(&made), "no {made:?} in {log:#?}");
+    let records = game.recorded_events();
+    let record = records.records().iter().find(|r| matches!(r.event, GameEvent::UntilReturnMade { .. })).unwrap();
+    assert_eq!(game.until_returns[0].id, UntilReturnId(1));
+    assert!(game.until_returns[0].created_at > record.seq, "made after its own record");
+    assert_eq!(EventKind::from_record(&record.event), None);
 }

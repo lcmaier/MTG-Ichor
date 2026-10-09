@@ -1,6 +1,6 @@
 use crate::events::event::EventSeq;
 use crate::types::effects::ReturnUnder;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent};
 
 /// CR 610.3 — the return an "until" exile waits to make: a one-shot effect
@@ -9,6 +9,7 @@ use crate::types::triggers::{RememberedObject, TriggerEvent};
 /// event happens.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UntilReturn {
+    pub id: UntilReturnId,
     /// The specified event, read as a trigger arm is.
     pub until: TriggerEvent,
     /// "This" in the event: the object whose ability exiled, or the spell,

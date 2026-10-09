@@ -416,6 +416,13 @@ impl ExtraTurnId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DelayedTriggerId(pub u64);
 
+/// A CR 610.3 return's number, from the "until" exile that makes it until
+/// its event: what a client keeps a waiting return by across reads, and what
+/// a log line names it by. Minted per game from
+/// `GameState::next_until_return_id`, from one, never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct UntilReturnId(pub u64);
+
 /// A `HashMap` keyed by an id or an id pair.
 pub type IdMap<K, V> = HashMap<K, V, IdHash>;
 /// A `HashSet` of ids or id pairs.
