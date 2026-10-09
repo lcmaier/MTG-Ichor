@@ -204,6 +204,42 @@ history grep over every touched file before opening the PR**, and read the
 doc comments for stale claims as a step of its own — a shorter comment that is
 wrong is not an improvement.
 
+**Third application — 2026-10-08, the triggers midpoint audit (A6k, PR
+#235 for the plan), 81 PRs after the second.** Reproduced before it was read, as the first two records'
+wording made necessary. The wide tier reproduces exactly: its grep over
+comment lines in `.rs` files and every line of live `plans/` reads the first
+record's 456 (133 in `cards/`), 140 and 1,049 at its tree, `949a519`. So does
+the second record's per-file count, lines starting `//` with test modules
+included, on its four PRs (3,235 → 2,798, 10,164 → 9,722, 521 → 492, and
+#147's −564). Its tree total does not: no definition tried gives 15,619 for
+non-card, non-test `src/` at `1e80147` (16,415 with test modules, 15,245
+without), and its 57 touched files alone summed 17,278. So 15,806, the
+touched files after, is not a tree total, and the tree-wide row is below. The
+tight tier was never written as a regex. This run's — about, roughly or one
+in before a quantity, counted or measured as verbs, any N% or N of M, undated
+when its paragraph carries no date, PR number or phase code — reads 63 with
+34 undated at `949a519`, where the record says 58 and 39, and 19 undated at
+`1e80147`, which is the record's after-reading. With those definitions, over
+non-card `src/` (the tiers with `bin/`, the block census without):
+
+| | `949a519`, before the sweeps | `61b488b`, after them | `0ac5c98`, 2026-10-08 |
+|---|---|---|---|
+| wide tier: non-card src / cards / tests / live plans | 323 / 133 / 140 / 1,049 | 274 / 132 / 140 / 1,063 | 431 / 149 / 217 / 1,864 |
+| tight tier, non-card src (undated) | 63 (34) | 45 (19) | 82 (53) |
+| comment lines, and their share of all lines | 16,506 | 15,034 (32.5%) | 21,295 (29.9%) |
+| in blocks over four lines: doc / inline / module | 9,123 / 2,869 / 680 | 8,649 / 1,582 / 710 | 11,024 / 1,918 / 1,183 |
+| blocks narrating history (their lines) | 254 (4,367) | 80 (1,311) | 107 (1,814) |
+
+Comments grew more slowly than the code, which went from 46,269 lines to
+71,176. The history blocks and the inline blocks over four lines are what the
+second application's two rules cut, and today's are about half of what it
+found, so the sweep is sized at one PR, ~600–900 lines out, largest file
+first. The tight tier's undated list is the floor again, apart from two
+undated numbers in `layers/types.rs`. The comments whose numbers had moved
+most were outside the grep's reach: `Cargo.toml`'s five clippy allows each
+give a site count, and four had moved (4 → 6, 3 → 4, 3 → 7, 3 → 4, with 11
+holding), with nothing to say so.
+
 **What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
 lines and every section costs another; the rule it already has is the right
 one, and a second rule that duplicates it in the negative would buy nothing
@@ -1821,6 +1857,17 @@ which is the glossary's own obligation at a phase close; `roadmap-v2.md` §3b's
 table re-derived, since every count in it carries the date it was read; and
 A4d's two artifacts, if still open, because the trigger phase is the largest
 new subsystem the map would have to absorb.
+
+**And pass 3 at the midpoint of a long item** (the owner, 2026-10-08, at
+A6k's brief). A critical-path item longer than about eight PRs gets the
+hygiene pass halfway through, planned in a handoff and dispositioned as the
+close's passes are, with one more question: a shape review of the code the
+rest of the item will extend. Which lists hand a position across a call or
+a mutation; which facts the rules fix at a moment the code recomputes later;
+where matching is done outside the one matcher; and what a per-event path
+scans, read off a profile. The other passes stay at the close. Item 6's
+midpoint is A6k (`roadmap-v2.md`), between TR-3b and TR-3c: 81 PRs after
+the second sweep, with about eight engine PRs left before item 6 closes.
 
 ## 10. GUI code — logic in plain Rust, egui only drawing
 

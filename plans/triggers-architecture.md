@@ -1738,10 +1738,14 @@ modes and X for CV-4's copy. A condition about the bound facts, such as
 persist's "if it had no -1/-1 counters on it", reads the record's frame at
 both instants through a `TriggerContext` form of the evaluator, built with
 persist in TR-4. The `IsCountered` look-back (CR 603.10e) reads the same frame
-of the countered spell. Three leaves read the live source instead:
-`SourceUntapped`, `SpellWasKicked` and `HostMatches` answer false once it has
-left, where CR 113.7a reads its last known information (TR-2b's review,
-2026-09-27). TR-4a points them at the frame.
+of the countered spell. Five leaves read the live source instead:
+`SourceUntapped`, `SourceTapped`, `SourceHasCounters`, `SpellWasKicked` and
+`HostMatches` answer false once it has left, where CR 113.7a reads its last
+known information (TR-2b's review, 2026-09-27, named three; RG added the
+other two the next day). A delayed trigger's intervening "if" reads its
+source by id (`match_delayed`), so a source that left and came back answers
+as the new object (CR 400.7). TR-4a points them all at the frame (the
+triggers midpoint audit, 2026-10-08).
 
 The two amendments below are the design record this was built from.
 
