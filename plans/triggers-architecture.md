@@ -1681,6 +1681,23 @@ anywhere (`cast_from: None`), it has no cost, and CR 601.2's rollback
 sites never see it: the one failure placement can meet is "no legal
 choices", which is a removal, not a rewind.
 
+### 5.6 A prompt keeps what it has decided on `GameState`
+
+**The rule (the owner, 2026-10-08, at A6k's review):** a prompt in
+detection, placement or a CR 610.3 return keeps everything it has decided
+and everything still owed on `GameState` while it asks, so that a clone
+taken at the prompt resumes the same game by running the same code again.
+That is `codebase-state.md` item 40's invariant, and the drain (§5.2) is its
+shape: `pending_triggers` loses an entry only as that entry is placed, so the
+queue is the placement's record of progress. Every prompt TR-4–TR-7 add
+here, CR 603.3c's modes and CR 603.5's "may" among them, is written that
+way.
+
+Three prompts built before the rule break it, and they are item 233's, fixed
+with item 40's violators at the first fork-based harness: CR 603.3d's targets
+in `place_one`, CR 603.7b's choice of cause in `queue_delayed`, and CR
+303.4f's host in `return_until`.
+
 ---
 
 ## 6. Resolution

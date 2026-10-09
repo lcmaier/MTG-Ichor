@@ -16,14 +16,9 @@ use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
 /// Game events that can be observed by triggered abilities and logging systems.
 ///
 /// Events are emitted *after* the action occurs (past tense). They represent
-/// facts about what happened, not requests for what should happen.
-///
-/// **Replacement effects** (e.g. "if damage would be dealt, prevent it") are
-/// NOT modeled as events. They will be handled by a replacement effect registry
-/// that the engine consults *before* performing an action. See the design note
-/// in the module docs for details.
-///
-/// The engine emits these; triggered abilities and logging subscribe to them.
+/// facts about what happened, not requests for what should happen. What a
+/// replacement effect reads is the proposal before it is performed
+/// (`engine::actions::GameAction`, CR 614), never one of these.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameEvent {
     // --- Zone transitions ---
@@ -33,7 +28,8 @@ pub enum GameEvent {
         from: Zone,
         to: Zone,
         /// Why the engine moved it. `(from, to)` cannot tell a sacrifice from a
-        /// destruction, and 278 printed cards want that difference.
+        /// destruction, and 278 printed cards want that difference (Scryfall,
+        /// 2026-08-25).
         ///
         /// **Only the replacement pipeline and the trigger matcher may branch
         /// on this.** See [`ZoneChangeCause`](crate::engine::actions::ZoneChangeCause).
@@ -117,11 +113,10 @@ pub enum GameEvent {
 
     // --- Turn structure ---
     //
-    // `player` is whose phase or step it is — the proposal's field, which
-    // "at the beginning of your upkeep" reads (item 10). The three `*End`
-    // variants that stood here were never emitted and no printed trigger
-    // reads an end: "at end of combat" is the end-of-combat step beginning
-    // (CR 511.2) and "at end of turn" the end step's (CR 513.1a) — item 18.
+    // `player` is whose phase or step it is, which "at the beginning of your
+    // upkeep" reads. No record marks an end, since no printed trigger reads
+    // one: "at end of combat" is the end-of-combat step beginning (CR 511.2)
+    // and "at end of turn" the end step's (CR 513.1a).
     PhaseBegin { phase: PhaseType, player: PlayerId },
     StepBegin { step: StepType, player: PlayerId },
     TurnBegin { player: PlayerId, turn_number: u32 },
@@ -154,16 +149,12 @@ pub enum GameEvent {
     // ability finishing is `AbilityResolved`, which carries the durable identity
     // CR 603.7h counting needs. One event for both would fire for abilities
     // too, and "whenever a spell resolves" keyed on it would be wrong.
-    /// An activated ability finished resolving (CR 608.2n), identified by what
-    /// it *is* rather than by the stack object that represented it.
-    ///
-    /// [`Self::StackObjectResolved`] carries the ephemeral ability object's id,
-    /// which ceases to exist at resolution and therefore identifies nothing
-    /// afterward.
-    /// CR 603.7h counting — "whenever this ability resolves for the third time
-    /// this turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the
-    /// durable (source, ability) pair, which is why this event exists
-    /// alongside it rather than replacing it.
+    /// An activated or triggered ability finished resolving (CR 608.2n),
+    /// identified by what it *is* rather than by the stack object that
+    /// represented it, which ceases to exist as it resolves. CR 603.7h's
+    /// counting — "whenever this ability resolves for the third time this
+    /// turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the durable
+    /// (source, ability) pair.
     AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
     /// An activated ability became activated: its costs are paid (CR 602.2b
     /// runs 601.2i), so an activation reversed for want of them (CR 732.1)
@@ -236,8 +227,7 @@ pub enum GameEvent {
     //   anywhere; and ATOM-603.6c-001 turns on *which* zone the card went to.
     //
     // A reader that wants deaths matches `ZoneChange { from: Battlefield, to:
-    // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and
-    // `fuzz_games` both do exactly that.
+    // Graveyard, lki, .. }` and asks the frame what died.
 
     // --- The game's end ---
     /// Emitted by the `GameAction::PlayerLoses` performer, so a loss a
@@ -529,20 +519,20 @@ pub struct BatchId(pub u64);
 
 /// Which resolution an event belongs to (CR 608.2).
 ///
-/// `source` is the stack object that was resolving, and it identifies the
-/// *resolution* rather than the card, because this engine gives every stack
-/// object a fresh `ObjectId`: one per cast, and one per activation for an
-/// ability's ephemeral object, which CR 608.2n destroys rather than recycles.
-/// That is an engine property, not a rule.
+/// `source` is the stack object that was resolving: a spell's card, which keeps
+/// its id as it moves to the stack (CR 601.2a), or an ability's own object, a
+/// fresh id that CR 608.2n destroys. A card cast twice stamps two resolutions
+/// alike, so a reader of what one resolution did bounds it by the mark taken
+/// as it began ([`EventWindow::resolution_records`]).
 ///
-/// **Who reads it.** RB's pipeline is the first: CR 614.15 self-replacement
-/// effects belong to the resolving spell or ability rather than to any registry,
-/// so `apply_replacements` has to know which resolution proposed an action in
-/// order to find them. That lookup uses `ActionContext::resolution`, the
-/// *proposal* side. On the performed record it is how a resolution reads back
-/// what its own instructions did ([`EventWindow::resolution_records`]):
-/// `Effect::Remember`'s objects (CR 603.7c). It is also provenance, wanted by
-/// the CR 731 loop-detection transcripts and useful in a log.
+/// **Who reads it.** The replacement pipeline: CR 614.15 self-replacement
+/// effects belong to the resolving spell or ability rather than to any
+/// registry, so `apply_replacements` has to know which resolution proposed an
+/// action in order to find them. That lookup uses `ActionContext::resolution`,
+/// the *proposal* side. On the performed record it is how a resolution reads
+/// back what its own instructions did: `Effect::Remember`'s objects (CR
+/// 603.7c). It is also provenance, wanted by the CR 731 loop-detection
+/// transcripts and useful in a log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolutionStamp {
     pub source: ObjectId,
@@ -625,8 +615,8 @@ pub struct EventWindow {
     /// Stamped onto everything emitted while it is installed.
     ///
     /// **Ambient, and deliberately so.** The alternative is an
-    /// `emit_with(event, stamp)` at all 45 emission sites, which is 45 chances
-    /// to forget and no way to notice — the stamp has no test of its own at most
+    /// `emit_with(event, stamp)` at every emission site, each a chance to
+    /// forget and no way to notice — the stamp has no test of its own at most
     /// of them. Scoping it to `execute_actions` instead means the context is
     /// established once per performed action, by the one function that knows it.
     ///

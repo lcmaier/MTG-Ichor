@@ -873,22 +873,13 @@ impl GameState {
         // --- Phase 1: decide (CR 616.1), per subject, in APNAP order of chooser
         //
         // CR 616.1's last sentence sends simultaneous choices to CR 101.4's APNAP
-        // order, and this is the only place that can order them.
-        //
-        // **The unit is the subject group, not the member** (§9's RD decision 3):
-        // members about one object or player share one CR 616.1 loop and one
-        // applied set, so an effect applies to the pair once (CR 122.1c's "only
-        // one shield counter is removed") while N deaths stay N subjects. A shared
-        // subject means a shared chooser, so the APNAP order between players holds.
-        //
-        // CR 101.4d's restart is not implemented: nothing in phase 1 can *create*
-        // a replacement effect, and each group's 616.1f loop completes before the
-        // next begins. A simplification, deferred in RB's review.
-        //
-        // CR 614.13a/b's exclusion sets and CR 615.7's allocation answers belong
-        // to *these* simultaneous entries, saved and restored like the event
-        // stamp, and populated before the first member is decided because 614.13a
-        // is about what is entering rather than what has entered.
+        // order, and only this loop can order them. **The unit is the subject
+        // group** (§9's RD decision 3): one loop and one applied set per object or
+        // player, so one shield counter goes for two blockers (CR 122.1c) while N
+        // deaths stay N subjects. CR 101.4d's restart is not built: nothing here
+        // creates a replacement effect (deferred at RB's review). CR 614.13a/b's
+        // exclusions and CR 615.7's answers belong to these entries, saved and
+        // restored like the stamp, and filled before the first member is decided.
         let outer_selection = std::mem::take(&mut self.entry_selection);
         self.entry_selection.entering = batch
             .iter()
@@ -952,13 +943,9 @@ impl GameState {
         self.prevention_allocations = outer_allocations;
         decided_ok?;
 
-        // CR 603.10 decides a leaves-the-battlefield trigger from "the existence
-        // of those abilities ... immediately prior to the event". A surviving
-        // object's abilities change across this batch only if it removes the
-        // source of an effect that copies, grants or removes abilities, and then
-        // the lists from before are saved now, while they still exist
-        // (`LookBackSnapshot`). Asked of the decided members, since replacement
-        // decides whether anything departs.
+        // CR 603.10's "immediately prior to the event": a survivor's abilities
+        // change only if a decided member removes an ability-changing effect's
+        // source, so then the lists are saved now (`LookBackSnapshot`).
         let snapshot = self
             .departs_an_ability_list_source(&decided)
             .then(|| self.look_back_frames())
@@ -974,11 +961,9 @@ impl GameState {
 
         // --- Phase 2: perform, in batch order -------------------------------
         //
-        // Batch order, not APNAP: the choices were what CR 101.4 sequences, and
-        // the performed events are simultaneous. The order is still observable
-        // (a graveyard is ordered), and it is the caller's `battlefield_ids_ordered`.
-        // Rendered ahead of the loop that consumes `decided`, and only in a
-        // traced game: the `batch_end` record says what each proposal became.
+        // Batch order, not APNAP: CR 101.4 sequenced the choices, and the events
+        // are simultaneous, though observable (a graveyard is ordered). Rendered
+        // first, in a traced game only, for `batch_end`'s record.
         let decided_rendered: Option<Vec<Option<String>>> = self.trace_on().then(|| {
             decided
                 .iter()
@@ -1178,16 +1163,10 @@ impl GameState {
             // damage, and by the time the event is performed every effect has
             // had its say.
             GameAction::DealDamage { source, source_frame, target, amount, is_combat, unpreventable: _ } => {
-                // No 0-amount guard: CR 614.7a makes a 0-damage event never happen, which
-                // is the *proposal's* problem — `replacement::never_happens` owns it ahead
-                // of the pipeline, and a 0 that reaches CR 616.1 is one a prevention
-                // effect applied to.
-                //
-                // **CR 120.3 is a list of results, and this arm is that list**: each result
-                // is decided off the target's own type, so a creature planeswalker gets
-                // 120.3c *and* 120.3e. The four absent results have owners — 120.3b/g
-                // (poison) and 120.3d (wither, infect) are `backlog.md` §2.6's, 120.3h
-                // (battles) is §2.23's.
+                // No 0-amount guard: CR 614.7a's 0 damage is `never_happens`'s, ahead of
+                // the pipeline. **CR 120.3's results, each off the target's own type**,
+                // so a creature planeswalker gets 120.3c *and* 120.3e; 120.3b/d/g are
+                // `backlog.md` §2.6's and 120.3h §2.23's.
                 let results = match &target {
                     DamageTarget::Object(id) => {
                         if !self.battlefield.contains_key(id) {
@@ -1238,17 +1217,10 @@ impl GameState {
                     is_combat,
                 });
 
-                // > 120.3a Damage dealt to a player causes that player to lose
-                // > that much life.
-                //
-                // **A contained proposal, not a subtraction**, joining this damage's
-                // batch as lifelink's gain does (CR 120.4c/d): a CR 603.2c trigger sees one
-                // event, and the loss re-enters `apply_replacements` with a fresh applied
-                // set (§3.2d) so Bloodletter can double it while a shield that already
-                // applied to the damage does not apply again. `LoseLife` has no pattern
-                // arm, so Ali from Cairo's family is unwritable rather than wrongly
-                // answered. After the `DamageDealt` emit; the loss's own performer emits
-                // `LifeChanged`, with `LifeLossCause::Damage` keeping `source` on it.
+                // CR 120.3a — **a contained proposal, not a subtraction**, in this
+                // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
+                // doubles it, a shield spent on the damage does not apply again. Its
+                // performer emits `LifeChanged`, `LifeLossCause::Damage` keeping `source`.
                 if results.lose_life
                     && let DamageTarget::Player(pid) = &target {
                     self.execute_action(
@@ -1261,13 +1233,8 @@ impl GameState {
                     )?;
                 }
 
-                // > 120.3c Damage dealt to a planeswalker causes that many
-                // > loyalty counters to be removed from that planeswalker.
-                //
-                // A proposal because CR 614.16's counter doublers replace "counters would
-                // be put on", and a removal a card watches is the mirror of one. `n` is a
-                // ceiling (`PermanentState::remove_counters` reports what it took), and
-                // CR 704.5i does the killing.
+                // CR 120.3c, a proposal as any counter change is. `n` is a ceiling
+                // (`remove_counters` reports what it took); CR 704.5i does the killing.
                 if results.remove_loyalty
                     && let DamageTarget::Object(id) = &target {
                     self.execute_action(
@@ -1283,17 +1250,10 @@ impl GameState {
                 Ok(())
             }
 
-            // > 121.2. Cards may only be drawn one at a time. If a player is
-            // > instructed to draw multiple cards, that player performs that
-            // > many individual card draws.
-            //
-            // Literal, because of CR 121.6b: a replacement of one draw in a sequence
-            // "is completed before resuming the sequence", so each inner is its own
-            // batch, decided and its riders run before the next is proposed. `lineage`
-            // is what each inner starts its CR 614.5 applied set from — these are this
-            // instruction at finer grain, not events it caused (§3.2d), which is the
-            // difference between two Teferi's Ageless Insights drawing four and the
-            // game hanging. No guard on `n == 0`: the loop is the no-op.
+            // CR 121.2's draws one at a time, each its own batch with its riders run
+            // before the next (CR 121.6b). `lineage` starts each inner's CR 614.5
+            // applied set from the instruction's (§3.2d): two Teferi's Ageless Insights
+            // draw four rather than hang. `n == 0` loops zero times.
             GameAction::DrawCards { player, n, cause } => {
                 for i in 0..n {
                     self.execute_actions_decomposing(
@@ -1356,9 +1316,7 @@ impl GameState {
                     player_id: player,
                     old: old_life,
                     new: new_life,
-                    // CR 120.3a's loss names the damage's source, which is what
-                    // keeps the log line unchanged now that damage to a player
-                    // reaches life through here rather than around it.
+                    // CR 120.3a's loss names the damage's source.
                     source: match cause {
                         LifeLossCause::Damage { source } => Some(source),
                         LifeLossCause::Effect | LifeLossCause::Cost => None,
@@ -1573,11 +1531,10 @@ impl GameState {
 
             // --- Turn structure (CR 500, 614.10) ----------------------------
             //
-            // Three small performers, each writing the one field that makes its unit
-            // "the one that is happening" and announcing the `GameEvent` item 6's
-            // "at the beginning of" triggers will read. None runs a turn-based action
-            // or an expiry: those are separate events (CR 703.4, 500.4) the drainer
-            // runs after the proposal survives — see `engine::turns`.
+            // Three small performers, each writing the field that makes its unit the
+            // one happening and announcing what "at the beginning of" triggers read.
+            // Turn-based actions and expiries are separate events (CR 703.4, 500.4)
+            // the drainer runs after the proposal survives (`engine::turns`).
             GameAction::BeginTurn { player, turn, extra_turn } => {
                 // `begin_turn` is the one writer of `last_turn_began`, so a
                 // turn that is skipped starts no CR 302.6 clock and expires no
@@ -1604,17 +1561,9 @@ impl GameState {
                 Ok(())
             }
 
-            // > 701.22a To "scry N" means to look at the top N cards of your
-            // > library, then put any number of them on the bottom of your
-            // > library in any order and the rest on top of your library in
-            // > any order.
-            //
-            // The whole keyword action is in this arm and it proposes nothing:
-            // "top" and "bottom" are positions inside one library, not zones
-            // (CR 400.1), so there is no `ZoneChange` for a replacement to watch.
-            // `looked_at` is what is actually there — a short library gives fewer,
-            // and CR 701.22d makes that still a scry. `n = 0` never arrives
-            // (CR 701.22b; `replacement::never_happens`).
+            // CR 701.22a, whole in this arm and proposing nothing: top and bottom are
+            // places in one zone (CR 400.1). `looked_at` is what is there, a short
+            // library still a scry (701.22d); `n = 0` never arrives (701.22b).
             GameAction::Scry { player, n } => {
                 let library = &self.get_player(player)?.library;
                 let k = (n as usize).min(library.len());
@@ -1661,13 +1610,9 @@ impl GameState {
 
             // --- The game's end (CR 104) ------------------------------------
             //
-            // Loud on a player who has already left: the SBA check gates on
-            // `player_lost` before proposing, so a second loss is a caller bug and
-            // not CR 800.4a. `has_drawn_from_empty_library` is **not** cleared here —
-            // CR 704.5b's window closes at the check that reads it, whether or not
-            // the loss was then replaced or refused (`check_state_based_actions`).
-            // CR 104.2a and 104.4a are the *batch*'s question, settled in
-            // `execute_batch_inner` once the whole batch has performed.
+            // Loud on a player who has left: the check gates on `player_lost`, so a
+            // second loss is a caller's bug. CR 704.5b's flag is the check's to clear,
+            // and CR 104.2a and 104.4a are the batch's, settled after it performs.
             GameAction::PlayerLoses { player, reason } => {
                 if self.player_lost[player] {
                     return Err(format!("player {} has already left the game", player));
@@ -1700,17 +1645,10 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 106.6a / 106.12b — the one writer of the pool.
-            //
-            // A production of nothing performs and announces nothing, and the guard
-            // is here rather than in `never_happens`: no rule makes a zero production
-            // no event (CR 106.5 is about an *undefined type*; CR 107.1b's Viridian
-            // Joiner "adds no mana" is a statement about the pool).
-            //
-            // The announced `mana` folds the restricted atoms into the plain counts by
-            // type, in proposal order: a restriction "doesn't affect the mana's type"
-            // (CR 106.6), so the log reports {G}{G} for a doubled restricted Forest
-            // and the pool keeps the restriction.
+            // CR 106.6a / 106.12b — the pool's one writer. Nothing produced announces
+            // nothing, guarded here since no rule makes it no event (unlike
+            // `never_happens`'). The record folds restricted atoms into counts by type
+            // (CR 106.6), so a doubled restricted Forest logs {G}{G}.
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
                 if mana.iter().all(|(_, n)| *n == 0) && special.is_empty() {
                     return Ok(());

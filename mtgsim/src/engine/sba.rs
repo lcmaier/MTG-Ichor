@@ -112,20 +112,15 @@ impl GameState {
         let actx = ActionContext::new(decisions);
         let mut any_performed = false;
 
-        // CR 704.6d's window — "since the last time state-based actions were
-        // checked" — closed and reopened at the *top* of the check: a commander
-        // that CR 704.5g puts into a graveyard moves *during* the check, so a
-        // boundary at the bottom would place that move before the boundary it is
-        // supposed to follow, and the command zone would never be offered.
+        // CR 704.6d's "since the last time state-based actions were checked",
+        // reopened at the *top*: a commander CR 704.5g moves during the check must
+        // fall after the boundary, or the command zone is never offered.
         let since = self.last_sba_check_epoch;
         self.last_sba_check_epoch = self.next_zone_change_epoch;
 
-        // CR 704.5b's window is the same sentence and closes at the same place:
-        // read here, into the batch, and cleared. **Cleared whether or not the
-        // loss it proposes then happens.** A replaced loss (Exquisite Archangel)
-        // and a refused one (Platinum Angel) both leave the player in the game,
-        // and a flag that survived them would propose the same loss at every
-        // check for the rest of the game.
+        // CR 704.5b's window, the same sentence: read into the batch and cleared
+        // **whether or not the loss then happens**, since a replaced or refused loss
+        // (Exquisite Archangel, Platinum Angel) would otherwise recur every check.
         let drew_from_empty: Vec<bool> = self
             .players
             .iter_mut()
@@ -144,19 +139,12 @@ impl GameState {
 
         // --- CR 704.5a–c: the losses, as batch members ---------------------
         //
-        // One member per player, whatever the number of reasons: CR 704.7's "same
-        // result" is the player losing (Lich's Mirror's ruling: "a single Lich's
-        // Mirror will replace all of them"). The dedupe below keys on the subject,
-        // so pushing in CR order makes the first reason the one the log carries.
-        // A player who has already left is gated ahead of the proposal, as
-        // `next_turn_taker` gates CR 800.4k.
-        //
-        // **Gathered apart and appended to the end of the batch**, CR 800.4a
-        // meeting CR 704.3: a loss is the only member that removes *other*
-        // members' subjects (the departing player's objects leave inside its
-        // performer), so it performs after the members decided against them — a
-        // creature the departing player owns and that is dying in this check is
-        // destroyed first, and leaves the game from the graveyard.
+        // One member per player, however many reasons: CR 704.7's same result is
+        // the loss (Lich's Mirror's ruling), and the subject-keyed dedupe below
+        // keeps the first reason in CR order. A departed player is gated first, as
+        // `next_turn_taker` gates CR 800.4k. **Appended last** (CR 800.4a with
+        // 704.3): a loss removes other members' subjects, so a creature its player
+        // owns that dies in this check is destroyed first, and leaves from the graveyard.
         let mut batch: Vec<GameAction> = Vec::new();
         let mut player_losses: Vec<GameAction> = Vec::new();
         for i in 0..self.players.len() {
@@ -179,17 +167,11 @@ impl GameState {
             }
         }
 
-        // CR 704.6d / 903.9a — a commander put into a graveyard or exile since
-        // the last check: its owner **may** put it into the command zone. A
-        // state-based action, not a replacement effect: only 903.9b (hand or
-        // library) is one.
-        //
-        // Offered here and **performed below with the deaths**, in the one batch
-        // CR 704.3 calls a single event; performing each acceptance where it is
-        // offered would take a later owner's decision against a board an earlier
-        // owner's move had already changed. The zone-change epoch is what makes
-        // "since the last time" answerable; `since` was read at the top, before
-        // anything moved.
+        // CR 704.6d / 903.9a — a commander put into a graveyard or exile since the
+        // last check: its owner **may** put it into the command zone, a state-based
+        // action (only 903.9b is a replacement). Offered here, **performed with the
+        // deaths** in CR 704.3's one event, so no owner decides against a board an
+        // earlier acceptance changed. `since`, read at the top, is the epoch boundary.
         let commander_moves: Vec<GameAction> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
             for (id, obj) in moved_since(self, since) {
@@ -221,15 +203,9 @@ impl GameState {
 
         // --- CR 704.3: one check, one event -------------------------------
         //
-        // "The game checks for any of the listed conditions for state-based
-        // actions, then performs all applicable state-based actions
-        // simultaneously as a single event."
-        //
-        // Every condition below is evaluated against *this* game state, before
-        // any resulting move is performed — the simultaneity CR 704.7 and CR 616.1
-        // are written against. Ordered sweeps throughout: the batch order is the
-        // order a CR 616.1 prompt would be offered in, and the graveyard is an
-        // ordered zone. The losses gathered above are already in it, first.
+        // Every condition below reads *this* state, before any move performs.
+        // Ordered sweeps: the batch order is a CR 616.1 prompt's, and the
+        // graveyard is an ordered zone.
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
@@ -298,13 +274,9 @@ impl GameState {
                 }
             }
 
-            // For each group with more than one, the controller chooses one to keep.
-            // This runs against a board that still contains creatures dying elsewhere
-            // in the same check (CR 704.3), so a player with two Isamarus, one dead to
-            // lethal damage, is genuinely asked which to keep. CR 101.4 again: one
-            // check can put two players in a legend conflict at once. `BTreeMap` order
-            // is controller *index* order, which is only APNAP while player 0 is the
-            // active player. Stable, so one player's conflicts stay in name order.
+            // The controller keeps one of each group, on a board still holding this
+            // check's other deaths (CR 704.3): two Isamarus, one with lethal damage,
+            // still ask. Sorted to APNAP (CR 101.4) from the map's seat order, stably.
             let mut conflicts: Vec<_> =
                 legend_groups.iter().filter(|(_, ids)| ids.len() > 1).collect();
             conflicts.sort_by_key(|((controller, _), _)| self.apnap_index(*controller));
@@ -384,24 +356,17 @@ impl GameState {
 
         // --- Perform the gathered actions as one event (CR 704.3) -----------
         //
-        // CR 704.7's same-result collapse is the dedupe, keyed on the event's
-        // subject: two actions that would put the same permanent into the same
-        // graveyard, or make the same player lose, are one event with one applied
-        // set. The first condition in CR order names the cause: a dead duplicate
-        // legend was destroyed (704.5g), a player at 0 life with an empty library
-        // lost to 704.5a.
+        // CR 704.7's collapse is the dedupe, keyed on the subject: one event and
+        // one applied set per permanent or player, named by the first condition in
+        // CR order (a dead duplicate legend was destroyed, 704.5g).
         let mut seen: HashSet<EventSubject> = HashSet::new();
         batch.retain(|action| seen.insert(subject_of(action)));
 
         if !batch.is_empty() {
-            // **What the game recorded, not the proposal.** CR 704.3 repeats the
-            // check only "if any state-based actions are performed": an indestructible
-            // creature with lethal damage produces a `Destroy` that CR 614.17's "can't"
-            // drops, and counting the proposal would re-check forever. Nor only the
-            // performed *members*: a loss Exquisite Archangel replaced performs none,
-            // but its rider does (CR 614.6, 615.5), and Stunning Reversal's ruling
-            // that a short library loses "immediately after" needs that to count, or
-            // a priority window opens between the draw and the check that reads it.
+            // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
+            // any state-based actions are performed", and an indestructible creature's
+            // dropped `Destroy` would re-check forever. A replaced loss's rider counts
+            // (CR 615.5), or Stunning Reversal's "immediately after" opens a window.
             let before = self.events.next_seq();
             self.execute_actions(batch, &actx)?;
             any_performed |= self.events.next_seq() > before;
@@ -435,22 +400,10 @@ impl GameState {
             any_performed = true;
         }
 
-        // 704.5p — both sentences, in one pass over the attachments.
-        //
-        // "If a battle or creature is attached to an object or player, it
-        // becomes unattached and remains on the battlefield. Similarly, if any
-        // nonbattle, noncreature permanent that's neither an Aura, an
-        // Equipment, nor a Fortification is attached to an object or player,
-        // it becomes unattached and remains on the battlefield."
-        //
-        // The first sentence is about what the permanent *is*, which is why
-        // neither neighbor catches it: 704.5n asks whether the *host* is legal,
-        // and the second sentence exempts by subtype — so an Equipment that
-        // becomes a creature (March of the Machines) escaped both. An Aura that
-        // is also a creature is unattached here and 704.5m puts it into the
-        // graveyard on the next pass, the CR's own composition. One
-        // characteristics read per attachment: a second loop for the subtypes
-        // computed the same frame twice.
+        // 704.5p — both sentences, one pass. The first is about what the permanent
+        // *is*, which 704.5n (the host) and the second sentence (by subtype) both
+        // miss: an Equipment made a creature (March of the Machines). An Aura that is
+        // a creature is unattached here, and 704.5m moves it on the next pass.
         let detachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
@@ -499,15 +452,10 @@ impl GameState {
             any_performed = true;
         }
 
-        // 704.5d — a token in a non-battlefield zone ceases to exist: removed from
-        // the game, not a zone change (no death trigger, no `ZoneChange`).
-        //
-        // Ordered by the epoch of the move that took each token off the
-        // battlefield, because `self.objects` is a `HashMap` and this sweep
-        // announces: two Zombies dying in one combat would otherwise log in
-        // per-process order. `move_object` stamps the epoch, monotone and one per
-        // move — the key `moved_since` uses, and not an `ObjectId`. A token
-        // created off the battlefield by `put_token_into` carries the same stamp.
+        // 704.5d — a token in a non-battlefield zone ceases to exist, no zone change.
+        // Ordered by its last move's epoch (`move_object`'s, monotone; a token made
+        // off the battlefield carries one too), since `objects` is a `HashMap` and
+        // this sweep announces.
         let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
             .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))

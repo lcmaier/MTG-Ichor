@@ -62,13 +62,9 @@ impl GameState {
 
         self.add_to_zone_collection(id, to)?;
 
-        // There is no `init_zone_state` counterpart to `cleanup_zone_state`:
-        // entering the battlefield is a proposed event of its own (CR 614.1c), so
-        // the entity is created by `GameAction::EnterBattlefield`'s performer,
-        // after the replacement pipeline has decided what the permanent enters as.
-        // A permanent is therefore in the battlefield *zone* for the width of this
-        // function's tail before it is on the battlefield; only that performer
-        // moves anything here, and it builds the entity on the next statement.
+        // No `init_zone_state`: entering is its own proposed event (CR 614.1c), so
+        // `EnterBattlefield`'s performer, the only mover here, builds the entity on
+        // its next statement, once the pipeline has decided what it enters as.
 
         // Update the object's zone field, and stamp *when* it moved.
         //
@@ -224,13 +220,9 @@ impl GameState {
     fn arrive_in_zone(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         let epoch = self.next_zone_change_epoch;
         self.next_zone_change_epoch += 1;
-        // CR 613.7d — "an object receives a timestamp at the time it enters a
-        // zone". Here rather than in `place_on_battlefield` because 613.7d
-        // names the zone and not the battlefield: a card entering a graveyard
-        // is stamped for the same rule as one entering play, which is what
-        // CR 613.7a reads off Wonder's source (A5). The `// CAST-ROLLBACK:`
-        // moves come through here too and are stamped like any other, which is
-        // right — the card really is back in its owner's hand.
+        // CR 613.7d stamps the object entering any zone, not only the
+        // battlefield (CR 613.7a reads Wonder's in a graveyard). `CAST-ROLLBACK:`
+        // moves are stamped too: the card really is back in its owner's hand.
         let timestamp = self.allocate_timestamp();
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
@@ -475,14 +467,10 @@ impl GameState {
             // resolution's "until end of turn" row names this permanent too
             // when its ability made it, and lasts as long as it said (611.2a).
             self.continuous_effects.remove_rows_ending_with(id);
-            // Deliberately *not* the replacement registry. Every row in it was
-            // made by a resolution, and CR 611.2a gives those the duration the
-            // spell or ability stated, not the source's lifetime — a regeneration
-            // shield outlives the permanent whose ability made it. Unspent
-            // `Uses::Once` rows expire at the CR 514.2 cleanup instead.
-            //
-            // The leaving permanent does stop being a gather candidate.
-            // Idempotent, so one that never had a replacement ability is a no-op.
+            // Not the replacement registry: a resolution's rows last as it stated
+            // (CR 611.2a), a regeneration shield outliving its source, and unspent
+            // ones expire at CR 514.2's cleanup. The permanent stops being a gather
+            // candidate (idempotent).
             self.replacement_ability_sources.remove(&id);
             // Same rule, same reason (`cant-effects-architecture.md` §3.4): the
             // leaving permanent stops being a restriction-sweep candidate. Its
@@ -521,20 +509,12 @@ impl GameState {
                 self.detach(attachment_id);
             }
         } else {
-            // The counterpart of `move_object`'s registration leg, and **narrower than
-            // the battlefield branch above on purpose**: it retires only the rows a
-            // *static ability* of this object generated, never a resolution's.
-            // `remove_by_source` would delete Giant Growth's pump as the spell hit the
-            // graveyard, since a resolving instant registers its row with `source` =
-            // the spell and then moves stack → graveyard.
-            //
-            // Hygiene, not correctness: CR 604.2's existence check re-asks at every
-            // layer whether the ability is still there and still functions in the
-            // source's current zone (`Condition::SourceInZone`), so a row left behind
-            // would apply to nothing. What removing it buys is that a card bouncing
-            // between two zones does not accumulate dead rows, and that
-            // `RegistryScopeSummary` does not keep reporting a reach the board no
-            // longer has.
+            // `move_object`'s registration leg undone, **narrower than the
+            // battlefield branch on purpose**: only this object's static abilities'
+            // rows, never a resolution's (`remove_by_source` would delete Giant
+            // Growth's pump as the instant moves to the graveyard). Hygiene, not
+            // correctness (CR 604.2's existence check would apply a stale row to
+            // nothing): no dead rows pile up, and the summary's reach stays true.
             self.continuous_effects.remove_static_by_source(id);
             // The gather's zone-leg candidate set is per zone (CR 113.6): the object
             // stops being one here, and `arrive_in_zone` decides again where it lands.

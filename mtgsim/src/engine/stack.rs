@@ -37,22 +37,12 @@ impl GameState {
         // ability ceasing to exist is not a zone change.
         let object_id = *self.stack.last().unwrap();
 
-        // Before the `StackEntry` is taken, deliberately: a spell's controller
-        // lives on it and the next statement destroys it. Note it is *not* used
-        // for the graveyard below — a finished spell goes to its owner's
-        // (CR 608.2n).
-        //
-        // **Two different controllers, and CR 110.2b is the reason.** The
-        // *effective* controller is who controls the spell right now, which a
-        // steal makes someone other than the caster; that player follows the
-        // spell's instructions (CR 608.2c) and controls the permanent it
-        // becomes. But "the permanent's controller **by default** is the player
-        // who put that spell onto the stack" — and the default is precisely what
-        // `PermanentState.controller` holds, since `compute.rs::base_controller`
-        // reads it as the value Layer 2 modifies. Writing the effective value
-        // there double-counts the steal: right today because CR 400.7a keeps the
-        // Layer 2 row applying, wrong the moment it stops (CR 800.4c, a player
-        // leaving a multiplayer game).
+        // Read before the `StackEntry` it lives on is taken; a finished spell
+        // goes to its owner's graveyard regardless (CR 608.2n). **Two
+        // controllers (CR 110.2b):** the effective one follows the instructions
+        // (CR 608.2c); the *default*, the caster, is what `PermanentState.controller`
+        // holds for Layer 2 to modify (`base_controller`). Writing the effective
+        // one there double-counts a steal once its row stops (CR 800.4c).
         let effective_controller =
             crate::oracle::characteristics::get_effective_controller(self, object_id)
                 .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
@@ -129,17 +119,11 @@ impl GameState {
         }
 
         // --- Re-validate targets (rule 608.2b; 608.3b for a permanent spell) ---
-        // Against what they were chosen against, which each instance recorded:
-        // an Aura's is its enchant ability, and nothing in `entry.effect`
-        // could say so — that was Deferred Migrations item 8.
-        //
-        // **Two answers, once.** The survivors are what the resolution acts on,
-        // instance by instance, and `None` is CR 608.2b's "doesn't resolve".
-        // Filtered here rather than per atom because 608.2b checks targets as
-        // the spell *begins* to resolve: Plague Spores destroying the creature
-        // does not make the land illegal afterwards.
-        // "Another target" is other than the object the text's "this" names:
-        // the spell, or the permanent whose ability this is (CR 113.7a).
+        // Against what each instance recorded it was chosen against (an Aura's
+        // enchant ability). **Once, as the spell begins to resolve** (608.2b):
+        // Plague Spores destroying the creature does not make the land illegal
+        // after. `None` is "doesn't resolve". "Another target" is other than the
+        // text's "this": the spell, or the permanent with the ability (CR 113.7a).
         let this_object = entry.ability_identity.map_or(object_id, |identity| identity.source.id);
         let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object) else {
             // Every target of every instance is illegal — the spell or ability
@@ -199,15 +183,9 @@ impl GameState {
             let is_permanent_type = has_permanent_type(self, object_id);
 
             if is_permanent_type {
-                // Permanent spell: it becomes a permanent and enters the
-                // battlefield (CR 608.3a; 608.3c for an Aura, handled below).
-                // It enters under its CR 110.2b *default* controller, which
-                // `default_enter_controller` reads off `resolving`; the steal's
-                // Layer 2 row continues to apply on top per CR 400.7a, so the
-                // effective controller is still the thief. The
-                // `PermanentEnteredBattlefield` event is emitted inside this call,
-                // by the `GameAction::EnterBattlefield` performer — the only place
-                // that knows what the permanent entered with.
+                // CR 608.3a (608.3c for an Aura, below): enters under its CR 110.2b
+                // *default* controller, a steal's Layer 2 row still applying on top
+                // (CR 400.7a). The entry's performer announces it.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
                 // CR 608.3e — "if a permanent spell resolves but its controller
                 // can't put it onto the battlefield, that player puts it into

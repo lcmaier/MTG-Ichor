@@ -162,16 +162,10 @@ pub fn assign_combat_damage(
         }
     }
 
-    // CR 800.4e — "if combat damage would be assigned to a player who has left
-    // the game, that damage isn't assigned." Here rather than at each of the
-    // four arms above that can name a player — the two unblocked ones, the
-    // no-blockers-left trample one, and trample's spill — because the rule is
-    // about the assignment and this is where the assignments are. A trampling
-    // attacker still assigns to its blockers; only the player's share goes.
-    //
-    // Reachable in spite of CR 506.2 keeping a departed seat off the attack
-    // target list: the defending player can leave between the declare
-    // step and the damage step, which is what first strike makes routine.
+    // CR 800.4e — damage assigned to a departed player isn't assigned: here,
+    // where the assignments are, not at the four arms that can name a player;
+    // a trampler still assigns to its blockers. The defender can leave after
+    // attacks are declared (CR 506.2 notwithstanding), first strike making it routine.
     if game.is_multiplayer() {
         assignments.retain(|a| match a.target {
             DamageTarget::Player(pid) => game.in_game(pid),

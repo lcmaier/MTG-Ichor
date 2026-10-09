@@ -103,14 +103,9 @@ impl GameState {
         let defending_players: Vec<PlayerId> = self.get_defending_players();
 
         for defender in defending_players {
-            // Build legal blocker-attacker pairs, pre-filtered via `can_block`.
-            // The pre-filter strips *hard-illegal* pairs
-            // (flying/reach mismatch, attacker not attacking this defender,
-            // tapped/wrong-controller blocker, etc.) so the DP never sees a
-            // pair it can't legally pick regardless of strategy. Per-blocker
-            // uniqueness (CR 509.1) is *set-level* and is not pre-filterable
-            // on individual pairs — it's enforced by `validate_blockers` and
-            // the re-ask below.
+            // The pairs `can_block` allows, so the provider never sees one it could
+            // not pick. One block per blocker (CR 509.1) is a property of the set,
+            // so `validate_blockers` and the re-ask below enforce it.
             let blocker_ids = legal_blockers(self, defender);
             let attackers_in_combat: Vec<ObjectId> = self.battlefield_ordered()
                 .into_iter()

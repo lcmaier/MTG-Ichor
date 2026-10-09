@@ -2243,13 +2243,10 @@ fn apply_rewrite(
                 ))
             }
 
-            // CR 106.6a — "replacement effects [that] increase the amount of mana
-            // produced" (Mana Reflection, Nyxbloom Ancient). Every plain entry is scaled
-            // and every restricted atom repeated `n` times in place: the rule's next
-            // sentence applies restrictions "to all mana produced", and an atom is one
-            // unit carrying its restrictions (`ATOM-106.6a-001`). Every other arm is a
-            // pairing error — nothing prints "one more mana" as a replacement, and
-            // nothing halves mana. `took_effect` is any unit changing.
+            // CR 106.6a's mana multipliers (Mana Reflection, Nyxbloom Ancient): plain
+            // entries scaled, each restricted atom repeated in place with its
+            // restrictions (`ATOM-106.6a-001`). No card adds or halves mana by
+            // replacement, so other arms are pairing errors.
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
                 match amount_rewrite {
                     AmountRewrite::Multiplier(n) => {
@@ -2483,28 +2480,16 @@ fn template_amount(
 /// [`ordering_cannot_change_outcome`]'s fourth shape rests on the purity, and
 /// its debug check calls this against an event it must not mutate.
 ///
-/// # How big this gets, counted rather than guessed
+/// # How big this gets
 ///
 /// **One arm per [`GameActionTemplate`] variant, and a nested match only
-/// where a template reads the replaced event's *fields* or its subject.**
-/// Counted 2026-09-15: eight templates and 310 lines, 110 of them comment —
-/// about 25 lines of code each. `ZoneChangeTo`, `DrawCards`, `CreateTokens`
-/// and `ProduceMana` read fields off the event; `RemoveCountersFromAffected`,
-/// `GainLife`, `LoseLife` and `PlayerWins` read only [`subject_of`], which is
-/// why the last three cost a dozen lines each as the `GameAction` vocabulary
-/// grows.
-///
-/// So this does **not** grow as templates × actions. It grows with templates,
-/// which grew 3 → 8 across RB, RC, RD and RE — roughly one a phase — against a
-/// census of 574 printed "would … instead" clauses (§3.2c) that needed zero new
-/// `Rewrite` arms. A thousand lines would take about forty templates.
-///
-/// **The split, when it is wanted, is mechanical**: one `fn substitute_<name>`
-/// per template, or a method on the template itself. Nothing here reads
-/// anything but `chosen`, the event and the subject, so the functions do not
-/// share state — which is exactly why it is not being done speculatively now.
-/// **Do it when a third template needs a nested match**, because that is the
-/// point at which the arms stop being readable side by side.
+/// where a template reads the replaced event's *fields* or its subject**:
+/// `ZoneChangeTo`, `DrawCards`, `CreateTokens` and `ProduceMana` read fields,
+/// the other four only [`subject_of`]. So it grows with templates, not
+/// templates × actions: eight on 2026-10-08, against 574 printed "would …
+/// instead" clauses (§3.2c) that needed no new `Rewrite` arm. **Split it, one
+/// `fn substitute_<name>` per template, when a third template needs a nested
+/// match**; the arms share no state, so the split is mechanical.
 ///
 /// The two things it reads off `chosen` are exactly the two
 /// [`template_is_instance_invariant`] is about: CR 609.6's source for a
@@ -2558,13 +2543,11 @@ fn substitute(
             }
         }
 
-        // CR 614.1a's "instead … draw": the substitute is always the **instruction**
-        // (CR 121.2a), so Alms Collector still sees the event it watches, and the
-        // cause travels with it (CR 614.6), which is how Teferi's Ageless Insight's
-        // exception survives doubling. The three printed legs — a draw replaced, an
-        // instruction shrunk (Alms Collector: a rewrite, so the applied set carries),
-        // a scry retyped (Eligeth) — are RE-2's decisions (`replacement-architecture.md`
-        // §9). The amount is read before the `match` above moves the event.
+        // CR 614.1a's "instead … draw": always the **instruction** (CR 121.2a), so
+        // Alms Collector sees what it watches, with the cause kept (CR 614.6) for
+        // Teferi's Ageless Insight. Three printed legs — a draw replaced, an
+        // instruction shrunk, a scry retyped — are RE-2's decisions
+        // (`replacement-architecture.md` §9).
         (GameActionTemplate::DrawCards { n, player }, event) => {
             let n = template_amount(chosen, *n, &event)?;
             match event {
@@ -2678,15 +2661,11 @@ fn substitute(
             )),
         },
 
-        // CR 106.12b's "of a specific type" (Deep Water, Infernal Darkness,
-        // Contamination). `ReplacedAmount` retypes every unit in place, restrictions
-        // kept (CR 106.6: a restriction "doesn't affect the mana's type", and the
-        // converse) — Deep Water's ruling. `Fixed(n)` makes `n` units of the type
-        // carrying what the old units carried, which has one answer only when they
-        // agree — all free, or all under one restriction, as every printed ability
-        // is. A production that disagrees with itself has no printed instance and
-        // no CR sentence, so it is refused rather than guessed; the fixture
-        // `Half-Bound Grove` is what reaches it.
+        // CR 106.12b's "of a specific type" (Deep Water, Contamination).
+        // `ReplacedAmount` retypes each unit in place, restrictions kept (CR 106.6,
+        // Deep Water's ruling); `Fixed(n)` carries what the old units carried,
+        // defined only when they agree, as every printed one does, so a mixed
+        // production is refused (the `Half-Bound Grove` fixture reaches it).
         (
             GameActionTemplate::ProduceMana { mana_type, amount },
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },

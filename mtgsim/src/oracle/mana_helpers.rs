@@ -132,17 +132,11 @@ fn can_cast_with(
         return Err(CannotCast::NoLegalTarget);
     }
 
-    // A mandatory additional cost is part of what casting takes, so a
-    // spell whose mandatory cost is unpayable is not castable (CR 601.2h, "unpayable
-    // costs can't be paid"). Enumeration and enforcement must agree
-    // (`cost-architecture.md` §3.6): without this, Altar's Reap is offered
-    // with no creature on the board and the cast rolls back. Optional
-    // costs are not checked — declining one is always available.
-    //
-    // Only the non-mana part: a mandatory cost's own mana is inside the
-    // total `preview_mana_cost` returns below, and asking `can_pay_costs`
-    // about it here would test it against a pool that has not been filled
-    // by 601.2g yet.
+    // An unpayable mandatory cost makes the spell uncastable (CR 601.2h), and
+    // enumeration must agree with enforcement (`cost-architecture.md` §3.6), or
+    // Altar's Reap is offered with no creature and rolls back. Optional costs
+    // can always be declined. Only the non-mana part: its mana is in the total
+    // below, which 601.2g's pool has not filled yet.
     let mandatory_non_mana: Vec<Cost> = obj.card_data.additional_costs
         .iter()
         .filter(|c| !c.is_optional())
@@ -348,14 +342,10 @@ fn can_activate_as_its_controller(
         game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
     }
 
-    // CR 602.2b routes an activation through 601.2c, so an ability
-    // that *requires* a target and has none is no more activatable
-    // than such a spell is castable — the same check `can_cast`
-    // makes, and the one the enumeration was missing. `UpTo` is left
-    // in: choosing zero targets is legal, so an empty board does not
-    // make it illegal. Provably illegal from a static read, which is
-    // what the oracle may filter on
-    // (`dp-middleware-and-candidate-enumeration.md` §2).
+    // CR 602.2b routes an activation through 601.2c: one that requires a target
+    // and has none is not activatable, `can_cast`'s check. `UpTo` stays, zero
+    // targets being legal; the oracle filters only what a static read proves
+    // illegal (`dp-middleware-and-candidate-enumeration.md` §2).
     if !every_instance_has_a_choice(game, &ability.instances, player_id, source_id) {
         return Err(CannotActivate::NoLegalTarget);
     }
@@ -467,20 +457,11 @@ fn every_instance_has_a_choice(
                 this_object,
                 crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
             );
-            // **One pass, not two.** When a later clause reads this one, the
-            // check and the feed-forward want the same scan: `n` candidates, or
-            // the knowledge that there are not `n`. A bounded enumeration
-            // answers both, and stops where `has_legal_choices` would have.
-            //
-            // What it feeds forward is a static over-approximation, like the
-            // check itself: what matters to the next clause is *how many* this
-            // one will take, and any `n` distinct legal choices exclude the same
-            // number. Feeding nothing would let an "another target" chain claim
-            // it can always be satisfied.
-            //
-            // `UpTo` never reaches here: choosing zero targets is legal
-            // (CR 115.6), so it neither fails the cast nor constrains what
-            // follows.
+            // **One pass, not two**: when a later clause reads this one, a bounded
+            // enumeration answers the check and the feed-forward together. Any `n`
+            // distinct legal choices exclude the same number, which is all the next
+            // clause reads; feeding nothing would let an "another target" chain
+            // always pass. `UpTo` never reaches here (CR 115.6).
             if feed_until.is_some_and(|last| ix < last) {
                 feed = crate::oracle::legality::enumerate_legal_selections_upto(
                     game, f, None, player_id, view, n,
@@ -489,15 +470,11 @@ fn every_instance_has_a_choice(
                     return false;
                 }
             } else {
-                // **Equal clauses in that range are one question, asked once.**
-                // Seeds of Strength prints "target creature" three times, and
-                // each ask is a `validate_selection` per candidate, which is a
-                // layer query — three battlefield scans per copy in hand per
-                // priority check for an answer that cannot differ between them.
-                // The whole recipient is compared rather than the filter alone:
-                // `Exactly(1)` and `Exactly(2)` over one filter are different
-                // questions. An earlier equal clause was answered `true`,
-                // because a `false` returns below rather than reaching here.
+                // **Equal clauses are one question, asked once**: Seeds of Strength's
+                // three "target creature" would be three battlefield scans per copy
+                // per priority check. The whole recipient is compared, `Exactly(1)`
+                // and `Exactly(2)` differing; an earlier equal clause said `true`, as
+                // a `false` returns below.
                 let already_answered =
                     ix >= reusable_from && instances[reusable_from..ix].contains(recipient);
                 if !already_answered && !game.has_legal_choices(f, None, player_id, n, view) {

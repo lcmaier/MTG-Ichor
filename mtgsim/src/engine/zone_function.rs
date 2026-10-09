@@ -5,29 +5,18 @@
 //! > function only while that object is on the battlefield. The exceptions are
 //! > as follows: …
 //!
-//! **A module rather than a method, because four subsystems ask and none owns
-//! it** (`layers-architecture.md` §13d). Before LK the rule was in the tree
-//! four times and scattered: `register_static_effects` spelled "a static
-//! ability functions on the battlefield" as *which function calls it*,
-//! `CostSubject::applies_from_battlefield` was CR 113.6d in a method (A5
-//! deleted it; the arm below is where its answer lives now), and
-//! `replacement::gather` and `restriction::predicate` each swept
-//! `battlefield_ids_ordered` for the same unstated reason. This is the one
-//! answer they share, and critical-path item 6 adds a fifth caller for
-//! CR 113.6k.
-//!
-//! Beside `engine::restriction` for that module's own reason: a rule several
-//! subsystems ask cannot live inside any one of them without the other three
-//! reaching across.
+//! **A module rather than a method, because five subsystems ask and none owns
+//! it** (`layers-architecture.md` §13d): static-ability registration, the cost
+//! pipeline, `replacement::gather`, `restriction::predicate`, and the trigger
+//! dispatcher for CR 113.6k. Beside `engine::restriction` for that module's own
+//! reason: a rule several subsystems ask cannot live inside one of them.
 //!
 //! # What ships, and what does not
 //!
-//! Six of the fourteen subrules, and the triage is `CLAUDE.md`'s — an arm the
-//! engine cannot apply is worse than a missing one. §13d decision 4 is the
-//! table with a card named against each deferral; the short version is that
-//! **113.6e, f, j and m are all `backlog.md` §2.3's**, because they are about
-//! playing or activating an object from somewhere other than the battlefield
-//! and `check_cast_legality` hard-codes `Zone::Hand`. 113.6k is item 6's,
+//! The triage is `CLAUDE.md`'s — an arm the engine cannot apply is worse than a
+//! missing one — and §13d decision 4 names a card against each deferral.
+//! **113.6e, f, j and m are all `backlog.md` §2.3's**: they are about playing or
+//! activating an object from somewhere other than the battlefield and the hand.
 //! 113.6n has no deck-construction pass to modify, and 113.6p has no emblem.
 
 
@@ -54,46 +43,27 @@ use crate::types::zones::{Zone, ZoneSet};
 /// read the wrong ones. The two callers that run before a frame exists pass
 /// printed types and say so.
 pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
-    // CR 113.6a — "Characteristic-defining abilities function everywhere, even
-    // outside the game and before the game begins."
-    //
-    // **An agreement, not a mechanism.** `engine::layers::cda` applies a CDA
-    // off the object's own effective ability list at layers 4, 5 and 7a and
-    // never consults this function; `compute_non_member` walks CDAs for an
-    // object in any zone at all. So 113.6a is already true and this arm exists
-    // so that a *new* caller of this predicate cannot accidentally make it
-    // false. CR 604.3a(3) is why a CDA is never a registry row in the first
-    // place (`CLAUDE.md`).
+    // CR 113.6a — a CDA functions everywhere. **An agreement, not a mechanism**:
+    // `layers::cda` applies CDAs in any zone without asking this, so the arm only
+    // keeps a new caller from making 113.6a false (CR 604.3a(3), `CLAUDE.md`).
     if ability.is_characteristic_defining {
         return ZoneSet::ALL;
     }
 
-    // CR 113.6k — "A trigger condition that can't trigger from the
-    // battlefield functions in all zones it can trigger from. Other trigger
-    // conditions of the same triggered ability may function in different
-    // zones." **Derived from the condition, not stated**: a condition about
-    // `This` moving from zone Z functions in Z ("when this card is discarded"
-    // in the hand); "from anywhere" functions everywhere it can be, which is
-    // CR 603.6c's point that it is never a leaves-the-battlefield ability
-    // (Guile triggers from the graveyard); a condition about other objects
-    // functions on the battlefield. The ability's zones are its conditions'
-    // together, and the dispatcher asks each condition again
-    // ([`condition_functions_in`]) for the second sentence. What an ability's
-    // *effect* says about a zone is CR 113.6m's and is not derived (below).
+    // CR 113.6k, **derived from the condition**: `This` moving from zone Z
+    // functions in Z (a discard, in the hand); "from anywhere" everywhere it can
+    // be, never a leaves-the-battlefield ability (CR 603.6c; Guile); any other
+    // object's, on the battlefield. The ability's zones are its conditions'
+    // together, and the dispatcher asks each again ([`condition_functions_in`]).
+    // What an *effect* says about a zone is CR 113.6m's, not derived.
     if let Effect::Triggered(def) = &ability.effect {
         return trigger_zones(def, types);
     }
 
-    // CR 113.6d — "An object's ability that allows a player to pay an
-    // alternative cost rather than its mana cost or otherwise modifies what
-    // that particular object costs to cast functions on the stack."
-    //
-    // "That particular object" is the whole of the subrule, and it is exactly
-    // what `CostSubject` already distinguishes: affinity is `Itself` and
-    // functions on the stack, while Thalia's "creature spells cost {1} more"
-    // is `Spells(_)` and functions from the battlefield like any other static
-    // ability. Through the "as long as" wrapper, which `as_cost_modification`
-    // sees past for us.
+    // CR 113.6d — what *that particular object* costs functions on the stack,
+    // which is `CostSubject`'s split: affinity is `Itself`, Thalia's "creature
+    // spells cost {1} more" is `Spells(_)` on the battlefield. Through "as long
+    // as", which `as_cost_modification` sees past.
     if let Some((_, def)) = ability.effect.as_cost_modification() {
         if def.applies_to.applies_to_its_own_object() {
             return ZoneSet::STACK;
@@ -244,17 +214,10 @@ fn default_zones(types: &CardTypes) -> ZoneSet {
 fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
     match condition {
         Condition::SourceInZone(zones) => Some(*zones),
-        // One clause of a conjunction, and at most one.
-        //
-        // **This is not a limit of one zone — it is a limit of one
-        // *statement*.** Squee, the Immortal ("You may cast this card from
-        // your graveyard or from exile", Scryfall 2026-09-14) names two zones
-        // and is written `SourceInZone(GRAVEYARD | EXILE)`, one clause, which
-        // this returns whole. What the assert catches is two *separate*
-        // clauses in a conjunction, which reads "in the graveyard **and** in
-        // exile" and is unsatisfiable — an authoring slip where the card
-        // wanted the union. Caught rather than silently resolved by taking the
-        // first, because taking the first would make Squee half-work.
+        // At most one clause of a conjunction: a limit of one *statement*, not one
+        // zone. Squee's "graveyard or exile" is one `SourceInZone(GRAVEYARD |
+        // EXILE)`; two clauses would read "graveyard **and** exile", an authoring
+        // slip that taking the first would half-honor, so it is caught.
         Condition::All(clauses) => {
             let mut found: Option<ZoneSet> = None;
             for clause in clauses {

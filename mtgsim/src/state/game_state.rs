@@ -788,11 +788,9 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
 /// CR 500.10's *"any other steps that phase would normally have are skipped"*
 /// is an `Option<Vec<StepType>>` overriding the natural list, and **this struct
 /// is where it goes**; its only producer is a triggered ability (Obeka,
-/// Splitter of Seconds), so it cannot be built before critical-path item 6.
-/// Until then a plan that carried steps would carry a copy of
-/// [`initial_step`]/[`next_step`] that nothing could make differ — a second
-/// spelling of the chain `next_phase`'s deletion just removed the first
-/// spelling of. → `replacement-architecture.md` §9 RE-10 decisions 2 and 4,
+/// Splitter of Seconds), and until one is registered a plan that carried steps
+/// would carry a copy of [`initial_step`]/[`next_step`] that nothing could make
+/// differ. → `replacement-architecture.md` §9 RE-10 decisions 2 and 4,
 /// `backlog.md` §2.17.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlannedPhase {
@@ -1233,12 +1231,10 @@ impl GameState {
     /// **The walk order for a member outside the battlefield** (LJ,
     /// `layers-architecture.md` §13c decision 4). CR 613.7 orders *effects* by
     /// timestamp and says nothing about the objects they apply to, so a member
-    /// here needs a deterministic position and not a timestamp — which is why
-    /// this phase needs none of CR 613.7d's object timestamps. Every container
-    /// below is already a `Vec`, so the order is the zone's own and no sort is
-    /// involved; nothing reaches a `HashMap`, which is what
-    /// `CLAUDE.md`'s determinism invariant asks. For a graveyard the engine's
-    /// order is the rule's: CR 404.3 makes it an ordered zone.
+    /// here needs a deterministic position, not a timestamp. Every container
+    /// below is a `Vec`, so the order is the zone's own, with no sort and no
+    /// `HashMap` (`CLAUDE.md`'s determinism invariant); a graveyard's is the
+    /// rule's, CR 404.3 making it an ordered zone.
     ///
     /// `Zone::Battlefield` answers `battlefield_ids_ordered` — CR 613.7
     /// timestamp order — so a caller sweeping a `ZoneSet` that happens to
@@ -1413,13 +1409,10 @@ impl GameState {
     /// starts CR 302.6's clock on the entity and on a static Layer 2 row's
     /// controller (`created_on_turn`); the performer passes the current turn.
     pub(crate) fn make_permanent(&mut self, id: ObjectId, controller: PlayerId, mods: &EnterMods, arrived_on: u32) {
-        // CR 613.7d stamped the object as it entered the battlefield *zone*
-        // (`move_object`), or as it was created there (`add_object`, a token),
-        // and this runs after both. CR 613.7c's counters get theirs here, one
-        // per row in `mods` order, as the look-ahead predicted them. Not a
-        // nested `AddCounters` proposal: these counters are part of the entry
-        // event, which is why CR 614.16's doublers replace the `EnterMods` the
-        // performer is handed rather than an event of their own.
+        // The object has CR 613.7d's stamp from its move or creation; CR 613.7c's
+        // counters get theirs here, per row in `mods` order, as the look-ahead
+        // predicted. No `AddCounters` proposal: they are part of the entry, whose
+        // `EnterMods` CR 614.16's doublers replace.
         let first_counter = self.next_timestamp;
         self.next_timestamp += mods.counters.len() as u64;
         let timestamp = self.object_timestamp(id);
@@ -1743,17 +1736,12 @@ impl GameState {
                 continue;
             }
 
-            // CR 614.1a — a replacement effect generates no continuous effect and so
-            // has no row; what `engine::replacement::gather` needs is to know this
-            // permanent is worth asking about. Through the "as long as" wrapper too:
-            // the gather evaluates the condition at each proposal, and a conditional
-            // source never recorded would be a card that silently does nothing.
-            // Filed by where the gather will look for it — the CR 113.6 gate above
-            // has already said the ability functions here. Off the battlefield the
-            // zone leg sweeps its own map (Darksteel Colossus in a library), whose
-            // value is the printed def, so the leg can ask whether it could apply
-            // before reading a frame; the two sets below stay battlefield-only,
-            // since their sweeps still visit the battlefield alone.
+            // CR 614.1a — no row, only a note that `gather` should ask this object,
+            // through the "as long as" wrapper too (the gather reads the condition).
+            // Filed where the gather looks, CR 113.6's gate above having passed: off
+            // the battlefield the zone leg's map keeps the printed def, so it can
+            // ask whether it could apply before reading a frame. The two sets below
+            // stay battlefield-only, as their sweeps are.
             if let Some(def) = ability.effect.replacement_body() {
                 if zone == Zone::Battlefield {
                     self.replacement_ability_sources.insert(id);
@@ -1775,13 +1763,10 @@ impl GameState {
                 self.restriction_ability_sources.insert(id);
             }
 
-            // CR 601.2f / 613.11 — the third shape with no rows: a cost effect applies
-            // to a cost being determined, at no layer, and
-            // `engine::cost_determination::cost_modifications_for` reads it off the
-            // effective list. Through the "as long as" wrapper (`cost-architecture.md`
-            // §8 item 1). Only from the battlefield, and the CR 113.6 gate above is why:
-            // a spell's own cost ability functions on the stack (CR 113.6d), so an
-            // affinity permanent never reaches this line.
+            // CR 601.2f / 613.11 — no rows: `cost_modifications_for` reads a cost
+            // effect off the effective list, through "as long as" too. Battlefield
+            // only, by the gate above: a spell's own cost ability functions on the
+            // stack (CR 113.6d).
             if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
@@ -2245,10 +2230,7 @@ impl GameState {
     ///
     /// One predicate rather than a copy per arm, because two `SelectionFilter`s
     /// ask it — `Spell` and CR 609.7a's `DamageSource` — at three sites each:
-    /// the validator, the count, and the enumeration. The `Spell` arms asked
-    /// `stack.contains` instead until A4o, and CR 701.6a then put an ability's
-    /// object, whose `CardData` is a clone of its source's, into a graveyard as
-    /// a second copy of the card.
+    /// the validator, the count, and the enumeration.
     ///
     /// **The entry, not the stack, is what answers.** An ability on the stack
     /// is a `GameObject` like any other (CR 113.7a) and nothing about the

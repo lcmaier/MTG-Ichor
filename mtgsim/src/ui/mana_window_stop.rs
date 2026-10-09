@@ -58,13 +58,10 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        // `remaining_cost` is the locked mana component minus what the pool
-        // already covers (`remaining_cost_after_pool`), so "no symbols left" is
-        // exactly "this payment needs no more mana". An empty pick is the window's
-        // decline (bounds are (0, 1); see `ask_activate_mana_ability`). Not
-        // `can_pay_costs` over the whole cost list: with mana covered and some
-        // non-mana cost unpayable, no further mana ability could help. A mana
-        // ability pays CR 601.2h's mana; the rest of the total is not its business.
+        // No symbols left in `remaining_cost` (the mana component less the pool)
+        // is "this payment needs no more mana", and an empty pick declines. Not
+        // `can_pay_costs` over the whole list: a mana ability pays only CR
+        // 601.2h's mana, so an unpayable non-mana cost is none of its business.
         if let ChoiceKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind
             && remaining_cost.symbols.is_empty() {
             return Vec::new();

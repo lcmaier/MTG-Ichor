@@ -235,17 +235,11 @@ pub fn enumerate_legal_selections_upto(
     use crate::engine::resolve::ResolvedTarget as RT;
     use crate::types::effects::SelectionFilter;
 
-    // **Each arm is an iterator and the cap is `take`.** Every arm yields in
-    // the order its comment documents, so `take` keeps the *first* `limit`
-    // candidates rather than an arbitrary `limit` of them — which is what makes
-    // a bounded enumeration process-independent in the same way the unbounded
-    // one is. Laziness is what makes the bound cost anything: the battlefield
-    // arms only run `validate_selection`, a layer walk, until `take` is
-    // satisfied.
-    // CR 800.4a — a player who has left the game is not a player, so not a
-    // candidate to offer. `num_players()` is the seat count the game *began*
-    // with, which the rule never shrinks, so the range is the wrong question on
-    // its own. Both arms that read it — `Player` and `Any` — want this set.
+    // **Each arm is an iterator and the cap is `take`**: arms yield in their
+    // documented order, so `take` keeps the *first* `limit`, process-independent,
+    // and laziness stops the layer walks there. CR 800.4a: a departed player is
+    // no candidate, and `num_players()` is the seat count the game began with,
+    // so `Player` and `Any` read this set rather than the range.
     let players = || {
         (0..game.num_players())
             .filter(move |&p| game.in_game(p))
@@ -283,15 +277,9 @@ pub fn enumerate_legal_selections_upto(
 
         SelectionFilter::Spell => spells_on_stack().map(RT::Object).take(limit).collect(),
 
-        // CR 609.7a — permanents first, then spells on the stack. Both halves
-        // are enumerated rather than validated one by one, because
-        // `validate_damage_source` asks the same two membership questions and
-        // nothing else: the rule's "a source doesn't need to be capable of
-        // dealing damage" means there is no property to test.
-        //
-        // Battlefield order is CR 613.7's timestamp order and stack order is
-        // the stack's, so the list a `DecisionProvider` picks from by index is
-        // process-independent.
+        // CR 609.7a — permanents (timestamp order), then the stack's spells (its
+        // order). Enumerated, not validated one by one: "a source doesn't need to
+        // be capable of dealing damage" leaves only membership to test.
         SelectionFilter::DamageSource => battlefield()
             .map(RT::Object)
             .chain(spells_on_stack().map(RT::Object))

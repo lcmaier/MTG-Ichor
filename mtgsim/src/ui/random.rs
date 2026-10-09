@@ -242,13 +242,10 @@ impl DecisionProvider for RandomDecisionProvider {
         }
         let mut rng = self.rng.borrow_mut();
 
-        // During a `ManaAbilityWindow`, RandomDP picks an activation that can
-        // still pay something (see `mana_window_preference`) and never declines
-        // while one exists, so fuzz exercises full cost-payment paths. The
-        // per-window activation cap is a safety net against pathological
-        // filter-ability chains (`{1}: Add one mana of any color` cycled forever);
-        // once it is hit, or once a pip is owed that nothing offered can make, it
-        // declines and any unpayable cost rolls back at the caller.
+        // In a mana window it activates what can still pay something
+        // (`mana_window_preference`) and declines only at the per-window cap
+        // (against `{1}: Add one mana of any color` cycled forever) or when a pip
+        // is owed that nothing offered makes; an unpayable cost rolls back.
         if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
             &context.kind
         {

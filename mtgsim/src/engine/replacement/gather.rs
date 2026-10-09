@@ -15,7 +15,7 @@
 //!    the gather can afford to walk. Every ability is asked
 //!    `zone_function::functions_in` of the zone its object is in, which is
 //!    what keeps "if this would be put into a graveyard, exile it instead"
-//!    on a card in hand from applying to its own discard. RF, 2026-09-16.
+//!    on a card in hand from applying to its own discard.
 //! 3. **Continuous effects with a duration, from resolutions** — the registry.
 //! 4. **Shields from resolutions** (CR 615.7/615.8, 701.19a) — the registry.
 //! 5. **Counters** (CR 122.1c/d/h) — synthesized during the sweep, because they
@@ -199,15 +199,12 @@ pub(crate) fn gather(
         return Vec::new();
     }
 
-    // The board-level fast path, and not an optimization: `get_effective_abilities`
-    // is a full layer walk, and an ungated sweep runs one per permanent per
-    // proposed action — ~6,000 extra walks a game against the untap step alone
-    // (2026-09-01) — while skipping the per-permanent gate below cost 10.3% of
-    // game time (RC-2's A/B, `replacement-architecture.md` §9). Exact, not a
-    // heuristic: a battlefield object has a static replacement ability only if it
-    // printed one (`replacement_ability_sources`, at ETB) or a Layer 6 row granted
-    // one (the registry summary); both over-approximate, which costs a walk and
-    // never an answer.
+    // The board-level fast path: an ungated sweep is a layer walk per permanent
+    // per proposal (~6,000 a game against the untap step alone, 2026-09-01).
+    // Exact: a battlefield object has a static replacement ability only if it
+    // printed one (`replacement_ability_sources`) or a Layer 6 row granted one
+    // (the registry summary), and both over-approximate, costing a walk, never
+    // an answer.
     let subject = subject_of(action);
     let proposal = EventProposal { action, subject, cause, frame: Some(frame) };
     let mut candidates = Vec::new();
@@ -221,24 +218,16 @@ pub(crate) fn gather(
     }
 
     // --- Source 1a: the permanent that is entering (CR 614.12) -------------
-    // The sweep walks `battlefield_ids_ordered`, and the entering permanent is
-    // not on it — its entry is what this pipeline is deciding — so this is the
-    // gate leg `CLAUDE.md` demands; without it every "enters tapped" is dead
-    // text. Ahead of the fast-path gate for `commander_zone_replacement`'s
-    // reason (exact, one walk). Gathered here and spliced in after the sweep:
-    // CR 613.7's oldest-first puts the entering permanent last, it has no
-    // timestamp until `place_on_battlefield`, and CR 613.7e re-timestamps an
-    // attaching Aura, never its host; simultaneous entries (CR 613.7m) are
-    // `codebase-state.md` item 4.
+    // The entering permanent is not on the battlefield sweep, so this is the
+    // gate leg `CLAUDE.md` demands, ahead of the fast path (exact, one walk).
+    // Spliced in after the sweep: oldest-first (CR 613.7) puts it last, having
+    // no timestamp yet; simultaneous entries (CR 613.7m) are `codebase-state.md`
+    // item 4.
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
-        // Its abilities as it would exist on the battlefield — the frame, not a
-        // plain walk: the card is still in its source zone while the entry is
-        // decided, and CR 614.12 clause (3) is what lets Humility strip an entering
-        // "enters with" before it applies. Computed once per iteration, shared with
-        // `set_affects`.
-        // CR 113.6h: asked as on the battlefield, which is the zone the frame
-        // computes it in.
+        // Its abilities as it would exist on the battlefield (CR 614.12's frame,
+        // clause (3) letting Humility strip an entering "enters with"), once per
+        // iteration and shared with `set_affects`; CR 113.6h asks it there too.
         if let Some(chars) = frame.frame_of(*object) {
             let asked = CheckedForReplacements {
                 id: *object,
@@ -272,13 +261,10 @@ pub(crate) fn gather(
     }
 
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
-    // The fast path per *permanent*: `has_static_source` decides whether the
-    // sweep runs, this decides which permanents are worth a walk — the same
-    // predicate one object at a time, exact with the same over-approximations.
-    // No under-approximation: an unattributed ability is on the effective list
-    // and in neither ETB set, so a row reaching the battlefield by zone or by
-    // name opens every permanent to a walk — registry-wide, not per object,
-    // since narrowing it would resolve a filter per permanent per check.
+    // The fast path per *permanent*, the board gate's predicate one object at a
+    // time. A row reaching the battlefield by zone or by name opens every
+    // permanent to a walk, since narrowing it would resolve a filter per
+    // permanent per check.
     let any_unattributed = unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
     for id in game.battlefield_ids_ordered() {
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
@@ -315,26 +301,14 @@ pub(crate) fn gather(
     }
 
     // --- Source 2: static abilities functioning off the battlefield --------
-    // (CR 113.6.) The same read as source 1 over a candidate list that is
-    // never a zone — a library is ~60 objects a seat and a gather runs ~2,300
-    // times a game. Three ways onto the list, one per gate leg:
-    //
-    // - printed: `zone_replacement_ability_sources`, kept by the registration
-    //   doors, holds each object's printed defs, and the frame is read only
-    //   when one of them could apply to *this* proposal (`printed_could_apply`)
-    //   — so a Colossus in a library costs a frame on the events that would
-    //   put it into a graveyard and a def check on every other;
-    // - named: a grant or copy row over `SourceOnly` or `Fixed` names the
-    //   objects it reaches, and they are read by name wherever they are;
-    // - zoned: a grant or copy row over a `Filter` names zones, and those are
-    //   walked whole — the one walk of a zone this leg makes, only while such
-    //   a row exists, and no registered card makes one.
-    //
-    // In CR 613.7d timestamp order, the battlefield's own key, so the list
-    // CR 616.1 offers is one order rather than two. The entering object is
-    // source 1a's: it is read off CR 614.12's frame with that rule's narrower
-    // scope, and reading it again here off its source zone would offer its
-    // filter-scoped rows to its own entry, which 614.12's parenthesis forbids.
+    // (CR 113.6.) Source 1's read over a candidate list, never a zone, one
+    // way on per gate leg: printed (`zone_replacement_ability_sources`, its
+    // frame read only when a def could apply to this proposal), named (a grant
+    // or copy row's `SourceOnly` or `Fixed` objects) and zoned (a `Filter` row's
+    // zones walked whole, while such a row exists). In CR 613.7d order, the
+    // battlefield's key. The entering object is source 1a's alone: read here off
+    // its source zone, its filter-scoped rows would reach its own entry, which
+    // 614.12's parenthesis forbids.
     let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
     for (&id, printed) in game.zone_replacement_ability_sources.iter() {
         if printed.iter().any(|def| printed_could_apply(game, id, def, &proposal)) {
@@ -725,13 +699,9 @@ pub(crate) fn set_affects(
         // "other than the effect's `source`", which a selection has no source for —
         // Palisade Giant's "other permanents you control" (`codebase-state.md` item 103).
         ObjectSet::Filter { filter, zones } => {
-            // The zone half, ahead of the filter, as the layer walk's
-            // `in_zones_or_entering` asks it: the entering object counts as on the
-            // battlefield — CR 614.12 asks what it *would be* there, and its source
-            // zone is not the question — and anything else must be where the row
-            // reaches. Rest in Peace's "from anywhere" is `ZoneSet::ALL`; "if a
-            // creature would be put into a graveyard" is the battlefield, and a
-            // milled creature *card* is not a creature (CR 109.2).
+            // The zone half first, as `in_zones_or_entering` asks it: the entering
+            // object counts as on the battlefield (CR 614.12), anything else must be
+            // where the row reaches; a milled creature *card* is no creature (CR 109.2).
             let in_zone = match frame {
                 Some(f) if f.is_entering(id) => zones.contains(Zone::Battlefield),
                 _ => matches!(game.objects.get(&id), Some(obj) if zones.contains(obj.zone)),
@@ -763,17 +733,11 @@ pub(crate) fn pattern_watches(
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
-        // CR 609.7's source predicate and CR 510.2's combat flag, asked **now**
-        // rather than captured: 609.7b's recheck is free because the gather already
-        // happens at the proposal, and a source that stopped matching yields no
-        // candidate, so `consume_use` never runs — 609.7b's "the shield isn't used
-        // up" for free. 609.7c is the same read for a source off the battlefield.
-        // The `unwrap_or(true)`s are the fields' meaning ("this effect does not
-        // ask"); the `unwrap_or(false)` swallows `object_matches_filter`'s three
-        // authoring-error `Err`s, unreached in 600 fuzz games (2026-09-09) and
-        // shared with `set_affects` — `codebase-state.md` item 103. A source
-        // that left before an effect had it deal the damage is matched as it
-        // last existed, which is what deals it (CR 608.2h).
+        // CR 609.7's source and CR 510.2's combat flag, asked **now**: a source
+        // that stopped matching yields no candidate, which is 609.7b's "isn't used
+        // up" (609.7c off the battlefield). `unwrap_or(true)` is "does not ask";
+        // `unwrap_or(false)` swallows authoring errors (`codebase-state.md` item
+        // 103). A source that left is matched as it last existed (CR 608.2h).
         (
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, source_frame, is_combat, .. },
@@ -962,8 +926,7 @@ pub(crate) fn pattern_watches(
 
 /// The three counter kinds that generate a replacement effect.
 ///
-/// **Three is the whole of CR 122.1, audited rather than assumed** (RB's
-/// review). Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
+/// **Three is the whole of CR 122.1, audited rather than assumed.** Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
 /// 122.1h (finality) create a replacement effect: 122.1a is Layer 7c, 122.1e/f/g
 /// are SBA inputs, 122.1i is a trigger, and 122.1b's fifteen keyword counters
 /// grant a keyword. **None of those fifteen is CR 614-shaped**, and the two that

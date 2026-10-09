@@ -55,14 +55,10 @@ pub(super) fn holds(
         return false;
     }
 
-    // **A new leaf lands here and in `board::condition_reads`.** Both matches
-    // are exhaustive with no wildcard, so the compiler refuses to build until
-    // each has an arm — but it can only make you *write* the second one, not
-    // get it right. An arm here that reads a frame and a `condition_reads`
-    // arm that declares nothing gives a correct answer in the wrong *order*:
-    // the pair is settled "independent" by the static check and never reaches
-    // CR 613.8's hypothetical. `phase_li3_integration_test`'s Simian Clause
-    // board is what that failure looks like.
+    // **A new leaf lands here and in `board::condition_reads`**, both exhaustive,
+    // so the compiler asks for the second arm but cannot check it: one that
+    // declares nothing it reads settles the pair "independent" and skips CR
+    // 613.8's hypothetical (`phase_li3_integration_test`'s Simian Clause board).
     match condition {
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
@@ -70,21 +66,12 @@ pub(super) fn holds(
             player_fact_holds(players, fact, game, board, source, layer_index, locked_you)
         }
 
-        // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
-        // grant exists while the card is in the graveyard, and this is asked at
-        // every layer, so a Wonder that is exiled stops granting on the very next
-        // walk without anything reconciling the registry (§13d decision 3).
-        //
-        // The gate is `in_zones_or_entering` rather than zone equality: under a
-        // CR 614.12 look-ahead the entering object is still in its source zone,
-        // and 614.12 asks what it *would* be on the battlefield — so equality
-        // would answer `false` for the one question being asked counterfactually.
-        //
-        // **Battlefield sources never see a `false` here**, because leaving the
-        // battlefield calls `remove_rows_ending_with`, which drops every row its
-        // static abilities generate. That is still not a second spelling of the
-        // duration — the duration decides whether the row is in the registry, and
-        // this decides whether the effect exists given that it is.
+        // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
+        // layer, so an exiled Wonder stops granting on the next walk with nothing
+        // reconciling the registry (§13d decision 3). `in_zones_or_entering`, since
+        // a CR 614.12 look-ahead's object is still in its source zone. A battlefield
+        // source never reads `false` here (its rows go as it leaves); the duration
+        // decides the row is registered, this whether its effect exists.
         Condition::SourceInZone(zones) => board.in_zones_or_entering(game, source, *zones),
 
         // Every clause. Short-circuits, so a `SourceInZone` written first —

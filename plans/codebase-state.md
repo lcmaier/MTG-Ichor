@@ -9576,9 +9576,9 @@ source live is corrected in place.
      603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
      what it has decided on `GameState`, the drain's shape, needs no
      migration later.
-     **Slotted:** the rule for new prompts is the owner's call at A6k's
-     review, recommended for `triggers-architecture.md` §5 with A6k's
-     code-fix PR; the three fixes go with item 40's violators, at the first
+     **Slotted:** the rule for new prompts is `triggers-architecture.md`
+     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none
+     of this shape; the three fixes go with item 40's violators, at the first
      fork-based harness (item 140's slot).
 
 234. **CR 610.3's waiting returns carry no id and announce nothing, unlike the
@@ -9592,9 +9592,6 @@ source live is corrected in place.
      `take_returns_due` partitions the list rather than collecting indices
      into it (TR-3b's review). The TR-3b dev GUI PR draws the returns in the
      Waiting panel, the first client to hold such a row across frames.
-     `WaitingReturn`'s doc is stale beside it: the return waits "for its
-     object to leave the battlefield", and since TR-3b's review an "until"
-     waits on any event.
      **Reachability (2026-10-08):** reachable — not wrong: a return's place
      in the list is read for display only.
      **Sized:** ~30–50 lines: an `UntilReturnId` minted beside

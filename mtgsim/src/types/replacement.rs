@@ -252,7 +252,7 @@ pub enum EventPattern {
         /// A constraint on the moving object beyond what `affected` says.
         ///
         /// `affected` scopes *which* objects the effect applies to; this scopes
-        /// the event. They coincide for every RB card, and the field exists
+        /// the event. They coincide for most cards, and the field exists
         /// because CR 903.9b's "if a **commander** would be put into its
         /// owner's hand or library" is a property of the object being moved
         /// while the shield is around a player's cards generally.
@@ -344,7 +344,7 @@ pub enum EventPattern {
         cause: Option<LifeLossCausePattern>,
     },
 
-    /// CR 603.2e's counterpart. No printed customer in RB; the arm exists
+    /// CR 603.2e's counterpart. No printed customer; the arm exists
     /// because `GameAction::Tap` exists and the contract above says one arm
     /// per variant.
     Tap,
@@ -1651,7 +1651,7 @@ pub enum GameActionTemplate {
     /// Send the event's object somewhere else instead, keeping its `from` and
     /// its `cause`.
     ///
-    /// Three customers in RB: CR 122.1h's finality counter ("If this permanent
+    /// Three customers: CR 122.1h's finality counter ("If this permanent
     /// would be put into a graveyard from the battlefield, exile it instead"),
     /// CR 903.9b's commander redirection, and Kalitas, Traitor of Ghet's exile.
     ///
@@ -1666,7 +1666,7 @@ pub enum GameActionTemplate {
 
     /// Remove counters from the *affected* object instead.
     ///
-    /// Two customers in RB, both spelled out verbatim by the CR: 122.1c's
+    /// Two customers, both spelled out verbatim by the CR: 122.1c's
     /// "If this permanent would be destroyed as the result of an effect,
     /// instead remove a shield counter from it" and 122.1d's "If a permanent
     /// with a stun counter on it would become untapped, instead remove a stun

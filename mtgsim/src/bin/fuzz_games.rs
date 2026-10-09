@@ -1560,7 +1560,7 @@ fn main() {
         println!("  Actions reversed: {:>8.1}", agg_stats.avg(agg_stats.total_actions_reversed));
         // Triggered abilities put onto the stack (CR 603.3), per game: the
         // dispatcher matched and the drain placed. Zero on a pool with no
-        // trigger source, which is what the pools were before TR-1.
+        // trigger source.
         println!("  Triggers placed:  {:>8.1}", agg_stats.avg(agg_stats.total_triggers_placed));
         // The dispatcher's own work, per game (`triggers-architecture.md`
         // §4.10, decision 4): dispatches that passed the gate, the candidates
@@ -1572,10 +1572,8 @@ fn main() {
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`
-    // is a *timing* instrument that had been asked to double as a coverage one.
-    // These numbers say whether a path was walked; the ones above say what it
-    // cost. Reading either off the other is how "the path is open" and "the
-    // path is exercised" got confused in the first place.
+    // is a *timing* instrument, not a coverage one. These numbers say whether a
+    // path was walked; the ones above say what it cost.
     if !agg_stats.reach.is_empty() {
         println!();
         println!("=== Reachability (--require, {} games) ===", agg_stats.games_counted);

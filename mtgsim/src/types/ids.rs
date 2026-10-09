@@ -1,9 +1,7 @@
 //! The engine's two identities, both process-stable: the same game at the same
 //! seed mints the same ids in any process, on any thread
 //! (`codebase-state.md` item 144; `CLAUDE.md`, "Determinism at the decision
-//! boundary"). Every other id in the tree was already a counter; these two
-//! were v4 UUIDs until 2026-09-16, and the cost was SipHash over sixteen bytes
-//! at every memo, object and battlefield lookup — a third of a game.
+//! boundary"). Counters, like every other id in the tree.
 //!
 //! Two newtypes rather than two aliases of one integer, so that the thirteen
 //! `(ObjectId, AbilityId)` sites cannot swap their halves silently.
