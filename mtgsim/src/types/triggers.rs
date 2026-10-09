@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
+use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
@@ -764,6 +764,31 @@ pub enum DelayedDuration {
     /// "This turn": it triggers on every matching event until CR 514.2 ends
     /// the turn's "this turn" effects in the cleanup step.
     ThisTurn,
+    /// CR 603.12 — a reflexive triggered ability, which follows the rules
+    /// for delayed ones "except that [it is] checked immediately after being
+    /// created" against what the resolution creating it has performed so
+    /// far, and never waits.
+    Reflexive(ReflexiveForm),
+}
+
+/// CR 603.12's two forms: "when [a player] [does or doesn't] take that
+/// action". Its def's event is the action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReflexiveForm {
+    /// "When you do", and "when [something happens] this way": it triggers
+    /// once for each time its event occurred earlier during the resolution
+    /// (CR 603.12a), or once for them all where its event is "one or more".
+    Does,
+    /// "When you don't": it triggers once if its event did not occur.
+    Doesnt,
+}
+
+/// The resolution a delayed triggered ability is created during, and the
+/// first record it performed: what a reflexive one reads (CR 603.12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatingResolution {
+    pub stamp: ResolutionStamp,
+    pub began_at: EventSeq,
 }
 
 /// Which turn a delayed triggered ability may trigger in, as a card prints it.
@@ -892,6 +917,9 @@ pub struct DelayedProvenance {
     pub created_by: Option<AbilityIdentity>,
     pub x_value: Option<u64>,
     pub turn: TriggerTurn,
+    /// The resolution creating it, if one is: a replacement's rider (CR
+    /// 603.7f) is none.
+    pub resolution: Option<CreatingResolution>,
 }
 
 /// CR 603.7c — what a delayed triggered ability refers to: the objects and

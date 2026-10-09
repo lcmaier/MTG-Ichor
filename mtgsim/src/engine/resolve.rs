@@ -23,7 +23,8 @@ use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::Return;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::types::triggers::{
-    DelayedProvenance, DelayedTurn, DepartedFrame, Referred, RememberedObject, TriggerEvent, TriggerTurn,
+    CreatingResolution, DelayedProvenance, DelayedTurn, DepartedFrame, Referred, RememberedObject, TriggerEvent,
+    TriggerTurn,
 };
 use crate::ui::decision::DecisionProvider;
 
@@ -746,9 +747,11 @@ impl GameState {
             // CR 603.7, registered as the resolution reaches it. The source is CR
             // 603.7d–f's: an ability's source (603.7e), else the spell (603.7d) or the
             // object whose replacement a rider is (603.7f) — never an ability's stack
-            // object, which CR 608.2n removes. X is CR 107.3n's.
+            // object, which CR 608.2n removes. X is CR 107.3n's. A reflexive one
+            // (CR 603.12) reads what this resolution has performed so far.
             Primitive::CreateDelayedTrigger(template) => {
                 let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
+                let resolution = resolving.map(|r| CreatingResolution { stamp: ctx.stamp(), began_at: r.began_at });
                 let source = match ctx.ability_source {
                     Some(source) => source,
                     None => self
@@ -775,6 +778,7 @@ impl GameState {
                     created_by: resolving.and_then(|r| r.identity),
                     x_value: resolving.and_then(|r| r.x_value),
                     turn,
+                    resolution,
                 };
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
@@ -787,7 +791,7 @@ impl GameState {
                         ctx.source
                     ));
                 }
-                self.register_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default());
+                self.register_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default())?;
                 Ok(())
             }
 

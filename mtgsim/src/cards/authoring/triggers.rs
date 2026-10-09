@@ -2,12 +2,13 @@
 //!
 //! **The cause-and-owner builder is deliberately absent.**
 //! `.caused_by(Sacrificed)` and `.owned_by(Opponent)` are one method each on
-//! [`CountableEvent`] and they wait for the first card that prints one: none
-//! of TR-1's five does, and none of TR-2's seven.
-//! Until then a card that asks writes the arm out — which is what the one
-//! fixture that asks (a discard, `cause: Some(Discarded)`) already does, and
-//! reads correctly, because its fields are `Some`. → `triggers-
-//! architecture.md` §15 item 14.
+//! [`CountableEvent`] and they wait for the first card that prints one beside
+//! another cause: none of TR-1's five does, and none of TR-2's seven.
+//! Cornered Crook's "when you do" is a sacrifice and nothing else, which is
+//! [`sacrificed`]'s one word. Until then a card that asks writes the arm out —
+//! which is what the one fixture that asks (a discard, `cause:
+//! Some(Discarded)`) already does, and reads correctly, because its fields
+//! are `Some`. → `triggers-architecture.md` §15 item 14.
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
@@ -16,7 +17,7 @@ use crate::types::ids::AbilityId;
 use crate::types::triggers::{
     Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use crate::types::zones::Zone;
+use crate::types::zones::{Zone, ZoneChangeCause};
 
 /// A triggered ability: no cost, the def as its effect.
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
@@ -167,6 +168,20 @@ pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEv
         from: Some(Zone::Battlefield),
         to: None,
         cause: None,
+        owner: None,
+        multiplicity: Multiplicity::PerOccurrence,
+    })
+}
+
+/// "Whenever [subject] is sacrificed" (CR 701.21a), wherever a replacement
+/// sends it: what CR 603.12's "when you do" watches after "you may sacrifice
+/// …", with the subject "you" controlled as it left.
+pub fn sacrificed(subject: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(TriggerEvent::ZoneChange {
+        subject: subject.into(),
+        from: Some(Zone::Battlefield),
+        to: None,
+        cause: Some(ZoneChangeCause::Sacrificed),
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })

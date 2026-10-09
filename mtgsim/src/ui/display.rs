@@ -26,7 +26,7 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::{DelayedDuration, DepartedFrame};
+use crate::types::triggers::{DelayedDuration, DepartedFrame, ReflexiveForm};
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -906,6 +906,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             let fires = match duration {
                 DelayedDuration::Once => "once",
                 DelayedDuration::ThisTurn => "each time this turn",
+                DelayedDuration::Reflexive(ReflexiveForm::Does) => "reflexive, if it was done",
+                DelayedDuration::Reflexive(ReflexiveForm::Doesnt) => "reflexive, if it was not done",
             };
             format!(
                 "DelayedTriggerCreated: {}'s delayed trigger {} [P{}], {fires}: \"{}\"",

@@ -168,6 +168,9 @@ pub struct ResolvingObject {
     pub subject: Option<crate::types::ids::ObjectRef>,
     /// The entry's departed frames, and any its own effect adds.
     pub departed: Vec<crate::types::triggers::DepartedFrame>,
+    /// The first record the resolution performs: where what it has
+    /// performed so far begins, which a reflexive trigger reads (CR 603.12).
+    pub began_at: crate::events::event::EventSeq,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.

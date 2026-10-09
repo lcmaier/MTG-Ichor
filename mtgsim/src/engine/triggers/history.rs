@@ -22,6 +22,11 @@ use crate::types::zones::Zone;
 pub(crate) struct TurnOrdinals(Vec<(EventSeq, u64)>);
 
 impl TurnOrdinals {
+    /// No record's place counted: what is read outside a dispatch.
+    pub(crate) fn none() -> Self {
+        TurnOrdinals(Vec::new())
+    }
+
     pub(crate) fn place_in_turn(&self, seq: EventSeq) -> Option<u64> {
         self.0.iter().find(|(s, _)| *s == seq).map(|(_, n)| *n)
     }

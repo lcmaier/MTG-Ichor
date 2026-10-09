@@ -227,6 +227,7 @@ mod tests {
             identity: None,
             subject: None,
             departed: Vec::new(),
+            began_at: game.events.next_seq(),
         });
 
         let predicted = Lookahead::new(&game, card, 0, &mods).entity;

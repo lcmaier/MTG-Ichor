@@ -16,11 +16,16 @@
 //! before the entry's creation never reaches it, and a delayed "at the
 //! beginning of the next end step" created during the end step waits for the
 //! next turn's.
+//!
+//! **A reflexive trigger reads the other side** (CR 603.12): what the
+//! resolution creating it performed before it, checked as it is created,
+//! through the same door and the same matcher. It never waits.
 
 use std::sync::Arc;
 
 use super::dispatch::{TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use super::history::TurnOrdinals;
+use crate::types::triggers::ReflexiveForm;
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::trace_records;
@@ -42,14 +47,27 @@ impl GameState {
     /// context, and a special action a static ability allows would read
     /// 603.7g's off that ability's object (`backlog.md` §2.8). `referred` is
     /// what its "that card" means (CR 603.7c), the creating resolution's
-    /// `Effect::Remember`. Returns the new entry's id. Announced first, so its
-    /// creation is no record it reads.
+    /// `Effect::Remember`. A reflexive one (CR 603.12) is checked here against
+    /// what its resolution has performed so far, and never waits. Returns the
+    /// new entry's id. Announced first, so its creation is no record it reads.
     pub fn register_delayed_trigger(
         &mut self,
         template: &DelayedTriggerTemplate,
         provenance: DelayedProvenance,
         referred: Referred,
-    ) -> DelayedTriggerId {
+    ) -> Result<DelayedTriggerId, String> {
+        let earlier: Vec<EventSeq> = match template.duration {
+            DelayedDuration::Reflexive(_) => {
+                let resolution = provenance.resolution.ok_or_else(|| {
+                    format!(
+                        "a reflexive trigger on {} has no resolution creating it, and CR 603.12 makes one only as a spell or ability resolves",
+                        provenance.source.id
+                    )
+                })?;
+                self.events.resolution_records(resolution.stamp, resolution.began_at).map(|r| r.seq).collect()
+            }
+            DelayedDuration::Once | DelayedDuration::ThisTurn => Vec::new(),
+        };
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
         let owner = self.owner_now_or(provenance.source.id, provenance.controller);
@@ -60,7 +78,7 @@ impl GameState {
             rules_text: template.rules_text,
             duration: template.duration,
         });
-        self.delayed_triggers.push(DelayedTrigger {
+        let delayed = DelayedTrigger {
             id,
             def: Arc::clone(&template.def),
             source: provenance.source,
@@ -78,8 +96,59 @@ impl GameState {
             instances: template.def.effect.instances(),
             rules_text: template.rules_text,
             referred,
-        });
-        id
+        };
+        match template.duration {
+            DelayedDuration::Reflexive(form) => self.trigger_reflexive(&delayed, form, &earlier),
+            DelayedDuration::Once | DelayedDuration::ThisTurn => self.delayed_triggers.push(delayed),
+        }
+        Ok(id)
+    }
+
+    /// CR 603.12 — a reflexive trigger, checked as it is created against the
+    /// records its resolution performed before it (`earlier`): one trigger
+    /// for each that matches (603.12a), one for them all where its event is
+    /// "one or more", or for "when you don't" one if none does. Queued and
+    /// announced as a dispatch queues a delayed trigger.
+    fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, earlier: &[EventSeq]) {
+        // A record's place in its turn is a dispatch's to count, and no
+        // reflexive trigger reads "the first time each turn".
+        let occurrences = self.occurrences_among(reflexive, earlier, &TurnOrdinals::none(), |_| true);
+        let triggered: Vec<PendingTrigger> = match form {
+            ReflexiveForm::Does => occurrences.into_iter().map(|m| pending_of(m, reflexive)).collect(),
+            ReflexiveForm::Doesnt => self.when_not_done(reflexive, occurrences.is_empty()).into_iter().collect(),
+        };
+        let mut queued = Vec::new();
+        for pending in triggered {
+            self.queue_pending(pending, &mut queued);
+        }
+        for (seq, origin, controller, caused_by) in queued {
+            self.emit_event_unstamped(GameEvent::AbilityTriggered { seq, origin, controller, caused_by });
+        }
+    }
+
+    /// "When you don't": the one trigger, bound to no record, when the action
+    /// was not taken and its intervening "if" holds (CR 603.4).
+    fn when_not_done(&self, reflexive: &DelayedTrigger, not_done: bool) -> Option<PendingTrigger> {
+        if !not_done {
+            return None;
+        }
+        if let Some(condition) = &reflexive.def.intervening_if
+            && !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller))
+        {
+            return None;
+        }
+        let unbound = MatchedTrigger {
+            identity: reflexive.identity(),
+            controller: reflexive.controller,
+            def: Arc::clone(&reflexive.def),
+            source_card: Arc::clone(&reflexive.source_card),
+            instances: reflexive.instances.clone(),
+            event: EventIndex(0),
+            records: Vec::new(),
+            subject: None,
+            mana: false,
+        };
+        Some(pending_of(unbound, reflexive))
     }
 
     /// The source's owner as an entry naming it is made (CR 108.3), read now
@@ -222,22 +291,34 @@ impl GameState {
     }
 
     /// One entry against the window: every occurrence that triggers it, in
-    /// window order. A record counts if the entry existed before it (CR
-    /// 603.7a) and one of its arms reads the record's kind; it is matched the
-    /// way an object's ability is (`match_delayed`), the verdict is traced,
-    /// and a match adds its occurrences (`add_occurrences`).
+    /// window order, of the records it existed before (CR 603.7a).
     fn delayed_occurrences(
         &self,
         delayed: &DelayedTrigger,
         window: &[EventSeq],
         ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
+        self.occurrences_among(delayed, window, ordinals, |record| existed_before(delayed, record))
+    }
+
+    /// Every occurrence that triggers an entry among the records of `window`
+    /// it `reads`, in window order. A record counts if one of the entry's
+    /// arms reads its kind; it is matched the way an object's ability is
+    /// (`match_delayed`), the verdict is traced, and a match adds its
+    /// occurrences (`add_occurrences`).
+    fn occurrences_among(
+        &self,
+        delayed: &DelayedTrigger,
+        window: &[EventSeq],
+        ordinals: &TurnOrdinals,
+        reads: impl Fn(&EventRecord) -> bool,
+    ) -> Vec<MatchedTrigger> {
         let referents = self.delayed_referents(delayed);
         let arms = delayed.def.condition.events();
         let mut occurrences: Vec<MatchedTrigger> = Vec::new();
         for seq in window {
             let Some(record) = self.events.record(*seq) else { continue };
-            if !existed_before(delayed, record) || !arms.iter().any(|arm| arm.reads(&record.event)) {
+            if !reads(record) || !arms.iter().any(|arm| arm.reads(&record.event)) {
                 continue;
             }
             let verdict = self.match_delayed(delayed, &referents, record, ordinals);
@@ -361,21 +442,35 @@ impl GameState {
                     let source = self.delayed_triggers.remove(at).source.id;
                     self.choose_delayed_cause(entries, source, ctx).into_iter().collect()
                 }
+                // Never in the registry: checked as it was created.
+                DelayedDuration::Reflexive(_) => Vec::new(),
             };
-            for mut pending in triggered {
-                let identity = pending.origin.identity();
-                if pending.binding.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn)
-                    && !self.triggered_this_turn.insert(identity)
-                {
-                    continue;
-                }
-                pending.seq = TriggerSeq(self.next_trigger_seq);
-                self.next_trigger_seq += 1;
-                let caused_by = pending.binding.records.first().map_or(EventSeq(0), |r| r.seq);
-                queued.push((pending.seq, pending.origin, pending.controller, caused_by));
-                self.pending_triggers.push(pending);
+            for pending in triggered {
+                self.queue_pending(pending, queued);
             }
         }
+    }
+
+    /// One delayed trigger onto the queue, its sequence number given, and
+    /// its `AbilityTriggered` to announce added to `queued` — unless "triggers
+    /// only once each turn" has already had its turn.
+    fn queue_pending(
+        &mut self,
+        mut pending: PendingTrigger,
+        queued: &mut Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)>,
+    ) {
+        let identity = pending.origin.identity();
+        if pending.binding.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn)
+            && !self.triggered_this_turn.insert(identity)
+        {
+            return;
+        }
+        pending.seq = TriggerSeq(self.next_trigger_seq);
+        self.next_trigger_seq += 1;
+        // "When you don't" is caused by no record.
+        let caused_by = pending.binding.records.first().map_or(EventSeq(0), |r| r.seq);
+        queued.push((pending.seq, pending.origin, pending.controller, caused_by));
+        self.pending_triggers.push(pending);
     }
 
     /// CR 603.7b: "if its trigger event occurs more than once simultaneously
@@ -497,8 +592,9 @@ mod tests {
             created_by: None,
             x_value: None,
             turn: TriggerTurn::Any,
+            resolution: None,
         };
-        game.register_delayed_trigger(&template, provenance, Referred::default());
+        game.register_delayed_trigger(&template, provenance, Referred::default()).unwrap();
         game.remove_from_game(source).unwrap();
 
         game.execute_action(GameAction::GainLife { player: 0, amount: 1, source }, &test_ctx()).unwrap();

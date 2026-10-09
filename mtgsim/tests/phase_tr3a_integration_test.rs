@@ -820,9 +820,11 @@ fn a_special_actions_delayed_trigger_is_its_static_abilitys_objects() {
             created_by: None,
             x_value: None,
             turn: TriggerTurn::Any,
+            resolution: None,
         },
         Referred::default(),
-    );
+    )
+    .unwrap();
     give_control(&mut game, altar, 1);
 
     advance_to(&mut game, 0, StepType::End);

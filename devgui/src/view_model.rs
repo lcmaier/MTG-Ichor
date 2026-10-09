@@ -1068,6 +1068,8 @@ fn waiting_zone(waiting: &Waiting) -> Option<ZoneView> {
         let fires = match trigger.duration {
             DelayedDuration::Once => "once",
             DelayedDuration::ThisTurn => "each time this turn",
+            // Checked as it is made, so never waiting.
+            DelayedDuration::Reflexive(_) => "at once",
         };
         let turn = match trigger.turn {
             TriggersIn::AnyTurn => "in any turn".to_string(),
