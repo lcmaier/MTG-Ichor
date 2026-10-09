@@ -153,7 +153,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 187 |
 | …of them in `PERFORMANCE_POOL` | 106 |
-| `#[test]` functions | 2195 |
+| `#[test]` functions | 2197 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -175,13 +175,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 294 |
-| …closed, still recorded | 112 |
-| …open — unreachable, and says why | 116 |
+| …closed, still recorded | 144 |
+| …open — unreachable, and says why | 102 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 34 |
-| …open — nothing to build, a record for a later phase | 28 |
+| …open — reachable, not wrong (perf, a name, a harness) | 28 |
+| …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 177 of 182 |
+| …open, carrying an explicit `**Sized:**` | 148 of 150 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -190,6 +190,23 @@ reports filed as deferrals, each named in the section. A dated
 `**Reachability (YYYY-MM-DD):**` line is what the board reads; the date says
 when the verdict was last derived against the tree, because reachability
 only ever grows.
+
+Where each open item is homed, read off its `**Slotted:**` line:
+
+| | |
+|---|---:|
+| …slotted to a phase or roadmap row still to come | 95 |
+| …slotted to the first registered card that needs it | 43 |
+| …a record, nothing to build | 12 |
+| **…open with no home** | **0** |
+| **A number used twice in one run** | **0** |
+
+**Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a
+phase code or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by name,
+having no rows yet), "with the first registered card that" and the card or
+class, or "none — a record". A line naming only phases that have landed is
+no home: they went without it. A phase reads its intake list at its first
+ticket: `python plans/check_state_of_play.py --slotted TR-3c`.
 
 ### This is not `specdb owed`, and the two overlap nowhere
 
@@ -214,7 +231,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/tr-3b-devgui-notes.md`
+- (none — nothing half-finished)
 
 ## What this file deliberately does not know
 
