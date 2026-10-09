@@ -630,7 +630,7 @@ Why the split is load-bearing rather than taxonomy: a fieldless variant cannot
 hold what a ②/④ keyword is *made of* (CR 702.6d lets one permanent have
 several equip abilities at different costs), and a quadrant-① keyword is not
 an `AbilityDef`, so **anything that reasons over abilities does not see it** —
-which is `codebase-state.md` item 133, CR 113.6 not reaching a graveyard card's
+which is `codebase-state.md` item 237, CR 113.6 not reaching a graveyard card's
 printed flying. → `types/keywords.rs`, whose doc comment has the per-keyword
 detail and the five variants that were removed; `codebase-state.md` "Before
 Layers" item 10.

@@ -42,6 +42,16 @@ out of the generated file.
    so a regex edit that changes what counts as an item fails here rather than
    silently moving the board's numbers.
 
+5. **An open item with no home** — no `**Slotted:**` line, or one naming no
+   phase, row or card still to come. A phase reads what is slotted to it at
+   its first ticket (`--slotted`), so an item with no slot is one no phase
+   will read: the owner's question after #237, "how do we know we're not
+   forgetting something". A line naming only landed phases fails too, since
+   those phases went without the item.
+
+6. **A number used twice in one run** — three main items collided in
+   September, when parallel branches each took the next free number.
+
 It does **not** derive per-phase status for the "can't" and copy tracks,
 because those docs record their phases only in sizing tables with no status
 marker. The replacement track has heading markers and is checked; the others
@@ -145,6 +155,108 @@ def split_items(block):
     return [block[s:e] for s, e in zip(starts, starts[1:] + [len(block)])]
 
 
+def dm_block():
+    """`codebase-state.md`'s Deferred Migrations section, and the file line it starts on."""
+    lines = read("plans/codebase-state.md").replace("\r\n", "\n").split("\n")
+    start = next(i for i, l in enumerate(lines) if l.startswith("## Deferred Migrations"))
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        if lines[i].startswith("## "):
+            end = i
+            break
+    return "\n".join(lines[start:end]), start + 1
+
+
+#: The sections that number a run of their own, by their headings' first
+#: words; every other section's items are the main run (the section's header,
+#: "Item ids are section-scoped"). Two "Before card breadth" sections share a run.
+OWN_RUNS = ("Before Layers", "Before card breadth", "Before Triggered abilities", "Before Commander")
+
+
+def items_by_run(block):
+    """Each item as `(run, number, body, line)`: `run` is `"main"` or the
+    section whose run it is in, `line` its offset in `block`'s lines."""
+    out = []
+    for m in ITEM_RE.finditer(block):
+        heading = block.rfind("\n### ", 0, m.start())
+        title = block[heading + 5:block.find("\n", heading + 1)] if heading >= 0 else ""
+        run = next((r for r in OWN_RUNS if title.startswith(r)), "main")
+        out.append((run, m.group(1), m.start(), block.count("\n", 0, m.start())))
+    ends = [start for _, _, start, _ in out[1:]] + [len(block)]
+    return [(run, n, block[start:end], line) for (run, n, start, line), end in zip(out, ends)]
+
+
+def cite(run, number):
+    """An item as the section's header says to cite one."""
+    return f"main item {number}" if run == "main" else f"'{run}' item {number}"
+
+
+#: A `**Slotted:**` line's text, to the next bold label or the item's end.
+SLOTTED_RE = re.compile(r"\*\*Slotted:(.+?)(?=\*\*[A-Z][^*\n]{0,60}:\*\*|\Z)", re.S)
+#: What a Slotted line can name on the route: a phase code, a roadmap row's
+#: label (`A6h`, `B10`, `C0`), or one of the two phases with no rows yet.
+ROUTE_TOKEN_RE = re.compile(r"\b[A-Z]{2}-[0-9]+[a-z]?\b|\b[ABC][0-9]+[a-z]?\b|\bPhase (?:9|10)\b|§[DE]\b")
+CARD_HOME_RE = re.compile(r"\bthe first registered card\b")
+RECORD_HOME_RE = re.compile(r"^none\s*[—–-]+\s*a record\b")
+
+
+def route_ids():
+    """Every home the route offers, each with whether it has landed: the
+    architecture docs' phase codes (`phase_index`), `roadmap-v2.md` §3a's row
+    labels, a row landed when its first cell says ✅, and Phases 9 and 10."""
+    landed, to_build = phase_index()
+    route = {code: True for _, _, code, _ in landed if code}
+    route.update({code: False for _, code, _ in to_build if code not in route})
+    roadmap = read("plans/roadmap-v2.md")
+    for m in re.finditer(r"^\| (?:\*\*)?([AB][0-9]+[a-z]?)(?:\*\*)? \| ([^|]*)\|", roadmap, re.M):
+        route[m.group(1)] = m.group(2).strip().startswith("✅")
+    for m in re.finditer(r"^\*\*(C[0-9]+) — ", roadmap, re.M):
+        route[m.group(1)] = False
+    route.update({"Phase 9": False, "Phase 10": False, "§D": False, "§E": False})
+    return route
+
+
+def route_status(token, route):
+    """`True` landed, `False` still to come, `None` unknown. A phase code
+    the docs define only by its letters (`TR-4a`) is its family's (`TR-4`),
+    and a family (`TR-3`) has landed once every phase of it has."""
+    if token in route:
+        return route[token]
+    family = re.sub(r"[a-z]$", "", token)
+    if family != token and family in route:
+        return route[family]
+    members = [landed for code, landed in route.items() if re.fullmatch(re.escape(token) + "[a-z]", code)]
+    return all(members) if members else None
+
+
+def slotted_text(body):
+    m = SLOTTED_RE.search(body)
+    return " ".join(m.group(1).replace("*", " ").split()) if m else None
+
+
+def home(body, route):
+    """`(class, detail)` for an open item's home. `route`: slotted to a phase
+    or row still to come; `card`: to the first registered card that needs it;
+    `record`: nothing to build. Not homes: `missing` (no Slotted line),
+    `landed` (it names only phases that have landed, so they went without
+    it), `unknown` (it names nothing the route has)."""
+    text = slotted_text(body)
+    if text is None:
+        return "missing", ""
+    if RECORD_HOME_RE.match(text):
+        return "record", text
+    tokens = ROUTE_TOKEN_RE.findall(text)
+    status = {t: route_status(t, route) for t in tokens}
+    if any(s is False for s in status.values()):
+        return "route", text
+    if CARD_HOME_RE.search(text):
+        return "card", text
+    if any(status.values()):
+        return "landed", ", ".join(t for t, s in status.items() if s)
+    unknown = [t for t, s in status.items() if s is None]
+    return "unknown", ", ".join(unknown) if unknown else text[:80]
+
+
 def deferred_migrations():
     """Item counts for `codebase-state.md`'s Deferred Migrations section.
 
@@ -153,25 +265,86 @@ def deferred_migrations():
     why it cannot bite yet is an unchecked claim, not a deferral — and
     `reachable_wrong` is the list of known wrong answers the pool can reach.
     """
-    lines = read("plans/codebase-state.md").split("\n")
-    start = next(i for i, l in enumerate(lines) if l.startswith("## Deferred Migrations"))
-    end = len(lines)
-    for i in range(start + 1, len(lines)):
-        if lines[i].startswith("## "):
-            end = i
-            break
-    block = "\n".join(lines[start:end])
+    block, _ = dm_block()
     items = split_items(block)
     classes = [classify_item(b) for b in items]
     open_items = [b for b, c in zip(items, classes) if c != "closed"]
     counts = {k: classes.count(k) for k in
               ("closed", "unreachable", "reachable_wrong", "reachable_ok", "none_owed", "unstated")}
+    route = route_ids()
+    homes = [home(b, route)[0] for b in open_items]
     return {
         "items": len(items),
         **counts,
         "sized": sum(1 for b in open_items if "Sized:" in b),
         "open": len(open_items),
+        **{f"home_{k}": homes.count(k) for k in ("route", "card", "record")},
+        "homeless": sum(1 for h in homes if h not in ("route", "card", "record")),
+        "duplicates": len(duplicate_numbers(block)),
     }
+
+
+def homeless(block, start_line):
+    """Open items with no home, as problems: `(citation, file line, why)`."""
+    route = route_ids()
+    out = []
+    for run, number, body, line in items_by_run(block):
+        if classify_item(body) == "closed":
+            continue
+        kind, detail = home(body, route)
+        why = {
+            "missing": "no **Slotted:** line",
+            "landed": f"slotted only to {detail}, which landed without it",
+            "unknown": f"its **Slotted:** line names no phase, row or card the route has ({detail})",
+        }.get(kind)
+        if why:
+            out.append((cite(run, number), start_line + line, why))
+    return out
+
+
+def duplicate_numbers(block):
+    """Numbers used twice in one run, each `(run, number, [offsets])`."""
+    seen = {}
+    for run, number, _, line in items_by_run(block):
+        seen.setdefault((run, number), []).append(line)
+    return [(run, n, lines) for (run, n), lines in seen.items() if len(lines) > 1]
+
+
+def intake_names(token, code):
+    """Whether a Slotted line's `token` puts the item on `code`'s list. A
+    lettered phase also takes what is slotted to its family as a whole
+    ("TR-4" is TR-4a's or TR-4b's to decide), and a family takes what is
+    slotted to any of its phases; a sibling's is not its."""
+    family = re.sub("[a-z]$", "", code)
+    return token in (code, family) or (family == code and re.sub("[a-z]$", "", token) == code)
+
+
+def slotted(codes):
+    """The intake list a phase reads at its first ticket: every open item
+    whose Slotted line names one of `codes`, then those naming one only
+    elsewhere in their text, which are context rather than its work."""
+    block, start_line = dm_block()
+    route = route_ids()
+    for code in codes:
+        if route_status(code, route) is None:
+            print(f"(no phase or roadmap row is called {code}; matching the text anyway)")
+    slotted_here, mentioned = [], []
+    for run, number, body, line in items_by_run(block):
+        if classify_item(body) == "closed":
+            continue
+        text = slotted_text(body) or ""
+        title = " ".join(body.split("\n")[0].replace("*", "").split()[1:])[:100]
+        row = (cite(run, number), start_line + line, title, text)
+        if any(intake_names(token, code) for token in ROUTE_TOKEN_RE.findall(text) for code in codes):
+            slotted_here.append(row)
+        elif any(re.search(rf"\b{re.escape(c)}\b", body) for c in codes):
+            mentioned.append(row)
+    print(f"Slotted to {', '.join(codes)} — {len(slotted_here)} open items:")
+    for citation, line, title, text in slotted_here:
+        print(f"\n- {citation} (codebase-state.md:{line}) {title}\n  Slotted: {text}")
+    print(f"\nNamed in {len(mentioned)} more, whose Slotted line points elsewhere:")
+    for citation, line, title, text in mentioned:
+        print(f"- {citation} (codebase-state.md:{line}) {title}")
 
 
 def selftest():
@@ -200,6 +373,37 @@ def selftest():
     assert got == want, f"selftest: {got} != {want}"
     sized = sum(1 for b, c in zip(items, got) if c != "closed" and "Sized:" in b)
     assert sized == 4, f"selftest: sized {sized} != 4"
+    # Homes, runs and numbers: a Slotted line ends at the next bold label, a
+    # landed phase is no home, a "Before" section numbers its own run, and
+    # one number twice in a run is a duplicate even across its sections.
+    open_ = "**Reachability (2026-10-09):** unreachable — x."
+    runs = "\n".join([
+        "## Deferred Migrations",
+        "### Found by X",
+        f"1. **Phase.** {open_} **Slotted:** TR-3c, its reflexive window.",
+        f"2. **Card.** {open_} **Slotted:** with the first registered card that names a counter.",
+        "3. **Record.** **Reachability (2026-10-09):** nothing owed — x. **Slotted:** none — a record of x.",
+        f"4. **Landed.** {open_} **Slotted:** TR-3b, beside it. **Sized:** with TR-3c.",
+        f"5. **Missing.** {open_}",
+        f"6. **Unknown.** {open_} **Slotted:** `backlog.md` §2.3's first PR.",
+        f"7. **Lettered family.** {open_} **Slotted: TR-4a** with the frame.",
+        "### Before Layers",
+        f"1. **Own run.** {open_} **Slotted:** Phase 10, the harness.",
+        "### Found by Y",
+        "2. **Twice.** **Reachability (2026-10-09):** closed — PR #2.",
+    ])
+    route = {"TR-3b": True, "TR-3c": False, "TR-4": False, "Phase 10": False}
+    numbered = items_by_run(runs)
+    assert [(r, n) for r, n, _, _ in numbered] == [
+        ("main", "1"), ("main", "2"), ("main", "3"), ("main", "4"), ("main", "5"), ("main", "6"), ("main", "7"),
+        ("Before Layers", "1"), ("main", "2"),
+    ], f"selftest: runs {numbered}"
+    homes = [home(b, route)[0] for _, _, b, _ in numbered if classify_item(b) != "closed"]
+    assert homes == ["route", "card", "record", "landed", "missing", "unknown", "route", "route"], f"selftest: homes {homes}"
+    dupes = [(r, n, len(lines)) for r, n, lines in duplicate_numbers(runs)]
+    assert dupes == [("main", "2", 2)], f"selftest: duplicates {dupes}"
+    intake = [intake_names(t, c) for t, c in [("TR-4", "TR-4a"), ("TR-4b", "TR-4a"), ("TR-4a", "TR-4"), ("TR-40", "TR-4")]]
+    assert intake == [True, False, True, False], f"selftest: intake {intake}"
     # The phase index's parser: coded and plain-named ✅ headings, a parent
     # heading and a closed phase, a trace page's ✅, a sizing table's cells.
     phases = "\n".join([
@@ -461,6 +665,23 @@ def render():
     L.append(f"| **…open — reachability *not* stated** | **{dm['unstated']}** |")
     L.append(f"| …open, carrying an explicit `**Sized:**` | {dm['sized']} of {dm['open']} |")
     L.append("")
+    L.append("Where each open item is homed, read off its `**Slotted:**` line:")
+    L.append("")
+    L.append("| | |")
+    L.append("|---|---:|")
+    L.append(f"| …slotted to a phase or roadmap row still to come | {dm['home_route']} |")
+    L.append(f"| …slotted to the first registered card that needs it | {dm['home_card']} |")
+    L.append(f"| …a record, nothing to build | {dm['home_record']} |")
+    L.append(f"| **…open with no home** | **{dm['homeless']}** |")
+    L.append(f"| **A number used twice in one run** | **{dm['duplicates']}** |")
+    L.append("")
+    L.append("**Both bolded rows fail the check.** A home is a `**Slotted:**` line naming a")
+    L.append("phase code or `roadmap-v2.md` §3a row still to come (Phases 9 and 10 by name,")
+    L.append("having no rows yet), \"with the first registered card that\" and the card or")
+    L.append("class, or \"none — a record\". A line naming only phases that have landed is")
+    L.append("no home: they went without it. A phase reads its intake list at its first")
+    L.append("ticket: `python plans/check_state_of_play.py --slotted TR-3c`.")
+    L.append("")
     L.append("Two bolded rows. \"Not stated\" is the one to act on: an item that does not say")
     L.append("why it cannot bite yet is an unchecked claim rather than a deferral. \"Wrong")
     L.append("today\" is the list of known wrong answers a fuzz game can reach — bug")
@@ -582,10 +803,16 @@ def main():
     ap.add_argument("--write", action="store_true", help="regenerate plans/state-of-play.md")
     ap.add_argument("--check", action="store_true", help="exit 1 if the board is stale")
     ap.add_argument("--flight", action="store_true", help="branches and PRs (needs git/gh)")
+    ap.add_argument("--slotted", nargs="+", metavar="CODE",
+                    help="the open items slotted to a phase or roadmap row: its intake list")
     args = ap.parse_args()
 
     if args.flight:
         flight()
+        return 0
+    if args.slotted:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        slotted(args.slotted)
         return 0
 
     selftest()
@@ -609,6 +836,12 @@ def main():
                 f"CLAUDE.md's critical path calls {code} 'next', but an architecture "
                 f"doc records it as landed"
             )
+        block, start_line = dm_block()
+        for citation, line, why in homeless(block, start_line):
+            problems.append(f"codebase-state.md:{line}: {citation} has no home — {why}")
+        for run, number, lines in duplicate_numbers(block):
+            where = ", ".join(str(start_line + l) for l in lines)
+            problems.append(f"codebase-state.md: {cite(run, number)} is numbered twice (lines {where})")
         for doc, code, n in oversized_landed():
             problems.append(
                 f"{doc}: {code} is landed but keeps {n} lines in the live doc "

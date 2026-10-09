@@ -1228,6 +1228,13 @@ phase's rows do not name: a chooser, a mask's width, a source-relative
 twice their row, with one read-only agent per phase; a sizing without the
 hunt is the one that misses.
 
+**A phase reads its intake list at its first ticket:** `python
+plans/check_state_of_play.py --slotted <code>` prints every open
+`codebase-state.md` item whose `**Slotted:**` line names it, and the sizing
+takes each one or re-slots it by name. The check fails on an open item with no
+home, so the list is complete (the owner, after #237: "how do we know we're
+not forgetting something").
+
 Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
 
 - **Every PR in a split carries at least one consumer of what it builds.** The

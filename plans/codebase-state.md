@@ -217,6 +217,15 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 **How to use this section:** before opening the first ticket of a listed target system, re-read that system's subsection and treat the items as prerequisites to schedule before or alongside the system's core work.
 
+**Every open item names its home on a `**Slotted:**` line (gated 2026-10-09).**
+The line names a phase code or `roadmap-v2.md` §3a row still to come (Phases 9
+and 10 by name, which have no rows yet); or "with the first registered card
+that …" and the card or class; or "none — a record". An item is slotted in the
+commit that files it, a phase reads its list at its first ticket (`python
+plans/check_state_of_play.py --slotted <code>`), and `--check` fails on an open
+item with no home, on one slotted only to phases that have landed, and on a
+number used twice in one run.
+
 **What does not belong here (adopted 2026-09-12, RE-6's review).** A wrong
 answer sized under about thirty lines, with a fixture that can prove it, is
 **fixed in the PR that found it**, not recorded. This list is what a *later
@@ -5894,9 +5903,10 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 ### Found by LK — CR 113.6 (2026-09-14)
 
-133. **Quadrant ① keyword abilities are frame characteristics, so CR 113.6
+237. **Quadrant ① keyword abilities are frame characteristics, so CR 113.6
     never sees them — a card in a graveyard still reports its printed
-    flying.** `seed_frame` seeds `keyword_flags` off the card in every zone,
+    flying.** (Numbered 133 until 2026-10-09, when the number was found twice.)
+    `seed_frame` seeds `keyword_flags` off the card in every zone,
     and `engine::zone_function` takes an `AbilityDef`; a `KeywordFlag` is not
     one (`plans/glossary.md`, “quadrant”, and `types::keywords`' own doc). So the
     default arm of CR 113.6 — "abilities of all other objects usually function
@@ -5924,9 +5934,11 @@ What the *shape* says, as opposed to what one endpoint suggested:
     about where that place is, which is why it waits for a reader rather than
     being guessed at now.
 
-134. **`cleanup_zone_state`'s battlefield branch removes a source's rows
+238. **`cleanup_zone_state`'s battlefield branch removes a source's rows
     whatever their origin, and CR 611.2a says a resolution's effect does not
-    care where its source went.** `remove_by_source` is origin-blind. CR 611.3b
+    care where its source went.**
+    (Numbered 134 until 2026-10-09, when the number was found twice.)
+    `remove_by_source` is origin-blind. CR 611.3b
     is what the call is for — a static ability applies only while its source is
     on the battlefield — and CR 611.2a gives a resolution's effect "the duration
     stated by the spell or ability", which is not the source's lifetime.
@@ -5972,7 +5984,8 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 ### Found by the LJ review (2026-09-14)
 
-132. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+239. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+    (Numbered 132 until 2026-10-09, when the number was found twice.)
     LJ's review found a `player.graveyard.clone()` inside
     `engine::layers::condition`'s `CardInYourGraveyard` arm that was never needed —
     both borrows are immutable and it compiles without. It had been added
@@ -6405,8 +6418,10 @@ closed. **The last of RE's ten PRs.**
      fill arm. The amount field is the one that changes a proof and is owed
      the standing question when it lands.
 
-134. **Three of the six printed type-changers want three facilities RE-9 did
-     not build.** Hall of Gemstone ("that player chooses a color … lands
+240. **Three of the six printed type-changers want three facilities RE-9 did
+     not build.**
+     (Numbered 134 until 2026-10-09, when the number was found twice.)
+     Hall of Gemstone ("that player chooses a color … lands
      tapped for mana produce mana of the chosen color") needs a chosen color
      stored on the permanent by an upkeep trigger — item 6's, plus a
      `ChosenColor` read in the template. Naked Singularity ("Plains produce
