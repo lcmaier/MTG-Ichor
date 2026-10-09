@@ -153,7 +153,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 187 |
 | …of them in `PERFORMANCE_POOL` | 106 |
-| `#[test]` functions | 2191 |
+| `#[test]` functions | 2195 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -175,13 +175,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 294 |
-| …closed, still recorded | 108 |
-| …open — unreachable, and says why | 119 |
+| …closed, still recorded | 112 |
+| …open — unreachable, and says why | 116 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 34 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 181 of 186 |
+| …open, carrying an explicit `**Sized:**` | 177 of 182 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -215,7 +215,6 @@ discipline. → `engineering-practices.md` §5.
 is an open plate.
 
 - `plans/handoffs/tr-3b-devgui-notes.md`
-- `plans/handoffs/triggers-midpoint-audit.md`
 
 ## What this file deliberately does not know
 

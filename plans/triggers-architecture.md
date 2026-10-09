@@ -391,10 +391,12 @@ pub struct TriggerBinding {
 ```
 
 **The projections live on the arm, and they are exhaustive matches.**
-`TriggerEvent` carries four methods — `subject_of(&GameEvent) ->
+`TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
 Option<ObjectId>`, `player_of(..) -> Option<PlayerId>`, `amount_of(..) ->
-Option<u64>`, `occurrences_of(..) -> u32` — each a `match` over the arms
-with no wildcard, so a new arm must say what its "that many" is (damage
+Option<u64>` — and the dispatcher's `occurrences_matching_arm` one more,
+each a `match` whose last arm names every arm with `_` for the record (the
+triggers midpoint audit, item 231: a bare wildcard had stood there since
+TR-1). So a new arm must say what its "that many" is (damage
 dealt, cards looked at, counters put on, damage prevented) or fail to
 compile, and must say what an occurrence is (a record for most kinds; a
 counter for the counter arms, per Protean Hydra's ruling; an attacker for
@@ -916,6 +918,16 @@ pub struct Status {
 }
 ```
 
+**Amended 2026-10-09 (A6k's review, item 235): the owner** (CR 108.3; CR
+111.2 for a token). A delayed trigger or an "until" return stores its
+source's owner as it is made, since "its owner" is fixed. A source already
+gone from the store by then has only its last known information left to say
+who owned it: a token that ceased to exist before its ability resolved (CR
+704.5d), or an object whose owner has left the game (CR 800.4a). Until this
+type carries an `owner` and the resolving entry's departed frame is read for
+it, `owner_now_or` falls back to the entry's controller, right for a token
+nobody stole and wrong once its owner has left.
+
 `ZoneChange.lki`, `LeftTheGame.lki` and the new `ControlChanged.lki` carry
 `Option<Box<LastKnownInformation>>` in place of `Option<Box<EffectiveCharacteristics>>`
 — three field sites, seven literal sites — and the capture in
@@ -1226,11 +1238,11 @@ both batch orders.
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm
-gives. The *occurrence* it counts is `occurrences_of`'s, below; the word is
-the project's, and `plans/glossary.md` carries it.
+gives. The *occurrence* it counts is one subject `occurrences_matching_arm`
+returns, below; the word is the project's, and `plans/glossary.md` carries it.
 
 - **`PerOccurrence`** (the default): one trigger per occurrence, and the
-  arm's `occurrences_of` says what an occurrence is — a record for most
+  matcher's arm for each says what an occurrence is — a record for most
   kinds, a counter for the counter arms (Protean Hydra's ruling: several
   removed at once trigger that many times), an attacker for the attack
   shapes. A wipe of three lands is three `ZoneChange`s in one batch and

@@ -4278,6 +4278,40 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
      **Reachability (2026-09-24):** closed — TR-2a, `0e5f34a`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 122".
 
+### Is the trigger code ready for TR-4–TR-7? — audited 2026-10-08
+
+Critical-path item 6's midpoint audit, A6k, the first under
+`engineering-practices.md` §9's midpoint rule: 81 PRs after the last comment
+sweep, with about eight engine PRs before item 6's close. Planned as
+`plans/handoffs/triggers-midpoint-audit.md` (PR #235) and closed by PR #237,
+which deleted it; its last text is that PR's parent. Pointers, not prose.
+
+- **Hygiene (PRs #235, #236):** §2.1's third record. The wide tier and the
+  second record's per-file count reproduce exactly; its tree total does not.
+  596 comment lines out, a 1,729-line diff over 41 files, and the stale claims
+  it corrected. One `TODO`, owned. Clippy's five allows re-counted, four
+  moved; `Cargo.toml` dates them. `similar_functions.py` read 1,146
+  functions, 26 near-copy pairs and 7 same-shape pairs, each engine pair
+  dispositioned in item 215's dated paragraph, with the board-query greps.
+- **The shape review (PR #235):** the twelve ordered lists, of which only
+  `until_returns` carries no id (item 234); the facts read live at the
+  window's close (item 175's dated paragraph, item 235, `triggers-architecture.md`
+  §6.1's five leaves); matching outside the matcher, each kept with its reason
+  but the wildcards (item 231); a decision site's state off `GameState`
+  (item 233, its rule `triggers-architecture.md` §5.6 by PR #236).
+- **Per-event cost:** `main` at 0.6490 M instructions per decision on the
+  Commander board (`close_out.py`'s, 106 pooled cards). The dispatcher's 4.6%
+  inclusive is almost all the first layer read after a batch, which a probe
+  found the next reader would pay: 1,062 of 1,101 such walks read again at
+  the same epoch. The sorts are item 138's lever 6, 19.8% (its dated
+  paragraph).
+- **Fixed (PR #237):** items 231, 232, 235 and 236. `close_out.py` against
+  `main`: gameplay `IDENTICAL` on both pools at two seats and four, every
+  dispatch agreed, 0.6488 M → 0.6494 M instructions per decision (+0.08%).
+- **Left, each in its slot:** item 233's three fixes, with item 40's
+  violators at the first fork-based harness; item 234, the TR-3b dev GUI
+  PR's engine half.
+
 ### Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15
 
 Asked by the owner the day RE-9 merged (PR #140) and critical-path item 5
@@ -9496,53 +9530,21 @@ is done outside the one matcher, and what a per-event path scans. Items 40,
 `triggers-architecture.md` §6.1's count of the leaves that read a departed
 source live is corrected in place.
 
-231. **`TriggerEvent`'s projections and the matcher end in a wildcard, so a
+231. **~~`TriggerEvent`'s projections and the matcher end in a wildcard, so a
      new arm compiles with no "that object" and never matches; and
-     `occurrences_of` has never had a caller.** `types/triggers.rs`'s module
-     doc, `triggers-architecture.md` §3.4 and `plans/glossary.md`'s
-     **occurrence** say the four per-arm projections are exhaustive matches
-     with no wildcard, so a new arm "cannot compile until it says what its
-     'that object', 'that player', 'that many' and 'one occurrence' are".
-     Each closes with `_ =>`: `subject_of`, `player_of` and `amount_of` with
-     `None`, `occurrences_of` with `0`, and `occurrences_matching_arm`
-     (`dispatch.rs`) with `Vec::new()`. They have since TR-1 (`85a81bf`): a
-     match over (arm, record) pairs needs a last arm for the pairs that do
-     not belong together, and that arm also takes an arm the function never
-     names. So TR-4's `BecomesAttached` or TR-5's counter arms would compile
-     with no subject, player or amount, and never match; only `looks_back`,
-     `record_kinds`, `subject` and `multiplicity` refuse to compile. And
-     `occurrences_of`, which §4.4 and the glossary give as where an
-     occurrence is defined, has had no caller since TR-1 shipped it:
-     `occurrences_matching_arm` returns one subject per occurrence, one per
-     attacker for `Attacks`, and nothing else counts them.
-     **Reachability (2026-10-08):** unreachable — every arm today is named in
-     all five.
-     **Sized:** ~80–120 lines, no behavior change: each wildcard becomes a
-     last arm naming every `TriggerEvent` variant with `_` for the record, so
-     a new variant fails to compile in each; `occurrences_of` deleted, and
-     §3.4, §4.4 and the glossary pointed at `occurrences_matching_arm`. Shown
-     on the pre-fix tree by a scratch arm that compiles there and not after.
-     **Slotted:** A6k's code-fix PR, before TR-4 adds an arm.
+     `occurrences_of` has never had a caller.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.
+     Each projection and the matcher end in an arm naming every variant, so a
+     new one does not compile until each says what it is; `occurrences_of`
+     deleted.
+     **Reachability (2026-10-08):** closed — PR #237.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 231".
 
-232. **`bound_reads` files `Primitive::ExileUntil` as reading nothing, and it
-     reads its source.** `ExileUntil` resolves off `ctx.ability_source` twice:
-     CR 610.3a/b's "has the event already happened" (`until_has_happened`),
-     and the object its return watches (`wait_to_return`), the "this" of
-     "until this leaves the battlefield". `bound_reads.rs` lists it with the
-     verbs that read no fact of the entry, so placement's ordering elision
-     (`trigger_order_cannot_change_outcome`) and CR 603.7b's
-     (`choose_delayed_cause`) compare two entries of one def without their
-     sources. Two untargeted entries of one def from two sources, such as two
-     copies of a card that exiles "that creature until this leaves the
-     battlefield" over one creature, would go on the stack unasked, though
-     the order decides whose leaving returns it: the second finds the
-     creature gone (CR 400.7).
-     **Reachability (2026-10-08):** unreachable — the one registered
-     `ExileUntil`, Banishing Light's, targets, and an entry with a target is
-     never elided.
-     **Sized:** ~10 lines: the arm reads `SOURCE`, and a unit test on the
-     def's reads.
-     **Slotted:** A6k's code-fix PR.
+232. **~~`bound_reads` files `Primitive::ExileUntil` as reading nothing, and it
+     reads its source.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.
+     The arm reads `SOURCE`, so an ordering that decides whose leaving returns
+     a card is asked.
+     **Reachability (2026-10-08):** closed — PR #237.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 232".
 
 233. **Three prompts in the trigger code hold what they have decided off
      `GameState`.** Item 40's invariant, at three sites its table does not
@@ -9599,37 +9601,15 @@ source live is corrected in place.
      record beside `DelayedTriggerCreated` if the log is to name a return.
      **Slotted:** the TR-3b dev GUI PR, as its engine half.
 
-235. **A delayed trigger's and an until return's "its owner" is the
-     controller once the store has lost the source.** `delayed_referents`
-     and `is_due` (`delayed.rs`) take `TriggerReferents.owner` from the
-     store, and `map_or(controller, ...)` when the source is gone from it: a
-     token that ceased to exist (CR 704.5d), an object that left the game
-     with its owner (CR 800.4a). An object's owner does not change (CR
-     108.3), and both entries are made while the source is there to ask, so
-     the fallback answers "its controller" for a fact fixed when the entry
-     was made.
-     **Reachability (2026-10-08):** unreachable — no registered delayed
-     trigger or "until" event names `PlayerRef::Owner`.
-     **Sized:** ~10 lines: the owner stored on `DelayedTrigger` and
-     `UntilReturn` as each is made, and read there; a fixture with a token
-     source.
-     **Slotted:** A6k's code-fix PR.
+235. **~~A delayed trigger's and an until return's "its owner" is the
+     controller once the store has lost the source.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.
+     Both entries carry the owner, read as each is made (`owner_now_or`).
+     **Reachability (2026-10-08):** closed — PR #237.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 235".
 
-236. **The dispatcher's frame capture is written twice, twice.**
-     - `capture_named_frame` and `capture_departure_frame` (`dispatch.rs`)
-       are one function and a guard: the second is the first behind "on the
-       battlefield" (`similar_functions.py`, 0.82).
-     - `objects_entries_name` and `hand_over_departed_frame` each walk the
-       four places an entry names an object (pending, stacked, resolving,
-       and a delayed trigger's source), and must find the same ones: the
-       first decides which movers to frame, the second hands each frame to
-       the entries naming it. One walk extended without the other frames a
-       mover no entry receives, or hands nothing to an entry that needed it
-       (`engineering-practices.md` §2c). TR-4a, whose `LastKnownInformation`
-       replaces the frame, changes both, and CR 603.7c's referred objects and
-       CR 610.3's returns name objects that neither walks.
-     **Reachability (2026-10-08):** reachable — not wrong: the two walks agree
-     today.
-     **Sized:** ~40 lines: one iterator over (entry, named object) that both
-     read, and the battlefield guard at the one caller that needs it.
-     **Slotted:** A6k's code-fix PR, ahead of TR-4a.
+236. **~~The dispatcher's frame capture is written twice, twice.~~ — ✅ CLOSED 2026-10-08 (PR #237).** — archived.
+     One list of who names what (`for_each_naming_entry`), read by the capture
+     and the hand-over, and one `capture_frame`.
+     **Reachability (2026-10-08):** closed — PR #237.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 236".
+

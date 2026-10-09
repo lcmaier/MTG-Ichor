@@ -24,6 +24,9 @@ pub struct UntilReturn {
     pub under: ReturnUnder,
     /// The exile's controller, the "you" of `ReturnUnder::You`.
     pub controller: PlayerId,
+    /// "Its owner" in the event: the source's (CR 108.3), read as the return
+    /// was made.
+    pub owner: PlayerId,
     /// The first record performed after it was made: an event before it is
     /// not the one it waits for.
     pub created_at: EventSeq,

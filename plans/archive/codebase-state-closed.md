@@ -1709,7 +1709,7 @@ The original entry, as it stood on 2026-09-04:
     name: they hold the objects one application *reached*, and there is no
     player half to be half of. This entry counted the `AffectedSet` carriers
     and generalized from them, which is why the rename went through the
-    compiler rather than a token sweep — `affected` would have taken
+    compiler rather than a token sweep — `\baffected\b` would have taken
     those two and nine locals with it.
 
     Both halves landed in one PR. The field rename alone leaves
@@ -3794,3 +3794,125 @@ TR-3b's `stress` re-record.
      **Slotted:** the next engine PR, TR-3b (the owner, 2026-10-08), whose
      pooled Flickerwisp and Banishing Light re-record `stress` anyway, so
      the fix moves no table a second time.
+
+### Item 231 — closed 2026-10-08 by PR #237 (A6k)
+
+Each per-arm projection (`subject_of`, `player_of`, `amount_of`) and the
+matcher, `occurrences_matching_arm`, ends in an arm naming all seventeen
+`TriggerEvent` variants with `_` for the record, in place of the wildcard
+that had stood there since TR-1. A scratch copy with one variant added:
+five matches refused it before (`looks_back`, `record_kinds`, `subject`,
+`multiplicity`, the authoring helper), nine after. `occurrences_of` is
+deleted, and `triggers-architecture.md` §3.4, §4.4 and the glossary point
+at the matcher.
+
+*Original entry:*
+
+231. **`TriggerEvent`'s projections and the matcher end in a wildcard, so a
+     new arm compiles with no "that object" and never matches; and
+     `occurrences_of` has never had a caller.** `types/triggers.rs`'s module
+     doc, `triggers-architecture.md` §3.4 and `plans/glossary.md`'s
+     **occurrence** say the four per-arm projections are exhaustive matches
+     with no wildcard, so a new arm "cannot compile until it says what its
+     'that object', 'that player', 'that many' and 'one occurrence' are".
+     Each closes with `_ =>`: `subject_of`, `player_of` and `amount_of` with
+     `None`, `occurrences_of` with `0`, and `occurrences_matching_arm`
+     (`dispatch.rs`) with `Vec::new()`. They have since TR-1 (`85a81bf`): a
+     match over (arm, record) pairs needs a last arm for the pairs that do
+     not belong together, and that arm also takes an arm the function never
+     names. So TR-4's `BecomesAttached` or TR-5's counter arms would compile
+     with no subject, player or amount, and never match; only `looks_back`,
+     `record_kinds`, `subject` and `multiplicity` refuse to compile. And
+     `occurrences_of`, which §4.4 and the glossary give as where an
+     occurrence is defined, has had no caller since TR-1 shipped it:
+     `occurrences_matching_arm` returns one subject per occurrence, one per
+     attacker for `Attacks`, and nothing else counts them.
+     **Reachability (2026-10-08):** unreachable — every arm today is named in
+     all five.
+     **Sized:** ~80–120 lines, no behavior change: each wildcard becomes a
+     last arm naming every `TriggerEvent` variant with `_` for the record, so
+     a new variant fails to compile in each; `occurrences_of` deleted, and
+     §3.4, §4.4 and the glossary pointed at `occurrences_matching_arm`. Shown
+     on the pre-fix tree by a scratch arm that compiles there and not after.
+     **Slotted:** A6k's code-fix PR, before TR-4 adds an arm.
+
+### Item 232 — closed 2026-10-08 by PR #237 (A6k)
+
+`ExileUntil` reads `SOURCE` in `bound_reads.rs`.
+`an_exile_until_reads_its_source` failed on the tree before the arm, a
+plain exile beside it the control.
+
+*Original entry:*
+
+232. **`bound_reads` files `Primitive::ExileUntil` as reading nothing, and it
+     reads its source.** `ExileUntil` resolves off `ctx.ability_source` twice:
+     CR 610.3a/b's "has the event already happened" (`until_has_happened`),
+     and the object its return watches (`wait_to_return`), the "this" of
+     "until this leaves the battlefield". `bound_reads.rs` lists it with the
+     verbs that read no fact of the entry, so placement's ordering elision
+     (`trigger_order_cannot_change_outcome`) and CR 603.7b's
+     (`choose_delayed_cause`) compare two entries of one def without their
+     sources. Two untargeted entries of one def from two sources, such as two
+     copies of a card that exiles "that creature until this leaves the
+     battlefield" over one creature, would go on the stack unasked, though
+     the order decides whose leaving returns it: the second finds the
+     creature gone (CR 400.7).
+     **Reachability (2026-10-08):** unreachable — the one registered
+     `ExileUntil`, Banishing Light's, targets, and an entry with a target is
+     never elided.
+     **Sized:** ~10 lines: the arm reads `SOURCE`, and a unit test on the
+     def's reads.
+     **Slotted:** A6k's code-fix PR.
+
+### Item 235 — closed 2026-10-08 by PR #237 (A6k)
+
+`DelayedTrigger.owner` and `UntilReturn.owner`, read by `owner_now_or` as
+each is made; the controller stands in only for a source already gone at
+creation. Two tests put a P0 card under P1's control, make the entry,
+remove the source and have P0 gain life; both failed with the old reads.
+
+*Original entry:*
+
+235. **A delayed trigger's and an until return's "its owner" is the
+     controller once the store has lost the source.** `delayed_referents`
+     and `is_due` (`delayed.rs`) take `TriggerReferents.owner` from the
+     store, and `map_or(controller, ...)` when the source is gone from it: a
+     token that ceased to exist (CR 704.5d), an object that left the game
+     with its owner (CR 800.4a). An object's owner does not change (CR
+     108.3), and both entries are made while the source is there to ask, so
+     the fallback answers "its controller" for a fact fixed when the entry
+     was made.
+     **Reachability (2026-10-08):** unreachable — no registered delayed
+     trigger or "until" event names `PlayerRef::Owner`.
+     **Sized:** ~10 lines: the owner stored on `DelayedTrigger` and
+     `UntilReturn` as each is made, and read there; a fixture with a token
+     source.
+     **Slotted:** A6k's code-fix PR.
+
+### Item 236 — closed 2026-10-08 by PR #237 (A6k)
+
+`for_each_naming_entry` is the one list of which entries name which
+objects and where each keeps a leaver's frame (`FrameKeeper`), read by
+`objects_entries_name` and `hand_over_departed_frame`; the guarded twin
+is `capture_frame`, its guard at the one caller that needs it.
+
+*Original entry:*
+
+236. **The dispatcher's frame capture is written twice, twice.**
+     - `capture_named_frame` and `capture_departure_frame` (`dispatch.rs`)
+       are one function and a guard: the second is the first behind "on the
+       battlefield" (`similar_functions.py`, 0.82).
+     - `objects_entries_name` and `hand_over_departed_frame` each walk the
+       four places an entry names an object (pending, stacked, resolving,
+       and a delayed trigger's source), and must find the same ones: the
+       first decides which movers to frame, the second hands each frame to
+       the entries naming it. One walk extended without the other frames a
+       mover no entry receives, or hands nothing to an entry that needed it
+       (`engineering-practices.md` §2c). TR-4a, whose `LastKnownInformation`
+       replaces the frame, changes both, and CR 603.7c's referred objects and
+       CR 610.3's returns name objects that neither walks.
+     **Reachability (2026-10-08):** reachable — not wrong: the two walks agree
+     today.
+     **Sized:** ~40 lines: one iterator over (entry, named object) that both
+     read, and the battlefield guard at the one caller that needs it.
+     **Slotted:** A6k's code-fix PR, ahead of TR-4a.

@@ -9,9 +9,9 @@
 //! a card needing a predicate no arm expresses is a missing field on a
 //! record, never a new axis (§3.3's contract, inherited from
 //! `replacement-architecture.md` §3.2a). The per-arm projections at the
-//! bottom of this file are exhaustive matches with no wildcard, so a new arm
-//! cannot compile until it says what its "that object", "that player", "that
-//! many" and "one occurrence" are.
+//! bottom of this file, and the matcher's `occurrences_matching_arm`, each end
+//! in an arm naming every variant, so a new arm cannot compile until it says
+//! what its "that object", "that player", "that many" and occurrences are.
 
 use std::sync::Arc;
 
@@ -545,7 +545,28 @@ impl TriggerEvent {
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // "That spell".
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
-            _ => None,
+            // Every arm, by name, so a new arm does not compile until it says what
+            // this projection is for it; the record never matches the arm otherwise.
+            (
+                TriggerEvent::ZoneChange { .. }
+                | TriggerEvent::BecomesTapped { .. }
+                | TriggerEvent::BecomesUntapped { .. }
+                | TriggerEvent::DrawsCard { .. }
+                | TriggerEvent::ManaAdded { .. }
+                | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::PhaseBegins { .. }
+                | TriggerEvent::StepBegins { .. }
+                | TriggerEvent::TurnBegins { .. }
+                | TriggerEvent::GainsLife { .. }
+                | TriggerEvent::LosesLife { .. }
+                | TriggerEvent::EntersBattlefield { .. }
+                | TriggerEvent::Attacks { .. }
+                | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::AbilityTriggers { .. }
+                | TriggerEvent::AbilityResolves { .. },
+                _,
+            ) => None,
         }
     }
 
@@ -577,7 +598,28 @@ impl TriggerEvent {
             (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. }) => None,
-            _ => None,
+            // Every arm, by name, so a new arm does not compile until it says what
+            // this projection is for it; the record never matches the arm otherwise.
+            (
+                TriggerEvent::ZoneChange { .. }
+                | TriggerEvent::BecomesTapped { .. }
+                | TriggerEvent::BecomesUntapped { .. }
+                | TriggerEvent::DrawsCard { .. }
+                | TriggerEvent::ManaAdded { .. }
+                | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::PhaseBegins { .. }
+                | TriggerEvent::StepBegins { .. }
+                | TriggerEvent::TurnBegins { .. }
+                | TriggerEvent::GainsLife { .. }
+                | TriggerEvent::LosesLife { .. }
+                | TriggerEvent::EntersBattlefield { .. }
+                | TriggerEvent::Attacks { .. }
+                | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::AbilityTriggers { .. }
+                | TriggerEvent::AbilityResolves { .. },
+                _,
+            ) => None,
         }
     }
 
@@ -611,33 +653,28 @@ impl TriggerEvent {
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
-            _ => None,
-        }
-    }
-
-    /// What one occurrence is (CR 603.2c): a record for every kind this
-    /// phase ships, and an attacker for the attack shape.
-    pub fn occurrences_of(&self, record: &GameEvent) -> u32 {
-        match (self, record) {
-            (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { attackers }) => attackers.len() as u32,
-            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
-            | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
-            | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
-            | (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. })
-            | (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { .. })
-            | (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { .. })
-            | (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
-            | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
-            | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
-            | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
-            | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
-            | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
-            | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
-            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
-            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
-            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => 1,
-            _ => 0,
+            // Every arm, by name, so a new arm does not compile until it says what
+            // this projection is for it; the record never matches the arm otherwise.
+            (
+                TriggerEvent::ZoneChange { .. }
+                | TriggerEvent::BecomesTapped { .. }
+                | TriggerEvent::BecomesUntapped { .. }
+                | TriggerEvent::DrawsCard { .. }
+                | TriggerEvent::ManaAdded { .. }
+                | TriggerEvent::DamageDealt { .. }
+                | TriggerEvent::PhaseBegins { .. }
+                | TriggerEvent::StepBegins { .. }
+                | TriggerEvent::TurnBegins { .. }
+                | TriggerEvent::GainsLife { .. }
+                | TriggerEvent::LosesLife { .. }
+                | TriggerEvent::EntersBattlefield { .. }
+                | TriggerEvent::Attacks { .. }
+                | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::AbilityTriggers { .. }
+                | TriggerEvent::AbilityResolves { .. },
+                _,
+            ) => None,
         }
     }
 }
@@ -807,6 +844,9 @@ pub struct DelayedTrigger {
     pub source_card: Arc<CardData>,
     /// CR 603.7d–g's controller, as of the moment it was created.
     pub controller: PlayerId,
+    /// "Its owner": the source's (CR 108.3), read as it was created, since
+    /// the store may lose the source before the trigger reads it.
+    pub owner: PlayerId,
     /// The first record performed after it was created, and the batch it was
     /// created during, if any: CR 603.7a's "won't trigger until it has
     /// actually been created". A rider (CR 615.5) creates one inside the
