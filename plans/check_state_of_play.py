@@ -230,7 +230,9 @@ def route_status(token, route):
 
 
 def slotted_text(body):
-    m = SLOTTED_RE.search(body)
+    """The Slotted line's words. An item's text runs to the next item, so a
+    section's last item carries the next heading; the line stops before it."""
+    m = SLOTTED_RE.search(re.split(r"\n#{2,3} ", body)[0])
     return " ".join(m.group(1).replace("*", " ").split()) if m else None
 
 
@@ -400,6 +402,8 @@ def selftest():
     ], f"selftest: runs {numbered}"
     homes = [home(b, route)[0] for _, _, b, _ in numbered if classify_item(b) != "closed"]
     assert homes == ["route", "card", "record", "landed", "missing", "unknown", "route", "route"], f"selftest: homes {homes}"
+    last = slotted_text(numbered[6][2])
+    assert last == "TR-4a with the frame.", f"selftest: a section's last Slotted line ran on: {last!r}"
     dupes = [(r, n, len(lines)) for r, n, lines in duplicate_numbers(runs)]
     assert dupes == [("main", "2", 2)], f"selftest: duplicates {dupes}"
     intake = [intake_names(t, c) for t, c in [("TR-4", "TR-4a"), ("TR-4b", "TR-4a"), ("TR-4a", "TR-4"), ("TR-40", "TR-4")]]
@@ -665,6 +669,14 @@ def render():
     L.append(f"| **…open — reachability *not* stated** | **{dm['unstated']}** |")
     L.append(f"| …open, carrying an explicit `**Sized:**` | {dm['sized']} of {dm['open']} |")
     L.append("")
+    L.append("Two bolded rows. \"Not stated\" is the one to act on: an item that does not say")
+    L.append("why it cannot bite yet is an unchecked claim rather than a deferral. \"Wrong")
+    L.append("today\" is the list of known wrong answers a fuzz game can reach — bug")
+    L.append("reports filed as deferrals, each named in the section. A dated")
+    L.append("`**Reachability (YYYY-MM-DD):**` line is what the board reads; the date says")
+    L.append("when the verdict was last derived against the tree, because reachability")
+    L.append("only ever grows.")
+    L.append("")
     L.append("Where each open item is homed, read off its `**Slotted:**` line:")
     L.append("")
     L.append("| | |")
@@ -681,14 +693,6 @@ def render():
     L.append("class, or \"none — a record\". A line naming only phases that have landed is")
     L.append("no home: they went without it. A phase reads its intake list at its first")
     L.append("ticket: `python plans/check_state_of_play.py --slotted TR-3c`.")
-    L.append("")
-    L.append("Two bolded rows. \"Not stated\" is the one to act on: an item that does not say")
-    L.append("why it cannot bite yet is an unchecked claim rather than a deferral. \"Wrong")
-    L.append("today\" is the list of known wrong answers a fuzz game can reach — bug")
-    L.append("reports filed as deferrals, each named in the section. A dated")
-    L.append("`**Reachability (YYYY-MM-DD):**` line is what the board reads; the date says")
-    L.append("when the verdict was last derived against the tree, because reachability")
-    L.append("only ever grows.")
     L.append("")
     L.append("### This is not `specdb owed`, and the two overlap nowhere")
     L.append("")
