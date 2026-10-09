@@ -8,33 +8,50 @@
 //!    existence once and told apart from the object it became.
 //! 3. Item 103's last-known-information half: a source the store has lost
 //!    is matched as it last existed.
+//! 4. CR 603.12: the reflexive trigger. CR 603.12's example on a
+//!    Heart-Piercer Manticore fixture with its four trigger rulings and item
+//!    229's "another"; Cornered Crook, its ruling, and the Crook killed in
+//!    response; the "doesn't" form; CR 603.12a.
 
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{another, dies, enters, sacrificed, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::keyword_creatures::wall_of_stone;
+use mtgsim::cards::phase5_pre_cards::glorious_anthem;
+use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
 use mtgsim::cards::phase_rd_cards::circle_of_protection_red;
 use mtgsim::cards::phase_tr3b_cards::flickerwisp;
+use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
-use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::DamageTarget;
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, RecordingDecisionProvider,
+    card_of_type, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx, test_dp,
+    vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
-use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::costs::Cost;
+use mtgsim::types::effects::{
+    AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
+    Primitive, SelectionFilter, TargetCount,
+};
+use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::TriggerSubject;
+use mtgsim::types::triggers::{
+    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, ReflexiveForm, TriggerEvent, TriggerSubject,
+};
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::display::format_event;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -391,4 +408,493 @@ fn a_token_that_ceased_to_exist_is_red_as_it_last_existed() {
 
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 0), 20, "prevented: the token was red");
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.12: the reflexive trigger
+// ---------------------------------------------------------------------------
+
+/// "You may sacrifice [a `filter`]", then `when`.
+fn may_sacrifice_then(filter: ObjectFilter, when: DelayedTriggerTemplate) -> Effect {
+    Effect::Sequence(vec![sacrifice(PlayerRef::You, Pick::exactly(1, filter)), create(when)])
+}
+
+/// "[The chooser] may sacrifice `pick`" — or must, for `PlayerRef::Player`'s
+/// absence: [`sacrifice_now`].
+fn sacrifice(chooser: PlayerRef, pick: Pick) -> Effect {
+    Effect::Optional { chooser, effect: Box::new(sacrifice_now(pick)) }
+}
+
+/// "Sacrifice `pick`", of the controller's own permanents (CR 701.21a).
+fn sacrifice_now(pick: Pick) -> Effect {
+    Effect::Atom(
+        Primitive::Sacrifice,
+        EffectRecipient::ChosenBy(Box::new(Choice {
+            chooser: EffectRecipient::Controller,
+            among: ChoiceScope::ChoosersPermanents,
+            picks: vec![pick],
+            acts_on: ChoiceSide::Chosen,
+        })),
+    )
+}
+
+fn create(template: DelayedTriggerTemplate) -> Effect {
+    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller)
+}
+
+/// A reflexive trigger of `form` on "you sacrifice" (CR 603.12).
+fn when_you(form: ReflexiveForm, effect: Effect, text: &'static str) -> DelayedTriggerTemplate {
+    reflexive(form, sacrificed(ObjectFilter::ByController(PlayerRef::You)).into(), effect, text)
+}
+
+fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, text: &'static str) -> DelayedTriggerTemplate {
+    DelayedTriggerTemplate {
+        def: Arc::new(whenever(event, effect)),
+        duration: DelayedDuration::Reflexive(form),
+        turn: DelayedTurn::Any,
+        rules_text: text.into(),
+    }
+}
+
+/// Spitefang Manticore — a fixture under no real card's name: Heart-Piercer
+/// Manticore without embalm, which keeps that card unregistered. It is CR
+/// 603.12's own example.
+///
+/// > When this creature enters, you may sacrifice another creature. When you
+/// > do, this creature deals damage equal to that creature's power to any
+/// > target.
+fn spitefang_manticore() -> Arc<CardData> {
+    let text = "When this creature enters, you may sacrifice another creature. When you do, this creature deals damage equal to that creature's power to any target.";
+    let that_creatures_power = Effect::Atom(
+        Primitive::DealDamage { amount: AmountExpr::TriggeringPower, unpreventable: false },
+        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+    );
+    let when_you_do = when_you(
+        ReflexiveForm::Does,
+        that_creatures_power,
+        "When you do, this creature deals damage equal to that creature's power to any target.",
+    );
+    CardDataBuilder::new("Spitefang Manticore")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Manticore))
+        .power_toughness(4, 3)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                may_sacrifice_then(another(ObjectFilter::ByType(CardType::Creature)), when_you_do),
+            ),
+        ))
+        .build()
+}
+
+/// Bonegrinder Altar — a fixture: a sacrifice that is no instruction of a
+/// resolving ability.
+///
+/// > Sacrifice a creature: You gain 1 life.
+fn bonegrinder_altar() -> Arc<CardData> {
+    CardDataBuilder::new("Bonegrinder Altar")
+        .card_type(CardType::Artifact)
+        .ability(AbilityDef {
+            rules_text: "Sacrifice a creature: You gain 1 life.".into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Activated,
+            costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// Venomweave Charm — a fixture: "Creatures you control have deathtouch."
+fn venomweave_charm() -> Arc<CardData> {
+    CardDataBuilder::new("Venomweave Charm")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            )),
+        )))
+        .build()
+}
+
+/// Withheld Tithe — a fixture for CR 603.12's "doesn't" form, which no
+/// printed reflexive trigger uses (Scryfall, 2026-10-09).
+///
+/// > You may sacrifice a creature. When you don't, you lose 2 life.
+fn withheld_tithe() -> Arc<CardData> {
+    let lose_2 = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    CardDataBuilder::new("Withheld Tithe")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 0))
+        .color(Color::Black)
+        .card_type(CardType::Instant)
+        .ability(spell_ability(may_sacrifice_then(
+            ObjectFilter::ByType(CardType::Creature),
+            when_you(ReflexiveForm::Doesnt, lose_2, "When you don't, you lose 2 life."),
+        )))
+        .build()
+}
+
+/// Bloodtithe Rite — a fixture for CR 603.12a, both of its sentences' shapes:
+///
+/// > Sacrifice two creatures. When a creature is sacrificed this way, you
+/// > gain 1 life. When one or more creatures are sacrificed this way, draw
+/// > a card.
+fn bloodtithe_rite() -> Arc<CardData> {
+    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let each = sacrificed(TriggerSubject::Any);
+    let one_or_more = sacrificed(TriggerSubject::Any).once_per_event();
+    CardDataBuilder::new("Bloodtithe Rite")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 0))
+        .color(Color::Black)
+        .card_type(CardType::Instant)
+        .ability(spell_ability(Effect::Sequence(vec![
+            sacrifice_now(Pick::exactly(2, ObjectFilter::ByType(CardType::Creature))),
+            create(reflexive(ReflexiveForm::Does, each.into(), gain_1, "When a creature is sacrificed this way, you gain 1 life.")),
+            create(reflexive(ReflexiveForm::Does, one_or_more, draw, "When one or more creatures are sacrificed this way, draw a card.")),
+        ])))
+        .build()
+}
+
+fn spell_ability(effect: Effect) -> AbilityDef {
+    AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Spell,
+        costs: Vec::new(),
+        effect,
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    }
+}
+
+/// Empty `player`'s pool, fill it with exactly `pool`, and cast `card` from
+/// hand under `ManaWindowStop`, as a shipped client does; then resolve it.
+fn cast_and_resolve(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)]) -> ObjectId {
+    let id = put_in_hand(game, card, player);
+    for t in [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless] {
+        let have = game.players[player].mana_pool.amount(t);
+        if have > 0 {
+            game.players[player].mana_pool.remove(t, have).unwrap();
+        }
+    }
+    for &(t, n) in pool {
+        game.players[player].mana_pool.add(t, n);
+    }
+    game.cast_spell(player, id, &ManaWindowStop::new(RecordingDecisionProvider::picking(0)))
+        .expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    id
+}
+
+/// Put the waiting triggers on the stack, asking nothing.
+fn place(game: &mut GameState) {
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+}
+
+/// Put the one waiting trigger on the stack with `target` as its target.
+fn place_targeting(game: &mut GameState, target: ChoiceOption) {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(select(), vec![target]);
+    game.perform_sba_and_triggers(&dp).unwrap();
+    assert!(dp.is_empty(), "its target was chosen as it was put on the stack");
+}
+
+/// Resolve the trigger on top, answering its "may" with `yes`, and choosing
+/// `sacrifice` where the sacrifice is a choice.
+fn resolve_may(game: &mut GameState, yes: bool, sacrifice: Option<ObjectId>) {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, if yes { vec![0] } else { vec![] });
+    if let Some(chosen) = sacrifice {
+        dp.expect_choice(select(), vec![ChoiceOption::Object(chosen)]);
+    }
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert!(dp.is_empty(), "the may, and the sacrifice where it was a choice");
+}
+
+fn select() -> ChoiceKind {
+    ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }
+}
+
+fn zone(game: &GameState, id: ObjectId) -> Zone {
+    game.get_object(id).unwrap().zone
+}
+
+fn top_targets(game: &GameState) -> Vec<Vec<ResolvedTarget>> {
+    let top = *game.stack.last().expect("something on the stack");
+    game.stack_entries[&top].chosen_targets.iter().map(|i| i.as_resolved_targets().collect()).collect()
+}
+
+/// The words of each reflexive trigger's creation, in the log.
+fn reflexive_lines(game: &GameState) -> Vec<String> {
+    let names = NamesAsAnnounced::default();
+    game.recorded_events()
+        .events()
+        .filter(|e| matches!(e, GameEvent::DelayedTriggerCreated { duration: DelayedDuration::Reflexive(_), .. }))
+        .map(|e| format_event(game, e, &names))
+        .collect()
+}
+
+/// CR 603.12's example: the Manticore enters, its controller sacrifices a
+/// 3-power creature, and the reflexive trigger deals 3 to the target chosen
+/// as it goes on the stack.
+// COVERS: ATOM-603.12-001
+#[test]
+fn the_manticore_deals_damage_equal_to_the_sacrificed_creatures_power() {
+    let mut game = setup_two_player_game();
+    let ogre = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let manticore = cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+
+    resolve_may(&mut game, true, None);
+    assert_eq!(zone(&game, ogre), Zone::Graveyard);
+    assert_eq!(game.pending_triggers.len(), 1, "\"when you do\" triggered, checked as it was made");
+    assert!(game.delayed_triggers.is_empty(), "and never waits");
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 1), 17);
+    assert_eq!(zone(&game, manticore), Zone::Battlefield, "\"another\": the Manticore is no candidate");
+    let lines = reflexive_lines(&game);
+    assert_eq!(lines.len(), 1, "its creation is logged: {lines:?}");
+    assert!(lines[0].contains("reflexive"));
+}
+
+// RULING: Heart-Piercer Manticore #3 - "When it enters the battlefield, its
+//   triggered ability goes on the stack without a target. While that ability
+//   is resolving, you may sacrifice a creature. If you do, a second ability
+//   triggers and you pick a target that will be dealt damage. This is
+//   different from other abilities that say "If you do . . ." in that players
+//   may cast spells and activate abilities before a creature is sacrificed
+//   and then again after the creature is sacrificed but before damage is
+//   dealt."
+#[test]
+fn the_manticores_first_trigger_has_no_target_and_its_second_waits_for_responses() {
+    let mut game = setup_two_player_game();
+    let ogre = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+    assert!(top_targets(&game).is_empty(), "the enters trigger goes on the stack without a target");
+
+    resolve_may(&mut game, true, None);
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    assert_eq!(zone(&game, ogre), Zone::Graveyard, "the creature is sacrificed first");
+    assert_eq!(top_targets(&game), vec![vec![ResolvedTarget::Player(1)]], "the second ability has the target");
+    assert_eq!(life(&game, 1), 20, "and the damage waits on the stack, where players may respond");
+}
+
+// RULING: Heart-Piercer Manticore #4 - "Heart-Piercer Manticore's
+//   damage-dealing ability triggers only when you sacrifice a creature as a
+//   result of the instruction of its triggered ability. It won't trigger if
+//   you sacrifice a creature for any other reason."
+#[test]
+fn only_the_triggers_own_sacrifice_makes_the_manticore_deal_damage() {
+    let mut game = setup_two_player_game();
+    let altar = put_on_battlefield(&mut game, bonegrinder_altar(), 0);
+    let ogre = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+
+    // In response, the altar's cost sacrifices the ogre: a sacrifice, but
+    // not this ability's.
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: altar, count: 1 }, vec![ChoiceOption::Object(ogre)]);
+    game.activate_ability(0, altar, 0, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert_eq!(zone(&game, ogre), Zone::Graveyard);
+
+    resolve_may(&mut game, false, None);
+    assert!(game.pending_triggers.is_empty(), "nothing was sacrificed this way");
+    assert_eq!(reflexive_lines(&game).len(), 1, "though the trigger was made, and checked");
+}
+
+// RULING: Heart-Piercer Manticore #6 - "The sacrificed creature's last known
+//   existence on the battlefield is checked to determine its power."
+#[test]
+fn the_sacrificed_creatures_power_is_read_as_it_last_existed() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+
+    resolve_may(&mut game, true, None);
+    assert_eq!(zone(&game, bear), Zone::Graveyard);
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 17, "3: the anthem's +1/+1 as it last existed");
+}
+
+// RULING: Heart-Piercer Manticore #10 - "You can't sacrifice multiple
+//   creatures to deal damage multiple times."
+#[test]
+fn the_manticore_sacrifices_one_creature_and_triggers_once() {
+    let mut game = setup_two_player_game();
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let ogre = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+
+    resolve_may(&mut game, true, Some(ogre));
+    assert_eq!((zone(&game, ogre), zone(&game, bear)), (Zone::Graveyard, Zone::Battlefield));
+    assert_eq!(game.pending_triggers.len(), 1);
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 17);
+}
+
+/// `codebase-state.md` item 229: "another creature" at resolution is other
+/// than the Manticore, so the Manticore alone has nothing to sacrifice, and
+/// nothing triggers.
+#[test]
+fn a_manticore_alone_has_nothing_to_sacrifice() {
+    let mut game = setup_two_player_game();
+    let manticore = cast_and_resolve(&mut game, 0, spitefang_manticore(), &[(ManaType::Red, 4)]);
+    place(&mut game);
+
+    resolve_may(&mut game, true, None);
+    assert_eq!(zone(&game, manticore), Zone::Battlefield);
+    assert!(game.pending_triggers.is_empty());
+}
+
+/// Cornered Crook, cast from hand from exactly {4}{R}: it enters, its
+/// controller sacrifices an artifact, and it deals 3 to the target.
+#[test]
+fn cornered_crook_cast_from_hand_deals_3_once_an_artifact_is_sacrificed() {
+    let mut game = setup_two_player_game();
+    let trinket = put_on_battlefield(&mut game, card_of_type("Trinket", CardType::Artifact), 0);
+    cast_and_resolve(&mut game, 0, cornered_crook(), &[(ManaType::Red, 5)]);
+    place(&mut game);
+
+    resolve_may(&mut game, true, None);
+    assert_eq!(zone(&game, trinket), Zone::Graveyard);
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 17);
+}
+
+// RULING: Cornered Crook #1 - "You don't choose a target for Cornered
+//   Crook's ability at the time it triggers. Rather, a second "reflexive"
+//   ability triggers when you sacrifice an artifact this way. You choose a
+//   target for that ability as it goes on the stack. Each player may respond
+//   to this triggered ability as normal."
+#[test]
+fn cornered_crooks_target_is_chosen_for_its_second_ability() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, card_of_type("Trinket", CardType::Artifact), 0);
+    let crook = cast_and_resolve(&mut game, 0, cornered_crook(), &[(ManaType::Red, 5)]);
+    place(&mut game);
+    assert!(top_targets(&game).is_empty(), "no target as it triggers");
+
+    resolve_may(&mut game, true, None);
+    assert!(game.stack.is_empty(), "the second ability has triggered, and is not yet on the stack");
+    place_targeting(&mut game, ChoiceOption::Player(1));
+    assert_eq!(top_targets(&game), vec![vec![ResolvedTarget::Player(1)]]);
+    let top = *game.stack.last().unwrap();
+    assert_eq!(game.stack_entries[&top].ability_identity.map(|i| i.source.id), Some(crook), "Cornered Crook's (CR 603.7e)");
+}
+
+/// The Crook is killed in response to its reflexive trigger, and still deals
+/// its 3 damage, as it last existed (CR 113.7a, 608.2h): with the lifelink
+/// Loxodon Warhammer gave it and the deathtouch Venomweave Charm did, though
+/// neither reaches the card in the graveyard.
+#[test]
+fn cornered_crook_killed_in_response_deals_its_damage_as_it_last_existed() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, venomweave_charm(), 0);
+    let hammer = put_on_battlefield(&mut game, loxodon_warhammer(), 0);
+    let trinket = put_on_battlefield(&mut game, card_of_type("Trinket", CardType::Artifact), 0);
+    let wall = put_on_battlefield(&mut game, wall_of_stone(), 1);
+    let crook = cast_and_resolve(&mut game, 0, cornered_crook(), &[(ManaType::Red, 5)]);
+    game.execute_action(GameAction::Attach { attachment: hammer, host: crook }, &test_ctx()).unwrap();
+    place(&mut game);
+    // The Warhammer is an artifact too, so the sacrifice is a choice.
+    resolve_may(&mut game, true, Some(trinket));
+    place_targeting(&mut game, ChoiceOption::Object(wall));
+
+    destroy(&mut game, crook);
+    assert_eq!(zone(&game, crook), Zone::Graveyard);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(zone(&game, wall), Zone::Graveyard, "deathtouch, as it last existed: 3 damage to a 0/8");
+    assert_eq!(life(&game, 0), 23, "lifelink, as it last existed");
+}
+
+/// Item 225 on the registered card: Circle of Protection: Red chooses the
+/// Crook while its reflexive trigger waits, the Crook is killed, and the
+/// damage it deals as it last existed is prevented.
+#[test]
+fn a_circle_that_chose_cornered_crook_prevents_its_damage_after_it_dies() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, card_of_type("Trinket", CardType::Artifact), 0);
+    let crook = cast_and_resolve(&mut game, 0, cornered_crook(), &[(ManaType::Red, 5)]);
+    let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 1);
+    place(&mut game);
+    resolve_may(&mut game, true, None);
+    place_targeting(&mut game, ChoiceOption::Player(1));
+
+    let ctx = ResolutionContext {
+        source: circle,
+        ability_source: game.object_ref(circle),
+        controller: 1,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let dp = ChoosingSource::new(now(crook));
+    game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp).unwrap();
+    destroy(&mut game, crook);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game, 1), 20, "the Crook as it last existed is the source the Circle chose");
+}
+
+/// CR 603.12's other form, "when you don't": declined, it triggers once,
+/// bound to no record; taken, it does not trigger.
+#[test]
+fn when_you_dont_triggers_only_when_the_action_was_not_taken() {
+    let mut game = setup_two_player_game();
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let tithe = put_in_hand(&mut game, withheld_tithe(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    resolve_may(&mut game, false, None);
+    assert_eq!(game.pending_triggers.len(), 1, "not done: it triggers");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 18);
+
+    let tithe = put_in_hand(&mut game, withheld_tithe(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    resolve_may(&mut game, true, None);
+    assert_eq!(zone(&game, bear), Zone::Graveyard);
+    assert!(game.pending_triggers.is_empty(), "done: it does not");
+}
+
+/// CR 603.12a: a reflexive trigger whose event occurred twice during the
+/// resolution triggers twice; one whose event is "one or more" triggers
+/// once for both.
+#[test]
+fn a_reflexive_trigger_triggers_once_for_each_time_its_event_occurred() {
+    let mut game = setup_two_player_game();
+    mtgsim::test_support::fill_library(&mut game, 0, 5);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let hand = game.players[0].hand.len();
+    cast_and_resolve(&mut game, 0, bloodtithe_rite(), &[(ManaType::Black, 1)]);
+
+    assert_eq!(game.pending_triggers.len(), 3, "two for \"a creature\", one for \"one or more\"");
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    assert_eq!(life(&game, 0), 22);
+    assert_eq!(game.players[0].hand.len(), hand + 1);
 }
