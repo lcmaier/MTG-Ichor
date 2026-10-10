@@ -1355,7 +1355,7 @@ mod tests {
                 amount,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -1451,7 +1451,7 @@ mod tests {
                 amount: 14,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &ctx,
         )
@@ -1479,7 +1479,7 @@ mod tests {
                     amount: 3,
                     is_combat: false,
                     unpreventable: false,
-                    source_frame: None,
+                    source_lki: None,
                 },
                 &test_ctx(),
             )
@@ -1506,7 +1506,7 @@ mod tests {
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -1529,7 +1529,7 @@ mod tests {
                 amount: 5,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -1588,7 +1588,7 @@ mod tests {
 
     fn bolt(game: &mut GameState, source: crate::types::ids::ObjectId, target: DamageTarget, amount: u64) {
         game.execute_action(
-            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_frame: None },
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None },
             &test_ctx(),
         )
         .unwrap();
@@ -1891,7 +1891,7 @@ mod tests {
                 amount: 5,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &ActionContext::new(&dp),
         )
@@ -1944,7 +1944,7 @@ mod tests {
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &ActionContext::new(&dp),
         )
@@ -1999,7 +1999,7 @@ mod tests {
                 amount: 3,
                 is_combat: true,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -2027,7 +2027,7 @@ mod tests {
                     amount: 2,
                     is_combat: true,
                     unpreventable: false,
-                    source_frame: None,
+                    source_lki: None,
                 },
                 &test_ctx(),
             )
@@ -2100,7 +2100,7 @@ mod tests {
                 amount: 3,
                 is_combat: true,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &ActionContext::new(&dp),
         )
@@ -2155,7 +2155,7 @@ mod tests {
         ctx: &ActionContext,
     ) {
         game.execute_action(
-            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_frame: None },
+            GameAction::DealDamage { source, target, amount, is_combat: false, unpreventable: false, source_lki: None },
             ctx,
         )
         .unwrap();

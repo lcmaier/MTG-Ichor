@@ -262,7 +262,7 @@ fn a_shield_does_not_prevent_the_damage_of_the_object_its_source_became() {
             amount: 2,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -381,7 +381,7 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
             amount: 1,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )

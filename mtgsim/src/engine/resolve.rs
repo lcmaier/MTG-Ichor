@@ -500,7 +500,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
-                let source_frame = self.source_lki(ctx);
+                let source_lki = self.source_lki(ctx);
                 self.execute_actions(
                     targets
                         .into_iter()
@@ -509,7 +509,7 @@ impl GameState {
                         // prevented" is about this resolution's damage and nothing else.
                         .map(|target| GameAction::DealDamage {
                             source: ctx.effect_source(),
-                            source_frame: source_frame.clone(),
+                            source_lki: source_lki.clone(),
                             target,
                             amount,
                             is_combat: false,

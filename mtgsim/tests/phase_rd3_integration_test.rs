@@ -279,7 +279,7 @@ fn a_partly_spent_count_keeps_its_remainder_when_the_source_stops_matching() {
                 amount,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -333,7 +333,7 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             GameAction::DealDamage {
                 source: colorless,
@@ -341,7 +341,7 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
                 amount: 4,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
         ],
         &ActionContext::new(&dp),
@@ -476,7 +476,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
             amount: 6,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )

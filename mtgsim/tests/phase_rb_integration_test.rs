@@ -475,7 +475,7 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -522,7 +522,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
             amount: 0,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -563,7 +563,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )

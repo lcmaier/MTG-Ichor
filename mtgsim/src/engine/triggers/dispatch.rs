@@ -1295,7 +1295,7 @@ impl GameState {
             ),
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, source_frame, target, is_combat, .. },
+                GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
             ) => {
                 let to = match (recipient, target) {
                     (DamageRecipient::Any, _) => true,
@@ -1317,7 +1317,7 @@ impl GameState {
                 };
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
-                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_ref().map(Lki::chars)),
+                        && self.subject_matches(source, Some(*source_id), referents, seq, source_lki.as_ref().map(Lki::chars)),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {

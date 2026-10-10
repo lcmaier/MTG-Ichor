@@ -106,10 +106,10 @@ pub enum GameEvent {
         target: DamageTarget,
         amount: u64,
         is_combat: bool,
-        /// The proposal's `source_frame`: the source as it last existed, when
+        /// The proposal's `source_lki`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
         /// what dealt it reads what the damage's results read (CR 608.2h).
-        source_frame: Option<Lki>,
+        source_lki: Option<Lki>,
     },
 
     // --- Turn structure ---

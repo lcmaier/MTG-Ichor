@@ -1063,7 +1063,7 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 1,
                 is_combat: false,
-                source_frame: None,
+                source_lki: None,
             }),
             ("PhaseBegin", GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 }),
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),

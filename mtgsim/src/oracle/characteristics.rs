@@ -38,16 +38,16 @@ pub fn damage_source_existence(
     }
 }
 
-/// The characteristics `source` deals damage with: `frame`, its last known
+/// The characteristics `source` deals damage with: `lki`, its last known
 /// information, when the damage carries one because an effect has it deal
 /// damage after it left (CR 608.2h, 702.15c, 702.2e), and the object as it
 /// is otherwise.
 pub fn damage_source_characteristics(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&crate::types::triggers::Lki>,
+    lki: Option<&crate::types::triggers::Lki>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
-    match frame {
+    match lki {
         Some(lki) => Some(Arc::clone(&lki.frame)),
         None => compute_characteristics(game, source),
     }
