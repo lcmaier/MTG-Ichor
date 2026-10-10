@@ -723,8 +723,9 @@ impl TriggerBinding {
     }
 }
 
-/// Where a pending trigger came from (§3.8). The reflexive and rule-owned
-/// origins land with TR-3c and TR-6.
+/// Where a pending trigger came from (§3.8). A reflexive trigger is
+/// `Delayed`, since CR 603.12 has it follow the delayed rules; the rule-owned
+/// origin lands with TR-6.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.

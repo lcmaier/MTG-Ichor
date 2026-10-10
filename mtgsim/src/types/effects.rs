@@ -930,13 +930,13 @@ pub enum SelectionFilter {
     /// `Any` is CR 115.4's target list, which is about what can be *dealt*
     /// damage.
     ///
-    /// **Two of the rule's four categories are reachable and two are not**,
-    /// and the gap is deliberate: "an object referred to by an object on the
-    /// stack / by a waiting replacement / by a delayed trigger" needs a
-    /// referred-to relation the engine has nowhere to read (delayed triggers
-    /// are CR 603.7's and do not exist), and "a face-up object in the command
-    /// zone" needs the command zone populated, which is the Commander track's.
-    /// `ATOM-609.7a-001` is `COVERS-PARTIAL` for exactly these two.
+    /// **Three of the rule's four categories are reachable**, enumerated once
+    /// by `oracle::legality::damage_sources`: a permanent, a spell on the
+    /// stack, and an object referred to by an object on the stack, a waiting
+    /// replacement or prevention effect, or a waiting delayed trigger. "A
+    /// face-up object in the command zone" needs that zone populated, which is
+    /// B2's (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
+    /// `COVERS-PARTIAL` for it.
     DamageSource,
 }
 

@@ -731,9 +731,8 @@ fn clerics_you_control() -> ObjectFilter {
 /// - *A source of damage is a permanent, a spell on the stack (including one
 ///   that creates a permanent), or any object referred to by an object on the
 ///   stack. A source doesn't need to be capable of dealing damage to be a legal
-///   choice.* → `SelectionFilter::DamageSource`, tested in `oracle::legality`.
-///   The "referred to by an object on the stack" category is unreachable and
-///   `ATOM-609.7a-001` is `COVERS-PARTIAL` for it.
+///   choice.* → `SelectionFilter::DamageSource`, tested in `oracle::legality`
+///   and, for the referred-to category, in `phase_tr3c_integration_test`.
 /// - *Can be used even when there is no damage to prevent. It prevents the next
 ///   damage (if any) from the source this turn.* → the row sits unused and
 ///   expires at the cleanup step (CR 615.3).

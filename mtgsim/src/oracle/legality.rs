@@ -610,24 +610,18 @@ mod tests {
 
     // CR 609.7a — "they may choose a permanent; a spell on the stack
     // (including a permanent spell); ... A source doesn't need to be capable
-    // of dealing damage to be a legal choice." Both reachable categories are
-    // offered and neither is filtered by what the object can do: a Plains is
-    // on the list.
+    // of dealing damage to be a legal choice." Both categories are offered
+    // and neither is filtered by what the object can do: a Plains is on the
+    // list. The referred-to category is `phase_tr3c_integration_test`'s.
     //
-    // COVERS-PARTIAL: ATOM-609.7a-001 -- the atom asks for all four of the
-    // rule's categories. Two are unreachable and are RD-3's recorded
-    // decision: "an object referred to by an object on the stack, by a
-    // replacement or prevention effect that's waiting to apply, or by a
-    // delayed triggered ability" has no referred-to relation to read (the
-    // atom's own example is an emblem referring to a card in exile, and
-    // CR 603.7's delayed triggers do not exist yet), and "a face-up object in
-    // the command zone" needs the command zone populated, which is the
-    // Commander track's. The permanent and stack-spell legs are built whole.
+    // COVERS-PARTIAL: ATOM-609.7a-001 -- the permanent and stack-spell legs,
+    // built whole. The referred-to legs are `phase_tr3c_integration_test`'s,
+    // and "a face-up object in the command zone" waits for the command zone
+    // (`codebase-state.md` item 99, B2).
     //
     // COVERS-PARTIAL: BOUNDARY-DEF-609.7a-001 -- in-set (a creature permanent)
-    // and out-of-set (a card in hand referred to by nothing) are both built;
-    // the boundary's middle -- an object in a hidden zone that *is* referred
-    // to -- is the same unreachable category.
+    // and out-of-set (a card in hand referred to by nothing); the boundary's
+    // middle, an object that left and *is* referred to, is TR-3c's test.
     #[test]
     fn a_damage_source_is_a_permanent_or_a_spell_on_the_stack() {
         use crate::engine::resolve::ResolvedTarget;
