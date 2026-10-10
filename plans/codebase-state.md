@@ -71,7 +71,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
-| 111 | Tokens — cease-to-exist; 111.8's "can't move" | ✅ SBA 704.5d; 111.8 since TR-3b | `engine/sba.rs:332+`; `engine/actions.rs` (`is_a_departed_tokens_move`) |
+| 111 | Tokens — cease-to-exist; 111.8's "can't move" | ✅ SBA 704.5d; 111.8 since TR-3b | `engine/sba.rs:332+`; `engine/actions.rs` (`moves_a_token_not_on_the_battlefield`) |
 | 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/put_on_stack.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
 | 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/put_on_stack.rs`, `engine/costs.rs` |
@@ -5237,8 +5237,8 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     CR 603.10's word is "appearance".
 
     **Phase (2026-09-18):** TR-4 — the frame becomes `LastKnownInformation { characteristics, status }`, CR 113.7a's phrase and the tree's `lki`; `triggers-architecture.md` §3.11.
-    **Slotted:** TR-4a, whose `LastKnownInformation { characteristics, status
-    }` carries the counters, attachment and tapped bit the frame lacks.
+    **Slotted:** TR-4a, which widens `Lki` with the counters, attachment and
+    tapped bit the frame lacks (§3.11).
 
 15. **The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).** CR 603.10a names three look-back classes and the
@@ -7784,10 +7784,13 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      CR 603.7h's count key by the identity now, but no registered dies trigger
      carries a limit or reads its resolution count.
 
-     **Sized:** the frame gains the epoch when it becomes
-     `LastKnownInformation` (TR-4), ~5 lines at the two captures.
-     **Slotted:** TR-4a, whose `LastKnownInformation` frame carries the
-     departed object's epoch at its two captures.
+     **Sized:** the frame gains the epoch when it becomes the widened
+     `Lki` (TR-4), ~5 lines at the two captures.
+     **Slotted:** TR-4a, whose `Lki` carries the epoch of the existence
+     that left at its two captures.
+     **Noted at the LKI rename (2026-10-10):** `Lki.object` has carried
+     that epoch since TR-2b, so what is left is the dispatcher reading it
+     instead of the store; TR-4a re-sizes it.
 
 169. **~~The intervening "if" reads CR 109.5's "you" off the source's frame and
      answers false for a source that has left.~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
@@ -7886,8 +7889,7 @@ lists triggering once per list where CR 603.2c allows one per event, fixed in
 the shared loop (`one_ability_triggers_once_per_death_across_a_survivors_two_lists`),
 and the reading below, which the audit makes and the dispatcher does not.
 
-175. **A window's departure frames and newcomers answer records that are not
-     theirs.** The dispatcher asks every frame a window's departures carry,
+175. **A window's LKI and newcomers answer records that are not theirs.** The dispatcher asks every frame a window's departures carry,
      and every live list, about every record in the window. When the records
      come from more than one batch — a rider's, after its replaced event
      performed — a permanent that left in the first batch answers the look-back
@@ -7930,9 +7932,9 @@ and the reading below, which the audit makes and the dispatcher does not.
      window with a look-back source on either side of it.
 
      **Sized:** ~40 lines: each candidate list names the batch it was taken
-     before (a departure's frame, a newcomer's entry), and a look-back arm is
+     before (a record's LKI, a newcomer's entry), and a look-back arm is
      asked of it only for the records that batch performed — the audit's
-     rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
+     rule, `TriggerCandidateFrame::LastKnown { snapshot: Some(k) }`, taken for
      the dispatcher's own candidates. Item 176's record design, before TR-4,
      takes this item as an input (2026-09-24).
 
@@ -8084,7 +8086,7 @@ linked-ability records an entry makes.
      (three), taking a mover's frame, the handoff before a leave, what a
      resolution put into a zone since a mark, and the set a decided
      `PlayerLoses` takes. The rename of "departed frame" to LKI (§4 there) is
-     its own PR just before the design (the owner, 2026-10-10, at #240's
+     its own PR, A6n (#241), just before the design (the owner, 2026-10-10, at #240's
      review), so the design is written in the vocabulary it keeps.
      **Slotted:** A6d, items 176 and 177's own PR, which designs the
      zone-change record's contract before TR-4 widens it.

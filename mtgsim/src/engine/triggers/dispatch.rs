@@ -35,7 +35,7 @@ use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DamageRecipient, DepartedFrame, EventIndex, EventKind, EventKindMask, IdentityRef, Multiplicity, PendingTrigger,
+    DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger,
     Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
@@ -102,17 +102,18 @@ impl LookBackSnapshot {
 /// departure performs: the permanent as it was immediately before the event,
 /// whichever member of the event moves first (item 174).
 #[derive(Debug, Clone)]
-pub struct DepartureFrame {
+pub struct LkiCapture {
     object: ObjectRef,
     /// `None` once the move has taken it.
     frame: Option<Arc<EffectiveCharacteristics>>,
 }
 
-/// The slot an entry keeps a departed object's frame in (CR 113.7a, 608.2h):
-/// a queued, stacked or resolving entry's list, one frame per object it names
-/// that left, or a delayed trigger's one frame of its source.
-enum DepartedFrameSlot<'a> {
-    List(&'a mut Vec<DepartedFrame>),
+/// Where an entry keeps the last known information of an object it names
+/// once that object leaves (CR 113.7a, 608.2h): a queued, stacked or
+/// resolving entry's list, one per object, or a delayed trigger's one frame
+/// of its source.
+enum KeptLkiSlot<'a> {
+    List(&'a mut Vec<Lki>),
     Source(&'a mut Option<Arc<EffectiveCharacteristics>>),
 }
 
@@ -159,13 +160,13 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 }
 
 /// One ability list of one object the matcher asks: a live object's list
-/// now, a departed object's CR 603.10a frame, or a survivor's list from
+/// now, the CR 603.10a frame of an object that left, or a survivor's list from
 /// before a batch. An object with lists from before the event is several
 /// candidates, one per list, side by side.
 pub(super) struct TriggerCandidate<'a> {
     pub(super) id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
-    /// frame's controller for a departed one.
+    /// frame's controller for one that left.
     pub(super) controller: PlayerId,
     pub(super) owner: PlayerId,
     pub(super) zone: Zone,
@@ -235,12 +236,12 @@ pub(super) enum TriggerCandidateFrame<'a> {
     /// A live object's list now, off the layer memo. `snapshots` are the
     /// ones holding its list from before, by index into the window's.
     Live { chars: Arc<EffectiveCharacteristics>, snapshots: Vec<usize> },
-    /// A departed object's list from before it left. `snapshot: None` is the
-    /// CR 603.10a frame its record carries, which answers the look-back arms
-    /// of every record of the window; `Some(k)` is the list snapshot `k`
-    /// holds, which answers those of the records its batch performed (the
-    /// audit's).
-    Departed { chars: &'a EffectiveCharacteristics, snapshot: Option<usize> },
+    /// An object's list from before it left: its last known information
+    /// (CR 113.7a). `snapshot: None` is the CR 603.10a frame its record
+    /// carries, which answers the look-back arms of every record of the
+    /// window; `Some(k)` is the list snapshot `k` holds, which answers those
+    /// of the records its batch performed (the audit's).
+    LastKnown { chars: &'a EffectiveCharacteristics, snapshot: Option<usize> },
     /// A surviving object's list from before a batch, off `LookBackSnapshot`
     /// number `snapshot`.
     Before { chars: &'a EffectiveCharacteristics, snapshot: usize },
@@ -250,17 +251,17 @@ impl TriggerCandidateFrame<'_> {
     fn chars(&self) -> &EffectiveCharacteristics {
         match self {
             TriggerCandidateFrame::Live { chars, .. } => chars,
-            TriggerCandidateFrame::Departed { chars, .. } | TriggerCandidateFrame::Before { chars, .. } => chars,
+            TriggerCandidateFrame::LastKnown { chars, .. } | TriggerCandidateFrame::Before { chars, .. } => chars,
         }
     }
 
-    fn is_departed(&self) -> bool {
-        matches!(self, TriggerCandidateFrame::Departed { .. })
+    fn is_last_known(&self) -> bool {
+        matches!(self, TriggerCandidateFrame::LastKnown { .. })
     }
 
     /// The arms this list answers for a record that looks back through
     /// snapshot `looks_back_through`, or `None` when it answers none. A
-    /// departed object has only its list from before; a survivor's list now
+    /// object that left has only its list from before; a survivor's list now
     /// answers everything unless the record's snapshot holds the one from
     /// before, which then answers the look-back arms in its place.
     fn asks(&self, looks_back_through: Option<usize>) -> Option<Asks> {
@@ -271,13 +272,13 @@ impl TriggerCandidateFrame<'_> {
                 Some(Asks::NotLookBack)
             }
             TriggerCandidateFrame::Live { .. } => Some(Asks::Every),
-            TriggerCandidateFrame::Departed { snapshot: None, .. } => Some(Asks::LookBack),
-            TriggerCandidateFrame::Departed { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
+            TriggerCandidateFrame::LastKnown { snapshot: None, .. } => Some(Asks::LookBack),
+            TriggerCandidateFrame::LastKnown { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
                 if looks_back_through == Some(*k) =>
             {
                 Some(Asks::LookBack)
             }
-            TriggerCandidateFrame::Departed { .. } | TriggerCandidateFrame::Before { .. } => None,
+            TriggerCandidateFrame::LastKnown { .. } | TriggerCandidateFrame::Before { .. } => None,
         }
     }
 }
@@ -585,7 +586,7 @@ impl GameState {
                 instances: m.instances.clone(),
                 binding,
                 is_state_trigger: false,
-                departed: Vec::new(),
+                kept_lki: Vec::new(),
                 x_value: None,
             };
             if m.mana {
@@ -698,8 +699,8 @@ impl GameState {
     /// **And every other mover an entry names, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
     /// subject is, a card a draw trigger named. The move hands the frame to
-    /// each entry naming the mover (`hand_over_departed_frame`).
-    pub(crate) fn capture_departure_frames(&mut self, decided: &[Option<GameAction>]) {
+    /// each entry naming the mover (`hand_over_lki`).
+    pub(crate) fn capture_lki(&mut self, decided: &[Option<GameAction>]) {
         let mut named: Option<Vec<ObjectRef>> = None;
         for action in decided.iter().flatten() {
             match action {
@@ -750,21 +751,21 @@ impl GameState {
     /// entry's source and its trigger's subject, and a waiting delayed
     /// trigger's source. The one list of who names what, so the capture
     /// (`objects_entries_name`) and the hand-over cannot disagree.
-    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], DepartedFrameSlot<'_>)) {
+    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], KeptLkiSlot<'_>)) {
         for pending in &mut self.pending_triggers {
             let named = [Some(pending.origin.source_ref()), pending.binding.subject];
-            each(named, DepartedFrameSlot::List(&mut pending.departed));
+            each(named, KeptLkiSlot::List(&mut pending.kept_lki));
         }
         for entry in self.stack_entries.values_mut() {
             let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
-            each(named, DepartedFrameSlot::List(&mut entry.departed));
+            each(named, KeptLkiSlot::List(&mut entry.kept_lki));
         }
         if let Some(resolving) = &mut self.resolving {
             let named = [resolving.identity.map(|identity| identity.source), resolving.subject];
-            each(named, DepartedFrameSlot::List(&mut resolving.departed));
+            each(named, KeptLkiSlot::List(&mut resolving.kept_lki));
         }
         for delayed in &mut self.delayed_triggers {
-            each([Some(delayed.source), None], DepartedFrameSlot::Source(&mut delayed.source_frame));
+            each([Some(delayed.source), None], KeptLkiSlot::Source(&mut delayed.source_frame));
         }
     }
 
@@ -774,11 +775,11 @@ impl GameState {
     /// nested batch and the event it belongs to is the outer one.
     fn capture_frame(&mut self, id: ObjectId) {
         let Some(object) = self.object_ref(id) else { return };
-        if self.departure_frames.iter().any(|d| d.object == object) {
+        if self.lki_captures.iter().any(|d| d.object == object) {
             return;
         }
         if let Some(frame) = compute_characteristics(self, id) {
-            self.departure_frames.push(DepartureFrame { object, frame: Some(frame) });
+            self.lki_captures.push(LkiCapture { object, frame: Some(frame) });
         }
     }
 
@@ -786,10 +787,10 @@ impl GameState {
     /// each queued, stacked or resolving entry that names it, and each
     /// delayed trigger waiting with it as source, keeps the frame its batch
     /// took. That is `lki`, the record's own, for a permanent, and
-    /// for any other mover the one `capture_departure_frames` took because an
+    /// for any other mover the one `capture_lki` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&DepartedFrame>) {
+    pub(crate) fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
         let frame = match lki {
             Some(lki) => Arc::clone(&lki.frame),
             None => match self.take_named_frame(id) {
@@ -803,26 +804,26 @@ impl GameState {
                 return;
             }
             match slot {
-                DepartedFrameSlot::List(list) => list.push(DepartedFrame { object, frame: Arc::clone(&frame) }),
-                DepartedFrameSlot::Source(source_frame) => *source_frame = Some(Arc::clone(&frame)),
+                KeptLkiSlot::List(list) => list.push(Lki { object, frame: Arc::clone(&frame) }),
+                KeptLkiSlot::Source(source_frame) => *source_frame = Some(Arc::clone(&frame)),
             }
         });
     }
 
     /// The frame a named mover's batch took for it, if any: the non-battlefield
-    /// counterpart of `take_departure_frame`, which asserts every battlefield
+    /// counterpart of `take_captured_lki`, which asserts every battlefield
     /// departure had one.
     fn take_named_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
         let object = self.object_ref(id)?;
-        self.departure_frames.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
+        self.lki_captures.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
     }
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<DepartedFrame> {
+    pub(crate) fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
         let object = self.object_ref(id)?;
         let taken = self
-            .departure_frames
+            .lki_captures
             .iter_mut()
             .find(|d| d.object == object)
             .and_then(|d| d.frame.take());
@@ -830,7 +831,7 @@ impl GameState {
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
         taken
             .or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
-            .map(|frame| DepartedFrame { object, frame })
+            .map(|frame| Lki { object, frame })
     }
 
     /// The objects the dispatch at the window's close could ask a look-back
@@ -866,8 +867,8 @@ impl GameState {
     }
 
     /// The objects a dispatch asks with their ability lists as they are now,
-    /// as against the lists from before an event (a departed object's CR
-    /// 603.10a frame, a survivor's `LookBackSnapshot`), in CR 613.7 order.
+    /// as against the lists from before an event (the CR 603.10a frame of an
+    /// object that left, a survivor's `LookBackSnapshot`), in CR 613.7 order.
     ///
     /// Every zone, by three routes: on the battlefield, `readers` (printed
     /// triggers) and the `named` objects there, or every permanent while a
@@ -955,8 +956,8 @@ impl GameState {
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
 
-        // Leg 2: the frames the window carries (CR 603.10a) — each departed
-        // object's list as it was, asked look-back conditions only.
+        // Leg 2: the frames the window carries (CR 603.10a) — the list each
+        // object that left had, asked look-back conditions only.
         let frames: Vec<(ObjectId, PlayerId, Zone, &EffectiveCharacteristics)> = records
             .iter()
             .filter_map(|(_, r)| match &r.event {
@@ -995,7 +996,7 @@ impl GameState {
             }
         }
         for (id, owner, from, frame) in frames {
-            // A departed object's card: still in the store for a zone change,
+            // The card of an object that left: in the store for a zone change,
             // gone for a `LeftTheGame` — then the frame's own list is all
             // there is, and the stack object is built from a card that names
             // what the frame does.
@@ -1009,7 +1010,7 @@ impl GameState {
                 owner,
                 zone: from,
                 host: None,
-                frame: TriggerCandidateFrame::Departed { chars: frame, snapshot: None },
+                frame: TriggerCandidateFrame::LastKnown { chars: frame, snapshot: None },
                 card,
             });
         }
@@ -1165,7 +1166,7 @@ impl GameState {
         }
         // CR 603.2f, per candidate, of the object as the event left it. A frame
         // candidate was a permanent, which is visible.
-        if !candidate.frame.is_departed() && !visible_to_all(self, candidate.id) {
+        if !candidate.frame.is_last_known() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
         let referents = TriggerReferents {
@@ -1262,7 +1263,7 @@ impl GameState {
                     && to.is_none_or(|z| z == *rt)
                     && cause.is_none_or(|c| c == *rc)
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
             // triggers on it and nothing narrower — no `to`, no cause.
@@ -1274,7 +1275,7 @@ impl GameState {
                     && to.is_none()
                     && cause.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
@@ -1294,7 +1295,7 @@ impl GameState {
             ),
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, source_frame, target, is_combat, .. },
+                GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
             ) => {
                 let to = match (recipient, target) {
                     (DamageRecipient::Any, _) => true,
@@ -1316,7 +1317,7 @@ impl GameState {
                 };
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
-                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_ref().map(DepartedFrame::chars)),
+                        && self.subject_matches(source, Some(*source_id), referents, seq, source_lki.as_ref().map(Lki::chars)),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
@@ -1555,7 +1556,7 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// The CR 603.10a frame a record carries, if it carries one.
 fn frame_of(event: &GameEvent) -> Option<&EffectiveCharacteristics> {
     match event {
-        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(DepartedFrame::chars),
+        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(Lki::chars),
         _ => None,
     }
 }

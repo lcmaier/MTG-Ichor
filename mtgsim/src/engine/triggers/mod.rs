@@ -39,4 +39,4 @@ pub mod history;
 pub mod placement;
 
 pub use audit::DispatchAudit;
-pub use dispatch::{is_mana_ability, visible_to_all, DepartureFrame, LookBackSnapshot, DISPATCH_NESTING_LIMIT};
+pub use dispatch::{is_mana_ability, visible_to_all, LkiCapture, LookBackSnapshot, DISPATCH_NESTING_LIMIT};

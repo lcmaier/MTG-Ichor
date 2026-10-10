@@ -976,15 +976,15 @@ impl RememberedObject {
 /// source deals after it left (item 225). An entry that names an object — its
 /// source, or its trigger's subject — keeps one when the object leaves the
 /// zone the entry expected it in (`triggers-architecture.md` §6.1), since the
-/// departure is a later event than the one that triggered. TR-4a makes the
-/// frame a `LastKnownInformation`.
+/// departure is a later event than the one that triggered. TR-4a widens it
+/// with the facts a frame does not carry (`triggers-architecture.md` §3.11).
 #[derive(Debug, Clone, PartialEq)]
-pub struct DepartedFrame {
+pub struct Lki {
     pub object: ObjectRef,
     pub frame: Arc<EffectiveCharacteristics>,
 }
 
-impl DepartedFrame {
+impl Lki {
     /// The characteristics it last had.
     pub fn chars(&self) -> &EffectiveCharacteristics {
         &self.frame
@@ -1011,8 +1011,9 @@ pub struct PendingTrigger {
     pub binding: TriggerBinding,
     /// CR 603.8's one-shot state trigger; armed by TR-6.
     pub is_state_trigger: bool,
-    /// The frames of the objects it names that have left since it triggered.
-    pub departed: Vec<DepartedFrame>,
+    /// The last known information of the objects it names that have left
+    /// since it triggered.
+    pub kept_lki: Vec<Lki>,
     /// CR 107.3n — a delayed trigger's X, its creating spell's or ability's,
     /// which its stack object carries; `None` for an object's trigger.
     pub x_value: Option<u64>,
@@ -1062,7 +1063,7 @@ mod tests {
                 target: DamageTarget::Player(0),
                 amount: 1,
                 is_combat: false,
-                source_frame: None,
+                source_lki: None,
             }),
             ("PhaseBegin", GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 }),
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),

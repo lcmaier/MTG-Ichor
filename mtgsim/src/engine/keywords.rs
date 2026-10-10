@@ -9,18 +9,18 @@ use crate::oracle::characteristics::damage_source_characteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::DepartedFrame;
+use crate::types::triggers::Lki;
 
 /// Whether `source` deals damage with `keyword`: as it last existed when
-/// the damage carries its `frame` (CR 702.15c, 702.2e), and as it is
+/// the damage carries its `source_lki` (CR 702.15c, 702.2e), and as it is
 /// otherwise.
 fn deals_damage_with(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    lki: Option<&Lki>,
     keyword: KeywordFlag,
 ) -> bool {
-    damage_source_characteristics(game, source, frame).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
+    damage_source_characteristics(game, source, lki).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
 }
 
 /// Apply the deathtouch flag to a damage target if the source has deathtouch.
@@ -35,11 +35,11 @@ fn deals_damage_with(
 pub fn apply_deathtouch_flag(
     game: &mut GameState,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    lki: Option<&Lki>,
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: the read borrows objects)
-    if !deals_damage_with(game, source, frame, KeywordFlag::Deathtouch) {
+    if !deals_damage_with(game, source, lki, KeywordFlag::Deathtouch) {
         return;
     }
     if let DamageTarget::Object(id) = target
@@ -69,14 +69,14 @@ pub fn add_lifelink_gain(
     game: &GameState,
     gains: &mut Vec<LifelinkGain>,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    lki: Option<&Lki>,
     amount: u64,
 ) {
-    if !deals_damage_with(game, source, frame, KeywordFlag::Lifelink) {
+    if !deals_damage_with(game, source, lki, KeywordFlag::Lifelink) {
         return;
     }
-    let controller = match frame {
-        Some(frame) => Some(frame.chars().controller),
+    let controller = match lki {
+        Some(lki) => Some(lki.chars().controller),
         None => crate::oracle::characteristics::get_effective_controller(game, source),
     };
     let Some(player) = controller.or_else(|| game.objects.get(&source).map(|obj| obj.owner)) else {
@@ -159,7 +159,7 @@ mod tests {
                 amount,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         )
@@ -227,7 +227,7 @@ mod tests {
                 amount: 2,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             &test_ctx(),
         ).unwrap();

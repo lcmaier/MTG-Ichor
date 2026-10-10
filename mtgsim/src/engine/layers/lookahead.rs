@@ -227,7 +227,7 @@ mod tests {
             identity: None,
             subject: None,
             subject_lki: None,
-            departed: Vec::new(),
+            kept_lki: Vec::new(),
         });
 
         let predicted = Lookahead::new(&game, card, 0, &mods).entity;

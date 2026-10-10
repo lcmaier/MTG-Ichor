@@ -167,7 +167,7 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
             amount,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -673,7 +673,7 @@ fn ali_helps_on_the_earthquake_that_kills_him() {
                 amount: 10,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             GameAction::DealDamage {
                 source,
@@ -681,7 +681,7 @@ fn ali_helps_on_the_earthquake_that_kills_him() {
                 amount: 10,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
         ],
         &test_ctx(),

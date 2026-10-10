@@ -741,20 +741,20 @@ pub(crate) fn pattern_watches(
         // chosen one by the existence that deals the damage (CR 609.7a).
         (
             EventPattern::DealDamage { source, combat },
-            GameAction::DealDamage { source: dealt_by, source_frame, is_combat, .. },
+            GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
             combat.map(|c| c == *is_combat).unwrap_or(true)
                 && source
                     .as_ref()
                     .map(|p| {
                         p.object.is_none_or(|chosen| {
-                            Some(chosen) == damage_source_existence(game, *dealt_by, source_frame.as_ref())
+                            Some(chosen) == damage_source_existence(game, *dealt_by, source_lki.as_ref())
                         })
                             && p.filter
                                 .as_ref()
                                 .map(|f| {
-                                    matched(match source_frame {
-                                        Some(departed) => game.object_matches_filter_in_frame(*dealt_by, f, you, departed.chars()),
+                                    matched(match source_lki {
+                                        Some(lki) => game.object_matches_filter_in_frame(*dealt_by, f, you, lki.chars()),
                                         None => game.object_matches_filter(*dealt_by, f, you),
                                     })
                                 })

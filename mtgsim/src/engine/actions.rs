@@ -10,7 +10,7 @@ use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
-use crate::types::triggers::DepartedFrame;
+use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_scry;
 use crate::ui::decision::DecisionProvider;
@@ -127,7 +127,7 @@ pub enum GameAction {
         /// matched against (CR 609.7a). `None` while it is there, and its
         /// current characteristics answer. A rewrite of "the same damage"
         /// keeps it.
-        source_frame: Option<DepartedFrame>,
+        source_lki: Option<Lki>,
     },
 
     /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",
@@ -836,7 +836,7 @@ impl GameState {
         // current zone instead" of moving again. A rule, so no event: nothing
         // is proposed, and no replacement sees it.
         let mut batch = batch;
-        batch.retain(|action| !self.is_a_departed_tokens_move(action));
+        batch.retain(|action| !self.moves_a_token_not_on_the_battlefield(action));
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -954,8 +954,8 @@ impl GameState {
             .filter(|frames| !frames.is_empty());
         // The departing members' own frames, for the same reason: taken as each
         // moved, a later one would see an earlier one gone (item 174).
-        let frames_from = self.departure_frames.len();
-        self.capture_departure_frames(&decided);
+        let frames_from = self.lki_captures.len();
+        self.capture_lki(&decided);
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();
@@ -986,8 +986,8 @@ impl GameState {
                 performed_ok = Err(e);
                 break;
             }
-            if let GameAction::DealDamage { source, source_frame, amount, .. } = &action {
-                add_lifelink_gain(self, &mut lifelink_gains, *source, source_frame.as_ref(), *amount);
+            if let GameAction::DealDamage { source, source_lki, amount, .. } = &action {
+                add_lifelink_gain(self, &mut lifelink_gains, *source, source_lki.as_ref(), *amount);
             }
             performed.push(action);
         }
@@ -1002,7 +1002,7 @@ impl GameState {
                 }
             }
         }
-        self.departure_frames.truncate(frames_from);
+        self.lki_captures.truncate(frames_from);
         performed_ok?;
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
@@ -1164,7 +1164,7 @@ impl GameState {
             // CR 615.12 is a fact about which *effects* may prevent this
             // damage, and by the time the event is performed every effect has
             // had its say.
-            GameAction::DealDamage { source, source_frame, target, amount, is_combat, unpreventable: _ } => {
+            GameAction::DealDamage { source, source_lki, target, amount, is_combat, unpreventable: _ } => {
                 // No 0-amount guard: CR 614.7a's 0 damage is `never_happens`'s, ahead of
                 // the pipeline. **CR 120.3's results, each off the target's own type**,
                 // so a creature planeswalker gets 120.3c *and* 120.3e; 120.3b/d/g are
@@ -1192,7 +1192,7 @@ impl GameState {
                         .damage_marked += amount as u32;
                 }
 
-                apply_deathtouch_flag(self, source, source_frame.as_ref(), &target);
+                apply_deathtouch_flag(self, source, source_lki.as_ref(), &target);
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -1213,7 +1213,7 @@ impl GameState {
 
                 self.emit_event(GameEvent::DamageDealt {
                     source_id: source,
-                    source_frame,
+                    source_lki,
                     target,
                     amount,
                     is_combat,
@@ -1716,15 +1716,15 @@ impl GameState {
         }
 
         // CR 603.10a — the frame the batch took before any member moved
-        // (`take_departure_frame`). A permanent, not merely an object in the
+        // (`take_captured_lki`). A permanent, not merely an object in the
         // zone: a token whose entry is being decided has no entity and nothing
         // to look back at (`create_tokens`).
         let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            self.take_departure_frame(object)
+            self.take_captured_lki(object)
         } else {
             None
         };
-        self.hand_over_departed_frame(object, lki.as_ref());
+        self.hand_over_lki(object, lki.as_ref());
         self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
@@ -1742,7 +1742,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         cause: ZoneChangeCause,
-        lki: Option<DepartedFrame>,
+        lki: Option<Lki>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
@@ -1794,7 +1794,7 @@ impl GameState {
     /// (`CreateTokenIn`). 111.8 names only the first; the second is held
     /// too, since it ceases to exist at the next state-based check either
     /// way (111.7).
-    fn is_a_departed_tokens_move(&self, action: &GameAction) -> bool {
+    fn moves_a_token_not_on_the_battlefield(&self, action: &GameAction) -> bool {
         match action {
             GameAction::ZoneChange { object, .. } | GameAction::EnterBattlefield { object, .. } => {
                 self.objects.get(object).is_some_and(|o| o.is_token && o.zone != Zone::Battlefield)
@@ -2008,7 +2008,7 @@ mod tests {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
@@ -2026,7 +2026,7 @@ mod tests {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
@@ -2044,7 +2044,7 @@ mod tests {
             amount: 0,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 20);
@@ -2122,7 +2122,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         // Player 1 took 2 damage: 20 - 2 = 18
@@ -2141,7 +2141,7 @@ mod tests {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 17);
@@ -2158,7 +2158,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 18);
@@ -2180,7 +2180,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (the
@@ -2241,7 +2241,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: creature_b,
@@ -2249,7 +2249,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         // P1 took 4 total damage
@@ -2302,7 +2302,7 @@ mod tests {
             amount: 4,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
@@ -2320,7 +2320,7 @@ mod tests {
                 amount: 7,
                 is_combat: true,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             }, &test_ctx()).unwrap();
         }
 
@@ -2339,7 +2339,7 @@ mod tests {
             amount: 4,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
@@ -2357,7 +2357,7 @@ mod tests {
             amount: 2,
             is_combat: true,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert!(!game.players[1].commander_damage_taken.contains_key(&bears_id));
@@ -2386,11 +2386,11 @@ mod tests {
 
         game.execute_action(GameAction::DealDamage {
             source: cmdr_a, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
         game.execute_action(GameAction::DealDamage {
             source: cmdr_b, target: DamageTarget::Player(1), amount: 3, is_combat: true, unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].commander_damage_taken.get(&cmdr_a).copied(), Some(3));

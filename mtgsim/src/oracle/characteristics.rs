@@ -30,7 +30,7 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
 pub fn damage_source_existence(
     game: &GameState,
     source: ObjectId,
-    lki: Option<&crate::types::triggers::DepartedFrame>,
+    lki: Option<&crate::types::triggers::Lki>,
 ) -> Option<crate::types::ids::ObjectRef> {
     match lki {
         Some(lki) => Some(lki.object),
@@ -38,17 +38,17 @@ pub fn damage_source_existence(
     }
 }
 
-/// The characteristics `source` deals damage with: `frame`, its last known
+/// The characteristics `source` deals damage with: `lki`, its last known
 /// information, when the damage carries one because an effect has it deal
 /// damage after it left (CR 608.2h, 702.15c, 702.2e), and the object as it
 /// is otherwise.
 pub fn damage_source_characteristics(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&crate::types::triggers::DepartedFrame>,
+    lki: Option<&crate::types::triggers::Lki>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
-    match frame {
-        Some(departed) => Some(Arc::clone(&departed.frame)),
+    match lki {
+        Some(lki) => Some(Arc::clone(&lki.frame)),
         None => compute_characteristics(game, source),
     }
 }

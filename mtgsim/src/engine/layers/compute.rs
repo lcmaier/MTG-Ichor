@@ -288,7 +288,7 @@ fn audit_left_out(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
 /// whole pass, of which one frame is kept.
 ///
 /// The CR 603.10a capture's fallback, for a departure no batch framed before
-/// performing (`take_departure_frame`), which a debug build refuses.
+/// performing (`take_captured_lki`), which a debug build refuses.
 pub(crate) fn compute_characteristics_uncached(
     game: &GameState,
     id: ObjectId,

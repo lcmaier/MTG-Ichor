@@ -45,7 +45,7 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
             amount,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -67,7 +67,7 @@ fn bolt_player_with(
             amount,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &ctx,
     )
@@ -143,7 +143,7 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
             amount: 1,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -233,7 +233,7 @@ fn three_damage_to_a_five_loyalty_planeswalker_leaves_two() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -259,7 +259,7 @@ fn lethal_damage_to_a_planeswalker_reaches_cr_704_5i() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -298,7 +298,7 @@ fn damage_to_a_creature_planeswalker_both_marks_and_removes_loyalty() {
             amount: 2,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -331,7 +331,7 @@ fn damage_to_a_noncreature_nonplaneswalker_marks_nothing() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )
@@ -520,7 +520,7 @@ fn giselas_two_halves_never_apply_to_one_damage_proposal() {
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
             GameAction::DealDamage {
                 source,
@@ -528,7 +528,7 @@ fn giselas_two_halves_never_apply_to_one_damage_proposal() {
                 amount: 3,
                 is_combat: false,
                 unpreventable: false,
-                source_frame: None,
+                source_lki: None,
             },
         ],
         &ctx,
@@ -722,7 +722,7 @@ fn angel_of_suffering_does_not_protect_its_controllers_permanents() {
             amount: 3,
             is_combat: false,
             unpreventable: false,
-            source_frame: None,
+            source_lki: None,
         },
         &test_ctx(),
     )

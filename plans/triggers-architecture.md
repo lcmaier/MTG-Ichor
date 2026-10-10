@@ -408,8 +408,8 @@ records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
 (one creature's records for Simic Ascendancy's "that many", §4.4); and
 `AmountExpr::TriggeringPower` reads the live object when it is where the
 event left it and its last known information otherwise (CR 608.2h) — the
-record's `lki` frame when the event was the departure, the entry's
-`departed` frame when the object left afterwards (§6.1). All
+record's `lki` when the event was the departure, the entry's
+`kept_lki` when the object left afterwards (§6.1). All
 three leaves ship in TR-1 because the type that carries them opens there.
 
 **Why no stored amount.** A single `Option<u64>` on the binding would mean
@@ -628,7 +628,7 @@ pub enum TriggerOrigin {
 **As built (TR-3a, 2026-10-07): `Delayed(AbilityIdentity)`, not
 `Delayed(DelayedTriggerId)`.** Every reader of an origin wants its source and
 its identity: placement builds the stack entry's `ability_identity`, CR
-603.7h's count keys on it, and the departed frames name the source. A `Once`
+603.7h's count keys on it, and an entry's kept LKI names the source. A `Once`
 entry leaves the registry as it queues, so an id alone would name nothing by
 placement. The identity is the entry's source (CR 603.7d–g) and
 `AbilityId::delayed` of its registry number, a derivation in the role
@@ -645,7 +645,7 @@ it. A reflexive trigger is a delayed entry checked as it is made and never
 left waiting (§4.6), so its number names nothing in the registry once it is
 made, as a `Once` entry's names nothing once it has triggered. A second arm
 would be a second spelling of one origin, and placement, CR 603.7h's count
-and the departed frames would each have to learn it.
+and the kept LKI would each have to learn it.
 
 ### 3.9 The delayed-trigger registry (CR 603.7)
 
@@ -734,11 +734,11 @@ departures from the sketch, each forced by a board:
   delayed trigger's source. "When this creature leaves the battlefield"
   matches that record and no later object's.
 - **`source_frame`**, added at the review: CR 113.7a's last known
-  information, the frame the source left with. `hand_over_departed_frame`,
-  the one writer of departed frames, gives it to the entry as it gives it to
+  information, the frame the source left with. `hand_over_lki`,
+  the one writer of kept LKI, gives it to the entry as it gives it to
   every entry naming the mover, and `objects_entries_name` names the
   registry's sources, so a spell is framed as it leaves the stack. The
-  trigger carries it to the stack as a departed frame; its first reader is
+  trigger carries it to the stack in its `kept_lki`; its first reader is
   item 223's attribution (Dragonhawk's damage, lifelink read off the frame).
 - **`created_at` and `created_in` replace `created`**: CR 603.7a is the
   filter, and its batch half was found by a test. A rider runs inside the
@@ -909,7 +909,7 @@ so the count is known there, and it has to travel with the trigger. The
 smallest form is `SpellCast` carrying the turn's ordinal. It is authored with
 the first storm card, like any other field in the summary.
 
-### 3.11 `LastKnownInformation` — the LKI frame, widened (items 14, 15)
+### 3.11 `Lki` — the last known information, widened (items 14, 15)
 
 CR 603.10 says "the appearance of objects immediately prior to the
 event"; CR 113.7a and 608.2h call the same fact "last known information",
@@ -917,11 +917,14 @@ and the tree has called the field `lki` since RA — so the type takes the
 rules' name for the fact rather than for the look. Persist, undying, an
 Aura's 603.6e trigger and the four "becomes unattached" Equipment each
 read a **status**, which `EffectiveCharacteristics` deliberately does not
-carry (it is the layer walk's output). So the frame is a pair:
+carry (it is the layer walk's output). So the type carries both:
 
 ```rust
-pub struct LastKnownInformation {
-    pub characteristics: EffectiveCharacteristics,
+pub struct Lki {
+    /// The existence that left (CR 400.7) and its characteristics as it
+    /// last existed: the two fields TR-2b built.
+    pub object: ObjectRef,
+    pub frame: Arc<EffectiveCharacteristics>,
     /// `None` for an object that was not a permanent. CR 110.5's four
     /// statuses plus the two facts the four printed families read.
     pub status: Option<Status>,
@@ -958,19 +961,29 @@ pub struct Status {
 }
 ```
 
+**Amended 2026-10-10 (the LKI rename, A6n, #241): one type, not two.** This
+section planned `LastKnownInformation` as the frame inside TR-2b's pair,
+`DepartedFrame { object, frame }`. The rename called the pair `Lki`, the
+tree's spelling of the fact (`lki`, `lki_of`, `source_lki`), and a second
+type spelled the same way would be two names for one concept
+(`engineering-practices.md` §2b). So TR-4a widens `Lki` itself: the fields
+above sit beside `object` and `frame`, and whether they share the frame's
+`Arc` is TR-4a's to decide. Its sizing (§12's TR-4 row) was counted against
+a separate type, so TR-4a re-counts it.
+
 **Amended 2026-10-09 (A6k's review, item 235): the owner** (CR 108.3; CR
 111.2 for a token). A delayed trigger or an "until" return stores its
 source's owner as it is made, since "its owner" is fixed. A source already
 gone from the store by then has only its last known information left to say
 who owned it: a token that ceased to exist before its ability resolved (CR
 704.5d), or an object whose owner has left the game (CR 800.4a). Until this
-type carries an `owner` and the resolving entry's departed frame is read for
+type carries an `owner` and the resolving entry's kept LKI is read for
 it, `owner_now_or` falls back to the entry's controller, right for a token
 nobody stole and wrong once its owner has left.
 
-`ZoneChange.lki`, `LeftTheGame.lki` and the new `ControlChanged.lki` carry
-`Option<Box<LastKnownInformation>>` in place of `Option<Box<EffectiveCharacteristics>>`
-— three field sites, seven literal sites — and the capture in
+`ZoneChange.lki` and `LeftTheGame.lki` carry an `Lki` since TR-2b, and the
+new `ControlChanged.lki` will too, so widening the type reaches every
+record; the capture in
 `perform_zone_change` and `owned_objects_leave` copies the status off
 `PermanentState` beside the uncached walk it already makes (~15 lines, item
 14's size). **The capture condition widens to CR 603.10a's three classes**
@@ -986,7 +999,7 @@ such reader, `bound_characteristics`, over today's frame. It answers from the
 record's frame when the matched event was the subject's departure, and from
 the live object otherwise. It answers nothing when neither holds, for example
 an enters trigger whose creature was sacrificed in response; TR-2b's
-`departed` frames answer that case (§6.1). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
+kept LKI answers that case (§6.1). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
 today (`sba.rs:327`, `:425`, both `?` ahead of a subtype read) and not
 frames; the item closes on the reader existing, not on those lines.
 
@@ -1000,7 +1013,7 @@ Each of the survey's nine gaps, absorbed or declined:
 | **11** — `AttackersDeclared` carries no defender | absorbed: `attackers: Vec<(ObjectId, AttackTarget)>` at the one emit site; `BlockersDeclared` becomes **one record per declaration step** carrying every defending player's pairs, because 509.3g's "attacks and isn't blocked" is a fact about the whole declaration and several defenders declare in turn | TR-5 |
 | **12** — no event announces a target being chosen | absorbed: `GameEvent::Targeted { target: TargetRef, by: ObjectId, ability_source: Option<ObjectId>, controller: PlayerId, instances: u32 }`, one record per (spell or ability, distinct target), emitted where CR 601.2c's announcement is final — `cast_spell` (ahead of `SpellCast`, both at 601.2i), `activate_ability` once its costs are paid (ahead of `AbilityActivated`, which moved there: 602.2b runs 601.2i), and placement's 603.3d. `ability_source` names an ability durably, since `by` is the object CR 608.2n removes; the source's id and not the whole identity, which would grow `GameEvent` from 64 bytes to 88 | the record #231, for the dev GUI's log; the arm TR-5 |
 | **13** — no event announces a control change | absorbed as **a sweep, not a write hook**: control is a computed value and "gains control" is a "becomes" on the walk's output, so the dispatcher's state check (§4.5) compares every permanent's effective controller against `PermanentState.announced_controller` — a materialized field with one meaning, the controller the stream last announced — gated on `RegistryScopeSummary.any_control_changing`, and emits `ControlChanged { object, from, to, lki }` per change. Every route lands there: the registry write, its expiry at cleanup, a stripped granting ability, a conditional row flipping | TR-4 |
-| **14** — the frame carries no status | absorbed: `LastKnownInformation` (§3.11) | TR-4 |
+| **14** — the frame carries no status | absorbed: `Lki`, widened (§3.11) | TR-4 |
 | **15** — the frame is captured for battlefield departures only | absorbed: the three classes (§3.11) | TR-4 |
 | **16** — no event for a prevention applying | absorbed: `GameEvent::DamagePrevented { source, target, amount, by: ReplacementInstanceId }`, emitted by `apply_rewrite`'s prevention leg once per prevention instance per subject group (CR 615.13's "each time a prevention effect is applied to one or more simultaneous damage events"); inside the batch, ahead of the `DamageDealt` it reduced. Not a performer emitting — the application is the event | TR-5 |
 | **17** — entry counters announce nothing | absorbed, the survey's question 4 decided: the `EnterBattlefield` performer announces one `CountersChanged` per `EntryCounters` row after `PermanentEnteredBattlefield`, inside the batch, with a new `by: Option<PlayerId>` on the record (CR 122.6a's putter, which the proposal has and the record dropped). Announced, never proposed, so CR 614.16's doublers see nothing twice; CR 122.7's "before" reads the live count minus `added`, which for an entry is zero | TR-5 |
@@ -1270,7 +1283,7 @@ an artifact March of the Machines animated, framed after March left, was no
 creature. So the batch frames every permanent its decided members take off
 the battlefield before any of them performs — every permanent when a player
 leaves, since CR 800.4a's fourth clause decides its exiles only after its
-first two — and the move reads that frame (`capture_departure_frames`). A
+first two — and the move reads that frame (`capture_lki`). A
 destruction's move is a nested batch, and the permanent keeps the frame the
 outer batch took: the event it is part of. Both halves are fixtures, each in
 both batch orders.
@@ -1587,7 +1600,7 @@ pooled card reaches — a conditional grant whose condition reads a departing
 permanent, a row that arrives beside a look-back event — fire the day a pooled
 card reaches them, which is the point. So does the one reading the audit makes
 and the dispatcher does not: each record reads the objects as they were before
-its own batch performed, where the dispatcher asks every departure frame and
+its own batch performed, where the dispatcher asks every record's LKI and
 every live list of the window about every record in it (main item 175).
 
 **The CR 305.7 route fired on 2026-09-24**, in a four-seat stress game dealt
@@ -1798,13 +1811,13 @@ source stolen since, or in its owner's graveyard, still reads its
 controller's facts. A static ability passes `None`, and its "you" is its
 source's current controller.
 
-**The `departed` frame (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
+**The kept LKI (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
 its records at dispatch, so a departure after the dispatch is in no record the
-entry holds. `DepartedFrame { object, frame }` sits in a `departed` list on
+entry holds. `Lki { object, frame }` sits in a `kept_lki` list on
 `PendingTrigger`, `StackEntry` and `ResolvingObject`. Placement moves the list
 onto the stack entry, resolution moves it onto `resolving`, and an effect that
 moves its own source adds one there.
-- **One capture.** Before a batch performs, `capture_departure_frames` frames
+- **One capture.** Before a batch performs, `capture_lki` frames
   every permanent its decided members take off the battlefield (item 174). It
   also frames every other mover that a pending, stacked or resolving entry
   names, from any zone: the entry's source, or `binding.subject`. On a
@@ -1812,20 +1825,20 @@ moves its own source adds one there.
   gathered only for a batch that moves something other than a permanent, and
   on the common board they are empty or short.
 - **One writer.** The two performers that move an object out of a zone,
-  `perform_zone_change` and `owned_objects_leave`, call `hand_over_departed_frame`
+  `perform_zone_change` and `owned_objects_leave`, call `hand_over_lki`
   before the move. It gives each entry naming the mover the frame its batch
   took, which for a permanent is the record's own `Arc`.
 - **The reader.** `bound_characteristics` reads the record's frame when the
   event was the departure, the live object while its epoch holds, and the
-  resolving entry's `departed` frame after that. A miss there is a missed
+  resolving entry's `kept_lki` after that. A miss there is a missed
   capture, and the refusal says so.
 - **Rejected:** a `GameState` map keyed by `ObjectRef`, since every exit from
   the stack would have to prune it and a missed prune is the leak the
   bounded-state PR removed. Also rejected: writing at the window's close,
   since only a battlefield departure's record carries a frame.
 
-**What waits.** The frame is `EffectiveCharacteristics` until TR-4a's
-`LastKnownInformation` (§3.11). Its `cost_choices` answer "if it was kicked"
+**What waits.** An `Lki` carries only the existence and its frame until
+TR-4a widens it (§3.11). Its `cost_choices` answer "if it was kicked"
 after the permanent leaves, and its `entry` keeps a stack object's targets,
 modes and X for CV-4's copy. A condition about the bound facts, such as
 persist's "if it had no -1/-1 counters on it", reads the record's frame at
@@ -1952,9 +1965,9 @@ object and the recipient resolves to nothing — the atom "put a +1/+1 counter
 on it" after a bounce (ATOM-603.6-001) and CR 603.6c's "checks for it only
 in the first zone that it went to" (-001/-002), which is the same
 comparison read the other way. `AmountExpr::TriggeringPower` and its
-siblings read `LastKnownInformation` (§3.11): live if the object is where the event
+siblings read an `Lki` (§3.11): live if the object is where the event
 left it, the frame otherwise — the record's when the event was the
-departure, the entry's `departed` frame when the object left afterwards
+departure, the entry's `kept_lki` when the object left afterwards
 (§6.1). Nothing the effect reads is copied at
 dispatch that the record does not already hold — the binding is indices
 and one `Arc`.
@@ -2051,10 +2064,10 @@ field with one writer:
 | resolutions per ability per turn (603.7h) | `GameState.resolutions_this_turn`, keyed by the ability (§6.5) | the history's writer, off `AbilityResolved` | `Condition::ResolvedThisTurn(n)` |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
 | who cast this permanent, from which zone, and with what mana (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent }>`, `None` for a copy of a spell (CR 707.10) | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { was_cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
-| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by `LastKnownInformation` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
+| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by its `Lki` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionWalk.last_cost_answer`, beside the target cursor (§6.2) | the atom that takes the action (`Does`), a declined "may" (`Doesnt`), a sacrifice that could not start (`Cant`) | `Condition::CostAnswer` in the clause after it, and CR 603.2h's gate (§6.2, §6.4) |
-| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `departed` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_over_departed_frame`, with the frame `capture_departure_frames` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
+| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `kept_lki` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_over_lki`, with the frame `capture_lki` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
 | the trigger's event, subject, amount, frame | `TriggerBinding` (the matched records, copied whole; the matched event; the subject's epoch) | the dispatcher | the resolution, through the arm's projections |
@@ -2085,7 +2098,7 @@ read at dispatch and never later, since the outermost dispatch flushes it
 | `engine/turns.rs::begin_step` / `begin_phase` | propose with `player` | the record carries it (item 10) | TR-1 |
 | `actions.rs`' `DealDamage`, `LoseLife` performers | drop `is_combat`, `cause` | carry them (item 10) | TR-1 |
 | `mana.rs::activate_mana_ability` → `resolve_mana_effect` | activated mana abilities | the same path for a triggered one, entered from dispatch | TR-1 |
-| `engine/zones.rs::perform_zone_change`, `leaving.rs::owned_objects_leave` | capture `EffectiveCharacteristics` for a battlefield departure | capture `LastKnownInformation`; widen the condition to the three classes, the third for a visible object only | TR-4 |
+| `engine/zones.rs::perform_zone_change`, `leaving.rs::owned_objects_leave` | capture `EffectiveCharacteristics` for a battlefield departure | capture the widened `Lki`; widen the condition to the three classes, the third for a visible object only | TR-4 |
 | `engine/combat/steps.rs` (`:86`, `:177`) | attackers, per-defender blockers | defenders on the record; one blockers record | TR-5 |
 | `replacement/pipeline.rs::apply_rewrite` | prevention leg | announce `DamagePrevented` | TR-5 |
 | `actions.rs` `EnterBattlefield` performer | announces the entry | one `CountersChanged` per entry row after it | TR-5 |
@@ -2143,7 +2156,7 @@ component's**: when a merged permanent leaves the battlefield "one
 permanent leaves" and each component is put into its zone (CR 729.3), and
 an effect that can find the new object "finds all of those objects"
 (729.3c) — so a `TriggerBinding.subject` for "return it to the battlefield"
-names *N* new objects, and `LastKnownInformation`, one frame, the permanent's, must
+names *N* new objects, and an `Lki`, one frame, the permanent's, must
 let CV-7 say which component's card each lookup means. That is CV-7's to
 design; this document names it and keys nothing on it.
 
@@ -2169,7 +2182,7 @@ it. The window's kinds are OR-ed once; the sources whose masks intersect them
 are selected, and only those are ordered (review round 1 — the first cut
 ordered the whole battlefield and then probed each permanent's mask); a
 window whose kinds no source reads returns at the gate. It narrows the battlefield leg and nothing
-else — the granted and copied legs and the departure frames read a list no
+else — the granted and copied legs and the records' LKI read a list no
 registration saw, so they keep their whole-list walk, and the zone map is
 keyed by ability rather than by kind and keeps its `is_empty` probe.
 `TriggerEvent::reads` is now written *from* the mask's table rather than
@@ -2589,7 +2602,7 @@ agreed; instructions per decision +0.17%.
 
 | Piece | ~additions |
 |---|---|
-| `LastKnownInformation` and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~510 |
+| `Lki` widened, and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~510 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
 | tests, 29: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); item 173's Bridge from Below in a graveyard, and the Jailer fixture that follows it | ~1,070 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |
@@ -2873,7 +2886,7 @@ Recorded here at authoring; a finding that becomes a code item moves to
     the one fixture that asks (a discard, `cause: Some(Discarded)`) does,
     and it reads correctly, because its fields are `Some`: it was `None`
     standing for "any" that the review objected to, not `Some`.
-15. **The `departed` frames serve activated abilities too, and no reader
+15. **The kept LKI serves activated abilities too, and no reader
     reads theirs yet** (the rulings pass, 2026-09-23). CR 113.7a names
     activated and triggered abilities alike: "{T}: this creature deals
     damage equal to its power" with its source sacrificed in response reads

@@ -33,7 +33,7 @@ use crate::events::event::{EventRecord, EventSeq, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, DepartedFrame, EventIndex, EventKindMask,
+    DelayedDuration, DelayedProvenance, DelayedTrigger, DelayedTriggerTemplate, EventIndex, EventKindMask, Lki,
     Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerLimit, TriggerOrigin, TriggerSeq,
     TriggerTurn,
 };
@@ -555,10 +555,10 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             referred: delayed.referred.clone(),
         },
         is_state_trigger: false,
-        departed: delayed
+        kept_lki: delayed
             .source_frame
             .iter()
-            .map(|frame| DepartedFrame { object: delayed.source, frame: Arc::clone(frame) })
+            .map(|frame| Lki { object: delayed.source, frame: Arc::clone(frame) })
             .collect(),
         x_value: delayed.x_value,
     }
