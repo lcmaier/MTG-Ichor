@@ -645,7 +645,9 @@ After the last code commit, each once:
    [--arm shipped=HEAD] [--require "<newly pooled cards>"]`, in the background
    while the docs are written, about two minutes cold: each arm built apart,
    the audited counters on both pools at two seats and four, the budget below,
-   the reachability read, and the record block's table.
+   the reachability read, the record block's table, and the copies the branch
+   made (§9, pass 3). The model pass over the branch's changed files runs
+   beside it, also in the background.
 3. **Game-by-game dump attribution only when a gameplay row moves that the
    predictions did not** (200-game `--dump-events` per arm, diffed per game);
    a moved cost row (§3's bold rows, the dispatcher's) is a reading.
@@ -653,7 +655,8 @@ After the last code commit, each once:
    audit**: `fuzz_games --audit`, 1,000 games at seed 777, both pools and seats.
 5. What the close-out itself writes: the phase's stub and archive eviction (§4),
    a `fuzz-record.md` block of about 50 lines (the table and only the moves
-   nobody predicted), the `roadmap-v2.md` row if the route changed, the PR body.
+   nobody predicted), the `roadmap-v2.md` row if the route changed, the PR body,
+   with each copy the branch made merged or kept with its reason.
 
 Dropped, each covered elsewhere: separate determinism runs (CI's step, below),
 status prose in `roadmap-v2.md` (`state-of-play.md` and the stub carry it), a
@@ -1798,11 +1801,23 @@ needs the close-out and readiness.
    in `ci.yml`, each with a comment giving its reason. **Helpers built more
    than once** (the owner, 2026-10-06, at #225's review, which found the
    permanents a player controls built in six places, one of them a helper
-   the engine never called): `plans/similar_functions.py` lists functions
-   whose tokens nearly match, and a grep per common board query (a player's
-   permanents, creatures, opponents, untapped lands) finds the copies
-   written differently, which no token scan sees. Each copy is routed to one
-   helper or kept with its reason.
+   the engine never called): **`plans/similar_functions.py`**. Its token scan
+   lists functions whose tokens nearly match; since A6l (2026-10-10, after
+   #239's review found a rule spelled three times, each copy short and
+   written differently) it also keys every engine function by its inputs, by
+   each pair of reads it makes in a row and by its equality tests, and lists
+   a key that functions in different files share. Its docstring says what
+   none of the five can see. `--against main` leaves only what a branch
+   added, and `close_out.py` prints it at every close, so a PR's copies are
+   met at its own review; the whole report is this pass's list. Beside it
+   runs **a model pass** (the owner, 2026-10-10, at #240's review): a
+   subagent not shown the report reads the code for one fact computed twice,
+   with the inventory's §2a prompt, over the files a branch changed at every
+   close and over a spine phase's whole subsystem at its close. It is not
+   repeatable, which is why the script stays the list of record, but on the
+   trigger code it found 11 facts the report does not list. Each copy is
+   routed to one helper or kept with its reason. The first inventory is
+   `plans/references/duplicate-inventory.md`.
 4. **Readiness.** Is the engine on track for the harness use case? **Its first
    duty is the ratchet's re-reading** (§3.1): decisions per core-second on
    both boards at four seats and one thread, recorded as a dated reading

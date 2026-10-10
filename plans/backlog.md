@@ -588,7 +588,10 @@ critical path, which lists neither; that is the owner's line to add.
   opponent defends" are different questions about the same permanent. Nothing
   registered reads the second — Torbran, Thane of Red Fell says "controls" and
   is therefore already right about a Siege you control — so this is a leaf this
-  entry owes, not one `SourcePattern` or `ObjectSet` is missing today.
+  entry owes, not one `SourcePattern` or `ObjectSet` is missing today. The
+  scenario loader asks the wrong one already (A6l's inventory, 2026-10-10):
+  `scenario/build.rs`'s `attacked_player` reads a battle's controller, where
+  CR 506.2 and 508.5 make its protector the defending player.
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).
