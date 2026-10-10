@@ -5,7 +5,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, EarlierTargets, FilterIdentity, TargetInstance};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
@@ -2281,8 +2281,7 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None);
-        crate::engine::targeting::matched(self.object_matches_filter_for_instance(id, filter, ctx.controller, identity))
+        self.matches_for_text_of(id, filter, ctx.controller, Some(ctx.effect_source()))
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved

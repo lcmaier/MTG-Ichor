@@ -41,6 +41,7 @@ use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::replacement::{applies_to_mana_production, replacement_of};
 use crate::engine::resolve::ResolutionContext;
+use crate::engine::targeting::matched;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::{AbilityDef, AbilityType};
@@ -269,7 +270,7 @@ impl ManaSupply {
                         let fodder: Vec<ObjectId> = mine
                             .iter()
                             .copied()
-                            .filter(|&f| game.object_matches_filter(f, filter, player).unwrap_or(false))
+                            .filter(|&f| game.matches_for_text_of(f, filter, player, Some(id)))
                             .collect();
                         if fodder.len() < needs as usize {
                             continue;
@@ -595,7 +596,7 @@ impl ReservedByCosts {
                 Cost::Sacrifice(filter, needs) if fodder_read => {
                     let candidates = permanents_controlled_by(game, player)
                         .into_iter()
-                        .filter(|&id| game.object_matches_filter(id, filter, player).unwrap_or(false))
+                        .filter(|&id| game.matches_for_text_of(id, filter, player, non_mana.source))
                         .collect();
                     reserved.sacrifices.push((candidates, *needs));
                 }
@@ -893,9 +894,9 @@ fn mana_trigger_adds(
                     TriggerSubject::Any => true,
                     TriggerSubject::ThisObject => producer == at.permanent,
                     TriggerSubject::Host => host == Some(producer),
-                    TriggerSubject::Filter(filter) => game
-                        .object_matches_filter_of_source(producer, filter, controller, at.permanent, None)
-                        .unwrap_or(false),
+                    TriggerSubject::Filter(filter) => {
+                        matched(game.object_matches_filter_of_source(producer, filter, controller, at.permanent, None))
+                    }
                     // CR 603.7c's "that token" is a delayed trigger's; an
                     // object's own ability refers to nothing.
                     TriggerSubject::Referred => false,

@@ -307,13 +307,74 @@ impl<'a> FilterIdentity<'a> {
     }
 }
 
-/// A filter's answer where its `Err` can only be a card-authoring error — a
-/// leaf the context cannot answer, an object with no power — read as no
-/// match, and loud in a debug build, since the card would otherwise
-/// silently do nothing (`codebase-state.md` item 103).
-pub(crate) fn matched(answer: Result<bool, String>) -> bool {
-    debug_assert!(answer.is_ok(), "a filter refused to answer: {:?}", answer.as_ref().err());
-    answer.unwrap_or(false)
+/// Why a filter could not say whether an object matches it: every refusal the
+/// leaf table can make, so a caller reading one knows what it is reading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterRefusal {
+    /// The object is gone from the store, and no frame answers the leaf: an
+    /// object's owner or whether it is a token, which last known information
+    /// does not carry until TR-4a (`triggers-architecture.md` §3.11), or any
+    /// leaf asked with no frame at all.
+    ObjectGone(ObjectId),
+    /// `NotSource` asked where nothing names a source to be other than.
+    NoSource(ObjectId),
+    /// `OtherThanInstance` naming an instance of "target" not yet announced.
+    InstanceNotAnnounced { object: ObjectId, instance: usize },
+    /// `PowerLE` asked of an object with no power.
+    NoPower(ObjectId),
+}
+
+impl FilterRefusal {
+    /// A question the filter should never have been asked: a leaf the card
+    /// wrote where the asking site cannot answer it, or a site that did not
+    /// pass what it knows. Every refusal but a gone object, which is the
+    /// rules' "no" until last known information answers it.
+    pub fn is_malformed_question(self) -> bool {
+        match self {
+            FilterRefusal::ObjectGone(_) => false,
+            FilterRefusal::NoSource(_)
+            | FilterRefusal::InstanceNotAnnounced { .. }
+            | FilterRefusal::NoPower(_) => true,
+        }
+    }
+}
+
+impl std::fmt::Display for FilterRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterRefusal::ObjectGone(id) => write!(f, "Object {id} not found"),
+            FilterRefusal::NoSource(id) => {
+                write!(f, "ObjectFilter::NotSource on {id} has no source to be other than: nothing is being announced")
+            }
+            FilterRefusal::InstanceNotAnnounced { object, instance } => write!(
+                f,
+                "ObjectFilter::OtherThanInstance({instance}) on {object} names an instance of \
+                 \"target\" that has not been announced (CR 601.2c). Only the \
+                 announcement loop and the CR 608.2b re-check hold the earlier_targets \
+                 instances; a filter asked anywhere else cannot carry this leaf."
+            ),
+            FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
+        }
+    }
+}
+
+impl From<FilterRefusal> for String {
+    fn from(refusal: FilterRefusal) -> String {
+        refusal.to_string()
+    }
+}
+
+/// A filter's answer, a refusal read as no match. A malformed question is
+/// loud in a debug build and `cargo test`, since its card would otherwise
+/// silently do nothing (`codebase-state.md` item 103); a gone object is no.
+pub(crate) fn matched(answer: Result<bool, FilterRefusal>) -> bool {
+    match answer {
+        Ok(matches) => matches,
+        Err(refusal) => {
+            debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
+            false
+        }
+    }
 }
 
 /// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
@@ -713,7 +774,7 @@ impl GameState {
         id: ObjectId,
         filter: &ObjectFilter,
         you: PlayerId,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, FilterRefusal> {
         self.object_matches_filter_for_instance(id, filter, you, FilterIdentity::NONE)
     }
 
@@ -735,8 +796,8 @@ impl GameState {
         filter: &ObjectFilter,
         you: PlayerId,
         identity: FilterIdentity<'_>,
-    ) -> Result<bool, String> {
-        self.get_object(id)?;
+    ) -> Result<bool, FilterRefusal> {
+        self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id))?;
         // One layer walk for the whole filter, and only if a leaf reads a
         // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
         // Peace's "cards" stays free on every graveyard-bound zone change.
@@ -746,8 +807,28 @@ impl GameState {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
                 .as_deref()
-                .ok_or_else(|| format!("Object {} not found", id))
+                .ok_or(FilterRefusal::ObjectGone(id))
         })
+    }
+
+    /// `filter` asked of `id` for the text of `this` (CR 113.7a's "this"):
+    /// the spell, or the object whose ability or cost it is, which "another"
+    /// is other than (`ObjectFilter::NotSource`). No instance of "target" is
+    /// announced, and a refusal reads as no (`matched`). A resolution's effect
+    /// asks it (`codebase-state.md` item 229), and so does a cost: "Sacrifice
+    /// another creature:" prints on 162 cards (Scryfall, 2026-10-10).
+    pub(crate) fn matches_for_text_of(
+        &self,
+        id: ObjectId,
+        filter: &ObjectFilter,
+        you: PlayerId,
+        this: Option<ObjectId>,
+    ) -> bool {
+        let identity = match this {
+            Some(this) => FilterIdentity::for_text_of(this, EarlierTargets::None),
+            None => FilterIdentity::NONE,
+        };
+        matched(self.object_matches_filter_for_instance(id, filter, you, identity))
     }
 
     /// [`Self::object_matches_filter`] asked on behalf of an **effect**, which
@@ -771,9 +852,9 @@ impl GameState {
         you: PlayerId,
         source: ObjectId,
         chars: Option<&EffectiveCharacteristics>,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, FilterRefusal> {
         if chars.is_none() {
-            self.get_object(id)?;
+            self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id))?;
         }
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
@@ -783,7 +864,7 @@ impl GameState {
             None => frame
                 .get_or_init(|| compute_characteristics(self, id))
                 .as_deref()
-                .ok_or_else(|| format!("Object {} not found", id)),
+                .ok_or(FilterRefusal::ObjectGone(id)),
         })
     }
 
@@ -799,7 +880,7 @@ impl GameState {
         filter: &ObjectFilter,
         you: PlayerId,
         chars: &EffectiveCharacteristics,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, FilterRefusal> {
         self.object_matches_filter_with(id, filter, you, FilterIdentity::NONE, &|| Ok(chars))
     }
 
@@ -821,11 +902,11 @@ impl GameState {
         filter: &ObjectFilter,
         you: PlayerId,
         identity: FilterIdentity<'_>,
-        frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, String>,
-    ) -> Result<bool, String> {
+        frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, FilterRefusal>,
+    ) -> Result<bool, FilterRefusal> {
         // Read only by the leaves no frame answers: a frame may stand for an
         // object the store has lost (CR 608.2h).
-        let obj = || self.get_object(id);
+        let obj = || self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id));
         match filter {
             ObjectFilter::All => Ok(true),
             ObjectFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
@@ -874,40 +955,29 @@ impl GameState {
             // makes an object other than itself.
             ObjectFilter::NotSource => match identity.source {
                 Some(source) => Ok(id != source),
-                None => Err(format!(
-                    "ObjectFilter::NotSource on {} has no source to be other than: nothing is being announced",
-                    id
-                )),
+                None => Err(FilterRefusal::NoSource(id)),
             },
             // CR 601.2c's "another target", off the ids as `NotSource` is. An
             // instance that announced nothing (an "up to" taken at zero, CR 115.6)
             // excludes nothing; one the walk never reached is refused below.
             ObjectFilter::OtherThanInstance(ix) => {
                 if *ix >= identity.earlier_targets.len() {
-                    return Err(format!(
-                        "ObjectFilter::OtherThanInstance({ix}) on {id} names an instance of \
-                         \"target\" that has not been announced (CR 601.2c). Only the \
-                         announcement loop and the CR 608.2b re-check hold the earlier_targets \
-                         instances; a filter asked anywhere else cannot carry this leaf."
-                    ));
+                    return Err(FilterRefusal::InstanceNotAnnounced { object: id, instance: *ix });
                 }
                 Ok(!identity.earlier_targets.instance_names(*ix, ResolvedTarget::Object(id)))
             }
-            ObjectFilter::PowerLE(max_power) => frame()?
-                .power
-                .map(|p| p <= *max_power)
-                .ok_or_else(|| format!("Object {} has no power", id)),
-            ObjectFilter::And(a, b) => {
-                let matches_a = self.object_matches_filter_with(id, a, you, identity, frame)?;
-                let matches_b = self.object_matches_filter_with(id, b, you, identity, frame)?;
-                Ok(matches_a && matches_b)
+            ObjectFilter::PowerLE(max_power) => {
+                frame()?.power.map(|p| p <= *max_power).ok_or(FilterRefusal::NoPower(id))
             }
-            // Short-circuits, where `And` above does not, and the asymmetry is
-            // deliberate: a leaf can answer `Err` rather than `false` (`PowerLE`
-            // on something with no power), `set_affects` collapses `Err` to
-            // `false`, and a matched left arm makes the right arm's answer
-            // irrelevant. Evaluating it anyway would turn a true `Or` into a
-            // silent `false`.
+            // Both short-circuit: an arm that has decided makes the other's
+            // answer irrelevant, and asking it anyway can only turn an answer
+            // into a refusal, "a creature with power 2 or less" asked of a land.
+            ObjectFilter::And(a, b) => {
+                if !self.object_matches_filter_with(id, a, you, identity, frame)? {
+                    return Ok(false);
+                }
+                self.object_matches_filter_with(id, b, you, identity, frame)
+            }
             ObjectFilter::Or(a, b) => {
                 if self.object_matches_filter_with(id, a, you, identity, frame)? {
                     return Ok(true);

@@ -145,6 +145,7 @@ impl ExceptionConditions<'_> {
             self.chosen.source,
             Some(chars),
         )
+        .map_err(String::from)
     }
 
     /// The copy's values, and what its 707.9e exceptions add to the entry,

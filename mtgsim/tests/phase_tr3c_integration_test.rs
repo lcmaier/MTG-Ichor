@@ -451,6 +451,45 @@ fn a_creature_whose_owner_lost_as_it_died_is_still_seen_to_die() {
     assert_eq!(blood_artist_triggered, 1, "Blood Artist saw it die");
 }
 
+/// Marrowgnaw Ghoul — a fixture: "Sacrifice another creature: You gain 1
+/// life." The shape 162 printed costs share (Scryfall, 2026-10-10).
+fn marrowgnaw_ghoul() -> Arc<CardData> {
+    let text = "Sacrifice another creature: You gain 1 life.";
+    CardDataBuilder::new("Marrowgnaw Ghoul")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .rules_text(text)
+        .ability(AbilityDef {
+            rules_text: text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Activated,
+            costs: vec![Cost::Sacrifice(another(ObjectFilter::ByType(CardType::Creature)), 1)],
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// "Another" in a cost is other than the object whose cost it is (CR
+/// 113.7a), asked as a resolution's "another" is. The cost's filter used to
+/// be asked with no source, which refused the leaf and read the refusal as
+/// "no creature to sacrifice"; found by item 103's review, which routed every
+/// filter refusal through one rule.
+#[test]
+fn a_cost_sacrifices_another_creature_and_never_its_own_source() {
+    let mut game = setup_two_player_game();
+    let ghoul = put_on_battlefield(&mut game, marrowgnaw_ghoul(), 0);
+    assert!(game.activate_ability(0, ghoul, 0, &test_dp()).is_err(), "alone, it has nothing else to sacrifice");
+
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.activate_ability(0, ghoul, 0, &test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+    assert_eq!((zone(&game, bear), zone(&game, ghoul)), (Zone::Graveyard, Zone::Battlefield));
+    assert_eq!(life(&game, 0), 21);
+}
+
 // ---------------------------------------------------------------------------
 // CR 603.12: the reflexive trigger
 // ---------------------------------------------------------------------------

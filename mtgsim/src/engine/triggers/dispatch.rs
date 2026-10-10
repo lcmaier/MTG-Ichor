@@ -1447,9 +1447,9 @@ impl GameState {
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
-            (TriggerSubject::Filter(filter), Some(id)) => self
-                .object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame)
-                .unwrap_or(false),
+            (TriggerSubject::Filter(filter), Some(id)) => crate::engine::targeting::matched(
+                self.object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame),
+            ),
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
                 None,

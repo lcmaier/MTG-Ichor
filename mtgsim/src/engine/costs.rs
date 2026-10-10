@@ -237,7 +237,7 @@ impl GameState {
                 Ok(())
             }
             Cost::Sacrifice(filter, n) => {
-                let matching = self.sacrifice_candidates(filter, player_id).len();
+                let matching = self.sacrifice_candidates(filter, player_id, source_id).len();
                 if matching < *n as usize {
                     return Err(CannotPay::TooFewToSacrifice { matching, needed: *n });
                 }
@@ -258,12 +258,13 @@ impl GameState {
     /// control" — holds whatever the card prints, so Altar's Reap's filter is
     /// `ByType(Creature)` and this supplies the rest. The source of the spell
     /// or ability is not excluded: Krark-Clan Ironworks paying its own
-    /// "Sacrifice an artifact" is the filter matching normally.
-    fn sacrifice_candidates(&self, filter: &ObjectFilter, player_id: PlayerId) -> Vec<ObjectId> {
+    /// "Sacrifice an artifact" is the filter matching normally, and
+    /// "Sacrifice another creature" is the filter asked for the source's text.
+    fn sacrifice_candidates(&self, filter: &ObjectFilter, player_id: PlayerId, source_id: ObjectId) -> Vec<ObjectId> {
         self.battlefield_ids_ordered()
             .into_iter()
             .filter(|&id| crate::oracle::characteristics::controls(self, id, player_id))
-            .filter(|&id| self.object_matches_filter(id, filter, player_id).unwrap_or(false))
+            .filter(|&id| self.matches_for_text_of(id, filter, player_id, Some(source_id)))
             .collect()
     }
 
@@ -313,7 +314,7 @@ impl GameState {
         let mut sacrifices: HashMap<usize, Vec<ObjectId>> = HashMap::new();
         for (idx, cost) in ordered.iter().enumerate() {
             if let Cost::Sacrifice(filter, count) = cost {
-                let candidates = self.sacrifice_candidates(filter, player_id);
+                let candidates = self.sacrifice_candidates(filter, player_id, source_id);
                 let n = *count as usize;
                 if candidates.len() < n {
                     return Err(format!(
@@ -784,7 +785,7 @@ mod tests {
         let mine = add_creature(&mut game, 0, "Mine");
         let theirs = add_creature(&mut game, 1, "Theirs");
 
-        let candidates = game.sacrifice_candidates(&creature_filter(), 0);
+        let candidates = game.sacrifice_candidates(&creature_filter(), 0, ObjectId::UNASSIGNED);
         assert_eq!(candidates, vec![mine]);
         assert!(!candidates.contains(&theirs));
     }
