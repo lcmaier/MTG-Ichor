@@ -237,8 +237,8 @@ Four properties of that picture are load-bearing and easy to break:
 
 ## 2b. The zone-change record — its whole contract (items 175, 176, 177)
 
-*Designed 2026-10-10 in a PR of its own (`roadmap-v2.md` A6o) and reviewed
-before any code. Built as Phase RH (§9) in two PRs: RH-1, the act and the
+*Designed 2026-10-10 in a PR of its own, #242 (`roadmap-v2.md` A6o), and
+reviewed before any code. Built as Phase RH (§9) in two PRs: RH-1, the act and the
 cause; RH-2, the record's identity, its applied set and its moment.*
 
 **Where it sits.** A move between zones takes the spine above. A caller
