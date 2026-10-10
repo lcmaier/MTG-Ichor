@@ -646,7 +646,8 @@ After the last code commit, each once:
    while the docs are written, about two minutes cold: each arm built apart,
    the audited counters on both pools at two seats and four, the budget below,
    the reachability read, the record block's table, and the copies the branch
-   made (§9, pass 3).
+   made (§9, pass 3). The model pass over the branch's changed files runs
+   beside it, also in the background.
 3. **Game-by-game dump attribution only when a gameplay row moves that the
    predictions did not** (200-game `--dump-events` per arm, diffed per game);
    a moved cost row (§3's bold rows, the dispatcher's) is a reading.
@@ -1808,7 +1809,13 @@ needs the close-out and readiness.
    a key that functions in different files share. Its docstring says what
    none of the five can see. `--against main` leaves only what a branch
    added, and `close_out.py` prints it at every close, so a PR's copies are
-   met at its own review; the whole report is this pass's list. Each copy is
+   met at its own review; the whole report is this pass's list. Beside it
+   runs **a model pass** (the owner, 2026-10-10, at #240's review): a
+   subagent not shown the report reads the code for one fact computed twice,
+   with the inventory's §2a prompt, over the files a branch changed at every
+   close and over a spine phase's whole subsystem at its close. It is not
+   repeatable, which is why the script stays the list of record, but on the
+   trigger code it found 11 facts the report does not list. Each copy is
    routed to one helper or kept with its reason. The first inventory is
    `plans/references/duplicate-inventory.md`.
 4. **Readiness.** Is the engine on track for the harness use case? **Its first

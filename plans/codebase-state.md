@@ -8084,8 +8084,8 @@ linked-ability records an entry makes.
      (three), taking a mover's frame, the handoff before a leave, what a
      resolution put into a zone since a mark, and the set a decided
      `PlayerLoses` takes. The rename of "departed frame" to LKI (§4 there) is
-     recommended as its own PR just before the design, so the design is
-     written in the vocabulary it keeps.
+     its own PR just before the design (the owner, 2026-10-10, at #240's
+     review), so the design is written in the vocabulary it keeps.
      **Slotted:** A6d, items 176 and 177's own PR, which designs the
      zone-change record's contract before TR-4 widens it.
 

@@ -125,12 +125,42 @@ a branch's own copies are few.
 | C5 | the resolving object for a context | no | M3 |
 | C6 | whether an ability is triggered | no | T9 |
 
-**Whether to repeat it is the owner's call.** The brief recommended the model
-pass once, as a check on the inventory, and not as the recurring instrument,
-since it is not repeatable. On its surface it found 11 facts the report does
-not list at all, three of them copies that already disagree (§3.5's affected
-set, "existed before" and the departed card). Running it on the subsystem a spine phase closes, at that close, is the
-option if the measure is wanted again.
+**It repeats as code lands** (the owner, 2026-10-10, at #240's review). The
+brief had recommended it once, as a check on the inventory, since it is not
+repeatable; but on its surface it found 11 facts the report does not list at
+all, three of them copies that already disagree (§3.5's affected set,
+"existed before" and the departed card). So it runs beside the report at
+every close, over the files the branch changed, and over a closing spine
+phase's whole subsystem (`engineering-practices.md` §9, pass 3). It took six
+minutes and about 355,000 tokens for these 14,000 lines; a branch's files are
+a fraction of that. One prompt keeps the runs comparable, §2a's.
+
+### 2a. The prompt
+
+`<files>` is the branch's changed files, or the subsystem's; `<root>` a
+checkout of the branch. Asking the model not to read the report keeps it an
+independent second instrument; its findings are then matched against the
+report by hand, as above.
+
+> Read part of a Rust codebase to find **one fact computed, or one rule
+> applied, in more than one place**: the same derived value, or the same
+> rule's condition, written twice or more, possibly with different code
+> shapes, different names and in different files. Work only inside `<root>`.
+> Do not run or read `plans/similar_functions.py`; this is an independent
+> second opinion on what it reports. **Your files:** `<files>`, each without
+> its `#[cfg(test)] mod tests` block. You may grep the rest of `mtgsim/src`
+> (not `src/cards/`) to check whether a fact is computed elsewhere, or whether
+> a helper for it exists. **What counts:** two places that compute the same
+> answer from the same state, or apply the same rule, so that a change must
+> be made in both or the two drift. **What does not:** two functions that
+> read the same fields for different rules; a fast path and the reference
+> check that re-derives it on purpose; a writer and its reader; boilerplate.
+> **Budget:** about 180 tool calls, reading in chunks of about 300 lines;
+> stop and report at the budget, saying what was not read. **Report:** a
+> numbered list, each the fact in plain words, every place it is computed as
+> `file:line fn`, whether the copies agree today or already differ and how,
+> and which place should be the one helper; then how far each file was read.
+> Edit nothing.
 
 ## 3. The merges, by where they land
 
@@ -352,8 +382,8 @@ that changes an answer is shown to fail first.
 
 ## 4. The rename: "departed frame" to LKI
 
-**Recommended: its own mechanical PR, right after this one and before items
-176 and 177's design.** The design writes the record's contract in this
+**Decided (the owner, 2026-10-10, at #240's review): its own mechanical PR,
+before items 176 and 177's design.** The design writes the record's contract in this
 vocabulary, so renaming first means it is written once. And
 `plans/glossary.md` defines **departed** as a player who has left the game
 (CR 104.5), which is what `engine/leaving.rs`, `fuzz_games`' "Departed-owned
