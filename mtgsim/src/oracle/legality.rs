@@ -296,19 +296,22 @@ pub fn enumerate_legal_selections_upto(
 
 /// CR 609.7a — every source of damage a player may choose, each existence
 /// once, in the order offered: the permanents (CR 613.7 order), the spells on
-/// the stack (its order), then each object referred to by an object on the
-/// stack, by a replacement or prevention effect waiting to apply, or by a
-/// delayed triggered ability waiting to trigger, "even if that object is no
-/// longer in the zone it used to be in" ([`objects_referred_to`]). Enumerated,
+/// the stack (its order, a spell resolving now among them, CR 608.2), then
+/// each object referred to by an object on the stack, by a replacement or
+/// prevention effect waiting to apply, or by a delayed triggered ability
+/// waiting to trigger, "even if that object is no longer in the zone it used
+/// to be in" ([`objects_referred_to`]). Enumerated,
 /// not validated: "a source doesn't need to be capable of dealing damage"
 /// leaves only membership to test. The rule's fourth category, a face-up
 /// object in the command zone, waits for that zone (`codebase-state.md` item
 /// 99). `exclude_id` is CR 115.5's object.
 pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<ObjectRef> {
+    // A spell's resolution takes its entry, and it stays on the stack.
+    let resolving_spell = game.resolving.as_ref().filter(|r| r.identity.is_none()).map(|r| r.id);
     let present = game
         .battlefield_ids_ordered()
         .into_iter()
-        .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id)))
+        .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id) || Some(id) == resolving_spell))
         .filter_map(|id| game.object_ref(id));
     let mut sources: Vec<ObjectRef> = Vec::new();
     for source in present.chain(objects_referred_to(game)) {
@@ -320,16 +323,15 @@ pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<Obj
 }
 
 /// The objects CR 609.7a counts as referred to, each by the existence it
-/// was (CR 400.7), in this order: by each object on the stack, bottom first —
-/// an ability's source, what its trigger names, its targets, and each it
-/// named that has since left; by each replacement or prevention effect a
-/// resolution created, in the order they were — its chosen source of damage,
-/// its targets and the objects it is around; and by each delayed triggered
-/// ability, in the order they were — its source and what it refers to. A
-/// trigger on its subject's departure names the object that left (CR
-/// 603.10a), the one that deals its damage, and not the one it became. Not
-/// the object resolving now, whose entry is taken (item 99's last
-/// paragraph), and not a CR 610.3 return, which is no triggered ability.
+/// was (CR 400.7), in this order: by each object on the stack, bottom first,
+/// then the one resolving now — an ability's source, what its trigger names,
+/// its targets, and each it named that has since left; by each replacement
+/// or prevention effect a resolution created, in the order they were — its
+/// chosen source of damage, its targets and the objects it is around; and by
+/// each delayed triggered ability, in the order they were — its source and
+/// what it refers to. A trigger on its subject's departure names the object
+/// that left (CR 603.10a), the one that deals its damage, and not the one it
+/// became. Not a CR 610.3 return, which is no triggered ability.
 fn objects_referred_to(game: &GameState) -> Vec<ObjectRef> {
     use crate::engine::targeting::TargetRef;
     let objects_of = |targets: &[TargetRef]| -> Vec<ObjectRef> {
@@ -344,20 +346,24 @@ fn objects_referred_to(game: &GameState) -> Vec<ObjectRef> {
     let mut referred: Vec<ObjectRef> = Vec::new();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
         let binding = entry.trigger.as_ref();
-        let left = binding.and_then(|b| crate::engine::triggers::binding::departure_frame(b).map(|d| (b.subject, d.object)));
-        let as_it_left = |object: ObjectRef| match left {
-            Some((Some(subject), was)) if subject == object => was,
-            _ => object,
-        };
+        let subject = binding.and_then(|b| b.subject);
+        let left_as = binding.and_then(crate::engine::triggers::binding::departure_frame).map(|d| d.object);
+        let as_it_left = |object| as_it_left(object, subject, left_as);
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
+        referred.extend(subject.map(as_it_left));
         if let Some(binding) = binding {
-            referred.extend(binding.subject.map(as_it_left));
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
         for instance in &entry.chosen_targets {
             referred.extend(objects_of(&instance.chosen));
         }
         referred.extend(entry.departed.iter().map(|d| d.object));
+    }
+    if let Some(resolving) = &game.resolving {
+        let as_it_left = |object| as_it_left(object, resolving.subject, resolving.subject_left_as);
+        referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
+        referred.extend(resolving.subject.map(as_it_left));
+        referred.extend(resolving.departed.iter().map(|d| d.object));
     }
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
@@ -371,6 +377,16 @@ fn objects_referred_to(game: &GameState) -> Vec<ObjectRef> {
         referred.extend(delayed.referred.objects.iter().map(|r| r.object));
     }
     referred
+}
+
+/// `object` as a source a stack object refers to: the existence its
+/// trigger's subject left as, where `object` is that subject and its event
+/// was the departure (CR 603.10a), else `object`.
+fn as_it_left(object: ObjectRef, subject: Option<ObjectRef>, left_as: Option<ObjectRef>) -> ObjectRef {
+    match left_as {
+        Some(was) if subject == Some(object) => was,
+        _ => object,
+    }
 }
 
 #[cfg(test)]

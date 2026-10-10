@@ -21,7 +21,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::keyword_creatures::wall_of_stone;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
-use mtgsim::cards::phase_rd_cards::circle_of_protection_red;
+use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, reverse_damage};
 use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
@@ -384,6 +384,22 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
     )
     .unwrap();
     assert_eq!(life(&game, 0), 19, "the Myr on the battlefield is not the source chosen");
+}
+
+/// CR 608.2 keeps a spell on the stack while it resolves, so Reverse Damage,
+/// choosing its source as it resolves, may choose itself: item 99's last
+/// gap, a spell whose stack entry its resolution had taken.
+#[test]
+fn a_spell_may_choose_itself_as_the_source_while_it_resolves() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let reverse = put_in_hand(&mut game, reverse_damage(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 3);
+    game.cast_spell(0, reverse, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+
+    let dp = ChoosingSource::new(now(reverse));
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert_eq!(dp.offered(), logged(&game, &[now(bears), now(reverse)]));
 }
 
 // ---------------------------------------------------------------------------
