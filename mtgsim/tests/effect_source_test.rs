@@ -185,7 +185,7 @@ fn circle_of_protection_red_prevents_an_abilitys_damage_from_the_chosen_permanen
         EventPattern::DealDamage { source: Some(pattern), .. } => pattern.object,
         _ => None,
     });
-    assert_eq!(chosen, Some(pinger), "CR 609.7a's choice, made as the effect was created");
+    assert_eq!(chosen, game.object_ref(pinger), "CR 609.7a's choice, made as the effect was created");
 
     activate_and_resolve(&mut game, 1, pinger);
 

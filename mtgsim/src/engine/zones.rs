@@ -13,6 +13,7 @@ use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::EventPattern;
 use crate::types::zones::Zone;
 
 impl GameState {
@@ -53,6 +54,7 @@ impl GameState {
             return Ok(()); // no-op
         }
 
+        let leaving = self.object_ref(id);
         // Clean up zone-specific state for the old zone (before removal,
         // so we can still read the departing entity's state)
         self.cleanup_zone_state(id, from);
@@ -74,6 +76,21 @@ impl GameState {
         // CR 400.7 will read the same one.
         self.arrive_in_zone(id, to)?;
 
+        // CR 400.7c — a prevention effect watching the permanent spell
+        // watches the permanent it becomes.
+        if from == Zone::Stack
+            && to == Zone::Battlefield
+            && let (Some(spell), Some(permanent)) = (leaving, self.object_ref(id))
+        {
+            self.replacement_effects.update_rows(
+                |row| row.prevents_damage_from(spell),
+                |row| {
+                    if let EventPattern::DealDamage { source: Some(pattern), .. } = &mut row.def.pattern {
+                        pattern.object = Some(permanent);
+                    }
+                },
+            );
+        }
         Ok(())
     }
 
@@ -438,8 +455,9 @@ impl GameState {
     /// Of CR 400.7's twelve exceptions, two keep a row any card can make
     /// today, both for a permanent spell becoming the permanent (400.7a,
     /// 400.7c): every continuous effect, since each changes characteristics
-    /// or control, and a prevention effect watching damage from it. Nothing
-    /// else carries over, a restriction included. A card put onto the
+    /// or control, and a prevention effect watching damage from it, which
+    /// names its source by identity and is re-pointed in `move_object`.
+    /// Nothing else carries over, a restriction included. A card put onto the
     /// battlefield from anywhere else, as Reanimate puts one, was no spell
     /// and keeps nothing; the rest of its own effect finds it by id (400.7j).
     /// 400.7b and 400.7g–i keep a row across a static grant, a cast or a play
@@ -450,7 +468,7 @@ impl GameState {
         if !spell_becomes_permanent {
             self.continuous_effects.remove_references_to(id);
         }
-        self.replacement_effects.remove_references_to(id, |row| spell_becomes_permanent && row.prevents_damage_from(id));
+        self.replacement_effects.remove_references_to(id, |_| false);
         self.restrictions.remove_references_to(id, |_| false);
     }
 

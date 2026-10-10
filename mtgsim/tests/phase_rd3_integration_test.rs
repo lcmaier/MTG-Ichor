@@ -439,10 +439,10 @@ fn torbran_divides_before_adding_two() {
 /// names "a spell on the stack (including one that creates a permanent)" —
 /// the spell resolves, and the permanent's first damage is the one prevented.
 ///
-/// The engine gets this from object identity rather than from a rule of its
-/// own: `move_object` keeps the id and bumps `zone_change_epoch`, so the row's
-/// `SourcePattern.object` still names the permanent, and CR 609.7b's recheck
-/// still finds it red.
+/// The row's `SourcePattern.object` names the spell by identity, which the
+/// move to the battlefield ends (CR 400.7), so `move_object` re-points it to
+/// the permanent: the rule's own exception, written where both existences
+/// are known. CR 609.7b's recheck still finds it red.
 // COVERS: ATOM-400.7c-001
 #[test]
 fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {

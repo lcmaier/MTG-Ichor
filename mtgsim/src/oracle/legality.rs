@@ -14,7 +14,7 @@ use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
@@ -277,18 +277,105 @@ pub fn enumerate_legal_selections_upto(
 
         SelectionFilter::Spell => spells_on_stack().map(RT::Object).take(limit).collect(),
 
-        // CR 609.7a — permanents (timestamp order), then the stack's spells (its
-        // order). Enumerated, not validated one by one: "a source doesn't need to
-        // be capable of dealing damage" leaves only membership to test.
-        SelectionFilter::DamageSource => battlefield()
-            .map(RT::Object)
-            .chain(spells_on_stack().map(RT::Object))
-            .take(limit)
-            .collect(),
+        // CR 609.7a, as an id names each: the source choice itself reads
+        // `damage_sources`, whose existences an id cannot tell apart.
+        SelectionFilter::DamageSource => {
+            let mut ids: Vec<ObjectId> = Vec::new();
+            for source in damage_sources(game, exclude_id) {
+                if !ids.contains(&source.id) {
+                    ids.push(source.id);
+                }
+            }
+            ids.into_iter().map(RT::Object).take(limit).collect()
+        }
 
         // Creature, Permanent(_), or other battlefield-based filters
         _ => battlefield().filter_map(passes).take(limit).collect(),
     }
+}
+
+/// CR 609.7a — every source of damage a player may choose, each existence
+/// once, in the order offered: the permanents (CR 613.7 order), the spells on
+/// the stack (its order, a spell resolving now among them, CR 608.2), then
+/// each object referred to by an object on the stack, by a replacement or
+/// prevention effect waiting to apply, or by a delayed triggered ability
+/// waiting to trigger, "even if that object is no longer in the zone it used
+/// to be in" ([`referred_damage_sources`]). Enumerated,
+/// not validated: "a source doesn't need to be capable of dealing damage"
+/// leaves only membership to test. The rule's fourth category, a face-up
+/// object in the command zone, waits for that zone (`codebase-state.md` item
+/// 99). `exclude_id` is CR 115.5's object.
+pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<ObjectRef> {
+    // A spell's resolution takes its entry, and it stays on the stack.
+    let resolving_spell = game.resolving.as_ref().filter(|r| r.identity.is_none()).map(|r| r.id);
+    let present = game
+        .battlefield_ids_ordered()
+        .into_iter()
+        .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id) || Some(id) == resolving_spell))
+        .filter_map(|id| game.object_ref(id));
+    let mut sources: Vec<ObjectRef> = Vec::new();
+    for source in present.chain(referred_damage_sources(game)) {
+        if Some(source.id) != exclude_id && !sources.contains(&source) {
+            sources.push(source);
+        }
+    }
+    sources
+}
+
+/// CR 609.7a's referred-to sources of damage: the objects a player choosing
+/// a source may choose because something waiting refers to them, each by
+/// the existence it was (CR 400.7), in this order: by each object on the stack, bottom first,
+/// then the one resolving now — an ability's source, what its trigger names,
+/// its targets, and each it named that has since left; by each replacement
+/// or prevention effect a resolution created, in the order they were — its
+/// chosen source of damage, its targets and the objects it is around; and by
+/// each delayed triggered ability, in the order they were — its source and
+/// what it refers to. A trigger on its subject's departure names the object
+/// that left (CR 603.10a), the one that deals its damage, and not the one it
+/// became. Not a CR 610.3 return, which is no triggered ability.
+fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
+    use crate::engine::targeting::TargetRef;
+    let objects_of = |targets: &[TargetRef]| -> Vec<ObjectRef> {
+        targets
+            .iter()
+            .filter_map(|t| match t {
+                TargetRef::Object(object) => Some(*object),
+                TargetRef::Player(_) => None,
+            })
+            .collect()
+    };
+    let mut referred: Vec<ObjectRef> = Vec::new();
+    for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
+        let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object);
+        let binding = entry.trigger.as_ref();
+        referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
+        referred.extend(binding.and_then(|b| b.subject).map(as_it_left));
+        if let Some(binding) = binding {
+            referred.extend(binding.referred.objects.iter().map(|r| r.object));
+        }
+        for instance in &entry.chosen_targets {
+            referred.extend(objects_of(&instance.chosen));
+        }
+        referred.extend(entry.departed.iter().map(|d| d.object));
+    }
+    if let Some(resolving) = &game.resolving {
+        let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object);
+        referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
+        referred.extend(resolving.subject.map(as_it_left));
+        referred.extend(resolving.departed.iter().map(|d| d.object));
+    }
+    for row in game.replacement_effects.iter() {
+        referred.extend(row.def.pattern.chosen_damage_source());
+        referred.extend(objects_of(&row.targets));
+        if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected_objects {
+            referred.extend(ids.iter().filter_map(|&id| game.object_ref(id)));
+        }
+    }
+    for delayed in &game.delayed_triggers {
+        referred.push(delayed.source);
+        referred.extend(delayed.referred.objects.iter().map(|r| r.object));
+    }
+    referred
 }
 
 #[cfg(test)]
@@ -512,24 +599,18 @@ mod tests {
 
     // CR 609.7a — "they may choose a permanent; a spell on the stack
     // (including a permanent spell); ... A source doesn't need to be capable
-    // of dealing damage to be a legal choice." Both reachable categories are
-    // offered and neither is filtered by what the object can do: a Plains is
-    // on the list.
+    // of dealing damage to be a legal choice." Both categories are offered
+    // and neither is filtered by what the object can do: a Plains is on the
+    // list. The referred-to category is `phase_tr3c_integration_test`'s.
     //
-    // COVERS-PARTIAL: ATOM-609.7a-001 -- the atom asks for all four of the
-    // rule's categories. Two are unreachable and are RD-3's recorded
-    // decision: "an object referred to by an object on the stack, by a
-    // replacement or prevention effect that's waiting to apply, or by a
-    // delayed triggered ability" has no referred-to relation to read (the
-    // atom's own example is an emblem referring to a card in exile, and
-    // CR 603.7's delayed triggers do not exist yet), and "a face-up object in
-    // the command zone" needs the command zone populated, which is the
-    // Commander track's. The permanent and stack-spell legs are built whole.
+    // COVERS-PARTIAL: ATOM-609.7a-001 -- the permanent and stack-spell legs,
+    // built whole. The referred-to legs are `phase_tr3c_integration_test`'s,
+    // and "a face-up object in the command zone" waits for the command zone
+    // (`codebase-state.md` item 99, B2).
     //
     // COVERS-PARTIAL: BOUNDARY-DEF-609.7a-001 -- in-set (a creature permanent)
-    // and out-of-set (a card in hand referred to by nothing) are both built;
-    // the boundary's middle -- an object in a hidden zone that *is* referred
-    // to -- is the same unreachable category.
+    // and out-of-set (a card in hand referred to by nothing); the boundary's
+    // middle, an object that left and *is* referred to, is TR-3c's test.
     #[test]
     fn a_damage_source_is_a_permanent_or_a_spell_on_the_stack() {
         use crate::engine::resolve::ResolvedTarget;

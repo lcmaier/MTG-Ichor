@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
+use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
@@ -723,8 +723,9 @@ impl TriggerBinding {
     }
 }
 
-/// Where a pending trigger came from (§3.8). The reflexive and rule-owned
-/// origins land with TR-3c and TR-6.
+/// Where a pending trigger came from (§3.8). A reflexive trigger is
+/// `Delayed`, since CR 603.12 has it follow the delayed rules; the rule-owned
+/// origin lands with TR-6.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.
@@ -764,6 +765,34 @@ pub enum DelayedDuration {
     /// "This turn": it triggers on every matching event until CR 514.2 ends
     /// the turn's "this turn" effects in the cleanup step.
     ThisTurn,
+    /// CR 603.12 — a reflexive triggered ability, which follows the rules
+    /// for delayed ones "except that [it is] checked immediately after being
+    /// created" against what the resolution creating it has performed so
+    /// far, and never waits.
+    Reflexive(ReflexiveForm),
+}
+
+/// CR 603.12's two forms: "when [a player] [does or doesn't] take that
+/// action". Its def's event is the action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReflexiveForm {
+    /// "When you do", and "when [something happens] this way": it triggers
+    /// once for each time its event occurred earlier during the resolution
+    /// (CR 603.12a), or once for them all where its event is "one or more".
+    Does,
+    /// "When you don't": it triggers once if its event did not occur.
+    Doesnt,
+}
+
+/// The resolution a delayed triggered ability is created during: what a
+/// reflexive one asks about (CR 603.12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatingResolution {
+    pub stamp: ResolutionStamp,
+    /// "That action": the records of the last instruction before it that took
+    /// an action, from its first to the one after its last. `None` when no
+    /// instruction before it took one.
+    pub that_action: Option<(EventSeq, EventSeq)>,
 }
 
 /// Which turn a delayed triggered ability may trigger in, as a card prints it.
@@ -892,6 +921,9 @@ pub struct DelayedProvenance {
     pub created_by: Option<AbilityIdentity>,
     pub x_value: Option<u64>,
     pub turn: TriggerTurn,
+    /// The resolution creating it, if one is: a replacement's rider (CR
+    /// 603.7f) is none.
+    pub resolution: Option<CreatingResolution>,
 }
 
 /// CR 603.7c — what a delayed triggered ability refers to: the objects and
@@ -938,16 +970,25 @@ impl RememberedObject {
     }
 }
 
-/// An object's last known information (CR 113.7a, 608.2h), kept by an entry
-/// that names it — its source, or its trigger's subject — when the object
-/// leaves the zone the entry expected it in (`triggers-architecture.md`
-/// §6.1). The binding's records cannot hold it, since the departure is a later
-/// event than the one that triggered. TR-4a makes the frame a
-/// `LastKnownInformation`.
+/// An object's last known information (CR 113.7a, 608.2h): the existence
+/// that left (CR 400.7) and its characteristics as it last existed in the zone
+/// it left. A departure record carries one (CR 603.10a), and so does damage a
+/// source deals after it left (item 225). An entry that names an object — its
+/// source, or its trigger's subject — keeps one when the object leaves the
+/// zone the entry expected it in (`triggers-architecture.md` §6.1), since the
+/// departure is a later event than the one that triggered. TR-4a makes the
+/// frame a `LastKnownInformation`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DepartedFrame {
     pub object: ObjectRef,
     pub frame: Arc<EffectiveCharacteristics>,
+}
+
+impl DepartedFrame {
+    /// The characteristics it last had.
+    pub fn chars(&self) -> &EffectiveCharacteristics {
+        &self.frame
+    }
 }
 
 /// An ability that has triggered and not yet been put onto the stack

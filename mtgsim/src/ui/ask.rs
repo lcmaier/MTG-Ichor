@@ -38,7 +38,7 @@ use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
@@ -1290,8 +1290,9 @@ fn pick_copy_source(
 /// names, as the effect is created.
 ///
 /// `source` is the object whose effect is asking; `candidates` is
-/// `SelectionFilter::DamageSource`'s enumeration, permanents then stack
-/// spells.
+/// `oracle::legality::damage_sources`, each existence once: an object as it
+/// is, or as it last existed once it has left the zone it was in, which two
+/// candidates sharing an id are told apart by.
 ///
 /// **Only called with two or more**, for [`ask_choose_copy_source`]'s reason:
 /// with one candidate the choice is forced and the caller takes it without
@@ -1301,15 +1302,20 @@ pub fn ask_choose_damage_source(
     game: &GameState,
     chooser: PlayerId,
     source: ObjectId,
-    candidates: &[ObjectId],
-) -> ObjectId {
+    candidates: &[ObjectRef],
+) -> ObjectRef {
     assert!(
         candidates.len() >= 2,
         "ask_choose_damage_source: a choice needs two or more candidates; called with {}",
         candidates.len(),
     );
-    let options: Vec<ChoiceOption> =
-        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let options: Vec<ChoiceOption> = candidates
+        .iter()
+        .map(|&object| match game.object_ref(object.id) == Some(object) {
+            true => ChoiceOption::Object(object.id),
+            false => ChoiceOption::LastKnown(object),
+        })
+        .collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseDamageSource { source });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_damage_source", game, chooser, &ctx);

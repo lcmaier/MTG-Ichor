@@ -1116,3 +1116,165 @@ The review added 345 lines of code and tests and removed 127, most of them
 this phase's own, so the phase closes at +2,235 against `main`. Against shipped
 `a8fc1da`, every row outside timing played identically on both pools at two
 seats and four (`fuzz-record.md`, TR-3b).
+
+#### TR-3c — the reflexive trigger, item 225 and item 99 — ✅ landed 2026-10-09
+
+*Evicted 2026-10-09 from `plans/triggers-architecture.md` §12, where the heading and a stub remain, with TR-4's section after it.*
+
+### The plan as sized (TR-3c, as §12 carried it on 2026-10-09)
+
+TR-3b's other half, split at its design review (#234, 2026-10-08) along the
+seam its brief named. It reads the window TR-3b holds. Sized 800–950 in code
+and tests by the 2026-09-24 re-count; item 103 joined after it (#238's
+triage).
+
+| Piece |
+|---|
+| CR 603.12: `DelayedDuration::Reflexive` on `Primitive::CreateDelayedTrigger` rather than §4.6's `Effect::Reflexive`, since 603.12 has reflexive triggers follow the delayed rules (one producer, one door). Checked as it is created against `EventWindow::resolution_records`, queued once per matching record (603.12a), never waiting. "When you do" is `ZoneChange { cause: Sacrificed, to: any }` |
+| `codebase-state.md` item 229: a source-relative filter at resolution, so "sacrifice another creature" has candidates |
+| **Item 225**, as #234's review decided it: the damage's `source_frame` a `DepartedFrame`, `SourcePattern.object` an `ObjectRef`, the prune sparing a chosen source that moved, and a spell becoming a permanent re-pointing it (CR 400.7c). **Item 99**'s (a): an object referred to by a stack object, a waiting replacement or prevention effect, or a delayed trigger, even once it has left its zone (CR 609.7a): one enumeration, its options told apart where two existences share an id |
+| cards: **Cornered Crook** (603.12: `Optional`, then reflexive, any target), registered, not pooled; Heart-Piercer Manticore's shape as a fixture (embalm keeps the card out) |
+| tests: ATOM-603.12-001; Manticore's four trigger rulings (the LKI power read, "another"); Cornered Crook's ruling, and the Crook killed in response dealing its damage as it last existed (lifelink, deathtouch); item 225 on a Perilous-Myr-shaped fixture under Circle of Protection: Red; item 99's legs; the Crook cast from hand under `ManaWindowStop` |
+
+**Re-counted 2026-10-09: the card-by-card gap hunt** (`engineering-practices.md`
+§4), at the build's start. Every clause of Cornered Crook, the Manticore
+fixture and the Perilous-Myr fixture, and every test board, was read against
+the tree. The rows stand. Twelve facilities they did not name:
+
+1. **The resolution's start, as a mark.** `resolution_records` reads from a
+   mark, and nothing marked where a resolution began: `ResolvingObject::began_at`.
+2. **The queue's tail as one function**, so a reflexive trigger is queued and
+   its `AbilityTriggered` announced as a dispatch does it (`queue_pending`).
+3. **`GameEvent::DamageDealt`'s frame a `DepartedFrame` too**, since the event
+   carries the proposal's.
+4. **The departure record's frame a `DepartedFrame`.** A dies trigger names its
+   source by the card it became (CR 400.7's exception for finding the new
+   object), so only the record's frame knows which creature died, and so
+   which one deals "it deals 2 damage". The row named the damage's frame and
+   not this one; a shield that chose the creature would not have matched.
+5. **Redirection's "the source's controller"** reads the new frame type.
+6. **One damage-source enumeration of existences**, replacing the three copies
+   (enumerate, count, validate) that spelled the categories each.
+7. **`ChoiceOption::Departed`**, so two existences of one id are told apart:
+   the decision log's words and the dev GUI's option view each gain an arm.
+8. **The filter table reads its object only where no frame answers**, so a
+   token the store has lost is still red as it last existed: item 103's
+   last-known-information half, which no frame-holding path could reach while
+   the object was read first.
+9. **Two test fixtures**: a deathtouch grant and a sacrifice outlet.
+10. **The dev GUI's `view_model.rs`**, whose `DelayedDuration` match is
+    exhaustive.
+11. **An authoring word for "is sacrificed"** (`sacrificed`).
+12. **`DelayedProvenance` carries the creating resolution**, and CR 603.7a's
+    "existed before" filter is skipped for the check.
+
+With item 103 and the "doesn't" form the hunt put the phase at 1,250–1,500,
+inside the band and over the row's 800–950.
+
+**The design questions** (the owner, at the build's start). CR 603.12's
+"doesn't" form: built now, with a fixture. The brief had said three printed
+cards use it; none does as a reflexive trigger (Olivia, Crimson Bride's is a
+state trigger, and Heart of Bogardan's and Thought Lash's are their own
+triggered abilities), and two phrasings of the search found no other. The
+reflexive entry's log line: announced always, as "reflexive", since a dropped
+entry otherwise leaves no trace.
+
+### As landed (2026-10-09)
+
+PR #239, eight commits ahead of the docs.
+
+- **Item 229 and item 103's assert.** `matches_for_effect` asks a resolution's
+  filters with `ResolutionContext::effect_source`, at the six sites;
+  `object_matches_filter` is a call to `object_matches_filter_for_instance`.
+  `targeting::matched` reads a filter's `Err` as no, loud in a debug build, at
+  the six sites that swallowed one.
+- **Item 225, item 103's frame half, and item 99's first half.** A departure
+  record's frame and the frame damage carries are a `DepartedFrame`.
+  `SourcePattern.object` is an `ObjectRef`, matched against `gather::dealer`,
+  the existence that deals the damage; no move ends it, and `move_object`
+  re-points it at CR 400.7c. `oracle::legality::damage_sources` is CR 609.7a's
+  one enumeration, offering an existence that has left as
+  `ChoiceOption::Departed`, a trigger on its subject's departure naming the
+  object that left.
+- **The reflexive trigger**, through `register_delayed_trigger` (§3.9, §4.6),
+  `Does` and `Doesnt`, with `sacrificed`.
+- **Cornered Crook**, registered, not pooled (187 → 188), its one ruling
+  linked.
+- **The resolving object** (found during the build). CR 608.2 keeps a resolving
+  spell on the stack, and its taken entry had kept it, and a resolving
+  ability's referents, out of the choice: item 99's last paragraph.
+  `ResolvingObject::subject_left_as` carries the departed existence over.
+
+**Tests.** Twenty-one in `phase_tr3c_integration_test`: ATOM-603.12-001 and the
+Manticore fixture's four trigger rulings; item 229's "another"; Cornered Crook
+cast from hand from exactly {4}{R}, its ruling, killed in response with the
+lifelink and deathtouch it last had, and under Circle of Protection: Red; the
+"doesn't" form and CR 603.12a; item 225 and its other half on the
+Perilous-Myr fixture; item 99's three legs, the told-apart case and the
+resolving spell; item 103's token, and the creature whose owner lost as it
+died, found at the sitting. Each new behavior's test was shown to
+fail without it: item 225's two on the pre-fix tree, the token's on the eager
+object read, ten reflexive tests with the check disabled, the Manticore's
+five with "another" given no source, and the resolving spell's without its
+leg. BOUNDARY-DEF-609.7a-001 is covered whole; ATOM-609.7a-001 stays partial
+on the command zone (B2).
+
+**Found.** `codebase-state.md` item 241: the reflexive check reads the arm's
+event over the whole resolution, which is "that action" while the resolution
+performs it once.
+
+**Size.** +1,626 in code and tests: code +663 (the dev GUI +5), tests +963,
+against the gap hunt's 1,250–1,500 and the row's 800–950. The code ran at
+the hunt's count; the tests ran over it, at about twice their row, as the
+track's re-count said they do.
+
+**Measured** (`fuzz-record.md`, the TR-3c block). The engine arm played every
+`performance` game at two seats as `main` did. At four seats two of 200 were
+apart, where `IDENTICAL` was predicted. In each, a creature died in the
+state-based check that made its owner lose, and Blood Artist's "another
+creature dies" filter, asking the store for the departed object, read its
+absence as no on `main`. Item 103's frame half answers from the CR 603.10a
+frame, and a test pins it. The `stress` games apart, one at two seats and
+three at four, are each at Circle of Protection: Red's choice, offered a
+source items 99 and 225 now reach. Every dispatch agreed; instructions per
+decision +0.17%.
+
+### Review round (2026-10-10)
+
+Eight comments on #239, in three commits ahead of the docs.
+
+- **Comment 7, "how do we know only card-authoring errors reach
+  `matched`?"** Nothing said so, and one refusal that is no authoring error
+  could reach it after item 103's frame half (a token or owner leaf asked of
+  a source the store has lost). The refusals are a type, `FilterRefusal`, and
+  every site that read one as no goes through `matched`, the seven outside
+  item 103's six among them. Routing them found `And` evaluating its right arm
+  after its left said no, and a cost's filter asked with no source:
+  "Sacrifice another creature:", on 162 printed cards, offered nothing.
+  `matches_for_text_of` asks a filter for the text of an object, for a cost
+  and for a resolution's effect alike.
+- **Comments 2, 4 and 5**, on the reflexive check: the door is
+  `create_delayed_trigger`, CR 603.7a's word, since a function named for
+  registering read the past; cards write `when_you_do` and `when_you_dont`,
+  and `is_sacrificed`. The owner ruled out "no printed card does it" as a
+  reason, which this PR had used twice: the check now reads "that action"
+  (item 241, closed) and a record's place in its turn,
+  `EventRecord::place_in_turn`, which replaced `TurnOrdinals`.
+- **Comments 3, 6 and 8**, on `dealer`, LKI vocabulary and
+  `objects_referred_to`: the rule "a trigger on its subject's departure
+  names the existence that left" was spelled three times in this PR, which
+  `similar_functions.py` could not see (each under its 60-token floor). It is
+  `carried_lki`, asked through `StackEntry::lki_of` and
+  `ResolvingObject::lki_of`. `damage_source_existence` sits beside
+  `damage_source_characteristics`. This PR's names say LKI, and the
+  enumeration's leg is `referred_damage_sources`. The older "departed frame"
+  names (TR-2b) are a sweep of their own, offered to the owner.
+- **Comment 1:** `sacrificed` became `is_sacrificed`, beside `dies` and
+  `enters`; the suggested `sacrifice_self` would say the subject is the
+  trigger's own source, which it is not.
+
+Three fixtures and tests (Twofold Tithe, Firstlight Lantern, Marrowgnaw Ghoul),
+each shown to fail without its change. +575 and −288 in code and tests over
+the PR as
+it stood. Predicted and read `IDENTICAL` against the pre-review binary on
+both pools at two seats and four.

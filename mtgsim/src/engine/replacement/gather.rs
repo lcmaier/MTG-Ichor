@@ -35,7 +35,7 @@ use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::controller_or_owner;
+use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -49,6 +49,7 @@ use crate::types::replacement::{
 use crate::types::zones::{Zone, ZoneChangeCause};
 
 use crate::engine::restriction::{is_prohibited, Query};
+use crate::engine::targeting::matched;
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -709,14 +710,13 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            game.object_matches_filter_of_source(
+            matched(game.object_matches_filter_of_source(
                 id,
                 filter,
                 controller,
                 source,
                 frame.and_then(|f| f.frame_of(id)),
-            )
-            .unwrap_or(false)
+            ))
         }
     }
 }
@@ -736,8 +736,9 @@ pub(crate) fn pattern_watches(
         // CR 609.7's source and CR 510.2's combat flag, asked **now**: a source
         // that stopped matching yields no candidate, which is 609.7b's "isn't used
         // up" (609.7c off the battlefield). `unwrap_or(true)` is "does not ask";
-        // `unwrap_or(false)` swallows authoring errors (`codebase-state.md` item
-        // 103). A source that left is matched as it last existed (CR 608.2h).
+        // `matched` reads an authoring error as no (`codebase-state.md` item 103).
+        // A source that left is matched as it last existed (CR 608.2h), and a
+        // chosen one by the existence that deals the damage (CR 609.7a).
         (
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, source_frame, is_combat, .. },
@@ -746,15 +747,16 @@ pub(crate) fn pattern_watches(
                 && source
                     .as_ref()
                     .map(|p| {
-                        p.object.map(|chosen| chosen == *dealt_by).unwrap_or(true)
+                        p.object.is_none_or(|chosen| {
+                            Some(chosen) == damage_source_existence(game, *dealt_by, source_frame.as_ref())
+                        })
                             && p.filter
                                 .as_ref()
                                 .map(|f| {
-                                    match source_frame {
-                                        Some(frame) => game.object_matches_filter_in_frame(*dealt_by, f, you, frame),
+                                    matched(match source_frame {
+                                        Some(departed) => game.object_matches_filter_in_frame(*dealt_by, f, you, departed.chars()),
                                         None => game.object_matches_filter(*dealt_by, f, you),
-                                    }
-                                    .unwrap_or(false)
+                                    })
                                 })
                                 .unwrap_or(true)
                     })
@@ -775,7 +777,7 @@ pub(crate) fn pattern_watches(
                 && cause.map(|c| c == *actual_cause).unwrap_or(true)
                 && object
                     .as_ref()
-                    .map(|f| game.object_matches_filter(*moving, f, you).unwrap_or(false))
+                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
                     .unwrap_or(true)
         }
 
@@ -798,7 +800,7 @@ pub(crate) fn pattern_watches(
                 && cause.map(|c| Some(c) == *actual_cause).unwrap_or(true)
                 && object
                     .as_ref()
-                    .map(|f| game.object_matches_filter(*moving, f, you).unwrap_or(false))
+                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
                     .unwrap_or(true)
         }
 
@@ -902,8 +904,8 @@ pub(crate) fn pattern_watches(
         // CR 106.12b's two constraints. The event knows both facts; the pattern's
         // `Option`s let an effect decline to ask, and `None` is satisfied by every
         // production (Mana Reflection asks `Some(true)` of tapping and nothing of the
-        // permanent; Deep Water asks both). The inner `unwrap_or(false)` swallows
-        // `object_matches_filter`'s three authoring-error `Err`s, as `DealDamage`'s
+        // permanent; Deep Water asks both). `matched` reads
+        // `object_matches_filter`'s authoring-error `Err`s as no, as `DealDamage`'s
         // arm does (`codebase-state.md` item 103).
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
@@ -912,7 +914,7 @@ pub(crate) fn pattern_watches(
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
                 && filter
                     .as_ref()
-                    .map(|f| game.object_matches_filter(*producer, f, you).unwrap_or(false))
+                    .map(|f| matched(game.object_matches_filter(*producer, f, you)))
                     .unwrap_or(true)
         }
 

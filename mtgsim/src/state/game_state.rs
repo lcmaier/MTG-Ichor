@@ -166,6 +166,11 @@ pub struct ResolvingObject {
     /// source, what it names, so an object its own effect moves hands it a
     /// frame too (CR 608.2h's "the effect has moved it").
     pub subject: Option<crate::types::ids::ObjectRef>,
+    /// Its subject's last known information, when its trigger's event was
+    /// the subject's departure (CR 603.10a): the record's frame, naming the
+    /// existence that left, which deals a dies trigger's damage where
+    /// `subject` is the one it became. Read through `lki_of`.
+    pub subject_lki: Option<crate::types::triggers::DepartedFrame>,
     /// The entry's departed frames, and any its own effect adds.
     pub departed: Vec<crate::types::triggers::DepartedFrame>,
 }

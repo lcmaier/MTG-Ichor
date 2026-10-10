@@ -4,7 +4,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, EffectRecipient};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
@@ -438,6 +438,11 @@ pub enum Rejection {
 pub enum ChoiceOption {
     /// A game object (creature, card in hand, permanent, etc.)
     Object(ObjectId),
+    /// An object by its last known information: the existence that left a
+    /// zone (CR 400.7, 608.2h), which `Object`'s id would name the new
+    /// object for. CR 609.7a's source of damage "no longer in the zone it
+    /// used to be in".
+    LastKnown(ObjectRef),
     /// A player
     Player(PlayerId),
     /// A game action (for priority)
@@ -474,6 +479,7 @@ impl ChoiceOption {
         let object = |id: &ObjectId| format!("{} ({id})", printed_name(game, *id));
         match self {
             ChoiceOption::Object(id) => object(id),
+            ChoiceOption::LastKnown(existence) => format!("{} as it last existed", object(&existence.id)),
             ChoiceOption::Player(player) => format!("player {player}"),
             ChoiceOption::Action(PriorityAction::Pass) => "pass".to_string(),
             ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("cast {}", object(id)),

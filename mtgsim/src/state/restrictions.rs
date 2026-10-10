@@ -85,17 +85,16 @@ impl DurationRow for RegisteredRestriction {
     fn sort_key(&self) -> Self::SortKey {}
     fn refers_to(&self, object: ObjectId) -> bool {
         match &self.def.what {
-            Restriction::Event { pattern, affected_objects, .. } => {
-                affected_objects.refers_to(object) || pattern.chosen_damage_source() == Some(object)
-            }
+            // Not a chosen source of damage, named by identity: no move ends
+            // it (`RegisteredReplacementEffect::refers_to`).
+            Restriction::Event { affected_objects, .. } => affected_objects.refers_to(object),
             Restriction::ApplyReplacement { to_objects, .. } => to_objects.refers_to(object),
         }
     }
     fn remove_reference_to(&mut self, object: ObjectId) -> bool {
         match &mut self.def.what {
-            Restriction::Event { pattern, affected_objects, affected_players, .. } => {
-                pattern.chosen_damage_source() != Some(object)
-                    && (affected_objects.remove_reference_to(object) || affected_players.can_contain_a_player())
+            Restriction::Event { affected_objects, affected_players, .. } => {
+                affected_objects.remove_reference_to(object) || affected_players.can_contain_a_player()
             }
             Restriction::ApplyReplacement { to_objects, to_players, .. } => {
                 to_objects.remove_reference_to(object) || to_players.can_contain_a_player()

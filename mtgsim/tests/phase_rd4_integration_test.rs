@@ -130,7 +130,7 @@ fn resolve_spell_with(
 /// The source CR 609.7a wrote onto the one row in the registry.
 fn chosen_damage_source(game: &GameState) -> Option<ObjectId> {
     match &game.replacement_effects.iter().next()?.def.pattern {
-        EventPattern::DealDamage { source: Some(p), .. } => p.object,
+        EventPattern::DealDamage { source: Some(p), .. } => p.object.map(|chosen| chosen.id),
         _ => None,
     }
 }

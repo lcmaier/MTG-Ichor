@@ -36,7 +36,7 @@ use crate::types::effects::{
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
@@ -661,8 +661,11 @@ impl TokenKind {
 /// three words would mean something else.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcePattern {
-    /// CR 609.7a's chosen source, by id. `None` matches any source.
-    pub object: Option<ObjectId>,
+    /// CR 609.7a's chosen source, by identity (CR 400.7): the existence the
+    /// player chose, which may deal damage after it has left as it last
+    /// existed (CR 608.2h), and a new object with its id is not. `None`
+    /// matches any source.
+    pub object: Option<ObjectRef>,
     /// CR 609.7b/c's property, rechecked at the proposal. `None` asks nothing.
     ///
     /// Resolved against the **effect's controller** as CR 109.5's "you", the
@@ -711,11 +714,12 @@ impl DestructionSourcePattern {
 
 impl EventPattern {
     /// The source of damage CR 609.7a had a player choose, once a resolution
-    /// has written it in: the one object a pattern can name by identity, and
-    /// so the one a move must end (CR 400.7). `PatternFill` is the closed list
-    /// of what a resolution writes into a pattern, so the guard lives there: a
-    /// new arm that writes an object adds its read beside this one.
-    pub fn chosen_damage_source(&self) -> Option<ObjectId> {
+    /// has written it in: the one object a pattern names, by identity, so no
+    /// move ends it (CR 400.7) and a permanent spell becoming the permanent
+    /// re-points it (CR 400.7c). `PatternFill` is the closed list of what a
+    /// resolution writes into a pattern, so the guard lives there: a new arm
+    /// that writes an object adds its read beside this one.
+    pub fn chosen_damage_source(&self) -> Option<ObjectRef> {
         match self {
             EventPattern::DealDamage { source: Some(source), .. } => source.object,
             _ => None,

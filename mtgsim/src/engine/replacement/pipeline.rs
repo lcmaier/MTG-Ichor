@@ -2787,7 +2787,7 @@ fn retarget_destination(
     chosen: &ReplacementInstance,
     spec: RetargetSpec,
     damage_source: ObjectId,
-    damage_source_frame: Option<&std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>>,
+    damage_source_frame: Option<&crate::types::triggers::DepartedFrame>,
 ) -> Option<DamageTarget> {
     match spec {
         RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
@@ -2805,7 +2805,7 @@ fn retarget_destination(
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
         RetargetSpec::ToDamageSourceController => match damage_source_frame {
-            Some(frame) => Some(DamageTarget::Player(frame.controller)),
+            Some(frame) => Some(DamageTarget::Player(frame.chars().controller)),
             None => controller_or_owner(game, damage_source).map(DamageTarget::Player),
         },
     }
@@ -3245,7 +3245,7 @@ pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId
     if game.entry_selection.chosen.contains(&id) {
         return Some(NotAuxiliary::AlreadyChosen);
     }
-    if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
+    if !crate::engine::targeting::matched(game.object_matches_filter(id, &aux.filter, you)) {
         return Some(NotAuxiliary::NotMatched);
     }
     // CR 101.2 on the move this choice would produce — the resolution-time choice's

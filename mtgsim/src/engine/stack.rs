@@ -75,6 +75,7 @@ impl GameState {
             x_value: entry.x_value,
             identity: entry.ability_identity,
             subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
+            subject_lki: entry.trigger.as_ref().and_then(crate::engine::triggers::binding::departure_frame).cloned(),
             // The resolution reads them here, where its own effect's moves
             // add to them too (CR 608.2h).
             departed: std::mem::take(&mut entry.departed),

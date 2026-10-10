@@ -4,14 +4,14 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
+use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, LossReason, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
@@ -22,7 +22,10 @@ use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::Return;
 use crate::engine::triggers::bound_reads::BoundReads;
-use crate::types::triggers::{DelayedProvenance, DelayedTurn, Referred, RememberedObject, TriggerEvent, TriggerTurn};
+use crate::types::triggers::{
+    CreatingResolution, DelayedProvenance, DelayedTurn, DepartedFrame, Referred, RememberedObject, TriggerEvent,
+    TriggerTurn,
+};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -125,6 +128,10 @@ struct ResolutionWalk {
     /// CR 603.7c — what `Effect::Remember`'s instruction acted on, which a
     /// delayed trigger created after it refers to.
     remembered: Option<Referred>,
+    /// The records of the last instruction that took an action, from its
+    /// first to the one after its last: CR 603.12's "that action", which a
+    /// reflexive trigger made after it asks about.
+    last_action: Option<(EventSeq, EventSeq)>,
 }
 
 impl ResolutionWalk {
@@ -136,6 +143,7 @@ impl ResolutionWalk {
             extra_turn: None,
             remembering: None,
             remembered: None,
+            last_action: None,
         }
     }
 }
@@ -191,13 +199,46 @@ impl GameState {
         Ok(walk.last_cost_answer)
     }
 
-    /// [`Self::resolve_effect`]'s body, carrying the walk.
+    /// [`Self::resolve_effect`]'s body, carrying the walk, which keeps the
+    /// records of each instruction that takes an action: an atom, or a "you
+    /// may" around one, declined or not. Making a delayed trigger takes none.
+    fn resolve_effect_at(
+        &mut self,
+        effect: &Effect,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+        declared: DeclaredInstances<'_>,
+        walk: &mut ResolutionWalk,
+    ) -> Result<(), String> {
+        let takes_an_action = match effect {
+            Effect::Atom(Primitive::CreateDelayedTrigger(_), _) => false,
+            Effect::Atom(..) | Effect::Optional { .. } => true,
+            Effect::Sequence(_)
+            | Effect::Replacement(_)
+            | Effect::Restriction(_)
+            | Effect::CostModification(_)
+            | Effect::Conditional(..)
+            | Effect::Triggered(_)
+            | Effect::Remember(_)
+            | Effect::Modal { .. }
+            | Effect::ForEach(..)
+            | Effect::Repeat(..) => false,
+        };
+        let from = self.events.next_seq();
+        let result = self.resolve_effect_step(effect, ctx, dp, declared, walk);
+        if takes_an_action {
+            walk.last_action = Some((from, self.events.next_seq()));
+        }
+        result
+    }
+
+    /// One instruction of [`Self::resolve_effect_at`]'s walk.
     ///
     /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
     /// instance as a flat slice, so no primitive can reach a neighboring
     /// instance's targets, and an atom whose instance fizzled is handed an
     /// empty one rather than the spell's first (CR 608.2b).
-    fn resolve_effect_at(
+    fn resolve_effect_step(
         &mut self,
         effect: &Effect,
         ctx: &ResolutionContext,
@@ -445,10 +486,7 @@ impl GameState {
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
                         .into_iter()
-                        .filter(|&id| {
-                            self.object_matches_filter(id, filter, ctx.controller)
-                                .unwrap_or(false)
-                        })
+                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .map(DamageTarget::Object)
                         .collect(),
                     _ => targets
@@ -462,7 +500,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
-                let source_frame = self.departed_source_frame(ctx);
+                let source_frame = self.source_lki(ctx);
                 self.execute_actions(
                     targets
                         .into_iter()
@@ -747,9 +785,12 @@ impl GameState {
             // CR 603.7, registered as the resolution reaches it. The source is CR
             // 603.7d–f's: an ability's source (603.7e), else the spell (603.7d) or the
             // object whose replacement a rider is (603.7f) — never an ability's stack
-            // object, which CR 608.2n removes. X is CR 107.3n's.
+            // object, which CR 608.2n removes. X is CR 107.3n's. A reflexive one
+            // (CR 603.12) asks about "that action", the walk's last.
             Primitive::CreateDelayedTrigger(template) => {
                 let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
+                let resolution =
+                    resolving.map(|_| CreatingResolution { stamp: ctx.stamp(), that_action: walk.last_action });
                 let source = match ctx.ability_source {
                     Some(source) => source,
                     None => self
@@ -776,6 +817,7 @@ impl GameState {
                     created_by: resolving.and_then(|r| r.identity),
                     x_value: resolving.and_then(|r| r.x_value),
                     turn,
+                    resolution,
                 };
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
@@ -788,7 +830,7 @@ impl GameState {
                         ctx.source
                     ));
                 }
-                self.register_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default());
+                self.create_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default())?;
                 Ok(())
             }
 
@@ -929,10 +971,7 @@ impl GameState {
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
                         .into_iter()
-                        .filter(|&id| {
-                            self.object_matches_filter(id, filter, ctx.controller)
-                                .unwrap_or(false)
-                        })
+                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .collect(),
                     // CR 608.2b: a spell whose targets are not *all* illegal still resolves
                     // and does as much as it can, so a target that has left is skipped. The
@@ -1343,10 +1382,7 @@ impl GameState {
                         );
                         self.battlefield_ids_ordered()
                             .into_iter()
-                            .filter(|id| {
-                                self.object_matches_filter(*id, filter, ctx.controller)
-                                    .unwrap_or(false)
-                            })
+                            .filter(|id| self.matches_for_effect(*id, filter, ctx))
                             .map(fill_object)
                             .collect()
                     }
@@ -1891,10 +1927,7 @@ impl GameState {
                     .battlefield_ids_ordered()
                     .into_iter()
                     .filter(|&id| !(*exclude_donor && id == donor))
-                    .filter(|&id| {
-                        self.object_matches_filter(id, filter, ctx.controller)
-                            .unwrap_or(false)
-                    })
+                    .filter(|&id| self.matches_for_effect(id, filter, ctx))
                     .collect();
                 (donor, affected)
             }
@@ -2096,18 +2129,7 @@ impl GameState {
             pattern.object
         );
 
-        let candidates: Vec<ObjectId> = crate::oracle::legality::enumerate_legal_selections(
-            self,
-            &SelectionFilter::DamageSource,
-            None,
-            ctx.controller,
-        )
-        .into_iter()
-        .filter_map(|t| match t {
-            ResolvedTarget::Object(id) => Some(id),
-            ResolvedTarget::Player(_) => None,
-        })
-        .collect();
+        let candidates = crate::oracle::legality::damage_sources(self, None);
         // CR 102.2 — one candidate is not a choice; none is CR 101.3's
         // impossible instruction and the effect does nothing.
         let chosen = match candidates.len() {
@@ -2177,7 +2199,7 @@ impl GameState {
                     ChoiceScope::ChoosersPermanents => {
                         for id in self.battlefield_ids_ordered() {
                             if controls(self, id, player)
-                                && self.object_matches_filter(id, &pick.filter, ctx.controller).unwrap_or(false)
+                                && self.matches_for_effect(id, &pick.filter, ctx)
                                 && self.admits(primitive, id, &[], ctx)?
                             {
                                 candidates.push(ResolvedTarget::Object(id));
@@ -2293,6 +2315,14 @@ impl GameState {
         })
     }
 
+    /// `filter` asked of `id` for this resolution's effect: "you" is its
+    /// controller (CR 109.5) and "another" is other than its source, the
+    /// object `ResolutionContext::effect_source` names (`codebase-state.md`
+    /// item 229).
+    fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
+        self.matches_for_text_of(id, filter, ctx.controller, Some(ctx.effect_source()))
+    }
+
     /// The permanents a one-shot continuous effect applies to: its resolved
     /// targets, or for "each [permanent] you control" every permanent the
     /// filter matches now. CR 611.2c fixes that set as the effect begins, so
@@ -2308,7 +2338,7 @@ impl GameState {
             EffectRecipient::FilteredPermanents(filter) => self
                 .battlefield_ids_ordered()
                 .into_iter()
-                .filter(|&id| self.object_matches_filter(id, filter, ctx.controller).unwrap_or(false))
+                .filter(|&id| self.matches_for_effect(id, filter, ctx))
                 .collect(),
             _ => self.collect_battlefield_targets(targets),
         }
@@ -2554,18 +2584,15 @@ impl GameState {
         }
     }
 
-    /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
-    /// has left the zone it was in. A trigger on its source's own departure
-    /// ("when this creature dies") looks back (CR 603.10a) and is named by
-    /// the object it left as, so it reads the departure record's frame; any
-    /// other, the frame its entry kept as the source went. `None` while the
-    /// source is there, since a frame is kept only for an existence that has
-    /// left, and for a spell, which resolves where it was cast. A source no
-    /// frame was kept for reads where it is now.
-    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<std::sync::Arc<crate::engine::layers::types::EffectiveCharacteristics>> {
+    /// CR 113.7a, 608.2h — the ability's source's last known information,
+    /// once it has left the zone it was in: what the resolving object carries
+    /// for it (`ResolvingObject::lki_of`), the creature that died for a
+    /// trigger on its own death. `None` while the source is there, and for a
+    /// spell, which resolves where it was cast. A source no frame was kept
+    /// for reads where it is now.
+    fn source_lki(&self, ctx: &ResolutionContext) -> Option<DepartedFrame> {
         let source = ctx.ability_source?;
-        let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
-        looked_back.and_then(crate::engine::triggers::binding::departure_frame).or_else(|| self.departed_frame(source))
+        self.resolving.as_ref()?.lki_of(source).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

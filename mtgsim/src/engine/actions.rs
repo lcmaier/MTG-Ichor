@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::ReplacementInstanceId;
-use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
@@ -11,6 +10,7 @@ use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
+use crate::types::triggers::DepartedFrame;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_scry;
 use crate::ui::decision::DecisionProvider;
@@ -122,10 +122,12 @@ pub enum GameAction {
         /// after it left the zone the effect expected it in (CR 608.2h):
         /// what lifelink, deathtouch and a shield's source match read then
         /// (CR 702.15c, 702.2e, 609.7b), through
-        /// `oracle::characteristics::damage_source_characteristics`. `None`
-        /// while it is there, and its current characteristics answer. A
-        /// rewrite of "the same damage" keeps it.
-        source_frame: Option<std::sync::Arc<EffectiveCharacteristics>>,
+        /// `oracle::characteristics::damage_source_characteristics`, and
+        /// which existence dealt it (CR 400.7), which a chosen source is
+        /// matched against (CR 609.7a). `None` while it is there, and its
+        /// current characteristics answer. A rewrite of "the same damage"
+        /// keeps it.
+        source_frame: Option<DepartedFrame>,
     },
 
     /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",
@@ -1740,7 +1742,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         cause: ZoneChangeCause,
-        lki: Option<std::sync::Arc<EffectiveCharacteristics>>,
+        lki: Option<DepartedFrame>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });

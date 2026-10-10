@@ -25,6 +25,7 @@ use super::phase_tr2a_cards;
 use super::phase_tr2b_cards;
 use super::phase_tr3a_cards;
 use super::phase_tr3b_cards;
+use super::phase_tr3c_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -857,6 +858,10 @@ impl CardRegistry {
         // TR-3b: the returns, and "until". Both pooled (§12).
         registry.register("Flickerwisp", phase_tr3b_cards::flickerwisp);
         registry.register("Banishing Light", phase_tr3b_cards::banishing_light);
+
+        // TR-3c: the reflexive trigger. Not pooled: no pooled card has a
+        // "when you do", so the performance A/B stays IDENTICAL.
+        registry.register("Cornered Crook", phase_tr3c_cards::cornered_crook);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

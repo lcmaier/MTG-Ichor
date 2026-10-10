@@ -4,7 +4,6 @@
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use crate::engine::combat::validation::CombatError;
 use crate::engine::costs::CannotPay;
@@ -27,7 +26,7 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::DelayedDuration;
+use crate::types::triggers::{DelayedDuration, DepartedFrame, ReflexiveForm};
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -478,6 +477,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match option {
         ChoiceOption::Object(id) => n(id),
+        ChoiceOption::LastKnown(existence) => format!("{} as it last existed", n(&existence.id)),
         ChoiceOption::Player(player) => player_name(*player),
         ChoiceOption::Action(PriorityAction::Pass) => "Pass".to_string(),
         ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("Cast {}", n(id)),
@@ -849,9 +849,9 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
 
 /// An object as it was in the zone it left: its look-back frame from the
 /// battlefield (CR 603.10a), its card anywhere else.
-fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacteristics>>) -> String {
+fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<DepartedFrame>) -> String {
     match lki {
-        Some(frame) => object_label(game, id, &frame.name),
+        Some(departed) => object_label(game, id, &departed.chars().name),
         None => name_with_id(game, id, &None),
     }
 }
@@ -885,7 +885,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             let was = lki.as_ref().map(|f| {
                 // Sorted: `types` is a `HashSet`, and an unsorted log line
                 // differs run to run.
-                let mut names: Vec<String> = f.types.iter().map(|t| format!("{:?}", t)).collect();
+                let mut names: Vec<String> = f.chars().types.iter().map(|t| format!("{:?}", t)).collect();
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
@@ -906,6 +906,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             let fires = match duration {
                 DelayedDuration::Once => "once",
                 DelayedDuration::ThisTurn => "each time this turn",
+                DelayedDuration::Reflexive(ReflexiveForm::Does) => "reflexive, if it was done",
+                DelayedDuration::Reflexive(ReflexiveForm::Doesnt) => "reflexive, if it was not done",
             };
             format!(
                 "DelayedTriggerCreated: {}'s delayed trigger {} [P{}], {fires}: \"{}\"",
@@ -955,7 +957,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             };
             // A source that had left dealt it as it last existed.
             let source = match source_frame {
-                Some(frame) => object_label(game, *source_id, &frame.name),
+                Some(departed) => object_label(game, *source_id, &departed.chars().name),
                 None => obj_name(game, *source_id),
             };
             format!(
@@ -1057,6 +1059,8 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;

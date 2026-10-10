@@ -14,19 +14,6 @@ use crate::types::history::TurnFact;
 use crate::types::ids::PlayerId;
 use crate::types::zones::Zone;
 
-/// Each record's place among its player's records of the same kind this
-/// turn, 1 for the first: what "for the first time each turn" reads (§3.5).
-/// Only the kinds a summary counts events of have one: a cast, a draw, a
-/// gain, a loss.
-#[derive(Debug)]
-pub(crate) struct TurnOrdinals(Vec<(EventSeq, u64)>);
-
-impl TurnOrdinals {
-    pub(crate) fn place_in_turn(&self, seq: EventSeq) -> Option<u64> {
-        self.0.iter().find(|(s, _)| *s == seq).map(|(_, n)| *n)
-    }
-}
-
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
 enum HistoryUpdate {
@@ -60,12 +47,12 @@ impl HistoryUpdate {
 
 impl GameState {
     /// Advance the summaries of the turn in progress by `window`'s records,
-    /// and say where each record the event counts count falls in its turn.
-    pub(crate) fn advance_history(&mut self, window: &[EventSeq]) -> TurnOrdinals {
+    /// and write on each record the summaries count where it falls in its
+    /// turn (`EventRecord::place_in_turn`).
+    pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
         let updates: Vec<(EventSeq, HistoryUpdate)> =
             window.iter().filter_map(|&seq| self.history_update(seq).map(|u| (seq, u))).collect();
         let turn = self.turn_number;
-        let mut ordinals = TurnOrdinals(Vec::with_capacity(updates.len()));
         for (seq, update) in updates {
             if let HistoryUpdate::AbilityResolved { identity } = update {
                 let key = (identity.source, identity.ability.definition());
@@ -115,10 +102,9 @@ impl GameState {
                 }
             };
             if let Some(n) = place {
-                ordinals.0.push((seq, n));
+                self.events.note_place_in_turn(seq, n);
             }
         }
-        ordinals
     }
 
     /// Turn `turn` has begun, `active` taking it. Whoever took the turn
@@ -166,10 +152,10 @@ impl GameState {
                 HistoryUpdate::DamageTaken { player: *pid, amount: *amount }
             }
             // CR 700.4's "dies", under whoever controlled the creature as it did.
-            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(frame), .. }
-                if frame.types.contains(&CardType::Creature) =>
+            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(departed), .. }
+                if departed.chars().types.contains(&CardType::Creature) =>
             {
-                HistoryUpdate::CreatureDied { controller: frame.controller }
+                HistoryUpdate::CreatureDied { controller: departed.chars().controller }
             }
             // CR 508.1: the active player declares attackers.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {

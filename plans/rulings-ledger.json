@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-08",
+  "fetched": "2026-10-09",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -222,6 +222,12 @@
         {"n": 2, "published_at": "2021-03-19", "comment": "If a noncreature card wasn't cast and is entering the battlefield as a creature (due to an effect such as that of March of the Machines), it will be exiled. Conversely, if a creature card wasn't cast and is entering the battlefield as a noncreature permanent (for example, Heliod, Sun-Crowned with insufficient devotion), it won't be exiled."},
         {"n": 3, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield without being cast, its ability won't exile itself."},
         {"n": 4, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield at the same time as other creatures, its ability won't affect those creatures."}
+      ]
+    },
+    "Cornered Crook": {
+      "first_seen": "2026-10-09",
+      "rulings": [
+        {"n": 1, "published_at": "2024-02-02", "comment": "You don't choose a target for Cornered Crook's ability at the time it triggers. Rather, a second \"reflexive\" ability triggers when you sacrifice an artifact this way. You choose a target for that ability as it goes on the stack. Each player may respond to this triggered ability as normal."}
       ]
     },
     "Cosi's Trickster": {

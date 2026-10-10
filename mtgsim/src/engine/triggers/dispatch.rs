@@ -40,7 +40,6 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use super::history::TurnOrdinals;
 use crate::types::zones::{Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
@@ -443,9 +442,9 @@ impl GameState {
         }
         // Every record, before the gate: what happened this turn is read by
         // cards that are not on the battlefield yet (§3.10).
-        let ordinals = self.advance_history(window);
+        self.advance_history(window);
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots, audit, &ordinals);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -487,7 +486,6 @@ impl GameState {
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
-        ordinals: &TurnOrdinals,
     ) -> Result<(), String> {
         // The window's kinds, OR-ed once (§11). A window no arm can read — a
         // spell cast, an activation, a shuffle — would be refused by every
@@ -499,13 +497,13 @@ impl GameState {
                 None => mask,
             }
         });
-        let matches = self.detect(window, window_kinds, snapshots, ordinals);
+        let matches = self.detect(window, window_kinds, snapshots);
         if let Some(audit) = audit {
-            self.audit_dispatch(window, audit, &matches, ordinals);
+            self.audit_dispatch(window, audit, &matches);
         }
         // The registry's leg (§4.6), which has no shortcut for the audit to
         // check: every entry reading a kind of the window is asked.
-        let delayed = self.detect_delayed(window, window_kinds, ordinals);
+        let delayed = self.detect_delayed(window, window_kinds);
         let due = self.take_returns_due(window);
         if matches.is_empty() && delayed.is_empty() && due.is_empty() {
             return Ok(());
@@ -523,7 +521,6 @@ impl GameState {
         window: &[EventSeq],
         window_kinds: EventKindMask,
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         // --- The gate: five probes ------------------------------------------
         if window_kinds.is_empty() {
@@ -549,7 +546,7 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, named, unattributed, snapshots, ordinals)
+        self.find_matches(window, readers, named, unattributed, snapshots)
     }
 
     /// Steps 4 and 5, for the matches the two legs found: the objects', then
@@ -792,9 +789,9 @@ impl GameState {
     /// for any other mover the one `capture_departure_frames` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&Arc<EffectiveCharacteristics>>) {
+    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&DepartedFrame>) {
         let frame = match lki {
-            Some(frame) => Arc::clone(frame),
+            Some(lki) => Arc::clone(&lki.frame),
             None => match self.take_named_frame(id) {
                 Some(frame) => frame,
                 None => return,
@@ -822,7 +819,7 @@ impl GameState {
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
+    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<DepartedFrame> {
         let object = self.object_ref(id)?;
         let taken = self
             .departure_frames
@@ -831,7 +828,9 @@ impl GameState {
             .and_then(|d| d.frame.take());
         // Every departure is decided by a batch, which framed it first.
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
-        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
+        taken
+            .or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
+            .map(|frame| DepartedFrame { object, frame })
     }
 
     /// The objects the dispatch at the window's close could ask a look-back
@@ -926,7 +925,6 @@ impl GameState {
         named: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut live = self.candidates_now(readers, named, unattributed);
 
@@ -964,7 +962,7 @@ impl GameState {
             .filter_map(|(_, r)| match &r.event {
                 GameEvent::ZoneChange { object_id, owner, from, lki: Some(frame), .. }
                 | GameEvent::LeftTheGame { object_id, owner, from, lki: Some(frame) } => {
-                    Some((*object_id, *owner, *from, frame.as_ref()))
+                    Some((*object_id, *owner, *from, frame.chars()))
                 }
                 _ => None,
             })
@@ -1016,7 +1014,7 @@ impl GameState {
             });
         }
 
-        let matches = self.match_candidates(&records, &candidates, snapshots, ordinals);
+        let matches = self.match_candidates(&records, &candidates, snapshots);
         self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
         matches
     }
@@ -1031,7 +1029,6 @@ impl GameState {
         records: &[(EventSeq, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
@@ -1073,7 +1070,7 @@ impl GameState {
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, ordinals);
+                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, record.place_in_turn);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1161,7 +1158,7 @@ impl GameState {
         seq: EventSeq,
         event: &GameEvent,
         identity: AbilityIdentity,
-        ordinals: &TurnOrdinals,
+        place_in_turn: Option<u64>,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
@@ -1201,7 +1198,7 @@ impl GameState {
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, seq, ordinals) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, place_in_turn) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1216,20 +1213,20 @@ impl GameState {
 
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
     /// 603.2h's gate is its source's controller's; "only once each turn" is
-    /// the ability's; "the first time" is this record's place in its turn.
+    /// the ability's; "the first time" is the record's place in its turn
+    /// (`EventRecord::place_in_turn`).
     pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
         identity: AbilityIdentity,
         controller: PlayerId,
-        seq: EventSeq,
-        ordinals: &TurnOrdinals,
+        place_in_turn: Option<u64>,
     ) -> bool {
         match def.limit {
             None => true,
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.action_taken_this_turn.contains(&(identity, controller)),
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
-            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.place_in_turn(seq) == Some(1),
+            Some(TriggerLimit::FirstTimeEachTurn) => place_in_turn == Some(1),
         }
     }
 
@@ -1265,7 +1262,7 @@ impl GameState {
                     && to.is_none_or(|z| z == *rt)
                     && cause.is_none_or(|c| c == *rc)
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
             // triggers on it and nothing narrower — no `to`, no cause.
@@ -1277,7 +1274,7 @@ impl GameState {
                     && to.is_none()
                     && cause.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
-                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_deref()),
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(DepartedFrame::chars)),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
@@ -1319,7 +1316,7 @@ impl GameState {
                 };
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
-                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_deref()),
+                        && self.subject_matches(source, Some(*source_id), referents, seq, source_frame.as_ref().map(DepartedFrame::chars)),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
@@ -1445,9 +1442,9 @@ impl GameState {
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
-            (TriggerSubject::Filter(filter), Some(id)) => self
-                .object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame)
-                .unwrap_or(false),
+            (TriggerSubject::Filter(filter), Some(id)) => crate::engine::targeting::matched(
+                self.object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame),
+            ),
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
                 None,
@@ -1558,7 +1555,7 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// The CR 603.10a frame a record carries, if it carries one.
 fn frame_of(event: &GameEvent) -> Option<&EffectiveCharacteristics> {
     match event {
-        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_deref(),
+        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(DepartedFrame::chars),
         _ => None,
     }
 }

@@ -6,11 +6,10 @@ use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
-use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{DelayedDuration, DepartedFrame, TriggerOrigin, TriggerSeq};
 
 
 /// Game events that can be observed by triggered abilities and logging systems.
@@ -50,7 +49,9 @@ pub enum GameEvent {
         /// Behind an `Arc`, and the layer memo's own: the widest type in the
         /// engine is shared rather than copied, so a trigger binding that
         /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
-        lki: Option<Arc<EffectiveCharacteristics>>,
+        /// It names the existence that left (CR 400.7), which `object_id`
+        /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
+        lki: Option<DepartedFrame>,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -108,7 +109,7 @@ pub enum GameEvent {
         /// The proposal's `source_frame`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
         /// what dealt it reads what the damage's results read (CR 608.2h).
-        source_frame: Option<Arc<EffectiveCharacteristics>>,
+        source_frame: Option<DepartedFrame>,
     },
 
     // --- Turn structure ---
@@ -358,7 +359,7 @@ pub enum GameEvent {
         object_id: ObjectId,
         owner: PlayerId,
         from: Zone,
-        lki: Option<Arc<EffectiveCharacteristics>>,
+        lki: Option<DepartedFrame>,
     },
 
     // --- Tokens ---
@@ -579,6 +580,13 @@ pub struct EventRecord {
     pub stamp: EventStamp,
     /// See [`NamesAsAnnounced`].
     pub names: NamesAsAnnounced,
+    /// Its place among its player's records of the same kind this turn, 1
+    /// for the first: what "the first time each turn" reads
+    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
+    /// have one — a cast, a draw, a gain, a loss — written as the record is
+    /// dispatched, when the summaries count it, and read by any trigger that
+    /// matches the record then or later in the resolution (CR 603.12).
+    pub place_in_turn: Option<u64>,
 }
 
 /// The names an event's objects were announced under, where one was not its
@@ -663,8 +671,16 @@ impl EventWindow {
     }
 
     fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names });
+        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names, place_in_turn: None });
         self.next_seq += 1;
+    }
+
+    /// Write record `seq`'s place in its turn, as the summaries count it.
+    pub(crate) fn note_place_in_turn(&mut self, seq: EventSeq, place: u64) {
+        let Some(first) = self.records.first().map(|r| r.seq) else { return };
+        if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {
+            record.place_in_turn = Some(place);
+        }
     }
 
     /// The record at `seq`, or `None` for one the window no longer holds.
