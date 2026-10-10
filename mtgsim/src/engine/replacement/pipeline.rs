@@ -2787,7 +2787,7 @@ fn retarget_destination(
     chosen: &ReplacementInstance,
     spec: RetargetSpec,
     damage_source: ObjectId,
-    damage_source_frame: Option<&crate::types::triggers::DepartedFrame>,
+    damage_source_frame: Option<&crate::types::triggers::Lki>,
 ) -> Option<DamageTarget> {
     match spec {
         RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),

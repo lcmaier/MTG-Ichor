@@ -9,7 +9,7 @@ use crate::oracle::characteristics::damage_source_characteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::DepartedFrame;
+use crate::types::triggers::Lki;
 
 /// Whether `source` deals damage with `keyword`: as it last existed when
 /// the damage carries its `frame` (CR 702.15c, 702.2e), and as it is
@@ -17,7 +17,7 @@ use crate::types::triggers::DepartedFrame;
 fn deals_damage_with(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    frame: Option<&Lki>,
     keyword: KeywordFlag,
 ) -> bool {
     damage_source_characteristics(game, source, frame).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
@@ -35,7 +35,7 @@ fn deals_damage_with(
 pub fn apply_deathtouch_flag(
     game: &mut GameState,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    frame: Option<&Lki>,
     target: &DamageTarget,
 ) {
     // Pre-check before mutable borrow (borrow checker: the read borrows objects)
@@ -69,7 +69,7 @@ pub fn add_lifelink_gain(
     game: &GameState,
     gains: &mut Vec<LifelinkGain>,
     source: ObjectId,
-    frame: Option<&DepartedFrame>,
+    frame: Option<&Lki>,
     amount: u64,
 ) {
     if !deals_damage_with(game, source, frame, KeywordFlag::Lifelink) {

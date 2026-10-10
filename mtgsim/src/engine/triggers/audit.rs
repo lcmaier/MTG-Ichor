@@ -5,7 +5,7 @@
 //! of record a window carries, three candidate sets kept as objects move
 //! (printed sources on the battlefield, the zone map, the zones a granting
 //! or copying row reaches), a look-back snapshot taken only when a batch
-//! departs an ability list's source, and a departure's frame off its record.
+//! departs an ability list's source, and an object's LKI off its record.
 //! Every wrong answer it has had was a shortcut that left something out (F1,
 //! items 167 and 174), and none of them fails a random game on its own. In a
 //! game that turns the audit on, every dispatch is answered twice by the same
@@ -148,7 +148,7 @@ impl GameState {
 
     /// The window's triggers over the candidate set with no shortcut in it.
     /// A record some batch performed reads look-back arms off that batch's
-    /// snapshot — a survivor's list from before, or a departed object's —
+    /// snapshot — a survivor's list from before, or an object's that left —
     /// and every other arm off the list now; a record no batch performed
     /// reads everything off the list now.
     fn matches_without_shortcuts(
@@ -188,14 +188,14 @@ impl GameState {
                     },
                     // Moved or gone since the snapshot: its list from then,
                     // under its controller then (CR 603.3a, 603.10a).
-                    departed => TriggerCandidate {
+                    moved_or_gone => TriggerCandidate {
                         id,
                         controller: frame.chars.controller,
                         owner: frame.owner,
                         zone: frame.zone,
                         host: None,
-                        frame: TriggerCandidateFrame::Departed { chars: &frame.chars, snapshot: Some(k) },
-                        card: match departed {
+                        frame: TriggerCandidateFrame::LastKnown { chars: &frame.chars, snapshot: Some(k) },
+                        card: match moved_or_gone {
                             Some(object) => Arc::clone(&object.card_data),
                             None => CardDataBuilder::new(&frame.chars.name).build(),
                         },

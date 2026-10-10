@@ -9,7 +9,7 @@ use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
-use crate::types::triggers::{DelayedDuration, DepartedFrame, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
 
 
 /// Game events that can be observed by triggered abilities and logging systems.
@@ -51,7 +51,7 @@ pub enum GameEvent {
         /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
         /// It names the existence that left (CR 400.7), which `object_id`
         /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
-        lki: Option<DepartedFrame>,
+        lki: Option<Lki>,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -109,7 +109,7 @@ pub enum GameEvent {
         /// The proposal's `source_frame`: the source as it last existed, when
         /// it dealt the damage after leaving its zone, so a trigger asking
         /// what dealt it reads what the damage's results read (CR 608.2h).
-        source_frame: Option<DepartedFrame>,
+        source_frame: Option<Lki>,
     },
 
     // --- Turn structure ---
@@ -359,7 +359,7 @@ pub enum GameEvent {
         object_id: ObjectId,
         owner: PlayerId,
         from: Zone,
-        lki: Option<DepartedFrame>,
+        lki: Option<Lki>,
     },
 
     // --- Tokens ---

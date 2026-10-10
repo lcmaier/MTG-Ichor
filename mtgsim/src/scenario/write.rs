@@ -128,7 +128,7 @@ impl<'g> Writer<'g> {
             trigger_sources: _,     // the dispatcher's gates
             zone_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
-            departure_frames: _,
+            lki_captures: _,
             dispatch_audit: _,
             events: _,
             trace: _,

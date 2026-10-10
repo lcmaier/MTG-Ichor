@@ -30,7 +30,7 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
 pub fn damage_source_existence(
     game: &GameState,
     source: ObjectId,
-    lki: Option<&crate::types::triggers::DepartedFrame>,
+    lki: Option<&crate::types::triggers::Lki>,
 ) -> Option<crate::types::ids::ObjectRef> {
     match lki {
         Some(lki) => Some(lki.object),
@@ -45,10 +45,10 @@ pub fn damage_source_existence(
 pub fn damage_source_characteristics(
     game: &GameState,
     source: ObjectId,
-    frame: Option<&crate::types::triggers::DepartedFrame>,
+    frame: Option<&crate::types::triggers::Lki>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
     match frame {
-        Some(departed) => Some(Arc::clone(&departed.frame)),
+        Some(lki) => Some(Arc::clone(&lki.frame)),
         None => compute_characteristics(game, source),
     }
 }

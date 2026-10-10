@@ -152,10 +152,10 @@ impl GameState {
                 HistoryUpdate::DamageTaken { player: *pid, amount: *amount }
             }
             // CR 700.4's "dies", under whoever controlled the creature as it did.
-            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(departed), .. }
-                if departed.chars().types.contains(&CardType::Creature) =>
+            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(lki), .. }
+                if lki.chars().types.contains(&CardType::Creature) =>
             {
-                HistoryUpdate::CreatureDied { controller: departed.chars().controller }
+                HistoryUpdate::CreatureDied { controller: lki.chars().controller }
             }
             // CR 508.1: the active player declares attackers.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {

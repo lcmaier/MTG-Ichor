@@ -754,7 +754,7 @@ pub(crate) fn pattern_watches(
                                 .as_ref()
                                 .map(|f| {
                                     matched(match source_frame {
-                                        Some(departed) => game.object_matches_filter_in_frame(*dealt_by, f, you, departed.chars()),
+                                        Some(lki) => game.object_matches_filter_in_frame(*dealt_by, f, you, lki.chars()),
                                         None => game.object_matches_filter(*dealt_by, f, you),
                                     })
                                 })

@@ -26,7 +26,7 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::triggers::{DelayedDuration, DepartedFrame, ReflexiveForm};
+use crate::types::triggers::{DelayedDuration, Lki, ReflexiveForm};
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -849,9 +849,9 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
 
 /// An object as it was in the zone it left: its look-back frame from the
 /// battlefield (CR 603.10a), its card anywhere else.
-fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<DepartedFrame>) -> String {
+fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Lki>) -> String {
     match lki {
-        Some(departed) => object_label(game, id, &departed.chars().name),
+        Some(lki) => object_label(game, id, &lki.chars().name),
         None => name_with_id(game, id, &None),
     }
 }
@@ -957,7 +957,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             };
             // A source that had left dealt it as it last existed.
             let source = match source_frame {
-                Some(departed) => object_label(game, *source_id, &departed.chars().name),
+                Some(lki) => object_label(game, *source_id, &lki.chars().name),
                 None => obj_name(game, *source_id),
             };
             format!(

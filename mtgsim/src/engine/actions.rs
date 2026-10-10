@@ -10,7 +10,7 @@ use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
-use crate::types::triggers::DepartedFrame;
+use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_scry;
 use crate::ui::decision::DecisionProvider;
@@ -127,7 +127,7 @@ pub enum GameAction {
         /// matched against (CR 609.7a). `None` while it is there, and its
         /// current characteristics answer. A rewrite of "the same damage"
         /// keeps it.
-        source_frame: Option<DepartedFrame>,
+        source_frame: Option<Lki>,
     },
 
     /// **The instruction to draw** (CR 121.2, 121.2a) — "draw N cards",
@@ -954,8 +954,8 @@ impl GameState {
             .filter(|frames| !frames.is_empty());
         // The departing members' own frames, for the same reason: taken as each
         // moved, a later one would see an earlier one gone (item 174).
-        let frames_from = self.departure_frames.len();
-        self.capture_departure_frames(&decided);
+        let frames_from = self.lki_captures.len();
+        self.capture_lki(&decided);
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();
@@ -1002,7 +1002,7 @@ impl GameState {
                 }
             }
         }
-        self.departure_frames.truncate(frames_from);
+        self.lki_captures.truncate(frames_from);
         performed_ok?;
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
@@ -1716,15 +1716,15 @@ impl GameState {
         }
 
         // CR 603.10a — the frame the batch took before any member moved
-        // (`take_departure_frame`). A permanent, not merely an object in the
+        // (`take_captured_lki`). A permanent, not merely an object in the
         // zone: a token whose entry is being decided has no entity and nothing
         // to look back at (`create_tokens`).
         let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            self.take_departure_frame(object)
+            self.take_captured_lki(object)
         } else {
             None
         };
-        self.hand_over_departed_frame(object, lki.as_ref());
+        self.hand_over_lki(object, lki.as_ref());
         self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
@@ -1742,7 +1742,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         cause: ZoneChangeCause,
-        lki: Option<DepartedFrame>,
+        lki: Option<Lki>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });

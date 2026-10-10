@@ -184,7 +184,7 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),
-            departed: pending.departed.clone(),
+            kept_lki: pending.kept_lki.clone(),
         };
         let chosen = entry.chosen_targets.clone();
         self.set_stack_entry(entry);

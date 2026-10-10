@@ -432,7 +432,7 @@ mod tests {
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,
-            departed: Vec::new(),
+            kept_lki: Vec::new(),
         });
         assert_eq!(controller(&game, card), (Some(1), false));
         assert_eq!(controller(&game, card), (Some(1), true));

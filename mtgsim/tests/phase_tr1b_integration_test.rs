@@ -1,4 +1,4 @@
-//! Phase TR-1b — the dispatch audit, and the departure frame it was built
+//! Phase TR-1b — the dispatch audit, and the CR 603.10a frame it was built
 //! after (`triggers-architecture.md` §4.10, §12's TR-1b row).
 //!
 //! **Item 174 first.** CR 603.10a's frame is the permanent as it was
@@ -8,7 +8,7 @@
 //! exactly what the frame must not depend on.
 //!
 //! **Then the audit**, on over one board per candidate set the dispatcher
-//! keeps — a printed source, a zone-map card, a granted trigger, a departed
+//! keeps — a printed source, a zone-map card, a granted trigger, a record's
 //! frame, a survivor's snapshot — where agreeing is not panicking, so each
 //! test also asserts the audit ran and saw the triggers. What it says when
 //! the answers differ is `engine::triggers::audit`'s unit tests; that its
@@ -76,7 +76,7 @@ fn mourning_shrine() -> Arc<CardData> {
 }
 
 // ---------------------------------------------------------------------------
-// Item 174 — the departure frame is the board before the event (CR 603.10a)
+// Item 174 — a record's LKI is the board before the event (CR 603.10a)
 // ---------------------------------------------------------------------------
 
 /// Humility and Blood Artist destroyed as one event. Before it Blood Artist
@@ -85,7 +85,7 @@ fn mourning_shrine() -> Arc<CardData> {
 /// Artist's own move saw Humility already gone and triggered once.
 // COVERS-PARTIAL: ATOM-603.10a-001
 #[test]
-fn a_departure_frame_does_not_see_an_earlier_member_leave() {
+fn the_lki_does_not_see_an_earlier_member_leave() {
     for humility_first in [true, false] {
         let mut game = setup_two_player_game();
         let artist = put_on_battlefield(&mut game, blood_artist(), 0);
@@ -106,7 +106,7 @@ fn a_departure_frame_does_not_see_an_earlier_member_leave() {
 /// artifact, and "whenever a creature dies" missed it.
 // COVERS-PARTIAL: ATOM-603.10a-001
 #[test]
-fn a_departure_frame_keeps_the_type_an_earlier_member_gave_it() {
+fn the_lki_keeps_the_type_an_earlier_member_gave_it() {
     for march_first in [true, false] {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, mourning_shrine(), 0);
@@ -283,7 +283,7 @@ fn the_audit_agrees_over_a_granted_trigger() {
 /// The frames a window's departures carry (CR 603.10a): Blood Artist dying
 /// beside two creatures, and item 174's board in both orders.
 #[test]
-fn the_audit_agrees_over_a_departed_frame() {
+fn the_audit_agrees_over_a_records_lki() {
     let mut game = audited_game();
     let artist = put_on_battlefield(&mut game, blood_artist(), 0);
     let a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);

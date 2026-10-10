@@ -215,7 +215,7 @@ impl GameState {
             cast_from: Some(cast_from),
             ability_identity: None,
             trigger: None,
-            departed: Vec::new(),
+            kept_lki: Vec::new(),
         };
         self.set_stack_entry(entry);
 
@@ -471,7 +471,7 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
             trigger: None,
-            departed: Vec::new(),
+            kept_lki: Vec::new(),
         };
         self.set_stack_entry(stack_entry);
 

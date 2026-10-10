@@ -13,12 +13,12 @@ use crate::events::event::GameEvent;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{DepartedFrame, TriggerBinding};
+use crate::types::triggers::{Lki, TriggerBinding};
 
 /// The subject as it was in the zone it left, when the matched event was its
 /// own departure: the record's CR 603.10a frame, naming the existence that
 /// left.
-pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<&DepartedFrame> {
+pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
     let subject = binding.subject?;
     match &binding.records.first()?.event {
         GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
@@ -41,9 +41,9 @@ pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<&DepartedFrame
 fn carried_lki<'a>(
     object: ObjectRef,
     subject: Option<ObjectRef>,
-    subject_lki: Option<&'a DepartedFrame>,
-    kept: &'a [DepartedFrame],
-) -> Option<&'a DepartedFrame> {
+    subject_lki: Option<&'a Lki>,
+    kept: &'a [Lki],
+) -> Option<&'a Lki> {
     match subject_lki {
         Some(lki) if subject == Some(object) => Some(lki),
         _ => kept.iter().find(|frame| frame.object == object),
@@ -52,16 +52,16 @@ fn carried_lki<'a>(
 
 impl StackEntry {
     /// The last known information it carries for `object` (`carried_lki`).
-    pub fn lki_of(&self, object: ObjectRef) -> Option<&DepartedFrame> {
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
         let binding = self.trigger.as_ref();
-        carried_lki(object, binding.and_then(|b| b.subject), binding.and_then(departure_frame), &self.departed)
+        carried_lki(object, binding.and_then(|b| b.subject), binding.and_then(subject_lki), &self.kept_lki)
     }
 }
 
 impl ResolvingObject {
     /// The last known information it carries for `object` (`carried_lki`).
-    pub fn lki_of(&self, object: ObjectRef) -> Option<&DepartedFrame> {
-        carried_lki(object, self.subject, self.subject_lki.as_ref(), &self.departed)
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
+        carried_lki(object, self.subject, self.subject_lki.as_ref(), &self.kept_lki)
     }
 }
 
@@ -104,8 +104,8 @@ impl GameState {
     /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
-        match departure_frame(binding) {
-            Some(departed) => Some(Arc::clone(&departed.frame)),
+        match subject_lki(binding) {
+            Some(lki) => Some(Arc::clone(&lki.frame)),
             None => match self.bound_object(binding) {
                 Some(id) => compute_characteristics(self, id),
                 None => self.resolving.as_ref()?.lki_of(subject).map(|lki| Arc::clone(&lki.frame)),

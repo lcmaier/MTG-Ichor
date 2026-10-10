@@ -23,7 +23,7 @@ use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::Return;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::types::triggers::{
-    CreatingResolution, DelayedProvenance, DelayedTurn, DepartedFrame, Referred, RememberedObject, TriggerEvent,
+    CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
 use crate::ui::decision::DecisionProvider;
@@ -2435,7 +2435,7 @@ impl GameState {
                 })?;
                 let chars = self.bound_characteristics(binding).ok_or_else(|| {
                     format!(
-                        "{:?}: the bound object has left since the event and no departed frame answers for it, which is a missed capture",
+                        "{:?}: the bound object has left since the event and no last known information answers for it, which is a missed capture",
                         expr
                     )
                 })?;
@@ -2590,7 +2590,7 @@ impl GameState {
     /// trigger on its own death. `None` while the source is there, and for a
     /// spell, which resolves where it was cast. A source no frame was kept
     /// for reads where it is now.
-    fn source_lki(&self, ctx: &ResolutionContext) -> Option<DepartedFrame> {
+    fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
         let source = ctx.ability_source?;
         self.resolving.as_ref()?.lki_of(source).cloned()
     }

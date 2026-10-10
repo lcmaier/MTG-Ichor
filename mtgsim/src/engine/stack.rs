@@ -75,10 +75,10 @@ impl GameState {
             x_value: entry.x_value,
             identity: entry.ability_identity,
             subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
-            subject_lki: entry.trigger.as_ref().and_then(crate::engine::triggers::binding::departure_frame).cloned(),
+            subject_lki: entry.trigger.as_ref().and_then(crate::engine::triggers::binding::subject_lki).cloned(),
             // The resolution reads them here, where its own effect's moves
             // add to them too (CR 608.2h).
-            departed: std::mem::take(&mut entry.departed),
+            kept_lki: std::mem::take(&mut entry.kept_lki),
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -366,7 +366,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    departed: Vec::new(),
+    kept_lki: Vec::new(),
 });
         id
     }
@@ -495,7 +495,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    departed: Vec::new(),
+    kept_lki: Vec::new(),
 });
         id
     }
@@ -574,7 +574,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    departed: Vec::new(),
+    kept_lki: Vec::new(),
 });
         id
     }
@@ -635,7 +635,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
-    departed: Vec::new(),
+    kept_lki: Vec::new(),
 });
         id
     }
@@ -746,7 +746,7 @@ mod tests {
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,
-            departed: Vec::new(),
+            kept_lki: Vec::new(),
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());
         assert_eq!(game.resolving, None, "cleared even when resolution errors out");
