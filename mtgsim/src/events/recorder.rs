@@ -175,7 +175,13 @@ mod tests {
     use crate::events::event::{EventSeq, EventStamp};
 
     fn record(seq: usize) -> EventRecord {
-        EventRecord { seq: EventSeq(seq), event: GameEvent::StateBasedActionPerformed, stamp: EventStamp::default(), names: None }
+        EventRecord {
+            seq: EventSeq(seq),
+            event: GameEvent::StateBasedActionPerformed,
+            stamp: EventStamp::default(),
+            names: None,
+            place_in_turn: None,
+        }
     }
 
     fn seqs(records: &[EventRecord]) -> Vec<usize> {

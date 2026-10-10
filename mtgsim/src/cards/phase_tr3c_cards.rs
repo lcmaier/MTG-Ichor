@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{enters, sacrificed, triggered_ability, whenever};
+use crate::cards::authoring::{enters, is_sacrificed, triggered_ability, when_you_do, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -19,7 +19,7 @@ use crate::types::effects::{
     SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, ReflexiveForm, TriggerSubject};
+use crate::types::triggers::TriggerSubject;
 
 /// Cornered Crook — {4}{R}
 /// Creature — Lizard Warrior 5/4
@@ -47,18 +47,16 @@ use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTur
 ///   as normal."* (#1) → `cornered_crooks_target_is_chosen_for_its_second_ability`.
 pub fn cornered_crook() -> Arc<CardData> {
     let text = "When this creature enters, you may sacrifice an artifact. When you do, this creature deals 3 damage to any target.";
-    let when_you_do = DelayedTriggerTemplate {
-        def: Arc::new(whenever(
-            sacrificed(ObjectFilter::ByController(PlayerRef::You)),
-            Effect::Atom(
-                Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-            ),
-        )),
-        duration: DelayedDuration::Reflexive(ReflexiveForm::Does),
-        turn: DelayedTurn::Any,
-        rules_text: "When you do, this creature deals 3 damage to any target.".into(),
-    };
+    // Checked once, against the sacrifice the line before it made; it never
+    // waits for another.
+    let deals_3 = when_you_do(
+        is_sacrificed(ObjectFilter::ByController(PlayerRef::You)),
+        Effect::Atom(
+            Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
+            EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+        ),
+        "When you do, this creature deals 3 damage to any target.",
+    );
     CardDataBuilder::new("Cornered Crook")
         .mana_cost(ManaCost::build(&[ManaType::Red], 4))
         .color(Color::Red)
@@ -84,7 +82,7 @@ pub fn cornered_crook() -> Arc<CardData> {
                             })),
                         )),
                     },
-                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(when_you_do)), EffectRecipient::Controller),
+                    Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(deals_3)), EffectRecipient::Controller),
                 ]),
             ),
         ))

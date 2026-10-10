@@ -17,15 +17,15 @@
 //! beginning of the next end step" created during the end step waits for the
 //! next turn's.
 //!
-//! **A reflexive trigger reads the other side** (CR 603.12): what the
-//! resolution creating it performed before it, checked as it is created,
-//! through the same door and the same matcher. It never waits.
+//! **A reflexive trigger reads the other side** (CR 603.12): what "that
+//! action", taken by the resolution creating it, performed before it,
+//! checked as it is created, through the same door and the same matcher. It
+//! never waits.
 
 use std::sync::Arc;
 
 use super::dispatch::{TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
-use super::history::TurnOrdinals;
-use crate::types::triggers::ReflexiveForm;
+use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::trace_records;
@@ -42,31 +42,38 @@ use crate::ui::ask::ask_choose_delayed_trigger_event;
 use crate::ui::choice_types::ChoiceOption;
 
 impl GameState {
-    /// The registry's one door (CR 603.7a). The caller supplies the
+    /// CR 603.7a — a delayed triggered ability is created, through the one
+    /// door every rule that creates one uses. The caller supplies the
     /// provenance its rule gives: a resolution reads CR 603.7d–f's off its
     /// context, and a special action a static ability allows would read
     /// 603.7g's off that ability's object (`backlog.md` §2.8). `referred` is
     /// what its "that card" means (CR 603.7c), the creating resolution's
-    /// `Effect::Remember`. A reflexive one (CR 603.12) is checked here against
-    /// what its resolution has performed so far, and never waits. Returns the
-    /// new entry's id. Announced first, so its creation is no record it reads.
-    pub fn register_delayed_trigger(
+    /// `Effect::Remember`. Announced first, so its creation is no record it
+    /// reads. Then one of two things, by its duration:
+    /// - **Once or this turn:** it waits on the registry for an event after
+    ///   this one (603.7a), which a dispatch asks it about.
+    /// - **Reflexive** (603.12): it asks about "that action", which its
+    ///   resolution has already taken, now, and never waits
+    ///   (`trigger_reflexive`).
+    ///
+    /// Returns its number.
+    pub fn create_delayed_trigger(
         &mut self,
         template: &DelayedTriggerTemplate,
         provenance: DelayedProvenance,
         referred: Referred,
     ) -> Result<DelayedTriggerId, String> {
-        let earlier: Vec<EventSeq> = match template.duration {
-            DelayedDuration::Reflexive(_) => {
-                let resolution = provenance.resolution.ok_or_else(|| {
+        let reflexive = match template.duration {
+            DelayedDuration::Reflexive(form) => Some((
+                form,
+                provenance.resolution.ok_or_else(|| {
                     format!(
                         "a reflexive trigger on {} has no resolution creating it, and CR 603.12 makes one only as a spell or ability resolves",
                         provenance.source.id
                     )
-                })?;
-                self.events.resolution_records(resolution.stamp, resolution.began_at).map(|r| r.seq).collect()
-            }
-            DelayedDuration::Once | DelayedDuration::ThisTurn => Vec::new(),
+                })?,
+            )),
+            DelayedDuration::Once | DelayedDuration::ThisTurn => None,
         };
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
@@ -97,22 +104,28 @@ impl GameState {
             rules_text: template.rules_text,
             referred,
         };
-        match template.duration {
-            DelayedDuration::Reflexive(form) => self.trigger_reflexive(&delayed, form, &earlier),
-            DelayedDuration::Once | DelayedDuration::ThisTurn => self.delayed_triggers.push(delayed),
+        match reflexive {
+            Some((form, resolution)) => self.trigger_reflexive(&delayed, form, resolution),
+            None => self.delayed_triggers.push(delayed),
         }
         Ok(id)
     }
 
-    /// CR 603.12 — a reflexive trigger, checked as it is created against the
-    /// records its resolution performed before it (`earlier`): one trigger
-    /// for each that matches (603.12a), one for them all where its event is
-    /// "one or more", or for "when you don't" one if none does. Queued and
-    /// announced as a dispatch queues a delayed trigger.
-    fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, earlier: &[EventSeq]) {
-        // A record's place in its turn is a dispatch's to count, and no
-        // reflexive trigger reads "the first time each turn".
-        let occurrences = self.occurrences_among(reflexive, earlier, &TurnOrdinals::none(), |_| true);
+    /// CR 603.12 — a reflexive trigger, checked as it is created against
+    /// "that action": the records its resolution performed taking it, which
+    /// came before the trigger, so they are what it reads and no later event
+    /// ever is. One trigger for each record that matches (603.12a), one for
+    /// them all where its event is "one or more", or for "when you don't" one
+    /// if none does. Queued and announced as a dispatch queues a delayed
+    /// trigger.
+    fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, resolution: CreatingResolution) {
+        let that_action: Vec<EventSeq> = match resolution.that_action {
+            Some((from, to)) => {
+                self.events.resolution_records(resolution.stamp, from).filter(|r| r.seq < to).map(|r| r.seq).collect()
+            }
+            None => Vec::new(),
+        };
+        let occurrences = self.occurrences_among(reflexive, &that_action, |_| true);
         let triggered: Vec<PendingTrigger> = match form {
             ReflexiveForm::Does => occurrences.into_iter().map(|m| pending_of(m, reflexive)).collect(),
             ReflexiveForm::Doesnt => self.when_not_done(reflexive, occurrences.is_empty()).into_iter().collect(),
@@ -272,7 +285,6 @@ impl GameState {
         &self,
         window: &[EventSeq],
         window_kinds: EventKindMask,
-        ordinals: &TurnOrdinals,
     ) -> Vec<DelayedMatch> {
         if self.delayed_triggers.is_empty() {
             return Vec::new();
@@ -282,7 +294,7 @@ impl GameState {
             if !delayed.def.record_kinds().intersects(window_kinds) || !self.in_turn(delayed.turn) {
                 continue;
             }
-            let occurrences = self.delayed_occurrences(delayed, window, ordinals);
+            let occurrences = self.delayed_occurrences(delayed, window);
             if !occurrences.is_empty() {
                 found.push(DelayedMatch { id: delayed.id, occurrences });
             }
@@ -296,9 +308,8 @@ impl GameState {
         &self,
         delayed: &DelayedTrigger,
         window: &[EventSeq],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
-        self.occurrences_among(delayed, window, ordinals, |record| existed_before(delayed, record))
+        self.occurrences_among(delayed, window, |record| existed_before(delayed, record))
     }
 
     /// Every occurrence that triggers an entry among the records of `window`
@@ -310,7 +321,6 @@ impl GameState {
         &self,
         delayed: &DelayedTrigger,
         window: &[EventSeq],
-        ordinals: &TurnOrdinals,
         reads: impl Fn(&EventRecord) -> bool,
     ) -> Vec<MatchedTrigger> {
         let referents = self.delayed_referents(delayed);
@@ -321,7 +331,7 @@ impl GameState {
             if !reads(record) || !arms.iter().any(|arm| arm.reads(&record.event)) {
                 continue;
             }
-            let verdict = self.match_delayed(delayed, &referents, record, ordinals);
+            let verdict = self.match_delayed(delayed, &referents, record);
             self.trace_delayed_verdict(delayed, record.seq, verdict.as_ref().err().copied());
             if let Ok((event, subjects)) = verdict {
                 self.add_occurrences(&mut occurrences, delayed, record, event, subjects);
@@ -354,7 +364,6 @@ impl GameState {
         delayed: &DelayedTrigger,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
-        ordinals: &TurnOrdinals,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         let matched = delayed
             .def
@@ -368,7 +377,7 @@ impl GameState {
                 (!subjects.is_empty()).then_some((EventIndex(index), subjects))
             })
             .ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.seq, ordinals) {
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5).
@@ -594,7 +603,7 @@ mod tests {
             turn: TriggerTurn::Any,
             resolution: None,
         };
-        game.register_delayed_trigger(&template, provenance, Referred::default()).unwrap();
+        game.create_delayed_trigger(&template, provenance, Referred::default()).unwrap();
         game.remove_from_game(source).unwrap();
 
         game.execute_action(GameAction::GainLife { player: 0, amount: 1, source }, &test_ctx()).unwrap();

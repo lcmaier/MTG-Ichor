@@ -784,12 +784,15 @@ pub enum ReflexiveForm {
     Doesnt,
 }
 
-/// The resolution a delayed triggered ability is created during, and the
-/// first record it performed: what a reflexive one reads (CR 603.12).
+/// The resolution a delayed triggered ability is created during: what a
+/// reflexive one asks about (CR 603.12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreatingResolution {
     pub stamp: ResolutionStamp,
-    pub began_at: EventSeq,
+    /// "That action": the records of the last instruction before it that took
+    /// an action, from its first to the one after its last. `None` when no
+    /// instruction before it took one.
+    pub that_action: Option<(EventSeq, EventSeq)>,
 }
 
 /// Which turn a delayed triggered ability may trigger in, as a card prints it.

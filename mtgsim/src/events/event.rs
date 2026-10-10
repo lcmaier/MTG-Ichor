@@ -580,6 +580,13 @@ pub struct EventRecord {
     pub stamp: EventStamp,
     /// See [`NamesAsAnnounced`].
     pub names: NamesAsAnnounced,
+    /// Its place among its player's records of the same kind this turn, 1
+    /// for the first: what "the first time each turn" reads
+    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
+    /// have one — a cast, a draw, a gain, a loss — written as the record is
+    /// dispatched, when the summaries count it, and read by any trigger that
+    /// matches the record then or later in the resolution (CR 603.12).
+    pub place_in_turn: Option<u64>,
 }
 
 /// The names an event's objects were announced under, where one was not its
@@ -664,8 +671,16 @@ impl EventWindow {
     }
 
     fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names });
+        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names, place_in_turn: None });
         self.next_seq += 1;
+    }
+
+    /// Write record `seq`'s place in its turn, as the summaries count it.
+    pub(crate) fn note_place_in_turn(&mut self, seq: EventSeq, place: u64) {
+        let Some(first) = self.records.first().map(|r| r.seq) else { return };
+        if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {
+            record.place_in_turn = Some(place);
+        }
     }
 
     /// The record at `seq`, or `None` for one the window no longer holds.

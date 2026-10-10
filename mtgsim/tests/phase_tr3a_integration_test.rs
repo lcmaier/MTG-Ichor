@@ -811,7 +811,7 @@ fn a_special_actions_delayed_trigger_is_its_static_abilitys_objects() {
     let mut game = setup_two_player_game();
     let altar = put_on_battlefield(&mut game, CardDataBuilder::new("Waiting Altar").card_type(CardType::Artifact).build(), 0);
     let card = Arc::clone(&game.get_object(altar).unwrap().card_data);
-    game.register_delayed_trigger(
+    game.create_delayed_trigger(
         &template(at_beginning_of(StepType::End, Whose::Each), gain(2), DelayedDuration::Once),
         DelayedProvenance {
             source: game.object_ref(altar).unwrap(),

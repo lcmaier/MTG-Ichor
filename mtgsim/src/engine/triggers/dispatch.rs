@@ -40,7 +40,6 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use super::history::TurnOrdinals;
 use crate::types::zones::{Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
@@ -443,9 +442,9 @@ impl GameState {
         }
         // Every record, before the gate: what happened this turn is read by
         // cards that are not on the battlefield yet (§3.10).
-        let ordinals = self.advance_history(window);
+        self.advance_history(window);
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots, audit, &ordinals);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -487,7 +486,6 @@ impl GameState {
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
-        ordinals: &TurnOrdinals,
     ) -> Result<(), String> {
         // The window's kinds, OR-ed once (§11). A window no arm can read — a
         // spell cast, an activation, a shuffle — would be refused by every
@@ -499,13 +497,13 @@ impl GameState {
                 None => mask,
             }
         });
-        let matches = self.detect(window, window_kinds, snapshots, ordinals);
+        let matches = self.detect(window, window_kinds, snapshots);
         if let Some(audit) = audit {
-            self.audit_dispatch(window, audit, &matches, ordinals);
+            self.audit_dispatch(window, audit, &matches);
         }
         // The registry's leg (§4.6), which has no shortcut for the audit to
         // check: every entry reading a kind of the window is asked.
-        let delayed = self.detect_delayed(window, window_kinds, ordinals);
+        let delayed = self.detect_delayed(window, window_kinds);
         let due = self.take_returns_due(window);
         if matches.is_empty() && delayed.is_empty() && due.is_empty() {
             return Ok(());
@@ -523,7 +521,6 @@ impl GameState {
         window: &[EventSeq],
         window_kinds: EventKindMask,
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         // --- The gate: five probes ------------------------------------------
         if window_kinds.is_empty() {
@@ -549,7 +546,7 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, named, unattributed, snapshots, ordinals)
+        self.find_matches(window, readers, named, unattributed, snapshots)
     }
 
     /// Steps 4 and 5, for the matches the two legs found: the objects', then
@@ -928,7 +925,6 @@ impl GameState {
         named: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut live = self.candidates_now(readers, named, unattributed);
 
@@ -1018,7 +1014,7 @@ impl GameState {
             });
         }
 
-        let matches = self.match_candidates(&records, &candidates, snapshots, ordinals);
+        let matches = self.match_candidates(&records, &candidates, snapshots);
         self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
         matches
     }
@@ -1033,7 +1029,6 @@ impl GameState {
         records: &[(EventSeq, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
@@ -1075,7 +1070,7 @@ impl GameState {
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, ordinals);
+                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, record.place_in_turn);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1163,7 +1158,7 @@ impl GameState {
         seq: EventSeq,
         event: &GameEvent,
         identity: AbilityIdentity,
-        ordinals: &TurnOrdinals,
+        place_in_turn: Option<u64>,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
@@ -1203,7 +1198,7 @@ impl GameState {
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, seq, ordinals) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, place_in_turn) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1218,20 +1213,20 @@ impl GameState {
 
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
     /// 603.2h's gate is its source's controller's; "only once each turn" is
-    /// the ability's; "the first time" is this record's place in its turn.
+    /// the ability's; "the first time" is the record's place in its turn
+    /// (`EventRecord::place_in_turn`).
     pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
         identity: AbilityIdentity,
         controller: PlayerId,
-        seq: EventSeq,
-        ordinals: &TurnOrdinals,
+        place_in_turn: Option<u64>,
     ) -> bool {
         match def.limit {
             None => true,
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.action_taken_this_turn.contains(&(identity, controller)),
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
-            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.place_in_turn(seq) == Some(1),
+            Some(TriggerLimit::FirstTimeEachTurn) => place_in_turn == Some(1),
         }
     }
 

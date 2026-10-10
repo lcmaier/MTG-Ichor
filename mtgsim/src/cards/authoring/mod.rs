@@ -22,6 +22,6 @@
 pub mod triggers;
 
 pub use triggers::{
-    another, at_beginning_of, dies, draws_a_card, enters, leaves_the_battlefield, sacrificed,
-    shuffles_their_library, triggered_ability, whenever, CountableEvent, Whose,
+    another, at_beginning_of, dies, draws_a_card, enters, is_sacrificed, leaves_the_battlefield,
+    shuffles_their_library, triggered_ability, when_you_do, when_you_dont, whenever, CountableEvent, Whose,
 };

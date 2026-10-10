@@ -4,7 +4,7 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
+use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, LossReason, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
@@ -128,6 +128,10 @@ struct ResolutionWalk {
     /// CR 603.7c — what `Effect::Remember`'s instruction acted on, which a
     /// delayed trigger created after it refers to.
     remembered: Option<Referred>,
+    /// The records of the last instruction that took an action, from its
+    /// first to the one after its last: CR 603.12's "that action", which a
+    /// reflexive trigger made after it asks about.
+    last_action: Option<(EventSeq, EventSeq)>,
 }
 
 impl ResolutionWalk {
@@ -139,6 +143,7 @@ impl ResolutionWalk {
             extra_turn: None,
             remembering: None,
             remembered: None,
+            last_action: None,
         }
     }
 }
@@ -194,13 +199,46 @@ impl GameState {
         Ok(walk.last_cost_answer)
     }
 
-    /// [`Self::resolve_effect`]'s body, carrying the walk.
+    /// [`Self::resolve_effect`]'s body, carrying the walk, which keeps the
+    /// records of each instruction that takes an action: an atom, or a "you
+    /// may" around one, declined or not. Making a delayed trigger takes none.
+    fn resolve_effect_at(
+        &mut self,
+        effect: &Effect,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+        declared: DeclaredInstances<'_>,
+        walk: &mut ResolutionWalk,
+    ) -> Result<(), String> {
+        let takes_an_action = match effect {
+            Effect::Atom(Primitive::CreateDelayedTrigger(_), _) => false,
+            Effect::Atom(..) | Effect::Optional { .. } => true,
+            Effect::Sequence(_)
+            | Effect::Replacement(_)
+            | Effect::Restriction(_)
+            | Effect::CostModification(_)
+            | Effect::Conditional(..)
+            | Effect::Triggered(_)
+            | Effect::Remember(_)
+            | Effect::Modal { .. }
+            | Effect::ForEach(..)
+            | Effect::Repeat(..) => false,
+        };
+        let from = self.events.next_seq();
+        let result = self.resolve_effect_step(effect, ctx, dp, declared, walk);
+        if takes_an_action {
+            walk.last_action = Some((from, self.events.next_seq()));
+        }
+        result
+    }
+
+    /// One instruction of [`Self::resolve_effect_at`]'s walk.
     ///
     /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
     /// instance as a flat slice, so no primitive can reach a neighboring
     /// instance's targets, and an atom whose instance fizzled is handed an
     /// empty one rather than the spell's first (CR 608.2b).
-    fn resolve_effect_at(
+    fn resolve_effect_step(
         &mut self,
         effect: &Effect,
         ctx: &ResolutionContext,
@@ -748,10 +786,11 @@ impl GameState {
             // 603.7d–f's: an ability's source (603.7e), else the spell (603.7d) or the
             // object whose replacement a rider is (603.7f) — never an ability's stack
             // object, which CR 608.2n removes. X is CR 107.3n's. A reflexive one
-            // (CR 603.12) reads what this resolution has performed so far.
+            // (CR 603.12) asks about "that action", the walk's last.
             Primitive::CreateDelayedTrigger(template) => {
                 let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
-                let resolution = resolving.map(|r| CreatingResolution { stamp: ctx.stamp(), began_at: r.began_at });
+                let resolution =
+                    resolving.map(|_| CreatingResolution { stamp: ctx.stamp(), that_action: walk.last_action });
                 let source = match ctx.ability_source {
                     Some(source) => source,
                     None => self
@@ -791,7 +830,7 @@ impl GameState {
                         ctx.source
                     ));
                 }
-                self.register_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default())?;
+                self.create_delayed_trigger(template, provenance, walk.remembered.clone().unwrap_or_default())?;
                 Ok(())
             }
 

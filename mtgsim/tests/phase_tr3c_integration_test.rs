@@ -16,7 +16,9 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{another, dies, enters, sacrificed, triggered_ability, whenever};
+use mtgsim::cards::authoring::{
+    another, dies, enters, is_sacrificed, triggered_ability, when_you_do, when_you_dont, whenever,
+};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::keyword_creatures::wall_of_stone;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
@@ -47,7 +49,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, ReflexiveForm, TriggerEvent, TriggerSubject,
+    DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -522,18 +524,10 @@ fn create(template: DelayedTriggerTemplate) -> Effect {
     Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller)
 }
 
-/// A reflexive trigger of `form` on "you sacrifice" (CR 603.12).
-fn when_you(form: ReflexiveForm, effect: Effect, text: &'static str) -> DelayedTriggerTemplate {
-    reflexive(form, sacrificed(ObjectFilter::ByController(PlayerRef::You)).into(), effect, text)
-}
-
-fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, text: &'static str) -> DelayedTriggerTemplate {
-    DelayedTriggerTemplate {
-        def: Arc::new(whenever(event, effect)),
-        duration: DelayedDuration::Reflexive(form),
-        turn: DelayedTurn::Any,
-        rules_text: text.into(),
-    }
+/// "You sacrifice [a permanent]": what "when you do" names after "you may
+/// sacrifice".
+fn you_sacrifice() -> TriggerEvent {
+    is_sacrificed(ObjectFilter::ByController(PlayerRef::You)).into()
 }
 
 /// Spitefang Manticore — a fixture under no real card's name: Heart-Piercer
@@ -549,8 +543,8 @@ fn spitefang_manticore() -> Arc<CardData> {
         Primitive::DealDamage { amount: AmountExpr::TriggeringPower, unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
-    let when_you_do = when_you(
-        ReflexiveForm::Does,
+    let deals_its_power = when_you_do(
+        you_sacrifice(),
         that_creatures_power,
         "When you do, this creature deals damage equal to that creature's power to any target.",
     );
@@ -565,7 +559,7 @@ fn spitefang_manticore() -> Arc<CardData> {
             text,
             whenever(
                 enters(TriggerSubject::ThisObject),
-                may_sacrifice_then(another(ObjectFilter::ByType(CardType::Creature)), when_you_do),
+                may_sacrifice_then(another(ObjectFilter::ByType(CardType::Creature)), deals_its_power),
             ),
         ))
         .build()
@@ -617,7 +611,7 @@ fn withheld_tithe() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(may_sacrifice_then(
             ObjectFilter::ByType(CardType::Creature),
-            when_you(ReflexiveForm::Doesnt, lose_2, "When you don't, you lose 2 life."),
+            when_you_dont(you_sacrifice(), lose_2, "When you don't, you lose 2 life."),
         )))
         .build()
 }
@@ -630,16 +624,64 @@ fn withheld_tithe() -> Arc<CardData> {
 fn bloodtithe_rite() -> Arc<CardData> {
     let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    let each = sacrificed(TriggerSubject::Any);
-    let one_or_more = sacrificed(TriggerSubject::Any).once_per_event();
+    let each = is_sacrificed(TriggerSubject::Any);
+    let one_or_more = is_sacrificed(TriggerSubject::Any).once_per_event();
     CardDataBuilder::new("Bloodtithe Rite")
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Instant)
         .ability(spell_ability(Effect::Sequence(vec![
             sacrifice_now(Pick::exactly(2, ObjectFilter::ByType(CardType::Creature))),
-            create(reflexive(ReflexiveForm::Does, each.into(), gain_1, "When a creature is sacrificed this way, you gain 1 life.")),
-            create(reflexive(ReflexiveForm::Does, one_or_more, draw, "When one or more creatures are sacrificed this way, draw a card.")),
+            create(when_you_do(each, gain_1, "When a creature is sacrificed this way, you gain 1 life.")),
+            create(when_you_do(one_or_more, draw, "When one or more creatures are sacrificed this way, draw a card.")),
+        ])))
+        .build()
+}
+
+/// Twofold Tithe — a fixture for "that action" (CR 603.12): a resolution
+/// that performs the reflexive trigger's event twice, the second time as the
+/// action it names.
+///
+/// > Sacrifice a creature. Then you may sacrifice a creature. When you do,
+/// > you gain 3 life.
+fn twofold_tithe() -> Arc<CardData> {
+    let gain_3 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    CardDataBuilder::new("Twofold Tithe")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 0))
+        .color(Color::Black)
+        .card_type(CardType::Instant)
+        .ability(spell_ability(Effect::Sequence(vec![
+            sacrifice_now(Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))),
+            may_sacrifice_then(
+                ObjectFilter::ByType(CardType::Creature),
+                when_you_do(you_sacrifice(), gain_3, "When you do, you gain 3 life."),
+            ),
+        ])))
+        .build()
+}
+
+/// Firstlight Vow — a fixture for "the first time each turn" read by a
+/// reflexive trigger, which no printed one prints and the CR does not
+/// exclude.
+///
+/// > You may gain 1 life. When you gain life this way for the first time
+/// > this turn, draw a card.
+fn firstlight_vow() -> Arc<CardData> {
+    let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let mut first_time = when_you_do(
+        TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+        draw,
+        "When you gain life this way for the first time this turn, draw a card.",
+    );
+    Arc::make_mut(&mut first_time.def).limit = Some(TriggerLimit::FirstTimeEachTurn);
+    CardDataBuilder::new("Firstlight Vow")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .ability(spell_ability(Effect::Sequence(vec![
+            Effect::Optional { chooser: PlayerRef::You, effect: Box::new(gain_1) },
+            create(first_time),
         ])))
         .build()
 }
@@ -981,4 +1023,56 @@ fn a_reflexive_trigger_triggers_once_for_each_time_its_event_occurred() {
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(life(&game, 0), 22);
     assert_eq!(game.players[0].hand.len(), hand + 1);
+}
+
+/// CR 603.12's "when you do" asks about "that action", the instruction
+/// before it, and not about every event of its kind the resolution
+/// performed. Twofold Tithe sacrifices a creature, then may sacrifice
+/// another: declined, the first sacrifice is not "that action" and nothing
+/// triggers; taken, the trigger fires once, for the second.
+#[test]
+fn when_you_do_asks_about_that_action_and_no_other_instruction() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let second = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let tithe = put_in_hand(&mut game, twofold_tithe(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(select(), vec![ChoiceOption::Object(first)]);
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert!(dp.is_empty());
+    assert_eq!(zone(&game, first), Zone::Graveyard);
+    assert!(game.pending_triggers.is_empty(), "declined: the first sacrifice is not \"that action\"");
+
+    let third = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let tithe = put_in_hand(&mut game, twofold_tithe(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(select(), vec![ChoiceOption::Object(second)]);
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![0]);
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert!(dp.is_empty());
+    assert_eq!((zone(&game, second), zone(&game, third)), (Zone::Graveyard, Zone::Graveyard));
+    assert_eq!(game.pending_triggers.len(), 1, "taken: once, for the second sacrifice");
+}
+
+/// "The first time each turn" is a record's place among its kind this turn,
+/// kept on the record as it is dispatched, so a reflexive trigger made
+/// later in the resolution reads it as any trigger does. Firstlight Vow's
+/// gain is the turn's first the first time, and its second the next.
+#[test]
+fn a_reflexive_trigger_reads_the_first_time_each_turn() {
+    let mut game = setup_two_player_game();
+    mtgsim::test_support::fill_library(&mut game, 0, 5);
+    for expected in [1, 0] {
+        let vow = put_in_hand(&mut game, firstlight_vow(), 0);
+        game.players[0].mana_pool.add(ManaType::White, 1);
+        game.cast_spell(0, vow, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+        resolve_may(&mut game, true, None);
+        assert_eq!(game.pending_triggers.len(), expected, "the turn's first gain triggers it, and only that one");
+        resolve_all(&mut game, &test_dp());
+    }
 }

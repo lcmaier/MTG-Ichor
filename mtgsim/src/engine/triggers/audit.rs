@@ -25,7 +25,6 @@
 use std::sync::Arc;
 
 use super::dispatch::{LookBackSnapshot, MatchedTrigger, ObjectSnapshot, TriggerCandidate, TriggerCandidateFrame};
-use super::history::TurnOrdinals;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::events::event::{BatchId, EventRecord, EventSeq};
 use crate::objects::card_data::CardDataBuilder;
@@ -105,10 +104,9 @@ impl GameState {
         window: &[EventSeq],
         snapshots: &[LookBackSnapshot],
         engine: &[MatchedTrigger],
-        ordinals: &TurnOrdinals,
     ) {
         let saved = self.save_observers();
-        let reference = self.matches_without_shortcuts(window, snapshots, ordinals);
+        let reference = self.matches_without_shortcuts(window, snapshots);
         self.restore_observers(saved);
         let describe = |matches: &[MatchedTrigger]| matches.iter().map(|m| self.describe(m)).collect::<Vec<_>>();
         assert_agree(&self.describe_window(window), describe(engine), describe(&reference));
@@ -157,7 +155,6 @@ impl GameState {
         &self,
         window: &[EventSeq],
         snapshots: &[LookBackSnapshot],
-        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let records: Vec<(EventSeq, &EventRecord)> =
             window.iter().filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r))).collect();
@@ -207,7 +204,7 @@ impl GameState {
                 candidates.push(candidate);
             }
         }
-        self.match_candidates(&records, &candidates, snapshots, ordinals)
+        self.match_candidates(&records, &candidates, snapshots)
     }
 
     /// A trigger as the comparison and its report read it.
