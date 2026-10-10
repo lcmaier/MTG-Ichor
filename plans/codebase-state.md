@@ -8074,6 +8074,18 @@ linked-ability records an entry makes.
      is in `fuzz-record.md`. Item 131's first two instances were this defect,
      found at RE-8 and scheduled onto critical-path item 6; they closed with
      it.
+
+     **A6l's inputs (2026-10-10).** The duplicate inventory found seven facts
+     on this surface read in more than one place
+     (`plans/references/duplicate-inventory.md` §3.1, L1–L7), and the design
+     names each one's home: the damage source as it deals damage (five
+     spellings, two of them the helpers #239 put side by side), "this
+     reference is still the object" (ten), the frame a record carries
+     (three), taking a mover's frame, the handoff before a leave, what a
+     resolution put into a zone since a mark, and the set a decided
+     `PlayerLoses` takes. The rename of "departed frame" to LKI (§4 there) is
+     recommended as its own PR just before the design, so the design is
+     written in the vocabulary it keeps.
      **Slotted:** A6d, items 176 and 177's own PR, which designs the
      zone-change record's contract before TR-4 widens it.
 
@@ -8124,6 +8136,11 @@ keeps the cost decisions).
 
      It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
      item 176's design settles just before TR-4.
+
+     **A6l's input (2026-10-10).** The identity this item puts on the record
+     is compared by hand in ten places today, an epoch or
+     `object_ref(id) == Some(r)` (`plans/references/duplicate-inventory.md`
+     §3.1, L2); the design names the one query they all become.
      **Slotted:** A6d, items 176 and 177's own PR, which puts the stamped epoch
      on `ZoneChange` beside TR-4's CR 400.7e atoms.
 
@@ -9031,8 +9048,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Untapped lands have no copies: the `!entry.tapped` reads are tap-cost
      checks. The `can_pay` pair stays here; the filter pair is item 229's,
      and the frame-capture pair item 236's.
+
+     **Moved by A6l (2026-10-10).** The third cleanup is the duplicate
+     inventory's now: the permanents, `legal_blockers` and the opponents are
+     item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
+     item 246's, and `static_replacement` and `intrinsic_mana_ability` C0's
+     ("Before card breadth" item 10). The first two stay here.
      **Slotted:** A6e, the hygiene pass of item 6's close audit
-     (`engineering-practices.md` §9), which takes the three cleanups.
+     (`engineering-practices.md` §9), which takes the first two cleanups.
 
 ### Found by SU-8, what happened, from the trace (2026-10-06)
 
@@ -9296,3 +9319,117 @@ source live is corrected in place.
      **Reachability (2026-10-08):** closed — PR #237.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 236".
 
+### Found by A6l — the duplicate inventory (2026-10-10)
+
+`roadmap-v2.md` A6l: `plans/similar_functions.py` widened to key each engine
+function by its inputs, its reads and its tests, and its first report over
+`main` read entry by entry in `plans/references/duplicate-inventory.md`, with
+a blind calibration and a second opinion. Of 140 entries, 69 are merges. The
+ones on the last-known-information and zone-change surface are items 176 and
+177's inputs (a dated paragraph each); the rest are below. Item 215's
+"helpers built more than once" moves to items 242–244 and C0.
+
+242. **The board's queries are built inline beside their helpers, or with no
+     helper.** The permanents a player controls (four inline beside
+     `permanents_controlled_by`), the blocker's half of CR 509.1a, the players
+     still in the game (about twelve), CR 800.4's "left a multiplayer game"
+     (four), who an opponent is (three ways) and whether a `PlayerRef` names a
+     player (seven), a `SelectionFilter`'s candidates (twice, arm for arm), a
+     spell on the stack, "in this player's hand", a permanent's host (about
+     eleven), and lethal damage (CR 702.19b), whose two `ui/decision.rs`
+     copies nothing calls. Places: the inventory §3.3, M1.
+     **Reachability (2026-10-10):** unreachable — the copies part only where
+     no registered card reaches: lethal damage in copies no engine path
+     calls, and a spell on the stack for a filter whose one registered user,
+     Counterspell's target, cannot be the resolving spell (CR 115.5). The
+     inventory §3.5.
+     **Sized:** ~250–400 lines with tests, mechanical but for
+     `has_legal_choices`, which becomes `enumerate_legal_selections_upto`'s
+     count; two stale comments go with it. May split along the queries.
+     **Slotted:** A6m, its first PR.
+
+243. **The mana code restates a cost's demand five times, and
+     `oracle/mana_supply.rs` restates the paths it predicts.** A cost's pips
+     per type and its generic count (`ManaPool::can_pay`,
+     `can_pay_with_context`, `ManaPool::pay`, `remaining_cost_after_pool`,
+     `pips_owed`, and `ManaCost::colored_count`, which misses the `Colorless`
+     spelling); and MA-1's inventory building a mana ability's resolution
+     context, the `ProduceMana` proposal, the host's mana, the `ManaAdded`
+     arm, a static replacement's existence, a cost list's mana component and
+     {T}/{Q} payability itself, beside the engine's own. The inventory §3.3,
+     M2.
+     **Reachability (2026-10-10):** unreachable — `colored_count` and
+     `can_pay_with_context` are called only by tests, and the `ManaAdded`
+     arm's one difference that a card could reach, the trigger's limits, is
+     item 213's.
+     **Sized:** ~300–500 lines: one demand method on `ManaCost`, and the
+     inventory asking the engine's predicates, which keeps its answers.
+     Before MA-7, which reads every cost per `Cost` arm and would widen the
+     copies.
+     **Slotted:** A6m, before MA-7.
+
+244. **A resolution's affected set is skipped by seven primitives, and a
+     restriction behind "as long as" has no leg at the prohibition gate's
+     granted and copied routes.** CR 611.2c's affected set is
+     `affected_permanents`; `SetPowerToughness`, `SwitchPowerToughness`,
+     `ChangeColor`, `ChangeType`, `RemoveFromCombat`, `RemoveAllDamage`,
+     `Restrict` and the Layer 6 register (but for `GrantKeywordFlag`) read
+     only the targets, so "each creature you control" at resolution affects
+     nothing. `Summary::of` tests `Effect::Restriction` and not the
+     `Conditional` around one, which `register_static_effects` and
+     `prohibition` see through, so a granted or copied conditional "can't"
+     leaves `is_prohibited`'s gate closed. With them, the resolution's other
+     copies: its continuous effect's row (seven), a static ability's rows
+     (four), an ability ceasing to exist (seven), and the small ones in the
+     inventory §3.3, M3.
+     **Reachability (2026-10-10):** unreachable — every registered filtered
+     use of those primitives is a static ability, which
+     `register_static_effects` lowers, and the resolutions that write a
+     filtered recipient go through `affected_permanents`; no registered
+     ability is a conditional restriction.
+     **Sized:** ~300–500 lines, two fixtures each shown to fail first: a
+     spell setting "creatures target player controls" to 0/2, and a granted
+     conditional "can't" as the board's only restriction.
+     **Slotted:** A6m.
+
+245. **Two `ObjectFilter` leaf tables answer differently where one refuses a
+     leaf.** `compute::object_matches_filter`, in the layer walk, and
+     `targeting::object_matches_filter_with`, for a selection or an
+     `ObjectSet`: `NotSource` with no source, `PowerLE` with no power,
+     `OtherThanInstance` outside an announcement and `PlayerRef::Owner`. The
+     second's doc cites this file's item 14 for the pair, an archived item
+     about something else. The inventory §3.3, M4.
+     **Reachability (2026-10-10):** unreachable — each table is asked only in
+     its own context, where its answer is the one that context needs; whether
+     one table can serve both is the design question.
+     **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
+     generic over how it resolves a player and an identity.
+     **Slotted:** A6m, its last PR, the design reviewed first.
+
+246. **The scenario format and the dev GUI compute seven facts twice.** "The
+     first draw still to skip", a card reference's match and a permanent's
+     seat words (each in the loader or writer and the editor), whether an
+     allocation answers (`ui/ask.rs` and the CLI), a permanent's keywords as
+     words, `card_name` beside `get_effective_name`, and the
+     take-it-or-leave-it prompt three times. The inventory §3.3, M5.
+     **Reachability (2026-10-10):** reachable — not wrong: each pair answers
+     alike today, and the window is where a drift would show.
+     **Sized:** ~150–250 lines, reviewed by `engineering-practices.md` §10.
+     **Slotted:** A6m, the dev GUI's turn in its cadence.
+
+247. **The trigger code applies a trigger's tail, queues it and folds its
+     records in two places each.** The inventory §3.2's T1–T9 by name: the
+     arm, limit and intervening "if" (T1), the queue step (T2), CR 603.2c's
+     fold (T3), CR 603.7a's "existed before", which `is_due` reads without
+     the creating batch (T4), CR 603.2h's key (T5), the audit's own
+     `TriggerCandidate` literal, whose departed card has no abilities (T6),
+     the arms' multiplicities and record kinds (T7), an extra turn still
+     coming, which the waiting panel defines again (T8), and three small
+     ones (T9).
+     **Reachability (2026-10-10):** unreachable — `wait_to_return` makes a
+     return after its exile batch closes and no rider makes one (T4); the
+     audit's `describe` compares no card (T6); only the waiting panel reads
+     its copy (T8).
+     **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
+     `audit.rs`, after TR-7, so the merges take the whole phase's shape.
+     **Slotted:** A6e, item 6's close audit, its hygiene pass.
