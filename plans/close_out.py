@@ -8,7 +8,8 @@ close_out - the measuring half of the close-out (engineering-practices.md §3.1)
 Builds each arm in its own worktree and target dir, refusing two identical binaries (a stale
 or shared build reads IDENTICAL having measured nothing); runs `fuzz_ab.py --rounds 0` on both
 pools, audited, at two seats and four; reads callgrind instructions per decision, the first arm
-against `--cpu`; runs `--require` on the last arm; prints the `fuzz-record.md` block's tables.
+against `--cpu`; runs `--require` on the last arm; prints the `fuzz-record.md` block's tables; and
+lists the copies the last arm made against the first (`similar_functions.py --against`).
 """
 
 import argparse
@@ -151,6 +152,9 @@ def main():
         # fuzz_games refuses a registered card the pool does not hold, and says which pool does.
         text = sh(flags + ["--pool", "stress"]) if "Use --pool stress" in first.stdout + first.stderr else first.stdout
         print(f"\nreachability, {arms[-1][0]}, {seats} seats, 200 games:\n" + text[text.find("=== Reachability"):].split("\n\n")[0].rstrip())
+    # engineering-practices.md §9, pass 3: the copies the last arm made, each to be merged or kept with its reason.
+    print(f"\ncopies, {arms[-1][0]} against {arms[0][0]}:")
+    print(sh([sys.executable, os.path.join(HERE, "similar_functions.py"), "--at", specs[-1][2], "--against", specs[0][2]]))
     print(f"\n{time.time() - t0:.0f}s wall")
 
 
