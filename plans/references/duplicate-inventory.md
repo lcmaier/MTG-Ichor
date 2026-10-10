@@ -166,7 +166,7 @@ report by hand, as above.
 
 A letter and number names a fact: L for the last-known-information and
 zone-change surface (items 176 and 177's), T for the trigger code (A6e's),
-M for the merges outside both, a PR each, and C0 for the card-authoring
+M for the merges outside both, in A6m's two PRs, and C0 for the card-authoring
 constructors. Where a place is named by function, the function holds the copy.
 
 ### 3.1 Inputs to items 176 and 177's design (`codebase-state.md`, A6d)
@@ -272,7 +272,10 @@ Item 6's close audit (`roadmap-v2.md` A6e) takes these with its hygiene pass,
   `register_static_effects` and off its effect's shape in `frame_card` and
   the audit.
 
-### 3.3 Outside the trigger code — a PR each, `roadmap-v2.md` A6m
+### 3.3 Outside the trigger code — `roadmap-v2.md` A6m, two PRs
+
+M1 with M3, then M2 with M4 (M4's design paragraph first); M5 rides in the
+dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
 
 - **M1. The board's queries** (item 242). The permanents a player controls,
   inline at `sacrifice_candidates`, `choose_as_it_applies`,

@@ -9346,7 +9346,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Sized:** ~250–400 lines with tests, mechanical but for
      `has_legal_choices`, which becomes `enumerate_legal_selections_upto`'s
      count; two stale comments go with it. May split along the queries.
-     **Slotted:** A6m, its first PR, before TR-4a.
+     **Slotted:** A6m's first PR, with item 244, before TR-4a.
 
 243. **The mana code restates a cost's demand five times, and
      `oracle/mana_supply.rs` restates the paths it predicts.** A cost's pips
@@ -9366,7 +9366,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      inventory asking the engine's predicates, which keeps its answers.
      Before MA-7, which reads every cost per `Cost` arm and would widen the
      copies.
-     **Slotted:** A6m, its third PR, before TR-4a and MA-7.
+     **Slotted:** A6m's second PR, with item 245, before TR-4a and MA-7.
 
 244. **A resolution's affected set is skipped by seven primitives, and a
      restriction behind "as long as" has no leg at the prohibition gate's
@@ -9390,7 +9390,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Sized:** ~300–500 lines, two fixtures each shown to fail first: a
      spell setting "creatures target player controls" to 0/2, and a granted
      conditional "can't" as the board's only restriction.
-     **Slotted:** A6m, its second PR, before TR-4a.
+     **Slotted:** A6m's first PR, with item 242, before TR-4a.
 
 245. **Two `ObjectFilter` leaf tables answer differently where one refuses a
      leaf.** `compute::object_matches_filter`, in the layer walk, and
@@ -9404,7 +9404,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      one table can serve both is the design question.
      **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
      generic over how it resolves a player and an identity.
-     **Slotted:** A6m, its fourth PR, before TR-4a, the design reviewed first.
+     **Slotted:** A6m's second PR, with item 243, before TR-4a, its design paragraph reviewed first.
 
 246. **The scenario format and the dev GUI compute seven facts twice.** "The
      first draw still to skip", a card reference's match and a permanent's
@@ -9415,7 +9415,7 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Reachability (2026-10-10):** reachable — not wrong: each pair answers
      alike today, and the window is where a drift would show.
      **Sized:** ~150–250 lines, reviewed by `engineering-practices.md` §10.
-     **Slotted:** A6m, its fifth PR, before TR-4a, a dev GUI turn in the cadence.
+     **Slotted:** A6m, in the dev GUI notes PR after its first PR, before TR-4a.
 
 247. **The trigger code applies a trigger's tail, queues it and folds its
      records in two places each.** The inventory §3.2's T1–T9 by name: the
