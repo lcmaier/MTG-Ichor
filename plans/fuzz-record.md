@@ -133,6 +133,20 @@ reads TR-3b's to the digit; `stress` is a new baseline.
 | Candidate visits | 37.1 | 55.7 |
 | Trigger matches | 3.0 | 2.9 |
 
+**The review round (2026-10-10)**, after the sitting: typed filter
+refusals, "another" in costs, the reflexive check reading "that action" and
+a record's place in its turn, and one rule for a stack object's last known
+information. Predicted `IDENTICAL` to the pre-review binary: Cornered Crook's
+"that action" is its "you may" sacrifice, the same records; a record's place
+is the same number whoever reads it; in release a refusal reads as no, as
+before; no registered card writes "another" in a cost; and a trigger's source
+LKI comes from the same frame by one road instead of two. `fuzz_ab.py`, pre
+`43c1e81` against the review's `6f04a0f`, 200 games at seed 12345: every row
+outside timing **IDENTICAL** on both pools at two seats and four. The fixture
+rows above stand. A debug build, whose asserts the release fuzz compiles out,
+played 60 `stress` games at each seat count, the Crook required, without one
+firing.
+
 **Measured 2026-10-09 for TR-3b's dev GUI notes** (#238: item 234's
 `UntilReturnId` and `UntilReturnMade` record, the hover's columns and the
 Waiting panel's returns). No card registered and no pool changed, so no §3

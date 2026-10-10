@@ -9121,24 +9121,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by TR-3c — the reflexive trigger (2026-10-09)
 
-241. **A reflexive trigger's event is its arm's kind over the whole
-     resolution, not "that action".** CR 603.12's "when you do" triggers on
-     "that action", and the engine checks the def's arm against every record
-     the resolution performed before the trigger was made
-     (`register_delayed_trigger`'s reflexive branch). That is "that action"
-     exactly while the resolution performs the arm's event once, as the
-     action. A resolution that also performed it by another instruction (two
-     sacrifices, the second optional) would trigger "when you do" on both.
-     **Reachability (2026-10-09):** unreachable — no printed reflexive trigger
-     follows two instructions that perform its event. Scryfall, 0 cards each:
-     `o:/sacrifices? [^.]*\. [^.]*sacrifice[^.]*\. when you do/` and
-     `o:/sacrific[^.]*\.[^.]*\bmay sacrifice[^.]*\. when you do/`. Cornered
-     Crook's resolution performs one.
-     **Sized:** the walk marks the instruction a "when you do" names, as
-     `Effect::Remember` marks one, and the check reads that instruction's
-     records; ~30 lines and a fixture.
-     **Slotted:** with the first registered card that performs its reflexive
-     trigger's event twice in one resolution.
+241. **~~A reflexive trigger's event is its arm's kind over the whole
+     resolution, not "that action".~~ — ✅ CLOSED 2026-10-10 (PR #239, at its
+     review).** — archived.
+     Done: a reflexive trigger reads the records of "that action", the last
+     instruction before it that took one (`ResolutionWalk::last_action`).
+     **Reachability (2026-10-10):** closed — PR #239.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 241".
 
 
 ### Found by TR-3b — the returns and "until" (2026-10-08)

@@ -476,6 +476,13 @@ are the first and the second. `triggered_this_turn` is written as the
 dispatcher queues, so a second match in the same window finds it taken.
 `begin_turn` clears both sets and §6.5's count.
 
+**Amended at TR-3c's review (2026-10-10): the place is kept on the record.**
+`TurnOrdinals` lived only for the dispatch that advanced the history, so a
+reflexive trigger made later in the resolution could not read it, and
+TR-3c first answered "no place" for one. `EventRecord::place_in_turn` is
+written as the history advances past the record, and every reader of "the
+first time each turn" reads it there.
+
 ### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
 
 ```rust
@@ -719,8 +726,9 @@ departures from the sketch, each forced by a board:
   nothing reads which rule it was. The resolution reads the context: an
   ability's `ability_source` (603.7e), else the resolving spell or the
   rider's object (603.7d, 603.7f), never `ctx.source` for an ability
-  (`codebase-state.md` item 223). `register_delayed_trigger` is the one
-  door, and 603.7g's special action will call it.
+  (`codebase-state.md` item 223). `create_delayed_trigger` (named
+  `register_delayed_trigger` until TR-3c's review) is the one door, and
+  603.7g's special action will call it.
 - **`source_left_at`**: a departure record names the object's id and not
   which existence of it moved, so the movers note the record that ended a
   delayed trigger's source. "When this creature leaves the battlefield"
@@ -751,7 +759,7 @@ departures from the sketch, each forced by a board:
 **Added in #233 (2026-10-08), the dev GUI's notes on TR-3a.** The template and
 the entry carry `rules_text: AbilityText`, the card's words for the trigger,
 which no `TriggerDef` carries, written by the card's author as an ability's
-are. `register_delayed_trigger` announces `GameEvent::DelayedTriggerCreated`
+are. `create_delayed_trigger` announces `GameEvent::DelayedTriggerCreated`
 ahead of the entry, so its creation is no record it reads; nothing triggers on
 it. `AbilityId::delayed_trigger` reads back the role above, so a log names the
 trigger by its registry number on its triggered and resolved lines.
@@ -787,19 +795,23 @@ as a delayed trigger's number is, and `wait_to_return` announces
 announced; the Waiting panel keeps a row by the number its log line gave it
 (item 234, the TR-3b dev GUI PR).
 
-**As built (TR-3c, 2026-10-09).** The sketch's `reflexive:
-Option<ResolutionStamp>` is `DelayedDuration::Reflexive(ReflexiveForm)`,
-`Does` or `Doesnt`, beside the resolution creating it, which
-`DelayedProvenance::resolution` carries (`CreatingResolution`: the stamp, and
-`ResolvingObject::began_at`, the first record the resolution performed).
-`register_delayed_trigger` reads that resolution's records before it
-announces the entry, checks the entry against them and queues what matched
-(§4.6), and the entry never reaches the registry. A reflexive template with
-no resolution creating it is refused, since CR 603.12 makes one only as a
-spell or ability resolves, so the door returns a `Result`. Its
+**As built (TR-3c, 2026-10-09; the door renamed at its review,
+2026-10-10).** The sketch's `reflexive: Option<ResolutionStamp>` is
+`DelayedDuration::Reflexive(ReflexiveForm)`, `Does` or `Doesnt`, beside the
+resolution creating it, which `DelayedProvenance::resolution` carries
+(`CreatingResolution`: the stamp, and "that action", the records of the last
+instruction before it that took one). The door is `create_delayed_trigger`,
+CR 603.7a's word: a waiting entry is registered for a later event, and a
+reflexive one asks about that action now (§4.6) and never reaches the
+registry — the review's question was why a function named for registering
+read the past, and the name was the answer. A reflexive template with no
+resolution creating it is refused, since CR 603.12 makes one only as a spell
+or ability resolves, so the door returns a `Result`. Its
 `DelayedTriggerCreated` reads "reflexive, if it was done" (or "if it was not
 done") whether or not it triggered: the owner's call at TR-3c's design
-questions, since a dropped entry otherwise leaves no trace in the log.
+questions, since a dropped entry otherwise leaves no trace in the log. Cards
+write `when_you_do(event, …)` and `when_you_dont(event, …)`, so the call site
+says it is checked once.
 
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
@@ -1420,10 +1432,14 @@ could read an earlier one's records, so it now holds a resolution's records
 until the resolution ends. `Effect::Remember` is its first reader; the
 reflexive check is TR-3c's.
 
-**As built (TR-3c, 2026-10-09).** The check is `register_delayed_trigger`'s
-reflexive branch. Its window is `resolution_records(stamp, began_at)` up to
-the entry's creation, matched by `occurrences_among`, the matcher a waiting
-entry's dispatch uses, without CR 603.7a's filter. "When you do"
+**As built (TR-3c, 2026-10-09; "that action" at its review, 2026-10-10).**
+The check is `trigger_reflexive`, through `create_delayed_trigger`. Its
+window is "that action": the resolution's own records of the last
+instruction before the trigger that took an action — an atom other than
+making a delayed trigger, or a "you may" around one, declined or not — which
+the resolution's walk keeps (`ResolutionWalk::last_action`). It is matched by
+`occurrences_among`, the matcher a waiting entry's dispatch uses, without CR
+603.7a's filter. "When you do"
 (`ReflexiveForm::Does`) queues one trigger per matching record (603.12a), or
 one for them all where its arm is "one or more"; "when you don't" (`Doesnt`)
 queues one, bound to no record, when none matched. Both are queued and
@@ -1432,11 +1448,13 @@ states the "doesn't" form and no printed reflexive trigger uses it — Olivia,
 Crimson Bride's "when you don't control" is a state trigger (603.8), and
 Heart of Bogardan's and Thought Lash's "when a player doesn't pay" are their
 own triggered abilities — so it has a fixture. "When you do" after "you may
-sacrifice" is `sacrificed`, a zone change off the battlefield caused by a
-sacrifice, to any zone, since a replacement may send it elsewhere. The window
-is the whole resolution, which is "that action" while the resolution
-performs the arm's event once; `codebase-state.md` item 241 is the case where
-it is not.
+sacrifice" is `is_sacrificed`, a zone change off the battlefield caused by a
+sacrifice, to any zone, since a replacement may send it elsewhere. The
+window was first the whole resolution, which differs from "that action" only
+when the resolution performs the arm's event twice; no printed card does,
+but the CR's words are the customer, and the review closed it
+(`codebase-state.md` item 241). "The first time each turn" reads the
+record's own place (§3.5's amendment).
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
@@ -2544,17 +2562,19 @@ existence, the frame of a departure and of damage a `DepartedFrame`, CR
 400.7c's re-point. Item 103: `targeting::matched` at the six sites that
 swallowed a filter's `Err`, and a frame answering for a source the store has
 lost. Item 99's first half and its resolving-object gap: `damage_sources`,
-CR 609.7a's one enumeration, with `ChoiceOption::Departed`; its command-zone
-half is B2's. Cornered Crook registered, not pooled (187 → 188). Twenty-one tests;
-ATOM-603.12-001 covered.
+CR 609.7a's one enumeration, with `ChoiceOption::LastKnown`; its command-zone
+half is B2's. Cornered Crook registered, not pooled (187 → 188). Twenty-four
+tests; ATOM-603.12-001 covered.
 
 **What moved on the way in.** The gap hunt found twelve facilities the row
 did not name, the departure record's own frame among them: a dies trigger
 names its source by the card it became, so only that frame knows which
 creature deals its damage. The "doesn't" form has no printed reflexive
-customer, and the owner chose to build it with a fixture. Item 241 records
-the window's one limit. +1,626 in code and tests (code +663,
-tests +963), against the hunt's 1,250–1,500 and the row's 800–950.
+customer, and the owner chose to build it with a fixture. The review
+(2026-10-10) closed item 241 ("that action") and the "first time" read it
+had excused, typed the filter's refusals, put "another" in costs, and made
+one rule of a stack object's LKI. +1,626 in code and tests before it (code
++663, tests +963), against the hunt's 1,250–1,500.
 
 **Measured** (`fuzz-record.md`, the TR-3c block). The engine arm plays
 every `performance` game as `main` does at two seats, and two of 200 apart at

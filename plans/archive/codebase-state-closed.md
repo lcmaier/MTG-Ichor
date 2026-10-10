@@ -5154,3 +5154,37 @@ source away fails its five tests.
      `object_matches_filter_for_instance` with no identity, the same frame
      cell and the same call (`similar_functions.py`, 0.87); the helper this
      item adds makes the first a call to the second.
+
+### Item 241 — closed 2026-10-10 by PR #239 (TR-3c's review)
+
+Closed at #239's review (2026-10-10), where the owner set the rule it broke:
+nothing is excluded only because no printed card does it, since a new set or
+a custom card can print it. The resolution's walk keeps the records of the
+last instruction that took an action — an atom other than making a delayed
+trigger, or a "you may" around one, declined or not — and the reflexive check
+reads those (`ResolutionWalk::last_action`, `CreatingResolution::that_action`).
+Twofold Tithe, a fixture that sacrifices a creature and then may sacrifice
+another, is its test: declined, the first sacrifice does not trigger "when you
+do"; taken, the second triggers it once. Under the whole-resolution window the
+test fails.
+
+*Original entry:*
+
+241. **A reflexive trigger's event is its arm's kind over the whole
+     resolution, not "that action".** CR 603.12's "when you do" triggers on
+     "that action", and the engine checks the def's arm against every record
+     the resolution performed before the trigger was made
+     (`register_delayed_trigger`'s reflexive branch). That is "that action"
+     exactly while the resolution performs the arm's event once, as the
+     action. A resolution that also performed it by another instruction (two
+     sacrifices, the second optional) would trigger "when you do" on both.
+     **Reachability (2026-10-09):** unreachable — no printed reflexive trigger
+     follows two instructions that perform its event. Scryfall, 0 cards each:
+     `o:/sacrifices? [^.]*\. [^.]*sacrifice[^.]*\. when you do/` and
+     `o:/sacrific[^.]*\.[^.]*\bmay sacrifice[^.]*\. when you do/`. Cornered
+     Crook's resolution performs one.
+     **Sized:** the walk marks the instruction a "when you do" names, as
+     `Effect::Remember` marks one, and the check reads that instruction's
+     records; ~30 lines and a fixture.
+     **Slotted:** with the first registered card that performs its reflexive
+     trigger's event twice in one resolution.

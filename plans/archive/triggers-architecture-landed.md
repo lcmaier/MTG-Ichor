@@ -1238,3 +1238,43 @@ frame, and a test pins it. The `stress` games apart, one at two seats and
 three at four, are each at Circle of Protection: Red's choice, offered a
 source items 99 and 225 now reach. Every dispatch agreed; instructions per
 decision +0.17%.
+
+### Review round (2026-10-10)
+
+Eight comments on #239, in three commits ahead of the docs.
+
+- **Comment 7, "how do we know only card-authoring errors reach
+  `matched`?"** Nothing said so, and one refusal that is no authoring error
+  could reach it after item 103's frame half (a token or owner leaf asked of
+  a source the store has lost). The refusals are a type, `FilterRefusal`, and
+  every site that read one as no goes through `matched`, the seven outside
+  item 103's six among them. Routing them found `And` evaluating its right arm
+  after its left said no, and a cost's filter asked with no source:
+  "Sacrifice another creature:", on 162 printed cards, offered nothing.
+  `matches_for_text_of` asks a filter for the text of an object, for a cost
+  and for a resolution's effect alike.
+- **Comments 2, 4 and 5**, on the reflexive check: the door is
+  `create_delayed_trigger`, CR 603.7a's word, since a function named for
+  registering read the past; cards write `when_you_do` and `when_you_dont`,
+  and `is_sacrificed`. The owner ruled out "no printed card does it" as a
+  reason, which this PR had used twice: the check now reads "that action"
+  (item 241, closed) and a record's place in its turn,
+  `EventRecord::place_in_turn`, which replaced `TurnOrdinals`.
+- **Comments 3, 6 and 8**, on `dealer`, LKI vocabulary and
+  `objects_referred_to`: the rule "a trigger on its subject's departure
+  names the existence that left" was spelled three times in this PR, which
+  `similar_functions.py` could not see (each under its 60-token floor). It is
+  `carried_lki`, asked through `StackEntry::lki_of` and
+  `ResolvingObject::lki_of`. `damage_source_existence` sits beside
+  `damage_source_characteristics`. This PR's names say LKI, and the
+  enumeration's leg is `referred_damage_sources`. The older "departed frame"
+  names (TR-2b) are a sweep of their own, offered to the owner.
+- **Comment 1:** `sacrificed` became `is_sacrificed`, beside `dies` and
+  `enters`; the suggested `sacrifice_self` would say the subject is the
+  trigger's own source, which it is not.
+
+Three fixtures and tests (Twofold Tithe, Firstlight Vow, Marrowgnaw Ghoul),
+each shown to fail without its change. +575 and −288 in code and tests over
+the PR as
+it stood. Predicted and read `IDENTICAL` against the pre-review binary on
+both pools at two seats and four.
