@@ -5004,3 +5004,153 @@ production caller left.
     **Sized:** swap the call for `remove_static_by_source`, which already
     exists, and decide what CR 611.3b means for a *granted* static ability
     whose grantee leaves — ~10 lines and one question.
+
+### Item 103 — closed 2026-10-09 by PR #239 (TR-3c)
+
+Six sites read a filter's `Err` as no — `set_affects`, the three
+`pattern_watches` legs that ask a filter of an object, mana production's
+source, CR 614.13's auxiliary choice — and each now goes through
+`targeting::matched`: release reads no, a debug build and `cargo test` are
+loud. The last-known-information half: the filter table reads the object only
+for the leaves no frame answers (token, owner), so
+`object_matches_filter_in_frame` answers for a damage source the store has
+lost. A token Scorchfuse Myr, which ceased to exist before its dies trigger
+resolved, is red as it last existed, and Circle of Protection: Red prevents
+its damage (`phase_tr3c_integration_test`,
+`a_token_that_ceased_to_exist_is_red_as_it_last_existed`, which fails on the
+eager read through the new assert).
+
+*Original entry:*
+
+103. **`object_matches_filter`'s `Err` is swallowed wherever a filter is asked
+     about an object, and the things that can raise it are card-authoring
+     errors.** `set_affects` and three legs of `pattern_watches` — RD-3's
+     source side and the two zone-change `object` filters — end in
+     `.unwrap_or(false)`. **Four sites, not the three this item said until
+     2026-09-09**: the original count named "both legs of `set_affects`" (the
+     frame and no-frame branches, which RD-4's fix collapsed into one call) and
+     missed the two zone-change legs entirely, which is its own small lesson
+     about counting call sites by reading rather than by grepping. The causes
+     were: an id with no object behind it, `ObjectFilter::NotSource`, and
+     `PowerLE` against an object with no power. Every one of them reads as **a
+     card that silently does nothing**, which is the failure mode this
+     subsystem's own module doc names first.
+
+     **`NotSource` is off the list from RD-4 (2026-09-09), and it never
+     belonged on it.** Palisade Giant's "other permanents you control" made it
+     live on its first board — the Giant redirected the damage aimed at *you*
+     and none of the damage aimed at your other permanents, because a player
+     subject never reaches the object filter. `set_affects` has carried the
+     effect's `source` since RB and the layer walk has answered the same leaf
+     off `FilterPlayers::source` since the layer system; the two simply were
+     not connected. `object_matches_filter_of_source` connects them, and the
+     two source-less entry points keep refusing the leaf, which is right for a
+     *selection*.
+
+     **The general lesson is about the instrument, not the leaf.** The 600-game
+     zero below is evidence about the **pool**, and a reachability zero can
+     only retire a concern the pool could have exercised. No card in either
+     pool used `NotSource` in an affected set, so the measurement said nothing
+     about it. It still holds for the two remaining causes, which are genuine
+     authoring errors.
+
+     **Measured before deciding: zero.** The three sites were instrumented and
+     run over 600 fuzz games — 200 `stress` at seed 12345, 200 `stress` at seed
+     999 with six RD-3 cards forced, 200 `performance` at seed 4242 — and the
+     error path was not reached once. So this is a latent authoring trap, not a
+     live bug, and the argument for leaving it is that a mid-game panic is
+     worse than a card doing nothing.
+
+     The one cause that is *not* an authoring error deserves separating: an id
+     with no object behind it is a **source that has ceased to exist**, and
+     CR 608.2h's last-known-information would have such a source still match
+     its printed colour. Nothing reaches it today — a damage source is alive at
+     every registered proposal — but a `Prevent`-on-a-dying-source board would
+     answer "not red" where the CR says "red".
+
+     **Reachability (2026-09-09):** unreachable — instrumented at zero across
+     600 games on both pools, with the RD-3 cards forced. Re-derived at RD-4's
+     close: unchanged for the two remaining causes, and the third is fixed
+     rather than measured.
+
+     **Sized:** one change at all four sites or none — a `debug_assert!` on
+     the `Err` arm keeps release behaviour and makes a debug run and `cargo
+     test` loud, ~10 lines. The LKI half is separate and larger, and belongs to
+     whichever phase gives a damage source a way to die first.
+     **Slotted:** TR-3c, whose item 225 gives a damage source that moved a
+     `DepartedFrame` (the LKI half); the `debug_assert!` on the swallowed `Err`
+     arms rides with it.
+
+### Item 225 — closed 2026-10-09 by PR #239 (TR-3c)
+
+As #234's review decided. A departure record's frame and the frame damage
+carries are a `DepartedFrame`, which names the existence that left (a dies
+trigger names its source by the card it became, so only the frame knows which
+creature died). `SourcePattern.object` is an `ObjectRef`, matched against the
+existence that deals the damage (`gather::dealer`). Held by identity it is no
+reference a move can break, so the CR 400.7 prune no longer touches it, and
+`move_object` re-points it when a permanent spell becomes the permanent (CR
+400.7c). Tested on a Perilous-Myr-shaped fixture under Circle of Protection:
+Red (both its tests fail on the pre-fix tree) and on Cornered Crook killed in
+response, in `phase_tr3c_integration_test`.
+
+*Original entry:*
+
+225. **A chosen-source shield is dropped when its source leaves, though the
+     source can still deal damage.** `RegisteredReplacementEffect`'s CR
+     400.7 prune drops a row whose chosen damage source is the mover ("a
+     shield watching damage from a source that is gone can never apply").
+     CR 113.7a and 608.2h have a source that left still deal damage as it
+     last existed: a dies trigger's "it deals 2 damage", an activation whose
+     creature was destroyed in response. CR 609.7a lets a player choose
+     exactly such a source, "even if that object is no longer in the zone it
+     used to be in". So Circle of Protection: Red, having chosen a creature,
+     does not stop that creature's damage once it has died. The id alone
+     cannot decide it: the card in the graveyard is a new object (CR 400.7)
+     whose own damage the shield must not see.
+     **Reachability (2026-10-08):** unreachable — no registered ability
+     deals damage after its source has left. TR-3b's Cornered Crook is the
+     first registered ability that deals damage, and its source can be
+     killed in response to its reflexive trigger, which makes this
+     reachable in a `stress` game beside Circle of Protection: Red.
+     **Sized:** ~40 lines and a test: the row keeps its chosen source by
+     identity (`ObjectRef`), the prune spares it, and the damage says which
+     existence dealt it, as `source_frame` already says that one left; a
+     Perilous Myr fixture under Circle of Protection: Red.
+     **Slotted:** TR-3c, beside Cornered Crook, which makes it reachable
+     (the owner, 2026-10-08; TR-3b was split at its design review, #234).
+     **Decided (#234's review, 2026-10-08):** the damage's `source_frame`
+     becomes a `DepartedFrame`, which names the existence it is of, so the
+     dealer is that existence once the source has left and the source as it
+     is otherwise; `SourcePattern.object` becomes an `ObjectRef`; the prune
+     spares a chosen source that moved, since only that existence's damage
+     matches, and a spell becoming a permanent re-points it (CR 400.7c).
+
+### Item 229 — closed 2026-10-09 by PR #239 (TR-3c)
+
+The six resolution-time sites go through `GameState::matches_for_effect`
+(`engine/resolve.rs`), which asks `object_matches_filter_for_instance` with
+`ResolutionContext::effect_source` as what "another" is other than;
+`object_matches_filter` is now a call to `_for_instance` with no identity, as
+the midpoint audit asked. The Manticore fixture sacrifices another creature,
+and alone sacrifices nothing (`phase_tr3c_integration_test`); taking the
+source away fails its five tests.
+
+*Original entry:*
+
+229. **"Another" at resolution is refused, and the refusal reads as no
+     candidate.** `object_matches_filter` (`engine/targeting.rs`) carries no
+     source, so `ObjectFilter::NotSource` errs there, and
+     `choose_as_it_applies` and the five resolution-time
+     `FilteredPermanents` sweeps (`engine/resolve.rs`) read the error as "does
+     not match": Heart-Piercer Manticore's "sacrifice another creature"
+     would sacrifice nothing.
+     **Reachability (2026-10-08):** unreachable — no registered card's
+     resolution reads `NotSource`.
+     **Sized:** one helper passing `ResolutionContext::effect_source`, at six
+     sites, ~20 lines.
+     **Slotted:** TR-3c, whose Manticore fixture is its first reader.
+     **The triggers midpoint audit (2026-10-08):** `object_matches_filter` is
+     `object_matches_filter_for_instance` with no identity, the same frame
+     cell and the same call (`similar_functions.py`, 0.87); the helper this
+     item adds makes the first a call to the second.
