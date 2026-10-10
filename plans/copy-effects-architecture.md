@@ -921,7 +921,7 @@ be gone.** A copy trigger can resolve after the spell it names has left the
 stack, and Double Vision's and Galvanic Iteration's rulings still make the
 copy; 70 triggers print "copy that spell". So `copy_of` clones its entry from
 either place: the live `stack_entries` row, or the entry that
-`triggers-architecture.md` §3.11 and §6.1 now keep in the `departed` frame of
+`triggers-architecture.md` §3.11 and §6.1 now keep in the LKI of
 a stack object that left. The three resets apply the same way to both. Tier
 E's copy of a card reads the frame's characteristics the same way, which is
 God-Eternal Kefnet's ruling for a revealed card that has left the hand.

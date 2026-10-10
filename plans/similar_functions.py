@@ -116,7 +116,7 @@ def blank(text, strings):
 
 def type_name(text):
     """A type as written, without references, lifetimes or module paths:
-    `&'a crate::types::triggers::DepartedFrame` is `DepartedFrame`."""
+    `&'a crate::types::triggers::Lki` is `Lki`."""
     text = re.sub(r"'\w+\s*", "", text)
     text = re.sub(r"\b(mut|dyn|impl)\b", "", text)
     text = re.sub(r"\b[a-z_]\w*::", "", text)

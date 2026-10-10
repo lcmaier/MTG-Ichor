@@ -349,7 +349,7 @@ beside a list of their frames, or the stack's entries beside a map of what each
 names. Every writer then has to remember the other half, and a missed half is
 silent until a reader pairs the wrong two.
 
-**Put the fields on one record.** TR-2b's `departed` frames are a field of the
+**Put the fields on one record.** TR-2b's kept LKI lists (`kept_lki`) are a field of the
 entry that names them (`PendingTrigger`, `StackEntry`, `ResolvingObject`), so
 they move with the entry and die with it. Its design rejected a `GameState` map
 keyed by `ObjectRef` for exactly this reason. A collection *derived* from

@@ -403,6 +403,9 @@ and about 27 mentions in the live docs, 19 of them in
 `triggers-architecture.md`. The rename keeps the player's sense, and each new
 name is chosen by the call-site rule (`engineering-practices.md` §2b).
 
+**Built as A6n, #241**, whose body maps each old name to its new one. This
+inventory keeps the old names.
+
 ## 5. Side notes
 
 1. **What the old scan could not see.** It cut each file at its first

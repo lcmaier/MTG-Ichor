@@ -236,7 +236,7 @@ holds it: a pull request that adds a field this document does not name fails
 | `EventWindow` / `EventRecord` | the act of a zone change an "instead" redirected (CR 614.6, 701.9c) | **FACT** — §5.4 |
 | `PendingTrigger` *(pass 2)* | — | **no gap** — the controller (CR 603.3a), the def and the source's card are all taken as it triggers |
 | `TriggerBinding` *(pass 2)* | the object a move made (CR 400.7e, 603.6c), which the `ZoneChange` record does not carry | item 177 |
-| `DepartureFrame`, `LookBackSnapshot` *(pass 2)* | a status (items 14, 15); a departed permanent's cost decisions (CR 603.4, 113.7a) | TR-4's frame; item 169, and `triggers-architecture.md` §3.11 amended |
+| `LkiCapture`, `LookBackSnapshot` *(pass 2)* | a status (items 14, 15); a departed permanent's cost decisions (CR 603.4, 113.7a) | TR-4's frame; item 169, and `triggers-architecture.md` §3.11 amended |
 | the window (`EventWindow`) *(pass 2)* | the state just after a record's own batch, once a rider has run (CR 603.4, 603.6a) | item 175, sharpened |
 | `StackEntry` *(pass 3: `trigger`, `mana_spent`)* | the objects that paid (CR 707.10, 400.7d); what a copy of it may keep (CR 707.10) | item 30's open half, sharpened; `copy-effects-architecture.md` §4.4 amended |
 | `CastFacts`, `CostChoices`, `ManaSpent` *(pass 3)* | a count of payments (multikicker, replicate, squad) | feature: the record can repeat, and the CR 601.2b announcement cannot ask for a number |
@@ -249,7 +249,7 @@ holds it: a pull request that adds a field this document does not name fails
 | `DurationRegistry` *(pass 4)* | the object a resolution's "for as long as" watches (CR 611.2b) | item 17, sharpened |
 | `TurnPlan`, `turn_queue`, `turn_rotation` *(pass 4)* | a proposed turn being an extra one (CR 614.10) | `triggers-architecture.md` §3.9 amended |
 | `GameResult`, `starting_life` *(pass 4)* | a team's win; a seat's own starting life (CR 103.4b, 103.4e) | features, Phase 9's variants |
-| the departed frame *(pass 4, planned)* | a source or bound object leaving a hand or the stack (CR 113.7a, 608.2h) | item 169, sharpened |
+| an entry's kept LKI *(pass 4, planned)* | a source or bound object leaving a hand or the stack (CR 113.7a, 608.2h) | item 169, sharpened |
 | `CostChoices` *(pass 4, re-read)* | the player a payment chose (CR 702.174a) | item 30, sharpened |
 
 ---
@@ -320,8 +320,8 @@ already planned for them.
 | The trigger's controller (603.3a) and its ability as it triggered (113.7a) | `PendingTrigger.controller`; `TriggerBinding.def`, cloned out of the effective list | yes, at the dispatch | a later control change or Humility changes neither | no gap |
 | The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventSeq`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
 | **The object a move made** (400.7e, 603.6c) | `TriggerBinding.subject`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
-| The appearance before a departure (603.10a) | `DepartureFrame`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status and the other two classes are items 14 and 15 (TR-4) | no gap beyond those |
-| **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `departed` frame, typed as §3.11's `LastKnownInformation` | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
+| The appearance before a departure (603.10a) | `LkiCapture`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status and the other two classes are items 14 and 15 (TR-4) | no gap beyond those |
+| **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, typed `Lki`, which §3.11 widens | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
 | **The intervening "if" at the trigger** (603.4) | `settled_holds` when the window closes | **no**, for a window with a rider: the rider has run (615.5) | a rider that changes the condition; a rider's newcomer asked about an earlier record (603.6a) | item 175 sharpened |
 | **"Do this only once each turn"** (603.2h) | planned: `action_taken_this_turn`, keyed by the ability | planned | **a control change**: the rule keys the gate on "its source's controller". 34 cards | §3.5, §6.4 and §7 amended |
 | A state trigger's re-arm (603.8); "only once each turn" | planned: sets of `AbilityIdentity`, which carries the epoch | planned | a zone change resets both (400.7) | no gap |
@@ -450,7 +450,7 @@ ruling says "you'll copy it using its last known information".
 
 | Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
 |---|---|---|---|---|
-| **The last known information of a source or a bound object that left a zone other than the battlefield** (113.7a, 608.2h) | planned: §6.1's `departed` frame, written by `capture_departure_frames` | **no**: that frames what leaves the battlefield, and TR-4 widens it to 603.10a's three classes only | a card revealed in a hand leaves before the trigger resolves (God-Eternal Kefnet's ruling); a spell is countered before its copy trigger resolves, and the copy is still made (Double Vision's and Galvanic Iteration's rulings); 603.10e's `IsCountered` look-back | **item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and `copy-effects-architecture.md` §4.4, amended.** `(o:"when " or o:"whenever ") o:"copy that spell"` 70; with `"copy that card"`, 3 |
+| **The last known information of a source or a bound object that left a zone other than the battlefield** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, written by `capture_lki` | **no**: that frames what leaves the battlefield, and TR-4 widens it to 603.10a's three classes only | a card revealed in a hand leaves before the trigger resolves (God-Eternal Kefnet's ruling); a spell is countered before its copy trigger resolves, and the copy is still made (Double Vision's and Galvanic Iteration's rulings); 603.10e's `IsCountered` look-back | **item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and `copy-effects-architecture.md` §4.4, amended.** `(o:"when " or o:"whenever ") o:"copy that spell"` 70; with `"copy that card"`, 3 |
 | **The player a payment chose** (702.174a) | nowhere: `CostChoices.additional` holds the cost definitions paid | **no** | a copy of the spell keeps the opponent, and a permanent that enters as a copy does not (Into the Flood Maw's ruling), which is CR 707.10's side | **item 30, sharpened.** `kw:gift` 25. Behold's objects (701.4, `o:"behold"` 24) join the list |
 
 **Three of pass 4's four findings are the re-sweep's shape again**: a fact
@@ -499,7 +499,7 @@ is derivable; where each name was read is not, and the gate needs the names.
   re-sweep read several again; §4's second table says which.
 - **The 25 added since**, by the pass of §4a that read them:
   - pass 1: `entry_selection`, `prevention_allocations`, `rider_lineage`;
-  - pass 2: `pending_triggers`, `look_back_snapshots`, `departure_frames`;
+  - pass 2: `pending_triggers`, `look_back_snapshots`, `lki_captures`;
   - pass 4: `restrictions`, `turn_plan`, `turn_queue`, `turn_rotation`,
     `result`, `starting_life`;
   - no fact about the game (pass 3's remainder): `cost_modification_ability_sources`,
@@ -717,7 +717,7 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
 - **The objects that paid** (pass 3). The list belongs with what a copy
   keeps, and holds identities rather than a count. → item 30, sharpened.
 - **Last known information off the battlefield** (pass 4). §6.1's
-  `departed` frame is written only for what leaves the battlefield, so a
+  `kept_lki` is written only for what leaves the battlefield, so a
   revealed card that leaves a hand, or a spell countered before its copy
   trigger resolves, has none. A spell's frame also lacks the decisions CR
   707.10 copies. →

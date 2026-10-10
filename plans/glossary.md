@@ -411,6 +411,15 @@ per `layer_epoch` under a descending layer **ceiling**; and `EntryFrame`, CR
 at most once per pipeline iteration. → `engine/layers/board.rs`,
 `engine/replacement/lookahead.rs`.
 
+**LKI** — an object's last known information (CR 113.7a, 608.2h): the
+existence that left its zone (CR 400.7) together with its **frame** as it last
+existed there, the type `Lki`. A departure record carries one, and so does
+damage a source deals after it left (`source_lki`). An entry keeps one for
+each object it names that leaves later (`kept_lki`), and `lki_of` reads both.
+A frame alone has no identity, so it is not an LKI; and an LKI is never
+"departed", which is a player. → `types/triggers.rs`;
+`triggers-architecture.md` §6.1, and §3.11 for what TR-4a adds.
+
 **entity** — a permanent's state on the battlefield, `PermanentState`: what the
 battlefield map holds for an object there. Its controller, tapped status,
 counters, timestamp and `entered_as`, everything that belongs to the permanent
