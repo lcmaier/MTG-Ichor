@@ -1313,7 +1313,7 @@ pub fn ask_choose_damage_source(
         .iter()
         .map(|&object| match game.object_ref(object.id) == Some(object) {
             true => ChoiceOption::Object(object.id),
-            false => ChoiceOption::Departed(object),
+            false => ChoiceOption::LastKnown(object),
         })
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseDamageSource { source });

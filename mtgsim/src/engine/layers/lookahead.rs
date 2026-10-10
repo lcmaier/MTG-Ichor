@@ -226,7 +226,7 @@ mod tests {
             x_value: Some(3),
             identity: None,
             subject: None,
-            subject_left_as: None,
+            subject_lki: None,
             departed: Vec::new(),
         });
 

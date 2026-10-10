@@ -35,7 +35,7 @@ use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::controller_or_owner;
+use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -47,7 +47,6 @@ use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
 use crate::types::zones::{Zone, ZoneChangeCause};
-use crate::types::triggers::DepartedFrame;
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::targeting::matched;
@@ -722,17 +721,6 @@ pub(crate) fn set_affects(
     }
 }
 
-/// The existence that deals damage (CR 400.7): the one its last known
-/// information is of, when it deals it after leaving (CR 608.2h), else the
-/// object as it is. What a chosen source of damage is matched against (CR
-/// 609.7a).
-fn dealer(game: &GameState, source: ObjectId, frame: Option<&DepartedFrame>) -> Option<ObjectRef> {
-    match frame {
-        Some(departed) => Some(departed.object),
-        None => game.object_ref(source),
-    }
-}
-
 /// Does this pattern watch for the proposed event's kind (CR 614.1)?
 ///
 /// `pub(crate)` for the same reason [`set_affects`] is: `Restriction::Event`
@@ -759,7 +747,9 @@ pub(crate) fn pattern_watches(
                 && source
                     .as_ref()
                     .map(|p| {
-                        p.object.is_none_or(|chosen| Some(chosen) == dealer(game, *dealt_by, source_frame.as_ref()))
+                        p.object.is_none_or(|chosen| {
+                            Some(chosen) == damage_source_existence(game, *dealt_by, source_frame.as_ref())
+                        })
                             && p.filter
                                 .as_ref()
                                 .map(|f| {

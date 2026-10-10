@@ -477,7 +477,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match option {
         ChoiceOption::Object(id) => n(id),
-        ChoiceOption::Departed(departed) => format!("{} as it last existed", n(&departed.id)),
+        ChoiceOption::LastKnown(existence) => format!("{} as it last existed", n(&existence.id)),
         ChoiceOption::Player(player) => player_name(*player),
         ChoiceOption::Action(PriorityAction::Pass) => "Pass".to_string(),
         ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("Cast {}", n(id)),

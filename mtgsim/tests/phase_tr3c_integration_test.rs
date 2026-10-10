@@ -212,7 +212,7 @@ fn now(id: ObjectId) -> ChoiceOption {
 
 /// A source as it last existed, once it has left.
 fn as_it_was(object: ObjectRef) -> ChoiceOption {
-    ChoiceOption::Departed(object)
+    ChoiceOption::LastKnown(object)
 }
 
 fn logged(game: &GameState, options: &[ChoiceOption]) -> Vec<String> {

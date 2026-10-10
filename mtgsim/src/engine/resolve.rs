@@ -500,7 +500,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
-                let source_frame = self.departed_source_frame(ctx);
+                let source_frame = self.source_lki(ctx);
                 self.execute_actions(
                     targets
                         .into_iter()
@@ -2584,22 +2584,15 @@ impl GameState {
         }
     }
 
-    /// CR 113.7a, 608.2h — the ability's source as it last existed, once it
-    /// has left the zone it was in, and which existence that was (CR 400.7).
-    /// A trigger on its source's own departure ("when this creature dies")
-    /// looks back (CR 603.10a) and is named by the object it left as, so it
-    /// reads the departure record's frame, the creature that died; any
-    /// other, the frame its entry kept as the source went. `None` while the
-    /// source is there, since a frame is kept only for an existence that has
-    /// left, and for a spell, which resolves where it was cast. A source no
-    /// frame was kept for reads where it is now.
-    fn departed_source_frame(&self, ctx: &ResolutionContext) -> Option<DepartedFrame> {
+    /// CR 113.7a, 608.2h — the ability's source's last known information,
+    /// once it has left the zone it was in: what the resolving object carries
+    /// for it (`ResolvingObject::lki_of`), the creature that died for a
+    /// trigger on its own death. `None` while the source is there, and for a
+    /// spell, which resolves where it was cast. A source no frame was kept
+    /// for reads where it is now.
+    fn source_lki(&self, ctx: &ResolutionContext) -> Option<DepartedFrame> {
         let source = ctx.ability_source?;
-        let looked_back = ctx.trigger.as_ref().filter(|binding| binding.subject == Some(source));
-        match looked_back.and_then(crate::engine::triggers::binding::departure_frame) {
-            Some(departed) => Some(departed.clone()),
-            None => self.departed_frame(source).map(|frame| DepartedFrame { object: source, frame }),
-        }
+        self.resolving.as_ref()?.lki_of(source).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

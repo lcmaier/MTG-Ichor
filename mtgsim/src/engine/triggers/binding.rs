@@ -10,7 +10,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
-use crate::state::game_state::GameState;
+use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{DepartedFrame, TriggerBinding};
@@ -28,6 +28,40 @@ pub(crate) fn departure_frame(binding: &TriggerBinding) -> Option<&DepartedFrame
             Some(frame)
         }
         _ => None,
+    }
+}
+
+/// The last known information a stack object carries for `object` (CR
+/// 113.7a, 608.2h), once `object` has left: its subject's departure record's,
+/// when its trigger's event was that departure (CR 603.10a) and `object` is
+/// that subject — which it names by the object it became — else what it kept
+/// as `object` left later. `None` while `object` has not left. The one
+/// reading of the rule, which an object on the stack and the object
+/// resolving both ask through `lki_of`.
+fn carried_lki<'a>(
+    object: ObjectRef,
+    subject: Option<ObjectRef>,
+    subject_lki: Option<&'a DepartedFrame>,
+    kept: &'a [DepartedFrame],
+) -> Option<&'a DepartedFrame> {
+    match subject_lki {
+        Some(lki) if subject == Some(object) => Some(lki),
+        _ => kept.iter().find(|frame| frame.object == object),
+    }
+}
+
+impl StackEntry {
+    /// The last known information it carries for `object` (`carried_lki`).
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&DepartedFrame> {
+        let binding = self.trigger.as_ref();
+        carried_lki(object, binding.and_then(|b| b.subject), binding.and_then(departure_frame), &self.departed)
+    }
+}
+
+impl ResolvingObject {
+    /// The last known information it carries for `object` (`carried_lki`).
+    pub fn lki_of(&self, object: ObjectRef) -> Option<&DepartedFrame> {
+        carried_lki(object, self.subject, self.subject_lki.as_ref(), &self.departed)
     }
 }
 
@@ -65,23 +99,18 @@ impl GameState {
     /// departure, it is expected where it was, so the record's CR 603.10a
     /// frame answers (Paladin of Atonement's ruling: its toughness "as it last
     /// existed on the battlefield"). Otherwise it is the object now, while it
-    /// is still where the event left it, and once it has left, the frame the
-    /// resolving entry kept as it went (§6.1). `None` there is a missed capture.
+    /// is still where the event left it, and once it has left, the last known
+    /// information the resolving entry kept as it went (§6.1). `None` there is
+    /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
         match departure_frame(binding) {
             Some(departed) => Some(Arc::clone(&departed.frame)),
             None => match self.bound_object(binding) {
                 Some(id) => compute_characteristics(self, id),
-                None => self.departed_frame(subject),
+                None => self.resolving.as_ref()?.lki_of(subject).map(|lki| Arc::clone(&lki.frame)),
             },
         }
-    }
-
-    /// The frame the resolving entry kept for `object` as it left (CR 608.2h).
-    pub fn departed_frame(&self, object: ObjectRef) -> Option<Arc<EffectiveCharacteristics>> {
-        let resolving = self.resolving.as_ref()?;
-        resolving.departed.iter().find(|d| d.object == object).map(|d| Arc::clone(&d.frame))
     }
 
     /// The bound fact a `TriggeringObject`, `TriggeringPlayer` or `Referred`

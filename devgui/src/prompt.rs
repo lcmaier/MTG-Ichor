@@ -170,7 +170,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
             vec![BoardRef::Object(*blocker), BoardRef::Object(*attacker)]
         }
         // An existence that has left is no board thing.
-        ChoiceOption::Departed(_)
+        ChoiceOption::LastKnown(_)
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)
         | ChoiceOption::AdditionalCost(_)

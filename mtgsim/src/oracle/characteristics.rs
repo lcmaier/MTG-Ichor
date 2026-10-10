@@ -22,6 +22,22 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
         .unwrap_or(false)
 }
 
+/// The existence that deals damage (CR 400.7): the one its last known
+/// information is of, when the damage carries it because an effect has the
+/// source deal damage after it left (CR 608.2h), and the object as it is
+/// otherwise. What a chosen source of damage is matched against (CR 609.7a);
+/// the next function is the same source's characteristics.
+pub fn damage_source_existence(
+    game: &GameState,
+    source: ObjectId,
+    lki: Option<&crate::types::triggers::DepartedFrame>,
+) -> Option<crate::types::ids::ObjectRef> {
+    match lki {
+        Some(lki) => Some(lki.object),
+        None => game.object_ref(source),
+    }
+}
+
 /// The characteristics `source` deals damage with: `frame`, its last known
 /// information, when the damage carries one because an effect has it deal
 /// damage after it left (CR 608.2h, 702.15c, 702.2e), and the object as it
