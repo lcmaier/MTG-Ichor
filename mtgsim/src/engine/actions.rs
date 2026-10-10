@@ -836,7 +836,7 @@ impl GameState {
         // current zone instead" of moving again. A rule, so no event: nothing
         // is proposed, and no replacement sees it.
         let mut batch = batch;
-        batch.retain(|action| !self.is_a_departed_tokens_move(action));
+        batch.retain(|action| !self.moves_a_token_not_on_the_battlefield(action));
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -1794,7 +1794,7 @@ impl GameState {
     /// (`CreateTokenIn`). 111.8 names only the first; the second is held
     /// too, since it ceases to exist at the next state-based check either
     /// way (111.7).
-    fn is_a_departed_tokens_move(&self, action: &GameAction) -> bool {
+    fn moves_a_token_not_on_the_battlefield(&self, action: &GameAction) -> bool {
         match action {
             GameAction::ZoneChange { object, .. } | GameAction::EnterBattlefield { object, .. } => {
                 self.objects.get(object).is_some_and(|o| o.is_token && o.zone != Zone::Battlefield)
