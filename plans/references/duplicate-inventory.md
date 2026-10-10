@@ -1,7 +1,7 @@
 # One fact computed in more than one place — the engine's first inventory
 
 > **Status:** run 2026-10-10 against `main` at 45a1d0e (#239's merge), for
-> `roadmap-v2.md` row A6l, which this closes (#PRNUM). **Authority:** the
+> `roadmap-v2.md` row A6l, which this closes (#240). **Authority:** the
 > entries are `python plans/similar_functions.py`'s at that commit; the
 > verdicts are this file's. Each merge's owner is a `codebase-state.md` item
 > (§3), and on what exists, `codebase-state.md` wins. **Re-run:** the report
