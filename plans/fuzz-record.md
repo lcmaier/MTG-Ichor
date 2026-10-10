@@ -37,6 +37,102 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-09 for TR-3c** (#239: the reflexive trigger, and items
+229, 225, 103 and 99's first half). Cornered Crook joins the registry, not
+the pool (187 → 188 registered, 106 pooled), so the `stress` §3 column is a
+new baseline and `performance`'s stands. `close_out.py` against **main**
+`50cd3b3` (#238's merge), with two arms: **engine** `77619db` (every engine
+commit, the card written and not registered) and **shipped** `43c1e81` (the
+registration and the resolving object's leg; the commits after it change no
+`fuzz_games`).
+
+**Predictions, before any arm ran:**
+- engine `IDENTICAL` to `main` on `performance`, gameplay and cost rows, at
+  two seats and four. No pooled card chooses a source of damage, reads
+  "another" at resolution or prints "when you do"; the frames carry the same
+  characteristics, and `GameEvent` (72 bytes) and `GameAction` (112) are the
+  sizes they were.
+- engine on `stress` `IDENTICAL`, or apart in a few games, each traced to a
+  source choice item 99 widened or a shield item 225 kept.
+- Every dispatch agreed.
+- Instructions per decision, engine against `main`, within ±0.3%.
+- shipped `IDENTICAL` to `main` on `performance`, the Crook unpooled;
+  `stress` differing by the pool.
+- Reachability: the Crook cast in about half of the games.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / 1 game of 200 apart | 2 games apart / 3 games apart |
+| cost rows, engine vs `main` | as gameplay: unmoved where it is `IDENTICAL` | moved with the games apart (`Layer walks` 731 → 729 performance, 977 → 981 stress) |
+| audit, engine, performance / stress, dispatches agreed | 162,763 / 171,448 | 331,993 / 361,979 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / differ (the pool) | engine's 2 games apart / differ (the pool) |
+| audit, shipped, performance / stress, dispatches agreed | 162,763 / 165,874 | 331,993 / 341,449 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6495 M → 0.6506 M, **+0.17%** |
+
+**One prediction broke: `performance` at four seats.** Diffed game by game,
+two of 200 games differ from `main`. In both, a creature died in the
+state-based check that made its owner lose, and left the game with them (CR
+800.4a) before that check's triggers were found. Blood Artist's "another
+creature dies" asks its filter of the creature, and on `main` the filter
+asked the store for the object first, found it gone, and the matcher read the
+`Err` as no: a missed trigger, reachable and wrong today. Item 103's frame
+half reads the object only for the leaves no frame answers, so the record's
+CR 603.10a frame says it was a creature and Blood Artist triggers (in the
+second game it is the departing player's own Blood Artist, which triggers and
+is not put on the stack, CR 800.4d). `phase_tr3c_integration_test` pins it,
+and fails with the eager read put back. The prediction missed it because it
+read item 103's half as a damage source's, and a trigger's subject asks the
+same filter.
+
+**The `stress` games apart are all CR 609.7a's choice**, diffed the same way:
+at two seats, one game, where Circle of Protection: Red is offered Blessed
+Wine as it last existed, which its waiting delayed trigger names (item 99's
+third leg); at four seats, three games, each at a Circle activation offered a
+source a waiting shield or stack object names (items 99 and 225). Every
+dispatch agreed in every arm. The sitting ran in 144 s.
+
+**Reachability**, shipped, `--require "Cornered Crook"`, `stress`, 200 games:
+cast 119 times in 95 games (48%) at two seats, and 95 times in 86 (43%) at
+four. Before registering, 200 `stress` games at seed 12345 with the Crook
+required read no error, panic or turn-limit game at either seat count, the
+audit agreeing; their event dump holds 104 reflexive entries made and 23
+triggered, each right after a sacrifice.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** `performance`
+reads TR-3b's to the digit; `stress` is a new baseline.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 21 (42.0%) / 29 (58.0%) | 26 (52.0%) / 24 (48.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 27.8 | 27.6 |
+| Spells cast | 21.3 | 21.0 |
+| Lands played | 16.5 | 17.0 |
+| Combat w/ atk | 10.3 | 8.4 |
+| Creatures died | 6.7 | 4.4 |
+| Damage events | 21.3 | 18.7 |
+| Total damage | 54.6 | 54.9 |
+| Life changes | 14.9 | 13.4 |
+| **Layer walks** | **320** | **392** |
+| **Board walks** | **199** | **234** |
+| **Memo hits** | **49,407** | **63,587** |
+| **Layer frames** | **3,671** | **4,455** |
+| **Frames/walk** | **11.46** | **11.36** |
+| **Dependency checks** | **6** | **37** |
+| **Replacement gathers** | **958** | **1025** |
+| **Restriction queries** | **959** | **1027** |
+| Mana productions | 62 | 89 |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.20 | 0.64 |
+| Max batch depth | 5 | 4 |
+| Decisions | 182 | 256 |
+| Priority decisions | 68 | 104 |
+| Actions reversed | 0.2 | 0.2 |
+| Triggers placed | 2.0 | 2.0 |
+| Windows past gate | 31.2 | 52.2 |
+| Candidate visits | 37.1 | 55.7 |
+| Trigger matches | 3.0 | 2.9 |
+
 **Measured 2026-10-09 for TR-3b's dev GUI notes** (#238: item 234's
 `UntilReturnId` and `UntilReturnMade` record, the hover's columns and the
 Waiting panel's returns). No card registered and no pool changed, so no §3

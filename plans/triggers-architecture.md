@@ -630,6 +630,16 @@ advances its creator's count. The arm's tag grows `GameEvent` from 64 to 72
 bytes (`AbilityTriggered` carries the origin), priced in `fuzz-record.md`'s
 TR-3a block.
 
+**Amended at TR-3c (2026-10-09): there is no `Reflexive` arm.** CR 603.12
+has a reflexive trigger "follow the rules for delayed triggered abilities",
+and what every reader of an origin wants is what `Delayed` already carries:
+the source CR 603.7e gives it, and the identity its registry number gives
+it. A reflexive trigger is a delayed entry checked as it is made and never
+left waiting (§4.6), so its number names nothing in the registry once it is
+made, as a `Once` entry's names nothing once it has triggered. A second arm
+would be a second spelling of one origin, and placement, CR 603.7h's count
+and the departed frames would each have to learn it.
+
 ### 3.9 The delayed-trigger registry (CR 603.7)
 
 ```rust
@@ -776,6 +786,20 @@ as a delayed trigger's number is, and `wait_to_return` announces
 `GameEvent::UntilReturnMade` ahead of it, as `DelayedTriggerCreated` is
 announced; the Waiting panel keeps a row by the number its log line gave it
 (item 234, the TR-3b dev GUI PR).
+
+**As built (TR-3c, 2026-10-09).** The sketch's `reflexive:
+Option<ResolutionStamp>` is `DelayedDuration::Reflexive(ReflexiveForm)`,
+`Does` or `Doesnt`, beside the resolution creating it, which
+`DelayedProvenance::resolution` carries (`CreatingResolution`: the stamp, and
+`ResolvingObject::began_at`, the first record the resolution performed).
+`register_delayed_trigger` reads that resolution's records before it
+announces the entry, checks the entry against them and queues what matched
+(§4.6), and the entry never reaches the registry. A reflexive template with
+no resolution creating it is refused, since CR 603.12 makes one only as a
+spell or ability resolves, so the door returns a `Result`. Its
+`DelayedTriggerCreated` reads "reflexive, if it was done" (or "if it was not
+done") whether or not it triggered: the owner's call at TR-3c's design
+questions, since a dropped entry otherwise leaves no trace in the log.
 
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
@@ -1395,6 +1419,24 @@ every outermost batch's close, which emptied it before a later instruction
 could read an earlier one's records, so it now holds a resolution's records
 until the resolution ends. `Effect::Remember` is its first reader; the
 reflexive check is TR-3c's.
+
+**As built (TR-3c, 2026-10-09).** The check is `register_delayed_trigger`'s
+reflexive branch. Its window is `resolution_records(stamp, began_at)` up to
+the entry's creation, matched by `occurrences_among`, the matcher a waiting
+entry's dispatch uses, without CR 603.7a's filter. "When you do"
+(`ReflexiveForm::Does`) queues one trigger per matching record (603.12a), or
+one for them all where its arm is "one or more"; "when you don't" (`Doesnt`)
+queues one, bound to no record, when none matched. Both are queued and
+announced as a dispatch queues a delayed trigger (`queue_pending`). CR 603.12
+states the "doesn't" form and no printed reflexive trigger uses it — Olivia,
+Crimson Bride's "when you don't control" is a state trigger (603.8), and
+Heart of Bogardan's and Thought Lash's "when a player doesn't pay" are their
+own triggered abilities — so it has a fixture. "When you do" after "you may
+sacrifice" is `sacrificed`, a zone change off the battlefield caused by a
+sacrifice, to any zone, since a replacement may send it elsewhere. The window
+is the whole resolution, which is "that action" while the resolution
+performs the arm's event once; `codebase-state.md` item 241 is the case where
+it is not.
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
@@ -2488,18 +2530,40 @@ narrowing. Instructions per decision +0.04%.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-3b".
 
-### TR-3c — the reflexive trigger, item 225 and item 99 (800–950)
+### TR-3c — the reflexive trigger, item 225 and item 99 — ✅ landed 2026-10-09
 
-TR-3b's other half, split at its design review (#234, 2026-10-08) along the
-seam its brief named. It reads the window TR-3b holds.
+*Body evicted 2026-10-09 to `plans/archive/triggers-architecture-landed.md`,
+"TR-3c", with the plan as sized and the gap hunt.*
 
-| Piece |
-|---|
-| CR 603.12: `DelayedDuration::Reflexive` on `Primitive::CreateDelayedTrigger` rather than §4.6's `Effect::Reflexive`, since 603.12 has reflexive triggers follow the delayed rules (one producer, one door). Checked as it is created against `EventWindow::resolution_records`, queued once per matching record (603.12a), never waiting. "When you do" is `ZoneChange { cause: Sacrificed, to: any }` |
-| `codebase-state.md` item 229: a source-relative filter at resolution, so "sacrifice another creature" has candidates |
-| **Item 225**, as #234's review decided it: the damage's `source_frame` a `DepartedFrame`, `SourcePattern.object` an `ObjectRef`, the prune sparing a chosen source that moved, and a spell becoming a permanent re-pointing it (CR 400.7c). **Item 99**'s (a): an object referred to by a stack object, a waiting replacement or prevention effect, or a delayed trigger, even once it has left its zone (CR 609.7a): one enumeration, its options told apart where two existences share an id |
-| cards: **Cornered Crook** (603.12: `Optional`, then reflexive, any target), registered, not pooled; Heart-Piercer Manticore's shape as a fixture (embalm keeps the card out) |
-| tests: ATOM-603.12-001; Manticore's four trigger rulings (the LKI power read, "another"); Cornered Crook's ruling, and the Crook killed in response dealing its damage as it last existed (lifelink, deathtouch); item 225 on a Perilous-Myr-shaped fixture under Circle of Protection: Red; item 99's legs; the Crook cast from hand under `ManaWindowStop` |
+**What shipped.** CR 603.12's reflexive trigger as `DelayedDuration::Reflexive`,
+`Does` or `Doesnt`, through the registry's one door, checked as it is made
+against what its resolution performed and never waiting (§3.9, §4.6; no
+`Reflexive` origin, §3.8). Item 229: a resolution's filters ask with its
+effect's source. Item 225: a source of damage chosen and matched by its
+existence, the frame of a departure and of damage a `DepartedFrame`, CR
+400.7c's re-point. Item 103: `targeting::matched` at the six sites that
+swallowed a filter's `Err`, and a frame answering for a source the store has
+lost. Item 99's first half and its resolving-object gap: `damage_sources`,
+CR 609.7a's one enumeration, with `ChoiceOption::Departed`; its command-zone
+half is B2's. Cornered Crook registered, not pooled (187 → 188). Twenty-one tests;
+ATOM-603.12-001 covered.
+
+**What moved on the way in.** The gap hunt found twelve facilities the row
+did not name, the departure record's own frame among them: a dies trigger
+names its source by the card it became, so only that frame knows which
+creature deals its damage. The "doesn't" form has no printed reflexive
+customer, and the owner chose to build it with a fixture. Item 241 records
+the window's one limit. +1,626 in code and tests (code +663,
+tests +963), against the hunt's 1,250–1,500 and the row's 800–950.
+
+**Measured** (`fuzz-record.md`, the TR-3c block). The engine arm plays
+every `performance` game as `main` does at two seats, and two of 200 apart at
+four: a missed "dies" trigger on `main`, where the creature's owner lost in
+the same state-based check, fixed by item 103's frame half and pinned by a
+test. The `stress` games apart are CR 609.7a's widened choice. Every dispatch
+agreed; instructions per decision +0.17%.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-3c".
 
 ### TR-4 — the look-back list, the frame, unattach, control — TR-4a and TR-4b (2,640–3,460)
 
