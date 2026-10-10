@@ -9,9 +9,10 @@ at #239's (A6l, 2026-10-10), where one rule was spelled three times and one
 fact split across two files, each copy too short and too differently written
 for a token scan.
 
-    python plans/similar_functions.py                  # the report over the tree
-    python plans/similar_functions.py --all            # every entry, not the default cut
+    python plans/similar_functions.py                  # the report over the working tree
+    python plans/similar_functions.py --all            # compositions in two files as well as three
     python plans/similar_functions.py --against main   # only what is new against a revision
+    python plans/similar_functions.py --at REV         # a revision instead of the working tree
 
 Every non-test function in `mtgsim/src` and `devgui/src` (binaries left out)
 is read five ways. The first two compare token 5-grams of functions of 60 or
