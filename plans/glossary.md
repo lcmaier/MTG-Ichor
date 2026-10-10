@@ -273,6 +273,31 @@ performs, CR 704.3's single event. A loop is not a batch: 704.7's collapse and
 **chokepoint** — `perform_action`'s own match arms, the only place observable
 game state is mutated. Everything else proposes. → `CLAUDE.md`.
 
+**act** — what a zone change did, in the CR's word for it: destroyed,
+sacrificed, discarded, milled, countered, cast, drawn, played as a land (CR
+701, 601.2, 121.1, 305.1), or only put somewhere. A **redirect** keeps it (CR
+614.6), so a reader asks the act for an act word ("sacrifices", "discards")
+and the destination for a destination word ("is exiled", "dies"). Today the
+act shares `ZoneChangeCause` with who did it, and RH-1 splits the two
+(`replacement-architecture.md` §2b.2). Not the **cause**.
+
+**cause** — who or what caused an event, in CR 400.7j's sense, which sets "an
+effect causes" beside "the cost of a spell or ability causes": an effect ("a
+spell or ability an opponent controls causes"), a cost (CR 118), a special
+action (CR 116), a turn-based or state-based action (CR 703, 704), or a rule. `LifeLossCause` and `DrawCause` use the word this way,
+and `EventStamp`'s `resolution` holds part of it today. RH-1 makes it one
+value on every proposal and every record (`replacement-architecture.md`
+§2b.3). Not the **performer**, which is the function that performs an action,
+and not the **act**: until RH-1, `ZoneChangeCause` is the act, which is why
+it is renamed there.
+
+**redirect** — a replacement that changes only where a move goes (CR 614.6):
+Rest in Peace's exile in place of a graveyard, CR 903.9b's command zone in
+place of a hand. The move keeps its **act**, so a card discarded into exile
+was still discarded (Fiery Temper's ruling). `GameActionTemplate::ZoneChangeTo`
+is its template, and a zone-change record keeps what applied as its **applied
+set** (`replacement-architecture.md` §2b.4).
+
 **performer** / **emitter** — one function performs, a different one announces.
 `move_object` moves and says nothing; `announce_zone_change` is the only emitter
 of `GameEvent::ZoneChange`, and each of its callers performed the move it
@@ -448,9 +473,14 @@ which arms an entry may make. → `replacement-architecture.md` §3.5.
 object, producing that object's frame. A *walk input* is anything that would
 change its answer, which is what bumps the epoch.
 
-**epoch** — `GameState`'s `layer_epoch`, bumped by anything that changes a walk
+**epoch** — **(1)** `GameState`'s `layer_epoch`, bumped by anything that changes a walk
 input. A frame computed at the current epoch is a hit; anything older is
-recomputed. It is the cache key, not a clock.
+recomputed. It is the cache key, not a clock. **(2)** An object's
+`zone_change_epoch` (`ZoneChangeEpoch`): which existence of it this is (CR
+400.7). `arrive_in_zone` stamps a fresh one at every move, so an `ObjectRef`,
+an id and an epoch, finds the object only until it moves again. A zone-change
+record names the existence the move made by it
+(`replacement-architecture.md` §2b.5).
 
 **memo** — the frame cache itself, and what `fuzz_games`' `memo_hits` counts.
 One walk fills every member's frame at its epoch, so the next object asked is a
