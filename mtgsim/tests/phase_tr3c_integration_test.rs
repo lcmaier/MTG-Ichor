@@ -660,13 +660,14 @@ fn twofold_tithe() -> Arc<CardData> {
         .build()
 }
 
-/// Firstlight Vow — a fixture for "the first time each turn" read by a
-/// reflexive trigger, which no printed one prints and the CR does not
-/// exclude.
+/// Firstlight Lantern — a fixture for "the first time each turn" read by a
+/// reflexive trigger: a permanent's ability, which can act several times a
+/// turn, rewarding only the turn's first gain.
 ///
-/// > You may gain 1 life. When you gain life this way for the first time
-/// > this turn, draw a card.
-fn firstlight_vow() -> Arc<CardData> {
+/// > {1}: You may gain 1 life. When you gain life this way for the first
+/// > time this turn, draw a card.
+fn firstlight_lantern() -> Arc<CardData> {
+    let text = "{1}: You may gain 1 life. When you gain life this way for the first time this turn, draw a card.";
     let gain_1 = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let mut first_time = when_you_do(
@@ -675,15 +676,35 @@ fn firstlight_vow() -> Arc<CardData> {
         "When you gain life this way for the first time this turn, draw a card.",
     );
     Arc::make_mut(&mut first_time.def).limit = Some(TriggerLimit::FirstTimeEachTurn);
-    CardDataBuilder::new("Firstlight Vow")
-        .mana_cost(ManaCost::build(&[ManaType::White], 0))
-        .color(Color::White)
-        .card_type(CardType::Instant)
-        .ability(spell_ability(Effect::Sequence(vec![
-            Effect::Optional { chooser: PlayerRef::You, effect: Box::new(gain_1) },
-            create(first_time),
-        ])))
+    CardDataBuilder::new("Firstlight Lantern")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(AbilityDef {
+            rules_text: text.into(),
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Activated,
+            costs: vec![Cost::Mana(ManaCost::build(&[], 1))],
+            effect: Effect::Sequence(vec![
+                Effect::Optional { chooser: PlayerRef::You, effect: Box::new(gain_1) },
+                create(first_time),
+            ]),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
         .build()
+}
+
+/// Activate the lantern for P0 from a pool of exactly {1}, take its "may",
+/// and return how many triggers waited after it resolved.
+fn light(game: &mut GameState, lantern: ObjectId) -> usize {
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    game.activate_ability(0, lantern, 0, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
+    resolve_may(game, true, None);
+    let waiting = game.pending_triggers.len();
+    resolve_all(game, &test_dp());
+    waiting
 }
 
 fn spell_ability(effect: Effect) -> AbilityDef {
@@ -1061,18 +1082,22 @@ fn when_you_do_asks_about_that_action_and_no_other_instruction() {
 
 /// "The first time each turn" is a record's place among its kind this turn,
 /// kept on the record as it is dispatched, so a reflexive trigger made
-/// later in the resolution reads it as any trigger does. Firstlight Vow's
-/// gain is the turn's first the first time, and its second the next.
+/// later in the resolution reads it as any trigger does. Firstlight
+/// Lantern's first activation gains the turn's first life and draws; its
+/// second does not. The place counts every gain that turn, not the
+/// lantern's: after a gain from elsewhere, its first activation is the
+/// turn's second.
 #[test]
 fn a_reflexive_trigger_reads_the_first_time_each_turn() {
     let mut game = setup_two_player_game();
     mtgsim::test_support::fill_library(&mut game, 0, 5);
-    for expected in [1, 0] {
-        let vow = put_in_hand(&mut game, firstlight_vow(), 0);
-        game.players[0].mana_pool.add(ManaType::White, 1);
-        game.cast_spell(0, vow, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
-        resolve_may(&mut game, true, None);
-        assert_eq!(game.pending_triggers.len(), expected, "the turn's first gain triggers it, and only that one");
-        resolve_all(&mut game, &test_dp());
-    }
+    let lantern = put_on_battlefield(&mut game, firstlight_lantern(), 0);
+    assert_eq!(light(&mut game, lantern), 1, "the turn's first gain");
+    assert_eq!(light(&mut game, lantern), 0, "the turn's second");
+
+    let mut game = setup_two_player_game();
+    mtgsim::test_support::fill_library(&mut game, 0, 5);
+    let lantern = put_on_battlefield(&mut game, firstlight_lantern(), 0);
+    game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: lantern }, &test_ctx()).unwrap();
+    assert_eq!(light(&mut game, lantern), 0, "a gain from elsewhere came first");
 }

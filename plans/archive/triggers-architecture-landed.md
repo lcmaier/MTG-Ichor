@@ -1273,7 +1273,7 @@ Eight comments on #239, in three commits ahead of the docs.
   `enters`; the suggested `sacrifice_self` would say the subject is the
   trigger's own source, which it is not.
 
-Three fixtures and tests (Twofold Tithe, Firstlight Vow, Marrowgnaw Ghoul),
+Three fixtures and tests (Twofold Tithe, Firstlight Lantern, Marrowgnaw Ghoul),
 each shown to fail without its change. +575 and −288 in code and tests over
 the PR as
 it stood. Predicted and read `IDENTICAL` against the pre-review binary on
