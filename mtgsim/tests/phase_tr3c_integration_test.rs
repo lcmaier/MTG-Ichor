@@ -22,6 +22,7 @@ use mtgsim::cards::keyword_creatures::wall_of_stone;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
 use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, reverse_damage};
+use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr3b_cards::flickerwisp;
 use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
@@ -32,7 +33,7 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction,
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx, test_dp,
+    card_of_type, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -424,6 +425,30 @@ fn a_token_that_ceased_to_exist_is_red_as_it_last_existed() {
 
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 0), 20, "prevented: the token was red");
+}
+
+/// Item 103's last-known-information half, met by a trigger. A creature dies
+/// in the state-based check that makes its owner lose, and leaves the game
+/// with them (CR 800.4a) before that check's triggers are found. Blood Artist
+/// sees it die as it last existed, a creature (CR 603.10a). The filter used
+/// to ask the store for the creature and read its absence as no: two of 200
+/// four-seat `performance` games met it at TR-3c's sitting.
+#[test]
+fn a_creature_whose_owner_lost_as_it_died_is_still_seen_to_die() {
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, blood_artist(), 0);
+    let doomed = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
+    game.players[1].life_total = 0;
+
+    game.perform_sba_and_triggers(&RecordingDecisionProvider::picking(0)).unwrap();
+    assert!(!game.objects.contains_key(&doomed), "it died, then left the game with its owner");
+    let blood_artist_triggered = game
+        .recorded_events()
+        .events()
+        .filter(|e| matches!(e, GameEvent::AbilityTriggered { controller: 0, .. }))
+        .count();
+    assert_eq!(blood_artist_triggered, 1, "Blood Artist saw it die");
 }
 
 // ---------------------------------------------------------------------------
