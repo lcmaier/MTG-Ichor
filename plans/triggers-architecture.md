@@ -293,7 +293,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
-| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `cause`, which a redirect keeps (CR 614.6, `codebase-state.md` item 176); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None` | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
+| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `cause`, which a redirect keeps (CR 614.6, `codebase-state.md` item 176); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None`. **The record's whole contract** (the act, the cause, the applied set, the object the move made, and when the record is matched) is `replacement-architecture.md` §2b: RH-1 makes `cause` the act (`ZoneChangePattern`) and adds `by` for the cause | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
@@ -389,6 +389,10 @@ pub struct TriggerBinding {
     pub triggered_by: Option<TriggerSeq>,
 }
 ```
+
+**Amended 2026-10-10 (`replacement-architecture.md` §2b.5):** a zone change's
+record carries the object the move made (`new_epoch`), so in RH-2 `subject`
+is read off the record rather than off the store at dispatch (item 177).
 
 **The projections live on the arm, and they are exhaustive matches.**
 `TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
@@ -1053,6 +1057,12 @@ that batch is about to return, after its riders; or one unbatched record,
 run inside `emit_event` before it returns.** The window is
 `records_since(mark)`, with `mark` the stream's sequence number at the
 outermost `open_batch`.
+
+**Amended 2026-10-10 (`replacement-architecture.md` §2b.6, decision 5):** a
+window whose outermost batch queued riders is dispatched in two parts. What
+the batch performed is dispatched before its riders run, and the riders'
+records at its close, so every live read is taken immediately after the event
+(item 175). RH-2 builds it.
 
 **Where the records live, and when they go (the bounded-state PR,
 2026-09-25; item 42).** `GameState.events` is an `EventWindow`. It holds each
@@ -2343,7 +2353,10 @@ at least one registered consumer of what it builds, and each closes against
 record design** (the owner, 2026-09-24): what was done, who did it, which replacement redirected
 it, the object the move made (item 177) and the moment each fact is taken
 at (item 175), designed and reviewed before code. TR-4 widens that record,
-and no earlier phase's card reads the parts it settles.
+and no earlier phase's card reads the parts it settles. **Designed
+2026-10-10** in `replacement-architecture.md` §2b, and built as Phase RH
+(RH-1, RH-2) before A6m and TR-4a. TR-4a then widens `Lki` and changes nothing
+else on the record.
 
 ### TR-1 — the spine: dispatch, the queue, placement, the stack object — ✅ landed 2026-09-19
 
@@ -2664,7 +2677,7 @@ re-counts. Figures are code plus tests, the band `engineering-practices.md`
 |---|---|---|---|
 | TR-2b | 1,500–1,700 | 1,720–2,180 | no split |
 | TR-3 | 2,070–2,540 | 2,800–3,600 | **TR-3a**: the delayed registry, with Final Fortune, 1,600–1,980. **TR-3b**: reflexive triggers, the returns and "until", with Flickerwisp, Cornered Crook and Banishing Light, 1,410–1,640, and 1,650–1,880 with item 223's row half and item 225 (2026-10-08) |
-| items 176/177 | — | 800–1,050 | their own PR, between TR-3b and TR-4a |
+| items 176/177 | — | 800–1,050 | their own PR, between TR-3b and TR-4a. **Re-sized 2026-10-10** as Phase RH, with item 175, item 248 and A6l's L1–L7 added: RH-1 ~1,530 and RH-2 ~1,620 as sized (`replacement-architecture.md` §2b.10) |
 | TR-4 | 2,000–2,460 | 2,640–3,460 | **TR-4a**: the frame, 1,360–1,620. **TR-4b**: the records, 1,430–1,790 |
 | TR-5 | 2,195–2,710 | 3,080–4,350 | **TR-5a**: combat, targeting, ability damage and excess damage, 1,200–2,050. **TR-5b**: counters, prevention, the multiplier, tokens and scry, 1,870–2,380 |
 | TR-6 | 740–1,030 | 935–1,360 | no split |
@@ -2716,12 +2729,13 @@ their trigger half lands.
 | **TR-3a** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 107.3n-001; 513.2-001, -002; and 400.7-001, whose whole board is a delayed trigger, from the deferred row | 14 — 13 of TR-3's 20, and CV-1b's partial |
 | **TR-3b** | 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 6 |
 | **TR-3c** | 603.12-001 | 1 |
-| **TR-4** | 603.6e-001, -002; 400.7e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 14 |
+| **RH-2** (`replacement-architecture.md` §2b.5) | 400.7e-001, -002, moved from TR-4 on 2026-10-10: the record carries the object the move made | 2 |
+| **TR-4** | 603.6e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 12 |
 | **TR-5** | 508.2a-001; 603.2d-001; 122.7-001; 120.10-001 | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
-Ninety-three of the 133 Phase 7 atoms are owed across the six phases (plus
+Ninety-three of the 133 Phase 7 atoms are owed across the six phases and RH-2 (plus
 the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
 and the one TR-2b claims in part),
 forty are deferred with an owner each; 93 + 40 = 133, no atom listed twice and none unlisted — checked
