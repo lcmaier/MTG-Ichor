@@ -62,7 +62,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -340,7 +340,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
-            pattern: EventPattern::ZoneChange { from: None, to: Some(Zone::Battlefield), act: None, object: None },
+            pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
             affected_players: PlayerSet::Nobody,
             by: None,

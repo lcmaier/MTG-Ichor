@@ -26,7 +26,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{Restriction, RestrictionDef, SourceFilter};
-use crate::types::zones::{Zone, ZoneChangeAct};
+use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// Sigarda, Host of Herons — {2}{G}{W}{W}
 /// Legendary Creature — Angel, 5/5
@@ -50,8 +50,7 @@ use crate::types::zones::{Zone, ZoneChangeAct};
 /// # The three halves of the restriction, and where each one lives
 ///
 /// - **"can't cause you to sacrifice"** is the *event*:
-///   `EventPattern::ZoneChange { from: Battlefield, to: Graveyard, act:
-///   Sacrificed }`. CR 701.21a's sacrifice, and specifically not CR 701.8's
+///   `EventPattern::ZoneChange { change: ZoneChangePattern { from: Battlefield, to: Graveyard, act: ///   Sacrificed },}`. CR 701.21a's sacrifice, and specifically not CR 701.8's
 ///   destruction — 701.21b says a sacrificed permanent is not destroyed, which
 ///   is why the act is its own variant and why Sigarda stops none of the
 ///   CR 704.5 state-based actions.
@@ -110,9 +109,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                 // CR 701.21a — "its controller moves it from the battlefield
                 // directly to its owner's graveyard".
                 pattern: EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    act: Some(ZoneChangeAct::Sacrificed),
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),

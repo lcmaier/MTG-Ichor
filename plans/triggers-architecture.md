@@ -293,7 +293,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
-| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `cause`, which a redirect keeps (CR 614.6, `codebase-state.md` item 176); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None`. **The record's whole contract** (the act, the cause, the applied set, the object the move made, and when the record is matched) is `replacement-architecture.md` §2b: RH-1 makes `cause` the act (`ZoneChangePattern`) and adds `by` for the cause | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
+| `ZoneChange` | `ZoneChange { subject, change: ZoneChangePattern { from, to, act }, by: Option<SourceFilter>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `act`, which a redirect keeps (CR 614.6); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None`; "a spell or ability an opponent controls causes" by `by`, which asks the cause of what the arm names (since RH-1). **The record's whole contract** (the act, the cause, the applied set, the object the move made, and when the record is matched) is `replacement-architecture.md` §2b | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
@@ -344,10 +344,10 @@ reads a *performed* record, after, with frames, look-back and multiplicity.
 Ten of TR-1's twelve arms have a sibling in shape (`Attacks` and
 `AbilityTriggers` have none), and the vocabulary is already shared at the
 leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeAct`. What is
-worth sharing is a *field struct* — a `ZoneChangePattern { from, to, cause }`
-both `ZoneChange` arms hold, and `SourcePattern` for damage where the trigger
-arm has a `TriggerSubject` — and TR-4's widening of `ZoneChange` is the
-moment. Never a shared enum. Layers watch nothing.
+worth sharing is a *field struct* — `ZoneChangePattern { from, to, act }`,
+which both `ZoneChange` arms hold since RH-1 (`replacement-architecture.md`
+§2b.7), and `SourcePattern` for damage where the trigger arm has a
+`TriggerSubject`. Never a shared enum. Layers watch nothing.
 
 ### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
 

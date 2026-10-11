@@ -47,7 +47,7 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::Zone;
+use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::targeting::matched;
@@ -775,17 +775,10 @@ pub(crate) fn pattern_watches(
         }
 
         (
-            EventPattern::ZoneChange { from, to, act, object },
-            GameAction::ZoneChange {
-                object: moving,
-                from: actual_from,
-                to: actual_to,
-                act: actual_act,
-            },
+            EventPattern::ZoneChange { change, object },
+            GameAction::ZoneChange { object: moving, from, to, act },
         ) => {
-            from.map(|z| z == *actual_from).unwrap_or(true)
-                && to.map(|z| z == *actual_to).unwrap_or(true)
-                && act.map(|c| c == *actual_act).unwrap_or(true)
+            change.matches(Some(*from), *to, Some(*act))
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -794,21 +787,14 @@ pub(crate) fn pattern_watches(
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
         // zone-change pattern admitting that destination watches an entry too
-        // (Worms of the Earth, Grafdigger's Cage), `from` and `cause` compared as
+        // (Worms of the Earth, Grafdigger's Cage), `from` and `act` compared as
         // above and `object` read in its source zone (the Cage's ruling). A token's
-        // entry has neither `from` nor `cause`.
+        // entry has neither `from` nor `act`.
         (
-            EventPattern::ZoneChange { from, to, act, object },
-            GameAction::EnterBattlefield {
-                object: moving,
-                from: actual_from,
-                act: actual_act,
-                ..
-            },
+            EventPattern::ZoneChange { change, object },
+            GameAction::EnterBattlefield { object: moving, from, act, .. },
         ) => {
-            to.map(|z| z == Zone::Battlefield).unwrap_or(true)
-                && from.map(|z| Some(z) == *actual_from).unwrap_or(true)
-                && act.map(|c| Some(c) == *actual_act).unwrap_or(true)
+            change.matches(*from, Zone::Battlefield, *act)
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -1050,9 +1036,7 @@ fn counter_replacements(
             CounterEffectKind::Replacement,
             ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    act: None,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -1147,9 +1131,7 @@ fn commander_zone_replacement(
     // no check to make here.
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange {
-            from: None,
-            to: Some(*to),
-            act: None,
+            change: ZoneChangePattern { from: None, to: Some(*to), act: None },
             object: None,
         },
         ObjectSet::Fixed(vec![*object]),

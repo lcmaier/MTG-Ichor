@@ -250,7 +250,7 @@ impl GameState {
         window.iter().filter_map(|seq| self.events.record(*seq)).any(|record| {
             record.seq >= until.created_at
                 && until.until.reads(&record.event)
-                && !self.occurrences_matching_arm(&until.until, &referents, record.seq, &record.event).is_empty()
+                && !self.occurrences_matching_arm(&until.until, &referents, record).is_empty()
         })
     }
 
@@ -378,7 +378,7 @@ impl GameState {
             .enumerate()
             .filter(|(_, arm)| arm.reads(&record.event))
             .find_map(|(index, arm)| {
-                let subjects = self.occurrences_matching_arm(arm, referents, record.seq, &record.event);
+                let subjects = self.occurrences_matching_arm(arm, referents, record);
                 (!subjects.is_empty()).then_some((EventIndex(index), subjects))
             })
             .ok_or(Refusal::TriggerCondition)?;

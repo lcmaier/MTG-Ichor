@@ -36,7 +36,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use crate::types::zones::{Zone, ZoneSet};
+use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 /// `codebase-state.md` item 120's constructor, the copy this file owes it.
 fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
@@ -101,9 +101,7 @@ fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
         Box::new(Effect::Replacement(Box::new(
             ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: None,
-                    to: Some(Zone::Graveyard),
-                    act: None,
+                    change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -204,9 +202,7 @@ pub fn timid_golem() -> Arc<CardData> {
         .rules_text("If this creature would be put into a graveyard, exile it instead.")
         .ability(static_ability("If this creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: None,
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -267,9 +263,7 @@ pub fn sealing_ward() -> Arc<CardData> {
         .rules_text("If a creature would be put into a graveyard, exile it instead.")
         .ability(static_ability("If a creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: None,
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),

@@ -12,7 +12,7 @@ use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
-use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct};
+use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
 use crate::ui::decision::DecisionProvider;
 
 /// One object going back: where to, under whose control if that is the
@@ -168,8 +168,13 @@ impl GameState {
         source: Option<ObjectRef>,
         referred: &[ObjectRef],
     ) -> Result<bool, String> {
-        let TriggerEvent::ZoneChange { subject, from: Some(Zone::Battlefield), to: None, act: None, owner: None, .. } =
-            until
+        let TriggerEvent::ZoneChange {
+            subject,
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
+            by: None,
+            owner: None,
+            ..
+        } = until
         else {
             return Err(format!("CR 610.3a/b asks whether {until:?} has happened since, which needs that event's history"));
         };

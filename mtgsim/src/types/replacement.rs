@@ -40,7 +40,7 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
-use crate::types::zones::{DrawCause, Zone, ZoneChangeAct};
+use crate::types::zones::{DrawCause, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// One replacement or prevention effect.
 ///
@@ -241,15 +241,14 @@ pub enum EventPattern {
     /// **Watches an entry too, when `to` admits the battlefield.** Entering is
     /// the zone change onto it (CR 614.1c), proposed as
     /// `GameAction::EnterBattlefield` and nothing else, and `pattern_watches`
-    /// compares `from` and `cause` against the entry's. That is Worms of the
+    /// compares `from` and `act` against the entry's. That is Worms of the
     /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's step
     /// with [`Self::EnterBattlefield`] — one event.
     ZoneChange {
-        from: Option<Zone>,
-        to: Option<Zone>,
-        /// Nothing outside this pipeline and the trigger matcher may branch on
-        /// an act — see [`ZoneChangeAct`].
-        act: Option<ZoneChangeAct>,
+        /// Where from, where to, and what was done. Nothing outside this
+        /// pipeline and the trigger matcher may branch on an act — see
+        /// [`ZoneChangeAct`].
+        change: ZoneChangePattern,
         /// A constraint on the moving object beyond what `affected` says.
         ///
         /// `affected` scopes *which* objects the effect applies to; this scopes

@@ -35,7 +35,7 @@ use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -122,9 +122,7 @@ fn static_restriction(name: &str, what: Restriction) -> Arc<CardData> {
 fn lands_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::ZoneChange {
-            from: None,
-            to: Some(Zone::Battlefield),
-            act: None,
+            change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
             object: None,
         },
         affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),

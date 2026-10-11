@@ -592,7 +592,7 @@ instant. → `engine::triggers::dispatch`.
 record: does the record fit the ability's trigger event (the arm, its subject,
 its players), and do its once-each-turn limits and its intervening "if" (CR
 603.4) let it trigger? Yes queues a trigger. Besides the replacement pipeline,
-the only code that may branch on a zone change's `cause`.
+the only code that may branch on a zone change's `act`.
 → `match_def` in `engine::triggers::dispatch`.
 
 **multiplicity** — CR 603.2c's question about one arm: does it trigger once

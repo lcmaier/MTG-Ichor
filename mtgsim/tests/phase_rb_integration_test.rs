@@ -39,7 +39,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::types::replacement::EnterMods;
@@ -334,9 +334,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    act: None,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -748,9 +746,7 @@ fn exile_watcher(name: &str) -> Arc<CardData> {
         name,
         ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Exile),
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -769,9 +765,7 @@ fn self_matching_probe(name: &str) -> Arc<CardData> {
         name,
         ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: None,
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -989,9 +983,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
         "Exile Warden",
         ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
@@ -2041,9 +2033,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
 
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange {
-            from: Some(Zone::Battlefield),
-            to: Some(Zone::Graveyard),
-            act: None,
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
             object: None,
         },
         ObjectSet::Fixed(vec![victim]),
@@ -2086,7 +2076,7 @@ fn exempt_row(
     becomes: Zone,
 ) -> RegisteredReplacementEffect {
     let mut def = ReplacementDef::new(
-        EventPattern::ZoneChange { from: None, to: Some(to), act: None, object: None },
+        EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(to), act: None }, object: None },
         ObjectSet::Fixed(vec![victim]),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: becomes }),
     );
@@ -2202,9 +2192,7 @@ fn library_tucker(name: &str) -> Arc<CardData> {
         name,
         ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -2401,9 +2389,7 @@ fn library_on_death(name: &str) -> Arc<CardData> {
         name,
         ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -2550,7 +2536,7 @@ fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
 #[test]
 fn test_rest_in_peace_exiles_a_card_headed_to_a_graveyard_from_hand() {
     // "From anywhere", and this is the clause a first draft narrowed away.
-    // `EventPattern::ZoneChange { from: None }` matches every origin, and the
+    // `ZoneChangePattern { from: None, .. }` matches every origin, and the
     // filter — `ObjectFilter::All` — reads nothing off the layer frame, so a
     // card that is not a permanent resolves it fine. The reachable origins today
     // are stack→graveyard (CR 608.2n's resolved spell, CR 608.3's fizzle) and

@@ -254,6 +254,31 @@ pub enum ZoneChangeAct {
     PlayedAsLand,
 }
 
+/// What a zone-change arm asks of a move (`replacement-architecture.md` §2b.7):
+/// where it came from, where it went, and what was done; `None` asks nothing.
+///
+/// A destination word ("is exiled", "dies", "is put into a graveyard") reads
+/// `from` and `to`, and an act word ("sacrifices", "discards") reads `act`.
+/// With no exile act to name, "is exiled" is `to: Some(Exile)`, which a
+/// sacrifice Rest in Peace exiled satisfies, as CR 614.6 says it should.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZoneChangePattern {
+    pub from: Option<Zone>,
+    pub to: Option<Zone>,
+    pub act: Option<ZoneChangeAct>,
+}
+
+impl ZoneChangePattern {
+    /// Does a move from `from` to `to` by `act` fit? An entering token came
+    /// from nowhere by no act (`None`), so it fits only a pattern that asks
+    /// neither.
+    pub fn matches(&self, from: Option<Zone>, to: Zone, act: Option<ZoneChangeAct>) -> bool {
+        self.from.is_none_or(|z| Some(z) == from)
+            && self.to.is_none_or(|z| z == to)
+            && self.act.is_none_or(|a| Some(a) == act)
+    }
+}
+
 /// Which draw of an instruction a card is (CR 121.2).
 ///
 /// **Ten printed cards ask, and none of them can recover the answer a moment

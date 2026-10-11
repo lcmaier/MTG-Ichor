@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, IdentityRef, TriggerEvent, TriggerOrigin,
     Referred, TriggerSubject, TriggerTurn,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -757,7 +757,7 @@ fn archivist_whose_rider(rider: Effect) -> Arc<CardData> {
         )),
     );
     let replacement = ReplacementDef::new(
-        EventPattern::ZoneChange { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None, object: None },
+        EventPattern::ZoneChange { change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None }, object: None },
         ObjectSet::battlefield_filter(opponents_creature),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     )

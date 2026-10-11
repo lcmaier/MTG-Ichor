@@ -63,7 +63,7 @@ use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerSubject, TriggerTier,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -858,9 +858,8 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
             triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Filter(a_creature()),
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Exile),
-                    act: None,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
+                    by: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -1563,9 +1562,8 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
             triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Any,
-                    from: Some(Zone::Hand),
-                    to: Some(Zone::Graveyard),
-                    act: Some(ZoneChangeAct::Discarded),
+                    change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
+                    by: None,
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -1671,9 +1669,8 @@ fn guile_shaped() -> Arc<CardData> {
         "Incarnate Echo",
         TriggerEvent::ZoneChange {
             subject: TriggerSubject::ThisObject,
-            from: None,
-            to: Some(Zone::Graveyard),
-            act: None,
+            change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+            by: None,
             owner: None,
             multiplicity: Multiplicity::PerOccurrence,
         },
@@ -1768,9 +1765,8 @@ fn dread_shaped() -> Arc<CardData> {
         .ability(triggered_ability("", whenever(
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::ThisObject,
-                from: None,
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                by: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -1833,9 +1829,8 @@ fn one_ability_two_zones() -> Arc<CardData> {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::ThisObject,
-                    from: None,
-                    to: Some(Zone::Graveyard),
-                    act: None,
+                    change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                    by: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },

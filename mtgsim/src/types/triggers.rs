@@ -14,6 +14,7 @@
 //! what its "that object", "that player", "that many" and occurrences are.
 
 use std::sync::Arc;
+use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
@@ -23,7 +24,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{Zone, ZoneChangeAct};
+use crate::types::zones::{Zone, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -310,9 +311,12 @@ pub enum TriggerEvent {
     /// CR 603.6c makes *not* a leaves-the-battlefield ability.
     ZoneChange {
         subject: TriggerSubject,
-        from: Option<Zone>,
-        to: Option<Zone>,
-        act: Option<ZoneChangeAct>,
+        change: ZoneChangePattern,
+        /// Who or what caused it, for "a spell or ability an opponent controls
+        /// causes" (Guerrilla Tactics, Sacred Ground): the cause of what the
+        /// arm names, its act's or its destination's
+        /// (`replacement-architecture.md` §2b.7).
+        by: Option<SourceFilter>,
         owner: Option<PlayerRef>,
         multiplicity: Multiplicity,
     },
@@ -401,7 +405,7 @@ impl TriggerEvent {
     /// class). The other classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
-            TriggerEvent::ZoneChange { from, .. } => *from == Some(Zone::Battlefield),
+            TriggerEvent::ZoneChange { change, .. } => change.from == Some(Zone::Battlefield),
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
@@ -1038,6 +1042,7 @@ impl PendingTrigger {
 mod tests {
     use super::*;
     use crate::events::event::EventSeq;
+    use crate::types::zones::ZoneChangeAct;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
@@ -1102,7 +1107,7 @@ mod tests {
         let each = Multiplicity::PerOccurrence;
         let expected: Vec<(TriggerEvent, &[&str])> = vec![
             (
-                TriggerEvent::ZoneChange { subject: this.clone(), from: None, to: None, act: None, owner: None, multiplicity: each },
+                TriggerEvent::ZoneChange { subject: this.clone(), change: ZoneChangePattern { from: None, to: None, act: None }, by: None, owner: None, multiplicity: each },
                 &["ZoneChange", "LeftTheGame"],
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),

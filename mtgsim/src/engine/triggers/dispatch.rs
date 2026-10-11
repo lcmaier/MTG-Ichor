@@ -41,7 +41,7 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use crate::types::zones::{Zone, ZoneSet};
+use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
 /// dispatched from the dispatch that queued it, and so on. The recursion is
@@ -1075,7 +1075,7 @@ impl GameState {
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, record.place_in_turn);
+                let outcome = self.match_def(def, candidate, asks, record, identity);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1160,11 +1160,10 @@ impl GameState {
         def: &TriggerDef,
         candidate: &TriggerCandidate<'_>,
         asks: Asks,
-        seq: EventSeq,
-        event: &GameEvent,
+        record: &EventRecord,
         identity: AbilityIdentity,
-        place_in_turn: Option<u64>,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
+        let event = &record.event;
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
         }
@@ -1196,14 +1195,14 @@ impl GameState {
             if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
-            let subjects = self.occurrences_matching_arm(arm, &referents, seq, event);
+            let subjects = self.occurrences_matching_arm(arm, &referents, record);
             if !subjects.is_empty() {
                 matched = Some((EventIndex(index), subjects));
                 break;
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, place_in_turn) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1235,7 +1234,7 @@ impl GameState {
         }
     }
 
-    /// Each occurrence of `arm`'s event that the record `event` holds, as that
+    /// Each occurrence of `arm`'s event that `record` holds, as that
     /// occurrence's subject ("that object", if any), read for the trigger's
     /// `referents`: each is one trigger (CR 603.2c). A record holds one
     /// occurrence for every arm but `Attacks`, which holds one per matching
@@ -1254,30 +1253,30 @@ impl GameState {
         &self,
         arm: &TriggerEvent,
         referents: &TriggerReferents<'_>,
-        seq: EventSeq,
-        event: &GameEvent,
+        record: &EventRecord,
     ) -> Vec<Option<ObjectId>> {
+        let (seq, event) = (record.seq, &record.event);
         let one = |ok: bool| if ok { vec![arm.subject_of(event)] } else { Vec::new() };
         match (arm, event) {
             (
-                TriggerEvent::ZoneChange { subject, from, to, act, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from: rf, to: rt, act: rc, lki },
+                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
+                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki },
             ) => one(
-                from.is_none_or(|z| z == *rf)
-                    && to.is_none_or(|z| z == *rt)
-                    && act.is_none_or(|c| c == *rc)
+                change.matches(Some(*from), *to, Some(*act))
+                    && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
-            // triggers on it and nothing narrower — no `to`, no cause.
+            // triggers on it and nothing narrower — no `to`, no act, no cause.
             (
-                TriggerEvent::ZoneChange { subject, from, to, act, owner, .. },
-                GameEvent::LeftTheGame { object_id, owner: moved_owner, from: rf, lki },
+                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
+                GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
             ) => one(
-                from.is_none_or(|z| z == *rf)
-                    && to.is_none()
-                    && act.is_none()
+                change.from.is_none_or(|z| z == *from)
+                    && change.to.is_none()
+                    && change.act.is_none()
+                    && by.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
@@ -1555,6 +1554,16 @@ impl GameState {
 
 fn is_triggered(def: &AbilityDef) -> bool {
     matches!(def.effect, Effect::Triggered(_))
+}
+
+/// The cause a zone-change arm's `by` asks of `record`
+/// (`replacement-architecture.md` §2b.7): the act's when the arm names an act
+/// ("causes you to discard"), the destination's when it names only where the
+/// move went ("causes a land to be put into your graveyard"). One answer until
+/// the record keeps its applied set: RH-2 makes the destination's the last
+/// redirect's (§2b.4), on this line.
+fn cause_asked_by(_change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
+    record.stamp.cause
 }
 
 /// The CR 603.10a frame a record carries, if it carries one.

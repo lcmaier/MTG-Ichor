@@ -52,7 +52,7 @@ use mtgsim::types::replacement::{
     TokenKind, TokenSubstitution,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -641,9 +641,7 @@ fn a_token_that_cannot_enter_is_not_created() {
     let no_creatures = static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
         Restriction::Event {
             pattern: EventPattern::ZoneChange {
-                from: None,
-                to: Some(Zone::Battlefield),
-                act: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
                 object: None,
             },
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),

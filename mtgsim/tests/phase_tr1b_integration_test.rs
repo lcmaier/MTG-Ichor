@@ -44,7 +44,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -139,9 +139,8 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
             dies(a_creature()).into(),
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::Filter(a_creature()),
-                from: None,
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                by: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -209,9 +208,8 @@ fn dread_shaped() -> Arc<CardData> {
     };
     let from_anywhere = TriggerEvent::ZoneChange {
         subject: TriggerSubject::ThisObject,
-        from: None,
-        to: Some(Zone::Graveyard),
-        act: None,
+        change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+        by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     };

@@ -41,7 +41,7 @@ use mtgsim::types::replacement::{
     AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -239,9 +239,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
         .rules_text("Creatures you control can't be put into a graveyard from the battlefield.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Graveyard),
-                act: None,
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -267,9 +265,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
             Restriction::Event {
                 pattern: EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    act: Some(ZoneChangeAct::Sacrificed),
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -292,9 +288,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
             Restriction::Event {
                 pattern: EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    act: Some(ZoneChangeAct::Sacrificed),
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),

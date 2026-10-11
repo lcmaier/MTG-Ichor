@@ -18,7 +18,7 @@ use crate::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, ReflexiveForm, TriggerCondition, TriggerDef,
     TriggerEvent, TriggerSubject,
 };
-use crate::types::zones::{Zone, ZoneChangeAct};
+use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// A triggered ability: no cost, the def as its effect.
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
@@ -152,9 +152,8 @@ impl From<CountableEvent> for TriggerEvent {
 pub fn dies(subject: impl Into<TriggerSubject>) -> CountableEvent {
     CountableEvent(TriggerEvent::ZoneChange {
         subject: subject.into(),
-        from: Some(Zone::Battlefield),
-        to: Some(Zone::Graveyard),
-        act: None,
+        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+        by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
@@ -166,9 +165,8 @@ pub fn dies(subject: impl Into<TriggerSubject>) -> CountableEvent {
 pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEvent {
     CountableEvent(TriggerEvent::ZoneChange {
         subject: subject.into(),
-        from: Some(Zone::Battlefield),
-        to: None,
-        act: None,
+        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
+        by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
@@ -180,9 +178,8 @@ pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEv
 pub fn is_sacrificed(subject: impl Into<TriggerSubject>) -> CountableEvent {
     CountableEvent(TriggerEvent::ZoneChange {
         subject: subject.into(),
-        from: Some(Zone::Battlefield),
-        to: None,
-        act: Some(ZoneChangeAct::Sacrificed),
+        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: Some(ZoneChangeAct::Sacrificed) },
+        by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })

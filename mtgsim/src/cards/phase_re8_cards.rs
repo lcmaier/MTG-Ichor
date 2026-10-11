@@ -59,7 +59,7 @@ use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
 use crate::types::restriction::SourceFilter;
-use crate::types::zones::{Zone, ZoneChangeAct, ZoneSet};
+use crate::types::zones::{Zone, ZoneChangeAct, ZoneSet, ZoneChangePattern};
 
 /// A spell whose whole text is "target player discards N cards", differing
 /// only in who picks (CR 701.9b).
@@ -193,10 +193,8 @@ pub fn nephalia_academy() -> Arc<CardData> {
                     EventPattern::ZoneChange {
                         // "instead of putting it **anywhere else**" — the
                         // destination is not asked about, only the departure
-                        // and the reason.
-                        from: Some(Zone::Hand),
-                        to: None,
-                        act: Some(ZoneChangeAct::Discarded),
+                        // and the act.
+                        change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
                         object: None,
                     },
                     // "causes **you** to discard a card": the cards in this
