@@ -47,7 +47,7 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeAct};
+use crate::types::zones::Zone;
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::targeting::matched;
@@ -723,6 +723,14 @@ pub(crate) fn set_affects(
     }
 }
 
+/// CR 601's "was it cast", for an object entering the battlefield: it is the
+/// resolving spell (CR 608.3a), and the spell carries the facts of a cast
+/// (CR 400.7d). Anything else entering was not cast: a land played, a card an
+/// effect puts there, a copy of a permanent spell (CR 707.10).
+fn entering_spell_was_cast(game: &GameState, object: ObjectId) -> bool {
+    game.resolving.as_ref().is_some_and(|r| r.id == object && r.cast.is_some())
+}
+
 /// Does this pattern watch for the proposed event's kind (CR 614.1)?
 ///
 /// `pub(crate)` for the same reason [`set_affects`] is: `Restriction::Event`
@@ -832,13 +840,14 @@ pub(crate) fn pattern_watches(
             cause.map(|c| c.matches(*actual)).unwrap_or(true)
         }
 
-        // CR 601's fact off the entry's cause: `Resolved` is a permanent spell
-        // that was cast, everything else was not.
+        // CR 400.7d's fact: the entering object is the resolving spell, and its
+        // cast facts say it was cast. A copy of a permanent spell enters by the
+        // same rule and was never cast (CR 707.10).
         (
             EventPattern::EnterBattlefield { cast },
-            GameAction::EnterBattlefield { act, .. },
+            GameAction::EnterBattlefield { object, .. },
         ) => cast
-            .map(|required| (*act == Some(ZoneChangeAct::Resolved)) == required)
+            .map(|required| entering_spell_was_cast(game, *object) == required)
             .unwrap_or(true),
 
         (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
@@ -1203,7 +1212,7 @@ mod tests {
             from: Some(Zone::Stack),
             controller: 0,
             mods: EnterMods::NONE,
-            act: Some(ZoneChangeAct::Resolved),
+            act: Some(crate::types::zones::ZoneChangeAct::Put),
         };
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
@@ -1241,8 +1250,8 @@ mod tests {
 
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
-        game.change_zone(faith, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
-        game.change_zone(faith, Zone::Battlefield, ZoneChangeAct::Put, &ctx).unwrap();
+        game.change_zone(faith, Zone::Hand, crate::types::zones::ZoneChangeAct::Put, &ctx).unwrap();
+        game.change_zone(faith, Zone::Battlefield, crate::types::zones::ZoneChangeAct::Put, &ctx).unwrap();
         assert_eq!(gain_in_the_lineage(&mut game), 6, "a new object's ability is a new effect");
     }
 }

@@ -360,11 +360,10 @@ pub enum GameAction {
     /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
     /// as CR 616.1f iterates.
     ///
-    /// `act` is the zone change's, or `None` for a token. A fact about the
-    /// event, recorded because CR 601's "was it cast" is unrecoverable a moment
-    /// later: `Resolved` is a permanent spell that was cast, everything else was
-    /// not. Read by `EventPattern::EnterBattlefield { cast }` and by
-    /// `EventPattern::ZoneChange`'s `act` when it watches an entry.
+    /// `act` is the zone change's, or `None` for a token: a fact about the
+    /// event, read by `EventPattern::ZoneChange`'s `act` when it watches an
+    /// entry. Whether a permanent spell entering was cast is CR 400.7d's fact,
+    /// on the resolving spell, and not this.
     EnterBattlefield {
         object: ObjectId,
         from: Option<Zone>,

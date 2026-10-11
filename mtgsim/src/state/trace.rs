@@ -880,7 +880,7 @@ impl GameState {
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
             r.field_opt_u64("resolution", stamp.cause.resolution().map(|s| s.source.raw()));
-            r.field_str("text", &crate::ui::display::format_event(self, &event, &names));
+            r.field_str("text", &crate::ui::display::format_event(self, &event, &names, &stamp.cause));
             r
         });
         let seq = self.events.next_seq();

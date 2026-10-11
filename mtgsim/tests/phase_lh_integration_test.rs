@@ -161,7 +161,7 @@ fn test_an_aura_spell_resolves_attached_to_its_target() {
     assert_eq!(pt(&game, theirs), (3, 4));
     assert_eq!(
         moves_of(&game, aura),
-        vec![(Zone::Stack, Zone::Battlefield, ZoneChangeAct::Resolved)]
+        vec![(Zone::Stack, Zone::Battlefield, ZoneChangeAct::Put)]
     );
 }
 
@@ -193,7 +193,7 @@ fn test_the_aura_dies_with_its_host() {
     );
     assert_eq!(
         moves_of(&game, aura).last().copied(),
-        Some((Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::AuraSba))
+        Some((Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Put))
     );
 }
 
@@ -220,7 +220,7 @@ fn test_an_aura_whose_target_left_fizzles() {
     assert!(game.players[0].graveyard.contains(&aura), "to its owner's graveyard");
     assert_eq!(
         moves_of(&game, aura),
-        vec![(Zone::Stack, Zone::Graveyard, ZoneChangeAct::Fizzled)]
+        vec![(Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put)]
     );
     assert!(game
         .recorded_events()

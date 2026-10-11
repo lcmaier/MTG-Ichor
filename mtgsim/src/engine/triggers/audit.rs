@@ -228,7 +228,7 @@ impl GameState {
         let records: Vec<String> = window
             .iter()
             .filter_map(|seq| {
-                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::ui::display::format_event(self, &r.event, &r.names)))
+                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::ui::display::format_record(self, r)))
             })
             .collect();
         records.join("; ")

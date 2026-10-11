@@ -367,12 +367,12 @@ pub enum EventPattern {
     /// from. So this arm carries no object filter of its own; its one
     /// constraint is about the *event*.
     ///
-    /// `cast` is CR 601's fact, projected off the entry's [`ZoneChangeAct`]:
-    /// `Some(true)` matches a permanent spell that resolved (`Resolved`),
-    /// `Some(false)` everything else — a land drop, an effect putting a card
-    /// onto the battlefield, a token. Containment Priest and Hallowed
-    /// Moonlight read "and it wasn't cast", and a `ZoneChangeAct` field
-    /// could not say *wasn't*. `None` matches either.
+    /// `cast` is CR 601's fact, read off CR 400.7d's facts the resolving spell
+    /// carries: `Some(true)` matches a permanent spell that was cast entering
+    /// as it resolves, `Some(false)` everything else — a land drop, an effect
+    /// putting a card onto the battlefield, a token, a copy of a permanent
+    /// spell (CR 707.10). Containment Priest and Hallowed Moonlight read "and
+    /// it wasn't cast", which an act could not say. `None` matches either.
     ///
     /// One field today, and the axis it grows along is CR 400.7d: a permanent's
     /// abilities may reference facts about the spell it was — whether it was

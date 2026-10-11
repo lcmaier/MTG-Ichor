@@ -145,8 +145,8 @@ pub enum GameEvent {
     SpellCast { spell_id: ObjectId, caster: PlayerId },
 
     // There is no `SpellResolved`/`StackObjectResolved`: a spell finishing
-    // resolution is a `ZoneChange` out of the stack with
-    // `ZoneChangeAct::Resolved`, which also says *where* it went, and an
+    // resolution is a `ZoneChange` out of the stack caused by CR 608.2n's or
+    // 608.3's rule (`GameRule`), which also says *where* it went, and an
     // ability finishing is `AbilityResolved`, which carries the durable identity
     // CR 603.7h counting needs. One event for both would fire for abilities
     // too, and "whenever a spell resolves" keyed on it would be wrong.
@@ -210,8 +210,8 @@ pub enum GameEvent {
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
     /// A spell doesn't resolve (CR 608.2b): every target of every instance of
-    /// "target" is illegal. Its move to the graveyard, the `ZoneChange` with
-    /// `ZoneChangeAct::Fizzled`, comes first. Not a countering: CR 701.6a's
+    /// "target" is illegal. Its move to the graveyard, the `ZoneChange` caused
+    /// by `GameRule::TargetsIllegal`, comes first. Not a countering: CR 701.6a's
     /// counter is an effect's, and "whenever a spell is countered" does not
     /// read this. `controller` as [`Self::SpellCountered`]'s.
     SpellFizzled { spell_id: ObjectId, controller: PlayerId },

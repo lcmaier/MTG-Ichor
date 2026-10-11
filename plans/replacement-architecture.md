@@ -931,51 +931,23 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
 | `ShuffleLibrary { player }` | 701.24a | RF | the third no-`EventPattern` variant — nothing printed says "would shuffle … instead" — and the first in-game writer of a library's order; proposed by `Primitive::ShuffleLibrary`, the rider of Darksteel Colossus's "shuffle it into its owner's library" (CR 701.24c) |
 
-`ZoneChangeCause` is the semantic carrier that makes CR 701.8b answerable:
+`ZoneChangeAct` (§2b.2) is the semantic carrier that makes CR 701.8b
+answerable: `Destroyed`, `Sacrificed`, `Discarded`, `Milled`, `Countered`,
+`Cast`, `Drawn`, `PlayedAsLand`, and `Put`, a move named by where it goes. Its
+21-variant predecessor, `ZoneChangeCause`, also said who moved an object; since
+RH-1 that is the cause (§2b.3), and the rule a move obeys is no act.
 
-```rust
-// Derived from call sites, not researched from the card pool — see §11.
-// **No catchall.** Every mover names its reason.
-pub enum ZoneChangeCause {
-    // --- effects (CR 701), one per object-moving `Primitive` ---
-    Destroyed,       // 701.8b way 1 — an effect using the word "destroy"
-    Sacrificed,      // 701.21 — NOT destruction
-    Exiled,          // 701.13
-    Discarded,       // 701.9 — includes the CR 514.1 cleanup discard
-    Milled,          // 701.17
-    Returned,        // "return to hand" / "return to the battlefield"
-    PutIntoLibrary,  // top / bottom / shuffled-in; *position* is a field, not a cause
-
-    // --- state-based actions (CR 704.5) ---
-    DestroyedBySba,  // 704.5g lethal damage + 704.5h deathtouch = 701.8b ways 2 and 3
-    ZeroToughness,   // 704.5f — NOT destruction
-    ZeroLoyalty,     // 704.5i
-    LegendRule,      // 704.5j
-    AuraSba,         // 704.5m — 704.5n only unattaches, it does not move
-
-    // --- the stack ---
-    Cast,            // hand (or elsewhere) → stack
-    Resolved,        // 608.2n (instant/sorcery → graveyard), 608.3a/c (permanent spell → battlefield)
-    Countered,       // 701.6
-    Fizzled,         // 608.2b — every target illegal; does not resolve
-
-    // --- turn structure and special actions ---
-    Drawn,           // 121.5 makes this trigger-visibly distinct from "put into hand"
-    PlayedAsLand,    // 305.1 / 505.6b
-}
-```
-
-Three rules for `cause`, all learned the hard way elsewhere in this tree:
+Three rules for `act`, all learned the hard way elsewhere in this tree:
 
 - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
   `perform_action` cannot recover that from `(from, to)`.
-- **Nothing may branch on `cause` outside the replacement pipeline and the
+- **Nothing may branch on `act` outside the replacement pipeline and the
   trigger matcher.** It is not a general-purpose tag; a third reader is a third
   place for it to drift.
 - **No catchall variant.** No `Other`, no `Unknown`, no `#[non_exhaustive]`.
   This is the whole of what makes the enum cheap to extend later — see §11's
-  "the one that blocks". A site with no honest reason to give is a site whose
-  reason nobody worked out.
+  "the one that blocks". A site with no honest act to give is a site whose
+  act nobody worked out.
 
 Type-specific death events (`CreatureDied`, `PlaneswalkerDied`,
 `LegendRuleSacrificed`) become display sugar in Phase RA and stop being trigger

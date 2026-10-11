@@ -233,52 +233,19 @@ pub enum ZoneChangeAct {
     Milled,
     /// A move named by where it goes and nothing else: CR 701.13a's exile
     /// ("move it to the exile zone from wherever it is"), a return, a card put
-    /// into a hand or a library, and every move a rule makes. Not a draw, which
-    /// CR 121.5 tells apart from "put into your hand".
+    /// into a hand or a library, and every move a rule makes — a state-based
+    /// action's (CR 704.5f is "put into its owner's graveyard", which 701.8b
+    /// says is not destroyed), a resolution's last step (608.2n, 608.3a, 608.3e,
+    /// 608.2b) and a departed player's exiles (800.4a). The cause names the rule.
+    /// Not a draw, which CR 121.5 tells apart from "put into your hand".
     Put,
 
-    // --- state-based actions (CR 704.5) ---
-    /// 704.5g lethal damage + 704.5h deathtouch. One variant, because CR 701.8b
-    /// calls both "destroyed" and no card distinguishes them as a *cause*.
-    DestroyedBySba,
-    /// 704.5f — NOT destruction, so regeneration and indestructible do not help.
-    ZeroToughness,
-    /// 704.5i.
-    ZeroLoyalty,
-    /// 704.5j.
-    LegendRule,
-    /// 704.5m. (704.5n only unattaches an Equipment; it moves nothing.)
-    AuraSba,
-
     // --- the stack ---
-    /// Hand (or elsewhere) → stack.
+    /// CR 601.2a's move, announced at 601.2i.
     Cast,
-    /// A stack object finished resolving: CR 608.2n for an instant or sorcery
-    /// (to its owner's graveyard), CR 608.3a/c for a permanent spell (onto the
-    /// battlefield, attached if it is an Aura).
-    Resolved,
-    /// 701.6.
+    /// 701.6a. Not CR 608.2b's spell whose targets are all illegal, which a
+    /// rule puts into the graveyard (`Put`, `GameRule::TargetsIllegal`).
     Countered,
-    /// 608.2b — every target illegal, so the spell or ability "doesn't
-    /// resolve" and is removed from the stack. The current CR does not call
-    /// this a countering; CR 701.6's `Countered` is a different action.
-    Fizzled,
-
-    // --- Commander (CR 903) ---
-    /// CR 704.6d / 903.9a — a commander in a graveyard or exile is moved to the
-    /// command zone by a **state-based action**. CR 903.9b's replacement has no
-    /// variant: it changes only the destination, so the move keeps the act it
-    /// replaced, a bounce or a tuck (CR 614.6).
-    CommanderZoneSba,
-
-    // --- multiplayer (CR 800.4) ---
-    /// CR 800.4a's fourth sentence and CR 800.4c — an object whose controller
-    /// has left the game and which nobody still in the game controls is
-    /// exiled. Two rules, one variant: the engine's reason is the same in both
-    /// — there is no player left to control it — and the difference between
-    /// them is *when* the question is asked, which the moment of the move
-    /// already says.
-    ControllerLeftTheGame,
 
     // --- turn structure and special actions ---
     /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
@@ -316,11 +283,11 @@ pub enum DestructionSource {
 }
 
 impl DestructionSource {
-    /// The zone-change cause the destruction lowers to (CR 701.8a).
+    /// The act the destruction lowers to (CR 701.8a): destroyed, either way,
+    /// and the cause says which (CR 701.8b).
     pub fn zone_change_cause(self) -> ZoneChangeAct {
         match self {
-            DestructionSource::Effect(_) => ZoneChangeAct::Destroyed,
-            DestructionSource::StateBasedAction => ZoneChangeAct::DestroyedBySba,
+            DestructionSource::Effect(_) | DestructionSource::StateBasedAction => ZoneChangeAct::Destroyed,
         }
     }
 }

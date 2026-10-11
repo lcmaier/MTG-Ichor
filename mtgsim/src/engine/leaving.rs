@@ -245,7 +245,7 @@ impl GameState {
                 continue;
             }
             let rule = ActionContext::game_rule(dp, GameRule::ControllerLeftTheGame);
-            self.change_zone(id, Zone::Exile, ZoneChangeAct::ControllerLeftTheGame, &rule)?;
+            self.change_zone(id, Zone::Exile, ZoneChangeAct::Put, &rule)?;
         }
         Ok(())
     }
@@ -278,7 +278,7 @@ mod tests {
         game.players[2].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Resolved), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
             .unwrap();
 
         assert!(!entered);
@@ -297,7 +297,7 @@ mod tests {
         game.players[0].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Resolved), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
             .unwrap();
 
         assert!(entered);

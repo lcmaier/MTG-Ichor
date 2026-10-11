@@ -357,7 +357,7 @@ fn test_a_resolved_spell_whose_entry_is_refused_goes_to_the_graveyard() {
         zone_changes(&game, start),
         vec![
             (bear, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast),
-            (bear, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved),
+            (bear, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put),
         ],
     );
     assert!(entries(&game, start).is_empty());

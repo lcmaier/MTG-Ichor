@@ -178,8 +178,9 @@ impl GameState {
         // `resolving` is what makes the object's presence on the stack expected
         // rather than a second removal. Not optional for v1 Commander: a commander
         // permanent spell resolves through here, and CR 903.9b has to be able to
-        // offer the command zone instead.
-        let actx = ActionContext::resolving(dp, &ctx);
+        // offer the command zone instead. Each move is a rule's (CR 608.2n,
+        // 608.3a, 608.3e), not the spell's effect: no keyword action, so `Put`.
+        let rule = |rule| ActionContext::game_rule(dp, rule);
         if !self.objects.contains_key(&object_id) {
             // CR 800.4a — the resolving object left the game during its own
             // resolution, because its owner did (a spell that makes its own
@@ -195,15 +196,15 @@ impl GameState {
                 // CR 608.3a (608.3c for an Aura, below): enters under its CR 110.2b
                 // *default* controller, a steal's Layer 2 row still applying on top
                 // (CR 400.7a). The entry's performer announces it.
-                self.change_zone(object_id, Zone::Battlefield, ZoneChangeAct::Resolved, &actx)?;
+                self.change_zone(object_id, Zone::Battlefield, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellResolves))?;
                 // CR 608.3e — "if a permanent spell resolves but its controller
                 // can't put it onto the battlefield, that player puts it into
                 // its owner's graveyard." The entry was refused (CR 614.17d) or
                 // dropped (CR 614.6) and the card is still on the stack; an
                 // entry *substituted* by a zone change took it elsewhere and
-                // needs nothing. The spell resolved, so the trip is `Resolved`.
+                // needs nothing.
                 if self.get_object(object_id)?.zone == Zone::Stack {
-                    self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Resolved, &actx)?;
+                    self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellCantEnter))?;
                 }
 
                 // Rule 303.4f: Aura spell resolves → enters attached to its
@@ -238,7 +239,7 @@ impl GameState {
                 // "will continue to resolve fully", and Stunning Reversal's
                 // "Exile Stunning Reversal" is such a spell; the graveyard
                 // trip is for a card that is still there to make it.
-                self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Resolved, &actx)?;
+                self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::SpellResolves))?;
             }
         } else {
             // Ability: ceases to exist (CR 608.2n) — removed from objects
@@ -251,7 +252,7 @@ impl GameState {
 
         // --- Emit event ---
         // A spell finishing resolution is already recorded: the `ZoneChange`
-        // above carries `ZoneChangeAct::Resolved` and says where it went. An
+        // above, caused by CR 608.2n's or 608.3's rule, says where it went. An
         // ability leaves no zone change, so this is where it is announced —
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
@@ -284,7 +285,7 @@ impl GameState {
             self.change_zone(
                 object_id,
                 Zone::Graveyard,
-                ZoneChangeAct::Fizzled,
+                ZoneChangeAct::Put,
                 &ActionContext::game_rule(dp, GameRule::TargetsIllegal),
             )?;
         } else {

@@ -752,7 +752,7 @@ fn entering_tapped_is_not_becoming_tapped() {
             from: Some(Zone::Hand),
             controller: 0,
             mods,
-            act: Some(ZoneChangeAct::Resolved),
+            act: Some(ZoneChangeAct::Put),
         },
         &test_ctx(),
     )
@@ -1033,7 +1033,7 @@ fn humility_strips_an_etb_before_it_can_trigger() {
         from: Some(Zone::Hand),
         controller,
         mods: EnterMods::NONE,
-        act: Some(ZoneChangeAct::Resolved),
+        act: Some(ZoneChangeAct::Put),
     };
     let batch = vec![entry(&game, scholar, 0), entry(&game, hum, 1)];
     game.execute_actions(batch, &test_ctx()).unwrap();

@@ -22,18 +22,19 @@ use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
 use crate::ui::decision::DecisionProvider;
 
-/// The zone change `cause` calls for on `id`.
+/// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
+/// it goes, the subrule beside it its cause.
 ///
 /// **CR 704.5g does not come through here**; it uses [`sba_destroy`], because
 /// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
 /// not. That distinction is the whole of why regeneration and shield counters
 /// save a creature from lethal damage but not from zero toughness.
-fn sba_zone_change(id: ObjectId, act: ZoneChangeAct) -> GameAction {
+fn sba_put_into_graveyard(id: ObjectId) -> GameAction {
     GameAction::ZoneChange {
         object: id,
         from: Zone::Battlefield,
         to: Zone::Graveyard,
-        act,
+        act: ZoneChangeAct::Put,
     }
 }
 
@@ -195,7 +196,7 @@ impl GameState {
                         object: id,
                         from,
                         to: Zone::Command,
-                        act: ZoneChangeAct::CommanderZoneSba,
+                        act: ZoneChangeAct::Put,
                     };
                     accepted.push((to_command, StateBasedAction::CommanderToCommandZone));
                 }
@@ -215,7 +216,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                batch.push((sba_zone_change(id, ZoneChangeAct::ZeroToughness), StateBasedAction::ZeroToughness));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroToughness));
             }
         }
 
@@ -249,7 +250,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                batch.push((sba_zone_change(id, ZoneChangeAct::ZeroLoyalty), StateBasedAction::ZeroLoyalty));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
             }
         }
 
@@ -296,7 +297,7 @@ impl GameState {
                 }
             }
             for id in chosen {
-                batch.push((sba_zone_change(id, ZoneChangeAct::LegendRule), StateBasedAction::LegendRule));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::LegendRule));
             }
         }
 
@@ -335,7 +336,7 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            batch.push((sba_zone_change(id, ZoneChangeAct::AuraSba), StateBasedAction::AuraAttachedIllegally));
+            batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
@@ -524,6 +525,7 @@ impl GameState {
 mod tests {
     use crate::types::replacement::EnterMods;
     use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
+    use crate::events::cause::{EventCause, StateBasedAction};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -806,15 +808,15 @@ mod tests {
         game: &GameState,
     ) -> Vec<(
         crate::types::ids::ObjectId,
-        ZoneChangeAct,
+        EventCause,
         Option<crate::events::event::BatchId>,
     )> {
         game.recorded_events()
             .records()
             .iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::ZoneChange { object_id, act, .. } => {
-                    Some((*object_id, *act, r.batch()))
+                crate::events::event::GameEvent::ZoneChange { object_id, .. } => {
+                    Some((*object_id, r.stamp.cause, r.batch()))
                 }
                 _ => None,
             })
@@ -875,12 +877,12 @@ mod tests {
             !game.battlefield.contains_key(&healthy),
             "704.5j applied: keeping the damaged one puts the healthy one away",
         );
-        // Which rule claimed which permanent, read off the zone change itself.
+        // Which rule claimed which permanent, read off the zone change's cause.
         assert_eq!(
             zone_changes(&game).into_iter().map(|(id, c, _)| (id, c)).collect::<Vec<_>>(),
             vec![
-                (doomed, ZoneChangeAct::DestroyedBySba),
-                (healthy, ZoneChangeAct::LegendRule),
+                (doomed, EventCause::StateBasedAction(StateBasedAction::LethalDamage)),
+                (healthy, EventCause::StateBasedAction(StateBasedAction::LegendRule)),
             ],
         );
     }
@@ -920,7 +922,7 @@ mod tests {
         );
         assert_eq!(
             moves[0].1,
-            ZoneChangeAct::DestroyedBySba,
+            EventCause::StateBasedAction(StateBasedAction::LethalDamage),
             "704.5g comes first in CR order, so it is what claims the permanent",
         );
     }
@@ -1260,13 +1262,13 @@ mod tests {
         // Verify the move was recorded, and recorded as 704.5m's doing. There
         // is no `AuraDied` — the zone change plus its cause says more than it
         // did, including where the Aura went.
-        let has_event = game.recorded_events().events().any(|e| {
+        let has_event = game.recorded_events().records().iter().any(|r| {
             matches!(
-                e,
+                r.event,
                 crate::events::event::GameEvent::ZoneChange {
-                    object_id, to: Zone::Graveyard, act: ZoneChangeAct::AuraSba, ..
-                } if *object_id == aura_id
-            )
+                    object_id, to: Zone::Graveyard, act: ZoneChangeAct::Put, ..
+                } if object_id == aura_id
+            ) && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
         });
         assert!(has_event);
     }

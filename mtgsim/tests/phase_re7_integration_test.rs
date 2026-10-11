@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use mtgsim::engine::actions::ZoneChangeAct;
+use mtgsim::events::cause::{EventCause, GameRule};
 use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
@@ -542,15 +543,16 @@ fn a_permanent_the_departing_player_controls_but_does_not_own_is_exiled() {
     departs(&mut game, 0, &test_dp());
 
     assert_eq!(game.get_object(angel).unwrap().zone, Zone::Exile);
-    let causes: Vec<ZoneChangeAct> = game
+    let moves: Vec<(ZoneChangeAct, EventCause)> = game
         .recorded_events()
-        .events()
-        .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, act, .. } if *object_id == angel => Some(*act),
+        .records()
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::ZoneChange { object_id, act, .. } if *object_id == angel => Some((*act, r.stamp.cause)),
             _ => None,
         })
         .collect();
-    assert_eq!(causes, vec![ZoneChangeAct::ControllerLeftTheGame]);
+    assert_eq!(moves, vec![(ZoneChangeAct::Put, EventCause::GameRule(GameRule::ControllerLeftTheGame))]);
 }
 
 /// The fourth clause does not fire while somebody still in the game controls

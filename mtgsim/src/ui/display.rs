@@ -12,7 +12,8 @@ use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
+use crate::events::cause::EventCause;
+use crate::events::event::{DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
     controller_or_owner, get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
@@ -873,8 +874,33 @@ fn ability_word(identity: AbilityIdentity) -> String {
     }
 }
 
-/// Format one event, each object named as its record kept it.
-pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced) -> String {
+/// What caused a record, as its log line says it (`replacement-architecture.md`
+/// §2b.3): the rule's or the action's name, or whose spell or ability's effect,
+/// cost, cast or activation it was.
+fn cause_words(game: &GameState, cause: &EventCause) -> String {
+    match cause {
+        EventCause::Effect { resolution, generated_by } => {
+            format!("{generated_by:?} of {} [P{}]", name_with_id(game, resolution.source, &None), resolution.controller)
+        }
+        EventCause::Cost { player, paying_for } => format!("Cost of {} [P{player}]", name_with_id(game, *paying_for, &None)),
+        EventCause::Casting(player) => format!("Casting [P{player}]"),
+        EventCause::Activating(player) => format!("Activating [P{player}]"),
+        EventCause::SpecialAction { player, action } => format!("{action:?} [P{player}]"),
+        EventCause::TurnBasedAction(action) => format!("{action:?}"),
+        EventCause::StateBasedAction(action) => format!("{action:?}"),
+        EventCause::GameRule(rule) => format!("{rule:?}"),
+        EventCause::Harness => "Harness".to_string(),
+    }
+}
+
+/// [`format_event`] of a performed record.
+pub fn format_record(game: &GameState, record: &EventRecord) -> String {
+    format_event(game, &record.event, &record.names, &record.stamp.cause)
+}
+
+/// Format one event, each object named as its record kept it, and a zone
+/// change with its act and its cause.
+pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced, cause: &EventCause) -> String {
     use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
     let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
@@ -889,8 +915,8 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
-            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}]",
-                    as_it_left(game, *object_id, lki), was, owner, from, to, act)
+            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}",
+                    as_it_left(game, *object_id, lki), was, owner, from, to, act, cause_words(game, cause))
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -1053,7 +1079,7 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
     game.recorded_events()
         .records()
         .iter()
-        .map(|record| format_event(game, &record.event, &record.names))
+        .map(|record| format_record(game, record))
         .collect()
 }
 
@@ -1197,10 +1223,10 @@ mod tests {
         // change names the object as it was in the zone it left.
         let log = format_event_log(&game);
         let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
-        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put]"));
+        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness"));
         has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
         has(format!("Tapped: Grizzly Bears (Clone, {clone})"));
-        has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
+        has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed] by Harness"));
         has(format!("Tapped: Grizzly Bears (Test Creature, {shaped})"));
         has(format!("Untapped: Test Creature ({shaped})"));
     }

@@ -30,7 +30,7 @@ use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
@@ -54,7 +54,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::display::format_event;
+use mtgsim::ui::display::format_record;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -780,11 +780,11 @@ fn top_targets(game: &GameState) -> Vec<Vec<ResolvedTarget>> {
 
 /// The words of each reflexive trigger's creation, in the log.
 fn reflexive_lines(game: &GameState) -> Vec<String> {
-    let names = NamesAsAnnounced::default();
     game.recorded_events()
-        .events()
-        .filter(|e| matches!(e, GameEvent::DelayedTriggerCreated { duration: DelayedDuration::Reflexive(_), .. }))
-        .map(|e| format_event(game, e, &names))
+        .records()
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::DelayedTriggerCreated { duration: DelayedDuration::Reflexive(_), .. }))
+        .map(|r| format_record(game, r))
         .collect()
 }
 

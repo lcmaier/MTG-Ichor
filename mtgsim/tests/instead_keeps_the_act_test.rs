@@ -214,7 +214,7 @@ fn rest_in_peace_destroyed_by_a_spell_is_exiled_as_destroyed_and_the_spell_reach
         after_cast,
         vec![
             (rip, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Destroyed),
-            (breaker, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved),
+            (breaker, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put),
         ]
     );
 }
@@ -266,5 +266,5 @@ fn a_spell_countered_under_rest_in_peace_is_recorded_as_countered() {
         .into_iter()
         .filter(|(id, from, ..)| *id == counter && *from == Zone::Stack)
         .collect();
-    assert_eq!(resolved, vec![(counter, Zone::Stack, Zone::Exile, ZoneChangeAct::Resolved)]);
+    assert_eq!(resolved, vec![(counter, Zone::Stack, Zone::Exile, ZoneChangeAct::Put)]);
 }

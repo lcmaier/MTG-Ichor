@@ -1438,7 +1438,7 @@ mod tests {
         assert_eq!(nothing.waiting, None, "not shown while nothing waits");
         for (id, ability) in [(wine, 1), (fortune, 0)] {
             let effect = game.get_object(id).unwrap().card_data.abilities[ability].effect.clone();
-            game.resolve_effect(&effect, &ResolutionContext::untargeted(id, 0), &test_dp()).unwrap();
+            game.resolve_effect(&effect, &ResolutionContext::untargeted(id, 0, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
         }
         let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
         let light = put_on_battlefield(&mut game, banishing_light(), 0);

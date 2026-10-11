@@ -21,7 +21,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::waiting::{Waiting, what_is_waiting};
 use mtgsim::ui::display::{
-    TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_event, format_permanent, format_phase,
+    TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_record, format_permanent, format_phase,
     keyword_name, named, player_name, printed_faces,
 };
 
@@ -167,7 +167,7 @@ impl Snapshot {
         let log = recorded
             .records_from(events_logged)
             .iter()
-            .map(|record| LogLine { event: record.seq, text: format_event(game, &record.event, &record.names) })
+            .map(|record| LogLine { event: record.seq, text: format_record(game, record) })
             .collect();
         let lines = TypeLines::new(game);
         let permanents: Vec<PermanentView> = game

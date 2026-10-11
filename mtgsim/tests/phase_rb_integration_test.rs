@@ -136,8 +136,8 @@ fn test_a_state_based_death_and_an_effect_death_carry_different_causes() {
     )
     .unwrap();
 
-    let causes: Vec<ZoneChangeAct> = zone_changes(&game).into_iter().map(|z| z.3).collect();
-    assert_eq!(causes, vec![ZoneChangeAct::Destroyed, ZoneChangeAct::DestroyedBySba]);
+    let acts: Vec<ZoneChangeAct> = zone_changes(&game).into_iter().map(|z| z.3).collect();
+    assert_eq!(acts, vec![ZoneChangeAct::Destroyed, ZoneChangeAct::Destroyed], "CR 701.8b: destroyed, either way");
 }
 
 #[test]

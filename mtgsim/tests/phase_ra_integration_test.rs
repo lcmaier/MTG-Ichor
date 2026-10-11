@@ -12,6 +12,7 @@ use std::sync::Arc;
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
+use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::{BatchId, GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{
     AbilityDef, AbilityType, CardData, CardDataBuilder,
@@ -74,7 +75,7 @@ fn self_anthem_creature() -> Arc<CardData> {
         .build()
 }
 
-/// Every `ZoneChange` in the log, as `(object, from, to, cause)`.
+/// Every `ZoneChange` in the log, as `(object, from, to, act)`.
 fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
@@ -85,6 +86,17 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> 
             _ => None,
         })
         .collect()
+}
+
+/// The cause of the last `ZoneChange` in the log.
+fn last_zone_change_cause(game: &GameState) -> Option<EventCause> {
+    let recorded = game.recorded_events();
+    recorded
+        .records()
+        .iter()
+        .rev()
+        .find(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
+        .map(|r| r.stamp.cause)
 }
 
 /// The LKI frame on the single `ZoneChange` that moved `id`.
@@ -499,9 +511,10 @@ fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
         zone_changes(&game),
         vec![
             (id, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast),
-            (id, Zone::Stack, Zone::Battlefield, ZoneChangeAct::Resolved),
+            (id, Zone::Stack, Zone::Battlefield, ZoneChangeAct::Put),
         ],
     );
+    assert_eq!(last_zone_change_cause(&game), Some(EventCause::GameRule(GameRule::PermanentSpellResolves)));
 }
 
 #[test]
@@ -523,8 +536,9 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
 
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved)),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put)),
     );
+    assert_eq!(last_zone_change_cause(&game), Some(EventCause::GameRule(GameRule::SpellResolves)), "CR 608.2n");
 }
 
 #[test]
@@ -574,8 +588,12 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
     assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Fizzled)),
-        "countered by game rules is not the same fact as resolved",
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put)),
+    );
+    assert_eq!(
+        last_zone_change_cause(&game),
+        Some(EventCause::GameRule(GameRule::TargetsIllegal)),
+        "removed by game rules (CR 608.2b) is not the same fact as resolved",
     );
 }
 
@@ -630,7 +648,7 @@ fn test_one_death_carries_every_type_that_died() {
 
     assert_eq!(
         zone_changes(&game),
-        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::DestroyedBySba)],
+        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Destroyed)],
         "one permanent left the battlefield once",
     );
     let lki = lki_for(&game, id).expect("it was a permanent");
@@ -669,16 +687,21 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
             GameEvent::ZoneChange { object_id, owner, from, to, act, lki }
                 if *object_id == died =>
             {
-                Some((*owner, *from, *to, *act, lki.as_ref().map(|d| d.chars())))
+                Some((*owner, *from, *to, *act, r.stamp.cause, lki.as_ref().map(|d| d.chars())))
             }
             _ => None,
         })
         .expect("the legend rule moved it");
 
-    let (owner, from, to, cause, lki) = record;
+    let (owner, from, to, act, cause, lki) = record;
     assert_eq!(owner, 1, "the `owner` the deleted events carried");
     assert_eq!((from, to), (Zone::Battlefield, Zone::Graveyard), "\"dies\"");
-    assert_eq!(cause, ZoneChangeAct::LegendRule, "the rule number, as a cause");
+    assert_eq!(act, ZoneChangeAct::Put, "CR 704.5j puts it there, which is no keyword action");
+    assert_eq!(
+        cause,
+        EventCause::StateBasedAction(StateBasedAction::LegendRule),
+        "the rule number, as the cause"
+    );
     let lki = lki.expect("a permanent leaving the battlefield has a frame");
     assert!(lki.types.contains(&CardType::Creature), "the type the event named");
     assert!(
@@ -743,7 +766,7 @@ fn test_the_log_line_still_says_what_died() {
         .expect("the death is in the log");
 
     for expected in ["Gideon, Test Subject", "P0", "Battlefield", "Graveyard",
-                     "DestroyedBySba", "Creature", "Planeswalker"] {
+                     "LethalDamage", "Creature", "Planeswalker"] {
         assert!(line.contains(expected), "log line {:?} is missing {:?}", line, expected);
     }
 }
