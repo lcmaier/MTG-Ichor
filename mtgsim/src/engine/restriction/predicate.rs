@@ -9,6 +9,7 @@
 
 use crate::engine::actions::GameAction;
 use crate::engine::layers::condition::settled_holds;
+use crate::events::cause::EventCause;
 use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -31,13 +32,9 @@ pub(crate) enum Query<'a> {
     /// CR 614.17 — may this proposed event happen?
     Event {
         action: &'a GameAction,
-        /// Who controls the spell or ability that proposed it — CR 101.2 scoped
-        /// by cause, which is [`SourceFilter`]'s whole job.
-        ///
-        /// `None` for a turn-based or state-based action, which has no
-        /// controller. Read off `ActionContext::resolution`, which already
-        /// threads it.
-        cause: Option<PlayerId>,
+        /// What caused it — CR 101.2 scoped by cause, which is
+        /// [`SourceFilter`]'s whole job. The proposal's `ActionContext::cause`.
+        cause: EventCause,
         /// CR 614.17d — the subject's characteristics as it would exist on the
         /// battlefield, when the caller already holds them: the pipeline's
         /// per-iteration frame for an entry, or the frame of an entering
@@ -102,9 +99,9 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
     //
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword
     // is found and the gate would skip it (§3.5 commitment 2).
-    if let Query::Event { action, .. } = query
+    if let Query::Event { action, cause, .. } = query
         && let EventSubject::Object(id) = subject_of(action)
-        && let Some(keyword) = keyword_prohibits(game, id, action) {
+        && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
 
@@ -196,7 +193,7 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
 /// query      = Query::Event {
 ///                  action: ZoneChange { object: <Bear>, Battlefield ->
 ///                                       Graveyard, act: Sacrificed },
-///                  cause:  Some(P1),      // who controls the edict
+///                  cause:  Effect { <the edict>, P1, Spell },
 ///              }
 /// ```
 ///
@@ -212,9 +209,9 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
 ///    resolved against `controller`, which is P0. **Yes.** (Had P1's own
 ///    creature been the subject, this would be where it failed.)
 /// 3. **`cause_matches`** — was it caused by the right sort of source? `by`
-///    says "a player who is not the restriction's controller"; `cause` is P1
-///    and `controller` is P0. **Yes.** (P0's *own* edict would give
-///    `cause == Some(P0)` and fail here — the field exists for exactly this.)
+///    says "a player who is not the restriction's controller"; `cause` is P1's
+///    spell and `controller` is P0. **Yes.** (P0's *own* edict would name P0
+///    and fail here — the field exists for exactly this.)
 ///
 /// So the Bear is dropped from the candidate list. Sigarda is asked the same
 /// three questions about herself and answers the same way, the list comes out
@@ -258,7 +255,7 @@ fn matches(
                     subject_of(action),
                     frame,
                 )
-                && cause_matches(by.as_ref(), *cause, controller)
+                && cause_matches(by.as_ref(), cause, controller)
         }
 
         (
@@ -277,11 +274,11 @@ fn matches(
 /// Which source caused the event — §2.6's Sigarda family. Not a rule of
 /// CR 101.2's; see [`SourceFilter`].
 ///
-/// `None` means "however caused" and matches everything, including the causeless
-/// events (turn-based and state-based actions) that no [`SourceFilter`] matches.
+/// `None` means "however caused" and matches everything, including the events
+/// no [`SourceFilter`] matches (a cost, a turn-based or state-based action).
 fn cause_matches(
     by: Option<&SourceFilter>,
-    cause: Option<PlayerId>,
+    cause: &EventCause,
     controller: PlayerId,
 ) -> bool {
     by.is_none_or(|by| by.matches(cause, controller))
@@ -302,7 +299,7 @@ fn cause_matches(
 /// `debug_assert` is what keeps the argument true as the list grows: a keyword
 /// restriction that is *not* `SourceOnly` needs the sweep, and it must not be
 /// able to arrive here quietly.
-fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> Option<KeywordFlag> {
+fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause: EventCause) -> Option<KeywordFlag> {
     let defs = keyword_restrictions(game, id);
     if defs.is_empty() {
         return None;
@@ -328,9 +325,9 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> Opt
             &def,
             id,
             controller,
-            // A keyword's prohibition is unscoped by cause: CR 702.12b does not
-            // care who is destroying the permanent.
-            &Query::Event { action, cause: None, lookahead: None },
+            // A keyword's prohibition is unscoped by cause (its `by` is `None`):
+            // CR 702.12b does not care who is destroying the permanent.
+            &Query::Event { action, cause, lookahead: None },
             // `SourceOnly`, per the assertion above, so no frame is ever read.
             None,
         ) {

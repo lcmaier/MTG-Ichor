@@ -1,6 +1,7 @@
 use crate::oracle::characteristics::{has_permanent_type, has_subtype};
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
 use crate::state::battlefield::{CastFacts, CostChoices};
 use crate::state::game_state::{GameState, ResolvingObject};
@@ -138,6 +139,13 @@ impl GameState {
             source: object_id,
             ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
+            // CR 113.3: a spell's instructions, or an activated or a triggered
+            // ability's.
+            generated_by: match (entry.is_spell, &entry.trigger) {
+                (true, _) => GeneratedBy::Spell,
+                (false, Some(_)) => GeneratedBy::TriggeredAbility,
+                (false, None) => GeneratedBy::ActivatedAbility,
+            },
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext`.
@@ -248,10 +256,10 @@ impl GameState {
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
         if let Some(identity) = entry.ability_identity {
-            self.emit_event(GameEvent::AbilityResolved {
-                identity,
-                controller: entry.controller,
-            });
+            self.emit_event_caused(
+                GameEvent::AbilityResolved { identity, controller: entry.controller },
+                EventCause::GameRule(GameRule::AbilityResolves),
+            );
         }
 
         Ok(())
@@ -271,13 +279,13 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         if entry.is_spell {
-            // CR 608.2b — it doesn't resolve, and this is a real zone change.
-            // It belongs to no resolution: the spell never resolved.
+            // CR 608.2b — it doesn't resolve, and this is a real zone change,
+            // the rule's and no resolution's: the spell never resolved.
             self.change_zone(
                 object_id,
                 Zone::Graveyard,
                 ZoneChangeAct::Fizzled,
-                &ActionContext::new(dp),
+                &ActionContext::game_rule(dp, GameRule::TargetsIllegal),
             )?;
         } else {
             // Ability: no destination zone, so the stack removal is explicit —
@@ -288,10 +296,11 @@ impl GameState {
 
         // An ability by its identity, as `resolve_taken` announces one: the
         // object just removed names nothing to a reader of the record.
-        match entry.ability_identity {
-            Some(identity) => self.emit_event(GameEvent::AbilityFizzled { identity, controller }),
-            None => self.emit_event(GameEvent::SpellFizzled { spell_id: object_id, controller }),
-        }
+        let fizzled = match entry.ability_identity {
+            Some(identity) => GameEvent::AbilityFizzled { identity, controller },
+            None => GameEvent::SpellFizzled { spell_id: object_id, controller },
+        };
+        self.emit_event_caused(fizzled, EventCause::GameRule(GameRule::TargetsIllegal));
 
         Ok(())
     }

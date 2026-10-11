@@ -30,7 +30,6 @@ use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
 use mtgsim::cards::phase_re9_cards::{
     deep_water, doubling_cube, mana_reflection, nyxbloom_ancient, pale_moon,
 };
-use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{
@@ -232,7 +231,7 @@ fn tap_for_mana(
 ) -> Result<ObjectId, String> {
     let ability = card.abilities[0].id;
     let id = put_on_battlefield(game, card, player);
-    game.activate_mana_ability(player, id, ability, &ActionContext::new(dp)).map(|_| id)
+    game.activate_mana_ability(player, id, ability, dp).map(|_| id)
 }
 
 /// Resolve Dark Ritual for `player` — a spell adding mana (CR 605.5b), with
@@ -244,6 +243,7 @@ fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -264,6 +264,7 @@ fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source: id,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -755,6 +756,7 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,

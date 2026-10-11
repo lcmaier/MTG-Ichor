@@ -31,7 +31,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, set_attacking,
-    setup_game, setup_two_player_game, test_ctx, test_dp,
+    setup_game, setup_two_player_game, test_dp,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -66,6 +66,7 @@ fn resolve_ability(
         source,
         ability_source: game.object_ref(source),
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -87,6 +88,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -120,7 +122,7 @@ fn positions_to_end_of_turn(game: &mut GameState, dp: &dyn DecisionProvider) -> 
     let ctx = ActionContext::new(dp);
     let turn = game.turn_number;
     for count in 1..500 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.turn_number != turn {
             return count;
         }
@@ -310,7 +312,7 @@ fn combat_state_is_clear_at_the_start_of_the_second_combat_phase() {
     while !(game.phase.phase_type == PhaseType::Combat
         && game.phase.step == Some(StepType::DeclareAttackers))
     {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
     game.attacks_declared = true;
     set_attacking(&mut game, attacker, 1);
@@ -318,7 +320,7 @@ fn combat_state_is_clear_at_the_start_of_the_second_combat_phase() {
     // Walk into the second combat phase.
     let mut seen_combats = 1;
     while seen_combats < 2 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.phase.phase_type == PhaseType::Combat
             && game.phase.step == Some(StepType::BeginCombat)
         {
@@ -344,14 +346,14 @@ fn mana_empties_at_the_end_of_each_inserted_phase() {
     let ctx = ActionContext::new(&dp);
     // Into the first inserted combat phase, then float mana inside it.
     while game.phase.phase_type != PhaseType::Combat {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
     game.players[0].mana_pool.add(ManaType::Red, 3);
     assert_eq!(game.players[0].mana_pool.total(), 3);
 
     // Out the other side of it.
     while game.phase.phase_type == PhaseType::Combat {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
     assert_eq!(
         game.players[0].mana_pool.total(),
@@ -467,7 +469,7 @@ fn a_skip_cast_during_a_combat_phase_is_spent_on_the_next_one() {
     let dp = test_dp();
     let ctx = ActionContext::new(&dp);
     while game.phase.phase_type != PhaseType::Combat {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
 
     // Cast inside it. CR 614.10's last sentence: the phase has started, so
@@ -475,7 +477,7 @@ fn a_skip_cast_during_a_combat_phase_is_spent_on_the_next_one() {
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
     let mark = game.recorded_events().len();
     while game.phase.phase_type == PhaseType::Combat {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
     assert_eq!(
         game.replacement_effects.len(),
@@ -555,7 +557,7 @@ fn the_seam_moves_the_cursor_with_the_position() {
 
     // And the drainer advances from there rather than from turn 1's beginning.
     let mark = game.recorded_events().len();
-    game.advance_turn(&test_ctx()).expect("advancing");
+    game.advance_turn(&test_dp()).expect("advancing");
     assert_eq!(
         phases_begun_this_turn(&game, mark),
         Vec::new(),

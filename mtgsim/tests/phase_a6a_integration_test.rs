@@ -140,6 +140,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -198,7 +199,7 @@ fn a_game_that_records_nothing_has_no_history_to_read() {
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..400 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -316,7 +317,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
 
     let dp = RecordingDecisionProvider::picking(0);
     let extra_turn = Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller);
-    game.resolve_effect(&extra_turn, &ResolutionContext::untargeted(regent, 0), &dp).expect("the extra turn");
+    game.resolve_effect(&extra_turn, &ResolutionContext::untargeted(regent, 0, mtgsim::events::cause::GeneratedBy::Spell), &dp).expect("the extra turn");
     lose(&mut game, 0, 4);
     advance_to(&mut game, 0, StepType::Upkeep);
     assert_eq!(game.turn_number, 6, "the extra turn");

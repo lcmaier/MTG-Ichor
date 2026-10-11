@@ -62,7 +62,7 @@ fn pending(game: &GameState) -> usize {
 
 /// Resolve `effect` as if `source`'s controller had cast it: no targets.
 fn resolve_as(game: &mut GameState, source: ObjectId, effect: Effect) {
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, &test_dp()).expect("resolving");
 }
 
@@ -159,7 +159,7 @@ fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -275,7 +275,7 @@ fn two_clauses_after_one_may_read_its_one_answer() {
             if_you(CostAnswer::Doesnt, draw_one()),
         ]);
         let hand = game.players[0].hand.len();
-        let ctx = ResolutionContext::untargeted(source, 0);
+        let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
         game.resolve_effect(&effect, &ctx, &answering_may(source, yes)).unwrap();
         if yes {
             assert_eq!((game.players[0].life_total, game.players[0].hand.len()), (21, hand));
@@ -351,7 +351,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
     let stolen = put_on_battlefield(&mut game, card_of_type("Wandering Idol", CardType::Artifact), 1);
     let ctx = ResolutionContext {
         ability_source: Some(ObjectRef { id: stolen, zone_change_epoch: game.get_object(stolen).unwrap().zone_change_epoch }),
-        ..ResolutionContext::untargeted(stolen, 0)
+        ..ResolutionContext::untargeted(stolen, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     let sacrifice_this = Effect::Sequence(vec![
         Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
@@ -395,7 +395,7 @@ fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
     }
     let dp = RecordingDecisionProvider::picking(0);
     let each_opponent = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents));
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_opponent, 1), &ctx, &dp).unwrap();
 
     assert_eq!(dp.prompts(), 3, "each opponent chose one of two");
@@ -421,7 +421,7 @@ fn each_player_chooses_in_apnap_order_and_the_caster_waits_their_turn() {
     }
     let dp = RecordingDecisionProvider::picking(0);
     let each_player = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone));
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_player, 1), &ctx, &dp).unwrap();
 
     assert_eq!(dp.prompts(), 4, "each player chose one of two");
@@ -447,7 +447,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
     );
     let ctx = ResolutionContext {
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
-        ..ResolutionContext::untargeted(source, 0)
+        ..ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&exiles, &ctx, &test_dp()).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
@@ -521,7 +521,7 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
     );
     let ctx = ResolutionContext {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(reckoner)]),
-        ..ResolutionContext::untargeted(thief, 1)
+        ..ResolutionContext::untargeted(thief, 1, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&steal, &ctx, &test_dp()).unwrap();
     assert_eq!(get_effective_controller(&game, reckoner), Some(1));
@@ -777,7 +777,7 @@ fn cosis_trickster_sees_an_opponents_shuffle_even_of_an_empty_library() {
 
     assert!(game.players[1].library.is_empty());
     let idol = put_on_battlefield(&mut game, card_of_type("Shuffling Idol", CardType::Artifact), 1);
-    game.resolve_effect(&shuffle, &ResolutionContext::untargeted(idol, 1), &test_dp()).unwrap();
+    game.resolve_effect(&shuffle, &ResolutionContext::untargeted(idol, 1, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     assert_eq!(pending(&game), 1);
     place(&mut game, &test_dp());
     resolve_answering(&mut game, true);

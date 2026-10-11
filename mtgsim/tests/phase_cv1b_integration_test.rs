@@ -88,6 +88,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
@@ -156,6 +157,7 @@ fn replacement_row(game: &mut GameState, def: ReplacementDef) {
         id: 0,
         source: mtgsim::types::ids::new_object_id(),
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
         created_on_turn: turn,
         targets: Vec::new(),
@@ -303,6 +305,7 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
         source: circle,
         ability_source: game.object_ref(circle),
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -582,6 +585,7 @@ fn resolve_spell_with(
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
@@ -966,7 +970,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -1228,6 +1232,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets,
         replaced_amount: None,
         damage_prevented: None,

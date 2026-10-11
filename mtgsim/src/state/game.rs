@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
+use crate::events::cause::{GameRule, TurnBasedAction};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
@@ -126,7 +127,7 @@ impl Game {
         // battlefield is empty and the registry has no rows, so no replacement
         // can be gathered and no choice can arise, and Leylines (CR 103.6)
         // arrive after this point.
-        let actx = ActionContext::new(decisions);
+        let actx = ActionContext::game_rule(decisions, GameRule::OpeningHand);
         // No turn has begun while the game is set up (CR 103), so the opening
         // hands are drawn in turn 0, which has no history row.
         self.state.turn_number = 0;
@@ -142,7 +143,7 @@ impl Game {
         // CR 103.8 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap step,
         // so the first untap step runs its turn-based action like any other.
-        self.state.start_first_turn(&actx)?;
+        self.state.start_first_turn(decisions)?;
 
         Ok(())
     }
@@ -245,8 +246,7 @@ impl Game {
                     // "Another cleanup step begins": proposed like the first, so
                     // CR 614.10 can skip it, and one that begins does what the
                     // first did (CR 514.2, 800.4c, and the discard with 800.4j's gate).
-                    let actx = ActionContext::new(decisions);
-                    if !self.state.begin_step(StepType::Cleanup, &actx)? {
+                    if !self.state.begin_step(StepType::Cleanup, decisions)? {
                         break;
                     }
                     self.process_turn_based_actions(PhaseType::Ending, Some(StepType::Cleanup), decisions)?;
@@ -268,7 +268,7 @@ impl Game {
             }
 
             // 4. Advance to next step/phase
-            self.state.advance_turn(&ActionContext::new(decisions))?;
+            self.state.advance_turn(decisions)?;
 
             // **A skipped turn advances no turn number** (CR 614.10a), so this
             // is not "the number went up" — it is "the drainer produced a
@@ -395,7 +395,7 @@ impl Game {
                 act: ZoneChangeAct::Discarded,
             })
             .collect();
-        let actx = ActionContext::new(decisions);
+        let actx = ActionContext::turn_based(decisions, TurnBasedAction::CleanupDiscard);
         self.state.execute_actions(batch, &actx)?;
         Ok(())
     }

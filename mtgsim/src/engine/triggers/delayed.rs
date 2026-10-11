@@ -29,6 +29,7 @@ use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::trace_records;
+use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::{EventRecord, EventSeq, GameEvent};
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId};
@@ -78,13 +79,14 @@ impl GameState {
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
         let owner = self.owner_now_or(provenance.source.id, provenance.controller);
-        self.emit_event(GameEvent::DelayedTriggerCreated {
+        let created = GameEvent::DelayedTriggerCreated {
             id,
             source: provenance.source.id,
             controller: provenance.controller,
             rules_text: template.rules_text,
             duration: template.duration,
-        });
+        };
+        self.emit_event_caused(created, provenance.cause);
         let delayed = DelayedTrigger {
             id,
             def: Arc::clone(&template.def),
@@ -95,7 +97,7 @@ impl GameState {
             controller: provenance.controller,
             owner,
             created_at: self.events.next_seq(),
-            created_in: self.events.current_stamp().batch,
+            created_in: self.events.current_batch(),
             created_by: provenance.created_by,
             duration: template.duration,
             x_value: provenance.x_value,
@@ -135,7 +137,10 @@ impl GameState {
             self.queue_pending(pending, &mut queued);
         }
         for (seq, origin, controller, caused_by) in queued {
-            self.emit_event_unstamped(GameEvent::AbilityTriggered { seq, origin, controller, caused_by });
+            self.emit_event_unbatched(
+                GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
+                EventCause::GameRule(GameRule::AbilityTriggers),
+            );
         }
     }
 
@@ -602,6 +607,7 @@ mod tests {
             x_value: None,
             turn: TriggerTurn::Any,
             resolution: None,
+            cause: crate::events::cause::EventCause::Harness,
         };
         game.create_delayed_trigger(&template, provenance, Referred::default()).unwrap();
         game.remove_from_game(source).unwrap();

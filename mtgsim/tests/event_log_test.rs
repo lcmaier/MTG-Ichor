@@ -49,7 +49,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -158,6 +158,7 @@ fn a_countered_spell_says_whose_it_was() {
         source: counter,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bolt)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -187,6 +188,7 @@ fn a_countered_ability_is_named_by_its_source() {
         source: stifle,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
         replaced_amount: None,
         damage_prevented: None,

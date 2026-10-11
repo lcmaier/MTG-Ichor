@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use crate::engine::trace_records;
+use crate::events::cause::{EventCause, GameRule};
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
@@ -190,7 +191,7 @@ impl GameState {
         self.set_stack_entry(entry);
         self.diagnostics.record_trigger_placed();
         self.trace(|| trace_records::pending(self, &pending, Some(id), None, &chosen));
-        self.announce_targeted_records(id);
+        self.announce_targeted_records(id, EventCause::GameRule(GameRule::TriggeredAbilityPutOnStack));
         Ok(true)
     }
 }

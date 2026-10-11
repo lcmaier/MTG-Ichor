@@ -19,6 +19,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
+    test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -207,7 +208,7 @@ fn test_a_land_play_is_a_zone_change_with_a_reason() {
     let land = put_in_hand(&mut game, basic_lands::forest(), 0);
     game.phase.phase_type = mtgsim::state::game_state::PhaseType::Precombat;
 
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert_eq!(
         zone_changes(&game),
@@ -396,12 +397,8 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     assert_eq!(
         damage.resolution(),
         Some(ResolutionStamp { source: bolt, controller: 0 }),
-        "the stamp is provenance: which resolution proposed this mutation. \
-         CR 614.15 is what makes the *proposal* side of it load-bearing — a \
-         self-replacement effect belongs to the resolving spell rather than to \
-         any registry, so `apply_replacements` finds it through \
-         `ActionContext::resolution`. Carrying it onto the record as well is a \
-         separate, weaker call: nothing matches on it yet",
+        "the stamp is provenance: the resolution whose effect caused this \
+         mutation, which `Effect::Remember` reads back",
     );
 }
 
@@ -465,9 +462,9 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
 
     let dp = ScriptedDecisionProvider::new();
     let ctx = ActionContext::new(&dp);
-    game.play_land(0, first, &ctx).unwrap();
+    game.play_land(0, first, ctx.dp).unwrap();
     game.players[0].lands_played_this_turn = 0;
-    game.play_land(0, second, &ctx).unwrap();
+    game.play_land(0, second, ctx.dp).unwrap();
 
     let batches: Vec<Option<BatchId>> = game
         .recorded_events()
@@ -591,7 +588,7 @@ fn test_a_resolving_ability_leaves_no_zone_change() {
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
     let before = game.recorded_events().len();
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert!(
         !game.recorded_events().records_from(before).iter().any(|r| matches!(
@@ -772,6 +769,7 @@ fn test_a_multi_target_destroy_is_one_event() {
         source: a,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![
             mtgsim::engine::resolve::ResolvedTarget::Object(a),
             mtgsim::engine::resolve::ResolvedTarget::Object(b),
@@ -821,7 +819,7 @@ fn test_tapping_for_mana_is_recorded() {
     let mut game = setup_two_player_game();
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert!(game.battlefield.get(&land).unwrap().tapped);
     assert!(

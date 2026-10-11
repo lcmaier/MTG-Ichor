@@ -6,6 +6,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use crate::events::cause::{EventCause, GameRule, StateBasedAction};
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
@@ -47,14 +48,15 @@ fn sba_destroy(id: ObjectId) -> GameAction {
     GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction }
 }
 
-/// CR 704.5a–c and 704.6c — `player` would lose the game.
+/// CR 704.5a–c and 704.6c — `player` would lose the game, with the subrule
+/// that says so.
 ///
 /// The **event**, proposed like every other state-based action, so that
 /// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
 /// CR 704.7's collapse can see two reasons as one loss
 /// (`replacement-architecture.md` §9, RE decision 5).
-fn sba_player_loses(player: PlayerId, reason: LossReason) -> GameAction {
-    GameAction::PlayerLoses { player, reason }
+fn sba_player_loses(player: PlayerId, reason: LossReason, rule: StateBasedAction) -> (GameAction, StateBasedAction) {
+    (GameAction::PlayerLoses { player, reason }, rule)
 }
 
 /// How many performing state-based checks in one run of
@@ -108,8 +110,6 @@ impl GameState {
             return Ok(false);
         }
 
-        // CR 704 sweeps are turn-based, not part of any resolution.
-        let actx = ActionContext::new(decisions);
         let mut any_performed = false;
 
         // CR 704.6d's "since the last time state-based actions were checked",
@@ -145,25 +145,26 @@ impl GameState {
         // `next_turn_taker` gates CR 800.4k. **Appended last** (CR 800.4a with
         // 704.3): a loss removes other members' subjects, so a creature its player
         // owns that dies in this check is destroyed first, and leaves from the graveyard.
-        let mut batch: Vec<GameAction> = Vec::new();
-        let mut player_losses: Vec<GameAction> = Vec::new();
+        // Each member with the subrule that performs it, its cause (CR 704.5, 704.6).
+        let mut batch: Vec<(GameAction, StateBasedAction)> = Vec::new();
+        let mut player_losses: Vec<(GameAction, StateBasedAction)> = Vec::new();
         for i in 0..self.players.len() {
             if !self.in_game(i) {
                 continue;
             }
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
-                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero));
+                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero, StateBasedAction::ZeroLife));
             }
             // 704.5b — attempted to draw from an empty library since the last
             // check.
             if drew_from_empty[i] {
-                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
+                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary, StateBasedAction::DrewFromEmptyLibrary));
             }
             // 704.5c — ten or more poison counters, read off the player's
             // kind → count map (CR 122.1f).
             if self.players[i].counter_count(CounterType::Poison) >= 10 {
-                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters));
+                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters, StateBasedAction::TenPoisonCounters));
             }
         }
 
@@ -172,7 +173,7 @@ impl GameState {
         // action (only 903.9b is a replacement). Offered here, **performed with the
         // deaths** in CR 704.3's one event, so no owner decides against a board an
         // earlier acceptance changed. `since`, read at the top, is the epoch boundary.
-        let commander_moves: Vec<GameAction> = {
+        let commander_moves: Vec<(GameAction, StateBasedAction)> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
             for (id, obj) in moved_since(self, since) {
                 if !obj.is_commander {
@@ -187,15 +188,16 @@ impl GameState {
             // same time, so the active player is asked first. Stable, so one
             // player's two commanders keep `moved_since`'s order between them.
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
-            let mut accepted: Vec<GameAction> = Vec::new();
+            let mut accepted: Vec<(GameAction, StateBasedAction)> = Vec::new();
             for (id, owner, from) in to_offer {
                 if ask_commander_to_command_zone(decisions, self, owner, id) {
-                    accepted.push(GameAction::ZoneChange {
+                    let to_command = GameAction::ZoneChange {
                         object: id,
                         from,
                         to: Zone::Command,
                         act: ZoneChangeAct::CommanderZoneSba,
-                    });
+                    };
+                    accepted.push((to_command, StateBasedAction::CommanderToCommandZone));
                 }
             }
             accepted
@@ -213,7 +215,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                batch.push(sba_zone_change(id, ZoneChangeAct::ZeroToughness));
+                batch.push((sba_zone_change(id, ZoneChangeAct::ZeroToughness), StateBasedAction::ZeroToughness));
             }
         }
 
@@ -237,7 +239,7 @@ impl GameState {
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id));
             if lethal {
-                batch.push(sba_destroy(id));
+                batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
             }
         }
 
@@ -247,7 +249,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                batch.push(sba_zone_change(id, ZoneChangeAct::ZeroLoyalty));
+                batch.push((sba_zone_change(id, ZoneChangeAct::ZeroLoyalty), StateBasedAction::ZeroLoyalty));
             }
         }
 
@@ -294,7 +296,7 @@ impl GameState {
                 }
             }
             for id in chosen {
-                batch.push(sba_zone_change(id, ZoneChangeAct::LegendRule));
+                batch.push((sba_zone_change(id, ZoneChangeAct::LegendRule), StateBasedAction::LegendRule));
             }
         }
 
@@ -333,7 +335,7 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            batch.push(sba_zone_change(id, ZoneChangeAct::AuraSba));
+            batch.push((sba_zone_change(id, ZoneChangeAct::AuraSba), StateBasedAction::AuraAttachedIllegally));
         }
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
@@ -344,7 +346,7 @@ impl GameState {
             if self.in_game(i)
                 && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
             {
-                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage));
+                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage, StateBasedAction::CommanderDamage));
             }
         }
 
@@ -360,7 +362,7 @@ impl GameState {
         // one applied set per permanent or player, named by the first condition in
         // CR order (a dead duplicate legend was destroyed, 704.5g).
         let mut seen: HashSet<EventSubject> = HashSet::new();
-        batch.retain(|action| seen.insert(subject_of(action)));
+        batch.retain(|(action, _)| seen.insert(subject_of(action)));
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
@@ -368,7 +370,8 @@ impl GameState {
             // dropped `Destroy` would re-check forever. A replaced loss's rider counts
             // (CR 615.5), or Stunning Reversal's "immediately after" opens a window.
             let before = self.events.next_seq();
-            self.execute_actions(batch, &actx)?;
+            let members = batch.into_iter().map(|(action, rule)| (action, EventCause::StateBasedAction(rule))).collect();
+            self.execute_caused_actions(members, &ActionContext::game_rule(decisions, GameRule::StateBasedCheck))?;
             any_performed |= self.events.next_seq() > before;
         }
 
@@ -396,7 +399,10 @@ impl GameState {
 
         for (equip_id, host_id) in equip_bad_host {
             self.detach(equip_id);
-            self.emit_event(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
+            self.emit_event_caused(
+                GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id },
+                EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally),
+            );
             any_performed = true;
         }
 
@@ -425,7 +431,10 @@ impl GameState {
 
         for (att_id, host_id) in detachments {
             self.detach(att_id);
-            self.emit_event(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
+            self.emit_event_caused(
+                GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id },
+                EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached),
+            );
             any_performed = true;
         }
 
@@ -448,7 +457,10 @@ impl GameState {
         for (id, pairs) in annihilation_targets {
             self.remove_counters(id, CounterType::PlusOnePlusOne, pairs);
             self.remove_counters(id, CounterType::MinusOneMinusOne, pairs);
-            self.emit_event(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
+            self.emit_event_caused(
+                GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs },
+                EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate),
+            );
             any_performed = true;
         }
 
@@ -465,13 +477,16 @@ impl GameState {
         for (id, zone, _) in tokens_to_remove {
             self.remove_from_zone_collection(id, zone)?;
             self.remove_object(id);
-            self.emit_event(GameEvent::TokenCeasedToExist { object_id: id });
+            self.emit_event_caused(
+                GameEvent::TokenCeasedToExist { object_id: id },
+                EventCause::StateBasedAction(StateBasedAction::TokenOutsideTheBattlefield),
+            );
             any_performed = true;
         }
 
         // CR 704.3 — one check, one event.
         if any_performed {
-            self.emit_event(GameEvent::StateBasedActionPerformed);
+            self.emit_event_caused(GameEvent::StateBasedActionPerformed, EventCause::GameRule(GameRule::StateBasedCheck));
         }
 
         Ok(any_performed)

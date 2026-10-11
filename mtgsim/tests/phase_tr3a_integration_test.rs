@@ -162,6 +162,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -197,7 +198,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -821,6 +822,7 @@ fn a_special_actions_delayed_trigger_is_its_static_abilitys_objects() {
             x_value: None,
             turn: TriggerTurn::Any,
             resolution: None,
+            cause: mtgsim::events::cause::EventCause::Harness,
         },
         Referred::default(),
     )

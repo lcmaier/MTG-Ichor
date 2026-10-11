@@ -109,7 +109,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }

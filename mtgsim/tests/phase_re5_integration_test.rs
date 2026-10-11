@@ -72,6 +72,7 @@ fn resolve_targeting(
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -116,7 +117,7 @@ fn reanimate_with(
     dp: &dyn DecisionProvider,
 ) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    let ctx = ActionContext { dp, resolution: None };
+    let ctx = ActionContext::new(dp);
     game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ctx).expect("it enters");
     id
 }
@@ -435,7 +436,7 @@ fn a_count_halved_to_zero_meets_the_performers_guard_not_never_happens() {
                 n: 1,
                 by: 1,
             }],
-            &ActionContext { dp: &dp, resolution: None },
+            &ActionContext::new(&dp),
         )
         .expect("it performs");
 

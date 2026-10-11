@@ -13,6 +13,7 @@
 //! Commander" item 4.
 
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
+use crate::events::cause::GameRule;
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::get_effective_controller;
 use crate::state::game_state::GameState;
@@ -20,6 +21,7 @@ use crate::types::effects::PlayerRef;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::engine::layers::types::{EffectModification, EffectOrigin};
+use crate::ui::decision::DecisionProvider;
 
 impl GameState {
     /// CR 800.4a — `player` has just left the game; take their objects with
@@ -34,7 +36,7 @@ impl GameState {
     pub(crate) fn player_left_the_game(
         &mut self,
         player: PlayerId,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         if !self.is_multiplayer() {
             return Ok(());
@@ -42,7 +44,7 @@ impl GameState {
         self.owned_objects_leave(player)?;
         self.end_control_given_to(player);
         self.uncarded_stack_objects_cease(player)?;
-        self.exile_objects_no_player_in_game_controls(ctx)
+        self.exile_objects_no_player_in_game_controls(dp)
     }
 
     /// CR 800.4a's first sentence — "all objects (see rule 109) owned by that
@@ -99,7 +101,7 @@ impl GameState {
             self.hand_over_lki(id, lki.as_ref());
             self.note_delayed_source_moving(id);
             self.remove_from_game(id)?;
-            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki });
+            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki })?;
         }
         Ok(())
     }
@@ -220,7 +222,7 @@ impl GameState {
     /// the part of every other one before the first departure.
     pub(crate) fn exile_objects_no_player_in_game_controls(
         &mut self,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         if !self.is_multiplayer() || self.player_lost.iter().all(|&lost| !lost) {
             return Ok(());
@@ -242,7 +244,8 @@ impl GameState {
             if get_effective_controller(self, id).is_some_and(|p| self.in_game(p)) {
                 continue;
             }
-            self.change_zone(id, Zone::Exile, ZoneChangeAct::ControllerLeftTheGame, ctx)?;
+            let rule = ActionContext::game_rule(dp, GameRule::ControllerLeftTheGame);
+            self.change_zone(id, Zone::Exile, ZoneChangeAct::ControllerLeftTheGame, &rule)?;
         }
         Ok(())
     }

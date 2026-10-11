@@ -23,17 +23,18 @@
 //!
 //! Plus CR 614.15's self-replacement effects, which belong to the resolving
 //! spell or ability rather than to any source above and would arrive through
-//! `ActionContext::resolution`. `ResolutionContext` has no field to carry them
-//! and gains one with the first card that needs one — §11 item 3, and the
-//! reason `ReplacementClass::SelfReplacement` currently has a step and no
-//! producer.
+//! the proposal's cause, whose `EventCause::Effect` names the resolving
+//! object. Nothing carries them yet, and the field lands with the first card
+//! that needs one — §11 item 3, and the reason
+//! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
-use crate::events::event::{CounterSubject, DamageTarget};
+use crate::events::cause::{EventCause, GeneratedBy};
+use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
 use crate::state::continuous_effects::puts_a_replacement_ability;
@@ -187,11 +188,10 @@ pub(crate) fn gather(
 ) -> Vec<ReplacementInstance> {
     game.diagnostics.record_replacement_gather();
 
-    // What *caused* this event, for [`ReplacementDef::by`]: the controller of the
-    // resolving spell or ability (CR 608.2; CR 109.5's "you"), or `None` for a
-    // turn-based or state-based action — the same expression the pipeline hands
-    // `Query::Event::cause`, since a "can't" and a replacement print one predicate.
-    let cause = ctx.resolution.map(|r| r.controller);
+    // What *caused* this event, for [`ReplacementDef::by`] — the same value the
+    // pipeline hands `Query::Event::cause`, since a "can't" and a replacement
+    // print one predicate.
+    let cause = ctx.cause;
 
     // CR 614.17c's filter is applied at the door rather than at the end: with
     // no self-replacement producer, a blocked event has no candidates at all
@@ -392,8 +392,8 @@ pub(crate) fn gather(
 struct EventProposal<'a, 'g> {
     action: &'a GameAction,
     subject: EventSubject,
-    /// Who caused it, for [`ReplacementDef::by`].
-    cause: Option<PlayerId>,
+    /// Who or what caused it, for [`ReplacementDef::by`].
+    cause: EventCause,
     /// CR 614.12's look-ahead for the subject, when the caller holds one; the
     /// CR 616.1f re-ask of a later batch member does not.
     frame: Option<&'a EntryFrame<'g>>,
@@ -559,7 +559,7 @@ pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, O
 /// from `producer` (CR 106.6a, 106.12b)? [`def_applies`], asked of a
 /// production nobody has proposed: `oracle::mana_supply` reads what a tap
 /// would make before the window opens. The cause is the producing ability's
-/// controller, as `resolve_mana_effect`'s resolution makes it.
+/// effect, as `resolve_mana_effect`'s resolution makes it.
 pub(crate) fn applies_to_mana_production(
     game: &GameState,
     def: &ReplacementDef,
@@ -567,10 +567,12 @@ pub(crate) fn applies_to_mana_production(
     controller: PlayerId,
     player: PlayerId,
     producer: ObjectId,
+    generated_by: GeneratedBy,
     tapped_for_mana: bool,
 ) -> bool {
     let action = GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana };
-    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause: Some(player), frame: None };
+    let cause = EventCause::Effect { resolution: ResolutionStamp { source: producer, controller: player }, generated_by };
+    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause, frame: None };
     def_applies(game, def, source, controller, &proposal)
 }
 
@@ -617,7 +619,7 @@ pub(super) fn applies_to(
     instance: &ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
-    cause: Option<PlayerId>,
+    cause: EventCause,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     let p = EventProposal { action, subject, cause, frame };
@@ -638,7 +640,7 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(p.cause, controller))
+    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, controller))
         && pattern_watches(game, &def.pattern, p.action, controller)
         && set_affects(
             game,

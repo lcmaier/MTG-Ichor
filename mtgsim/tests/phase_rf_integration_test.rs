@@ -130,6 +130,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,

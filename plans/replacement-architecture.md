@@ -155,7 +155,7 @@ the enforcement.
 | Type | Where | What it is | Growth |
 |---|---|---|---|
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
-| `ActionContext` | `engine/actions.rs` | `{ dp, resolution }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt | grows only if a new ambient input appears |
+| `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind | grows only if a new ambient input appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
 | `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeAct` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
 | `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
@@ -389,10 +389,10 @@ name of its own, `ZoneChangeAct`, so "cause" means one thing.
 /// and the batch stamps it on every record (`EventStamp::cause`).
 pub enum EventCause {
     /// An effect (CR 609.1): a resolving spell or ability (CR 608.2), a
-    /// replacement effect's rider (CR 615.5), a mana ability (CR 605.3b).
-    /// `kind` is which of CR 113.3's four it is, which The Master,
-    /// Multiplied's "triggered abilities" reads.
-    Effect { resolution: ResolutionStamp, kind: SpellOrAbility },
+    /// replacement effect's rider (CR 615.5) or its CR 614.13 moves, a mana
+    /// ability (CR 605.3b), an "until" exile's return (CR 610.3).
+    /// `generated_by` is what generated it (decision 10).
+    Effect { resolution: ResolutionStamp, generated_by: GeneratedBy },
     /// A cost being paid (CR 118.1, 601.2h, 602.2b), by whom and for what.
     /// "Costs aren't effects" (Library of Leng's ruling).
     Cost { player: PlayerId, paying_for: ObjectId },
@@ -416,21 +416,36 @@ pub enum EventCause {
 }
 ```
 
+```rust
+/// What generated an effect (decision 10).
+pub enum GeneratedBy {
+    Spell,              // CR 113.3a
+    ActivatedAbility,   // CR 113.3b
+    TriggeredAbility,   // CR 113.3c
+    StaticAbility,      // CR 113.3d: a static ability's replacement effect
+    Counters(CounterType), // CR 122.1c/d/h: the shield's prevention rider
+}
+```
+
 Each of the four rule enums has one variant per rule the engine performs, and
-no catchall, as `ZoneChangeCause` had none:
+no catchall, as `ZoneChangeAct` has none (as built in RH-1, `events/cause.rs`):
 - `SpecialAction`: `PlayLand` (116.2a). The other special actions (face-down,
   suspend, foretell, plot, companion and the rest of 116.2) join with their
   mechanics.
-- `TurnBasedAction`: `Untap` (502.3), `Draw` (504.1), `CombatDamage` (510.2),
-  `CleanupDiscard` (514.1), `CleanupDamage` (514.2).
+- `TurnBasedAction`: `Untap` (502.3), `Draw` (504.1), `DeclareAttackers`
+  (508.1, whose taps and record it causes), `DeclareBlockers` (509.1),
+  `CombatDamage` (510.2), `CleanupDiscard` (514.1). CR 514.2's damage removal
+  announces nothing, so it has no variant until it does.
 - `StateBasedAction`: one per CR 704.5 or 704.6 subrule the sweep performs.
-  704.5g and 704.5h stay one, `LethalDamage`, as in `DestroyedBySba`: CR
-  701.8b calls both "destroyed", and no card tells them apart.
-- `GameRule`: `SpellResolves` (608.2n), `PermanentSpellResolves` (608.3a),
-  `PermanentSpellCantEnter` (608.3e), `TargetsIllegal` (608.2b),
-  `ControllerLeftTheGame` (800.4a, which says itself that it "is not a
-  state-based action"), and the records no action makes: a turn, phase or step
-  beginning, and an ability triggering (CR 603.2).
+  704.5g and 704.5h stay one, `LethalDamage`: CR 701.8b calls both
+  "destroyed", and no card tells them apart.
+- `GameRule`: `OpeningHand` (103.5), `SpellResolves` and `AbilityResolves`
+  (608.2n), `PermanentSpellResolves` (608.3a), `PermanentSpellCantEnter`
+  (608.3e), `TargetsIllegal` (608.2b), `ControllerLeftTheGame` (800.4a, which
+  says itself that it "is not a state-based action"), `StateBasedCheck` (704.3's
+  one event, whose members are each their own subrule's), and the records no
+  action makes: a turn, phase or step beginning, an ability triggering (CR
+  603.2) and a triggered ability put on the stack with its targets (603.3).
 
 **Decision 2: a special action is a cause of its own.** CR 116.1 sets special
 actions apart from spells and abilities, since they "don't use the stack", and
@@ -484,6 +499,14 @@ state-based actions one event, and each is still its own rule. So every batch
 takes its context's cause except the sweep's, which passes each member's
 subrule beside the member. Phase 1 gives that cause to the member's
 `EventProposal`, and phase 2 puts it on the stamp while the member performs.
+CR 610.3d's returns are the other such event (`execute_caused_actions`): each
+"until" return is its own exile's effect.
+
+**A replacement effect's own events are its effect's.** Its rider (CR 615.5),
+its CR 614.13 moves and the counters it puts on an entering permanent are
+caused by the effect, under its controller, generated by what generated it: a
+registered row by its creating spell or ability, a static ability by itself, a
+counter by the counter (`pipeline::effect_cause`).
 
 **A payment inside a resolution is caused by the resolution.** CR 118.12 makes
 the action in "[A player] may [do something]. If [that player] [does, doesn't,
@@ -818,7 +841,7 @@ own boards, and the rest does not depend on it.
 
 ### 2b.11 Decisions, and what is left open
 
-Taken here. All nine were approved by the owner on 2026-10-11, at #242's
+Taken here. The first nine were approved by the owner on 2026-10-11, at #242's
 review: 1–6, 8 and 9 as written (9 with its performance priced in §2b.10), and
 option A of three for 7. The other two
 options were every test naming a real cause, or `test_ctx()` quietly naming one
@@ -852,6 +875,19 @@ replacement's ability (§2b.4).
    construction, at 113 mechanical lines.
 9. Item 248 is filed and fixed in RH-2 by deciding a destruction's move with
    the destruction.
+10. **Taken at RH-1's build (the owner, 2026-10-11): an effect's `kind` is
+    `generated_by: GeneratedBy`, built now, with five arms.** The sketch's
+    `SpellOrAbility` could not say what made CR 122.1c's shield counter's
+    prevention rider ("prevent that damage and remove a shield counter"): the
+    counter, and no spell or ability, so `Counters(CounterType)` joins CR
+    113.3's four. "A spell or ability [someone] controls" skips it, and
+    Library of Leng's "an effect" sees it. Two printed cards read the kind
+    among `o:"causes" game:paper -is:funny`'s 49: The Master, Multiplied
+    ("triggered abilities you control can't cause") and Firesong and
+    Sunspeaker ("a white instant or sorcery spell causes", which Renewed
+    Faith's cycling trigger must not satisfy). The other 47 ask an effect and
+    its controller, or are Panharmonicon's family, whose "causes" is an event
+    making a trigger trigger.
 
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
@@ -3842,10 +3878,10 @@ the bug.
 
 3. **Deferred — how self-replacement effects (CR 614.15) reach the pipeline**
    (Open until the post-RE audit, 2026-09-15). They belong to the resolving
-   spell/ability, not to any registry, so they arrive through
-   `ActionContext::resolution`. `ResolutionContext` is
-   `{source, ability_source, controller, targets, replaced_amount,
-   damage_prevented}` today and needs one more field. Low breadth
+   spell/ability, not to any registry, so they arrive through the proposal's
+   cause: `EventCause::Effect` names the resolving object (RH-1 replaced
+   `ActionContext`'s resolution reference with its cause, §2b.3), and the
+   resolving object's spell or ability needs one more field to carry them. Low breadth
    (Aang's Journey and kin), so the hook landed in RB and the field lands with
    the first card that needs it. Do not build a general mechanism first.
 

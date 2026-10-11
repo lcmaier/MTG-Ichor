@@ -27,7 +27,7 @@ use mtgsim::ui::waiting::{what_is_waiting, TriggersIn, WaitingTurn};
 /// its own source.
 fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
-    game.resolve_effect(&card.abilities[0].effect, &ResolutionContext::untargeted(id, controller), &test_dp()).unwrap();
+    game.resolve_effect(&card.abilities[0].effect, &ResolutionContext::untargeted(id, controller, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     id
 }
 
@@ -35,14 +35,14 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
 fn resolve_wines_draw(game: &mut GameState) -> ObjectId {
     let wine = blessed_wine();
     let id = put_in_hand(game, wine.clone(), 0);
-    game.resolve_effect(&wine.abilities[1].effect, &ResolutionContext::untargeted(id, 0), &test_dp()).unwrap();
+    game.resolve_effect(&wine.abilities[1].effect, &ResolutionContext::untargeted(id, 0, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     id
 }
 
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -91,7 +91,7 @@ fn a_this_turn_delayed_trigger_is_gone_after_the_cleanup() {
     };
     let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller);
     let source = put_in_hand(&mut game, blessed_wine(), 0);
-    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 0), &test_dp()).unwrap();
+    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     let rows = what_is_waiting(&game).delayed_triggers;
     assert_eq!((rows[0].duration, rows[0].turn), (DelayedDuration::ThisTurn, TriggersIn::AnyTurn));
 

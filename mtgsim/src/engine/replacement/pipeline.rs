@@ -4,7 +4,8 @@ use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
-use crate::events::event::{CounterSubject, DamageTarget};
+use crate::events::cause::{EventCause, GeneratedBy};
+use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -62,6 +63,8 @@ pub(crate) struct Rider {
     /// The object whose effect this belongs to. Becomes the rider's
     /// `ResolutionContext::source`.
     pub source: ObjectId,
+    /// What generated the replacement effect this rider is the rest of.
+    pub generated_by: GeneratedBy,
     /// CR 614.5's applied set for the event this rider is the rest of — the
     /// group's *final* set, filled in by `execute_batch_inner` once the loop
     /// has returned, and handed to every proposal the rider makes.
@@ -203,24 +206,33 @@ fn event_amount(action: &GameAction) -> Option<u64> {
     }
 }
 
-/// What *caused* a proposed event: the controller of the resolving spell or
-/// ability that proposed it (CR 608.2's resolution; CR 109.5 makes that
-/// controller the effect's "you").
-///
-/// `None` for a turn-based action, a state-based action, cost payment or
-/// combat damage — none of which belongs to a resolution, and none of which
-/// any [`SourceFilter`](crate::types::restriction::SourceFilter) matches.
-///
-/// **No rule defines this predicate; it is a shape printed on cards** — "a
-/// spell or ability an opponent controls causes you to …", which seventeen
-/// discard cards and Sigarda's family say. So it is one expression with three
-/// readers — `Query::Event::cause`, `gather`'s `ReplacementDef::by`, and the
-/// exemption check's re-ask — named here rather than spelled out at each,
-/// because a "can't" and a replacement effect printing that clause must answer
-/// it the same way or Tamiyo, Collector of Tales and Nephalia Academy stop
-/// agreeing about one discard.
-fn cause_of(ctx: &ActionContext) -> Option<PlayerId> {
-    ctx.resolution.map(|r| r.controller)
+/// What generated a replacement effect, for what it causes beyond rewriting
+/// its event: a registered row is its creating spell's or ability's, a static
+/// ability's is its own, and a counter's is the counter's (CR 122.1c/d/h).
+fn generated_by_of(game: &GameState, chosen: &ReplacementInstance) -> Result<GeneratedBy, String> {
+    match chosen.id {
+        ReplacementInstanceId::StaticAbility(..) => Ok(GeneratedBy::StaticAbility),
+        ReplacementInstanceId::Counter(_, counter, _) => Ok(GeneratedBy::Counters(counter)),
+        ReplacementInstanceId::Registered(id) => game
+            .replacement_effects
+            .iter()
+            .find(|row| row.id == id)
+            .map(|row| row.generated_by)
+            .ok_or_else(|| format!("replacement row {id} applied and was gone before what it causes was proposed")),
+        ReplacementInstanceId::GameRule(_, rule) => Err(format!(
+            "{rule:?} is a rule acting as a replacement effect (CR 903.9b), and causes nothing beyond its rewrite"
+        )),
+    }
+}
+
+/// What a replacement effect's own events are caused by — its rider's (CR
+/// 615.5), its CR 614.13 moves, the counters it puts on an entering
+/// permanent: its effect, under its controller.
+pub(super) fn effect_cause(game: &GameState, chosen: &ReplacementInstance) -> Result<EventCause, String> {
+    Ok(EventCause::Effect {
+        resolution: ResolutionStamp { source: chosen.source, controller: chosen.controller },
+        generated_by: generated_by_of(game, chosen)?,
+    })
 }
 
 /// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
@@ -401,10 +413,9 @@ pub(crate) fn apply_replacements(
                 game,
                 &Query::Event {
                     action: event,
-                    // The source behind this event, for a "can't" that names one (Sigarda's
-                    // family): the resolution `ActionContext` threads, or none for a turn-based
-                    // or state-based action.
-                    cause: cause_of(ctx),
+                    // What caused this event, for a "can't" that names a source (Sigarda's
+                    // family).
+                    cause: ctx.cause,
                     lookahead: Some(&frame),
                 },
             );
@@ -577,7 +588,7 @@ pub(crate) fn apply_replacements(
                 // re-gathers against, which is how CR 616.2's "a replacement
                 // effect can become applicable as the result of another"
                 // works without any special case.
-                check_exempt_terminates(game, &chosen, next, cause_of(ctx), &mut exempt_applied)?;
+                check_exempt_terminates(game, &chosen, next, ctx.cause, &mut exempt_applied)?;
                 // A debug-only read, so it puts back what it touched: a debug
                 // build's trace and counters are a release build's (item 210).
                 if let Some(before) = &before
@@ -607,6 +618,7 @@ pub(crate) fn apply_replacements(
         if let Some(then) = chosen.def.then.clone() {
             riders.push(Rider {
                 source: chosen.source,
+                generated_by: generated_by_of(game, &chosen)?,
                 // The group's final applied set, once the loop has it.
                 lineage: HashSet::new(),
                 controller: chosen.controller,
@@ -746,7 +758,7 @@ impl IterationTrace {
 
     fn record(self, game: &GameState, members: &[Member]) -> Record {
         let mut r = Record::new(RecordKind::ReplacementPipeline);
-        r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
+        r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
         r.field_str("event", &self.event);
@@ -864,7 +876,7 @@ fn next_damage_shares(
         .collect();
     for (index, action) in later {
         if let GameAction::DealDamage { source, amount, .. } = action
-            && applies_to(game, chosen, action, subject_of(action), cause_of(ctx), None) {
+            && applies_to(game, chosen, action, subject_of(action), ctx.cause, None) {
             buckets.push((*index, *source, *amount, chooser_for(game, action)));
         }
     }
@@ -1774,7 +1786,7 @@ fn check_exempt_terminates(
     game: &GameState,
     chosen: &ReplacementInstance,
     next: &GameAction,
-    cause: Option<PlayerId>,
+    cause: EventCause,
     exempt_applied: &mut Option<ReplacementInstanceId>,
 ) -> Result<(), String> {
     if !chosen.def.exempt_from_614_5 {
@@ -1981,7 +1993,7 @@ fn apply_rewrite(
                 let extra = evaluate_enter_template(
                     game, template, chosen, object, controller, &mods,
                 )?;
-                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, effect_cause(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
@@ -1997,7 +2009,7 @@ fn apply_rewrite(
         Rewrite::EnterAfterMoving(aux) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
                 let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
-                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, effect_cause(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
@@ -2943,8 +2955,8 @@ fn entry_copy_donor(
 /// creature you control that would enter with -1/-1 counters enters with none
 /// — and Solemnity's.
 ///
-/// `cause` is CR 101.2's — who controls the effect that proposed them: the
-/// replacement's controller, CR 306.5b's loyalty included, since that is the
+/// `cause` is CR 101.2's — the effect that proposed them, the replacement's
+/// own (`effect_cause`), CR 306.5b's loyalty included, since that is the
 /// permanent's own ability. The synthetic event's putter is CR 122.6a's
 /// default, the controller the permanent enters under, which is what the
 /// entry door reads too.
@@ -2959,7 +2971,7 @@ pub(super) fn strip_prohibited_counters(
     controller: PlayerId,
     so_far: &EnterMods,
     extra: &EnterMods,
-    cause: PlayerId,
+    cause: EventCause,
 ) -> EnterMods {
     if extra.counters.is_empty() {
         return extra.clone();
@@ -2980,7 +2992,7 @@ pub(super) fn strip_prohibited_counters(
         };
         let refused = is_prohibited(
             game,
-            &Query::Event { action: &action, cause: Some(cause), lookahead: Some(&frame) },
+            &Query::Event { action: &action, cause, lookahead: Some(&frame) },
         );
         if !refused {
             kept.counters.push(*row);
@@ -3156,8 +3168,11 @@ fn apply_auxiliary_move(
     // other permanent's controller, which is what the card's "you" means.
     let you = chosen.controller;
     let _ = entering_controller;
+    // The moves are the replacement's own effect, not the entry's (CR 614.13),
+    // which is why Sigarda does not stop her own devour.
+    let cause = effect_cause(game, chosen)?;
 
-    let candidates = auxiliary_candidates(game, aux, you)?;
+    let candidates = auxiliary_candidates(game, aux, you, cause)?;
     if candidates.is_empty() {
         return Ok(EnterMods::NONE);
     }
@@ -3191,7 +3206,7 @@ fn apply_auxiliary_move(
             act: aux.act,
         })
         .collect();
-    let moved = game.execute_actions_new_batch(batch, ctx)?.len() as u32;
+    let moved = game.execute_actions_new_batch(batch, &ctx.caused_by(cause))?.len() as u32;
 
     Ok(match aux.per_chosen {
         Some((counter, per)) if moved > 0 => EnterMods::with_counters(counter, moved * per),
@@ -3216,9 +3231,10 @@ fn auxiliary_candidates(
     game: &GameState,
     aux: &AuxiliaryMove,
     you: PlayerId,
+    cause: EventCause,
 ) -> Result<Vec<ObjectId>, String> {
     let ids = auxiliary_zone(game, aux, you)?;
-    Ok(ids.into_iter().filter(|&id| not_auxiliary(game, aux, you, id).is_none()).collect())
+    Ok(ids.into_iter().filter(|&id| not_auxiliary(game, aux, you, cause, id).is_none()).collect())
 }
 
 /// The objects in the zone `aux` chooses from, in its order.
@@ -3235,8 +3251,15 @@ pub(crate) fn auxiliary_zone(game: &GameState, aux: &AuxiliaryMove, you: PlayerI
     }
 }
 
-/// Why `id`, in `aux`'s zone, may not be chosen, if it may not.
-pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId, id: ObjectId) -> Option<NotAuxiliary> {
+/// Why `id`, in `aux`'s zone, may not be chosen, if it may not. `cause` is the
+/// move's: the replacement effect's own ([`effect_cause`]).
+pub(crate) fn not_auxiliary(
+    game: &GameState,
+    aux: &AuxiliaryMove,
+    you: PlayerId,
+    cause: EventCause,
+    id: ObjectId,
+) -> Option<NotAuxiliary> {
     // CR 614.13a/b, ahead of everything else: an excluded object is not
     // a candidate that fails a check, it is not a candidate.
     if game.entry_selection.entering.contains(&id) {
@@ -3249,15 +3272,12 @@ pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId
         return Some(NotAuxiliary::NotMatched);
     }
     // CR 101.2 on the move this choice would produce — the resolution-time choice's
-    // axis-1 question. `cause` is a `PlayerId` because `SourceFilter`'s one
-    // variant, `ControlledBy(PlayerRef)`, reads control and nothing else; it
-    // widens with the variant that needs more. The player is the effect's
-    // controller, which is why Sigarda does not stop her own devour.
+    // axis-1 question.
     prohibition(
         game,
         &Query::Event {
             action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, act: aux.act },
-            cause: Some(you),
+            cause,
             lookahead: None,
         },
     )

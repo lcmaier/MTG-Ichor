@@ -18,6 +18,7 @@ use mtgsim::state::trace::{FieldValue, RecordKind, TraceRecord};
 use mtgsim::test_support::{
     fill_library, install_trace, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game,
     test_ctx, vanilla_creature, RecordingDecisionProvider,
+    test_dp,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -186,7 +187,7 @@ fn upkeep_of(game: &mut GameState, player: PlayerId) {
         fill_library(game, p, 10);
     }
     for _ in 0..20 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
         if game.active_player == player && game.phase.step == Some(StepType::Upkeep) {
             return;
         }

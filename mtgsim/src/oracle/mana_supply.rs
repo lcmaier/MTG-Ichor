@@ -41,6 +41,7 @@ use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::replacement::{applies_to_mana_production, replacement_of};
 use crate::engine::resolve::ResolutionContext;
+use crate::events::cause::GeneratedBy;
 use crate::engine::targeting::matched;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
@@ -290,7 +291,7 @@ impl ManaSupply {
                         // scales it.
                         let mut unit = NO_MANA;
                         unit[slot(ManaType::Colorless)] = 1;
-                        let made = mana_after_replacements(game, &watchers, player, id, true, unit);
+                        let made = mana_after_replacements(game, &watchers, player, id, GeneratedBy::ActivatedAbility, true, unit);
                         // A retype would make the added mana all one type, which no
                         // printed pool multiplier meets; the check does not read it.
                         if made.iter().any(|m| ManaTypes::of(m) != ManaTypes::one(slot(ManaType::Colorless))) {
@@ -698,7 +699,7 @@ fn multiplies_the_pool(effect: &Effect) -> bool {
 /// What a mana ability's effect adds for `player`, before any replacement
 /// effect: `None` when it adds nothing a payment can spend now.
 fn mana_production_of(game: &GameState, effect: &Effect, source: ObjectId, player: PlayerId) -> Option<ManaBag> {
-    let mut resolution = ResolutionContext::untargeted(source, player);
+    let mut resolution = ResolutionContext::untargeted(source, player, GeneratedBy::ActivatedAbility);
     resolution.ability_source = game.object_ref(source);
     let mut made = NO_MANA;
     add_mana_produced(game, effect, &resolution, &mut made)?;
@@ -816,7 +817,8 @@ fn mana_made_by(
     tapped: bool,
     base: ManaBag,
 ) -> Vec<ManaBag> {
-    let mana_after_replacements = mana_after_replacements(game, watchers, player, producer, tapped, base);
+    let mana_after_replacements =
+        mana_after_replacements(game, watchers, player, producer, GeneratedBy::ActivatedAbility, tapped, base);
     if watchers.triggers.is_empty() {
         return mana_after_replacements;
     }
@@ -841,6 +843,7 @@ fn mana_after_replacements(
     watchers: &ManaProductionWatchers,
     player: PlayerId,
     producer: ObjectId,
+    generated_by: GeneratedBy,
     tapped: bool,
     base: ManaBag,
 ) -> Vec<ManaBag> {
@@ -852,12 +855,12 @@ fn mana_after_replacements(
             continue;
         }
         let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
-        if applies_to_mana_production(game, def, at.permanent, controller, player, producer, tapped) {
+        if applies_to_mana_production(game, def, at.permanent, controller, player, producer, generated_by, tapped) {
             rewrites.push(ManaRewrite::of(def));
         }
     }
     for row in game.replacement_effects.iter() {
-        if applies_to_mana_production(game, &row.def, row.source, row.controller, player, producer, tapped) {
+        if applies_to_mana_production(game, &row.def, row.source, row.controller, player, producer, generated_by, tapped) {
             rewrites.push(ManaRewrite::of(&row.def));
         }
     }
@@ -914,7 +917,7 @@ fn mana_trigger_adds(
     }
     // CR 106.12: the trigger's source was not tapped, so a "tapped for mana"
     // replacement does not see its mana (Mana Reflection's ruling).
-    mana_after_replacements(game, watchers, player, at.permanent, false, adds)
+    mana_after_replacements(game, watchers, player, at.permanent, GeneratedBy::TriggeredAbility, false, adds)
 }
 
 /// The mana a triggered mana ability's effect gives `player`, as
@@ -939,7 +942,7 @@ fn trigger_mana(
             if receives != player {
                 return true;
             }
-            let resolution = ResolutionContext::untargeted(source, receives);
+            let resolution = ResolutionContext::untargeted(source, receives, GeneratedBy::TriggeredAbility);
             for (mana_type, amount) in &output.mana {
                 match game.evaluate_amount(amount, &resolution) {
                     Ok(n) => adds[slot(*mana_type)] += n,
@@ -1599,6 +1602,7 @@ mod tests {
             source: id,
             ability_source: None,
             controller: 0,
+            generated_by: crate::events::cause::GeneratedBy::ActivatedAbility,
             targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
@@ -1809,7 +1813,6 @@ mod tests {
     #[test]
     fn what_the_inventory_predicts_a_tap_makes_is_what_the_engine_makes() {
         use crate::cards::phase_re9_cards::nyxbloom_ancient;
-        use crate::engine::actions::ActionContext;
         use crate::ui::random::RandomDecisionProvider;
 
         let pool = |game: &GameState| {
@@ -1858,7 +1861,7 @@ mod tests {
                         let mut fork = game.clone();
                         let before = pool(&fork);
                         let dp = RandomDecisionProvider::seeded(seed);
-                        fork.activate_mana_ability(0, id, ability.id, &ActionContext::new(&dp)).unwrap();
+                        fork.activate_mana_ability(0, id, ability.id, &dp).unwrap();
                         let after = pool(&fork);
                         let delta = std::array::from_fn(|t| after[t] - before[t]);
                         if !made.contains(&delta) {

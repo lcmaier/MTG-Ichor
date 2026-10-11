@@ -16,7 +16,8 @@ use crate::engine::combat::validation::{can_block, CombatError};
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
 use crate::engine::layers::{compute_characteristics, explain, AppliedBy, LayerStep, StepResult};
 use crate::engine::replacement::{auxiliary_zone, not_an_opponent, not_auxiliary, NotAnOpponent, NotAuxiliary};
-use crate::events::event::EventSeq;
+use crate::events::cause::{EventCause, GeneratedBy};
+use crate::events::event::{EventSeq, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controls, get_effective_abilities, is_creature};
 use crate::oracle::legality::{can_attack, can_play_land};
@@ -438,7 +439,13 @@ fn auxiliary_refusal(game: &GameState, you: PlayerId, (entering, source, to): (O
         };
         return Some(refusal("To be moved", (format!("it is not {zone}, where the effect chooses from"), None)));
     } else {
-        not_auxiliary(game, &moved, you, id)
+        // The move is the static ability's own effect (CR 614.13), as the
+        // pipeline names it.
+        let cause = EventCause::Effect {
+            resolution: ResolutionStamp { source, controller: you },
+            generated_by: GeneratedBy::StaticAbility,
+        };
+        not_auxiliary(game, &moved, you, cause, id)
     };
     let words = match reason? {
         NotAuxiliary::Entering => ("it is entering the battlefield in this event".to_string(), Some("614.13a")),
@@ -477,7 +484,7 @@ fn copy_refusal(game: &GameState, source: ObjectId, id: ObjectId) -> WhyLine {
 /// At a CR 616.1 choice, from the trace: what this batch's earlier iterations
 /// did with `id`'s effects, each of which gets one chance at an event.
 fn applied_already(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
-    let Some(batch) = game.events.current_stamp().batch else { return Vec::new() };
+    let Some(batch) = game.events.current_batch() else { return Vec::new() };
     let iterations = trace.iter().filter(|r| r.kind == RecordKind::ReplacementPipeline && r.u64("batch") == Some(batch.0));
     iterations
         .filter_map(|record| {

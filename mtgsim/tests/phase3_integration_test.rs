@@ -10,7 +10,7 @@ use std::sync::Arc;
 use mtgsim::cards::alpha;
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::{GameState, Phase};
-use mtgsim::test_support::{put_on_battlefield, set_attacking, setup_two_player_game, test_ctx, vanilla_creature};
+use mtgsim::test_support::{put_on_battlefield, set_attacking, setup_two_player_game, vanilla_creature, test_dp};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::cards::creatures;
 use mtgsim::cards::basic_lands;
@@ -52,7 +52,7 @@ fn advance_to_step(game: &mut Game, target_phase: PhaseType, target_step: Option
         if phase == target_phase && step == target_step {
             return;
         }
-        game.state.advance_turn(&test_ctx()).unwrap();
+        game.state.advance_turn(&test_dp()).unwrap();
     }
     panic!("Failed to reach {:?}/{:?}", target_phase, target_step);
 }
@@ -126,13 +126,13 @@ fn test_unblocked_attacker_deals_damage() {
     assert!(game.state.battlefield.get(&bears_id).unwrap().attacking.is_some());
 
     // Advance to DeclareBlockers
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.state.phase.step, Some(StepType::DeclareBlockers));
     game.state.process_declare_blockers(&scripted).unwrap();
 
     // Advance to CombatDamage: no first striker, so combat has one combat
     // damage step (CR 510.4)
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.state.phase.step, Some(StepType::CombatDamage));
     game.state.process_combat_damage(&scripted, false).unwrap();
 
@@ -174,7 +174,7 @@ fn test_blocked_creatures_trade() {
     game.state.process_declare_attackers(&scripted).unwrap();
 
     // Declare blockers
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
 
     // Verify attacker is marked as blocked
@@ -183,11 +183,11 @@ fn test_blocked_creatures_trade() {
     assert_eq!(att_info.blocked_by, vec![blocker]);
 
     // First strike damage (no-op)
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
 
     // Combat damage
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Both should have 2 damage marked (lethal for 2-toughness creatures)
@@ -236,11 +236,11 @@ fn test_bigger_creature_survives() {
     scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Hill Giant takes 2 damage (not lethal for 3 toughness)
@@ -285,11 +285,11 @@ fn test_overkill_damage_both_die() {
     scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Bears take 2 damage (lethal for 2 toughness)
@@ -408,11 +408,11 @@ fn test_combat_damage_kills_player() {
     scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Player 1 at 0 life
@@ -463,16 +463,16 @@ fn test_combat_state_cleared_after_combat() {
 
     // Advance through rest of combat to postcombat
     // DeclareBlockers
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
     // CombatDamage, the one combat damage step (CR 510.4)
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
     // EndCombat
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.state.phase.step, Some(StepType::EndCombat));
     // Advance past combat phase to postcombat
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.state.phase.phase_type, PhaseType::Postcombat);
 
     // Combat state should be cleared
@@ -519,13 +519,13 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     // Declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
     // Declare blockers
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
     // First strike damage (no-op)
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
     // Combat damage
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Elemental: 2 damage marked (from Lions' 2 power), not lethal on 5 toughness
@@ -609,11 +609,11 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
 
     // Run combat
     game.state.process_declare_attackers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_declare_blockers(&scripted).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, true).unwrap();
-    game.state.advance_turn(&test_ctx()).unwrap();
+    game.state.advance_turn(&test_dp()).unwrap();
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Run priority → SBAs kill Lions
@@ -668,7 +668,7 @@ fn steps_after_blocks(keywords: &[KeywordFlag]) -> Vec<StepType> {
     game.attacks_declared = true;
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareBlockers) });
     let before = game.recorded_events().len();
-    game.advance_turn(&test_ctx()).unwrap();
+    game.advance_turn(&test_dp()).unwrap();
     game.recorded_events()
         .records_from(before)
         .iter()

@@ -16,6 +16,7 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
@@ -924,6 +925,9 @@ pub struct DelayedProvenance {
     /// The resolution creating it, if one is: a replacement's rider (CR
     /// 603.7f) is none.
     pub resolution: Option<CreatingResolution>,
+    /// What caused its creation: the effect creating it, a resolution's or a
+    /// rider's.
+    pub cause: EventCause,
 }
 
 /// CR 603.7c — what a delayed triggered ability refers to: the objects and

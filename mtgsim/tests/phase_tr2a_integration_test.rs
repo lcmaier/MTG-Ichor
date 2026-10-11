@@ -142,6 +142,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         source: treason,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -274,7 +275,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
-        game.state.advance_turn(&test_ctx()).expect("advancing");
+        game.state.advance_turn(&test_dp()).expect("advancing");
     }
     let turn = game.state.turn_number;
     assert_eq!(
@@ -622,6 +623,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -695,6 +697,7 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -767,6 +770,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64) {
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -815,6 +819,7 @@ fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -840,6 +845,7 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
         source,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -915,7 +921,7 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -1132,7 +1138,7 @@ fn this_game_sums_every_turn_so_far() {
 
     advance_to(&mut game, 0, StepType::Upkeep);
     while game.phase.phase_type != PhaseType::Precombat {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
     }
     cast_and_drain(&mut game, 0, first_contact());
     assert_eq!(life_total(&game, 0), 22, "the second, two turns later");
@@ -1313,6 +1319,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         source,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -1387,6 +1394,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,

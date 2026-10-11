@@ -853,7 +853,7 @@ fn test_ironworks_pays_its_own_cost_with_itself() {
 
     // The only artifact is the source, so the payment is forced.
     let dp = ScriptedDecisionProvider::new();
-    game.activate_mana_ability(0, ironworks, ability, &mtgsim::engine::actions::ActionContext::new(&dp))
+    game.activate_mana_ability(0, ironworks, ability, &dp)
         .expect("Ironworks can eat itself");
 
     assert!(!game.battlefield.contains_key(&ironworks));
@@ -1388,7 +1388,7 @@ fn test_a_mana_ability_resolves_immediately_and_never_uses_the_stack() {
     assert!(game.stack.is_empty());
 
     let dp = ScriptedDecisionProvider::new();
-    game.activate_mana_ability(0, forest, ability, &mtgsim::engine::actions::ActionContext::new(&dp))
+    game.activate_mana_ability(0, forest, ability, &dp)
         .expect("a Forest taps for {G}");
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1, "the mana is there at once");

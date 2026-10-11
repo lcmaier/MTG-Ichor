@@ -77,6 +77,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn Dec
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -96,6 +97,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -132,7 +134,7 @@ fn at_draw_step(game: &mut GameState, player: PlayerId) {
 fn take_the_draw_step(game: &mut GameState, dp: &dyn DecisionProvider) {
     let ctx = ActionContext::new(dp);
     for _ in 0..8 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.phase.step == Some(StepType::Draw) {
             return;
         }

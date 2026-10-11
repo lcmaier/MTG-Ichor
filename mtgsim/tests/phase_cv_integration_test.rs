@@ -73,6 +73,7 @@ fn resolve_spell(
         source: source_id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.into_iter().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,

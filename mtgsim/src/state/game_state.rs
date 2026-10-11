@@ -4,6 +4,7 @@ use std::sync::Arc;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use crate::events::cause::EventCause;
 use crate::events::event::EventWindow;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
@@ -1368,9 +1369,9 @@ impl GameState {
     /// **The performer for `GameAction::EnterBattlefield`** (CR 614.1c/d).
     ///
     /// Creates a `PermanentState` for the object, applies the `mods` the
-    /// CR 616.1 loop settled on, and announces the arrival. Returns a mutable
-    /// reference to the inserted entry so callers can tweak fields without a
-    /// second lookup.
+    /// CR 616.1 loop settled on, and announces the arrival, caused by
+    /// `cause`. Returns a mutable reference to the inserted entry so callers
+    /// can tweak fields without a second lookup.
     ///
     /// **Not the entry point.** Engine code proposes an entry with
     /// [`GameState::propose_entry`], which routes through `execute_actions` so
@@ -1386,11 +1387,12 @@ impl GameState {
     /// `register_static_effects` comes after, because CR 613.7a timestamps
     /// what it registers off the entry that now exists and it files the
     /// abilities of what the permanent entered as.
-    pub fn place_on_battlefield(
+    pub(crate) fn perform_entry(
         &mut self,
         id: ObjectId,
         controller: PlayerId,
         mods: &EnterMods,
+        cause: EventCause,
     ) -> &mut PermanentState {
         self.make_permanent(id, controller, mods, self.turn_number);
 
@@ -1400,12 +1402,19 @@ impl GameState {
         // anything can look.
         let effective = crate::oracle::characteristics::get_effective_controller(self, id)
             .unwrap_or(controller);
-        self.emit_event(crate::events::event::GameEvent::PermanentEnteredBattlefield {
-            object_id: id,
-            controller: effective,
-        });
+        self.emit_event_caused(
+            crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
+            cause,
+        );
 
         self.battlefield.get_mut(&id).unwrap()
+    }
+
+    /// A test or tool putting a permanent onto the battlefield directly:
+    /// [`Self::perform_entry`], caused by the harness.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn place_on_battlefield(&mut self, id: ObjectId, controller: PlayerId, mods: &EnterMods) -> &mut PermanentState {
+        self.perform_entry(id, controller, mods, crate::events::cause::EventCause::Harness)
     }
 
     /// The state half of an entry: `id` becomes a permanent under

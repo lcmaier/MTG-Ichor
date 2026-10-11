@@ -225,7 +225,7 @@ fn test_type_change_expires_at_cleanup() {
     // Six positions from the precombat main phase: nothing attacked, so
     // CR 508.8's three combat steps are refused at the proposal site.
     for _ in 0..6 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     // Effect should be gone — back to just Creature
@@ -565,7 +565,7 @@ fn test_activating_blood_mooned_land_produces_red() {
 
     // Activate it by the id the enumeration handed out. This is the step that
     // fails if intrinsic ability ids aren't stable across compute calls.
-    game.activate_mana_ability(0, land_id, sources[0].ability_id, &test_ctx())
+    game.activate_mana_ability(0, land_id, sources[0].ability_id, &test_dp())
         .expect("intrinsic Mountain ability should be activatable");
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1);
@@ -867,7 +867,7 @@ fn test_sol_ring_under_march_is_a_one_one_that_still_taps_for_mana() {
 
     let abilities = get_effective_abilities(&game, sol_ring);
     assert_eq!(abilities.len(), 1, "March grants no ability, only types and P/T");
-    game.activate_mana_ability(0, sol_ring, abilities[0].id, &test_ctx())
+    game.activate_mana_ability(0, sol_ring, abilities[0].id, &test_dp())
         .expect("an animated mana rock still taps for mana");
     assert_eq!(
         game.players[0].mana_pool.amount(ManaType::Colorless),
@@ -916,7 +916,7 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
     // why a turn-one Sol Ring is a turn-one Sol Ring.
     assert!(!is_creature(&game, spent));
     let ability_id = get_effective_abilities(&game, spent)[0].id;
-    game.activate_mana_ability(0, spent, ability_id, &test_ctx())
+    game.activate_mana_ability(0, spent, ability_id, &test_dp())
         .expect("a noncreature artifact is not subject to summoning sickness");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 
@@ -932,7 +932,7 @@ fn test_march_takes_the_mana_ability_off_a_sol_ring_that_entered_this_turn() {
     assert!(has_summoning_sickness(&game, held));
 
     let err = game
-        .activate_mana_ability(0, held, held_ability, &test_ctx())
+        .activate_mana_ability(0, held, held_ability, &test_dp())
         .expect_err("its controller has not had it since their turn began");
     assert!(
         err.contains("summoning sickness"),
@@ -972,7 +972,7 @@ fn test_haste_lets_a_freshly_animated_sol_ring_tap_the_turn_it_arrived() {
     );
 
     let ability_id = get_effective_abilities(&game, ring)[0].id;
-    game.activate_mana_ability(0, ring, ability_id, &test_ctx())
+    game.activate_mana_ability(0, ring, ability_id, &test_dp())
         .expect("haste answers the only objection");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 }
@@ -1009,7 +1009,7 @@ fn test_a_sol_ring_from_an_earlier_turn_taps_the_moment_march_animates_it() {
     );
 
     let ability_id = get_effective_abilities(&game, ring)[0].id;
-    game.activate_mana_ability(0, ring, ability_id, &test_ctx())
+    game.activate_mana_ability(0, ring, ability_id, &test_dp())
         .expect("continuous control since before this turn began");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 2);
 }

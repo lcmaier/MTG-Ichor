@@ -2117,7 +2117,7 @@ read at dispatch and never later, since the outermost dispatch flushes it
 | `resolve.rs` `Primitive::GainControl` | writes the Layer 2 row | unchanged — the sweep detects it | TR-4 |
 | `ui/choice_types.rs`, `ui/ask.rs`, `ui/cli.rs`, `trace_records.rs`, `sba.rs` | five exhaustive `ChoiceKind` matches in `src`, four test files | one arm each per new kind (§9) | per phase |
 | `ui/display.rs::format_event` | 34 arms | −3, +4, one renamed | TR-1, TR-4, TR-5 |
-| `fuzz_games` | reads `EventStamp::resolution` for casts | a `Triggers placed` row and an `AbilityTriggered` count in `--dump-events` | TR-1 |
+| `fuzz_games` | reads the record's resolution (`EventRecord::resolution`) for casts | a `Triggers placed` row and an `AbilityTriggered` count in `--dump-events` | TR-1 |
 
 ---
 

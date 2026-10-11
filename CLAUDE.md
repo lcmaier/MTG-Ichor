@@ -74,8 +74,8 @@ off the object's own effective ability list at layers 4, 5 and 7a; registering o
 invisible to CR 614 no matter how loudly it is *emitted* — the pipeline reads the proposal, not
 the event. Propose with `execute_action` / `change_zone`.
 
-- **`ZoneChange` carries a `ZoneChangeAct`, and there is no catchall.** Every mover names what it
-  did; only the replacement pipeline and the trigger matcher may branch on `act`.
+- **A `ZoneChange` names its `ZoneChangeAct` and every proposal its `EventCause`; no catchall.** Only
+  the pipeline and the trigger matcher branch on `act`; outside a batch an emitter names its cause.
 - **Performers are loud; callers check legality.** That makes CR 608.2b's partial resolution
   the *caller's* job — see `Primitive::Untap`/`Destroy`.
 - **"Becomes" events fire on the transition only (CR 603.2e).** A redundant tap announces nothing.

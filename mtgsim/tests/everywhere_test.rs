@@ -12,7 +12,7 @@ use mtgsim::cards::phase_ld_cards::blood_moon;
 use mtgsim::cards::dual_lands::everywhere;
 use mtgsim::oracle::characteristics::get_effective_subtypes;
 use mtgsim::oracle::mana_supply::available_mana_sources;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
 use mtgsim::types::card_types::{LandType, Subtype};
 use mtgsim::types::mana::ManaType;
 
@@ -51,14 +51,14 @@ fn test_everywhere_offers_each_of_the_five_colors_and_taps_for_one() {
     // Tap it for black. One activation taps the land, so the other four
     // abilities are spent with it — it is one land, not five.
     let (_, black) = sources[0];
-    game.activate_mana_ability(0, land, black, &test_ctx()).expect("black is offered");
+    game.activate_mana_ability(0, land, black, &test_dp()).expect("black is offered");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 1);
     assert_eq!(game.players[0].mana_pool.total(), 1);
     assert!(game.battlefield.get(&land).unwrap().tapped);
 
     let (_, blue) = sources[1];
     assert!(
-        game.activate_mana_ability(0, land, blue, &test_ctx()).is_err(),
+        game.activate_mana_ability(0, land, blue, &test_dp()).is_err(),
         "a tapped land cannot pay {{T}} again"
     );
     assert!(offered(&game, land).is_empty(), "nothing left to offer once tapped");
@@ -71,7 +71,7 @@ fn test_everywhere_enters_untapped_when_played() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, everywhere(), 0);
 
-    game.play_land(0, land, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, land, &test_dp()).expect("the land drop is legal");
 
     assert!(
         !game.battlefield.get(&land).unwrap().tapped,
@@ -99,7 +99,7 @@ fn test_blood_moon_makes_everywhere_a_mountain_that_taps_for_red_only() {
     let (produces, red) = sources[0];
     assert_eq!(produces, ManaType::Red);
 
-    game.activate_mana_ability(0, land, red, &test_ctx())
+    game.activate_mana_ability(0, land, red, &test_dp())
         .expect("the intrinsic Mountain ability is activatable by the id enumerated");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 1);
     assert_eq!(game.players[0].mana_pool.total(), 1);

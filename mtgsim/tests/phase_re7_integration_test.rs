@@ -24,8 +24,7 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield,
-    put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_ctx,
-    test_dp, vanilla_creature, RecordingDecisionProvider,
+    put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -86,6 +85,7 @@ fn resolve_with(
         source,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -231,7 +231,7 @@ fn bear_token() -> TokenDef {
 
 /// Wind the turn on to the next unit — the drainer returns when one begins.
 fn advance(game: &mut GameState) {
-    game.advance_turn(&test_ctx()).expect("advancing the turn");
+    game.advance_turn(&test_dp()).expect("advancing the turn");
 }
 
 // ---------------------------------------------------------------------------

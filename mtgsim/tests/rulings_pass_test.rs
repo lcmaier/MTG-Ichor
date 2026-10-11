@@ -144,6 +144,7 @@ fn cytoshape_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
         source: source_id,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,

@@ -4,6 +4,7 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
+use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, LossReason, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
@@ -47,6 +48,10 @@ pub struct ResolutionContext {
     pub ability_source: Option<ObjectRef>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
+    /// What generated the effect this resolution is (CR 113.3, 122.1): what
+    /// "triggered abilities you control can't cause" and "a white instant or
+    /// sorcery spell causes" read off its cause.
+    pub generated_by: GeneratedBy,
     /// What each instance of "target" holds **after** CR 608.2b's re-check —
     /// the survivors, not the announcement. An instance every one of whose
     /// targets went illegal is empty here, and the atom that reads it does
@@ -84,11 +89,12 @@ impl ResolutionContext {
     /// The two CR 615.5 numbers are one optional thing wearing two `Option`s;
     /// the type-side fix is a single `rider: Option<RiderAmounts>`, a 48-site
     /// sweep and its own PR (`codebase-state.md` "Found by RE-9", item 137).
-    pub fn untargeted(source: ObjectId, controller: PlayerId) -> Self {
+    pub fn untargeted(source: ObjectId, controller: PlayerId, generated_by: GeneratedBy) -> Self {
         ResolutionContext {
             source,
             ability_source: None,
             controller,
+            generated_by,
             targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
@@ -104,9 +110,14 @@ impl ResolutionContext {
         self.ability_source.map_or(self.source, |r| r.id)
     }
 
-    /// What every event this resolution performs is stamped with.
+    /// Which resolution this is, as its effect's records name it.
     pub fn stamp(&self) -> ResolutionStamp {
         ResolutionStamp { source: self.source, controller: self.controller }
+    }
+
+    /// What every event this resolution proposes is caused by: its effect.
+    pub fn cause(&self) -> EventCause {
+        EventCause::Effect { resolution: self.stamp(), generated_by: self.generated_by }
     }
 }
 
@@ -768,7 +779,7 @@ impl GameState {
                 }
                 self.execute_actions(batch, &actx)?;
                 let returns = self.exiled_since(ctx.stamp(), mark);
-                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller);
+                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller, ctx.cause());
                 Ok(())
             }
 
@@ -818,6 +829,7 @@ impl GameState {
                     x_value: resolving.and_then(|r| r.x_value),
                     turn,
                     resolution,
+                    cause: ctx.cause(),
                 };
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
@@ -885,11 +897,12 @@ impl GameState {
                             && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
                         {
                             self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, &actx)?;
-                            self.emit_event(crate::events::event::GameEvent::SpellCountered {
+                            let countered = crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 controller,
                                 countered_by: ctx.source,
-                            });
+                            };
+                            self.emit_event_caused(countered, actx.cause);
                         }
                     }
                 }
@@ -911,11 +924,12 @@ impl GameState {
                         if let Some(entry) = entry
                             && let Some(identity) = entry.ability_identity
                         {
-                            self.emit_event(crate::events::event::GameEvent::AbilityCountered {
+                            let countered = crate::events::event::GameEvent::AbilityCountered {
                                 identity,
                                 controller: entry.controller,
                                 countered_by: ctx.source,
-                            });
+                            };
+                            self.emit_event_caused(countered, actx.cause);
                         }
                     }
                 }
@@ -1271,6 +1285,7 @@ impl GameState {
                         id: 0,
                         source: ctx.effect_source(),
                         controller,
+                        generated_by: ctx.generated_by,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
                         targets: recorded.clone(),
@@ -1416,6 +1431,7 @@ impl GameState {
                         id: 0,
                         source,
                         controller: ctx.controller,
+                        generated_by: ctx.generated_by,
                         duration: *duration,
                         created_on_turn: self.turn_number,
                         targets: recorded.clone(),
@@ -1669,7 +1685,7 @@ impl GameState {
                         ReturnUnder::Owner => self.get_object(object)?.owner,
                         ReturnUnder::You => ctx.controller,
                     };
-                    returns.push(Return { object, to: Zone::Battlefield, controller });
+                    returns.push(Return { object, to: Zone::Battlefield, controller, cause: actx.cause });
                 }
                 self.return_objects(&returns, &actx)
             }
@@ -2308,7 +2324,7 @@ impl GameState {
                 self,
                 &crate::engine::restriction::Query::Event {
                     action: &action,
-                    cause: Some(ctx.controller),
+                    cause: ctx.cause(),
                     lookahead: None,
                 },
             ),
@@ -2760,6 +2776,7 @@ mod tests {
             source,
             ability_source: None,
             controller: 0,
+            generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::one(targets),
             replaced_amount: None,
             damage_prevented: None,

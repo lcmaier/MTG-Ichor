@@ -179,7 +179,7 @@ fn circle_of_protection_red_prevents_an_abilitys_damage_from_the_chosen_permanen
     let pinger = put_on_battlefield(&mut game, pinger(), 1);
     let circle_card = circle_of_protection_red();
     let circle = put_on_battlefield(&mut game, circle_card.clone(), 0);
-    let ctx = ResolutionContext { ability_source: game.object_ref(circle), ..ResolutionContext::untargeted(circle, 0) };
+    let ctx = ResolutionContext { ability_source: game.object_ref(circle), ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell) };
     game.resolve_effect(&circle_card.abilities[0].effect, &ctx, &RecordingDecisionProvider::picking(0)).unwrap();
     let chosen = game.replacement_effects.iter().find_map(|row| match &row.def.pattern {
         EventPattern::DealDamage { source: Some(pattern), .. } => pattern.object,
@@ -256,7 +256,7 @@ fn to_the_end_step(game: &mut GameState) {
         fill_library(game, p, 10);
     }
     for _ in 0..20 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == 0 && game.phase.step == Some(StepType::End) {
             game.perform_sba_and_triggers(&test_dp()).unwrap();
             return;
@@ -359,6 +359,7 @@ fn shield_around(game: &mut GameState, player: PlayerId, def: ReplacementDef) {
         id: 0,
         source: anchor,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
         created_on_turn: turn,
         targets: Vec::new(),

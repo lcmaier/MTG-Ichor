@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::resolve::ResolutionContext;
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
+use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
+use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -20,7 +21,7 @@ use crate::ui::decision::DecisionProvider;
 /// The definition lives in `types::zones`, alongside `Zone`, which
 /// is the vocabulary it qualifies. The mover is `EventPattern::ZoneChange`:
 /// a replacement effect watching "would be put into a graveyard from the
-/// battlefield" has to name the cause, `EventPattern` lives in `types`, and
+/// battlefield" has to name the act, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
 pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeAct};
 
@@ -37,48 +38,84 @@ pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneC
 /// both pools at two seats and four, 2026-09-13.
 const BATCH_NESTING_LIMIT: usize = 32;
 
-/// Who is asking for a mutation, and what resolution it belongs to.
+/// Who is asking for a mutation, and what caused it.
 ///
 /// `execute_action` has no `DecisionProvider` of its own, and CR 616.1 needs
 /// one: when two or more replacement effects want the same event, *the affected
 /// object's controller* chooses which to apply — not the controller of the
 /// effect. Rather than thread a bare `&dyn DecisionProvider`, this carries the
-/// second thing the pipeline will want, so the plumbing is paid for once.
-///
-/// `apply_replacements` reads both:
+/// second thing the pipeline wants, so the plumbing is paid for once.
 ///
 /// - `dp` answers the CR 616.1 ordering prompt.
-/// - `resolution` is where CR 614.15 self-replacement effects live (they belong
-///   to the resolving spell or ability, not to any registry), and it is what
-///   stamps every emitted `GameEvent` with the resolution that caused it.
+/// - `cause` is what a "can't" and a replacement effect ask of the proposal
+///   ("a spell or ability an opponent controls causes"), and what the batch
+///   stamps on every record it emits (`replacement-architecture.md` §2b.3).
+///
+/// One constructor per kind of cause, so a proposal says what caused it where
+/// it is made. An entry point that starts a rule's action — a turn's units, a
+/// land play, the state-based check, combat damage, a cast, an activation —
+/// builds its own for each action it takes and takes only the provider from
+/// its caller, whose cause would be the wrong one.
 pub struct ActionContext<'a> {
     pub dp: &'a dyn DecisionProvider,
-    pub resolution: Option<&'a ResolutionContext>,
+    pub cause: EventCause,
 }
 
 impl<'a> ActionContext<'a> {
-    /// A mutation that belongs to no resolution: a turn-based action, a
-    /// state-based action, cost payment, combat damage.
+    /// A test or a tool moving objects directly (`EventCause::Harness`). Not
+    /// compiled for the engine, so production cannot fall back to it.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn new(dp: &'a dyn DecisionProvider) -> Self {
-        ActionContext { dp, resolution: None }
+        ActionContext { dp, cause: EventCause::Harness }
     }
 
-    /// A mutation proposed by a resolving spell or ability.
-    pub fn resolving(dp: &'a dyn DecisionProvider, resolution: &'a ResolutionContext) -> Self {
-        ActionContext { dp, resolution: Some(resolution) }
+    /// A mutation proposed by a resolving spell or ability, a rider or a mana
+    /// ability: its effect (CR 609.1).
+    pub fn resolving(dp: &'a dyn DecisionProvider, resolution: &ResolutionContext) -> Self {
+        ActionContext { dp, cause: resolution.cause() }
     }
 
-    /// The resolution to stamp onto every event this proposal emits.
-    ///
-    /// Drops the targets: an event log wants to know *which resolution* caused a
-    /// mutation, and the resolving object's id answers that. **That is a
-    /// property of this engine, not a rule** — a cast produces one stack object
-    /// and `activate_ability` mints a fresh ephemeral one per activation, each
-    /// with its own `ObjectId`, and CR 608.2n destroys the ability's object
-    /// rather than recycling it. Carrying the target list would copy it onto
-    /// every event for no reader.
-    pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
-        self.resolution.map(ResolutionContext::stamp)
+    /// A cost `player` pays for the spell or the ability's source `paying_for`
+    /// (CR 601.2h, 602.2b).
+    pub fn paying_cost(dp: &'a dyn DecisionProvider, player: PlayerId, paying_for: ObjectId) -> Self {
+        ActionContext { dp, cause: EventCause::Cost { player, paying_for } }
+    }
+
+    /// `player` casting a spell (CR 601.2).
+    pub fn casting(dp: &'a dyn DecisionProvider, player: PlayerId) -> Self {
+        ActionContext { dp, cause: EventCause::Casting(player) }
+    }
+
+    /// `player` activating an ability (CR 602.2).
+    pub fn activating(dp: &'a dyn DecisionProvider, player: PlayerId) -> Self {
+        ActionContext { dp, cause: EventCause::Activating(player) }
+    }
+
+    /// `player` taking a special action (CR 116).
+    pub fn special_action(dp: &'a dyn DecisionProvider, player: PlayerId, action: SpecialAction) -> Self {
+        ActionContext { dp, cause: EventCause::SpecialAction { player, action } }
+    }
+
+    /// A turn-based action (CR 703.4).
+    pub fn turn_based(dp: &'a dyn DecisionProvider, action: TurnBasedAction) -> Self {
+        ActionContext { dp, cause: EventCause::TurnBasedAction(action) }
+    }
+
+    /// A state-based action (CR 704.5, 704.6).
+    pub fn state_based(dp: &'a dyn DecisionProvider, action: StateBasedAction) -> Self {
+        ActionContext { dp, cause: EventCause::StateBasedAction(action) }
+    }
+
+    /// A rule acting with no action taken.
+    pub fn game_rule(dp: &'a dyn DecisionProvider, rule: GameRule) -> Self {
+        ActionContext { dp, cause: EventCause::GameRule(rule) }
+    }
+
+    /// The same provider with another cause: a batch member whose cause is its
+    /// own (CR 704.3's one event of several rules), or an effect a replacement
+    /// generates while the event it replaces is decided (CR 614.13).
+    pub(crate) fn caused_by(&self, cause: EventCause) -> ActionContext<'a> {
+        ActionContext { dp: self.dp, cause }
     }
 }
 
@@ -661,8 +698,33 @@ impl GameState {
         batch: Vec<GameAction>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
+        self.execute_batch(batch, None, ctx)
+    }
+
+    /// [`Self::execute_actions`] for one event whose members have causes of
+    /// their own, each decided and stamped with its member: CR 704.3's
+    /// state-based actions, each its own rule's (CR 704.5, 704.6), and CR
+    /// 610.3d's returns, each its own exile's effect. `ctx` is the event's,
+    /// between its members.
+    pub(crate) fn execute_caused_actions(
+        &mut self,
+        members: Vec<(GameAction, EventCause)>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        let (batch, causes) = members.into_iter().unzip();
+        self.execute_batch(batch, Some(causes), ctx)
+    }
+
+    /// [`Self::execute_actions`]' body; `own_causes` is each member's cause
+    /// where they differ (CR 704.3), and `None` where every member is `ctx`'s.
+    fn execute_batch(
+        &mut self,
+        batch: Vec<GameAction>,
+        own_causes: Option<Vec<EventCause>>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        let previous = self.events.open_batch(ctx.cause);
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
@@ -676,7 +738,7 @@ impl GameState {
         // the inherited set — would be asked across two lineages at once.
         let outer_depth = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, ctx, inherited);
+        let result = self.execute_batch_inner(batch, own_causes, ctx, inherited);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
@@ -747,10 +809,10 @@ impl GameState {
             self.nesting.decomposition_depth,
             inherited.len()
         );
-        let previous = self.events.open_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
+        let previous = self.events.open_batch(ctx.cause);
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, ctx, inherited);
+        let result = self.execute_batch_inner(batch, None, ctx, inherited);
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
@@ -779,12 +841,12 @@ impl GameState {
         batch: Vec<GameAction>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_new_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
+        let previous = self.events.open_new_batch(ctx.cause);
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
+        let result = self.execute_batch_inner(batch, None, ctx, &HashSet::new());
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
@@ -826,6 +888,7 @@ impl GameState {
     fn execute_batch_inner(
         &mut self,
         batch: Vec<GameAction>,
+        own_causes: Option<Vec<EventCause>>,
         ctx: &ActionContext,
         inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
@@ -834,9 +897,24 @@ impl GameState {
 
         // CR 111.8 — a token that has left the battlefield "remains in its
         // current zone instead" of moving again. A rule, so no event: nothing
-        // is proposed, and no replacement sees it.
-        let mut batch = batch;
-        batch.retain(|action| !self.moves_a_token_not_on_the_battlefield(action));
+        // is proposed, and no replacement sees it. A member's own cause goes
+        // with it.
+        let (batch, own_causes) = match own_causes {
+            None => {
+                let mut batch = batch;
+                batch.retain(|action| !self.moves_a_token_not_on_the_battlefield(action));
+                (batch, None)
+            }
+            Some(causes) => {
+                let (batch, causes): (Vec<GameAction>, Vec<EventCause>) = batch
+                    .into_iter()
+                    .zip(causes)
+                    .filter(|(action, _)| !self.moves_a_token_not_on_the_battlefield(action))
+                    .unzip();
+                (batch, Some(causes))
+            }
+        };
+        let cause_of_member = |i: usize| own_causes.as_ref().map_or(ctx.cause, |causes| causes[i]);
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -921,7 +999,11 @@ impl GameState {
                 .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
                 .collect();
             let riders_before = riders.len();
-            match apply_replacements(self, members, &later, ctx, inherited, &mut riders) {
+            // A group is one subject's, and where members name their own causes
+            // CR 704.7's dedupe left one member per subject, so the group's cause
+            // is its member's.
+            let group_ctx = ctx.caused_by(groups[g].1.first().map_or(ctx.cause, |&i| cause_of_member(i)));
+            match apply_replacements(self, members, &later, &group_ctx, inherited, &mut riders) {
                 Ok((results, applied)) => {
                     // CR 614.5 — the riders this group queued are the rest of
                     // its replacements' effects, and carry everything that
@@ -982,7 +1064,12 @@ impl GameState {
         let mut lifelink_gains = Vec::new();
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
-            if let Err(e) = self.perform_action(action.clone(), ctx, &applied_to[i]) {
+            // Each member performs under its own cause, which its records carry.
+            let member_ctx = ctx.caused_by(cause_of_member(i));
+            let outer = self.events.restamp_cause(member_ctx.cause);
+            let result = self.perform_action(action.clone(), &member_ctx, &applied_to[i]);
+            self.events.close_batch(outer);
+            if let Err(e) = result {
                 performed_ok = Err(e);
                 break;
             }
@@ -1007,7 +1094,7 @@ impl GameState {
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
-        let window = self.events.current_stamp().batch;
+        let window = self.events.current_batch();
         let performed_range = performed_from..self.events.next_seq().0;
         if let Some(frames) = snapshot {
             self.look_back_snapshots.push(crate::engine::triggers::LookBackSnapshot {
@@ -1094,6 +1181,7 @@ impl GameState {
             source: rider.source,
             ability_source: None,
             controller: rider.controller,
+            generated_by: rider.generated_by,
             // CR 615.5's rider acts on the replaced event's subject, which is
             // one thing and therefore one instance.
             targets: crate::engine::targeting::ChosenTargets::one(vec![match rider.subject {
@@ -1156,7 +1244,7 @@ impl GameState {
     fn perform_action(
         &mut self,
         action: GameAction,
-        _ctx: &ActionContext,
+        ctx: &ActionContext,
         lineage: &HashSet<ReplacementInstanceId>,
     ) -> Result<(), String> {
         match action {
@@ -1217,7 +1305,7 @@ impl GameState {
                     target,
                     amount,
                     is_combat,
-                });
+                })?;
 
                 // CR 120.3a — **a contained proposal, not a subtraction**, in this
                 // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
@@ -1231,7 +1319,7 @@ impl GameState {
                             amount,
                             cause: LifeLossCause::Damage { source },
                         },
-                        _ctx,
+                        ctx,
                     )?;
                 }
 
@@ -1245,7 +1333,7 @@ impl GameState {
                             counter: CounterType::Loyalty,
                             n: amount as u32,
                         },
-                        _ctx,
+                        ctx,
                     )?;
                 }
 
@@ -1267,7 +1355,7 @@ impl GameState {
                             // means once a doubler has applied to the draw step's draw.
                             cause: if i == 0 { cause } else { DrawCause::Effect },
                         }],
-                        _ctx,
+                        ctx,
                         lineage,
                     )?;
                 }
@@ -1279,7 +1367,7 @@ impl GameState {
                 // (CR 121.6a) and proposes the library→hand move through
                 // `change_zone` — so the move is a nested batch member, not a
                 // second emitter.
-                self.draw_card(player, _ctx)?;
+                self.draw_card(player, ctx)?;
                 Ok(())
             }
 
@@ -1297,7 +1385,7 @@ impl GameState {
                     new: new_life,
                     source: Some(source),
                     cause: None,
-                });
+                })?;
 
                 Ok(())
             }
@@ -1324,7 +1412,7 @@ impl GameState {
                         LifeLossCause::Effect | LifeLossCause::Cost => None,
                     },
                     cause: Some(cause),
-                });
+                })?;
 
                 Ok(())
             }
@@ -1342,7 +1430,7 @@ impl GameState {
                         from, object
                     ));
                 }
-                self.perform_zone_change(object, from, to, act)
+                self.perform_zone_change(object, from, to, act, ctx.cause)
             }
 
             GameAction::Untap { object } => {
@@ -1358,7 +1446,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
-                self.emit_event(GameEvent::Untapped { object_id: object });
+                self.emit_event(GameEvent::Untapped { object_id: object })?;
                 Ok(())
             }
 
@@ -1377,7 +1465,7 @@ impl GameState {
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host });
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host })?;
                 }
                 Ok(())
             }
@@ -1392,7 +1480,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
-                self.emit_event(GameEvent::Tapped { object_id: object });
+                self.emit_event(GameEvent::Tapped { object_id: object })?;
                 Ok(())
             }
 
@@ -1420,7 +1508,7 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 });
+                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 })?;
                 Ok(())
             }
 
@@ -1452,7 +1540,7 @@ impl GameState {
                     subject,
                     counter,
                     added: -(removed as i32),
-                });
+                })?;
                 Ok(())
             }
 
@@ -1478,14 +1566,14 @@ impl GameState {
                         to: Zone::Graveyard,
                         act: source.zone_change_cause(),
                     },
-                    _ctx,
+                    ctx,
                 )?;
                 Ok(())
             }
 
             // CR 614.1c/d's event, and the zone change that entering is. The
             // move is `perform_zone_change`'s; the entity and the entry's
-            // announcement are `place_on_battlefield`'s, the only emitter of
+            // announcement are `perform_entry`'s, the only emitter of
             // `GameEvent::PermanentEnteredBattlefield`.
             GameAction::EnterBattlefield { object, from, controller, mods, act } => {
                 match (from, act) {
@@ -1495,32 +1583,32 @@ impl GameState {
                             object
                         ));
                     }
-                    (Some(from), Some(cause)) => {
-                        self.perform_zone_change(object, from, Zone::Battlefield, cause)?;
+                    (Some(from), Some(act)) => {
+                        self.perform_zone_change(object, from, Zone::Battlefield, act, ctx.cause)?;
                     }
                     // A token: created in the zone, so there is no move to
                     // perform (`create_tokens`). What there is to announce is
                     // CR 111.2's first sentence — the token is created — and
-                    // its second is `place_on_battlefield`'s.
+                    // its second is `perform_entry`'s.
                     (None, None) => {
                         self.announce_token_created(object, Zone::Battlefield)?;
                     }
-                    (from, cause) => {
+                    (from, act) => {
                         return Err(format!(
-                            "entry of {} names from={:?} and cause={:?}; a move has both and a \
+                            "entry of {} names from={:?} and act={:?}; a move has both and a \
                              token has neither",
-                            object, from, cause
+                            object, from, act
                         ));
                     }
                 }
-                self.place_on_battlefield(object, controller, &mods);
+                self.perform_entry(object, controller, &mods, ctx.cause);
                 Ok(())
             }
 
             // CR 111 / 701.7a — the outer event. The objects, then every
             // entry as one contained batch; `create_tokens` says why.
             GameAction::CreateTokens { defs, controller } => {
-                self.create_tokens(&defs, controller, _ctx)
+                self.create_tokens(&defs, controller, ctx)
             }
 
             // The substituted form of a token's entry: an appearance in a
@@ -1544,7 +1632,7 @@ impl GameState {
                 self.begin_turn(turn, player);
                 self.extra_turn = extra_turn;
                 self.priority_player = player;
-                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn });
+                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn })?;
                 Ok(())
             }
 
@@ -1553,13 +1641,13 @@ impl GameState {
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.emit_event(GameEvent::PhaseBegin { phase, player });
+                self.emit_event(GameEvent::PhaseBegin { phase, player })?;
                 Ok(())
             }
 
             GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
-                self.emit_event(GameEvent::StepBegin { step, player });
+                self.emit_event(GameEvent::StepBegin { step, player })?;
                 Ok(())
             }
 
@@ -1574,8 +1662,8 @@ impl GameState {
                 // first, are its tail reversed.
                 let looked_at: Vec<ObjectId> =
                     library.iter().rev().take(k).copied().collect();
-                let source = _ctx.resolution.map(|r| r.source);
-                let (top, bottom) = ask_scry(_ctx.dp, self, player, &looked_at, n, source);
+                let source = ctx.cause.resolution().map(|r| r.source);
+                let (top, bottom) = ask_scry(ctx.dp, self, player, &looked_at, n, source);
 
                 // Rebuilt rather than rotated, since each group may have been reordered.
                 // Bottom-most first is the vector's direction, so each group goes in
@@ -1596,7 +1684,7 @@ impl GameState {
                     player_id: player,
                     n,
                     looked_at: k as u64,
-                });
+                })?;
                 Ok(())
             }
 
@@ -1606,7 +1694,7 @@ impl GameState {
             GameAction::ShuffleLibrary { player } => {
                 self.get_player(player)?;
                 self.shuffle_library(player);
-                self.emit_event(GameEvent::LibraryShuffled { player_id: player });
+                self.emit_event(GameEvent::LibraryShuffled { player_id: player })?;
                 Ok(())
             }
 
@@ -1624,12 +1712,12 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player, reason });
+                self.emit_event(GameEvent::PlayerLost { player_id: player, reason })?;
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of
                 // the departure, so its nested batch joins this one (§4.2).
-                self.player_left_the_game(player, _ctx)
+                self.player_left_the_game(player, ctx.dp)
             }
 
             // CR 104.1 — "immediately". Recorded here and read by everything that
@@ -1643,7 +1731,7 @@ impl GameState {
                 if self.result.is_none() {
                     self.result = Some(GameResult::Winner(player));
                 }
-                self.emit_event(GameEvent::PlayerWon { player_id: player });
+                self.emit_event(GameEvent::PlayerWon { player_id: player })?;
                 Ok(())
             }
 
@@ -1681,7 +1769,7 @@ impl GameState {
                     source_id: source,
                     mana: announced,
                     tapped_for_mana,
-                });
+                })?;
                 Ok(())
             }
         }
@@ -1700,6 +1788,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         act: ZoneChangeAct,
+        cause: EventCause,
     ) -> Result<(), String> {
         // Loud: the proposal describes a board, and performing it against a
         // different one is a caller bug. The pipeline matches on `from`, so a
@@ -1728,7 +1817,7 @@ impl GameState {
         self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, act, lki)
+        self.announce_zone_change(object, from, to, act, lki, cause)
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -1736,6 +1825,9 @@ impl GameState {
     /// the `ZoneChange` and `EnterBattlefield` arms, and `cast_spell` at
     /// CR 601.2i for the move it made silently at 601.2a — the moment the spell
     /// becomes cast, which is the first moment that move is an event.
+    ///
+    /// `cause` is named rather than read off the open batch, because the
+    /// CR 601.2i announcement is made outside every batch.
     pub(crate) fn announce_zone_change(
         &mut self,
         object: ObjectId,
@@ -1743,9 +1835,10 @@ impl GameState {
         to: Zone,
         act: ZoneChangeAct,
         lki: Option<Lki>,
+        cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki });
+        self.emit_event_caused(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki }, cause);
         Ok(())
     }
 
@@ -1760,8 +1853,7 @@ impl GameState {
         zone: Zone,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone });
-        Ok(())
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone })
     }
 
     /// CR 614.1c's entry as a proposal, or `None` where a rule refuses it
@@ -1882,7 +1974,7 @@ impl GameState {
             // CR 111.2 — a token's owner is the controller of the effect that created
             // it, and `is_token` (CR 111.1) is what CR 704.5d and `ObjectFilter::Token`
             // read. Both set before it reaches the battlefield, since
-            // `register_static_effects` runs inside `place_on_battlefield`.
+            // `register_static_effects` runs inside `perform_entry`.
             let mut obj = GameObject::new(data, controller, Zone::Battlefield);
             obj.is_token = true;
             let id = self.add_object(obj);

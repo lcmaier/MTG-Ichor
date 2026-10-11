@@ -31,7 +31,7 @@ use crate::types::replacement::EnterMods;
 /// with it. Nothing here is written back anywhere.
 pub struct Lookahead {
     pub object: ObjectId,
-    /// The entity `place_on_battlefield` would build, from the one
+    /// The entity `perform_entry` would build, from the one
     /// constructor both call (`PermanentState::entering`), out of the pending
     /// `EnterMods` — CR 614.12 clause (1).
     pub(super) entity: PermanentState,
@@ -56,7 +56,7 @@ impl Lookahead {
     /// `object` as it would exist on the battlefield under `controller`, having
     /// entered with `mods`.
     pub fn new(game: &GameState, object: ObjectId, controller: PlayerId, mods: &EnterMods) -> Self {
-        // Timestamps as the move and `place_on_battlefield` would allocate
+        // Timestamps as the move and `perform_entry` would allocate
         // them — the entity's, then one per counter row in `mods` order — read
         // off `next_timestamp` without advancing it. Only the order matters:
         // later than every registered row, which is where CR 613.7a puts an

@@ -46,7 +46,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::compute_characteristics;
-use crate::events::event::{GameEvent, NamesAsAnnounced};
+use crate::events::cause::EventCause;
+use crate::events::event::{EventStamp, GameEvent, NamesAsAnnounced};
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 
@@ -834,52 +835,56 @@ impl GameState {
         }
     }
 
-    /// Record and log a performed event — the one door every emitter uses.
+    /// Record and log a performed event into the open batch, stamped with its
+    /// cause — the door every performer uses. Outside every batch there is no
+    /// cause to stamp, so this refuses rather than guess one.
     ///
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
-    pub(crate) fn emit_event(&mut self, event: GameEvent) {
-        self.emit_record(event, false, None);
+    pub(crate) fn emit_event(&mut self, event: GameEvent) -> Result<(), String> {
+        let stamp = self.events.batch_stamp(&event)?;
+        self.emit_record(event, stamp, None);
+        Ok(())
+    }
+
+    /// The same door for an emitter that names what caused its record: one
+    /// outside every batch (`replacement-architecture.md` §2b.3), a cast, an
+    /// activation, a declaration or a rule, and the CR 601.2i move.
+    pub(crate) fn emit_event_caused(&mut self, event: GameEvent, cause: EventCause) {
+        let stamp = self.events.stamp_caused_by(cause);
+        self.emit_record(event, stamp, None);
     }
 
     /// The same door for a record emitted outside any batch whose dispatch
     /// may have to ask a player something: `AttackersDeclared`, the one such
     /// record that can carry two occurrences of one arm, which CR 603.7b's
     /// choice for a delayed trigger asks between. The turn-based action that
-    /// emits it holds the provider.
+    /// emits it holds the provider, and its context names the cause.
     pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) {
-        self.emit_record(event, false, Some(ctx));
+        let stamp = self.events.stamp_caused_by(ctx.cause);
+        self.emit_record(event, stamp, Some(ctx));
     }
 
-    /// The same door for a record that carries no batch and no resolution
-    /// whatever is ambient — `GameEvent::AbilityTriggered`, a consequence of
-    /// an event rather than part of it (`triggers-architecture.md` §4.8).
-    pub(crate) fn emit_event_unstamped(&mut self, event: GameEvent) {
-        self.emit_record(event, true, None);
+    /// The same door for a record that joins no batch whatever is open —
+    /// `GameEvent::AbilityTriggered`, a consequence of an event rather than
+    /// part of it (`triggers-architecture.md` §4.8).
+    pub(crate) fn emit_event_unbatched(&mut self, event: GameEvent, cause: EventCause) {
+        self.emit_record(event, EventStamp { batch: None, cause }, None);
     }
 
-    fn emit_record(&mut self, event: GameEvent, unstamped: bool, ctx: Option<&ActionContext>) {
-        let stamp = if unstamped {
-            crate::events::event::EventStamp::default()
-        } else {
-            self.events.current_stamp()
-        };
+    fn emit_record(&mut self, event: GameEvent, stamp: EventStamp, ctx: Option<&ActionContext>) {
         let names = self.names_as_announced(&event);
         self.trace(|| {
             let mut r = Record::new(RecordKind::Event);
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
-            r.field_opt_u64("resolution", stamp.resolution.map(|s| s.source.raw()));
+            r.field_opt_u64("resolution", stamp.cause.resolution().map(|s| s.source.raw()));
             r.field_str("text", &crate::ui::display::format_event(self, &event, &names));
             r
         });
         let seq = self.events.next_seq();
-        if unstamped {
-            self.events.emit_unstamped(event, names);
-        } else {
-            self.events.emit_with_names(event, names);
-        }
+        self.events.push(event, stamp, names);
         // CR 603.2 — an event outside any batch is its own window, and the
         // matcher runs before this returns (§4.1). A batched record waits for
         // its batch's close in `execute_actions`.

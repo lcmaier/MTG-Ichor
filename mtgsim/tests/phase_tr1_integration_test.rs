@@ -152,6 +152,7 @@ fn resolve_effect_from(
         source,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -170,7 +171,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     }
     let ctx = test_ctx();
     for _ in 0..200 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -187,7 +188,7 @@ fn next_upkeep(game: &mut GameState) -> PlayerId {
     }
     let ctx = test_ctx();
     for _ in 0..200 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.phase.step == Some(StepType::Upkeep) {
             return game.active_player;
         }
@@ -1372,7 +1373,7 @@ fn wild_growth_adds_its_mana_at_once_without_the_stack() {
     assert!(game.attach(aura, land));
     let ability = forest().abilities[0].id;
 
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 2, "the land's {{G}} and the Aura's");
     assert_eq!(pending(&game), 0, "CR 605.4a — never queued");
@@ -1400,7 +1401,7 @@ fn wild_growths_mana_is_the_auras_and_does_not_tap_the_land_for_mana_again() {
         let aura = put_on_battlefield(&mut game, wild_growth(), 0);
         assert!(game.attach(aura, land));
     }
-    game.activate_mana_ability(0, land, forest().abilities[0].id, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, forest().abilities[0].id, &test_dp()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 3);
 }
 
@@ -1412,7 +1413,7 @@ fn wild_growth_adds_to_the_lands_controllers_pool() {
     let land = put_on_battlefield(&mut game, forest(), 1);
     let aura = put_on_battlefield(&mut game, wild_growth(), 0);
     assert!(game.attach(aura, land));
-    game.activate_mana_ability(1, land, forest().abilities[0].id, &test_ctx()).unwrap();
+    game.activate_mana_ability(1, land, forest().abilities[0].id, &test_dp()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Green), 2);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 0);
 }

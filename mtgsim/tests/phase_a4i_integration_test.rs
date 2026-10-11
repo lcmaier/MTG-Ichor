@@ -192,6 +192,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,

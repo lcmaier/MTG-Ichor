@@ -1,9 +1,11 @@
 use crate::engine::actions::{ActionContext, DrawCause, GameAction};
+use crate::events::cause::{GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
 use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
+use crate::ui::decision::DecisionProvider;
 
 /// Turn structure engine — CR 500, and CR 614.10's three replaceable units.
 ///
@@ -31,7 +33,7 @@ impl GameState {
     /// unit that began ends (CR 500.5).
     pub fn advance_turn(
         &mut self,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(PhaseType, Option<StepType>), String> {
         if let Some(step) = self.phase.step {
             self.on_step_end(step)?;
@@ -42,7 +44,7 @@ impl GameState {
             "the plan's cursor and the position disagree: a fixture wrote \
              `phase` without `GameState::set_turn_position`"
         );
-        self.drain(self.phase.step, true, true, ctx)
+        self.drain(self.phase.step, true, true, dp)
     }
 
     /// Begin the game's first turn, its beginning phase and its untap step —
@@ -65,11 +67,13 @@ impl GameState {
     /// **CR 103.6's "begin the game with this on the battlefield" belongs
     /// between the opening hands and this call** and has no implementation;
     /// `codebase-state.md` item 119 owns the seam.
-    pub fn start_first_turn(&mut self, ctx: &ActionContext) -> Result<(), String> {
+    pub fn start_first_turn(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         let player = self.active_player;
         let turn = 1;
-        let performed =
-            self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra_turn: None }], ctx)?;
+        let performed = self.execute_actions(
+            vec![GameAction::BeginTurn { player, turn, extra_turn: None }],
+            &ActionContext::game_rule(dp, GameRule::TurnBegins),
+        )?;
         if performed.is_empty() {
             return Err(
                 "the game's first turn was replaced, which CR 614.4 makes impossible \
@@ -77,8 +81,8 @@ impl GameState {
                     .to_string(),
             );
         }
-        self.on_turn_begin(ctx)?;
-        self.drain(None, false, true, ctx)?;
+        self.on_turn_begin(dp)?;
+        self.drain(None, false, true, dp)?;
         Ok(())
     }
 
@@ -106,7 +110,7 @@ impl GameState {
         mut step: Option<StepType>,
         mut phase_began: bool,
         mut turn_began: bool,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(PhaseType, Option<StepType>), String> {
         loop {
             let cursor = self.turn_plan.cursor;
@@ -124,7 +128,7 @@ impl GameState {
 
             match turn_unit {
                 TurnUnit::Step(next) => {
-                    if self.begin_step(next, ctx)? {
+                    if self.begin_step(next, dp)? {
                         let current = phase.expect("a step belongs to a phase that began");
                         return Ok((current, Some(next)));
                     }
@@ -142,7 +146,7 @@ impl GameState {
                     // after it, not the entry again.
                     self.turn_plan.cursor = Some(index);
                     step = None;
-                    phase_began = self.begin_phase(next, ctx)?;
+                    phase_began = self.begin_phase(next, dp)?;
                     // A main phase *is* the position; a phase with steps is
                     // entered together with its first one, which the next
                     // iteration proposes.
@@ -164,8 +168,10 @@ impl GameState {
                         return Ok((self.phase.phase_type, self.phase.step));
                     };
                     let turn = self.turn_number + 1;
-                    let performed =
-                        self.execute_actions(vec![GameAction::BeginTurn { player, turn, extra_turn }], ctx)?;
+                    let performed = self.execute_actions(
+                        vec![GameAction::BeginTurn { player, turn, extra_turn }],
+                        &ActionContext::game_rule(dp, GameRule::TurnBegins),
+                    )?;
                     if performed.is_empty() {
                         // CR 614.10a — a skipped turn advances no turn number
                         // and expires nothing. The cursor does not move, so the
@@ -175,7 +181,7 @@ impl GameState {
                     // Rebuilds the plan and clears its cursor — so a turn that
                     // was skipped above built none, which is CR 614.10a's
                     // "anything scheduled for a skipped turn won't happen".
-                    self.on_turn_begin(ctx)?;
+                    self.on_turn_begin(dp)?;
                     turn_began = true;
                 }
             }
@@ -238,10 +244,12 @@ impl GameState {
     }
 
     /// Propose `phase`'s beginning; report whether it happened.
-    fn begin_phase(&mut self, phase: PhaseType, ctx: &ActionContext) -> Result<bool, String> {
+    fn begin_phase(&mut self, phase: PhaseType, dp: &dyn DecisionProvider) -> Result<bool, String> {
         let player = self.active_player;
-        let performed =
-            self.execute_actions(vec![GameAction::BeginPhase { phase, player }], ctx)?;
+        let performed = self.execute_actions(
+            vec![GameAction::BeginPhase { phase, player }],
+            &ActionContext::game_rule(dp, GameRule::PhaseBegins),
+        )?;
         Ok(!performed.is_empty())
     }
 
@@ -249,7 +257,7 @@ impl GameState {
     /// report whether it began. Every occurrence of a step comes through here,
     /// CR 514.3a's repeated cleanup step included, so no occurrence can skip
     /// what its step does.
-    pub(crate) fn begin_step(&mut self, step: StepType, ctx: &ActionContext) -> Result<bool, String> {
+    pub(crate) fn begin_step(&mut self, step: StepType, dp: &dyn DecisionProvider) -> Result<bool, String> {
         // CR 508.8 — "if no creatures are declared as attackers ... skip the
         // declare blockers and combat damage steps". A **rule**, checked ahead
         // of the pipeline like CR 101.2's "can't"s: there is no event here for
@@ -279,14 +287,17 @@ impl GameState {
             return Ok(false);
         }
         let player = self.active_player;
-        let performed = self.execute_actions(vec![GameAction::BeginStep { step, player }], ctx)?;
+        let performed = self.execute_actions(
+            vec![GameAction::BeginStep { step, player }],
+            &ActionContext::game_rule(dp, GameRule::StepBegins),
+        )?;
         if performed.is_empty() {
             return Ok(false);
         }
         // Turn-based actions, after the event and only for a step that began
         // (CR 703.4). Outside the proposal's batch on purpose: the untap sweep
         // is its own CR 603.2c event, not a result of the step beginning.
-        self.on_step_begin(step, ctx)?;
+        self.on_step_begin(step, dp)?;
         Ok(true)
     }
 
@@ -303,7 +314,7 @@ impl GameState {
     /// CR 614.10a's "a skipped turn expires nothing" is the same sentence from
     /// the other side — this hook runs only for a turn whose proposal
     /// survived.
-    fn on_turn_begin(&mut self, ctx: &ActionContext) -> Result<(), String> {
+    fn on_turn_begin(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         let player = self.active_player;
         let turn = self.turn_number;
         // CR 500.1's five phases again, and CR 500.8's splices gone with the
@@ -316,7 +327,7 @@ impl GameState {
         // never triggers (CR 614.10a).
         self.drop_delayed_triggers_of_gone_turns();
         // CR 800.4c again, beside the other expiry — see the cleanup step.
-        self.exile_objects_no_player_in_game_controls(ctx)
+        self.exile_objects_no_player_in_game_controls(dp)
     }
 
     /// CR 611.2b's "until your next turn", on all three duration registries.
@@ -363,15 +374,15 @@ impl GameState {
 
     // --- Step lifecycle callbacks ---
 
-    fn on_step_begin(&mut self, step_type: StepType, ctx: &ActionContext) -> Result<(), String> {
+    fn on_step_begin(&mut self, step_type: StepType, dp: &dyn DecisionProvider) -> Result<(), String> {
         match step_type {
             StepType::Untap => {
                 // "Until your next turn" expires at `on_turn_begin`, not here:
                 // this step can be skipped and a turn cannot un-begin.
-                self.process_untap_step(ctx)?;
+                self.process_untap_step(dp)?;
             }
             StepType::Draw => {
-                self.process_draw_step(ctx)?;
+                self.process_draw_step(dp)?;
             }
             StepType::Upkeep
             | StepType::BeginCombat
@@ -421,7 +432,7 @@ impl GameState {
                 // the control-changing effect ends." So it is asked here,
                 // beside the expiry, rather than at the next sweep. Free until
                 // somebody has left.
-                self.exile_objects_no_player_in_game_controls(ctx)?;
+                self.exile_objects_no_player_in_game_controls(dp)?;
 
                 // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
                 // `Game::run_turn`'s loop, one level up with 514.1's discard.
@@ -453,7 +464,7 @@ impl GameState {
 
     /// Untap step: untap all permanents controlled by the active player,
     /// reset land drops (rule 502)
-    fn process_untap_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
+    fn process_untap_step(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         let active = self.active_player;
 
         let player = self.get_player_mut(active)?;
@@ -471,14 +482,14 @@ impl GameState {
         // CR 603.2c's "whenever one or more permanents untap" reads the batch,
         // not its members.
         let batch = to_untap.into_iter().map(|object| GameAction::Untap { object }).collect();
-        self.execute_actions(batch, ctx)?;
+        self.execute_actions(batch, &ActionContext::turn_based(dp, TurnBasedAction::Untap))?;
 
         // No player gets priority during untap step
         Ok(())
     }
 
     /// Draw step: active player draws a card, then gets priority (rule 504)
-    fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
+    fn process_draw_step(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         let active = self.active_player;
 
         // Proposed (CR 614.11's draw replacements and 614.10's skips read the
@@ -489,7 +500,7 @@ impl GameState {
         if self.in_game(active) {
             self.execute_action(
                 GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
-                ctx,
+                &ActionContext::turn_based(dp, TurnBasedAction::Draw),
             )?;
         }
 
@@ -561,7 +572,7 @@ fn next_turn_unit(
 #[cfg(test)]
 mod tests {
     use crate::types::replacement::EnterMods;
-    use crate::test_support::test_ctx;
+    use crate::test_support::{test_dp};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, PhaseType, StepType};
@@ -579,12 +590,12 @@ mod tests {
         assert_eq!(game.phase.step, Some(StepType::Untap));
 
         // Advance: Untap -> Upkeep
-        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+        let (phase, step) = game.advance_turn(&test_dp()).unwrap();
         assert_eq!(phase, PhaseType::Beginning);
         assert_eq!(step, Some(StepType::Upkeep));
 
         // Advance: Upkeep -> Draw
-        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+        let (phase, step) = game.advance_turn(&test_dp()).unwrap();
         assert_eq!(phase, PhaseType::Beginning);
         assert_eq!(step, Some(StepType::Draw));
 
@@ -592,7 +603,7 @@ mod tests {
         assert_eq!(game.players[0].hand.len(), 1);
 
         // Advance: Draw -> Precombat main (no step)
-        let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+        let (phase, step) = game.advance_turn(&test_dp()).unwrap();
         assert_eq!(phase, PhaseType::Precombat);
         assert_eq!(step, None);
     }
@@ -616,7 +627,7 @@ mod tests {
         // attacked, so they are not positions `advance_turn` stops on.
 
         for _ in 0..10 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         assert_eq!(game.turn_number, 2);
@@ -641,14 +652,14 @@ mod tests {
         game.place_on_battlefield(forest_id, 0, &EnterMods::NONE).tapped = true;
 
         // Advance past turn 1 (on_step_begin already fired for current untap)
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
         for _ in 0..12 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         // Advance through player 1's full turn
         for _ in 0..13 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         // Turn 3, player 0's untap step — forest should be untapped
@@ -679,7 +690,7 @@ mod tests {
         let before = game.recorded_events().len();
         // Walk to player 0's next untap step.
         for _ in 0..26 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         let untapped: Vec<crate::types::ids::ObjectId> = game.recorded_events().records_from(before).iter()
@@ -716,7 +727,7 @@ mod tests {
 
         let before = game.recorded_events().len();
         for _ in 0..26 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         // CR 502.1: "all the permanents untap simultaneously." One batch id is
@@ -742,7 +753,7 @@ mod tests {
 
         // Advance through Beginning phase (3 steps) to Precombat main
         for _ in 0..3 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         // Mana should have been emptied when we left the Beginning phase

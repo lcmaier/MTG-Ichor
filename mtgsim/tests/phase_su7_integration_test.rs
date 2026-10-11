@@ -211,7 +211,7 @@ fn a_land_is_played_once_a_turn_from_its_owners_hand() {
     assert!(playable_lands(&game, 0).is_empty());
     let answer = at_priority(&game, 0, WhyAbout::Object(forest), None);
     assert!(has(&answer, "To play it: Player 0 has played a land this turn already.", Some("305.2")), "{answer:#?}");
-    let refused = game.play_land(0, forest, &mtgsim::test_support::test_ctx());
+    let refused = game.play_land(0, forest, &mtgsim::test_support::test_dp());
     assert_eq!(refused, Err(used.to_string()), "play_land asks the same check");
 
     let theirs = built(&text.replace("active 0", "active 1").replace("player 0: lands played 1\n", ""));

@@ -89,9 +89,9 @@ pub struct ReplacementDef {
     ///
     /// **Here and not on [`EventPattern`]**, which is where §9's decision 8
     /// put it. Two reasons, and the second is the one that decides: an
-    /// `EventPattern` arm constrains the event's own fields, and who controls
-    /// the proposing spell is `ActionContext::resolution` rather than anything
-    /// on the `GameAction`; and `Restriction::Event` reuses `EventPattern`
+    /// `EventPattern` arm constrains the event's own fields, and what caused
+    /// it is `ActionContext::cause` rather than anything on the `GameAction`;
+    /// and `Restriction::Event` reuses `EventPattern`
     /// verbatim while already carrying a `by` of its own, so a cause predicate
     /// on the pattern would give a "can't" two of them with one meaning.
     ///
@@ -1841,7 +1841,7 @@ impl ReplacementClass {
     /// card could forget, and a control-changing effect filed under `Other`
     /// would be chosen in the wrong order silently. `SelfReplacement` is the
     /// one class no rewrite implies — CR 614.15 is about where the effect
-    /// *came from* — and it lands with `ActionContext::resolution`'s field
+    /// *came from* — and it lands with the field that carries those effects
     /// (`replacement-architecture.md` §11 item 3). `BackFaceUp` waits on
     /// transform.
     pub fn from_rewrite(rewrite: &Rewrite) -> Self {

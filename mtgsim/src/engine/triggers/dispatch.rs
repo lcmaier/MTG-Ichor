@@ -27,6 +27,7 @@ use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
+use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -611,7 +612,10 @@ impl GameState {
         // Emitted after the window has closed, unstamped, each dispatched as
         // it is emitted like any unbatched record.
         for (seq, origin, controller, caused_by) in queued {
-            self.emit_event_unstamped(GameEvent::AbilityTriggered { seq, origin, controller, caused_by });
+            self.emit_event_unbatched(
+                GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
+                EventCause::GameRule(GameRule::AbilityTriggers),
+            );
         }
         Ok(())
     }
@@ -1520,7 +1524,7 @@ impl GameState {
                         .unwrap_or(pending.controller),
                     _ => pending.controller,
                 };
-                let mut resolution = ResolutionContext::untargeted(source, player);
+                let mut resolution = ResolutionContext::untargeted(source, player, GeneratedBy::TriggeredAbility);
                 resolution.ability_source = self.object_ref(source);
                 resolution.trigger = Some(pending.binding.clone());
                 let mut mana = Vec::with_capacity(output.mana.len());

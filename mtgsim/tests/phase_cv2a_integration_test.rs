@@ -236,7 +236,7 @@ fn resolve_spell(
     dp: &dyn DecisionProvider,
 ) {
     let source = game.add_object(GameObject::new(card.clone(), controller, Zone::Stack));
-    let ctx = ResolutionContext { targets: ChosenTargets::one(targets), ..ResolutionContext::untargeted(source, controller) };
+    let ctx = ResolutionContext { targets: ChosenTargets::one(targets), ..ResolutionContext::untargeted(source, controller, mtgsim::events::cause::GeneratedBy::Spell) };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("resolution");
 }
 
@@ -646,7 +646,7 @@ fn a_clone_of_a_token_is_not_a_token() {
     };
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1), &ById::new()).expect("created");
+    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell), &ById::new()).expect("created");
     let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 
     let clone = clone_of(&mut game, 0, token);

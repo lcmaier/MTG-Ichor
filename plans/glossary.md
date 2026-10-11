@@ -283,12 +283,13 @@ Not the **cause**.
 
 **cause** — who or what caused an event, in CR 400.7j's sense, which sets "an
 effect causes" beside "the cost of a spell or ability causes": an effect ("a
-spell or ability an opponent controls causes"), a cost (CR 118), a special
-action (CR 116), a turn-based or state-based action (CR 703, 704), or a rule. `LifeLossCause` and `DrawCause` use the word this way,
-and `EventStamp`'s `resolution` holds part of it today. RH-1 makes it one
-value on every proposal and every record (`replacement-architecture.md`
-§2b.3). Not the **performer**, which is the function that performs an action,
-and not the **act**.
+spell or ability an opponent controls causes"), a cost (CR 118), a cast or an
+activation, a special action (CR 116), a turn-based or state-based action (CR
+703, 704), or a rule. One value on every proposal (`ActionContext::cause`) and
+every record (`EventStamp::cause`); outside a batch an emitter names its own.
+`DrawCause` keeps the older sense, which draw of an instruction this is.
+→ `EventCause`, `replacement-architecture.md` §2b.3. Not the **performer**,
+which is the function that performs an action, and not the **act**.
 
 **redirect** — a replacement that changes only where a move goes (CR 614.6):
 Rest in Peace's exile in place of a graveyard, CR 903.9b's command zone in
