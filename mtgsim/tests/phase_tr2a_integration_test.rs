@@ -53,7 +53,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -112,8 +112,8 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
         put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
     place_triggers(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1);
-    game.change_zone(sapling, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(sapling, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(sapling, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(sapling, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(game.get_object(sapling).unwrap().zone, Zone::Battlefield, "it came back");
 
     // The first trigger resolves; the return's own trigger is still pending.

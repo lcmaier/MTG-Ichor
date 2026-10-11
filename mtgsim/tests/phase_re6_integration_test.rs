@@ -19,7 +19,7 @@ use mtgsim::cards::phase_re_cards::{
     exquisite_archangel, laboratory_maniac, platinum_angel, rhox_faithmender,
     stunning_reversal, thought_reflection,
 };
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{GameEvent, LossReason};
@@ -449,7 +449,7 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
 fn exile_reaches_a_card_in_a_graveyard() {
     let mut game = setup_game(2);
     let card = put_in_hand(&mut game, fixture_object(), 1);
-    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
     let exile = Effect::Atom(
         Primitive::Exile,
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
@@ -998,7 +998,7 @@ fn under_platinum_angel_stunning_reversal_neither_applies_nor_is_spent() {
     assert_eq!(cards_drawn(&game, 0), 0);
     assert_eq!(game.replacement_effects.iter().count(), 1, "not spent");
 
-    game.change_zone(angel, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(angel, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(sba(&mut game, &test_dp()));
     assert_eq!(cards_drawn(&game, 0), 7, "the row applied once the refusal was gone");
     assert_eq!(game.players[0].life_total, 1);
@@ -1062,7 +1062,7 @@ fn platinum_angel_leaving_the_battlefield_lets_the_next_check_lose() {
     game.players[0].add_counters(CounterType::Poison, 10);
     assert!(!sba(&mut game, &test_dp()));
 
-    game.change_zone(angel, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(angel, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
 
     assert!(sba(&mut game, &test_dp()));
     assert_eq!(

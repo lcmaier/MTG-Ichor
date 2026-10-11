@@ -1758,7 +1758,7 @@ mod tests {
     /// the offer is stale and read again (§3.8).
     #[test]
     fn the_window_offer_rechecks_costs_and_is_read_again_when_the_board_moves() {
-        use crate::engine::actions::ZoneChangeCause;
+        use crate::engine::actions::ZoneChangeAct;
         use crate::test_support::test_ctx;
 
         let mut game = setup_two_player_game();
@@ -1775,7 +1775,7 @@ mod tests {
         assert!(offer.is_current(&game), "a tap reads no layer");
         assert_eq!(offer.options(&game).len(), 6);
 
-        game.change_zone(ironworks, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+        game.change_zone(ironworks, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
         assert!(!offer.is_current(&game));
         assert_eq!(ManaAbilityWindowOffer::read(&game, 0).options(&game).len(), 5);
     }

@@ -46,7 +46,7 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::targeting::matched;
@@ -764,17 +764,17 @@ pub(crate) fn pattern_watches(
         }
 
         (
-            EventPattern::ZoneChange { from, to, cause, object },
+            EventPattern::ZoneChange { from, to, act, object },
             GameAction::ZoneChange {
                 object: moving,
                 from: actual_from,
                 to: actual_to,
-                cause: actual_cause,
+                act: actual_act,
             },
         ) => {
             from.map(|z| z == *actual_from).unwrap_or(true)
                 && to.map(|z| z == *actual_to).unwrap_or(true)
-                && cause.map(|c| c == *actual_cause).unwrap_or(true)
+                && act.map(|c| c == *actual_act).unwrap_or(true)
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -787,17 +787,17 @@ pub(crate) fn pattern_watches(
         // above and `object` read in its source zone (the Cage's ruling). A token's
         // entry has neither `from` nor `cause`.
         (
-            EventPattern::ZoneChange { from, to, cause, object },
+            EventPattern::ZoneChange { from, to, act, object },
             GameAction::EnterBattlefield {
                 object: moving,
                 from: actual_from,
-                cause: actual_cause,
+                act: actual_act,
                 ..
             },
         ) => {
             to.map(|z| z == Zone::Battlefield).unwrap_or(true)
                 && from.map(|z| Some(z) == *actual_from).unwrap_or(true)
-                && cause.map(|c| Some(c) == *actual_cause).unwrap_or(true)
+                && act.map(|c| Some(c) == *actual_act).unwrap_or(true)
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -834,9 +834,9 @@ pub(crate) fn pattern_watches(
         // that was cast, everything else was not.
         (
             EventPattern::EnterBattlefield { cast },
-            GameAction::EnterBattlefield { cause, .. },
+            GameAction::EnterBattlefield { act, .. },
         ) => cast
-            .map(|required| (*cause == Some(ZoneChangeCause::Resolved)) == required)
+            .map(|required| (*act == Some(ZoneChangeAct::Resolved)) == required)
             .unwrap_or(true),
 
         (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
@@ -1040,7 +1040,7 @@ fn counter_replacements(
                 EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -1137,7 +1137,7 @@ fn commander_zone_replacement(
         EventPattern::ZoneChange {
             from: None,
             to: Some(*to),
-            cause: None,
+            act: None,
             object: None,
         },
         ObjectSet::Fixed(vec![*object]),
@@ -1201,7 +1201,7 @@ mod tests {
             from: Some(Zone::Stack),
             controller: 0,
             mods: EnterMods::NONE,
-            cause: Some(ZoneChangeCause::Resolved),
+            act: Some(ZoneChangeAct::Resolved),
         };
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
@@ -1239,8 +1239,8 @@ mod tests {
 
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
-        game.change_zone(faith, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
-        game.change_zone(faith, Zone::Battlefield, ZoneChangeCause::Returned, &ctx).unwrap();
+        game.change_zone(faith, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
+        game.change_zone(faith, Zone::Battlefield, ZoneChangeAct::Put, &ctx).unwrap();
         assert_eq!(gain_in_the_lineage(&mut game), 6, "a new object's ability is a new effect");
     }
 }

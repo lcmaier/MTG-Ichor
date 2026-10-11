@@ -26,7 +26,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{Restriction, RestrictionDef, SourceFilter};
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// Sigarda, Host of Herons — {2}{G}{W}{W}
 /// Legendary Creature — Angel, 5/5
@@ -42,7 +42,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// A census regex that saw "sacrifice" filed it under CR 118's costs, and that
 /// is wrong: **you never pay costs for an opponent's spell**
 /// (`cant-effects-architecture.md` §2.6). Diabolic Edict resolving against you
-/// is an *effect*, and what Sigarda forbids is the `ZoneChange { cause:
+/// is an *effect*, and what Sigarda forbids is the `ZoneChange { act:
 /// Sacrificed }` it would propose. Tajuru Preserver prints the identical
 /// sentence; The Master, Multiplied and Tamiyo, Collector of Tales are the same
 /// shape with a different event.
@@ -50,10 +50,10 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// # The three halves of the restriction, and where each one lives
 ///
 /// - **"can't cause you to sacrifice"** is the *event*:
-///   `EventPattern::ZoneChange { from: Battlefield, to: Graveyard, cause:
+///   `EventPattern::ZoneChange { from: Battlefield, to: Graveyard, act:
 ///   Sacrificed }`. CR 701.21a's sacrifice, and specifically not CR 701.8's
 ///   destruction — 701.21b says a sacrificed permanent is not destroyed, which
-///   is why the cause is its own variant and why Sigarda stops none of the
+///   is why the act is its own variant and why Sigarda stops none of the
 ///   CR 704.5 state-based actions.
 /// - **"permanents"**, scoped to *yours*, is the `ObjectSet`:
 ///   `ByController(PlayerRef::You)`, resolved against Sigarda's **current**
@@ -112,7 +112,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                 pattern: EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Sacrificed),
+                    act: Some(ZoneChangeAct::Sacrificed),
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),

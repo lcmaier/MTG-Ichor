@@ -718,7 +718,7 @@ pub fn thought_reflection() -> Arc<CardData> {
 ///
 /// - *"If a spell or ability causes you to put a card into your hand without
 ///   specifically using the word 'draw,' it's not a card drawn."* →
-///   structurally true and asserted: a `ZoneChangeCause` that is not `Drawn`
+///   structurally true and asserted: a `ZoneChangeAct` that is not `Drawn`
 ///   proposes no draw at all.
 ///   → `a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it`
 /// - *"If two or more replacement effects would apply to a card-drawing event,

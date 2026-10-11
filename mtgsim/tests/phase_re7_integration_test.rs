@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
@@ -542,15 +542,15 @@ fn a_permanent_the_departing_player_controls_but_does_not_own_is_exiled() {
     departs(&mut game, 0, &test_dp());
 
     assert_eq!(game.get_object(angel).unwrap().zone, Zone::Exile);
-    let causes: Vec<ZoneChangeCause> = game
+    let causes: Vec<ZoneChangeAct> = game
         .recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, cause, .. } if *object_id == angel => Some(*cause),
+            GameEvent::ZoneChange { object_id, act, .. } if *object_id == angel => Some(*act),
             _ => None,
         })
         .collect();
-    assert_eq!(causes, vec![ZoneChangeCause::ControllerLeftTheGame]);
+    assert_eq!(causes, vec![ZoneChangeAct::ControllerLeftTheGame]);
 }
 
 /// The fourth clause does not fire while somebody still in the game controls

@@ -39,7 +39,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -409,7 +409,7 @@ fn teferi_beside_thought_reflection_draws_three_in_the_draw_step() {
 /// sees it.
 ///
 /// Asserted structurally, because that is what the engine's answer is: a
-/// library-to-hand move whose [`ZoneChangeCause`] is not `Drawn` proposes no
+/// library-to-hand move whose [`ZoneChangeAct`] is not `Drawn` proposes no
 /// draw event at all, so there is nothing for Thought Reflection to double.
 #[test]
 fn a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it() {
@@ -418,7 +418,7 @@ fn a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it() {
     let before = game.players[0].hand.len();
     let top = *game.players[0].library.last().expect("stocked");
 
-    game.change_zone(top, Zone::Hand, ZoneChangeCause::PutIntoHand, &test_ctx())
+    game.change_zone(top, Zone::Hand, ZoneChangeAct::Put, &test_ctx())
         .expect("tutoring");
 
     assert_eq!(game.players[0].hand.len(), before + 1, "one card moved");

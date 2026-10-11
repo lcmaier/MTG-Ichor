@@ -19,7 +19,7 @@ use mtgsim::cards::creatures;
 use mtgsim::cards::phase_lk_cards::{exiled_ancestor, wonder};
 use mtgsim::cards::phase_le_cards::tarmogoyf;
 use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_power, has_keyword,
 };
@@ -142,7 +142,7 @@ fn test_leaving_the_named_zone_retires_the_effect() {
     let wonder_id = put_in_graveyard(&mut game, wonder(), 0);
     assert!(has_keyword(&game, bear, KeywordFlag::Flying));
 
-    game.change_zone(wonder_id, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+    game.change_zone(wonder_id, Zone::Exile, ZoneChangeAct::Put, &test_ctx())
         .expect("it is exiled");
     assert!(
         !has_keyword(&game, bear, KeywordFlag::Flying),
@@ -233,7 +233,7 @@ fn test_a_stated_complement_functions_everywhere_else() {
     let ancestor = put_in_graveyard(&mut game, exiled_ancestor(), 0);
     assert_eq!(get_effective_power(&game, bear), Some(2), "in a graveyard, which is not the battlefield");
 
-    game.change_zone(ancestor, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(ancestor, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     assert_eq!(
         get_effective_power(&game, bear),
@@ -274,7 +274,7 @@ fn test_yixlid_jailer_turns_wonder_off_through_the_existence_check() {
 
     // And back: the row was never removed, so the answer returns with the
     // ability rather than needing re-registration.
-    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .expect("it dies");
     assert!(
         has_keyword(&game, bear, KeywordFlag::Flying),
@@ -324,7 +324,7 @@ fn test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard() {
     // The spell moves on — exile, a graveyard-hate effect, anything. The row
     // is a resolution's and CR 611.2a gives it the duration the spell stated,
     // not the source's lifetime.
-    game.change_zone(spell, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+    game.change_zone(spell, Zone::Exile, ZoneChangeAct::Put, &test_ctx())
         .expect("it is exiled");
     assert_eq!(
         get_effective_power(&game, bear),
@@ -350,7 +350,7 @@ fn test_an_object_is_stamped_on_every_zone_entry() {
     let card = mtgsim::test_support::put_in_hand(&mut game, creatures::grizzly_bears(), 0);
     let in_hand = game.object_timestamp(card);
 
-    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .expect("it is discarded");
     let in_graveyard = game.object_timestamp(card);
     assert!(

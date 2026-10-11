@@ -11,7 +11,7 @@ use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
-use crate::types::zones::{UntilReturn, Zone, ZoneChangeCause};
+use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct};
 use crate::ui::decision::DecisionProvider;
 
 /// One object going back: where to, and under whose control if that is the
@@ -38,7 +38,7 @@ impl GameState {
                 continue;
             }
             if to != Zone::Battlefield {
-                batch.push(GameAction::ZoneChange { object, from, to, cause: ZoneChangeCause::Returned });
+                batch.push(GameAction::ZoneChange { object, from, to, act: ZoneChangeAct::Put });
                 continue;
             }
             if has_subtype(self, object, &Subtype::Enchantment(EnchantmentType::Aura)) {
@@ -47,7 +47,7 @@ impl GameState {
                     None => continue,
                 }
             }
-            batch.extend(self.entry_proposal(object, Some(from), controller, Some(ZoneChangeCause::Returned)));
+            batch.extend(self.entry_proposal(object, Some(from), controller, Some(ZoneChangeAct::Put)));
         }
         if batch.is_empty() {
             return Ok(());
@@ -162,7 +162,7 @@ impl GameState {
         source: Option<ObjectRef>,
         referred: &[ObjectRef],
     ) -> Result<bool, String> {
-        let TriggerEvent::ZoneChange { subject, from: Some(Zone::Battlefield), to: None, cause: None, owner: None, .. } =
+        let TriggerEvent::ZoneChange { subject, from: Some(Zone::Battlefield), to: None, act: None, owner: None, .. } =
             until
         else {
             return Err(format!("CR 610.3a/b asks whether {until:?} has happened since, which needs that event's history"));

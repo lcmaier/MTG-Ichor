@@ -44,7 +44,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -259,7 +259,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
 
     // And it ends with the permanent rather than at cleanup — the sweep reads
     // a battlefield that no longer holds it.
-    game.change_zone(leyline, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(leyline, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
     game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();
     assert_eq!(life(&game, 1), before + 4, "the ability left with its source");
@@ -312,7 +312,7 @@ fn pariah_whose_host_has_left_the_battlefield_does_nothing() {
     let source = probe(&mut game, 1);
     let ctx = test_ctx();
 
-    game.change_zone(host, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx).unwrap();
+    game.change_zone(host, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx).unwrap();
     deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);
 
     assert_eq!(life(&game, 0), 17, "the damage was dealt as proposed");
@@ -358,7 +358,7 @@ fn a_registry_row_whose_source_has_left_the_battlefield_redirects_nothing() {
     assert_eq!(life(&game, 0), 20);
     assert_eq!(marked(&game, redirector), 2);
 
-    game.change_zone(redirector, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx).unwrap();
+    game.change_zone(redirector, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx).unwrap();
     assert_eq!(game.replacement_effects.len(), 1, "the row outlives its source");
 
     deal(&mut game, source, DamageTarget::Player(0), 3, false, &ctx);

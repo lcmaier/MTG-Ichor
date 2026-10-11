@@ -1,5 +1,5 @@
 use crate::engine::actions::{
-    ActionContext, DestructionSource, DrawCause, GameAction, LifeLossCause, ZoneChangeCause,
+    ActionContext, DestructionSource, DrawCause, GameAction, LifeLossCause, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -561,7 +561,7 @@ impl GameState {
                         object,
                         from: Zone::Library,
                         to: Zone::Graveyard,
-                        cause: ZoneChangeCause::Milled,
+                        act: ZoneChangeAct::Milled,
                     })
                     .collect();
                 if batch.is_empty() {
@@ -587,7 +587,7 @@ impl GameState {
                         object,
                         from: Zone::Library,
                         to: Zone::Hand,
-                        cause: ZoneChangeCause::PutIntoHand,
+                        act: ZoneChangeAct::Put,
                     })
                     .collect();
                 if batch.is_empty() {
@@ -622,7 +622,7 @@ impl GameState {
                         object,
                         from: Zone::Hand,
                         to: Zone::Graveyard,
-                        cause: ZoneChangeCause::Discarded,
+                        act: ZoneChangeAct::Discarded,
                     })
                     .collect();
                 self.execute_actions(batch, &actx)?;
@@ -884,7 +884,7 @@ impl GameState {
                         if self.stack.contains(&id)
                             && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
                         {
-                            self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Countered, &actx)?;
+                            self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, &actx)?;
                             self.emit_event(crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 controller,
@@ -1468,7 +1468,7 @@ impl GameState {
             // CR 701.21a. **The targeted player chooses, not the spell's controller**
             // (Diabolic Edict): the resolution-time selection whose candidates
             // `cant-effects-architecture.md` §4.9 filters, so Sigarda asks nothing.
-            // Not destruction (CR 701.21b), hence its own `ZoneChangeCause`.
+            // Not destruction (CR 701.21b), hence its own `ZoneChangeAct`.
             Primitive::Sacrifice => {
                 // A named permanent is the resolution's controller's to
                 // sacrifice, and only while they control it and no "can't"
@@ -2245,13 +2245,13 @@ impl GameState {
                 object,
                 from: obj.zone,
                 to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
+                act: ZoneChangeAct::Put,
             }),
             Primitive::Sacrifice => is_permanent.then_some(GameAction::ZoneChange {
                 object,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Sacrificed,
+                act: ZoneChangeAct::Sacrificed,
             }),
             Primitive::Tap => is_permanent.then_some(GameAction::Tap { object }),
             Primitive::Untap => is_permanent.then_some(GameAction::Untap { object }),

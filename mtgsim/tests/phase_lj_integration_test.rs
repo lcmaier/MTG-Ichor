@@ -21,7 +21,7 @@ use mtgsim::cards::phase_lj_cards::{
     graveyard_painter, graveyard_reveler, lattice_colorless_clause, scarwood_treefolk,
     teferi_flash_clause, yixlid_jailer,
 };
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_colors, get_effective_power, get_effective_toughness,
     has_keyword,
@@ -40,7 +40,7 @@ use mtgsim::types::zones::{Zone, ZoneSet};
 /// Move a card from its owner's graveyard onto the battlefield, the way a
 /// reanimation spell's resolution does.
 fn reanimate(game: &mut GameState, id: ObjectId) {
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
 }
 
@@ -89,7 +89,7 @@ fn test_the_strip_ends_when_the_source_leaves_the_battlefield() {
     let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
     assert!(get_effective_abilities(&game, treefolk).is_empty(), "stripped while it is out");
 
-    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .expect("it dies");
 
     assert!(
@@ -395,7 +395,7 @@ fn test_the_rule_stops_reading_it_when_the_row_goes() {
     let painter = put_on_battlefield(&mut game, graveyard_painter(), 0);
     assert_eq!(get_effective_power(&game, reveler), Some(3), "on while the Painter is out");
 
-    game.change_zone(painter, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(painter, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .expect("it dies");
 
     assert_eq!(
@@ -432,7 +432,7 @@ fn test_the_working_set_narrows_again_when_the_last_zone_row_leaves() {
         "while the Jailer is out, graveyards are in the working set"
     );
 
-    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .expect("it dies");
 
     assert!(
@@ -454,7 +454,7 @@ fn test_removing_one_of_two_rows_leaves_the_zone_the_other_names() {
     let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
     put_on_battlefield(&mut game, graveyard_painter(), 0);
 
-    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .expect("it dies");
 
     assert_eq!(

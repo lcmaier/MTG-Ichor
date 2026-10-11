@@ -218,7 +218,7 @@ mod tests {
     use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
     use crate::types::replacement::EnterMods;
-    use crate::types::zones::{Zone, ZoneChangeCause};
+    use crate::types::zones::{Zone, ZoneChangeAct};
 
     /// Query `id`, and say whether the memo answered.
     fn query(game: &GameState, id: ObjectId) -> (Option<Arc<EffectiveCharacteristics>>, bool) {
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(power(&game, bears), (Some(3), false));
         assert_eq!(power(&game, bears), (Some(3), true));
 
-        game.change_zone(bears, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+        game.change_zone(bears, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
         assert_eq!(power(&game, bears), (Some(2), false), "no entity, so no counter");
     }
 

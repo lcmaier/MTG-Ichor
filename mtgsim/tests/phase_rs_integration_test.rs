@@ -31,7 +31,7 @@ use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -322,7 +322,7 @@ fn test_a_sacrifice_with_no_controller_satisfies_no_source_filter() {
             object: bear,
             from: Zone::Battlefield,
             to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
+            act: ZoneChangeAct::Sacrificed,
         },
         &test_ctx(),
     )

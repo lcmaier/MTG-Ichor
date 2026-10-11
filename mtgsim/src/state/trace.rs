@@ -955,7 +955,7 @@ mod tests {
         use crate::engine::actions::ActionContext;
         use crate::engine::trace_records;
         use crate::test_support::{install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
-        use crate::types::zones::{Zone, ZoneChangeCause};
+        use crate::types::zones::{Zone, ZoneChangeAct};
         use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
         use crate::ui::decision::PriorityAction;
 
@@ -968,7 +968,7 @@ mod tests {
         let dp = RecordingDecisionProvider::picking(0);
         // The entry's `batch`, `pipeline`, `event` and `batch_end`, and Soul
         // Warden's `trigger`; then its `pending` as it is put on the stack.
-        game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         game.place_pending_triggers(&dp).unwrap();
         let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         game.trace(|| trace_records::decision("pick_n", 0, &ctx, &[ChoiceOption::Action(PriorityAction::Pass)]));
@@ -1005,13 +1005,13 @@ mod tests {
         use crate::test_support::{
             install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider,
         };
-        use crate::types::zones::{Zone, ZoneChangeCause};
+        use crate::types::zones::{Zone, ZoneChangeAct};
 
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
         let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
-        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         let trace = install_trace(&mut game, "names");
         game.bump_layer_epoch();
         let (diagnostics, lines) = (format!("{:?}", game.diagnostics), trace.lines().len());

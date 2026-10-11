@@ -1041,7 +1041,7 @@ fn counters_invite_a_multiplier(
     choosable: &[Candidate],
     event: &GameAction,
 ) -> bool {
-    let GameAction::EnterBattlefield { object, from, controller, mods, cause } = event else {
+    let GameAction::EnterBattlefield { object, from, controller, mods, act } = event else {
         return false;
     };
     let writers: Vec<(&ReplacementInstance, Kinds)> = choosable
@@ -1069,7 +1069,7 @@ fn counters_invite_a_multiplier(
         from: *from,
         controller: *controller,
         mods: written,
-        cause: *cause,
+        act: *act,
     };
     let frame = EntryFrame::new(game, &proposal);
     gather(game, &proposal, ctx, false, &frame)
@@ -1688,7 +1688,7 @@ fn check_order_invariance(
     if is_exit(&chosen.def.rewrite) {
         if let (
             Rewrite::Instead(template),
-            GameAction::EnterBattlefield { object, from, controller, mods, cause },
+            GameAction::EnterBattlefield { object, from, controller, mods, act },
         ) = (&chosen.def.rewrite, before)
         {
             let mut disturbed = mods.clone();
@@ -1704,7 +1704,7 @@ fn check_order_invariance(
                 from: *from,
                 controller: *controller,
                 mods: disturbed,
-                cause: *cause,
+                act: *act,
             };
             let theirs = substitute(chosen, template, with_mods, subject);
             debug_assert!(
@@ -1977,13 +1977,13 @@ fn apply_rewrite(
         // and CR 614.5's applied set is what makes the merge terminate. CR 101.2 at
         // the door: a "can't have counters put on it" refuses the counters (CR 614.17d).
         Rewrite::EnterWith(template) => match event {
-            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
                 let extra = evaluate_enter_template(
                     game, template, chosen, object, controller, &mods,
                 )?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
                 mods.merge(&extra);
-                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
             other => Err(format!(
                 "replacement {:?} modifies how a permanent enters but matched {:?}, \
@@ -1995,11 +1995,11 @@ fn apply_rewrite(
 
         // CR 614.13 — choose, move, and count.
         Rewrite::EnterAfterMoving(aux) => match event {
-            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
                 let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
                 let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
                 mods.merge(&extra);
-                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
             other => Err(format!(
                 "replacement {:?} moves other objects as a permanent enters (CR 614.13) \
@@ -2013,12 +2013,12 @@ fn apply_rewrite(
         // values on the entry: the permanent enters as the copy, never as itself
         // first.
         Rewrite::EnterAsCopy(template) => match event {
-            GameAction::EnterBattlefield { object, from, controller, mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mods, act } => {
                 let Some(donor) = entry_copy_donor(game, ctx, chosen, &template.donor, controller)
                 else {
                     // Declined, or nothing to copy (CR 101.3): the effect applied
                     // and changed nothing, which CR 614.5's applied set spends.
-                    let event = GameAction::EnterBattlefield { object, from, controller, mods, cause };
+                    let event = GameAction::EnterBattlefield { object, from, controller, mods, act };
                     return Ok((Some(event), Applied::default()));
                 };
                 let values = crate::engine::layers::copiable_values(game, donor).ok_or_else(|| {
@@ -2028,7 +2028,7 @@ fn apply_rewrite(
                 // a later iteration (CR 707.2: its loyalty and its being a
                 // planeswalker are the copy's).
                 let mods = enter_as_copy(game, chosen, object, controller, mods, values, &template.except)?;
-                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
             other => Err(format!(
                 "replacement {:?} makes a permanent enter as a copy but matched {:?}, \
@@ -2040,9 +2040,9 @@ fn apply_rewrite(
 
         // CR 616.1b — the controller field of the proposal, and only that.
         Rewrite::EnterUnderControlOf(player_ref) => match event {
-            GameAction::EnterBattlefield { object, from, mods, cause, .. } => {
+            GameAction::EnterBattlefield { object, from, mods, act, .. } => {
                 let controller = entering_controller(game, ctx, chosen, object, player_ref)?;
-                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
             other => Err(format!(
                 "replacement {:?} modifies under whose control a permanent enters but \
@@ -2198,7 +2198,7 @@ fn apply_rewrite(
             // it, so the arithmetic applies per matched kind in the entry's mods, with
             // the entry's controller as putter (CR 122.6a). A kind a halving takes to
             // zero leaves the mods — "enters with counters" is not "with zero counters".
-            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
                 let EventPattern::AddCounters { counter: kind, by } = &chosen.def.pattern
                 else {
                     return Err(format!(
@@ -2238,7 +2238,7 @@ fn apply_rewrite(
                 }
                 mods.counters = kept;
                 Ok((
-                    Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }),
+                    Some(GameAction::EnterBattlefield { object, from, controller, mods, act }),
                     Applied { took_effect, prevented: 0 },
                 ))
             }
@@ -2506,8 +2506,8 @@ fn substitute(
         // destination leaves the act — the discard, the sacrifice — performed.
         (
             GameActionTemplate::ZoneChangeTo { to },
-            GameAction::ZoneChange { object, from, cause, .. },
-        ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause }),
+            GameAction::ZoneChange { object, from, act, .. },
+        ) => Ok(GameAction::ZoneChange { object, from, to: *to, act }),
 
         // Containment Priest, Hallowed Moonlight: the entry is the zone change
         // (CR 614.1c), so a card's substitute is one move from where it is, with
@@ -2517,9 +2517,9 @@ fn substitute(
         // Moonlight ruling's appearance.
         (
             GameActionTemplate::ZoneChangeTo { to },
-            GameAction::EnterBattlefield { object, from, cause, .. },
-        ) => match (from, cause) {
-            (Some(from), Some(cause)) => Ok(GameAction::ZoneChange { object, from, to: *to, cause }),
+            GameAction::EnterBattlefield { object, from, act, .. },
+        ) => match (from, act) {
+            (Some(from), Some(act)) => Ok(GameAction::ZoneChange { object, from, to: *to, act }),
             (None, _) => Ok(GameAction::CreateTokenIn { object, zone: *to }),
             (Some(_), None) => Err(format!(
                 "replacement {:?} redirects an entry of {:?} from a zone, and the entry \
@@ -3188,7 +3188,7 @@ fn apply_auxiliary_move(
             object: id,
             from: aux.from,
             to: aux.to,
-            cause: aux.cause,
+            act: aux.act,
         })
         .collect();
     let moved = game.execute_actions_new_batch(batch, ctx)?.len() as u32;
@@ -3256,7 +3256,7 @@ pub(crate) fn not_auxiliary(game: &GameState, aux: &AuxiliaryMove, you: PlayerId
     prohibition(
         game,
         &Query::Event {
-            action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, cause: aux.cause },
+            action: &GameAction::ZoneChange { object: id, from: aux.from, to: aux.to, act: aux.act },
             cause: Some(you),
             lookahead: None,
         },

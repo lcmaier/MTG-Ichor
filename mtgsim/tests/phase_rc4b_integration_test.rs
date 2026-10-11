@@ -16,7 +16,7 @@ use std::sync::Arc;
 use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_rc_cards::containment_priest;
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -52,12 +52,12 @@ fn log_after(game: &GameState, start: usize) -> Vec<GameEvent> {
 }
 
 /// Every `ZoneChange` since `start`, as `(object, from, to, cause)`.
-fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     log_after(game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
@@ -65,12 +65,12 @@ fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, Zo
 }
 
 /// The zone changes of one object, as `(from, to, cause, carries an LKI frame)`.
-fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeCause, bool)> {
+fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeAct, bool)> {
     log_after(game, start)
         .iter()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } if *object_id == id => {
-                Some((*from, *to, *cause, lki.is_some()))
+            GameEvent::ZoneChange { object_id, from, to, act, lki, .. } if *object_id == id => {
+                Some((*from, *to, *act, lki.is_some()))
             }
             _ => None,
         })
@@ -124,7 +124,7 @@ fn lands_cant_enter() -> Restriction {
         pattern: EventPattern::ZoneChange {
             from: None,
             to: Some(Zone::Battlefield),
-            cause: None,
+            act: None,
             object: None,
         },
         affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
@@ -241,12 +241,12 @@ fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
 
     // A probe that moves just before, so the epoch after is measurable.
     let probe = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
-    game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let epoch_before = game.get_object(probe).unwrap().zone_change_epoch;
 
     let start = game.recorded_events().records().len();
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(bear, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("the entry is replaced, and that is not an error");
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
@@ -256,7 +256,7 @@ fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
     // move goes (CR 614.6, `codebase-state.md` item 176).
     assert_eq!(
         moves_of(&game, start, bear),
-        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeCause::Returned, false)],
+        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeAct::Put, false)],
         "one move from where it was, and no look-back frame for a permanent that never existed"
     );
     assert!(!entries(&game, start).contains(&bear), "it never entered");
@@ -280,7 +280,7 @@ fn test_an_entry_from_hand_is_one_move_and_one_entry_in_one_batch() {
 
     assert_eq!(
         zone_changes(&game, start),
-        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeCause::PlayedAsLand)],
+        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeAct::PlayedAsLand)],
     );
     assert_eq!(entries(&game, start), vec![land]);
     assert_eq!(kinds(&game, start), vec!["zone-change", "entered"]);
@@ -304,7 +304,7 @@ fn test_a_dropped_entry_leaves_the_card_where_it_was() {
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
 
     let start = game.recorded_events().records().len();
-    game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(bear, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("a refused entry is not an error");
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
@@ -324,7 +324,7 @@ fn test_worms_of_the_earth_still_refuses_a_returned_forest() {
     let land = put_in_graveyard(&mut game, forest(), 0);
 
     let start = game.recorded_events().records().len();
-    game.change_zone(land, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(land, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     assert_eq!(game.get_object(land).unwrap().zone, Zone::Graveyard);
     assert!(!game.battlefield.contains_key(&land));
@@ -356,8 +356,8 @@ fn test_a_resolved_spell_whose_entry_is_refused_goes_to_the_graveyard() {
     assert_eq!(
         zone_changes(&game, start),
         vec![
-            (bear, Zone::Hand, Zone::Stack, ZoneChangeCause::Cast),
-            (bear, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Resolved),
+            (bear, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast),
+            (bear, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved),
         ],
     );
     assert!(entries(&game, start).is_empty());
@@ -463,7 +463,7 @@ fn test_a_zone_change_onto_the_battlefield_is_not_a_proposal() {
             object: bear,
             from: Zone::Graveyard,
             to: Zone::Battlefield,
-            cause: ZoneChangeCause::Returned,
+            act: ZoneChangeAct::Put,
         },
         &test_ctx(),
     );
@@ -505,7 +505,7 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
     assert_eq!(kinds(&game, start), vec!["tapped", "zone-change", "spell-cast"]);
     assert_eq!(
         zone_changes(&game, start),
-        vec![(bear, Zone::Hand, Zone::Stack, ZoneChangeCause::Cast)],
+        vec![(bear, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast)],
     );
 }
 

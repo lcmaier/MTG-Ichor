@@ -53,7 +53,7 @@ in the `Effect` tree, which is where the replacement track put it too.
 
 **Three. The predicates reuse the vocabulary that exists.** Within an arm,
 "whose", "which object", "from which zone", "why" are `PlayerRef`,
-`ObjectFilter`, `Zone`, `ZoneChangeCause`, `CounterType`, `StepType` — the
+`ObjectFilter`, `Zone`, `ZoneChangeAct`, `CounterType`, `StepType` — the
 leaves the filters, the patterns and the conditions already share.
 `Condition` (twelve leaves, `types/effects.rs`) is the intervening "if" and
 the state trigger's predicate; it grows a leaf only when a registered card
@@ -343,7 +343,7 @@ happens and rewritable by the closed `Rewrite` algebra; a `TriggerEvent` arm
 reads a *performed* record, after, with frames, look-back and multiplicity.
 Ten of TR-1's twelve arms have a sibling in shape (`Attacks` and
 `AbilityTriggers` have none), and the vocabulary is already shared at the
-leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeCause`. What is
+leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeAct`. What is
 worth sharing is a *field struct* — a `ZoneChangePattern { from, to, cause }`
 both `ZoneChange` arms hold, and `SourcePattern` for damage where the trigger
 arm has a `TriggerSubject` — and TR-4's widening of `ZoneChange` is the

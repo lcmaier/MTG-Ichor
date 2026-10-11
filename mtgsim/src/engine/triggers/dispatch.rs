@@ -1256,24 +1256,24 @@ impl GameState {
         let one = |ok: bool| if ok { vec![arm.subject_of(event)] } else { Vec::new() };
         match (arm, event) {
             (
-                TriggerEvent::ZoneChange { subject, from, to, cause, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from: rf, to: rt, cause: rc, lki },
+                TriggerEvent::ZoneChange { subject, from, to, act, owner, .. },
+                GameEvent::ZoneChange { object_id, owner: moved_owner, from: rf, to: rt, act: rc, lki },
             ) => one(
                 from.is_none_or(|z| z == *rf)
                     && to.is_none_or(|z| z == *rt)
-                    && cause.is_none_or(|c| c == *rc)
+                    && act.is_none_or(|c| c == *rc)
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
             // CR 603.6c names this event: a leaves-the-battlefield ability
             // triggers on it and nothing narrower — no `to`, no cause.
             (
-                TriggerEvent::ZoneChange { subject, from, to, cause, owner, .. },
+                TriggerEvent::ZoneChange { subject, from, to, act, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from: rf, lki },
             ) => one(
                 from.is_none_or(|z| z == *rf)
                     && to.is_none()
-                    && cause.is_none()
+                    && act.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),

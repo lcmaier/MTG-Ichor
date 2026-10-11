@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::phase_rc_cards::{master_biomancer, sutured_ghoul, thunder_thrash_elder};
 use mtgsim::cards::phase_rs_cards::sigarda_host_of_herons;
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -60,13 +60,13 @@ fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
 fn zone_changes(
     game: &GameState,
     start: usize,
-) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
@@ -122,7 +122,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 ),
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Sacrificed,
+                act: ZoneChangeAct::Sacrificed,
                 up_to: None,
                 per_chosen: Some((CounterType::PlusOnePlusOne, n)),
             }),
@@ -213,7 +213,7 @@ fn grants_graveyard_exile(name: &str) -> Arc<CardData> {
                 from: Zone::Graveyard,
                 filter: ObjectFilter::ByType(CardType::Creature),
                 to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
+                act: ZoneChangeAct::Put,
                 up_to: None,
                 per_chosen: None,
             }),
@@ -241,7 +241,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -269,7 +269,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                 pattern: EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Sacrificed),
+                    act: Some(ZoneChangeAct::Sacrificed),
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -294,7 +294,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                 pattern: EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Sacrificed),
+                    act: Some(ZoneChangeAct::Sacrificed),
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -331,7 +331,7 @@ fn anthem(name: &str) -> Arc<CardData> {
 /// chokepoint, so the CR 616.1 loop runs.
 fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     id
 }
@@ -349,7 +349,7 @@ fn entry_of(game: &GameState, id: ObjectId, controller: usize) -> GameAction {
         from: Some(game.get_object(id).expect("in the store").zone),
         controller,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Returned),
+        act: Some(ZoneChangeAct::Put),
     }
 }
 
@@ -387,7 +387,7 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     // The granted devour 5 applies next and finds nothing left to choose, so it
     // asks nothing at all.
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(
@@ -430,7 +430,7 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     );
 
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(
@@ -466,7 +466,7 @@ fn test_sutured_ghoul_cannot_exile_itself_as_it_enters() {
     // it happens to be first, and neither excluded object here is.
     let dp = RecordingDecisionProvider::picking_all();
     let ctx = ActionContext::new(&dp);
-    game.change_zone(ghoul, Zone::Battlefield, ZoneChangeCause::Returned, &ctx)
+    game.change_zone(ghoul, Zone::Battlefield, ZoneChangeAct::Put, &ctx)
         .expect("it enters");
 
     assert!(
@@ -622,7 +622,7 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
     );
 
     let mark = game.recorded_events().len();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(
@@ -641,9 +641,9 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
     assert_eq!(
         moves,
         vec![
-            (first, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed),
-            (second, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed),
-            (elder, Zone::Graveyard, Zone::Battlefield, ZoneChangeCause::Returned),
+            (first, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed),
+            (second, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed),
+            (elder, Zone::Graveyard, Zone::Battlefield, ZoneChangeAct::Put),
         ],
         "CR 614.13: the auxiliary moves happen while the effect is applied, which is \
          before the entry they modify — and they are sacrifices, not destructions"
@@ -672,7 +672,7 @@ fn test_the_auxiliary_moves_are_their_own_batch() {
     );
 
     let mark = game.recorded_events().len();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     let seen = kinds_and_batches(&game, mark);
@@ -705,7 +705,7 @@ fn test_devour_declined_enters_with_no_counters_and_asks_once() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![],
     );
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 0);
@@ -722,7 +722,7 @@ fn test_devour_with_no_creatures_asks_nothing() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 0);
@@ -749,7 +749,7 @@ fn test_a_cant_be_sacrificed_effect_removes_devour_candidates() {
 
     // Empty queue: any prompt at all is a failure.
     let dp = test_dp();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(game.battlefield.contains_key(&bear), "the Bear could not be sacrificed");
@@ -783,7 +783,7 @@ fn test_sigarda_does_not_stop_your_own_devour() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0, 1],
     );
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -802,7 +802,7 @@ fn test_devour_cannot_choose_a_creature_you_do_not_control() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(game.battlefield.contains_key(&theirs));
@@ -827,7 +827,7 @@ fn test_a_devoured_creature_with_a_finality_counter_is_exiled_and_still_counts()
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -917,7 +917,7 @@ fn test_a_biomancer_bucket_is_still_order_invariant() {
     // Empty queue: a CR 616.1 prompt here is a failure.
     let dp = test_dp();
     let id = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(counters(&game, id, CounterType::PlusOnePlusOne), 2, "both applied");
@@ -942,7 +942,7 @@ fn test_a_self_read_amount_forces_the_ordering_prompt() {
         enters_with_counters_equal_to_its_own_power("Narcissus", 2, 2),
         0,
     );
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -972,7 +972,7 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: first, source: first, to: Zone::Graveyard },
         vec![0],
     );
-    game.change_zone(first, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(first, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     // The second Elder is a different event, so the first Elder itself is a
@@ -982,7 +982,7 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: second, source: second, to: Zone::Graveyard },
         vec![0, 1],
     );
-    game.change_zone(second, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(second, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert_eq!(counters(&game, second, CounterType::PlusOnePlusOne), 6);
@@ -1036,7 +1036,7 @@ fn test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect() {
         vec![0],
     );
 
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -1068,7 +1068,7 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
     assert!(game.players[0].graveyard.contains(&bear));
 
@@ -1077,7 +1077,7 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: ghoul, source: ghoul, to: Zone::Exile },
         vec![0],
     );
-    game.change_zone(ghoul, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(ghoul, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -1106,7 +1106,7 @@ fn test_a_prevented_sacrifice_is_not_counted() {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![0],
     );
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(
@@ -1144,7 +1144,7 @@ fn test_the_cr_101_2_cause_is_the_effects_controller() {
 
     // Empty queue: a prompt means the Bear was still a candidate.
     let dp = test_dp();
-    game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
     assert!(

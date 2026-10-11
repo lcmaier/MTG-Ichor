@@ -22,7 +22,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -311,7 +311,7 @@ pub enum TriggerEvent {
         subject: TriggerSubject,
         from: Option<Zone>,
         to: Option<Zone>,
-        cause: Option<ZoneChangeCause>,
+        act: Option<ZoneChangeAct>,
         owner: Option<PlayerRef>,
         multiplicity: Multiplicity,
     },
@@ -1051,7 +1051,7 @@ mod tests {
                 owner: 0,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Destroyed,
+                act: ZoneChangeAct::Destroyed,
                 lki: None,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),
@@ -1098,7 +1098,7 @@ mod tests {
         let each = Multiplicity::PerOccurrence;
         let expected: Vec<(TriggerEvent, &[&str])> = vec![
             (
-                TriggerEvent::ZoneChange { subject: this.clone(), from: None, to: None, cause: None, owner: None, multiplicity: each },
+                TriggerEvent::ZoneChange { subject: this.clone(), from: None, to: None, act: None, owner: None, multiplicity: each },
                 &["ZoneChange", "LeftTheGame"],
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),

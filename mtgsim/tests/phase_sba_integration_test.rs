@@ -16,7 +16,7 @@
 use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker};
 use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_power, get_effective_toughness};
@@ -43,7 +43,7 @@ use std::sync::Arc;
 /// spell without putting a generic-mana allocation prompt in the way.
 fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     id
 }

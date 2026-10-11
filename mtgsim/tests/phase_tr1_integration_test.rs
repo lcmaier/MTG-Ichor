@@ -62,7 +62,7 @@ use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerSubject, TriggerTier,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -751,7 +751,7 @@ fn entering_tapped_is_not_becoming_tapped() {
             from: Some(Zone::Hand),
             controller: 0,
             mods,
-            cause: Some(ZoneChangeCause::Resolved),
+            act: Some(ZoneChangeAct::Resolved),
         },
         &test_ctx(),
     )
@@ -858,7 +858,7 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
                     subject: TriggerSubject::Filter(a_creature()),
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Exile),
-                    cause: None,
+                    act: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -952,7 +952,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
         watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it),
         0,
     );
-    game.change_zone(grower, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(grower, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1, "the ability still goes on the stack");
     resolve_top(&mut game, &test_dp());
@@ -989,7 +989,7 @@ fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
     destroy_all(&mut game, &[creature], source);
     assert_eq!(pending(&game), 1);
-    game.change_zone(creature, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(creature, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
     assert_eq!(game.get_object(creature).unwrap().zone, Zone::Hand, "not in the first zone it went to: nothing happens");
@@ -1032,7 +1032,7 @@ fn humility_strips_an_etb_before_it_can_trigger() {
         from: Some(Zone::Hand),
         controller,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Resolved),
+        act: Some(ZoneChangeAct::Resolved),
     };
     let batch = vec![entry(&game, scholar, 0), entry(&game, hum, 1)];
     game.execute_actions(batch, &test_ctx()).unwrap();
@@ -1256,7 +1256,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     );
     place(&mut game, &dp);
     game.players[0].life_total = 10;
-    game.change_zone(target, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(target, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let before = game.recorded_events().len();
     resolve_top(&mut game, &dp);
     assert!(game.stack.is_empty());
@@ -1563,7 +1563,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
                     subject: TriggerSubject::Any,
                     from: Some(Zone::Hand),
                     to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Discarded),
+                    act: Some(ZoneChangeAct::Discarded),
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -1671,7 +1671,7 @@ fn guile_shaped() -> Arc<CardData> {
             subject: TriggerSubject::ThisObject,
             from: None,
             to: Some(Zone::Graveyard),
-            cause: None,
+            act: None,
             owner: None,
             multiplicity: Multiplicity::PerOccurrence,
         },
@@ -1768,7 +1768,7 @@ fn dread_shaped() -> Arc<CardData> {
                 subject: TriggerSubject::ThisObject,
                 from: None,
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -1833,7 +1833,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
                     subject: TriggerSubject::ThisObject,
                     from: None,
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },

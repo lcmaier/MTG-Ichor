@@ -5,7 +5,7 @@ use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId, UntilReturnId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
-use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
+use crate::engine::actions::{LifeLossCause, ZoneChangeAct};
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
@@ -26,13 +26,12 @@ pub enum GameEvent {
         owner: PlayerId,
         from: Zone,
         to: Zone,
-        /// Why the engine moved it. `(from, to)` cannot tell a sacrifice from a
-        /// destruction, and 278 printed cards want that difference (Scryfall,
-        /// 2026-08-25).
+        /// What was done (`replacement-architecture.md` §2b.2). A redirect
+        /// keeps it (CR 614.6).
         ///
         /// **Only the replacement pipeline and the trigger matcher may branch
-        /// on this.** See [`ZoneChangeCause`](crate::engine::actions::ZoneChangeCause).
-        cause: ZoneChangeCause,
+        /// on this.** See [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct).
+        act: ZoneChangeAct,
         /// CR 603.10a — the permanent's characteristics an instant *before* it
         /// left the battlefield. `None` when it did not leave the battlefield,
         /// because then there is nothing to look back at.
@@ -146,7 +145,7 @@ pub enum GameEvent {
 
     // There is no `SpellResolved`/`StackObjectResolved`: a spell finishing
     // resolution is a `ZoneChange` out of the stack with
-    // `ZoneChangeCause::Resolved`, which also says *where* it went, and an
+    // `ZoneChangeAct::Resolved`, which also says *where* it went, and an
     // ability finishing is `AbilityResolved`, which carries the durable identity
     // CR 603.7h counting needs. One event for both would fire for abilities
     // too, and "whenever a spell resolves" keyed on it would be wrong.
@@ -211,7 +210,7 @@ pub enum GameEvent {
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
     /// A spell doesn't resolve (CR 608.2b): every target of every instance of
     /// "target" is illegal. Its move to the graveyard, the `ZoneChange` with
-    /// `ZoneChangeCause::Fizzled`, comes first. Not a countering: CR 701.6a's
+    /// `ZoneChangeAct::Fizzled`, comes first. Not a countering: CR 701.6a's
     /// counter is an effect's, and "whenever a spell is countered" does not
     /// read this. `controller` as [`Self::SpellCountered`]'s.
     SpellFizzled { spell_id: ObjectId, controller: PlayerId },
@@ -224,7 +223,7 @@ pub enum GameEvent {
     //
     // There is no `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed` or
     // `AuraDied`. Each is a `ZoneChange { from: Battlefield, to: Graveyard }`
-    // with a `cause` and an `lki` frame, said less precisely:
+    // with an `act` and an `lki` frame, said less precisely:
     //
     // - **They would partition one event by type, and permanent types are not
     //   a partition.** A Gideon is a creature *and* a planeswalker; the `lki`

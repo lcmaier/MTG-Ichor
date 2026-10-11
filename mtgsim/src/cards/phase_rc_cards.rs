@@ -76,7 +76,7 @@ use crate::types::replacement::{
     AuxiliaryMove, EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef,
     Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// Idyllic Beachfront — Land — Plains Island
 ///
@@ -415,7 +415,7 @@ pub fn root_maze() -> Arc<CardData> {
 /// # What it reads, and where
 ///
 /// - **"wasn't cast"** is `EventPattern::EnterBattlefield { cast: Some(false) }`
-///   — CR 601's fact projected off the entry's `ZoneChangeCause`. A creature
+///   — CR 601's fact projected off the entry's `ZoneChangeAct`. A creature
 ///   spell resolving arrives with `Resolved` and is not matched.
 /// - **"nontoken creature"** is an `ObjectSet::Filter`, matched against
 ///   CR 614.12's frame: the object *as it would exist on the battlefield*. A
@@ -672,7 +672,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     ),
                     to: Zone::Graveyard,
-                    cause: ZoneChangeCause::Sacrificed,
+                    act: ZoneChangeAct::Sacrificed,
                     // "Any number", so the bound is the candidate list and the
                     // floor is zero — which is where devour's "you **may**"
                     // lives. Marking the def `optional` instead would ask twice
@@ -765,7 +765,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
                     from: Zone::Graveyard,
                     filter: ObjectFilter::ByType(CardType::Creature),
                     to: Zone::Exile,
-                    cause: ZoneChangeCause::Exiled,
+                    act: ZoneChangeAct::Put,
                     up_to: None,
                     // The counters are not how this card grows; CR 614.14's
                     // linked P/T ability is, and it is T20's.

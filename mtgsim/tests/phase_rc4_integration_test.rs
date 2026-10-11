@@ -23,7 +23,7 @@ use mtgsim::cards::phase_lf_cards::humility;
 use mtgsim::cards::phase_rc_cards::{
     adaptive_shimmerer, chainbreaker, containment_priest, dryad_arbor, keldon_warlord, root_maze,
 };
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_as_entering;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
@@ -82,7 +82,7 @@ fn entries_of(game: &GameState, id: ObjectId) -> Vec<usize> {
 /// so the CR 616.1 loop runs. Reanimation's shape (`phase_rc_integration_test`).
 fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     id
 }
@@ -207,7 +207,7 @@ fn lands_cant_enter() -> Restriction {
         pattern: EventPattern::ZoneChange {
             from: None,
             to: Some(Zone::Battlefield),
-            cause: None,
+            act: None,
             object: None,
         },
         affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
@@ -470,7 +470,7 @@ fn test_containment_priest_exiles_a_creature_that_was_not_cast() {
 
     let dp = RecordingDecisionProvider::picking(0);
     let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
-    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the zone change happens; the entry is what gets replaced");
     assert_eq!(dp.prompts(), 0, "an exit beside an enters-with is one outcome");
 
@@ -510,7 +510,7 @@ fn test_containment_priest_ignores_tokens() {
             from: None,
             controller: 0,
             mods: EnterMods::NONE,
-            cause: None,
+            act: None,
         },
         &ActionContext::new(&test_dp()),
     )
@@ -599,7 +599,7 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
         vec![1],
     );
-    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());
     let entry = game.battlefield.get(&shimmerer).unwrap();
@@ -613,7 +613,7 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
         vec![0],
     );
-    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());
     let entry = game.battlefield.get(&shimmerer).unwrap();
@@ -699,7 +699,7 @@ fn test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard() {
     put_on_battlefield(&mut game, static_restriction("Lands can't enter", lands_cant_enter()), 1);
 
     let forest = put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 0);
-    game.change_zone(forest, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(forest, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     assert_eq!(game.get_object(forest).unwrap().zone, Zone::Graveyard);
     assert!(game.players[0].graveyard.contains(&forest));
@@ -718,7 +718,7 @@ fn test_a_cant_enter_is_decided_on_the_frame_at_the_entry() {
     put_on_battlefield(&mut game, everything_is_a_land(), 1);
 
     let bears = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(
         game.get_object(bears).unwrap().zone,
         Zone::Graveyard,

@@ -45,7 +45,7 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -832,7 +832,7 @@ fn restriction_creature() -> Arc<CardData> {
                 pattern: EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Sacrificed),
+                    act: Some(ZoneChangeAct::Sacrificed),
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),

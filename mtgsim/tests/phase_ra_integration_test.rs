@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::events::event::{BatchId, GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{
@@ -74,12 +74,12 @@ fn self_anthem_creature() -> Arc<CardData> {
 }
 
 /// Every `ZoneChange` in the log, as `(object, from, to, cause)`.
-fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
@@ -119,7 +119,7 @@ fn test_the_lki_frame_is_the_permanent_as_it_last_existed() {
         Some(3),
     );
 
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let lki = lki_for(&game, id).expect("a permanent leaving the battlefield has a frame");
@@ -144,7 +144,7 @@ fn test_the_lki_frame_carries_the_abilities_the_object_had() {
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
 
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let lki = lki_for(&game, id).unwrap();
@@ -183,16 +183,16 @@ fn test_the_zone_change_carries_the_reason_the_engine_moved_it() {
     let destroyed = put_on_battlefield(&mut game, self_anthem_creature(), 0);
     let sacrificed = put_on_battlefield(&mut game, self_anthem_creature(), 0);
 
-    game.change_zone(destroyed, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(destroyed, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(
         zone_changes(&game),
         vec![
-            (destroyed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Destroyed),
-            (sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed),
+            (destroyed, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Destroyed),
+            (sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed),
         ],
     );
 }
@@ -201,7 +201,7 @@ fn test_the_zone_change_carries_the_reason_the_engine_moved_it() {
 fn test_a_land_play_is_a_zone_change_with_a_reason() {
     // `play_land` wrote straight to `move_object` until RA-3 — a fourth,
     // undocumented bypass of the chokepoint, and the single most frequent zone
-    // change in the game. `ZoneChangeCause::PlayedAsLand` had no call site at
+    // change in the game. `ZoneChangeAct::PlayedAsLand` had no call site at
     // all, which is how it went unnoticed.
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, basic_lands::forest(), 0);
@@ -211,7 +211,7 @@ fn test_a_land_play_is_a_zone_change_with_a_reason() {
 
     assert_eq!(
         zone_changes(&game),
-        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeCause::PlayedAsLand)],
+        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeAct::PlayedAsLand)],
     );
 }
 
@@ -230,7 +230,7 @@ fn test_a_stale_zone_change_proposal_is_loud() {
     // battlefield, `DealDamage` for a target that is not.
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let stale = game.execute_action(
@@ -238,7 +238,7 @@ fn test_a_stale_zone_change_proposal_is_loud() {
             object: id,
             from: Zone::Battlefield,
             to: Zone::Exile,
-            cause: ZoneChangeCause::Exiled,
+            act: ZoneChangeAct::Put,
         },
         &test_ctx(),
     );
@@ -501,8 +501,8 @@ fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
     assert_eq!(
         zone_changes(&game),
         vec![
-            (id, Zone::Hand, Zone::Stack, ZoneChangeCause::Cast),
-            (id, Zone::Stack, Zone::Battlefield, ZoneChangeCause::Resolved),
+            (id, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast),
+            (id, Zone::Stack, Zone::Battlefield, ZoneChangeAct::Resolved),
         ],
     );
 }
@@ -526,7 +526,7 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
 
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Resolved)),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved)),
     );
 }
 
@@ -571,13 +571,13 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
 
     // The target leaves before the spell resolves, so all its targets are
     // illegal and CR 608.2b counters it by game rules.
-    game.change_zone(victim, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(victim, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
 
     assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Fizzled)),
         "countered by game rules is not the same fact as resolved",
     );
 }
@@ -633,7 +633,7 @@ fn test_one_death_carries_every_type_that_died() {
 
     assert_eq!(
         zone_changes(&game),
-        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::DestroyedBySba)],
+        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::DestroyedBySba)],
         "one permanent left the battlefield once",
     );
     let lki = lki_for(&game, id).expect("it was a permanent");
@@ -669,10 +669,10 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
         .records()
         .iter()
         .find_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, owner, from, to, cause, lki }
+            GameEvent::ZoneChange { object_id, owner, from, to, act, lki }
                 if *object_id == died =>
             {
-                Some((*owner, *from, *to, *cause, lki.as_ref().map(|d| d.chars())))
+                Some((*owner, *from, *to, *act, lki.as_ref().map(|d| d.chars())))
             }
             _ => None,
         })
@@ -681,7 +681,7 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     let (owner, from, to, cause, lki) = record;
     assert_eq!(owner, 1, "the `owner` the deleted events carried");
     assert_eq!((from, to), (Zone::Battlefield, Zone::Graveyard), "\"dies\"");
-    assert_eq!(cause, ZoneChangeCause::LegendRule, "the rule number, as a cause");
+    assert_eq!(cause, ZoneChangeAct::LegendRule, "the rule number, as a cause");
     let lki = lki.expect("a permanent leaving the battlefield has a frame");
     assert!(lki.types.contains(&CardType::Creature), "the type the event named");
     assert!(

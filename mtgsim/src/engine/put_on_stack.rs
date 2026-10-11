@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
@@ -291,7 +291,7 @@ impl GameState {
         if let Some(card) = card_before_cast {
             self.note_delayed_source_left(card);
         }
-        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
+        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None)?;
         self.announce_targeted_records(card_id);
         self.emit_event(GameEvent::SpellCast {
             spell_id: card_id,
@@ -634,7 +634,7 @@ impl GameState {
     /// happen — and CR 903.9b redirecting a commander mid-rollback is exactly
     /// the wrong answer.
     ///
-    /// It is also what the no-catchall rule predicts. `ZoneChangeCause` names
+    /// It is also what the no-catchall rule predicts. `ZoneChangeAct` names
     /// why the engine moved an object, every mover names its reason, and a
     /// rewind has no honest reason to give (`replacement-architecture.md` §11).
     /// A site with nothing to say is a site that does not belong on the

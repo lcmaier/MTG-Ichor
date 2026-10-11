@@ -275,11 +275,11 @@ game state is mutated. Everything else proposes. → `CLAUDE.md`.
 
 **act** — what a zone change did, in the CR's word for it: destroyed,
 sacrificed, discarded, milled, countered, cast, drawn, played as a land (CR
-701, 601.2, 121.1, 305.1), or only put somewhere. A **redirect** keeps it (CR
-614.6), so a reader asks the act for an act word ("sacrifices", "discards")
-and the destination for a destination word ("is exiled", "dies"). Today the
-act shares `ZoneChangeCause` with who did it, and RH-1 splits the two
-(`replacement-architecture.md` §2b.2). Not the **cause**.
+701, 601.2, 121.1, 305.1), or only put somewhere (`ZoneChangeAct::Put`). A
+**redirect** keeps it (CR 614.6), so a reader asks the act for an act word
+("sacrifices", "discards") and the destination for a destination word ("is
+exiled", "dies"). → `ZoneChangeAct`, `replacement-architecture.md` §2b.2.
+Not the **cause**.
 
 **cause** — who or what caused an event, in CR 400.7j's sense, which sets "an
 effect causes" beside "the cost of a spell or ability causes": an effect ("a
@@ -288,8 +288,7 @@ action (CR 116), a turn-based or state-based action (CR 703, 704), or a rule. `L
 and `EventStamp`'s `resolution` holds part of it today. RH-1 makes it one
 value on every proposal and every record (`replacement-architecture.md`
 §2b.3). Not the **performer**, which is the function that performs an action,
-and not the **act**: until RH-1, `ZoneChangeCause` is the act, which is why
-it is renamed there.
+and not the **act**.
 
 **redirect** — a replacement that changes only where a move goes (CR 614.6):
 Rest in Peace's exile in place of a graveyard, CR 903.9b's command zone in

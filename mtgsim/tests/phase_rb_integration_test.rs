@@ -11,7 +11,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
-use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -48,12 +48,12 @@ use mtgsim::engine::targeting::{ChosenTargets};
 // ---------------------------------------------------------------------------
 
 /// Every zone change in the log, as `(object, from, to, cause)`.
-fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
@@ -110,7 +110,7 @@ fn test_destroy_is_an_outer_event_that_lowers_to_a_zone_change() {
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
     assert_eq!(
         zone_changes(&game),
-        vec![(bear, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Destroyed)],
+        vec![(bear, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Destroyed)],
     );
 }
 
@@ -136,8 +136,8 @@ fn test_a_state_based_death_and_an_effect_death_carry_different_causes() {
     )
     .unwrap();
 
-    let causes: Vec<ZoneChangeCause> = zone_changes(&game).into_iter().map(|z| z.3).collect();
-    assert_eq!(causes, vec![ZoneChangeCause::Destroyed, ZoneChangeCause::DestroyedBySba]);
+    let causes: Vec<ZoneChangeAct> = zone_changes(&game).into_iter().map(|z| z.3).collect();
+    assert_eq!(causes, vec![ZoneChangeAct::Destroyed, ZoneChangeAct::DestroyedBySba]);
 }
 
 #[test]
@@ -296,7 +296,7 @@ fn test_leaving_the_battlefield_retires_the_gather_hint() {
     let probe = put_on_battlefield(&mut game, undying_probe("Undying Probe"), 0);
     assert!(game.replacement_ability_sources.contains(&probe));
 
-    game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert!(!game.replacement_ability_sources.contains(&probe));
 }
 
@@ -326,7 +326,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
                 EventPattern::ZoneChange {
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -587,13 +587,13 @@ fn test_a_finality_counter_exiles_instead_of_the_graveyard() {
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     add_counters(&mut game, bear, CounterType::Finality, 1);
 
-    game.change_zone(bear, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(bear, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
+        vec![(bear, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Sacrificed)],
         "one event, the modified one — CR 614.6"
     );
 }
@@ -639,7 +639,7 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
         vec![0],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     // Index 0 is the printed ability: `gather` reads a permanent's abilities
@@ -665,7 +665,7 @@ fn test_choosing_the_other_replacement_takes_the_other_branch() {
         vec![1],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile, "the counter was chosen");
@@ -687,7 +687,7 @@ fn test_the_loop_re_gathers_and_the_second_effect_applies_to_the_modified_event(
     let probe = put_on_battlefield(&mut game, exile_watcher("Exile Watcher"), 0);
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert!(
@@ -715,7 +715,7 @@ fn test_a_replacement_effect_does_not_apply_to_its_own_output() {
     let mut game = setup_two_player_game();
     let probe = put_on_battlefield(&mut game, self_matching_probe("Ouroboros Probe"), 0);
 
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     // One application: Graveyard → Exile. A second would have sent it to
@@ -724,7 +724,7 @@ fn test_a_replacement_effect_does_not_apply_to_its_own_output() {
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Sacrificed)],
     );
 }
 
@@ -740,7 +740,7 @@ fn exile_watcher(name: &str) -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Exile),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -761,7 +761,7 @@ fn self_matching_probe(name: &str) -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: None,
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -874,7 +874,7 @@ fn test_the_chooser_is_the_affected_objects_controller_not_the_active_player() {
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
     let ctx = ActionContext::new(&recording);
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert_eq!(*asked.borrow(), vec![2], "player 2 controls it; player 0 is active");
@@ -919,7 +919,7 @@ fn test_simultaneous_choices_are_offered_in_apnap_order() {
             object,
             from: Zone::Battlefield,
             to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
+            act: ZoneChangeAct::Sacrificed,
         })
         .collect();
     game.execute_actions(batch, &ctx).unwrap();
@@ -955,7 +955,7 @@ fn test_batch_members_each_get_their_own_applied_set() {
             object,
             from: Zone::Battlefield,
             to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
+            act: ZoneChangeAct::Sacrificed,
         })
         .collect();
     game.execute_actions(batch, &test_ctx()).unwrap();
@@ -981,7 +981,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
@@ -1384,7 +1384,7 @@ fn test_a_shield_outlives_the_permanent_that_made_it() {
     regenerate(&mut game, maker, bear);
     assert_eq!(game.replacement_effects.len(), 1);
 
-    game.change_zone(maker, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(maker, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
     assert_eq!(game.replacement_effects.len(), 1);
 }
@@ -1418,7 +1418,7 @@ fn test_kalitas_exiles_an_opponents_dying_creature_and_makes_a_zombie() {
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
@@ -1427,7 +1427,7 @@ fn test_kalitas_exiles_an_opponents_dying_creature_and_makes_a_zombie() {
     assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
     assert_eq!(
         zone_changes(&game),
-        vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
+        vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Sacrificed)],
     );
 }
 
@@ -1440,7 +1440,7 @@ fn test_kalitas_ignores_its_controllers_own_creatures() {
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let mine = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
 
-    game.change_zone(mine, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(mine, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(mine).unwrap().zone, Zone::Graveyard);
@@ -1462,7 +1462,7 @@ fn test_kalitas_ignores_tokens() {
     let opponent_token = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     game.objects.get_mut(&opponent_token).unwrap().is_token = true;
 
-    game.change_zone(opponent_token, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(opponent_token, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(opponent_token).unwrap().zone, Zone::Graveyard);
@@ -1479,7 +1479,7 @@ fn test_kalitas_does_not_replace_its_own_death() {
     let mut game = setup_two_player_game();
     let kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
 
-    game.change_zone(kalitas, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(kalitas, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(kalitas).unwrap().zone, Zone::Graveyard);
@@ -1561,7 +1561,7 @@ fn test_the_kalitas_rider_runs_after_the_exile_it_rides_on() {
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
     let before = game.recorded_events().len();
 
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     let kinds: Vec<&'static str> = game
@@ -1601,7 +1601,7 @@ fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
     let ctx = ActionContext::new(&recording);
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert_eq!(*asked.borrow(), vec![1], "the affected creature's controller chooses");
@@ -1652,7 +1652,7 @@ fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
     // was never blocked on the pipeline at all.
     let mut game = setup_two_player_game();
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
-    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
@@ -1672,7 +1672,7 @@ fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
 fn test_the_commander_sba_is_a_may_and_declining_leaves_it_in_the_graveyard() {
     let mut game = setup_two_player_game();
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
-    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
@@ -1693,7 +1693,7 @@ fn test_the_offer_is_made_once_not_on_every_later_check() {
     // the game.
     let mut game = setup_two_player_game();
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
-    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
@@ -1750,9 +1750,9 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
     let mut game = setup_two_player_game();
     let first = place_commander(&mut game, 0, Zone::Battlefield);
     let second = place_commander(&mut game, 1, Zone::Battlefield);
-    game.change_zone(first, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(first, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(second, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(second, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
     let before = game.recorded_events().len();
 
@@ -1794,9 +1794,9 @@ fn test_one_owner_may_accept_while_another_declines() {
     let mut game = setup_two_player_game();
     let accepted = place_commander(&mut game, 0, Zone::Battlefield);
     let declined = place_commander(&mut game, 1, Zone::Battlefield);
-    game.change_zone(accepted, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(accepted, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(declined, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(declined, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let dp = ScriptedDecisionProvider::new();
@@ -1833,9 +1833,9 @@ fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
     let mut game = setup_two_player_game();
     let kept = place_commander(&mut game, 0, Zone::Battlefield);
     let left_behind = place_commander(&mut game, 0, Zone::Battlefield);
-    game.change_zone(kept, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(kept, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(left_behind, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(left_behind, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
     let before = game.recorded_events().len();
 
@@ -1887,9 +1887,9 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
     let mut game = setup_two_player_game();
     let moved_first = place_commander(&mut game, 0, Zone::Battlefield);
     let active_players = place_commander(&mut game, 1, Zone::Battlefield);
-    game.change_zone(moved_first, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(moved_first, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(active_players, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(active_players, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
     game.begin_turn(2, 1);
 
@@ -1921,7 +1921,7 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
 fn test_a_noncommander_in_the_graveyard_is_never_offered() {
     let mut game = setup_two_player_game();
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.change_zone(bear, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     // Unscripted: the provider panics if anything asks.
@@ -1945,7 +1945,7 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
         vec![0],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
+    game.change_zone(cmdr, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
 
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
     assert_eq!(
@@ -1954,7 +1954,7 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
             cmdr,
             Zone::Battlefield,
             Zone::Command,
-            ZoneChangeCause::Returned
+            ZoneChangeAct::Put
         )],
         "one event: the return, to the command zone (CR 614.6)"
     );
@@ -1973,7 +1973,7 @@ fn test_903_9b_covers_the_library_too_and_declining_lets_it_through() {
         vec![],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(cmdr, Zone::Library, ZoneChangeCause::PutIntoLibrary, &ctx)
+    game.change_zone(cmdr, Zone::Library, ZoneChangeAct::Put, &ctx)
         .unwrap();
 
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Library);
@@ -2004,7 +2004,7 @@ fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
         vec![],
     );
     let ctx = ActionContext::new(&dp);
-    let result = game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx);
+    let result = game.change_zone(cmdr, Zone::Hand, ZoneChangeAct::Put, &ctx);
 
     assert!(result.is_ok(), "the loop converged: {result:?}");
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Hand);
@@ -2033,7 +2033,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
         EventPattern::ZoneChange {
             from: Some(Zone::Battlefield),
             to: Some(Zone::Graveyard),
-            cause: None,
+            act: None,
             object: None,
         },
         ObjectSet::Fixed(vec![victim]),
@@ -2052,7 +2052,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
 
     let ctx = test_ctx();
     let err = game
-        .change_zone(victim, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .change_zone(victim, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx)
         .expect_err("a self-reapplying exemption cannot converge");
 
     // Mutation check: the generic cap message would also be an `Err`, so the
@@ -2075,7 +2075,7 @@ fn exempt_row(
     becomes: Zone,
 ) -> RegisteredReplacementEffect {
     let mut def = ReplacementDef::new(
-        EventPattern::ZoneChange { from: None, to: Some(to), cause: None, object: None },
+        EventPattern::ZoneChange { from: None, to: Some(to), act: None, object: None },
         ObjectSet::Fixed(vec![victim]),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: becomes }),
     );
@@ -2113,7 +2113,7 @@ fn test_two_exemptions_rewriting_each_others_events_is_caught_at_once() {
 
     let ctx = test_ctx();
     let err = game
-        .change_zone(victim, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+        .change_zone(victim, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx)
         .expect_err("two exemptions rewriting each other cannot converge");
 
     // Mutation check: an unbounded loop hangs and a capped one also returns
@@ -2145,7 +2145,7 @@ fn test_declined_optional_is_not_reoffered() {
         vec![],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(cmdr, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
+    game.change_zone(cmdr, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
 
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Hand);
     assert!(dp.is_empty());
@@ -2161,7 +2161,7 @@ fn test_903_9b_does_not_touch_a_commander_going_to_a_graveyard() {
     // Unscripted: the provider panics if the replacement offers itself.
     let dp = ScriptedDecisionProvider::new();
     let ctx = ActionContext::new(&dp);
-    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx)
+    game.change_zone(cmdr, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx)
         .unwrap();
 
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Graveyard);
@@ -2192,7 +2192,7 @@ fn library_tucker(name: &str) -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -2228,13 +2228,13 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
         vec![1],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Sacrificed)],
         "one event: the shuffle never applied, because the creature stopped dying"
     );
     assert!(dp.is_empty(), "asked once — the loop did not re-offer");
@@ -2255,7 +2255,7 @@ fn test_choosing_the_shuffle_leaves_the_exile_inapplicable() {
         vec![0],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Library);
@@ -2316,7 +2316,7 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
     )
     .unwrap();
     assert_eq!(game.replacement_effects.len(), 1, "the destroyed creature's shield is spent");
-    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert!(game.battlefield.contains_key(&destroyed), "the shield replaced the destruction");
@@ -2327,7 +2327,7 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
     );
     assert_eq!(
         zone_changes(&game),
-        vec![(sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed)],
+        vec![(sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed)],
     );
     assert!(
         game.replacement_effects.is_empty(),
@@ -2345,7 +2345,7 @@ fn test_a_commander_exiled_may_go_to_the_command_zone() {
     let cmdr = place_commander(&mut game, 0, Zone::Battlefield);
 
     // Unscripted context: if 903.9b tried to apply to an exile, this panics.
-    game.change_zone(cmdr, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+    game.change_zone(cmdr, Zone::Exile, ZoneChangeAct::Put, &test_ctx())
         .unwrap();
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Exile);
 
@@ -2372,13 +2372,13 @@ fn test_a_replacement_with_no_matching_event_is_a_no_op() {
     let mut game = setup_two_player_game();
     let probe = put_on_battlefield(&mut game, library_on_death("Ashen Probe"), 0);
 
-    game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+    game.change_zone(probe, Zone::Exile, ZoneChangeAct::Put, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Put)],
         "one event, and it is the one that was proposed"
     );
 }
@@ -2391,7 +2391,7 @@ fn library_on_death(name: &str) -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -2431,7 +2431,7 @@ fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() 
         vec![0],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert!(dp.is_empty(), "CR 616.1 prompted, and with two printed cards");
@@ -2459,7 +2459,7 @@ fn test_choosing_rest_in_peace_instead_exiles_without_the_zombie() {
         vec![1],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx)
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
 
     assert!(dp.is_empty(), "the prompt was consumed");
@@ -2504,7 +2504,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
         "P0 controls it; P1 still owns it",
     );
 
-    game.change_zone(stolen, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(stolen, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(
@@ -2526,7 +2526,7 @@ fn test_leyline_ignores_tokens_and_rest_in_peace_does_not_discriminate() {
     let token = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     game.objects.get_mut(&token).unwrap().is_token = true;
 
-    game.change_zone(token, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(token, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
     assert_eq!(
         game.get_object(token).unwrap().zone,
@@ -2548,7 +2548,7 @@ fn test_rest_in_peace_exiles_a_card_headed_to_a_graveyard_from_hand() {
     let _rip = put_on_battlefield(&mut game, rest_in_peace(), 0);
     let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
 
     assert_eq!(
@@ -2572,7 +2572,7 @@ fn test_kalitas_stays_battlefield_scoped_because_cr_700_4_defines_dies() {
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.change_zone(discarded, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(discarded, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(discarded).unwrap().zone, Zone::Graveyard);
@@ -2602,7 +2602,7 @@ fn test_rest_in_peace_applies_to_a_noncreature_permanent() {
         1,
     );
 
-    game.change_zone(enchantment, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(enchantment, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(enchantment).unwrap().zone, Zone::Exile);

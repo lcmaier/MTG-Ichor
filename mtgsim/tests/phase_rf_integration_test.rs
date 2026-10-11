@@ -17,7 +17,7 @@ use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_rf_cards::{
     darksteel_colossus, hollow_hands, nexus_of_fate, sealing_ward, timid_golem,
 };
-use mtgsim::engine::actions::{ActionContext, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::GameState;
@@ -67,7 +67,7 @@ fn test_a_colossus_discarded_from_hand_is_shuffled_into_its_library_instead() {
     let library = stock(&mut game, 0);
     let colossus = put_in_hand(&mut game, darksteel_colossus(), 0);
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
 
     assert_eq!(zone_of(&game, colossus), Zone::Library, "shuffled into its owner's library");
@@ -92,7 +92,7 @@ fn test_a_colossus_milled_from_a_library_stays_in_it_and_the_library_is_shuffled
     assert_eq!(*game.players[0].library.last().unwrap(), colossus, "on top");
     let before = game.recorded_events().len();
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx())
         .unwrap();
 
     assert_eq!(zone_of(&game, colossus), Zone::Library);
@@ -154,7 +154,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::ZoneChange { cause: ZoneChangeCause::Milled, .. } => Some("mill"),
+            GameEvent::ZoneChange { act: ZoneChangeAct::Milled, .. } => Some("mill"),
             GameEvent::LibraryShuffled { .. } => Some("shuffle"),
             _ => None,
         })
@@ -175,7 +175,7 @@ fn test_a_nexus_of_fate_countered_on_the_stack_goes_back_into_the_library() {
     stock(&mut game, 0);
     let nexus = put_spell_on_stack(&mut game, nexus_of_fate(), 0);
 
-    game.change_zone(nexus, Zone::Graveyard, ZoneChangeCause::Countered, &test_ctx())
+    game.change_zone(nexus, Zone::Graveyard, ZoneChangeAct::Countered, &test_ctx())
         .unwrap();
 
     assert_eq!(zone_of(&game, nexus), Zone::Library);
@@ -215,7 +215,7 @@ fn test_a_colossus_sacrificed_from_the_battlefield_is_shuffled_into_its_library(
     stock(&mut game, 0);
     let colossus = put_on_battlefield(&mut game, darksteel_colossus(), 0);
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(zone_of(&game, colossus), Zone::Library);
@@ -235,7 +235,7 @@ fn test_a_stolen_colossus_returns_to_its_owners_library_and_shuffles_that_one() 
     game.battlefield.get_mut(&colossus).unwrap().controller = 1;
     game.bump_layer_epoch();
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert!(game.players[0].library.contains(&colossus), "its owner's library");
@@ -259,17 +259,17 @@ fn test_a_stolen_colossus_returns_to_its_owners_library_and_shuffles_that_one() 
 fn test_an_ability_that_states_no_zone_functions_only_on_the_battlefield() {
     let mut game = setup_two_player_game();
     let in_hand = put_in_hand(&mut game, timid_golem(), 0);
-    game.change_zone(in_hand, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(in_hand, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, in_hand), Zone::Graveyard, "in hand, the ability does not function");
 
     let in_library = put_in_library(&mut game, timid_golem(), 0);
-    game.change_zone(in_library, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
+    game.change_zone(in_library, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, in_library), Zone::Graveyard, "nor in a library");
 
     let on_battlefield = put_on_battlefield(&mut game, timid_golem(), 0);
-    game.change_zone(on_battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(on_battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, on_battlefield), Zone::Exile, "on the battlefield it does");
 }
@@ -289,7 +289,7 @@ fn test_the_zone_leg_reads_the_effective_ability_list() {
     put_on_battlefield(&mut game, hollow_hands(), 1);
     let colossus = put_in_hand(&mut game, darksteel_colossus(), 0);
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
 
     assert_eq!(zone_of(&game, colossus), Zone::Graveyard, "stripped in hand, so nothing replaced");
@@ -309,13 +309,13 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     assert!(game.zone_replacement_ability_sources.contains_key(&colossus));
     assert!(!game.replacement_ability_sources.contains(&colossus));
 
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Library);
     assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in the library");
 
     // From the library, a second time, through the mill door.
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Library);
     assert_eq!(shuffles(&game, 0), 2);
@@ -323,9 +323,9 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     // Into exile, where the clause functions too (`ZoneSet::ALL`) and the map
     // follows it. The move *out* of exile into a graveyard is the one board
     // this file does not have: no registered card makes it and no
-    // `ZoneChangeCause` names it — Pull from Eternity brings both
+    // `ZoneChangeAct` names it — Pull from Eternity brings both
     // (`codebase-state.md` main item 148).
-    game.change_zone(colossus, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(colossus, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Exile);
     assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in exile");
 
@@ -359,7 +359,7 @@ fn test_a_colossus_commander_goes_to_the_command_zone_and_its_owners_library_is_
         vec![0],
     );
     let ctx = ActionContext::new(&dp);
-    game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Sacrificed, &ctx).unwrap();
+    game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx).unwrap();
 
     assert_eq!(zone_of(&game, colossus), Zone::Command, "903.9b applied to the substitute");
     assert!(!game.players[0].library.contains(&colossus));
@@ -385,11 +385,11 @@ fn test_a_battlefield_scoped_filter_row_does_not_reach_a_card_in_a_library() {
     put_on_battlefield(&mut game, sealing_ward(), 0);
 
     let milled = put_in_library(&mut game, vanilla_creature(1, 1, &[]), 0);
-    game.change_zone(milled, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx()).unwrap();
+    game.change_zone(milled, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, milled), Zone::Graveyard, "a creature card is not a creature");
 
     let died = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    game.change_zone(died, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(died, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, died), Zone::Exile, "a creature is");
 }
 
@@ -400,6 +400,6 @@ fn test_a_from_anywhere_filter_row_reaches_a_card_in_a_library() {
     put_on_battlefield(&mut game, rest_in_peace(), 0);
 
     let milled = put_in_library(&mut game, vanilla_creature(1, 1, &[]), 1);
-    game.change_zone(milled, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx()).unwrap();
+    game.change_zone(milled, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx()).unwrap();
     assert_eq!(zone_of(&game, milled), Zone::Exile, "ZoneSet::ALL reaches a library");
 }

@@ -43,7 +43,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
-use mtgsim::types::zones::ZoneChangeCause;
+use mtgsim::types::zones::ZoneChangeAct;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -278,7 +278,7 @@ fn a_rider_on_a_group_reads_the_members_amounts_summed() {
         .iter()
         .filter(|r| matches!(
             r.event,
-            GameEvent::ZoneChange { cause: ZoneChangeCause::Milled, .. }
+            GameEvent::ZoneChange { act: ZoneChangeAct::Milled, .. }
         ))
         .map(|r| r.batch())
         .collect();

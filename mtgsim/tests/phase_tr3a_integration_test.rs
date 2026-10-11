@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, IdentityRef, TriggerEvent, TriggerOrigin,
     Referred, TriggerSubject, TriggerTurn,
 };
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -373,11 +373,11 @@ fn a_delayed_trigger_is_never_retroactive() {
     assert_eq!(life(&game, 0), 22, "the next untap does");
 
     game.activate_ability(0, sentinel, 1, &test_dp()).unwrap();
-    game.change_zone(sentinel, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
-    game.change_zone(sentinel, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(sentinel, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(sentinel, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.delayed_triggers.len(), 1, "created, about a creature already gone");
-    game.change_zone(sentinel, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(sentinel, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(game.pending_triggers.is_empty(), "the creature that left now is a new object");
 }
 
@@ -417,7 +417,7 @@ fn a_delayed_trigger_sees_its_own_source_leave() {
     activate_and_resolve(&mut game, 0, sentinel, 1);
     assert!(game.pending_triggers.is_empty());
 
-    game.change_zone(sentinel, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(sentinel, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(the_delayed_pending(&game).origin.source(), sentinel);
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 23);
@@ -444,7 +444,7 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
     game.execute_action(counters, &test_ctx()).unwrap();
     assert!(game.delayed_triggers[0].source_frame.is_none(), "its source is still there");
 
-    game.change_zone(herald, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(herald, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     let kept = game.delayed_triggers[0].source_frame.as_ref().map(|frame| frame.power);
     assert_eq!(kept, Some(Some(4)), "the 4/4 that left");
 
@@ -655,8 +655,8 @@ fn a_delayed_trigger_does_not_follow_its_object_to_a_new_existence() {
     let mut game = setup_two_player_game();
     let construct = put_on_battlefield(&mut game, doomed_construct(), 0);
     activate_and_resolve(&mut game, 0, construct, 1);
-    game.change_zone(construct, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
-    game.change_zone(construct, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(construct, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(construct, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     advance_to(&mut game, 0, StepType::End);
     the_delayed_pending(&game);
@@ -757,7 +757,7 @@ fn archivist_whose_rider(rider: Effect) -> Arc<CardData> {
         )),
     );
     let replacement = ReplacementDef::new(
-        EventPattern::ZoneChange { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), cause: None, object: None },
+        EventPattern::ZoneChange { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None, object: None },
         ObjectSet::battlefield_filter(opponents_creature),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
     )

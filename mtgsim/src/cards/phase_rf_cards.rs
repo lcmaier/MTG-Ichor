@@ -103,7 +103,7 @@ fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
                 EventPattern::ZoneChange {
                     from: None,
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -206,7 +206,7 @@ pub fn timid_golem() -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: None,
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::SourceOnly,
@@ -269,7 +269,7 @@ pub fn sealing_ward() -> Arc<CardData> {
             EventPattern::ZoneChange {
                 from: None,
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),

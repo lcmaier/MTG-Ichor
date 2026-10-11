@@ -38,7 +38,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -149,7 +149,7 @@ fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::
         .records()
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::ZoneChange { object_id, cause: ZoneChangeCause::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
+            GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
             _ => None,
         })
         .collect()
@@ -319,7 +319,7 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
     assert_eq!(game.stack.len(), 4, "two spells, and the two triggers above them");
 
     game.execute_action(
-        GameAction::ZoneChange { object: stillness, from: Zone::Battlefield, to: Zone::Exile, cause: ZoneChangeCause::Exiled },
+        GameAction::ZoneChange { object: stillness, from: Zone::Battlefield, to: Zone::Exile, act: ZoneChangeAct::Put },
         &test_ctx(),
     )
     .unwrap();
@@ -497,7 +497,7 @@ fn an_enters_trigger_reads_its_controller_and_power_once_its_source_is_sacrifice
         by: 0,
     };
     game.execute_action(grow, &test_ctx()).unwrap();
-    game.change_zone(reckoner, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(reckoner, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 1, "player 0's 20 life met the \"if\", and it was last a 4/4");
@@ -548,7 +548,7 @@ fn a_cast_trigger_reads_the_power_of_a_spell_countered_in_response() {
         .build();
     let spell = cast(&mut game, 0, ogre);
     place(&mut game, &test_dp());
-    game.change_zone(spell, Zone::Graveyard, ZoneChangeCause::Countered, &test_ctx()).unwrap();
+    game.change_zone(spell, Zone::Graveyard, ZoneChangeAct::Countered, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 17, "the countered spell's 3");
@@ -571,7 +571,7 @@ fn a_draw_trigger_reads_the_power_of_a_card_discarded_in_response() {
     let card = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
     game.draw_card(0, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
-    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 18, "the discarded card's 2");

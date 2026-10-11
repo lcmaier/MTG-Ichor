@@ -51,7 +51,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event;
@@ -253,8 +253,8 @@ fn a_shield_does_not_prevent_the_damage_of_the_object_its_source_became() {
     let probe = put_on_battlefield(&mut game, red_probe(), 1);
     circle_chooses(&mut game, circle, now(probe));
 
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
-    game.change_zone(probe, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.execute_action(
         GameAction::DealDamage {
             source: probe,
@@ -333,8 +333,8 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let wisp = put_on_battlefield(&mut game, flickerwisp(), 0);
     let stray = put_in_hand(&mut game, grizzly_bears(), 0);
-    game.change_zone(wisp, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(wisp, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(wisp, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(wisp, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let wisp_was = game.object_ref(wisp).unwrap();
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Exile);
@@ -346,7 +346,7 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     assert!(!sources.iter().any(|s| s.id == stray), "a card in hand that nothing names");
 
     destroy(&mut game, wisp);
-    game.change_zone(bears, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let sources = damage_sources(&game, None);
     assert!(sources.contains(&wisp_was), "the trigger's source, as it last existed");
     assert!(sources.contains(&exiled), "the card it names, though it has left exile");
@@ -366,7 +366,7 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
     let was = game.object_ref(myr).unwrap();
     destroy(&mut game, myr);
     game.perform_sba_and_triggers(&RecordingDecisionProvider::picking(0)).unwrap();
-    game.change_zone(myr, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(myr, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     let offered = activate_circle(&mut game, circle, as_it_was(was));
     assert_eq!(offered, logged(&game, &[now(circle), now(myr), as_it_was(was)]));

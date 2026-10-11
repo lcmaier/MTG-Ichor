@@ -20,7 +20,7 @@ use mtgsim::cards::phase_re_cards::{
     vorinclex_monstrous_raider, winding_constrictor,
 };
 use mtgsim::cards::phase_sba_cards::battlegrowth;
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -117,7 +117,7 @@ fn reanimate_with(
 ) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
     let ctx = ActionContext { dp, resolution: None };
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ctx).expect("it enters");
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ctx).expect("it enters");
     id
 }
 

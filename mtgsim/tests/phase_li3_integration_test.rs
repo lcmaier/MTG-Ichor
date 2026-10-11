@@ -15,7 +15,7 @@
 //! dependency check is what gets the answer right.
 
 use mtgsim::cards::{basic_lands, creatures, dual_lands, phase_ld_cards, phase_lf_cards, phase_li_cards};
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{
@@ -92,7 +92,7 @@ fn test_kird_ape_gets_its_bonus_only_while_you_control_a_forest() {
         "one row throughout"
     );
 
-    game.change_zone(mine, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(mine, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert_eq!(pt(&game, ape), (Some(1), Some(1)), "the Forest left; the bonus went with it");
     let _ = theirs;
 }

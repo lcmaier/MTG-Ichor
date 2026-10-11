@@ -112,7 +112,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{IdMap, ObjectId};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -599,7 +599,7 @@ fn extract_stats<'a>(
 /// CR 601.2i — nothing leaves the stack by resolving unless it was cast.
 ///
 /// A spell reaches the stack at CR 601.2a and is announced at 601.2i, so every
-/// object leaving the stack with `ZoneChangeCause::Resolved` has a `SpellCast`
+/// object leaving the stack with `ZoneChangeAct::Resolved` has a `SpellCast`
 /// behind it; an ability ceases to exist instead and emits no zone change. An
 /// object with none was stranded on the stack by a cast that failed after
 /// 601.2a and did not rewind (`codebase-state.md` item 16c). Reported the way
@@ -624,7 +624,7 @@ fn uncast_resolutions<'a>(
             GameEvent::ZoneChange {
                 object_id,
                 from: Zone::Stack,
-                cause: ZoneChangeCause::Resolved,
+                act: ZoneChangeAct::Resolved,
                 ..
             } => {
                 let owed = casts.entry(*object_id).or_insert(0);

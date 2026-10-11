@@ -8,7 +8,7 @@
 //!
 //! This replaces v1's scattered `to_battlefield()`, `to_graveyard()`, etc. methods.
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::GameState;
@@ -40,7 +40,7 @@ impl GameState {
     ///
     /// **This function performs the move and announces nothing.** The
     /// `GameEvent::ZoneChange` is emitted by `GameState::announce_zone_change`,
-    /// whose callers know the [`ZoneChangeCause`] and, for the two performer
+    /// whose callers know the [`ZoneChangeAct`] and, for the two performer
     /// arms, capture the CR 603.10a LKI frame before the object stops being a
     /// permanent. That split is also what makes the `// CAST-ROLLBACK:` tag
     /// true: a rewind really is unobservable, and so is the 601.2a move it undoes.
@@ -300,7 +300,7 @@ impl GameState {
             *player.library.last().unwrap()
         };
 
-        self.change_zone(card_id, Zone::Hand, ZoneChangeCause::Drawn, ctx)?;
+        self.change_zone(card_id, Zone::Hand, ZoneChangeAct::Drawn, ctx)?;
         // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
         self.emit_event(GameEvent::CardDrawn { player_id, card_id });
         Ok(Some(card_id))
@@ -322,7 +322,7 @@ impl GameState {
         // Through the chokepoint: CR 305.1 makes playing a land a special action
         // that still puts a permanent onto the battlefield, so every ETB
         // replacement has to see it.
-        self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
+        self.change_zone(card_id, Zone::Battlefield, ZoneChangeAct::PlayedAsLand, ctx)?;
 
         let player = self.get_player_mut(player_id)?;
         player.lands_played_this_turn += 1;
@@ -630,7 +630,7 @@ mod tests {
         game.change_zone(
             forest_id,
             Zone::Hand,
-            crate::engine::actions::ZoneChangeCause::PutIntoHand,
+            crate::engine::actions::ZoneChangeAct::Put,
             &test_ctx(),
         ).unwrap();
 

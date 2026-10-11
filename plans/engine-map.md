@@ -286,7 +286,7 @@ Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 | Registry membership is not effect existence | `static_ability_still_exists` `engine/layers/board.rs:1099`, asked per layer; the descending ceiling is `Board::frame_of` `engine/layers/board.rs:411` | `layers-architecture.md` §5.2 |
 | CDAs are never registry effects | `cda_modifications` `engine/layers/cda.rs:71`; skipped at registration, `state/game_state.rs:1692`; a Layer 6 grant clears the flag at `engine/layers/compute.rs:1119`, in `apply_resolved` | `layers-architecture.md` §6 |
 | No observable mutation outside `perform_action`'s arms | `perform_action` `engine/actions.rs:1153` | `replacement-architecture.md` §2 |
-| A `ZoneChange` names its cause, with no catchall | `ZoneChangeCause` `types/zones.rs:189` | `replacement-architecture.md` §3.1 |
+| A `ZoneChange` names its act, with no catchall | `ZoneChangeAct` `types/zones.rs:220` | `replacement-architecture.md` §2b.2 |
 | Performers are loud; callers check legality | the `Untap` arm `engine/actions.rs:1371`; `Primitive::Untap` `engine/resolve.rs:799` | `replacement-architecture.md` §9 (RA-2) |
 | "Becomes" events fire on the transition only | the `Tap` arm `engine/actions.rs:1408` | CR 603.2e |
 | An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1121`, `battlefield_ids_ordered` `state/game_state.rs:1130`, keyed on `PermanentState::timestamp` `state/battlefield.rs:62` | `plans/id-hasher.md` §6 |

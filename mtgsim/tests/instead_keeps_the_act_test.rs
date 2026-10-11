@@ -18,7 +18,7 @@ use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
 use mtgsim::cards::phase_re8_cards::{mind_rot, nephalia_academy};
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
@@ -53,12 +53,12 @@ const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
 // ---------------------------------------------------------------------------
 
 /// Every zone change in the log, as `(object, from, to, cause)`.
-fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
@@ -66,7 +66,7 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)
 }
 
 /// The one zone change `object` made.
-fn the_move_of(game: &GameState, object: ObjectId) -> (Zone, Zone, ZoneChangeCause) {
+fn the_move_of(game: &GameState, object: ObjectId) -> (Zone, Zone, ZoneChangeAct) {
     let moves: Vec<_> = zone_changes(game)
         .into_iter()
         .filter(|(id, ..)| *id == object)
@@ -147,7 +147,7 @@ fn leyline_first_still_offers_academy_because_the_card_was_still_discarded() {
 
     assert!(dp.is_empty(), "Academy was offered after Leyline applied");
     assert_eq!(game.players[1].library.last(), Some(&card), "on top of the library");
-    assert_eq!(the_move_of(&game, card), (Zone::Hand, Zone::Library, ZoneChangeCause::Discarded));
+    assert_eq!(the_move_of(&game, card), (Zone::Hand, Zone::Library, ZoneChangeAct::Discarded));
 }
 
 /// The other order. Academy is offered first and declined, which spends its
@@ -168,7 +168,7 @@ fn academy_declined_first_leaves_leyline_to_exile_a_card_that_was_still_discarde
 
     assert!(dp.is_empty());
     assert!(game.exile.contains(&card));
-    assert_eq!(the_move_of(&game, card), (Zone::Hand, Zone::Exile, ZoneChangeCause::Discarded));
+    assert_eq!(the_move_of(&game, card), (Zone::Hand, Zone::Exile, ZoneChangeAct::Discarded));
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ fn a_creature_sacrificed_under_rest_in_peace_is_recorded_as_sacrificed() {
 
     assert_eq!(
         the_move_of(&game, victim),
-        (Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)
+        (Zone::Battlefield, Zone::Exile, ZoneChangeAct::Sacrificed)
     );
 }
 
@@ -212,8 +212,8 @@ fn rest_in_peace_destroyed_by_a_spell_is_exiled_as_destroyed_and_the_spell_reach
     assert_eq!(
         after_cast,
         vec![
-            (rip, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Destroyed),
-            (breaker, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Resolved),
+            (rip, Zone::Battlefield, Zone::Exile, ZoneChangeAct::Destroyed),
+            (breaker, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Resolved),
         ]
     );
 }
@@ -239,7 +239,7 @@ fn cards_milled_under_rest_in_peace_are_recorded_as_milled() {
     game.resolve_effect(&mill_two, &ctx, &test_dp()).expect("resolving");
 
     for card in top_two {
-        assert_eq!(the_move_of(&game, card), (Zone::Library, Zone::Exile, ZoneChangeCause::Milled));
+        assert_eq!(the_move_of(&game, card), (Zone::Library, Zone::Exile, ZoneChangeAct::Milled));
     }
 }
 
@@ -259,10 +259,10 @@ fn a_spell_countered_under_rest_in_peace_is_recorded_as_countered() {
     game.cast_spell(0, counter, &test_dp()).expect("{U}{U} is in the pool");
     game.resolve_top_of_stack(&test_dp()).expect("resolves");
 
-    assert_eq!(the_move_of(&game, bears), (Zone::Stack, Zone::Exile, ZoneChangeCause::Countered));
+    assert_eq!(the_move_of(&game, bears), (Zone::Stack, Zone::Exile, ZoneChangeAct::Countered));
     let resolved: Vec<_> = zone_changes(&game)
         .into_iter()
         .filter(|(id, from, ..)| *id == counter && *from == Zone::Stack)
         .collect();
-    assert_eq!(resolved, vec![(counter, Zone::Stack, Zone::Exile, ZoneChangeCause::Resolved)]);
+    assert_eq!(resolved, vec![(counter, Zone::Stack, Zone::Exile, ZoneChangeAct::Resolved)]);
 }

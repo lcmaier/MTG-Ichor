@@ -15,14 +15,14 @@ use crate::types::zones::Zone;
 use crate::ui::ask::ask_scry;
 use crate::ui::decision::DecisionProvider;
 
-/// Re-exported for every existing reader of `engine::actions::ZoneChangeCause`.
+/// Re-exported for every existing reader of `engine::actions::ZoneChangeAct`.
 ///
 /// The definition lives in `types::zones`, alongside `Zone`, which
 /// is the vocabulary it qualifies. The mover is `EventPattern::ZoneChange`:
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the cause, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeCause};
+pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeAct};
 
 /// How many batches may nest before the engine calls it a loop of its own
 /// making — see `NestingGuards::batch_depth`.
@@ -193,7 +193,7 @@ pub enum GameAction {
     ///
     /// `cause` is the fact that decomposition would otherwise destroy — see
     /// [`LifeLossCause`]. There is no catchall arm, for the reason
-    /// [`ZoneChangeCause`] has none.
+    /// [`ZoneChangeAct`] has none.
     LoseLife {
         player: PlayerId,
         amount: u64,
@@ -202,12 +202,12 @@ pub enum GameAction {
 
     /// Move an object from one zone to another.
     ///
-    /// `cause` is set by the caller and is required — see [`ZoneChangeCause`].
+    /// `act` is set by the caller and is required — see [`ZoneChangeAct`].
     ZoneChange {
         object: ObjectId,
         from: Zone,
         to: Zone,
-        cause: ZoneChangeCause,
+        act: ZoneChangeAct,
     },
 
     /// Untap a permanent.
@@ -323,17 +323,17 @@ pub enum GameAction {
     /// [`Rewrite::EnterWith`](crate::types::replacement::Rewrite::EnterWith)
     /// as CR 616.1f iterates.
     ///
-    /// `cause` is the zone change's, or `None` for a token. A fact about the
+    /// `act` is the zone change's, or `None` for a token. A fact about the
     /// event, recorded because CR 601's "was it cast" is unrecoverable a moment
     /// later: `Resolved` is a permanent spell that was cast, everything else was
     /// not. Read by `EventPattern::EnterBattlefield { cast }` and by
-    /// `EventPattern::ZoneChange`'s `cause` when it watches an entry.
+    /// `EventPattern::ZoneChange`'s `act` when it watches an entry.
     EnterBattlefield {
         object: ObjectId,
         from: Option<Zone>,
         controller: PlayerId,
         mods: EnterMods,
-        cause: Option<ZoneChangeCause>,
+        act: Option<ZoneChangeAct>,
     },
 
     /// An effect creates one or more tokens (CR 111, 701.7a) — **the outer
@@ -1127,7 +1127,7 @@ impl GameState {
         &mut self,
         object: ObjectId,
         to: Zone,
-        cause: ZoneChangeCause,
+        act: ZoneChangeAct,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         let from = self.get_object(object)?.zone;
@@ -1138,10 +1138,10 @@ impl GameState {
                 return Ok(());
             }
             let controller = self.default_enter_controller(object)?;
-            self.propose_entry(object, Some(from), controller, Some(cause), ctx)?;
+            self.propose_entry(object, Some(from), controller, Some(act), ctx)?;
             return Ok(());
         }
-        self.execute_action(GameAction::ZoneChange { object, from, to, cause }, ctx)
+        self.execute_action(GameAction::ZoneChange { object, from, to, act }, ctx)
     }
 
     /// Perform the actual state mutation and emit the event.
@@ -1332,7 +1332,7 @@ impl GameState {
             // The move and its announcement are `perform_zone_change`'s, which
             // the `EnterBattlefield` arm shares — the log cannot tell which arm
             // moved a card, and must not be able to.
-            GameAction::ZoneChange { object, from, to, cause } => {
+            GameAction::ZoneChange { object, from, to, act } => {
                 // Loud: entering is `EnterBattlefield`'s, and a move into the
                 // zone here would leave an object with no entity.
                 if to == Zone::Battlefield {
@@ -1342,7 +1342,7 @@ impl GameState {
                         from, object
                     ));
                 }
-                self.perform_zone_change(object, from, to, cause)
+                self.perform_zone_change(object, from, to, act)
             }
 
             GameAction::Untap { object } => {
@@ -1476,7 +1476,7 @@ impl GameState {
                         object,
                         from: Zone::Battlefield,
                         to: Zone::Graveyard,
-                        cause: source.zone_change_cause(),
+                        act: source.zone_change_cause(),
                     },
                     _ctx,
                 )?;
@@ -1487,8 +1487,8 @@ impl GameState {
             // move is `perform_zone_change`'s; the entity and the entry's
             // announcement are `place_on_battlefield`'s, the only emitter of
             // `GameEvent::PermanentEnteredBattlefield`.
-            GameAction::EnterBattlefield { object, from, controller, mods, cause } => {
-                match (from, cause) {
+            GameAction::EnterBattlefield { object, from, controller, mods, act } => {
+                match (from, act) {
                     (Some(Zone::Battlefield), _) => {
                         return Err(format!(
                             "entry of {} from the battlefield: it is already a permanent",
@@ -1699,7 +1699,7 @@ impl GameState {
         object: ObjectId,
         from: Zone,
         to: Zone,
-        cause: ZoneChangeCause,
+        act: ZoneChangeAct,
     ) -> Result<(), String> {
         // Loud: the proposal describes a board, and performing it against a
         // different one is a caller bug. The pipeline matches on `from`, so a
@@ -1728,7 +1728,7 @@ impl GameState {
         self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, cause, lki)
+        self.announce_zone_change(object, from, to, act, lki)
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -1741,11 +1741,11 @@ impl GameState {
         object: ObjectId,
         from: Zone,
         to: Zone,
-        cause: ZoneChangeCause,
+        act: ZoneChangeAct,
         lki: Option<Lki>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki });
         Ok(())
     }
 
@@ -1781,12 +1781,12 @@ impl GameState {
         object: ObjectId,
         from: Option<Zone>,
         controller: PlayerId,
-        cause: Option<ZoneChangeCause>,
+        act: Option<ZoneChangeAct>,
     ) -> Option<GameAction> {
         if self.is_multiplayer() && !self.in_game(controller) {
             return None;
         }
-        Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, cause })
+        Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })
     }
 
     /// CR 111.8 — whether `action` moves a token that is off the battlefield.
@@ -1819,10 +1819,10 @@ impl GameState {
         object: ObjectId,
         from: Option<Zone>,
         controller: PlayerId,
-        cause: Option<ZoneChangeCause>,
+        act: Option<ZoneChangeAct>,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
-        let Some(entry) = self.entry_proposal(object, from, controller, cause) else {
+        let Some(entry) = self.entry_proposal(object, from, controller, act) else {
             return Ok(false);
         };
         let performed = self.execute_actions(vec![entry], ctx)?;

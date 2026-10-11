@@ -10,7 +10,7 @@
 
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
@@ -80,12 +80,12 @@ fn destroy(game: &mut GameState, id: ObjectId) {
 }
 
 /// Every zone change of `id`, as `(from, to, cause)`.
-fn moves_of(game: &GameState, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeCause)> {
+fn moves_of(game: &GameState, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } if *object_id == id => {
-                Some((*from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } if *object_id == id => {
+                Some((*from, *to, *act))
             }
             _ => None,
         })
@@ -161,7 +161,7 @@ fn test_an_aura_spell_resolves_attached_to_its_target() {
     assert_eq!(pt(&game, theirs), (3, 4));
     assert_eq!(
         moves_of(&game, aura),
-        vec![(Zone::Stack, Zone::Battlefield, ZoneChangeCause::Resolved)]
+        vec![(Zone::Stack, Zone::Battlefield, ZoneChangeAct::Resolved)]
     );
 }
 
@@ -193,7 +193,7 @@ fn test_the_aura_dies_with_its_host() {
     );
     assert_eq!(
         moves_of(&game, aura).last().copied(),
-        Some((Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::AuraSba))
+        Some((Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::AuraSba))
     );
 }
 
@@ -220,7 +220,7 @@ fn test_an_aura_whose_target_left_fizzles() {
     assert!(game.players[0].graveyard.contains(&aura), "to its owner's graveyard");
     assert_eq!(
         moves_of(&game, aura),
-        vec![(Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)]
+        vec![(Zone::Stack, Zone::Graveyard, ZoneChangeAct::Fizzled)]
     );
     assert!(game
         .recorded_events()

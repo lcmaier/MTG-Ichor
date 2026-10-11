@@ -44,7 +44,7 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, RetargetSpec, Rew
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::display::format_event_log;
 
 // ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ fn an_activated_abilitys_source_destroyed_in_response_still_deals_the_damage() {
     let warhammer = put_on_battlefield(&mut game, loxodon_warhammer(), 0);
     equip(&mut game, warhammer, pinger);
     game.activate_ability(0, pinger, 0, &test_dp()).unwrap();
-    game.change_zone(pinger, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(pinger, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
@@ -246,7 +246,7 @@ fn dragonhawk_board(game: &mut GameState) -> (ObjectId, ObjectId) {
 }
 
 fn dies(game: &mut GameState, creature: ObjectId) {
-    game.change_zone(creature, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(creature, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
 }
 
 /// Walk the turn machinery to player 0's end step; libraries are filled so a

@@ -140,7 +140,7 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
                 subject: TriggerSubject::Filter(a_creature()),
                 from: None,
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -210,7 +210,7 @@ fn dread_shaped() -> Arc<CardData> {
         subject: TriggerSubject::ThisObject,
         from: None,
         to: Some(Zone::Graveyard),
-        cause: None,
+        act: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     };

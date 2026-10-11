@@ -16,7 +16,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
 
@@ -203,7 +203,7 @@ fn test_chromatic_ward_removed_on_ltb() {
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Destroy the ward
-    game.change_zone(ward_id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(ward_id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
 
     // Back to just green
     assert_eq!(game.continuous_effects.len(), 0);

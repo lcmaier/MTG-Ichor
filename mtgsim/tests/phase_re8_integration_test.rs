@@ -25,7 +25,7 @@ use mtgsim::cards::phase_re8_cards::{
     eligeth_crossroads_augur, hymn_to_tourach, mind_rot, nephalia_academy, opt,
 };
 use mtgsim::cards::phase_re_cards::notion_thief;
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{EventRecord, GameEvent};
 use mtgsim::objects::card_data::{
@@ -224,7 +224,7 @@ fn discards(game: &GameState) -> Vec<EventRecord> {
         .filter(|r| {
             matches!(
                 r.event,
-                GameEvent::ZoneChange { cause: ZoneChangeCause::Discarded, .. }
+                GameEvent::ZoneChange { act: ZoneChangeAct::Discarded, .. }
             )
         })
         .cloned()
@@ -366,7 +366,7 @@ fn test_a_cleanup_discard_of_three_is_one_prompt_and_one_batch() {
         .records_from(before)
         .iter()
         .filter(|r| {
-            matches!(r.event, GameEvent::ZoneChange { cause: ZoneChangeCause::Discarded, .. })
+            matches!(r.event, GameEvent::ZoneChange { act: ZoneChangeAct::Discarded, .. })
         })
         .collect();
     assert_eq!(moved.len(), 4);

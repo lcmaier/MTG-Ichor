@@ -46,7 +46,7 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -75,7 +75,7 @@ fn tap_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 }
 
 fn sacrifice(game: &mut GameState, id: ObjectId) {
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
 }
 
 /// Activate `source`'s first ability for `player`, answering every prompt
@@ -402,8 +402,8 @@ fn a_creature_that_left_and_came_back_is_not_the_one_referred_to() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let totem = put_on_battlefield(&mut game, haste_totem(), 0);
     activate_and_resolve(&mut game, 0, totem);
-    game.change_zone(bears, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     advance_to(&mut game, 0, StepType::End);
     place_and_resolve(&mut game);
@@ -783,7 +783,7 @@ fn banishing_light_gone_before_its_trigger_resolves_exiles_nothing() {
     let light = put_on_battlefield(&mut game, banishing_light(), 0);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "the enters trigger, targeting the creature");
-    game.change_zone(light, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(light, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(zone(&game, bears), Zone::Battlefield, "CR 610.3b: the event came after it triggered");

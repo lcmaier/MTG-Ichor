@@ -18,7 +18,7 @@ use crate::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, ReflexiveForm, TriggerCondition, TriggerDef,
     TriggerEvent, TriggerSubject,
 };
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeAct};
 
 /// A triggered ability: no cost, the def as its effect.
 pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
@@ -154,7 +154,7 @@ pub fn dies(subject: impl Into<TriggerSubject>) -> CountableEvent {
         subject: subject.into(),
         from: Some(Zone::Battlefield),
         to: Some(Zone::Graveyard),
-        cause: None,
+        act: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
@@ -168,7 +168,7 @@ pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEv
         subject: subject.into(),
         from: Some(Zone::Battlefield),
         to: None,
-        cause: None,
+        act: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
@@ -182,7 +182,7 @@ pub fn is_sacrificed(subject: impl Into<TriggerSubject>) -> CountableEvent {
         subject: subject.into(),
         from: Some(Zone::Battlefield),
         to: None,
-        cause: Some(ZoneChangeCause::Sacrificed),
+        act: Some(ZoneChangeAct::Sacrificed),
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })

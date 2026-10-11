@@ -27,7 +27,7 @@ use std::cell::RefCell;
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::cards::{alpha, phase_cm_cards, phase_lf_cards};
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::mana_helpers::castable_spells;
@@ -413,7 +413,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
 fn test_a_cost_effect_source_that_leaves_stops_applying() {
     let mut game = thalia_board(0);
     let thalia = game.battlefield.keys().copied().next().unwrap();
-    game.change_zone(thalia, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(thalia, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(game.cost_modification_ability_sources.is_empty());
     let cast = cast_from_pool(&mut game, 0, bolt(), &[(ManaType::Red, 1)], &RecordingDecisionProvider::picking(0));
     assert!(cast.is_ok(), "{cast:?}");
@@ -972,7 +972,7 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
         .iter()
         .filter(|r| matches!(
             r.event,
-            mtgsim::events::event::GameEvent::ZoneChange { cause: ZoneChangeCause::Sacrificed, .. },
+            mtgsim::events::event::GameEvent::ZoneChange { act: ZoneChangeAct::Sacrificed, .. },
         ))
         .map(|r| r.batch())
         .collect();

@@ -36,7 +36,7 @@ use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, idyllic_beachfront, mast
 use mtgsim::cards::phase_rd_cards::loyalty_probe;
 use mtgsim::cards::phase_re_cards::{doubling_season, soldier_token};
 use mtgsim::cards::phase_rg_cards::archelos_lagoon_mystic;
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::layers::intrinsic::is_intrinsic_entry_ability;
 use mtgsim::engine::layers::{compute_as_entering, copiable_values};
@@ -122,7 +122,7 @@ fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: Playe
     for &pick in picks {
         dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![pick]);
     }
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
     assert!(dp.is_empty(), "every scripted CR 616.1 prompt was asked");
     id
@@ -306,7 +306,7 @@ fn a_creature_entering_under_master_biomancer_stays_a_mutant_after_it_leaves() {
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
     assert!(has_subtype(&game, bears, &mutant()));
 
-    game.change_zone(biomancer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(biomancer, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(has_subtype(&game, bears, &mutant()), "how it entered, not the Biomancer's effect");
 }
 
@@ -448,7 +448,7 @@ impl DecisionProvider for ScriptedReplacementChoices {
 fn return_asking(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, orders: &[(PlayerId, usize)]) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
     let dp = ScriptedReplacementChoices::new(orders);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
     id
 }
@@ -528,7 +528,7 @@ fn archelos_does_not_apply_to_what_enters_beside_it() {
         from: Some(Zone::Graveyard),
         controller: 0,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Returned),
+        act: Some(ZoneChangeAct::Put),
     };
     let dp = ScriptedReplacementChoices::new(&[]);
     game.execute_actions(vec![returned(archelos), returned(land)], &ActionContext::new(&dp))

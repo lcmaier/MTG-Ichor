@@ -109,7 +109,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     EventPattern::ZoneChange {
                         from: Some(Zone::Battlefield),
                         to: Some(Zone::Graveyard),
-                        cause: None,
+                        act: None,
                         object: None,
                     },
                     ObjectSet::battlefield_filter(ObjectFilter::And(
@@ -212,7 +212,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 EventPattern::ZoneChange {
                     from: None,
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     object: None,
                 },
                 // "a card or token" — no owner clause, no type clause, and
@@ -288,7 +288,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                 EventPattern::ZoneChange {
                     from: None,
                     to: Some(Zone::Graveyard),
-                    cause: None,
+                    act: None,
                     object: None,
                 },
                 ObjectSet::filter_in(
@@ -335,7 +335,7 @@ mod tests {
     fn kalitas_watches_dying_rather_than_being_destroyed() {
         // The distinction is the card's, not ours: CR 700.4's "dies" covers
         // sacrifice and zero toughness, which CR 701.8b's "destroyed" does not.
-        // A `cause` on the pattern would silently narrow the card to
+        // An `act` on the pattern would silently narrow the card to
         // destruction only, and every sacrificed creature would reach the
         // graveyard.
         let card = kalitas_traitor_of_ghet();
@@ -347,7 +347,7 @@ mod tests {
             EventPattern::ZoneChange {
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
-                cause: None,
+                act: None,
                 object: None,
             },
         );

@@ -64,7 +64,7 @@ use mtgsim::types::replacement::{
     CopyDonor, EnterMods, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -187,7 +187,7 @@ impl DecisionProvider for Scripted {
 /// Return `id`, a card in a graveyard, to the battlefield through the
 /// replacement pipeline, as "return target creature card" does.
 fn try_enter(game: &mut GameState, id: ObjectId, dp: &dyn DecisionProvider) -> Result<(), String> {
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(dp))
 }
 
 /// Put `card` in `owner`'s graveyard and return it to the battlefield.
@@ -885,7 +885,7 @@ fn a_creature_entering_beside_spark_double_is_not_a_candidate() {
         from: Some(Zone::Graveyard),
         controller: 0,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Returned),
+        act: Some(ZoneChangeAct::Put),
     };
     let dp = Scripted::new().then(0, "ChooseCopySource", &[donor]);
     game.execute_actions(vec![entry(spark), entry(bears)], &ActionContext::new(&dp)).expect("both enter");
@@ -1161,7 +1161,7 @@ fn a_later_copy_puts_back_the_status_an_addition_replaced() {
             from: Some(Zone::Graveyard),
             controller: 0,
             mods: EnterMods::tapped(),
-            cause: Some(ZoneChangeCause::Returned),
+            act: Some(ZoneChangeAct::Put),
         };
         game.execute_actions(vec![returned_tapped], &ActionContext::new(&dp)).expect("it enters");
         assert_eq!(game.battlefield[&copier].tapped, tapped);

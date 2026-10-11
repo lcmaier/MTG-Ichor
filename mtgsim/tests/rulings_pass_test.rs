@@ -51,7 +51,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -329,7 +329,7 @@ fn test_yixlid_jailer_does_not_stop_a_replacement_that_keeps_a_card_out_of_the_g
     game.change_zone(
         from_battlefield,
         Zone::Graveyard,
-        ZoneChangeCause::Sacrificed,
+        ZoneChangeAct::Sacrificed,
         &test_ctx(),
     )
     .unwrap();
@@ -340,7 +340,7 @@ fn test_yixlid_jailer_does_not_stop_a_replacement_that_keeps_a_card_out_of_the_g
     );
 
     let from_library = put_in_library(&mut game, darksteel_colossus(), 0);
-    game.change_zone(from_library, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
+    game.change_zone(from_library, Zone::Graveyard, ZoneChangeAct::Milled, &test_ctx())
         .unwrap();
     assert_eq!(game.get_object(from_library).unwrap().zone, Zone::Library);
     assert!(

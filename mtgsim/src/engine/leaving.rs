@@ -12,7 +12,7 @@
 //! and CR 800.4f–i and CR 802, which are `codebase-state.md`'s "Before
 //! Commander" item 4.
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::get_effective_controller;
 use crate::state::game_state::GameState;
@@ -242,7 +242,7 @@ impl GameState {
             if get_effective_controller(self, id).is_some_and(|p| self.in_game(p)) {
                 continue;
             }
-            self.change_zone(id, Zone::Exile, ZoneChangeCause::ControllerLeftTheGame, ctx)?;
+            self.change_zone(id, Zone::Exile, ZoneChangeAct::ControllerLeftTheGame, ctx)?;
         }
         Ok(())
     }
@@ -250,7 +250,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::actions::ZoneChangeCause;
+    use crate::engine::actions::ZoneChangeAct;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -275,7 +275,7 @@ mod tests {
         game.players[2].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeCause::Resolved), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Resolved), &test_ctx())
             .unwrap();
 
         assert!(!entered);
@@ -294,7 +294,7 @@ mod tests {
         game.players[0].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeCause::Resolved), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Resolved), &test_ctx())
             .unwrap();
 
         assert!(entered);

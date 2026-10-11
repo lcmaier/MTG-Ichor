@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
@@ -392,7 +392,7 @@ impl Game {
                 object,
                 from: Zone::Hand,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Discarded,
+                act: ZoneChangeAct::Discarded,
             })
             .collect();
         let actx = ActionContext::new(decisions);

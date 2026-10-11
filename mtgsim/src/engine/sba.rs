@@ -13,7 +13,7 @@ use crate::oracle::characteristics::{
 };
 use crate::state::game_state::{GameResult, GameState};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
@@ -27,12 +27,12 @@ use crate::ui::decision::DecisionProvider;
 /// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
 /// not. That distinction is the whole of why regeneration and shield counters
 /// save a creature from lethal damage but not from zero toughness.
-fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> GameAction {
+fn sba_zone_change(id: ObjectId, act: ZoneChangeAct) -> GameAction {
     GameAction::ZoneChange {
         object: id,
         from: Zone::Battlefield,
         to: Zone::Graveyard,
-        cause,
+        act,
     }
 }
 
@@ -194,7 +194,7 @@ impl GameState {
                         object: id,
                         from,
                         to: Zone::Command,
-                        cause: ZoneChangeCause::CommanderZoneSba,
+                        act: ZoneChangeAct::CommanderZoneSba,
                     });
                 }
             }
@@ -213,7 +213,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
+                batch.push(sba_zone_change(id, ZoneChangeAct::ZeroToughness));
             }
         }
 
@@ -247,7 +247,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
+                batch.push(sba_zone_change(id, ZoneChangeAct::ZeroLoyalty));
             }
         }
 
@@ -294,7 +294,7 @@ impl GameState {
                 }
             }
             for id in chosen {
-                batch.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
+                batch.push(sba_zone_change(id, ZoneChangeAct::LegendRule));
             }
         }
 
@@ -333,7 +333,7 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            batch.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
+            batch.push(sba_zone_change(id, ZoneChangeAct::AuraSba));
         }
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
@@ -508,7 +508,7 @@ impl GameState {
 #[cfg(test)]
 mod tests {
     use crate::types::replacement::EnterMods;
-    use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+    use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -702,7 +702,7 @@ mod tests {
                 object,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Sacrificed,
+                act: ZoneChangeAct::Sacrificed,
             })
             .collect();
         game.execute_actions(batch, &ctx).unwrap();
@@ -791,15 +791,15 @@ mod tests {
         game: &GameState,
     ) -> Vec<(
         crate::types::ids::ObjectId,
-        ZoneChangeCause,
+        ZoneChangeAct,
         Option<crate::events::event::BatchId>,
     )> {
         game.recorded_events()
             .records()
             .iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::ZoneChange { object_id, cause, .. } => {
-                    Some((*object_id, *cause, r.batch()))
+                crate::events::event::GameEvent::ZoneChange { object_id, act, .. } => {
+                    Some((*object_id, *act, r.batch()))
                 }
                 _ => None,
             })
@@ -864,8 +864,8 @@ mod tests {
         assert_eq!(
             zone_changes(&game).into_iter().map(|(id, c, _)| (id, c)).collect::<Vec<_>>(),
             vec![
-                (doomed, ZoneChangeCause::DestroyedBySba),
-                (healthy, ZoneChangeCause::LegendRule),
+                (doomed, ZoneChangeAct::DestroyedBySba),
+                (healthy, ZoneChangeAct::LegendRule),
             ],
         );
     }
@@ -905,7 +905,7 @@ mod tests {
         );
         assert_eq!(
             moves[0].1,
-            ZoneChangeCause::DestroyedBySba,
+            ZoneChangeAct::DestroyedBySba,
             "704.5g comes first in CR order, so it is what claims the permanent",
         );
     }
@@ -1249,7 +1249,7 @@ mod tests {
             matches!(
                 e,
                 crate::events::event::GameEvent::ZoneChange {
-                    object_id, to: Zone::Graveyard, cause: ZoneChangeCause::AuraSba, ..
+                    object_id, to: Zone::Graveyard, act: ZoneChangeAct::AuraSba, ..
                 } if *object_id == aura_id
             )
         });

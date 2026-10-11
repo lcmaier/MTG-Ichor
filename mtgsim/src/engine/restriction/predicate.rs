@@ -188,14 +188,14 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
 /// ```text
 /// def  = Restriction::Event {
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
-///                                   cause: Sacrificed, object: None },
+///                                   act: Sacrificed, object: None },
 ///            affected_objects: Filter { ByController(You) },
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
 /// query      = Query::Event {
 ///                  action: ZoneChange { object: <Bear>, Battlefield ->
-///                                       Graveyard, cause: Sacrificed },
+///                                       Graveyard, act: Sacrificed },
 ///                  cause:  Some(P1),      // who controls the edict
 ///              }
 /// ```
@@ -203,9 +203,9 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
 /// Three questions, all of which must say yes:
 ///
 /// 1. **`pattern_watches`** — is this the *kind* of event Sigarda names? The
-///    proposal is a battlefield→graveyard move caused by `Sacrificed`, and the
+///    proposal is a battlefield→graveyard move whose act is `Sacrificed`, and the
 ///    pattern's three `Some(..)` fields all agree. **Yes.** (A *destruction*
-///    would carry `cause: Destroyed` and fail here, which is CR 701.21b: a
+///    would carry `act: Destroyed` and fail here, which is CR 701.21b: a
 ///    sacrifice is not a destruction.)
 /// 2. **`set_affects`** — is the event's subject inside her affected set? The
 ///    subject is the Bear, the set is "permanents you control", and `you` is

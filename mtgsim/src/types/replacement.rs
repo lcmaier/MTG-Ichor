@@ -39,7 +39,7 @@ use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
-use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
+use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeAct};
 
 /// One replacement or prevention effect.
 ///
@@ -181,7 +181,7 @@ pub struct ReplacementDef {
 ///
 /// **Exactly one arm per `GameAction` variant, and it grows on no other axis.**
 /// Within an arm, constraints on the event's fields reuse existing vocabulary —
-/// `ObjectFilter`, `ZoneChangeCause`, `CardType` — rather than inventing
+/// `ObjectFilter`, `ZoneChangeAct`, `CardType` — rather than inventing
 /// per-mechanic predicates. A change that adds an arm here without a
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
@@ -247,8 +247,8 @@ pub enum EventPattern {
         from: Option<Zone>,
         to: Option<Zone>,
         /// Nothing outside this pipeline and the trigger matcher may branch on
-        /// a cause — see [`ZoneChangeCause`].
-        cause: Option<ZoneChangeCause>,
+        /// an act — see [`ZoneChangeAct`].
+        act: Option<ZoneChangeAct>,
         /// A constraint on the moving object beyond what `affected` says.
         ///
         /// `affected` scopes *which* objects the effect applies to; this scopes
@@ -350,7 +350,7 @@ pub enum EventPattern {
     Tap,
 
     /// CR 701.8b / 614.8. The **outer** event: performing it proposes an inner
-    /// `ZoneChange { cause: Destroyed | DestroyedBySba }`.
+    /// `ZoneChange { act: Destroyed | DestroyedBySba }`.
     Destroy {
         /// CR 122.1c reads "would be destroyed **as the result of an effect**",
         /// which is CR 701.8b way 1 only. `None` matches either way.
@@ -367,11 +367,11 @@ pub enum EventPattern {
     /// from. So this arm carries no object filter of its own; its one
     /// constraint is about the *event*.
     ///
-    /// `cast` is CR 601's fact, projected off the entry's [`ZoneChangeCause`]:
+    /// `cast` is CR 601's fact, projected off the entry's [`ZoneChangeAct`]:
     /// `Some(true)` matches a permanent spell that resolved (`Resolved`),
     /// `Some(false)` everything else — a land drop, an effect putting a card
     /// onto the battlefield, a token. Containment Priest and Hallowed
-    /// Moonlight read "and it wasn't cast", and a `ZoneChangeCause` field
+    /// Moonlight read "and it wasn't cast", and a `ZoneChangeAct` field
     /// could not say *wasn't*. `None` matches either.
     ///
     /// One field today, and the axis it grows along is CR 400.7d: a permanent's
@@ -1278,10 +1278,10 @@ pub struct AuxiliaryMove {
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
     pub filter: ObjectFilter,
 
-    /// Where the chosen objects go, and why. The `cause` is what separates
-    /// devour's sacrifice from an exile, and 278 cards care (CR 701.21).
+    /// Where the chosen objects go, and what was done. The `act` is what
+    /// separates devour's sacrifice from an exile, and 278 cards care (CR 701.21).
     pub to: Zone,
-    pub cause: ZoneChangeCause,
+    pub act: ZoneChangeAct,
 
     /// The upper bound on how many may be chosen. `None` is "any number", which
     /// is what both printed shapes say; a bounded form would be `Some(n)`.
