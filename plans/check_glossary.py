@@ -102,6 +102,8 @@ WATCHLIST = [
     "fork",
     # Added 2026-09-30, A6j.
     "person", "agent", "yield",
+    # Added 2026-10-10, the zone-change record's design.
+    "act", "cause", "redirect",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
@@ -144,6 +146,7 @@ POLYSEMOUS = {
     "cursor": 2,
     "flush": 2,
     "bucket": 2,
+    "epoch": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

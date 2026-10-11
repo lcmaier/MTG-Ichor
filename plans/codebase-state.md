@@ -7949,9 +7949,14 @@ and the reading below, which the audit makes and the dispatcher does not.
        which the CR fixes "at the time it triggered".
      Each reads the board after the riders, so the option above, a
      rider-bearing window dispatched per batch, would answer all five.
-     **Slotted:** A6d, items 176 and 177's record design, which takes this item
-     as an input and decides per-batch dispatch (`triggers-architecture.md`
-     §4.1).
+
+     **Designed (2026-10-10):** `replacement-architecture.md` §2b.6, decision 5.
+     A window whose outermost batch queued riders is dispatched in two parts:
+     what the batch performed before its riders run, then the riders' records.
+     The five readers then read the board immediately after the event, and the
+     record needs no batch tag. The ~40-line tag design above is superseded.
+     The item keeps no slot of its own.
+     **Slotted:** RH-2, the record's identity, its applied set and its moment.
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8088,8 +8093,23 @@ linked-ability records an entry makes.
      `PlayerLoses` takes. The rename of "departed frame" to LKI (§4 there) is
      its own PR, A6n (#241), just before the design (the owner, 2026-10-10, at #240's
      review), so the design is written in the vocabulary it keeps.
-     **Slotted:** A6d, items 176 and 177's own PR, which designs the
-     zone-change record's contract before TR-4 widens it.
+
+     **Designed (2026-10-10):** `replacement-architecture.md` §2b, the record's
+     whole contract. The act is `ZoneChangeAct`, nine variants: the keyword
+     acts a redirect keeps, and `Put` for a move named only by where it goes,
+     which closes the trap above, since no destination act is left to name. Who
+     did it is `EventCause`, on every record's stamp, and the rule variants and
+     `Resolved` move there. Which replacements applied is the record's
+     `applied`, CR 614.5's set in the order it applied. Each of L1–L7 has a home
+     (§2b.8). The item keeps no slot of its own. Its counts, re-run 2026-10-10
+     with `game:paper -is:funny`, all reproduce: 43 with `(o:"when " or
+     o:"whenever ") (o:"is put into exile" or o:"is exiled" or o:"are put into
+     exile" or o:"are exiled")`; 6 with `(o:"when " or o:"whenever ") (o:"is
+     returned to" or o:"are returned to")`; 61 with `kw:madness`; 201 with
+     `(o:"sacrificed this way" or o:"discarded this way" or o:"milled this way"
+     or o:"countered this way" or o:"destroyed this way")`.
+     **Slotted:** RH-1 (the act and the cause) and RH-2 (the applied set), Phase
+     RH, before A6m and TR-4a.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8143,8 +8163,16 @@ keeps the cost decisions).
      is compared by hand in ten places today, an epoch or
      `object_ref(id) == Some(r)` (`plans/references/duplicate-inventory.md`
      §3.1, L2); the design names the one query they all become.
-     **Slotted:** A6d, items 176 and 177's own PR, which puts the stamped epoch
-     on `ZoneChange` beside TR-4's CR 400.7e atoms.
+
+     **Designed (2026-10-10):** `replacement-architecture.md` §2b.5. The record
+     carries `new_epoch`, the epoch `arrive_in_zone` stamped, and only that: the
+     existence that left is already `lki.object` where CR 603.10a frames the
+     move. The binding's subject, "them" and `Effect::Remember` read it off the
+     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2
+     (`triggers-architecture.md` §13). The item keeps no slot of its own. Its
+     59, re-run 2026-10-10 with the query above and `game:paper -is:funny`,
+     reproduces.
+     **Slotted:** RH-2, the record's identity, its applied set and its moment.
 
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
@@ -9435,3 +9463,38 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
      `audit.rs`, after TR-7, so the merges take the whole phase's shape.
      **Slotted:** A6e, item 6's close audit, its hygiene pass.
+
+### Found by items 176 and 177's design (2026-10-10)
+
+`replacement-architecture.md` §2b designed the zone-change record's whole
+contract (`roadmap-v2.md` A6o). Asking when each fact is taken found one board
+that is wrong today.
+
+248. **A destruction's move is decided after the event has begun, so a
+     replacement whose source died earlier in the same event is gone.**
+     `GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a
+     nested batch, so in a batch of several destructions each later member's
+     move is decided after the earlier members performed. Kalitas, Traitor of
+     Ghet dying beside an opponent's creature in one state-based check is
+     gone when that creature's death is decided, and the creature goes to the
+     graveyard. Its ruling (2016-01-22): "If Kalitas dies at the same time as
+     creatures your opponents control, those creature cards will be exiled
+     and you'll get that many Zombies." CR 704.3 decides every member against
+     one board, and CR 614.4 needs the effect to exist before the event, which
+     here is the batch.
+     **Reachability (2026-10-10):** reachable — wrong today: Kalitas is
+     registered, and a probe through the public API (both creatures marked
+     with lethal damage, then `check_state_based_actions`) sends the creature
+     to the graveyard when Kalitas was placed first and exiles it when Kalitas
+     was placed second. Any wrath or combat trade that kills Kalitas beside an
+     opponent's creature reaches it, in whichever order the batch performs.
+     **Sized:** ~180 lines of code and ~200 of tests: a destruction's move is
+     decided with the destruction, in phase 1, as an inner event with its
+     outer (`plans/glossary.md`'s "outer event / inner event"). A result (CR
+     120.3's life loss, a creation's entries) is still decided after the
+     event that produced it. Both batch orders and a wrath are fixtures, each
+     shown to fail first. The move's riders then run in the batch's phase 3,
+     so a Zombie no longer enters between two deaths of one event
+     (`replacement-architecture.md` §2b.6).
+     **Slotted:** RH-2, the record's identity, its applied set and its moment;
+     its piece stands alone if RH-2 runs past the band.

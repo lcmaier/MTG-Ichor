@@ -235,6 +235,641 @@ Four properties of that picture are load-bearing and easy to break:
 
 ---
 
+## 2b. The zone-change record — its whole contract (items 175, 176, 177)
+
+*Designed 2026-10-10 in a PR of its own, #242 (`roadmap-v2.md` A6o), and
+reviewed before any code. Built as Phase RH (§9) in two PRs: RH-1, the act and the
+cause; RH-2, the record's identity, its applied set and its moment.*
+
+**Where it sits.** A move between zones takes the spine above. A caller
+proposes it (`GameAction::ZoneChange`, or `EnterBattlefield` for the
+battlefield). CR 616.1's loop decides it, `perform_zone_change` performs it,
+and `announce_zone_change`, the one emitter, writes `GameEvent::ZoneChange`.
+The record then waits in the window until the dispatch at its batch's close
+(`triggers-architecture.md` §4.1). A trigger's binding copies it (§3.4 there),
+and the resolution reads it back (§6.3 there). This document designed the
+proposal, and the triggers document designed the matcher. Nobody designed the
+record between them as a unit, so its gaps were found one review at a time:
+`codebase-state.md` items 167, 168, 169, 174, 175, 176 and 177. This section
+is its contract: what each field means, the moment each is taken at, and how a
+reader may use it.
+
+### 2b.1 The record, before and after
+
+| Fact | The rule that asks | Today | After Phase RH |
+|---|---|---|---|
+| which object, whose, from where, to where | CR 400.6, 400.7 | `object_id`, `owner`, `from`, `to` | unchanged |
+| **what was done**: the act | CR 701's keyword actions, 601.2a, 121.1, 305.1 | `cause: ZoneChangeCause`, 21 variants, nine of which also say who did it | `act: ZoneChangeAct`, nine variants (§2b.2) |
+| **who or what caused it** | CR 400.7j's "an effect causes" beside "the cost of a spell or ability causes"; 116's special actions, 703, 704 | `EventStamp::resolution`, else `None` — the same `None` for a cost, a special action, a turn-based action and a state-based action | `EventStamp::cause: EventCause`, on every record (§2b.3) |
+| **which replacements applied** | CR 614.5, 614.6; 702.35a's "this way" | dropped once the event performs | `applied`: CR 614.5's applied set, in the order it applied (§2b.4) |
+| **which object the move made** | CR 400.7e, 603.6c | not on the record; the binding reads the object at dispatch | `new_epoch`: the zone-change epoch the move stamped (§2b.5) |
+| the object as it left | CR 603.10a, 113.7a | `lki: Option<Lki>` | unchanged here; TR-4a widens `Lki` (`triggers-architecture.md` §3.11) |
+| **when it is matched** | CR 603.2, 603.4, 615.5 | the window's close, after its riders | before its riders, then the riders' records (§2b.6) |
+
+```rust
+GameEvent::ZoneChange {
+    object_id: ObjectId,
+    owner: PlayerId,
+    from: Zone,
+    to: Zone,
+    /// What was done (§2b.2). A redirect keeps it (CR 614.6).
+    act: ZoneChangeAct,
+    /// The replacement effects that applied to this move, in the order they
+    /// applied (CR 614.5), each with its controller as it applied and
+    /// whether it changed where the move goes. `None` for a move nothing
+    /// replaced.
+    applied: Option<Arc<[AppliedReplacement]>>,
+    /// CR 400.7e's new object: the zone-change epoch `arrive_in_zone` stamped.
+    /// `new_object()` pairs it with `object_id`.
+    new_epoch: ZoneChangeEpoch,
+    lki: Option<Lki>,
+}
+
+pub struct EventStamp {
+    pub batch: Option<BatchId>,
+    /// Who or what caused the event (§2b.3). `resolution` is gone: the
+    /// resolving spell or ability is `EventCause::Effect`'s payload.
+    pub cause: EventCause,
+}
+```
+
+### 2b.2 What was done: the act
+
+**The act is what the mover did, in the CR's word for it, and a redirect
+keeps it.** CR 614.6: a replaced event never happens, and the modified event
+happens in its place. A replacement that changes only where a move goes leaves
+the act as the one that happened. The rulings say so act by act:
+- discard: Fiery Temper's ruling ("a card with madness that's discarded counts
+  as having been discarded even though it's put into exile"), Wilt-Leaf Liege's
+  ("you've still discarded it"), and the Rest in Peace, Leyline of the Void and
+  Nephalia Academy rulings item 176 cites;
+- mill: CR 701.17c;
+- counter: CR 608.2c's example.
+
+This is the rule item 176's fix kept on 2026-09-24.
+
+| `ZoneChangeAct` | The CR | `ZoneChangeCause` variants it replaces |
+|---|---|---|
+| `Destroyed` | 701.8a | `Destroyed`, `DestroyedBySba` (CR 701.8b's two ways; the cause says which, §2b.3) |
+| `Sacrificed` | 701.21a | `Sacrificed` |
+| `Discarded` | 701.9a | `Discarded` |
+| `Milled` | 701.17a | `Milled` |
+| `Countered` | 701.6a | `Countered` |
+| `Cast` | 601.2a, 601.2i | `Cast` |
+| `Drawn` | 121.1, 121.5 | `Drawn` |
+| `PlayedAsLand` | 305.1, 116.2a | `PlayedAsLand` |
+| `Put` | 400.6; 701.13a's exile | `Exiled`, `Returned`, `PutIntoHand`, `PutIntoLibrary`; and every move a rule makes: `ZeroToughness`, `ZeroLoyalty`, `LegendRule`, `AuraSba`, `CommanderZoneSba`, `ControllerLeftTheGame`, `Resolved`, `Fizzled` |
+
+**`Put` is a move named by where it goes and nothing else.** CR 701.13a
+defines exile by its destination: "move it to the exile zone from wherever it
+is". "Return", "put into a hand" and a rule's "put into its owner's graveyard"
+name no keyword action at all. So a redirected `Put` is simply a move to the
+new place. The unearthed creature of item 176 (CR 702.84a: "if it would leave
+the battlefield, exile it instead") was exiled, and it was never returned to a
+hand.
+
+**Folding the four destination verbs into `Put` is what closes item 176's
+trap.** Today a pattern can name `cause: Some(Exiled)`, which misses a
+sacrifice that Rest in Peace exiled. It can also name `Some(Returned)`, which
+fires on the unearthed creature. With no exile act to name, the only way to
+write "is exiled" is `to: Some(Exile)`, which reads the destination.
+`PutIntoHand` was kept apart from `Returned` on naming honesty alone (its doc
+says nothing reads the difference), and with one `Put` that reason goes. The
+cost is 113 lines, all mechanical: `git grep -n
+'ZoneChangeCause::\(Exiled\|Returned\|PutIntoHand\|PutIntoLibrary\)\b'` gives
+13 in `src`, 1 in the cards and 99 in tests.
+
+**Decision 1: `Resolved` is a rule's move, not an act.** None of these rules
+names a keyword action, and each is a rule moving an object:
+- CR 608.2n puts an instant or sorcery "into its owner's graveyard" as the
+  final part of its resolution;
+- CR 608.3a puts a permanent spell onto the battlefield, and CR 608.3e puts
+  one that can't enter into the graveyard;
+- CR 608.2b removes a spell whose targets are all illegal.
+
+They are like CR 704.5f, which CR 701.8b says is not "destroyed". Sigarda's
+ruling sorts them the same way: lethal damage, 0 toughness and the legend
+rule are not sacrifices, "they're the result of game rules". So `Resolved` and
+`Fizzled` become `Put`, with the rule as the cause (§2b.3).
+
+One reader moves with it. `EventPattern::EnterBattlefield { cast }` asks "was
+it cast" through `cause == Resolved`, in `gather.rs`'s `pattern_watches`.
+After RH-1 it reads CR 400.7d's own fact instead: the cast facts the resolving
+object carries for the spell entering. A copy of a permanent spell enters by
+the same rule and was never cast (CR 707.10), so the old read would call a
+copy cast.
+
+**`Drawn` stays an act.** A draw's move from library to hand is the move CR
+121.5 tells apart from "put into your hand". `GameEvent::CardDrawn` is the
+draw's own record beside it.
+
+### 2b.3 Who or what caused it: the cause
+
+**The word.** The working word for this fact was "performer". The glossary
+already gives that word to the function that performs an action
+(`move_object`, beside the emitter `announce_zone_change`). The CR's own verb
+is "causes". CR 400.7j sets an effect beside a cost with it: "If an effect
+causes an object to move to a public zone ... If the cost of a spell or
+ability causes an object to move to a public zone". The cards use it the same
+way:
+- "if a spell or ability an opponent controls causes you to discard";
+- "if an effect causes you to discard" (Library of Leng);
+- "can't cause you to sacrifice" (Sigarda, Tajuru Preserver, Tamiyo,
+  Collector of Tales), and "can't cause their controller to search" (Ashiok,
+  Dream Render);
+- "triggered abilities you control can't cause" (The Master, Multiplied).
+
+The tree already uses "cause" in this sense: `LifeLossCause`'s `Effect` and
+`Cost`, `DrawCause`, `EventProposal::cause` and `ReplacementDef::caused_by`.
+So the fact is `EventCause`. The act takes `ZoneChangeCause`'s slot under a
+name of its own, `ZoneChangeAct`, so "cause" means one thing.
+
+```rust
+/// What caused an event. Every proposal names one (`ActionContext::cause`),
+/// and the batch stamps it on every record (`EventStamp::cause`).
+pub enum EventCause {
+    /// An effect (CR 609.1): a resolving spell or ability (CR 608.2), a
+    /// replacement effect's rider (CR 615.5), a mana ability (CR 605.3b).
+    /// `kind` is which of CR 113.3's four it is, which The Master,
+    /// Multiplied's "triggered abilities" reads.
+    Effect { resolution: ResolutionStamp, kind: SpellOrAbility },
+    /// A cost being paid (CR 118.1, 601.2h, 602.2b), by whom and for what.
+    /// "Costs aren't effects" (Library of Leng's ruling).
+    Cost { player: PlayerId, paying_for: ObjectId },
+    /// A player casting a spell (CR 601.2): the 601.2a move, the cast and
+    /// its targets' records.
+    Casting(PlayerId),
+    /// A player activating an ability (CR 602.2): its records.
+    Activating(PlayerId),
+    /// A special action (CR 116.1).
+    SpecialAction { player: PlayerId, action: SpecialAction },
+    /// A turn-based action (CR 703.4).
+    TurnBasedAction(TurnBasedAction),
+    /// A state-based action (CR 704.5, 704.6).
+    StateBasedAction(StateBasedAction),
+    /// A rule acting with no action taken.
+    GameRule(GameRule),
+    /// A test or a tool moving objects directly; never the engine
+    /// (decision 7). `ActionContext::new`, the one constructor that makes
+    /// it, compiles only under `cfg(any(test, feature = "test-support"))`.
+    Harness,
+}
+```
+
+Each of the four rule enums has one variant per rule the engine performs, and
+no catchall, as `ZoneChangeCause` had none:
+- `SpecialAction`: `PlayLand` (116.2a). The other special actions (face-down,
+  suspend, foretell, plot, companion and the rest of 116.2) join with their
+  mechanics.
+- `TurnBasedAction`: `Untap` (502.3), `Draw` (504.1), `CombatDamage` (510.2),
+  `CleanupDiscard` (514.1), `CleanupDamage` (514.2).
+- `StateBasedAction`: one per CR 704.5 or 704.6 subrule the sweep performs.
+  704.5g and 704.5h stay one, `LethalDamage`, as in `DestroyedBySba`: CR
+  701.8b calls both "destroyed", and no card tells them apart.
+- `GameRule`: `SpellResolves` (608.2n), `PermanentSpellResolves` (608.3a),
+  `PermanentSpellCantEnter` (608.3e), `TargetsIllegal` (608.2b),
+  `ControllerLeftTheGame` (800.4a, which says itself that it "is not a
+  state-based action"), and the records no action makes: a turn, phase or step
+  beginning, and an ability triggering (CR 603.2).
+
+**Decision 2: a special action is a cause of its own.** CR 116.1 sets special
+actions apart from spells and abilities, since they "don't use the stack", and
+from turn-based and state-based actions. A land play (116.2a) is the player's
+own act. "A spell or ability an opponent controls" must not match it, and it
+is no effect. `PlayLand` ships, and the rest join with their mechanics.
+
+**Decision 4: the cause is on the stamp, so every record has one.** Cause
+words read more than zone changes:
+- Sahir, Visitor in Darkness: "a spell or ability you control causes you to
+  lose exactly 1 life";
+- Psychogenic Probe and Widespread Panic: "a spell or ability causes a player
+  to shuffle";
+- Ashiok, Dream Render: a search.
+
+Priced:
+- **Bytes: none.** `EventCause` fits in the 24 bytes `Option<ResolutionStamp>`
+  takes today. Its widest arm is a `ResolutionStamp` (16 bytes) and one byte of
+  kind. Measured 2026-10-10 with a probe crate: `EventStamp` is 40 bytes and
+  `EventRecord` 144, and both keep their sizes. RH-1 asserts them in a test.
+- **Sites.** Every proposal names its cause through `ActionContext`'s
+  constructors, one per kind of cause:
+  - the 14 production `ActionContext::new` calls each become the constructor
+    for what they are, and `ActionContext::resolving` builds an `Effect`;
+  - an entry point that starts a rule's action (`advance_turn`, `play_land`,
+    the state-based check, combat damage, a cast, an activation) builds its
+    own context for each action it takes, and takes only the decision
+    provider from its caller. Its caller's cause would be the wrong one;
+  - a cost's payment gets its own context;
+  - about ten emitters outside any batch name theirs: the cast's 601.2i
+    announcement, `SpellCast`, an activation, their `Targeted` records,
+    `AbilityTriggered`, and the two registry announcements.
+
+  The tests are decision 7.
+
+**One value on both sides.** The proposal's cause is `ActionContext::cause`.
+`open_batch` stamps it on every record the batch emits, as it stamps the
+resolution today. So two readers ask one value:
+- Sigarda's "can't" and Nephalia Academy's replacement, which read the
+  proposal (`EventProposal::cause`);
+- Guerrilla Tactics' trigger, which reads the record.
+
+`SourceFilter::matches` takes the cause. A `ControlledBy` filter matches an
+`Effect` by its controller, and nothing else. A cost, a special action, a
+turn-based or state-based action and a rule's move satisfy no source filter.
+That is Sigarda's ruling ("the result of game rules") and Library of Leng's
+("costs aren't effects").
+
+**The state-based batch names a cause per member.** CR 704.3 makes the
+state-based actions one event, and each is still its own rule. So every batch
+takes its context's cause except the sweep's, which passes each member's
+subrule beside the member. Phase 1 gives that cause to the member's
+`EventProposal`, and phase 2 puts it on the stamp while the member performs.
+
+**A payment inside a resolution is caused by the resolution.** CR 118.12 makes
+the action in "[A player] may [do something]. If [that player] [does, doesn't,
+or can't], [effect]" a cost, "paid when the spell or ability resolves".
+Sigarda's ruling on Mogis counts it as the spell or ability causing the
+sacrifice: "If a spell or ability an opponent controls states that something
+happens unless you sacrifice a permanent (as Mogis, God of Slaughter does), you
+can't choose to sacrifice a permanent." So its cause is the `Effect`, not
+`Cost`. Whether "an effect causes" (Library of Leng) includes it
+has no ruling; it goes to CP-1, which builds CR 118.12a's "unless"
+(`cost-architecture.md` §3.10).
+
+**Three copies of the fact fold into it.**
+- `DestructionSource` (`Effect(ObjectId)` or `StateBasedAction`) is the
+  destruction's cause. `GameAction::Destroy` loses it, and the shield
+  counter's "as the result of an effect" (CR 122.1c) asks the cause.
+- `LifeLossCause`'s `Effect` and `Cost` are the cause. It keeps `Damage {
+  source }`: that the loss is a result of damage (CR 120.3a) is a fact about
+  the event, not about who caused it.
+- `EventProposal::cause: Option<PlayerId>` is the cause's controller.
+
+`DrawCause` stays. It says which draw of an instruction this is (CR 121.2), so
+that "except the first one you draw in each of your draw steps" finds the
+first. A doubled draw step's second card is the replacement's own draw inside
+the step's batch, and one context cause cannot tell the two cards apart.
+
+### 2b.4 Which replacements applied: `applied`
+
+**Decision 3: the record keeps the whole applied set, in the order it applied,
+not one redirecting replacement.** CR 614.5 already tracks the set, and the
+loop holds it per member (`applied_to`, which reaches `perform_action` today).
+CR 616.1f's loop can apply several replacements to one move, and a single slot
+would keep one and drop the rest. Madness's "when this card is exiled this
+way" (CR 702.35a; 61 cards, `kw:madness game:paper -is:funny`, re-run
+2026-10-10) then becomes a membership question: did this card's own madness
+instance apply to this discard? The set includes what the lineage handed down
+(§4.1a: a rider continues its event's set), which is what CR 614.5 means by
+"any modified events that may replace that event".
+
+**Not every "this way" reads it.** The act clauses name the act a resolution's
+own instruction took: 201 cards, `(o:"sacrificed this way" or o:"discarded this
+way" or o:"milled this way" or o:"countered this way" or o:"destroyed this
+way") game:paper -is:funny`, re-run 2026-10-10. `Effect::Remember` reads those
+off the resolution's records (`triggers-architecture.md` §3.9, TR-3b), and CR
+608.2c's example ("if that spell is countered this way") is that kind.
+`applied` is for a replacement's "this way".
+
+**Who sent it where it went.** Ranar the Ever-Watchful and Hero of Bretagard
+trigger when "a spell or ability you control exiles one or more permanents"
+(`o:"spell or ability you control exiles" game:paper -is:funny`, 2 cards,
+2026-10-10). Both had their Oracle text updated so the ability "doesn't care
+which player is exiling cards and permanents" (their rulings, 2021-06-18), so a
+card exiled from your hand counts "for any reason". The battlefield half still
+asks whose spell or ability did it: a permanent exiled from the battlefield
+counts "if you controlled the spell or ability that exiled them". When a
+replacement redirected the move into exile, the ability that exiled it is the
+replacement's (Kalitas, Rest in Peace), since CR 614.6's modified event is the
+one the replacement wrote. So the record answers "who" twice:
+- for the act, its cause ("causes you to discard");
+- for the destination, the last applied replacement that changed where the
+  move goes, else the cause ("exiles", "is put into your graveyard").
+
+**Decided (the owner, 2026-10-11, at #242's review): the replacement's.**
+Without Rest in Peace no exiling happens. So take Bretagard's controller's own
+Doom Blade under an opponent's Rest in Peace: it does not trigger Bretagard.
+Their Swords to Plowshares, which exiles directly, does. So does anyone's Doom
+Blade under a Rest in Peace that Bretagard's controller controls.
+
+Item 176 said each act of a redirected move has its own performer, and this
+is the second one, read off `applied` rather than stored twice. Each entry
+keeps its controller as it applied, because its source may have left or
+changed hands by the time a trigger asks.
+
+**Cost.** `Option<Arc<[AppliedReplacement]>>` is 16 bytes, `None` for a move
+nothing replaced, and it allocates only for a replaced move. The applied
+set's type becomes an ordered set, kept in insertion order, since a hash set
+has no order to keep: 11 `HashSet<ReplacementInstanceId>` sites in `src`. Other
+record kinds gain one when a reader needs it. Damage prevention already has
+CR 615.13's, `DamagePrevented.by` (TR-5).
+
+**The name.** `applied` is the glossary's "applied set", now kept on a record.
+"Redirect" stays ordinary English for a replacement that changes only where a
+move goes; the glossary defines it.
+
+### 2b.5 Which object the move made: `new_epoch` (item 177)
+
+CR 400.7e lets a zone-change trigger "find the new object that it became in
+the zone it moved to". CR 603.6c looks for it "only in the first zone that it
+went to". The move makes that object, and `arrive_in_zone` stamps its
+zone-change epoch. The record carries the epoch, and `new_object()` pairs it
+with `object_id` as an `ObjectRef`.
+
+- **The binding's subject comes from the record.** For a zone change, it is
+  the move's new object. For any other record, it is the object at dispatch,
+  which §2b.6 moves to the instant after the event. `dispatch.rs`'s
+  `subject.and_then(|id| self.object_ref(id))` goes.
+- **"Them" reads each record.** A `OncePerEvent` binding holds every record it
+  matched, so "put them onto the battlefield" (Hedge Shredder) finds each card
+  by its own record's new object. 59 cards: `(o:"when " or o:"whenever ")
+  o:"one or more" (o:" them " or o:" them." or o:"those cards" or o:"those
+  creatures") game:paper -is:funny`, re-run 2026-10-10.
+- **`Effect::Remember` and §3.9's refs** take a moved object's identity from
+  its record too.
+- **Only the new existence is added.** The existence that left is `lki.object`
+  wherever CR 603.10a frames the move (TR-4a widens that to its three classes),
+  and `RememberedObject.left_at` answers it for the rest. A second epoch on
+  every record would be a second copy of `lki.object`.
+- **Atoms.** ATOM-400.7e-001 is an Aura's own "put into a graveyard from the
+  battlefield" ability, its Aura put there by CR 704.5m, returning itself.
+  ATOM-400.7e-002 is a "from anywhere" trigger, which needs no 400.7e. Both are
+  Phase 7, and nothing covers them today. RH-2's fixtures cover both, and
+  Rancor (TR-4a) is the card.
+
+### 2b.6 The moment each fact is taken at (item 175)
+
+| Fact | Taken | Why at that moment |
+|---|---|---|
+| the act | at the proposal, kept through every redirect | CR 614.6 |
+| the cause | at the proposal (`ActionContext`), stamped by the batch | the proposal is where the causing spell, ability, cost or rule is known |
+| the applied set | when the member's CR 616.1 loop ends | CR 614.5 |
+| `lki`, and a survivor's ability lists | before the outermost batch performs (`capture_lki`, `LookBackSnapshot`; items 174 and 167) | CR 603.10's "immediately prior to the event" |
+| the new object | at the move | CR 400.7e |
+| what a dispatch reads live: the intervening "if", a newcomer's arms, `was_cast`, visibility, the controller | **today** at the window's close, after the riders; **after RH-2** immediately after the event, before its riders | CR 603.4 checks "when the trigger event occurs"; 603.6a, 603.2f and 603.3a; CR 615.5 puts the rider "immediately afterward" |
+
+**Decision 5: a window whose batch queued riders is dispatched in two parts.**
+The outermost batch dispatches what it performed, its nested batches included,
+before its riders run, and the riders' records at its close. That answers all
+five readers item 175 lists, and the record needs no field for it: each live
+read is right because the dispatch runs at the instant the read is about. It
+restores `triggers-architecture.md` §2's "that instant is now" for the one
+window where it failed. Item 175's sized alternative was to tag each candidate
+list with the batch it was taken before. It answers only the look-back arms and
+would need a snapshot for each of the other four, so this replaces it.
+
+What moves: a "one or more" trigger over an event and its rider now sees two
+events, the rider's "immediately afterward" (CR 615.5). Kalitas's Zombies, made
+by riders, enter in a dispatch after the exiles they ride on. This moves the
+fuzz stream, and RH-2's A/B shows where.
+
+**Item 248: a destruction's move is decided after the event has begun.**
+`GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a nested
+batch. In a batch of several members, a later member's move is therefore
+decided after an earlier member has performed. A Kalitas that dies beside an
+opponent's creature is gone when that creature's death is decided, so the
+creature goes to the graveyard. Kalitas's ruling exiles it: "If Kalitas dies
+at the same time as creatures your opponents control, those creature cards will
+be exiled and you'll get that many Zombies." A probe through the public API
+reproduced it on 2026-10-10. With Kalitas placed first, its death performs
+first and the creature goes to the graveyard. Placed second, the creature is
+exiled.
+
+CR 704.3 decides every member against one board, and CR 614.4 needs the effect
+to exist before the event; here the event is the batch.
+`triggers-architecture.md` §4.3 already reads it that way for frames: in a
+destruction's move, "the permanent keeps the frame the outer batch took". The
+fix decides a destruction's move with the destruction, in phase 1:
+- an inner event (the glossary's: CR 701.8's destruction and the move it
+  proposes) is decided with its outer;
+- a result (CR 120.3's life loss, a creation's entries) is still decided after
+  the event that produced it.
+
+It also makes the move's riders the batch's, queued in phase 1 and run in
+phase 3. So Kalitas's Zombie no longer enters between two deaths of one wrath,
+which `triggers-architecture.md` §3.9's TR-3a note describes.
+
+**Why not the alternatives.**
+- **Ordering the batch so a replacement's source performs last.** It cannot
+  work when two sources replace each other. Two players each control a Kalitas,
+  and both die at once. Each should exile the other (the ruling), and whichever
+  performs first is gone when the other's death is decided.
+- **Snapshotting which replacement abilities existed before the batch, for
+  nested batches to gather from.** That is a second gather source, owed a leg
+  on every gate (`CLAUDE.md`), and a registry by another name, where the rule
+  is that existence is read off the effective ability list. It also leaves the
+  move decided against a board half-changed in every other respect, and the
+  Zombie entering mid-event.
+- **Making the destruction and its move one event.** CR 701.8's outer and
+  inner events are watched by different effects: regeneration and shield
+  counters replace "destroy", while Kalitas and Rest in Peace replace "die".
+  Deciding the inner right after its outer keeps both events and fixes only
+  when the second is decided.
+
+RH-2's fixtures for it: Kalitas in both batch orders, a destroy-all, and two
+players' Kalitases dying together.
+
+### 2b.7 How readers use the record
+
+| A card's word | Reads | Where a pattern says it |
+|---|---|---|
+| **act words**: sacrifices, discards, mills, is countered, is destroyed, casts, draws (the move), plays a land | `act` | `ZoneChangePattern::act` |
+| **destination words**: is exiled, is returned, dies (CR 700.4), enters, is put into a hand, a library or a graveyard, leaves | `from`, `to` | `ZoneChangePattern`'s `from` and `to` |
+| **cause words on an act**: "a spell or ability an opponent controls causes you to discard", "an effect causes", "as a cost", "triggered abilities you control can't cause" | `cause` | `ReplacementDef::by` and `Restriction::Event`'s `by` (the proposal); `TriggerEvent::ZoneChange`'s new `by` (the record) |
+| **cause words on a destination**: "a spell or ability you control exiles" (Ranar), "causes a land to be put into your graveyard" (Sacred Ground) | the destination's cause: the last redirect in `applied`, else `cause` (§2b.4) | the same `by`, when the arm names no act |
+| **"this way"** of a replacement (CR 702.35a) | `applied` | the binding's records |
+| **"it", "that card", "them"** after the move | `new_object()` | the binding's records |
+| the object **as it left** | `lki` | the frame (`triggers-architecture.md` §4.3) |
+
+`ZoneChangePattern { from, to, act }` is the field struct
+`triggers-architecture.md` §3.3 planned for both zone-change arms. RH-1 builds
+it, since it rewrites both arms' `cause` field anyway. The trigger arm gains
+`by: Option<SourceFilter>` beside it. It asks the cause of what the arm names:
+the act's when the arm names an act, and the destination's when it names
+only where the move went, which mirrors the rows above. Eleven printed
+triggers read a cause this way: Guerrilla Tactics, Psychic Purge, Quagnoth, Sand Golem, Sacred
+Ground and six more. `o:"spell or ability an opponent controls causes"
+game:paper -is:funny` gives 17 (2026-10-10), and the other six are
+replacements. `SourceFilter` grows an arm for The Master's "triggered
+abilities" with its card.
+
+**The trap, closed.** A destination word can't be read off the act, because
+there is no destination act to name.
+
+### 2b.8 One home for each of L1–L7
+
+`plans/references/duplicate-inventory.md` §3.1 found seven facts on this
+surface computed in more than one place. Each gets one home in RH-2.
+
+| | The fact | Copies today | Its home |
+|---|---|---|---|
+| L1 | the damage source as it deals damage: CR 608.2h's current information, else its last known information | five: `damage_source_existence` and `damage_source_characteristics` (`oracle/characteristics.rs`), `pattern_watches`' filter (`replacement/gather.rs`), `retarget_destination`'s `ToDamageSourceController` (`replacement/pipeline.rs`), and `as_it_left` with `format_event` (`ui/display.rs`) | one CR 608.2h reader: the object while it is where the effect expected it, else its `Lki`, with four projections (existence, characteristics, controller, a filter's answer). `bound_characteristics` (`triggers/binding.rs`) asks the same question of a bound object and reads it too |
+| L2 | this reference is still the object (CR 400.7) | ten: an epoch comparison or `object_ref(id) == Some(r)` | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
+| L3 | the CR 603.10a frame a record carries | `frame_of` and `find_matches`' second leg (`triggers/dispatch.rs`), `subject_lki` (`triggers/binding.rs`) | a method on `GameEvent` |
+| L4 | taking a mover's frame | `take_captured_lki` opens with `take_named_frame`'s body, and `capture_frame` repeats the lookup | one take; the battlefield caller asserts it found a frame |
+| L5 | the handoff before an object leaves | `perform_zone_change` and `owned_objects_leave` (`engine/leaving.rs`) each take the frame, call `hand_over_lki`, then `note_delayed_source_moving` | one function both performers call |
+| L6 | what a resolution put into a zone since a mark | `exiled_since` (`engine/returns.rs`, CR 610.3) and `remembered_since` (`engine/resolve.rs`, CR 603.7c) | one query over the resolution's records, reading each record's new object. A created token counts for "that card" (CR 603.7c) and never for a return (CR 111.8), so that is a parameter |
+| L7 | which permanents a decided `PlayerLoses` takes off the battlefield | `departs_an_ability_list_source` asks only of the sources the player owns; `capture_lki` frames every permanent | one set, owned or controlled (CR 800.4a: what the player owns leaves, and what they still control is exiled), read by both |
+
+**L7's question.** The inventory asked whether a source the player controls
+but does not own is looked back at. It is: CR 800.4a's exile is part of the
+player's leaving, so its departure is "the event" for CR 603.10. Today the
+outer batch's check asks only of owned sources, and the nested exile's own
+snapshot covers a controlled one. One set makes the outer check say what it
+means. RH-2's fixture puts a stolen ability-list source on both sides of a
+leaving, and is shown to fail first if it finds a wrong answer.
+
+### 2b.9 What this changes elsewhere
+
+- `codebase-state.md`: item 175 goes to RH-2 and loses its own slot. Item 176
+  goes to RH-1 (the act and the cause) and RH-2 (the applied set). Item 177
+  goes to RH-2 with the two CR 400.7e atoms. Item 248, found here, goes to
+  RH-2.
+- `triggers-architecture.md`: §3.3's `ZoneChange` row points here. In RH-2,
+  §3.4's `subject` ("at dispatch") reads the record, and §4.1's dispatch gains
+  its two parts. §12's TR-4 loses item 177, so TR-4a widens `Lki` and changes
+  nothing else on the record.
+- `roadmap-v2.md`: row A6o; A6d's list; A6m comes after A6o.
+- `plans/glossary.md`: **act**, **cause**, **redirect**, and **epoch**'s second
+  sense, the zone-change epoch this section leans on.
+
+### 2b.10 The build: Phase RH, sized
+
+Two engine PRs, split on one seam. RH-1 changes the record's vocabulary and
+nothing a game does. RH-2 changes what the record holds and when it is read.
+Both are sized against `engineering-practices.md` §4's band of 1,500–2,500,
+code and tests apart. Sizings have run 1.5–2× on code, so the band check uses
+that range.
+
+**RH-1: the act and the cause.** Expected to read `IDENTICAL` against `main`
+on every counter: no answer changes, only the record's words.
+
+| Piece | Code | Tests |
+|---|---|---|
+| `ZoneChangeAct`'s nine variants for `ZoneChangeCause`'s 21, and `cause` renamed `act` on the proposal, the record, both patterns and `AuxiliaryMove`; mechanical, over the 305 lines that name a variant today (53 in `src`, 5 in the cards, 247 in tests) | ~150 | ~260 |
+| `EventCause` and its four rule enums, documented | ~170 | — |
+| `ActionContext::cause` with one constructor per kind; the 14 production `ActionContext::new` calls named; a cost's own context; `EventStamp::cause` for `resolution`, with its four readers; the emitters outside a batch | ~160 | — |
+| the state-based batch's cause per member | ~50 | — |
+| the rule moves (`sba.rs`, `leaving.rs`, `stack.rs`), and the entry's `cast` read off CR 400.7d's facts | ~50 | — |
+| the folds: `DestructionSource` (7 sites in `src`, 35 in tests), `LifeLossCause`'s `Effect` and `Cost` (17 in `src`, 2 in the cards, 13 in tests), `EventProposal::cause`, `SourceFilter::matches` | ~110 | ~70 |
+| `ZoneChangePattern` for both arms, `by` on the trigger arm, the log line | ~90 | — |
+| new tests: a board for each kind of cause (an opponent's spell, a discard as a cost, the cleanup discard, a land play, 0 toughness, an instant's trip to the graveyard), each through Sigarda's filter, Nephalia Academy's replacement and a trigger shaped like Guerrilla Tactics; the act kept under Leyline for each of the eight acts (`instead_keeps_the_act_test.rs`, extended); a destination pattern that finds a sacrifice Rest in Peace exiled; the stamp's and the record's sizes | — | ~420 |
+| **total** | **~780** (×1.5–2: 1,170–1,560) | **~750** |
+
+RH-1 is ~1,530 as sized and 1,900–2,300 at the multiplier, inside the band.
+Guerrilla Tactics is registered in RH-1 only if its hand leg (CR 113.6k,
+`triggers-architecture.md` §4.2's third leg) needs nothing new. Otherwise its
+fixture stands in.
+
+**RH-2: the record's identity, its applied set and its moment.** This one
+moves the stream (decision 5, item 248), so it needs the A/B, read game by
+game.
+
+| Piece | Code | Tests |
+|---|---|---|
+| `new_epoch` at the emitter; the binding's subject, "them" and `Effect::Remember` read off the record | ~70 | — |
+| L2's query (ten copies), L3's method (three), L4's take, L5's handoff | ~110 | — |
+| `applied`: the ordered applied set (11 sites), the performer writing it, the log | ~120 | — |
+| decision 5: the two-part dispatch | ~40 | — |
+| item 248: a destruction's move decided with the destruction | ~180 | — |
+| L1's CR 608.2h reader (five copies), L6's query, L7's set | ~150 | — |
+| tests: item 177's rider board (a rider that exiles the graveyard's cards after the creature died there, so the dies trigger's "return it" does nothing) and a "them" fixture; ATOM-400.7e-001 and -002; a "when this card is exiled this way" fixture shaped like madness; item 175's five readers, a board each, and "one or more" across an event and its rider; item 248 in both batch orders and under a wrath; L7's stolen source on both sides | — | ~950 |
+| **total** | **~670** (×1.5–2: 1,000–1,340) | **~950** |
+
+RH-2 is ~1,620 as sized and 1,950–2,300 at the multiplier, inside the band.
+Each PR's close-out adds about 300 lines of docs.
+
+**Performance, priced before building** (asked at #242's review). Every
+number comes from the callgrind arm A6n's close-out left in WSL
+(`close-out-rename`, 2026-10-10). Its source is `main`'s today. It ran
+`close_out.py`'s board: 20 four-seat Commander games, 7.33 G instructions,
+564 decisions and 24.5 creature deaths a game.
+- **The record stays the same size.** `EventStamp` is 40 bytes and
+  `EventRecord` 144, measured. `EventCause` fits in the 24 bytes
+  `Option<ResolutionStamp>` takes. A mock of `ZoneChange` with `new_epoch` and
+  `applied` is 72 bytes with its tag, the size `GameEvent` already is, so no
+  record copies more bytes.
+- **Item 248 removes work.** Today a destruction's move opens a nested batch.
+  A batch's own bookkeeping, outside the pipeline and the performers, averages
+  at most about 5.4 K instructions: `execute_batch_inner`'s inclusive 1,973 M
+  less its callees, over 42,141 calls. Deciding the move in phase 1 keeps its
+  one `apply_replacements`, which moves rather than repeats, and drops the
+  nested batch. At most 490 destructions on the board (every death counted)
+  gives about −2.6 M instructions, −0.04 points. The gather then reads a board
+  nothing has moved yet, so it can only hit the layer memo more often, never
+  less. The phase-1 loop decides an inner move in its outer's group, so a
+  destroy-all of N creatures stays N decisions and adds no group.
+- **Decision 5 adds one dispatch per outermost batch that queued riders.** A
+  dispatch costs about 7.9 K on average (`dispatch_batch`, 331 M over 42,083
+  calls), and most of that is matching work the split does not add, since
+  each record is still matched once. At most 1,432 batches carry riders on
+  this board, counted as every `apply_rewrite` call. That gives a ceiling of
+  +11 M, +0.15 points, and the real cost is the gate's fixed probes on far
+  fewer batches.
+- **The rest is noise:** an `Arc` per replaced move (at most 1,432), a cause
+  per state-based member, and a `u64` read per announced move.
+
+Predicted: RH-1 within ±0.3 points of `main`, since it is code-only and the
+record keeps its size. RH-2 between −0.1 and +0.2. Both are read at
+close-out by `close_out.py` on this same board, against `engineering-practices.md`
+§3.1's budget. If RH-2 crosses 2,500 during
+the build, item 248 is the piece that stands alone: it has its own rule and its
+own boards, and the rest does not depend on it.
+
+### 2b.11 Decisions, and what is left open
+
+Taken here. All nine were approved by the owner on 2026-10-11, at #242's
+review: 1–6, 8 and 9 as written (9 with its performance priced in §2b.10), and
+option A of three for 7. The other two
+options were every test naming a real cause, or `test_ctx()` quietly naming one
+fixed cause. The same review decided who exiled a redirected move: the
+replacement's ability (§2b.4).
+1. `Resolved` and `Fizzled` are rules' moves (CR 608.2n, 608.3a, 608.3e,
+   608.2b): act `Put`, cause `GameRule`. The entry's "was it cast" reads CR
+   400.7d's fact, which is also right for a copy (CR 707.10).
+2. A special action is a cause of its own (CR 116.1). `PlayLand` ships.
+3. The record keeps the whole applied set in application order, not one
+   redirecting replacement.
+4. The cause is on the stamp, for every event kind. It costs no bytes
+   (measured), and its price is the sites.
+5. A rider-bearing window is dispatched in two parts, with no batch tag on the
+   record. Item 175's tag design is superseded.
+6. The build is Phase RH, two PRs (RH-1, RH-2), after this design and before
+   A6m and TR-4a. TR-4a then only widens `Lki`. A6m comes after RH because its
+   first PR merges "resolution and the engine's records" (item 244), which RH-1
+   reshapes.
+7. Tests keep one door. `ActionContext::new` stays as the test door, with
+   `EventCause::Harness`: a test or tool moving objects directly. It compiles
+   only under tests, so once the 14 production sites name their causes by
+   constructor, production cannot fall back to it. `Harness` satisfies no
+   source filter, so a cause-sensitive test that forgot to name a real cause
+   fails rather than passing by accident. The alternative is about 600 test sites (477 calls to
+   `test_ctx()`, 117 direct `ActionContext::new`) each naming a real cause,
+   most of them a guess.
+8. The names. "Performer" is the glossary's, so the fact is `EventCause`, and
+   `ZoneChangeCause` becomes `ZoneChangeAct`, so that "cause" has one meaning.
+   The four destination verbs fold into `Put`, which closes item 176's trap by
+   construction, at 113 mechanical lines.
+9. Item 248 is filed and fixed in RH-2 by deciding a destruction's move with
+   the destruction.
+
+Open:
+- **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
+  Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
+  has no ruling, and it goes to CP-1 with "unless".
+- **A rider's records and "one or more"**: decision 5 makes an event and its
+  rider two events. CR 615.5 says "immediately afterward" of a prevention
+  effect's rider, and §4.1a reads every `then` that way. If a judge reads a
+  replacement's "instead ... and" as one event, decision 5 dispatches a
+  replacement's riders with the event and only a prevention's after it.
+- **Item 248's other outer events**: the destruction is the one outer event
+  whose inner is a move. A player's leaving may be a second: `engine/leaving.rs`
+  proposes CR 800.4a's exiles one at a time, after its first two clauses have
+  run, and each is decided against the board the earlier ones left. RH-2
+  checks it with a fixture replacement that watches an exile.
+
+---
+
 ## 3. Type surface
 
 ### 3.1 `GameAction` — the replaceable-event vocabulary
@@ -3094,6 +3729,24 @@ block. Closes §11 item 4 and critical-path 6a.
 → The section as written at the close, what the building changed and the
 measurement: `plans/archive/replacement-architecture-landed.md`, "RF"
 (evicted 2026-09-16).
+
+### Phase RH — the zone-change record (§2b) — sized 2026-10-10, two PRs
+
+The design is §2b, reviewed in its own PR before any code (`roadmap-v2.md`
+A6o). Both PRs sit inside A6d, after the design and before A6m and TR-4a.
+Branches are `replacement/rh-<n>-…`.
+
+#### RH-1 — the act and the cause
+
+`ZoneChangeAct` and `EventCause` (§2b.2, §2b.3), with the folds and the
+reader's pattern (§2b.7). The A/B expects `IDENTICAL`. Pieces and sizes:
+§2b.10.
+
+#### RH-2 — the record's identity, its applied set and its moment
+
+`new_epoch`, `applied`, the two-part dispatch, item 248, and L1–L7's homes
+(§2b.4–§2b.8). Claims ATOM-400.7e-001 and -002. It moves the stream. Pieces and
+sizes: §2b.10.
 
 ### Interleaved — Commander
 
