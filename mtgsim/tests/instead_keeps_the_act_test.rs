@@ -4,9 +4,12 @@
 //! Destroy, discard, mill, sacrifice and counter are each a move to the
 //! graveyard (CR 701.8a, 701.9a, 701.17a, 701.21a, 701.6a), and CR 614.6
 //! makes the modified event the one that happens. So a redirect changes the
-//! record's `to` and leaves its `cause`, which is the act. CR 701.9c and the
-//! Rest in Peace, Leyline of the Void and Nephalia Academy rulings say so for
-//! discard, CR 701.17c for mill, and CR 608.2c's example for counter.
+//! record's `to` and leaves its act and its cause. CR 701.9c and the Rest in
+//! Peace, Leyline of the Void and Nephalia Academy rulings say so for discard,
+//! CR 701.17c for mill, and CR 608.2c's example for counter. Every act a
+//! replacement can see has a board here: the five above, a rule's `Put`, a
+//! draw and a land play. A cast cannot be redirected — CR 601.2a's move is no
+//! proposal, and CR 601.3 asks "can't cast" first.
 //!
 //! Every board here is one registered replacement and one real act, and each
 //! test asserts the performed record, which is what a trigger or a "this way"
@@ -16,11 +19,13 @@ use std::sync::Arc;
 
 use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
+use mtgsim::cards::phase_rc_cards::{containment_priest, dryad_arbor};
 use mtgsim::cards::phase_re8_cards::{mind_rot, nephalia_academy};
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::{EventCause, GeneratedBy, SpecialAction, StateBasedAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{
     AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
@@ -32,11 +37,12 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::zones::Zone;
+use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::DecisionProvider;
 
@@ -63,6 +69,22 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> 
             _ => None,
         })
         .collect()
+}
+
+/// `object`'s last zone change, with the cause its record names.
+fn the_record_of(game: &GameState, object: ObjectId) -> (Zone, Zone, ZoneChangeAct, EventCause) {
+    let recorded = game.recorded_events();
+    recorded
+        .records()
+        .iter()
+        .rev()
+        .find_map(|r| match r.event {
+            GameEvent::ZoneChange { object_id, from, to, act, .. } if object_id == object => {
+                Some((from, to, act, r.stamp.cause))
+            }
+            _ => None,
+        })
+        .expect("it moved")
 }
 
 /// The one zone change `object` made.
@@ -267,4 +289,110 @@ fn a_spell_countered_under_rest_in_peace_is_recorded_as_countered() {
         .filter(|(id, from, ..)| *id == counter && *from == Zone::Stack)
         .collect();
     assert_eq!(resolved, vec![(counter, Zone::Stack, Zone::Exile, ZoneChangeAct::Put)]);
+}
+
+// ---------------------------------------------------------------------------
+// A rule's move, a draw and a land play keep their act and their cause
+// ---------------------------------------------------------------------------
+
+/// CR 704.5f puts a 0-toughness creature into its owner's graveyard, an act
+/// of `Put`; under Leyline it is exiled, still `Put`, still the rule's.
+#[test]
+fn a_creature_with_zero_toughness_under_leyline_is_put_by_the_rule() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, leyline_of_the_void(), 0);
+    let creature = put_on_battlefield(&mut game, vanilla_creature(0, 0, &[]), 1);
+
+    game.check_state_based_actions(&test_dp()).expect("the check");
+
+    assert_eq!(
+        the_record_of(&game, creature),
+        (Zone::Battlefield, Zone::Exile, ZoneChangeAct::Put, EventCause::StateBasedAction(StateBasedAction::ZeroToughness))
+    );
+}
+
+/// CR 704.5g destroys a creature with lethal damage, which CR 701.8b calls
+/// destroyed; under Leyline it is exiled, still destroyed, still by the
+/// state-based action.
+#[test]
+fn a_creature_with_lethal_damage_under_leyline_is_destroyed_by_the_rule() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, leyline_of_the_void(), 0);
+    let creature = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    game.battlefield.get_mut(&creature).unwrap().damage_marked = 2;
+
+    game.check_state_based_actions(&test_dp()).expect("the check");
+
+    assert_eq!(
+        the_record_of(&game, creature),
+        (Zone::Battlefield, Zone::Exile, ZoneChangeAct::Destroyed, EventCause::StateBasedAction(StateBasedAction::LethalDamage))
+    );
+}
+
+/// **Fixture.** "If a card would be put into an opponent's hand from their
+/// library, exile it instead." No printed card redirects a draw's move; the
+/// CR is the customer (`engineering-practices.md` §4).
+fn fixture_draw_exiler() -> Arc<CardData> {
+    let def = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Library), to: Some(Zone::Hand), act: None },
+            object: None,
+        },
+        ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::Opponent), ZoneSet::LIBRARY),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    );
+    CardDataBuilder::new("Fixture Draw Exiler")
+        .card_type(CardType::Enchantment)
+        .ability(AbilityDef {
+            rules_text: "".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: new_ability_id(),
+            instances: Vec::new(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(def)),
+        })
+        .build()
+}
+
+/// A drawn card redirected to exile was still drawn (CR 121.5's move), and
+/// the draw is still its spell's.
+#[test]
+fn a_card_drawn_into_exile_is_recorded_as_drawn() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, fixture_draw_exiler(), 0);
+    fill_library(&mut game, 1, 3);
+    let top = *game.players[1].library.last().unwrap();
+
+    let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let ctx = ResolutionContext::untargeted(source, 1, GeneratedBy::Spell);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    game.resolve_effect(&draw, &ctx, &test_dp()).expect("resolving");
+
+    let (from, to, act, cause) = the_record_of(&game, top);
+    assert_eq!((from, to, act), (Zone::Library, Zone::Exile, ZoneChangeAct::Drawn));
+    assert!(matches!(cause, EventCause::Effect { resolution, .. } if resolution.source == source), "{cause:?}");
+}
+
+/// Containment Priest exiles a land creature played from a hand, which was
+/// never cast (item 176's Dryad Arbor). It was still played as a land, by the
+/// special action.
+#[test]
+fn a_dryad_arbor_containment_priest_exiles_is_recorded_as_played() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, containment_priest(), 1);
+    let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
+
+    game.play_land(0, arbor, &test_dp()).expect("the land drop is legal");
+
+    assert_eq!(
+        the_record_of(&game, arbor),
+        (
+            Zone::Hand,
+            Zone::Exile,
+            ZoneChangeAct::PlayedAsLand,
+            EventCause::SpecialAction { player: 0, action: SpecialAction::PlayLand }
+        )
+    );
 }

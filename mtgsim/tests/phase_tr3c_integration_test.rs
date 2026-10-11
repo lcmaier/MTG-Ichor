@@ -104,7 +104,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object }, &effect_ctx(&game, by))
+    game.execute_action(GameAction::Destroy { object }, &effect_ctx(game, by))
         .unwrap();
 }
 

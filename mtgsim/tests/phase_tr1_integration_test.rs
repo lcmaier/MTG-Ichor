@@ -136,7 +136,7 @@ fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
         .iter()
         .map(|&object| GameAction::Destroy { object })
         .collect();
-    game.execute_actions(batch, &effect_ctx(&game, source)).expect("the wipe");
+    game.execute_actions(batch, &effect_ctx(game, source)).expect("the wipe");
 }
 
 /// Resolve `effect` for `controller` against `targets`, the way the stack

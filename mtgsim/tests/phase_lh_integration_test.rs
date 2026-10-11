@@ -75,7 +75,7 @@ fn destroy(game: &mut GameState, id: ObjectId) {
     let source = mtgsim::types::ids::new_object_id();
     game.execute_action(
         GameAction::Destroy { object: id },
-        &effect_ctx(&game, source),
+        &effect_ctx(game, source),
     )
     .expect("it is destroyed");
 }
