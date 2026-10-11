@@ -546,6 +546,12 @@ one the replacement wrote. So the record answers "who" twice:
 - for the destination, the last applied replacement that changed where the
   move goes, else the cause ("exiles", "is put into your graveyard").
 
+**Decided (the owner, 2026-10-11, at #242's review): the replacement's.**
+Without Rest in Peace no exiling happens. So take Bretagard's controller's own
+Doom Blade under an opponent's Rest in Peace: it does not trigger Bretagard.
+Their Swords to Plowshares, which exiles directly, does. So does anyone's Doom
+Blade under a Rest in Peace that Bretagard's controller controls.
+
 Item 176 said each act of a redirected move has its own performer, and this
 is the second one, read off `applied` rather than stored twice. Each entry
 keeps its controller as it applied, because its source may have left or
@@ -642,6 +648,26 @@ fix decides a destruction's move with the destruction, in phase 1:
 It also makes the move's riders the batch's, queued in phase 1 and run in
 phase 3. So Kalitas's Zombie no longer enters between two deaths of one wrath,
 which `triggers-architecture.md` §3.9's TR-3a note describes.
+
+**Why not the alternatives.**
+- **Ordering the batch so a replacement's source performs last.** It cannot
+  work when two sources replace each other. Two players each control a Kalitas,
+  and both die at once. Each should exile the other (the ruling), and whichever
+  performs first is gone when the other's death is decided.
+- **Snapshotting which replacement abilities existed before the batch, for
+  nested batches to gather from.** That is a second gather source, owed a leg
+  on every gate (`CLAUDE.md`), and a registry by another name, where the rule
+  is that existence is read off the effective ability list. It also leaves the
+  move decided against a board half-changed in every other respect, and the
+  Zombie entering mid-event.
+- **Making the destruction and its move one event.** CR 701.8's outer and
+  inner events are watched by different effects: regeneration and shield
+  counters replace "destroy", while Kalitas and Rest in Peace replace "die".
+  Deciding the inner right after its outer keeps both events and fixes only
+  when the second is decided.
+
+RH-2's fixtures for it: Kalitas in both batch orders, a destroy-all, and two
+players' Kalitases dying together.
 
 ### 2b.7 How readers use the record
 
@@ -757,10 +783,11 @@ own boards, and the rest does not depend on it.
 
 ### 2b.11 Decisions, and what is left open
 
-Taken here. Decisions 1–7 were approved by the owner on 2026-10-11, at #242's
-review: 1–6 as written, and option A of three for 7. The other two options
-were every test naming a real cause, or `test_ctx()` quietly naming one fixed
-cause.
+Taken here. Decisions 1–8 were approved by the owner on 2026-10-11, at #242's
+review: 1–6 and 8 as written, and option A of three for 7. The other two
+options were every test naming a real cause, or `test_ctx()` quietly naming one
+fixed cause. The same review decided who exiled a redirected move: the
+replacement's ability (§2b.4).
 1. `Resolved` and `Fizzled` are rules' moves (CR 608.2n, 608.3a, 608.3e,
    608.2b): act `Put`, cause `GameRule`. The entry's "was it cast" reads CR
    400.7d's fact, which is also right for a copy (CR 707.10).
@@ -791,9 +818,6 @@ cause.
    the destruction.
 
 Open:
-- **Who exiled a redirected move** (§2b.4): Ranar's and Hero of Bretagard's
-  rulings name "the spell or ability that exiled them", and no ruling found
-  names a redirect. The design reads it as the replacement's, by CR 614.6.
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
   Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
   has no ruling, and it goes to CP-1 with "unless".
