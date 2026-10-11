@@ -410,7 +410,8 @@ pub enum EventCause {
     /// A rule acting with no action taken.
     GameRule(GameRule),
     /// A test or a tool moving objects directly; never the engine
-    /// (decision 7).
+    /// (decision 7). `ActionContext::new`, the one constructor that makes
+    /// it, compiles only under `cfg(any(test, feature = "test-support"))`.
     Harness,
 }
 ```
@@ -533,11 +534,14 @@ off the resolution's records (`triggers-architecture.md` §3.9, TR-3b), and CR
 **Who sent it where it went.** Ranar the Ever-Watchful and Hero of Bretagard
 trigger when "a spell or ability you control exiles one or more permanents"
 (`o:"spell or ability you control exiles" game:paper -is:funny`, 2 cards,
-2026-10-10). Their rulings count a permanent exiled from the battlefield "if
-you controlled the spell or ability that exiled them". When a replacement
-redirected the move into exile, the ability that exiled it is the
-replacement's (Kalitas, Rest in Peace), since CR 614.6's modified event is
-the one the replacement wrote. So the record answers "who" twice:
+2026-10-10). Both had their Oracle text updated so the ability "doesn't care
+which player is exiling cards and permanents" (their rulings, 2021-06-18), so a
+card exiled from your hand counts "for any reason". The battlefield half still
+asks whose spell or ability did it: a permanent exiled from the battlefield
+counts "if you controlled the spell or ability that exiled them". When a
+replacement redirected the move into exile, the ability that exiled it is the
+replacement's (Kalitas, Rest in Peace), since CR 614.6's modified event is the
+one the replacement wrote. So the record answers "who" twice:
 - for the act, its cause ("causes you to discard");
 - for the destination, the last applied replacement that changed where the
   move goes, else the cause ("exiles", "is put into your graveyard").
@@ -753,7 +757,10 @@ own boards, and the rest does not depend on it.
 
 ### 2b.11 Decisions, and what is left open
 
-Taken here, for review:
+Taken here. Decisions 1–7 were approved by the owner on 2026-10-11, at #242's
+review: 1–6 as written, and option A of three for 7. The other two options
+were every test naming a real cause, or `test_ctx()` quietly naming one fixed
+cause.
 1. `Resolved` and `Fizzled` are rules' moves (CR 608.2n, 608.3a, 608.3e,
    608.2b): act `Put`, cause `GameRule`. The entry's "was it cast" reads CR
    400.7d's fact, which is also right for a copy (CR 707.10).
@@ -769,9 +776,11 @@ Taken here, for review:
    first PR merges "resolution and the engine's records" (item 244), which RH-1
    reshapes.
 7. Tests keep one door. `ActionContext::new` stays as the test door, with
-   `EventCause::Harness`: a test or tool moving objects directly. Production
-   code names its cause by constructor, and a production `Harness` is a review
-   finding. The alternative is about 600 test sites (477 calls to
+   `EventCause::Harness`: a test or tool moving objects directly. It compiles
+   only under tests, so once the 14 production sites name their causes by
+   constructor, production cannot fall back to it. `Harness` satisfies no
+   source filter, so a cause-sensitive test that forgot to name a real cause
+   fails rather than passing by accident. The alternative is about 600 test sites (477 calls to
    `test_ctx()`, 117 direct `ActionContext::new`) each naming a real cause,
    most of them a guess.
 8. The names. "Performer" is the glossary's, so the fact is `EventCause`, and
