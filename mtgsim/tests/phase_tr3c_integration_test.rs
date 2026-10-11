@@ -37,6 +37,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     card_of_type, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
@@ -51,7 +52,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
@@ -103,7 +104,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object, source: DestructionSource::Effect(by) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object }, &effect_ctx(&game, by))
         .unwrap();
 }
 

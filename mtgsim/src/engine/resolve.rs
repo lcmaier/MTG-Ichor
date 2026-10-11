@@ -1,5 +1,5 @@
 use crate::engine::actions::{
-    ActionContext, DestructionSource, DrawCause, GameAction, LifeLossCause, ZoneChangeAct,
+    ActionContext, DrawCause, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -675,7 +675,7 @@ impl GameState {
                 };
                 let batch = players
                     .into_iter()
-                    .map(|player| GameAction::LoseLife { player, amount, cause: LifeLossCause::Effect })
+                    .map(|player| GameAction::LoseLife { player, amount, damage_source: None })
                     .collect();
                 self.execute_actions(batch, &actx)?;
                 Ok(())
@@ -700,7 +700,7 @@ impl GameState {
                     self.execute_action(GameAction::LoseLife {
                         player,
                         amount: (current - target) as u64,
-                        cause: LifeLossCause::Effect,
+                        damage_source: None,
                     }, &actx)?;
                 }
                 Ok(())
@@ -2254,7 +2254,7 @@ impl GameState {
         let is_permanent = self.battlefield.contains_key(&object);
         Ok(match primitive {
             Primitive::Destroy => {
-                is_permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.effect_source()) })
+                is_permanent.then(|| GameAction::Destroy { object })
             }
             // CR 701.13a — from wherever the object is.
             Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {

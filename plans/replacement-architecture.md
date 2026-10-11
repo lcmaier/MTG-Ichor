@@ -157,10 +157,9 @@ the enforcement.
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
 | `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind | grows only if a new ambient input appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
-| `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeAct` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
 | `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
-| `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
+| `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
 | `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `cause`, since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `cause` is the act, `to` where it went. It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
@@ -523,9 +522,11 @@ has no ruling; it goes to CP-1, which builds CR 118.12a's "unless"
 - `DestructionSource` (`Effect(ObjectId)` or `StateBasedAction`) is the
   destruction's cause. `GameAction::Destroy` loses it, and the shield
   counter's "as the result of an effect" (CR 122.1c) asks the cause.
-- `LifeLossCause`'s `Effect` and `Cost` are the cause. It keeps `Damage {
-  source }`: that the loss is a result of damage (CR 120.3a) is a fact about
-  the event, not about who caused it.
+- `LifeLossCause`'s `Effect` and `Cost` are the cause. Its `Damage {
+  source }` stays: that the loss is a result of damage (CR 120.3a) is a fact
+  about the event, not about who caused it. With one arm left the type went,
+  and the proposal is `LoseLife { damage_source: Option<ObjectId> }` (as built
+  in RH-1); `LifeLossCausePattern` asks it and the cause.
 - `EventProposal::cause: Option<PlayerId>` is the cause's controller.
 
 `DrawCause` stays. It says which draw of an instruction this is (CR 121.2), so

@@ -85,8 +85,8 @@ fn life_changes(game: &GameState, player: PlayerId) -> Vec<(i64, i64)> {
         .collect()
 }
 
-/// "You lose `n` life", as a resolving spell says it — `LifeLossCause::Effect`,
-/// which is the cause Ali from Cairo's first ruling is about.
+/// "You lose `n` life", as a resolving spell says it — an effect's loss, not
+/// damage's, which is what Ali from Cairo's first ruling is about.
 fn lose_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionProvider) {
     let effect = Effect::Atom(
         Primitive::LoseLife(AmountExpr::Fixed(n)),
@@ -612,9 +612,9 @@ fn the_full_damage_is_still_dealt_and_only_the_loss_is_clamped() {
 }
 
 /// **Its first ruling:** *"this effect does not apply to effects which reduce
-/// your life without doing damage."* A `Primitive::LoseLife` is
-/// `LifeLossCause::Effect`, which the pattern does not match, so the loss goes
-/// through and the player is at -7.
+/// your life without doing damage."* A `Primitive::LoseLife` is an effect's
+/// loss with no damage source, which the pattern does not match, so the loss
+/// goes through and the player is at -7.
 #[test]
 fn ali_from_cairo_does_not_clamp_a_loss_that_is_not_damage() {
     let mut game = setup_game(2);
@@ -626,7 +626,7 @@ fn ali_from_cairo_does_not_clamp_a_loss_that_is_not_damage() {
     assert_eq!(life(&game, 0), -7, "CR 119.6 will lose the game for this at the next SBA check");
 }
 
-/// **The `LifeLossCause::Cost` arm, which nothing has watched until now, and
+/// **A life payment, the `Cost` arm, which nothing has watched until now, and
 /// the answer is structural twice over.**
 ///
 /// A life payment is not damage, so the pattern does not match it; and CR 119.4

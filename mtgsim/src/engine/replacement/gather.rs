@@ -641,7 +641,7 @@ fn def_applies(
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
     def.by.as_ref().is_none_or(|by| by.matches(&p.cause, controller))
-        && pattern_watches(game, &def.pattern, p.action, controller)
+        && pattern_watches(game, &def.pattern, p.action, &p.cause, controller)
         && set_affects(
             game,
             &def.affected_objects,
@@ -740,6 +740,7 @@ pub(crate) fn pattern_watches(
     game: &GameState,
     pattern: &EventPattern,
     action: &GameAction,
+    cause: &EventCause,
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
@@ -836,8 +837,8 @@ pub(crate) fn pattern_watches(
         // around is `set_affects`'s question one function below; these ask only
         // about the event, and a gain has nothing to ask.
         (EventPattern::GainLife, GameAction::GainLife { .. }) => true,
-        (EventPattern::LoseLife { cause }, GameAction::LoseLife { cause: actual, .. }) => {
-            cause.map(|c| c.matches(*actual)).unwrap_or(true)
+        (EventPattern::LoseLife { cause: asked }, GameAction::LoseLife { damage_source, .. }) => {
+            asked.map(|c| c.matches(*damage_source, cause)).unwrap_or(true)
         }
 
         // CR 400.7d's fact: the entering object is the resolving spell, and its
@@ -850,8 +851,8 @@ pub(crate) fn pattern_watches(
             .map(|required| entering_spell_was_cast(game, *object) == required)
             .unwrap_or(true),
 
-        (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
-            source.map(|p| p.matches(*actual)).unwrap_or(true)
+        (EventPattern::Destroy { source }, GameAction::Destroy { .. }) => {
+            source.map(|p| p.matches(cause)).unwrap_or(true)
         }
 
         // CR 614.16's "one or more" is the one count read (as `CreateTokens` reads

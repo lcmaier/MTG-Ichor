@@ -32,7 +32,7 @@ use mtgsim::cards::phase_re_cards::eon_hub;
 use mtgsim::cards::phase_tr1_cards::{
     blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
 };
-use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -48,6 +48,7 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
     static_ability, test_ctx, test_dp, vanilla_creature, StackWatcher,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
@@ -133,9 +134,9 @@ fn expect_target_player(dp: &ScriptedDecisionProvider, index: usize) {
 fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
     let batch = objects
         .iter()
-        .map(|&object| GameAction::Destroy { object, source: DestructionSource::Effect(source) })
+        .map(|&object| GameAction::Destroy { object })
         .collect();
-    game.execute_actions(batch, &test_ctx()).expect("the wipe");
+    game.execute_actions(batch, &effect_ctx(&game, source)).expect("the wipe");
 }
 
 /// Resolve `effect` for `controller` against `targets`, the way the stack

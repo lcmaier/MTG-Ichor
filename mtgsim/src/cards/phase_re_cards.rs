@@ -1072,16 +1072,16 @@ pub fn words_of_worship() -> Arc<CardData> {
 ///
 /// `cause: Some(Damage)` is also the whole answer to whether it clamps a life
 /// *payment*. It does not, twice over: CR 119.4 refuses a payment larger than
-/// the life total before any replacement is asked, and a payment's cause is
-/// [`LifeLossCause::Cost`], which this pattern does not match. The card agrees
+/// the life total before any replacement is asked, and a payment is a cost's
+/// loss with no damage source, which this pattern does not match. The card agrees
 /// — "damage that would reduce" — and so does its first ruling, *"this effect
 /// does not apply to effects which reduce your life without doing damage."*
 ///
 /// # The rulings, and where each is tested
 ///
 /// - *"This effect does not apply to effects which reduce your life without
-///   doing damage."* → test: a `Primitive::LoseLife` is `LifeLossCause::Effect`,
-///   which the pattern does not match, and the player goes to -7.
+///   doing damage."* → test: a `Primitive::LoseLife` is an effect's loss with
+///   no damage source, which the pattern does not match, and the player goes to -7.
 ///   → `ali_from_cairo_does_not_clamp_a_loss_that_is_not_damage`, with
 ///   `ali_from_cairo_does_not_clamp_a_life_payment` for the `Cost` arm nothing
 ///   had watched.

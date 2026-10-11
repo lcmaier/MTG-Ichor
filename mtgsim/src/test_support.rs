@@ -130,6 +130,25 @@ pub fn test_ctx() -> ActionContext<'static> {
     ActionContext::new(Box::leak(Box::new(ScriptedDecisionProvider::new())))
 }
 
+/// [`test_ctx`] with a spell's effect as the cause: `source` the spell, its
+/// owner the controller. What a test proposing a spell's own instruction
+/// names, so a pattern on "the result of an effect" (CR 122.1c) or a source
+/// filter sees one.
+pub fn effect_ctx(game: &GameState, source: ObjectId) -> ActionContext<'static> {
+    let controller = game.objects.get(&source).map_or(0, |o| o.owner);
+    let resolution = crate::engine::resolve::ResolutionContext::untargeted(
+        source,
+        controller,
+        crate::events::cause::GeneratedBy::Spell,
+    );
+    ActionContext::resolving(Box::leak(Box::new(ScriptedDecisionProvider::new())), &resolution)
+}
+
+/// [`test_ctx`] with a state-based action as the cause.
+pub fn state_based_ctx(action: crate::events::cause::StateBasedAction) -> ActionContext<'static> {
+    ActionContext::state_based(Box::leak(Box::new(ScriptedDecisionProvider::new())), action)
+}
+
 // ---------------------------------------------------------------------------
 // Card factories
 //

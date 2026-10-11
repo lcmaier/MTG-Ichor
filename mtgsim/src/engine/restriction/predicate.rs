@@ -239,7 +239,7 @@ fn matches(
             Restriction::Event { pattern, affected_objects, affected_players, by },
             Query::Event { action, cause, .. },
         ) => {
-            pattern_watches(game, pattern, action, controller)
+            pattern_watches(game, pattern, action, cause, controller)
                 // The union `ReplacementDef` already makes, and it is a union rather than
                 // a replacement because the two sets answer about different kinds of
                 // subject: `set_affects` asks one or the other by what the event is

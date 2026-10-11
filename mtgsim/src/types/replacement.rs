@@ -36,10 +36,11 @@ use crate::types::effects::{
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
-use crate::types::ids::{ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
-use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeAct};
+use crate::events::cause::{EventCause, StateBasedAction};
+use crate::types::zones::{DrawCause, Zone, ZoneChangeAct};
 
 /// One replacement or prevention effect.
 ///
@@ -331,8 +332,8 @@ pub enum EventPattern {
     /// CR 119.3 / 120.3a — "if you would lose life". The event's subject is
     /// the losing player.
     ///
-    /// `cause` is the loss's own [`LifeLossCause`](crate::types::zones::LifeLossCause),
-    /// and it is the field Ali from Cairo exists for: its clamp is on *damage*,
+    /// `cause` asks whether the loss is damage's (CR 120.3a), an effect's or a
+    /// cost's, and it is the field Ali from Cairo exists for: its clamp is on *damage*,
     /// and its own ruling is that the effect "does not prevent damage, it
     /// prevents the damage from turning into loss of life" — so it watches the
     /// loss CR 120.3a contains inside the damage rather than the damage.
@@ -350,10 +351,11 @@ pub enum EventPattern {
     Tap,
 
     /// CR 701.8b / 614.8. The **outer** event: performing it proposes an inner
-    /// `ZoneChange { act: Destroyed | DestroyedBySba }`.
+    /// `ZoneChange { act: Destroyed }`.
     Destroy {
         /// CR 122.1c reads "would be destroyed **as the result of an effect**",
-        /// which is CR 701.8b way 1 only. `None` matches either way.
+        /// which is CR 701.8b way 1 only, asked of the destruction's cause.
+        /// `None` matches either way.
         source: Option<DestructionSourcePattern>,
     },
 
@@ -687,10 +689,10 @@ impl SourcePattern {
     }
 }
 
-/// Which of CR 701.8b's ways destroyed the permanent.
-///
-/// A pattern rather than a [`DestructionSource`]: the event carries the
-/// destroying object's id and a pattern must not have to name it.
+/// Which of CR 701.8b's two ways destroyed the permanent, asked of the
+/// destruction's cause: "as a result of an effect that uses the word
+/// 'destroy'", or "the state-based actions that check for lethal damage
+/// (704.5g) or damage from a source with deathtouch (704.5h)".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DestructionSourcePattern {
     /// CR 701.8b way 1 — an effect that uses the word "destroy".
@@ -700,15 +702,13 @@ pub enum DestructionSourcePattern {
 }
 
 impl DestructionSourcePattern {
-    pub fn matches(self, source: DestructionSource) -> bool {
-        matches!(
-            (self, source),
-            (DestructionSourcePattern::Effect, DestructionSource::Effect(_))
-                | (
-                    DestructionSourcePattern::StateBasedAction,
-                    DestructionSource::StateBasedAction
-                )
-        )
+    pub fn matches(self, cause: &EventCause) -> bool {
+        match self {
+            DestructionSourcePattern::Effect => matches!(cause, EventCause::Effect { .. }),
+            DestructionSourcePattern::StateBasedAction => {
+                matches!(cause, EventCause::StateBasedAction(StateBasedAction::LethalDamage))
+            }
+        }
     }
 }
 
@@ -798,34 +798,31 @@ impl EventPattern {
     }
 }
 
-/// [`LifeLossCause`] with its payload dropped — what
-/// [`EventPattern::LoseLife`] can ask about a loss.
+/// What [`EventPattern::LoseLife`] can ask about a loss: whether it is damage's
+/// (CR 120.3a, the loss's `damage_source`), or else an effect's or a cost's
+/// (its cause).
 ///
-/// **A projection and not the cause itself**, exactly as
-/// [`DestructionSourcePattern`] is of [`DestructionSource`]: `LifeLossCause::Damage`
-/// carries the damage's source, and Ali from Cairo's "damage that would reduce
-/// your life total" is about damage from *anything*. A pattern holding the cause
-/// verbatim could only name one source object, which no printed card does — and
-/// the field a card could want beside it is CR 609.7's source predicate, which
-/// [`SourcePattern`] already is and which nothing prints about a life loss.
+/// **About damage from anything**: Ali from Cairo's "damage that would reduce
+/// your life total" names no source. The field a card could want beside it is
+/// CR 609.7's source predicate, which [`SourcePattern`] already is and which
+/// nothing prints about a life loss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LifeLossCausePattern {
     /// CR 120.3a — the loss contained in damage.
     Damage,
-    /// A resolving spell or ability's "loses N life".
+    /// A spell's or an ability's effect, not as damage: "loses N life".
     Effect,
     /// CR 119.4's life payment.
     Cost,
 }
 
 impl LifeLossCausePattern {
-    pub fn matches(self, cause: LifeLossCause) -> bool {
-        matches!(
-            (self, cause),
-            (LifeLossCausePattern::Damage, LifeLossCause::Damage { .. })
-                | (LifeLossCausePattern::Effect, LifeLossCause::Effect)
-                | (LifeLossCausePattern::Cost, LifeLossCause::Cost)
-        )
+    pub fn matches(self, damage_source: Option<ObjectId>, cause: &EventCause) -> bool {
+        match self {
+            LifeLossCausePattern::Damage => damage_source.is_some(),
+            LifeLossCausePattern::Effect => damage_source.is_none() && matches!(cause, EventCause::Effect { .. }),
+            LifeLossCausePattern::Cost => damage_source.is_none() && matches!(cause, EventCause::Cost { .. }),
+        }
     }
 }
 
@@ -1719,11 +1716,11 @@ pub enum GameActionTemplate {
     /// [`TemplateAmount::ReplacedAmount`] exists for: "that much" is the
     /// replaced event's own number.
     ///
-    /// `cause` is [`LifeLossCause::Effect`] and is not a field: a substituted
-    /// loss is produced by the replacement effect, which is an effect, and no
-    /// printed substitution claims to be damage or a payment. Ali from Cairo
-    /// reading `Some(Damage)` is what makes that distinction load-bearing
-    /// rather than cosmetic.
+    /// Its `damage_source` is `None` and is not a field: no printed
+    /// substitution claims to be damage, and Ali from Cairo reading
+    /// `Some(Damage)` is what makes that load-bearing rather than cosmetic. It
+    /// keeps the replaced event's cause (CR 614.6); which replacement made it
+    /// a loss is the record's applied set (`replacement-architecture.md` §2b.4).
     LoseLife { amount: TemplateAmount },
 
     /// CR 614.16's kind-changing substitution — the creation, with the defs

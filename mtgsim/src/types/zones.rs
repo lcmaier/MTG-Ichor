@@ -1,7 +1,7 @@
 use crate::events::cause::EventCause;
 use crate::events::event::EventSeq;
 use crate::types::effects::ReturnUnder;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
+use crate::types::ids::{ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent};
 
 /// CR 610.3 — the return an "until" exile waits to make: a one-shot effect
@@ -254,73 +254,7 @@ pub enum ZoneChangeAct {
     PlayedAsLand,
 }
 
-/// What destroyed a permanent (CR 701.8b).
-///
-/// CR 701.8b enumerates exactly two ways: "as a result of an effect that uses
-/// the word 'destroy'" or "as a result of the state-based actions that check
-/// for lethal damage (704.5g) or damage from a source with deathtouch
-/// (704.5h)". This is that enumeration, and it is a field on
-/// [`GameAction::Destroy`](crate::engine::actions::GameAction) rather than a
-/// bare `Option<ObjectId>` for the reason [`ZoneChangeAct`] has no catchall:
-/// `None` would be a two-variant enum spelled as an absence, and the second
-/// variant's meaning would live only in a doc comment.
-///
-/// **It has a printed customer.** CR 122.1c's shield counter reads "If this
-/// permanent would be destroyed **as the result of an effect**, instead remove
-/// a shield counter from it" — a shield counter does not answer lethal damage
-/// through this path at all (its *other* half, the prevention effect, stops
-/// the damage before 704.5g ever asks). Without the distinction the counter
-/// would save a creature twice over.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DestructionSource {
-    /// CR 701.8b way 1 — a resolving spell or ability that uses the word
-    /// "destroy". Carries the object whose effect it was.
-    Effect(ObjectId),
-    /// CR 701.8b ways 2 and 3 — the CR 704.5g/704.5h state-based actions. One
-    /// variant for both, because CR 701.8b calls both "destroyed" and no card
-    /// distinguishes lethal damage from deathtouch as a *cause*.
-    StateBasedAction,
-}
-
-impl DestructionSource {
-    /// The act the destruction lowers to (CR 701.8a): destroyed, either way,
-    /// and the cause says which (CR 701.8b).
-    pub fn zone_change_cause(self) -> ZoneChangeAct {
-        match self {
-            DestructionSource::Effect(_) | DestructionSource::StateBasedAction => ZoneChangeAct::Destroyed,
-        }
-    }
-}
-
-/// Why a player is losing life — the third of this module's "why" carriers,
-/// beside [`ZoneChangeAct`] and [`DestructionSource`].
-///
-/// **A fact, not bookkeeping.** Whether a life loss was a result of damage is
-/// unrecoverable a moment later, and three separate things read it: CR 120.3a's
-/// decomposition needs the damage's source so `GameEvent::LifeChanged` can keep
-/// naming it, Ali from Cairo's family watches "damage that would reduce your
-/// life total" and is a `LoseLife` replacement rather than a prevention effect
-/// (its own ruling: "this effect does not prevent damage, it prevents the
-/// damage from turning into loss of life"), and CR 120.3b's poison counters
-/// hang off the same distinction. Recording it costs one field at six
-/// construction sites; re-deriving it later is impossible.
-///
-/// Life *gain* needs no counterpart: `GameAction::GainLife` already carries the
-/// source object, because lifelink was the first thing that gained any.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LifeLossCause {
-    /// CR 120.3a — "damage dealt to a player causes that player to lose that
-    /// much life". Carries the damage's source, which is the object
-    /// `GameEvent::LifeChanged` names.
-    Damage { source: ObjectId },
-    /// A resolving spell or ability that says "loses N life".
-    Effect,
-    /// CR 118.4's life payment — Phyrexian mana and the additional costs that
-    /// spell it out. Not a loss of life "caused by" anything with a source.
-    Cost,
-}
-
-/// Why a card is being drawn — the fourth of this module's "why" carriers.
+/// Which draw of an instruction a card is (CR 121.2).
 ///
 /// **Ten printed cards ask, and none of them can recover the answer a moment
 /// later.** "Except the first one you draw in each of your draw steps" —

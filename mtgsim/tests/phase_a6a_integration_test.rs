@@ -15,7 +15,7 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{DestructionSource, GameAction, LifeLossCause};
+use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::LossReason;
@@ -27,6 +27,7 @@ use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
     creature_with_ability, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, stock_libraries,
     test_ctx, test_dp, RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -171,7 +172,7 @@ fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     pump(&mut game, bears, 3);
 
-    game.execute_action(GameAction::Destroy { object: bears, source: DestructionSource::Effect(mourner) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object: bears }, &effect_ctx(&game, mourner))
         .expect("the destruction");
     assert!(game.events.held().is_empty(), "the death's dispatch has returned and flushed its window");
     assert_eq!(game.pending_triggers.len(), 1);
@@ -231,7 +232,7 @@ fn since_your_last_turn_spans_the_other_seats_turns() {
             .build()
     };
     let lose = |game: &mut GameState| {
-        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, damage_source: None }, &test_ctx())
             .expect("the loss");
     };
 
@@ -290,7 +291,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
         }))
         .build();
     let lose = |game: &mut GameState, player: PlayerId, amount: u64| {
-        game.execute_action(GameAction::LoseLife { player, amount, cause: LifeLossCause::Effect }, &test_ctx())
+        game.execute_action(GameAction::LoseLife { player, amount, damage_source: None }, &test_ctx())
             .expect("the loss");
     };
     let since = |game: &GameState, fact| game.players[0].history.since_your_last_turn(0, &game.players[0].history).count(fact);

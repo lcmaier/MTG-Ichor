@@ -11,7 +11,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
-use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeAct};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -22,6 +22,8 @@ use mtgsim::test_support::{
     pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_active_player,
     set_attacking, set_blocked_by,
     set_blocking, setup_game, setup_two_player_game, stock_libraries, test_ctx, vanilla_creature,
+    effect_ctx,
+    state_based_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -102,8 +104,8 @@ fn test_destroy_is_an_outer_event_that_lowers_to_a_zone_change() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -117,27 +119,35 @@ fn test_destroy_is_an_outer_event_that_lowers_to_a_zone_change() {
 // COVERS-PARTIAL: ATOM-701.8b-001
 #[test]
 fn test_a_state_based_death_and_an_effect_death_carry_different_causes() {
-    // CR 701.8b calls both "destroyed", and `DestructionSource` is what lets a
-    // shield counter ("as the result of an effect") tell them apart while a
-    // "dies" trigger does not have to.
+    // CR 701.8b calls both "destroyed", and the cause is what lets a shield
+    // counter ("as the result of an effect") tell them apart while a "dies"
+    // trigger does not have to.
     let mut game = setup_two_player_game();
     let by_effect = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let by_sba = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: by_effect, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: by_effect },
+        &effect_ctx(&game, source),
     )
     .unwrap();
     game.execute_action(
-        GameAction::Destroy { object: by_sba, source: DestructionSource::StateBasedAction },
-        &test_ctx(),
+        GameAction::Destroy { object: by_sba },
+        &state_based_ctx(mtgsim::events::cause::StateBasedAction::LethalDamage),
     )
     .unwrap();
 
     let acts: Vec<ZoneChangeAct> = zone_changes(&game).into_iter().map(|z| z.3).collect();
     assert_eq!(acts, vec![ZoneChangeAct::Destroyed, ZoneChangeAct::Destroyed], "CR 701.8b: destroyed, either way");
+    let causes: Vec<bool> = game
+        .recorded_events()
+        .records()
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
+        .map(|r| matches!(r.stamp.cause, mtgsim::events::cause::EventCause::Effect { .. }))
+        .collect();
+    assert_eq!(causes, vec![true, false], "the first an effect's, the second the rules'");
 }
 
 #[test]
@@ -150,8 +160,8 @@ fn test_destroy_is_loud_off_the_battlefield() {
     game.battlefield.remove(&bear);
 
     let err = game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::StateBasedAction },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &state_based_ctx(mtgsim::events::cause::StateBasedAction::LethalDamage),
     );
     assert!(err.is_err());
     assert!(zone_changes(&game).is_empty());
@@ -177,8 +187,8 @@ fn test_indestructible_is_a_cant_ahead_of_the_pipeline_not_a_replacement() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: myr, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: myr },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -222,8 +232,8 @@ fn test_a_static_replacement_ability_prevents_the_event() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: probe, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: probe },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -261,8 +271,8 @@ fn test_humility_strips_a_replacement_ability_and_the_creature_dies() {
     );
 
     game.execute_action(
-        GameAction::Destroy { object: probe, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: probe },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -417,8 +427,8 @@ fn test_a_shield_counter_replaces_destruction_by_an_effect() {
     add_counters(&mut game, bear, CounterType::Shield, 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -613,8 +623,8 @@ fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change()
     add_counters(&mut game, bear, CounterType::Finality, 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, source),
     )
     .unwrap();
 
@@ -1151,8 +1161,8 @@ fn test_a_regeneration_shield_replaces_a_destruction() {
 
     regenerate(&mut game, killer, bear);
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
 
@@ -1203,16 +1213,16 @@ fn test_a_shield_protects_once_and_the_second_destruction_gets_through() {
     assert_eq!(game.replacement_effects.len(), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
     assert!(game.battlefield.contains_key(&bear));
     assert_eq!(game.replacement_effects.len(), 0, "the use was consumed");
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
@@ -1233,11 +1243,8 @@ fn test_static_regeneration_applies_every_time() {
         game.battlefield.get_mut(&skeleton).unwrap().damage_marked = 4;
         game.battlefield.get_mut(&skeleton).unwrap().tapped = false;
         game.execute_action(
-            GameAction::Destroy {
-                object: skeleton,
-                source: DestructionSource::Effect(killer),
-            },
-            &test_ctx(),
+            GameAction::Destroy { object: skeleton },
+            &effect_ctx(&game, killer),
         )
         .unwrap();
         assert!(game.battlefield.contains_key(&skeleton), "round {round}");
@@ -1314,8 +1321,8 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     );
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
 
@@ -1351,8 +1358,8 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
     .unwrap();
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
 
@@ -2287,8 +2294,8 @@ fn test_regeneration_after_the_destruction_has_resolved_is_too_late() {
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: bear },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
@@ -2316,8 +2323,8 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
     regenerate(&mut game, source, sacrificed);
 
     game.execute_action(
-        GameAction::Destroy { object: destroyed, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: destroyed },
+        &effect_ctx(&game, source),
     )
     .unwrap();
     assert_eq!(game.replacement_effects.len(), 1, "the destroyed creature's shield is spent");

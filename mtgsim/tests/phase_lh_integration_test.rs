@@ -10,7 +10,7 @@
 
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeAct};
+use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
@@ -22,6 +22,7 @@ use mtgsim::state::game_state::{GameState, StackEntry};
 use mtgsim::test_support::{
     equipment, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
     vanilla_creature,
+    effect_ctx,
 };
 use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -73,8 +74,8 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
 fn destroy(game: &mut GameState, id: ObjectId) {
     let source = mtgsim::types::ids::new_object_id();
     game.execute_action(
-        GameAction::Destroy { object: id, source: DestructionSource::Effect(source) },
-        &test_ctx(),
+        GameAction::Destroy { object: id },
+        &effect_ctx(&game, source),
     )
     .expect("it is destroyed");
 }

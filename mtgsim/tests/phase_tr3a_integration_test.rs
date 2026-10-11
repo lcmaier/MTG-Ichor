@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, IdentityRef, TriggerEvent, TriggerOrigin,
     Referred, TriggerSubject, TriggerTurn,
 };
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -530,8 +530,7 @@ fn next_death() -> Arc<CardData> {
 }
 
 fn destroy_together(game: &mut GameState, objects: &[ObjectId], dp: &dyn mtgsim::ui::decision::DecisionProvider) {
-    let by = mtgsim::types::ids::new_object_id();
-    let batch = objects.iter().map(|&object| GameAction::Destroy { object, source: DestructionSource::Effect(by) }).collect();
+    let batch = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
     game.execute_actions(batch, &ActionContext::new(dp)).unwrap();
 }
 

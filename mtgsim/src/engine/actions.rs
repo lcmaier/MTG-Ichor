@@ -23,7 +23,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the act, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeAct};
+pub use crate::types::zones::{DrawCause, ZoneChangeAct};
 
 /// How many batches may nest before the engine calls it a loop of its own
 /// making — see `NestingGuards::batch_depth`.
@@ -228,13 +228,15 @@ pub enum GameAction {
     /// damage does not apply again (§3.2d containment,
     /// `replacement-architecture.md` §9 RD decision 4).
     ///
-    /// `cause` is the fact that decomposition would otherwise destroy — see
-    /// [`LifeLossCause`]. There is no catchall arm, for the reason
-    /// [`ZoneChangeAct`] has none.
+    /// `damage_source` is the fact that decomposition would otherwise destroy:
+    /// the source of the damage this loss is a result of (CR 120.3a), which
+    /// `GameEvent::LifeChanged` keeps naming and Ali from Cairo's "damage that
+    /// would reduce your life total" reads. Whether a loss is an effect's or a
+    /// cost's is the proposal's cause (`ActionContext::cause`), not this.
     LoseLife {
         player: PlayerId,
         amount: u64,
-        cause: LifeLossCause,
+        damage_source: Option<ObjectId>,
     },
 
     /// Move an object from one zone to another.
@@ -319,9 +321,11 @@ pub enum GameAction {
     /// Destroy a permanent (CR 701.8).
     ///
     /// **The outer event.** Performing it proposes an inner
-    /// `ZoneChange { to: Graveyard }` whose cause is
-    /// [`DestructionSource::zone_change_cause`], so a destruction is two events
-    /// and a replacement can watch either. The CR draws that line itself: CR
+    /// `ZoneChange { to: Graveyard, act: Destroyed }` under the same cause, so a
+    /// destruction is two events and a replacement can watch either. Which of
+    /// CR 701.8b's two ways destroyed it — an effect, or a state-based action
+    /// (704.5g/h) — is the cause, which CR 122.1c's shield counter reads ("as
+    /// the result of an effect"). The CR draws the two events' line itself: CR
     /// 122.1c's shield counter replaces "would be destroyed", CR 122.1h's
     /// finality counter replaces "would be put into a graveyard from the
     /// battlefield". The two overlap rather than nest — CR 701.8b keeps a
@@ -333,7 +337,6 @@ pub enum GameAction {
     /// pipeline and wins — see `engine::restriction::is_prohibited`.
     Destroy {
         object: ObjectId,
-        source: DestructionSource,
     },
 
     /// A permanent enters the battlefield (CR 614.1c/d) — **the one proposal
@@ -1309,15 +1312,11 @@ impl GameState {
                 // CR 120.3a — **a contained proposal, not a subtraction**, in this
                 // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
                 // doubles it, a shield spent on the damage does not apply again. Its
-                // performer emits `LifeChanged`, `LifeLossCause::Damage` keeping `source`.
+                // performer emits `LifeChanged`, naming the damage's source.
                 if results.lose_life
                     && let DamageTarget::Player(pid) = &target {
                     self.execute_action(
-                        GameAction::LoseLife {
-                            player: *pid,
-                            amount,
-                            cause: LifeLossCause::Damage { source },
-                        },
+                        GameAction::LoseLife { player: *pid, amount, damage_source: Some(source) },
                         ctx,
                     )?;
                 }
@@ -1383,13 +1382,12 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     source: Some(source),
-                    cause: None,
                 })?;
 
                 Ok(())
             }
 
-            GameAction::LoseLife { player, amount, cause } => {
+            GameAction::LoseLife { player, amount, damage_source } => {
                 // Stays here, unlike `GainLife`'s: CR 119.10 is written about
                 // life *gain* only, and no rule makes a 0 life loss a
                 // non-event. A local no-op guard, not CR 614.7a.
@@ -1406,11 +1404,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
-                    source: match cause {
-                        LifeLossCause::Damage { source } => Some(source),
-                        LifeLossCause::Effect | LifeLossCause::Cost => None,
-                    },
-                    cause: Some(cause),
+                    source: damage_source,
                 })?;
 
                 Ok(())
@@ -1549,7 +1543,7 @@ impl GameState {
             // containment). That is what lets CR 122.1h's finality counter turn the
             // graveyard trip into an exile while CR 122.1c's shield counter, watching
             // the destruction itself, has already declined.
-            GameAction::Destroy { object, source } => {
+            GameAction::Destroy { object } => {
                 // Loud, like `Tap`/`Untap`: destroying something off the battlefield does
                 // nothing (CR 701.8b), and CR 608.2b's partial resolution is the caller's
                 // check (`CLAUDE.md`); a lenient arm would only hide a future bug.
@@ -1563,7 +1557,7 @@ impl GameState {
                         object,
                         from: Zone::Battlefield,
                         to: Zone::Graveyard,
-                        act: source.zone_change_cause(),
+                        act: ZoneChangeAct::Destroyed,
                     },
                     ctx,
                 )?;
@@ -2163,7 +2157,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
-            cause: LifeLossCause::Cost,
+            damage_source: None,
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 17);
@@ -2496,7 +2490,7 @@ mod tests {
         game.execute_action(GameAction::LoseLife {
             player: 0,
             amount: 3,
-            cause: LifeLossCause::Cost,
+            damage_source: None,
         }, &test_ctx()).unwrap();
 
         let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {

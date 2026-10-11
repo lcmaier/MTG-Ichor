@@ -1072,7 +1072,7 @@ mod tests {
             ("PhaseBegin", GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 }),
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
-            ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None, cause: None }),
+            ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
             ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![id] }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {

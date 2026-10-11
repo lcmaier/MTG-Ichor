@@ -46,7 +46,7 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -354,7 +354,7 @@ fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     assert_eq!(dragons.len(), 2);
 
     let dp = RecordingDecisionProvider::picking(0);
-    let destroy = |id| GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction };
+    let destroy = |id| GameAction::Destroy { object: id };
     game.execute_actions(dragons.iter().map(|&id| destroy(id)).collect(), &ActionContext::new(&dp)).unwrap();
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 25, "one trigger for the two deaths");
@@ -873,7 +873,7 @@ fn two_until_returns_from_one_event_are_one_event() {
     let lights = [banish(&mut game, 0, &dp), banish(&mut game, 0, &dp)];
     assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Exile, Zone::Exile));
 
-    let destroy = |id| GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction };
+    let destroy = |id| GameAction::Destroy { object: id };
     game.execute_actions(lights.iter().map(|&id| destroy(id)).collect(), &ActionContext::new(&dp)).unwrap();
     assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Battlefield, Zone::Battlefield));
     place_and_resolve(&mut game);
@@ -897,7 +897,7 @@ fn banishing_lights_aura_returns_enchanting_what_its_owner_chooses() {
 
     let dp = RecordingDecisionProvider::picking(1);
     game.execute_actions(
-        vec![GameAction::Destroy { object: light, source: DestructionSource::StateBasedAction }],
+        vec![GameAction::Destroy { object: light }],
         &ActionContext::new(&dp),
     )
     .unwrap();

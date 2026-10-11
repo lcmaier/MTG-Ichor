@@ -23,7 +23,7 @@ use crate::types::replacement::{
     EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
-use crate::types::zones::{DrawCause, LifeLossCause, Zone};
+use crate::types::zones::{DrawCause, Zone};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
@@ -1355,7 +1355,7 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
         // visible on `GameEvent::LifeChanged` and to item 6's "whenever a
         // source causes you to gain life".
         GameActionTemplate::GainLife { .. } => false,
-        // A substituted loss carries `LifeLossCause::Effect` and no source.
+        // A substituted loss carries no damage source.
         GameActionTemplate::LoseLife { .. } => true,
         // Built from the event's subject: "you win" on Laboratory Maniac is
         // the drawing player, who is also its controller by the def's
@@ -2145,14 +2145,14 @@ fn apply_rewrite(
                     Applied { took_effect: after != amount, prevented: 0 },
                 ))
             }
-            GameAction::LoseLife { player, amount, cause } => {
+            GameAction::LoseLife { player, amount, damage_source } => {
                 // The clamp's board read: CR 614.1a lets Ali from Cairo modify the loss by
                 // how much of it the total can take, a fact about the player now
                 // (`codebase-state.md` item 53). A read, not a write.
                 let life = game.get_player(player)?.life_total;
                 let after = life_arithmetic(chosen, *amount_rewrite, amount, Some(life))?;
                 Ok((
-                    Some(GameAction::LoseLife { player, amount: after, cause }),
+                    Some(GameAction::LoseLife { player, amount: after, damage_source }),
                     Applied { took_effect: after != amount, prevented: 0 },
                 ))
             }
@@ -2642,8 +2642,9 @@ fn substitute(
         // CR 614.1a's kind changes: a draw becomes a gain (Words of Worship), a gain
         // a loss (Tainted Remedy). The subject does not move, so neither carries a
         // `player`; an `EventSubject::Object` is the authoring error. A substituted
-        // loss is `LifeLossCause::Effect`, never `Damage` — calling it damage would
-        // hand it to Ali from Cairo's clamp, which watches CR 120.3a's loss only.
+        // loss is no damage's — calling it damage would hand it to Ali from Cairo's
+        // clamp, which watches CR 120.3a's loss only — and keeps the replaced
+        // event's cause, as every substitute does (CR 614.6).
         (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
             EventSubject::Player(player) => Ok(GameAction::GainLife {
                     player,
@@ -2663,7 +2664,7 @@ fn substitute(
             EventSubject::Player(player) => Ok(GameAction::LoseLife {
                     player,
                     amount: template_amount(chosen, *amount, &event)?,
-                    cause: LifeLossCause::Effect,
+                    damage_source: None,
                 }),
             EventSubject::Object(_) => Err(format!(
                 "replacement {:?} rewrites to a life loss but matched {:?}, whose subject \

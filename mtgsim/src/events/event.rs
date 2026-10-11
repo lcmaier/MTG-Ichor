@@ -6,7 +6,7 @@ use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId, UntilReturnId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
-use crate::engine::actions::{LifeLossCause, ZoneChangeAct};
+use crate::engine::actions::ZoneChangeAct;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
@@ -126,15 +126,15 @@ pub enum GameEvent {
     PermanentEnteredBattlefield { object_id: ObjectId, controller: PlayerId },
 
     // --- Life ---
-    /// `cause` is `Some` for a loss — the proposal's `LifeLossCause`, which
-    /// CR 727.1a's "from radiation" reads (item 10) — and `None` for a gain,
-    /// which has no cause to name.
+    /// `source` is a gain's source, or the source of the damage a loss is a
+    /// result of (CR 120.3a). What caused it — an effect, a cost, combat damage
+    /// — is the record's cause, which CR 727.1a's "from radiation" reads
+    /// (item 10).
     LifeChanged {
         player_id: PlayerId,
         old: i64,
         new: i64,
         source: Option<ObjectId>,
-        cause: Option<LifeLossCause>,
     },
 
     // --- Combat ---

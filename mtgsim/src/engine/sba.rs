@@ -14,7 +14,7 @@ use crate::oracle::characteristics::{
 };
 use crate::state::game_state::{GameResult, GameState};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeAct};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
@@ -46,7 +46,7 @@ fn sba_put_into_graveyard(id: ObjectId) -> GameAction {
 /// have something to watch. Proposing the zone change directly would make a
 /// state-based death indistinguishable from every other trip to the graveyard.
 fn sba_destroy(id: ObjectId) -> GameAction {
-    GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction }
+    GameAction::Destroy { object: id }
 }
 
 /// CR 704.5a–c and 704.6c — `player` would lose the game, with the subrule

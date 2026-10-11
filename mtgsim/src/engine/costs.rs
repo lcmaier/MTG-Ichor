@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use crate::engine::actions::{ActionContext, GameAction, LifeLossCause, ZoneChangeAct};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -456,7 +456,7 @@ impl GameState {
                     GameAction::LoseLife {
                         player: player_id,
                         amount: *amount,
-                        cause: LifeLossCause::Cost,
+                        damage_source: None,
                     },
                     ctx,
                 )

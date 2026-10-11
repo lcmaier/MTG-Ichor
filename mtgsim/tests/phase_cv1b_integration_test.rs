@@ -56,6 +56,7 @@ use mtgsim::test_support::{
     lightning_bolt, pacifism, place_vanilla_creature, put_in_hand, put_on_battlefield, put_spell_on_stack,
     set_attacking, set_blocked_by, set_blocking, setup_two_player_game, test_ctx, test_dp,
     RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -70,7 +71,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeAct};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -185,7 +186,7 @@ fn cant_be_destroyed(game: &mut GameState, object: ObjectId) {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object, source: DestructionSource::Effect(by) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object }, &effect_ctx(&game, by))
         .unwrap();
 }
 
