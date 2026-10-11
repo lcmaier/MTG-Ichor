@@ -275,8 +275,10 @@ GameEvent::ZoneChange {
     /// What was done (§2b.2). A redirect keeps it (CR 614.6).
     act: ZoneChangeAct,
     /// The replacement effects that applied to this move, in the order they
-    /// applied (CR 614.5). `None` for a move nothing replaced.
-    applied: Option<Arc<[ReplacementInstanceId]>>,
+    /// applied (CR 614.5), each with its controller as it applied and
+    /// whether it changed where the move goes. `None` for a move nothing
+    /// replaced.
+    applied: Option<Arc<[AppliedReplacement]>>,
     /// CR 400.7e's new object: the zone-change epoch `arrive_in_zone` stamped.
     /// `new_object()` pairs it with `object_id`.
     new_epoch: ZoneChangeEpoch,
@@ -452,6 +454,10 @@ Priced:
   constructors, one per kind of cause:
   - the 14 production `ActionContext::new` calls each become the constructor
     for what they are, and `ActionContext::resolving` builds an `Effect`;
+  - an entry point that starts a rule's action (`advance_turn`, `play_land`,
+    the state-based check, combat damage, a cast, an activation) builds its
+    own context for each action it takes, and takes only the decision
+    provider from its caller. Its caller's cause would be the wrong one;
   - a cost's payment gets its own context;
   - about ten emitters outside any batch name theirs: the cast's 601.2i
     announcement, `SpellCast`, an activation, their `Targeted` records,
@@ -524,8 +530,25 @@ off the resolution's records (`triggers-architecture.md` §3.9, TR-3b), and CR
 608.2c's example ("if that spell is countered this way") is that kind.
 `applied` is for a replacement's "this way".
 
-**Cost.** `Option<Arc<[ReplacementInstanceId]>>` is 16 bytes, `None` for a
-move nothing replaced, and it allocates only for a replaced move. The applied
+**Who sent it where it went.** Ranar the Ever-Watchful and Hero of Bretagard
+trigger when "a spell or ability you control exiles one or more permanents"
+(`o:"spell or ability you control exiles" game:paper -is:funny`, 2 cards,
+2026-10-10). Their rulings count a permanent exiled from the battlefield "if
+you controlled the spell or ability that exiled them". When a replacement
+redirected the move into exile, the ability that exiled it is the
+replacement's (Kalitas, Rest in Peace), since CR 614.6's modified event is
+the one the replacement wrote. So the record answers "who" twice:
+- for the act, its cause ("causes you to discard");
+- for the destination, the last applied replacement that changed where the
+  move goes, else the cause ("exiles", "is put into your graveyard").
+
+Item 176 said each act of a redirected move has its own performer, and this
+is the second one, read off `applied` rather than stored twice. Each entry
+keeps its controller as it applied, because its source may have left or
+changed hands by the time a trigger asks.
+
+**Cost.** `Option<Arc<[AppliedReplacement]>>` is 16 bytes, `None` for a move
+nothing replaced, and it allocates only for a replaced move. The applied
 set's type becomes an ordered set, kept in insertion order, since a hash set
 has no order to keep: 11 `HashSet<ReplacementInstanceId>` sites in `src`. Other
 record kinds gain one when a reader needs it. Damage prevention already has
@@ -622,7 +645,8 @@ which `triggers-architecture.md` §3.9's TR-3a note describes.
 |---|---|---|
 | **act words**: sacrifices, discards, mills, is countered, is destroyed, casts, draws (the move), plays a land | `act` | `ZoneChangePattern::act` |
 | **destination words**: is exiled, is returned, dies (CR 700.4), enters, is put into a hand, a library or a graveyard, leaves | `from`, `to` | `ZoneChangePattern`'s `from` and `to` |
-| **cause words**: "a spell or ability an opponent controls causes", "an effect causes", "as a cost", "triggered abilities you control" | `cause` | `ReplacementDef::by` and `Restriction::Event`'s `by` (the proposal); `TriggerEvent::ZoneChange`'s new `by` (the record) |
+| **cause words on an act**: "a spell or ability an opponent controls causes you to discard", "an effect causes", "as a cost", "triggered abilities you control can't cause" | `cause` | `ReplacementDef::by` and `Restriction::Event`'s `by` (the proposal); `TriggerEvent::ZoneChange`'s new `by` (the record) |
+| **cause words on a destination**: "a spell or ability you control exiles" (Ranar), "causes a land to be put into your graveyard" (Sacred Ground) | the destination's cause: the last redirect in `applied`, else `cause` (§2b.4) | the same `by`, when the arm names no act |
 | **"this way"** of a replacement (CR 702.35a) | `applied` | the binding's records |
 | **"it", "that card", "them"** after the move | `new_object()` | the binding's records |
 | the object **as it left** | `lki` | the frame (`triggers-architecture.md` §4.3) |
@@ -630,8 +654,10 @@ which `triggers-architecture.md` §3.9's TR-3a note describes.
 `ZoneChangePattern { from, to, act }` is the field struct
 `triggers-architecture.md` §3.3 planned for both zone-change arms. RH-1 builds
 it, since it rewrites both arms' `cause` field anyway. The trigger arm gains
-`by: Option<SourceFilter>` beside it for the eleven printed triggers that read
-the cause: Guerrilla Tactics, Psychic Purge, Quagnoth, Sand Golem, Sacred
+`by: Option<SourceFilter>` beside it. It asks the cause of what the arm names:
+the act's when the arm names an act, and the destination's when it names
+only where the move went, which mirrors the rows above. Eleven printed
+triggers read a cause this way: Guerrilla Tactics, Psychic Purge, Quagnoth, Sand Golem, Sacred
 Ground and six more. `o:"spell or ability an opponent controls causes"
 game:paper -is:funny` gives 17 (2026-10-10), and the other six are
 replacements. `SourceFilter` grows an arm for The Master's "triggered
@@ -745,7 +771,8 @@ Taken here, for review:
 7. Tests keep one door. `ActionContext::new` stays as the test door, with
    `EventCause::Harness`: a test or tool moving objects directly. Production
    code names its cause by constructor, and a production `Harness` is a review
-   finding. The alternative is about 117 test sites each naming a real cause,
+   finding. The alternative is about 600 test sites (477 calls to
+   `test_ctx()`, 117 direct `ActionContext::new`) each naming a real cause,
    most of them a guess.
 8. The names. "Performer" is the glossary's, so the fact is `EventCause`, and
    `ZoneChangeCause` becomes `ZoneChangeAct`, so that "cause" has one meaning.
@@ -755,6 +782,9 @@ Taken here, for review:
    the destruction.
 
 Open:
+- **Who exiled a redirected move** (§2b.4): Ranar's and Hero of Bretagard's
+  rulings name "the spell or ability that exiled them", and no ruling found
+  names a redirect. The design reads it as the replacement's, by CR 614.6.
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
   Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
   has no ruling, and it goes to CP-1 with "unless".
