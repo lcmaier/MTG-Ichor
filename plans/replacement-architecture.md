@@ -777,14 +777,50 @@ game.
 | **total** | **~670** (×1.5–2: 1,000–1,340) | **~950** |
 
 RH-2 is ~1,620 as sized and 1,950–2,300 at the multiplier, inside the band.
-Each PR's close-out adds about 300 lines of docs. If RH-2 crosses 2,500 during
+Each PR's close-out adds about 300 lines of docs.
+
+**Performance, priced before building** (asked at #242's review). Every
+number comes from the callgrind arm A6n's close-out left in WSL
+(`close-out-rename`, 2026-10-10). Its source is `main`'s today. It ran
+`close_out.py`'s board: 20 four-seat Commander games, 7.33 G instructions,
+564 decisions and 24.5 creature deaths a game.
+- **The record stays the same size.** `EventStamp` is 40 bytes and
+  `EventRecord` 144, measured. `EventCause` fits in the 24 bytes
+  `Option<ResolutionStamp>` takes. A mock of `ZoneChange` with `new_epoch` and
+  `applied` is 72 bytes with its tag, the size `GameEvent` already is, so no
+  record copies more bytes.
+- **Item 248 removes work.** Today a destruction's move opens a nested batch.
+  A batch's own bookkeeping, outside the pipeline and the performers, averages
+  at most about 5.4 K instructions: `execute_batch_inner`'s inclusive 1,973 M
+  less its callees, over 42,141 calls. Deciding the move in phase 1 keeps its
+  one `apply_replacements`, which moves rather than repeats, and drops the
+  nested batch. At most 490 destructions on the board (every death counted)
+  gives about −2.6 M instructions, −0.04 points. The gather then reads a board
+  nothing has moved yet, so it can only hit the layer memo more often, never
+  less. The phase-1 loop decides an inner move in its outer's group, so a
+  destroy-all of N creatures stays N decisions and adds no group.
+- **Decision 5 adds one dispatch per outermost batch that queued riders.** A
+  dispatch costs about 7.9 K on average (`dispatch_batch`, 331 M over 42,083
+  calls), and most of that is matching work the split does not add, since
+  each record is still matched once. At most 1,432 batches carry riders on
+  this board, counted as every `apply_rewrite` call. That gives a ceiling of
+  +11 M, +0.15 points, and the real cost is the gate's fixed probes on far
+  fewer batches.
+- **The rest is noise:** an `Arc` per replaced move (at most 1,432), a cause
+  per state-based member, and a `u64` read per announced move.
+
+Predicted: RH-1 within ±0.3 points of `main`, since it is code-only and the
+record keeps its size. RH-2 between −0.1 and +0.2. Both are read at
+close-out by `close_out.py` on this same board, against `engineering-practices.md`
+§3.1's budget. If RH-2 crosses 2,500 during
 the build, item 248 is the piece that stands alone: it has its own rule and its
 own boards, and the rest does not depend on it.
 
 ### 2b.11 Decisions, and what is left open
 
-Taken here. Decisions 1–8 were approved by the owner on 2026-10-11, at #242's
-review: 1–6 and 8 as written, and option A of three for 7. The other two
+Taken here. All nine were approved by the owner on 2026-10-11, at #242's
+review: 1–6, 8 and 9 as written (9 with its performance priced in §2b.10), and
+option A of three for 7. The other two
 options were every test naming a real cause, or `test_ctx()` quietly naming one
 fixed cause. The same review decided who exiled a redirected move: the
 replacement's ability (§2b.4).
