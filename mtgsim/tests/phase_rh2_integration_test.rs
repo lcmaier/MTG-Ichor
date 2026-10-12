@@ -151,7 +151,7 @@ fn kalitas_dies_beside_a_creature(kalitas_first: bool) -> (GameState, ObjectId, 
     (game, kalitas, victim)
 }
 
-// RULING: Kalitas, Traitor of Ghet #1 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
+// RULING: Kalitas, Traitor of Ghet #3 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
 #[test]
 fn kalitas_placed_first_still_exiles_the_creature_dying_beside_it() {
     let (game, kalitas, victim) = kalitas_dies_beside_a_creature(true);
@@ -161,7 +161,7 @@ fn kalitas_placed_first_still_exiles_the_creature_dying_beside_it() {
     assert_eq!(tokens_of(&game, 0), 1, "and Kalitas's controller gets the Zombie");
 }
 
-// RULING: Kalitas, Traitor of Ghet #1 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
+// RULING: Kalitas, Traitor of Ghet #3 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
 #[test]
 fn kalitas_placed_second_exiles_the_creature_dying_beside_it() {
     let (game, kalitas, victim) = kalitas_dies_beside_a_creature(false);
@@ -175,7 +175,7 @@ fn kalitas_placed_second_exiles_the_creature_dying_beside_it() {
 /// 608.2f's one event): both cards are exiled and two Zombies made, and the
 /// Zombies are made after every death, never between two of them (CR 615.5's
 /// "immediately afterward" is after the event, and the event is the wipe).
-// RULING: Kalitas, Traitor of Ghet #1 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
+// RULING: Kalitas, Traitor of Ghet #3 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
 #[test]
 fn a_wipe_that_takes_kalitas_exiles_every_opposing_creature_and_makes_the_zombies_after() {
     let mut game = setup_two_player_game();
@@ -205,7 +205,7 @@ fn a_wipe_that_takes_kalitas_exiles_every_opposing_creature_and_makes_the_zombie
 /// the other, so each exiles the other and each player gets a Zombie. No
 /// order of the batch can answer this one, which is why the move is decided
 /// with the destruction rather than the batch reordered.
-// RULING: Kalitas, Traitor of Ghet #1 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
+// RULING: Kalitas, Traitor of Ghet #3 - "If Kalitas dies at the same time as creatures your opponents control, those creature cards will be exiled and you'll get that many Zombies."
 #[test]
 fn two_players_kalitases_dying_together_exile_each_other() {
     let mut game = setup_two_player_game();
