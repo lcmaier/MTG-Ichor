@@ -3770,7 +3770,7 @@ decision 10's, with its counters arm. CR 704.3's state-based batch and CR
 zone-change arms hold `ZoneChangePattern { from, to, act }`. The trigger arm's
 `by` is read through `cause_asked_by`, the one line RH-2 changes. The log line
 says "[act] by cause". The engine arm is `IDENTICAL` to `main` at two seats and
-four on both pools, at +0.18% instructions per decision (`fuzz-record.md`).
+four on both pools, at +0.03% instructions per decision (`fuzz-record.md`).
 Guerrilla Tactics is not registered: its hand leg needs a frame
 (`codebase-state.md` item 249, TR-4a), so §2b.10's rule stands its fixture in.
 Closes item 176's act and cause halves. Claims no atom. Trace page: no, since

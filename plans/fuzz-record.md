@@ -69,6 +69,14 @@ threaded through callers that already existed (`emit_event_caused` beside
 **§3 fixture rows:** unchanged, since the engine arm is `IDENTICAL` on both
 pools. TR-3c's tables below stand.
 
+**After the review round** (`2146713`, every emitter naming its cause and the
+batch carrying none, `replacement-architecture.md` §2b.11 decision 11), the
+same sitting against `main` `661c4a9`: gameplay rows **IDENTICAL** on both
+pools at two seats and four, the audit's counts the same to the digit, and
+instructions per decision 0.6499 M → 0.6501 M, **+0.03%**. The per-member
+restamp and the batch's cause were most of the first reading's +0.18%. The
+copies report found no near-copy and no shared shape. 104 s.
+
 **Re-recorded 2026-10-09 for TR-3c** (#239: the reflexive trigger, and items
 229, 225, 103 and 99's first half). Cornered Crook joins the registry, not
 the pool (187 → 188 registered, 106 pooled), so the `stress` §3 column is a
