@@ -24,6 +24,23 @@ use crate::engine::layers::types::{EffectModification, EffectOrigin};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
+    /// CR 800.4a — whether `object` goes when `player` leaves the game: what
+    /// they own leaves the game with them, and what they still control once
+    /// the effects giving them control have ended is exiled. That second half
+    /// is what they control by default (CR 110.2, 110.2b), which is the one
+    /// set both of a batch's readers ask before the leaving performs: its
+    /// snapshot of the survivors' abilities and its frames (CR 603.10a).
+    ///
+    /// Asked before the leaving, so it may include an object that stays: a
+    /// permanent another player holds by an effect that outlives the leaving.
+    /// Framing one costs a memo read; missing one that goes is a wrong
+    /// look-back. Empty in a two-player game, which ends instead (CR 104.2a).
+    pub(crate) fn departs_with(&self, object: ObjectId, player: PlayerId) -> bool {
+        self.is_multiplayer()
+            && (self.objects.get(&object).is_some_and(|obj| obj.owner == player)
+                || crate::engine::layers::compute::base_controller(self, object, None) == Some(player))
+    }
+
     /// CR 800.4a — `player` has just left the game; take their objects with
     /// them, end the control they were given, and exile what is left behind.
     ///

@@ -747,6 +747,16 @@ snapshot covers a controlled one. One set makes the outer check say what it
 means. RH-2's fixture puts a stolen ability-list source on both sides of a
 leaving, and is shown to fail first if it finds a wrong answer.
 
+**As built in RH-2 (`GameState::departs_with`):** "controlled" is the default
+controller (CR 110.2, 110.2b), since that is what the player still controls
+once clause 2 has ended the effects giving them control. Read before the
+leaving, owned or default-controlled covers everything clause 4 can exile, and
+neither half reads the layer memo. The set is empty in a two-player game, which
+ends instead (CR 104.2a). The fixture found a wrong answer: a grant whose source
+the leaving player controlled and did not own, conditional on that player
+("as long as you control a creature"), ended at the loss. The exile's own
+snapshot was taken after that, so a survivor looking back missed the grant.
+
 ### 2b.9 What this changes elsewhere
 
 - `codebase-state.md`: item 175 goes to RH-3 and loses its own slot. Item 176
