@@ -31,7 +31,7 @@ DECIDE    execute_batch_inner, phase 1 → apply_replacements (CR 616.1)        
             gather ─── reads effective ability lists, the entry's frame           [layers]
             apply_rewrite → enter_as_copy ─── copiable_values                     [copy]
             ↺ re-gather against the rewritten entry (loop 1)
-PERFORM   phase 2 → perform_action → perform_zone_change, place_on_battlefield    [chokepoint]
+PERFORM   phase 2 → perform_action → perform_zone_change, perform_entry           [chokepoint]
             register_static_effects ─── files the gates' printed legs             [layers, triggers]
             emit_event ─── records in the batch's window                          [events]
 RIDERS    phase 3 → resolve_rider (CR 615.5)                                      [replacement]
@@ -138,7 +138,7 @@ each, and reads these seams for a fifth loop, finding none.
 | `engine/targeting.rs` | CR 115 and 601.2c: target instances, validation, the selection-side `object_matches_filter` |
 | `engine/costs.rs`, `engine/mana.rs` | CR 601.2h/602.2b payment; CR 605 mana abilities |
 | `engine/zone_function.rs`, `engine/keywords.rs`, `engine/trace_records.rs` | CR 113.6's `functions_in`; lifelink and deathtouch on damage; every trace record's shape |
-| `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `place_on_battlefield`, `register_static_effects` and the printed-source sets |
+| `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `perform_entry`, `register_static_effects` and the printed-source sets |
 | `state/battlefield.rs`, `state/player.rs` | `PermanentState` and its one constructor for an entry; `PlayerState` |
 | `state/continuous_effects.rs`, `state/replacement_effects.rs`, `state/restrictions.rs`, `state/duration_registry.rs` | the three registries of resolution-created rows, their shared CR 514.2 expiry, and `RegistryScopeSummary`, the gates' granted and copied legs |
 | `state/layer_memo.rs`, `state/history.rs`, `state/diagnostics.rs`, `state/trace.rs` | the layer memo; each player's bounded history; seed-deterministic work counters; the trace sink and `emit_event` |
@@ -176,7 +176,7 @@ table, the enum and the match disagree.
 | `AddCounters` | counters on a permanent or a player; `CountersChanged` | — |
 | `RemoveCounters` | as many as there are (CR 701.2); announced only if any | — |
 | `Destroy` | the outer event only | `ZoneChange` to the graveyard |
-| `EnterBattlefield` | the move (or a token's creation), then `place_on_battlefield` | — |
+| `EnterBattlefield` | the move (or a token's creation), then `perform_entry` | — |
 | `CreateTokens` | the objects, then every entry as one batch | `EnterBattlefield` per token |
 | `CreateTokenIn` | `put_token_into`; `TokenCreated` | — |
 | `BeginTurn` | `begin_turn`; `TurnBegin` | — |
