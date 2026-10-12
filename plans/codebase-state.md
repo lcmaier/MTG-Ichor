@@ -7956,7 +7956,10 @@ and the reading below, which the audit makes and the dispatcher does not.
      The five readers then read the board immediately after the event, and the
      record needs no batch tag. The ~40-line tag design above is superseded.
      The item keeps no slot of its own.
-     **Slotted:** RH-2, the record's identity, its applied set and its moment.
+     **Re-slotted (2026-10-12):** RH-2 was split in two at #243's review
+     (`replacement-architecture.md` §2b.11, decision 12), and the two-part
+     dispatch went to the second.
+     **Slotted:** RH-3, the record's identity, its applied set and its moment.
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8116,7 +8119,10 @@ linked-ability records an entry makes.
      six kinds of cause through Sigarda's filter, Nephalia Academy's
      replacement and a trigger shaped like Guerrilla Tactics. The third
      question, which replacements applied, stays open.
-     **Slotted:** RH-2 (the applied set), Phase RH, before A6m and TR-4a.
+     **Re-slotted (2026-10-12):** the applied set went to RH-3 when RH-2 was
+     split (`replacement-architecture.md` §2b.11, decision 12). It is read off
+     RH-2's batch member record.
+     **Slotted:** RH-3 (the applied set), Phase RH, before A6m and TR-4a.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8175,11 +8181,14 @@ keeps the cost decisions).
      carries `new_epoch`, the epoch `arrive_in_zone` stamped, and only that: the
      existence that left is already `lki.object` where CR 603.10a frames the
      move. The binding's subject, "them" and `Effect::Remember` read it off the
-     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2
+     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2, and to RH-3
+     with the item on 2026-10-12
      (`triggers-architecture.md` §13). The item keeps no slot of its own. Its
      59, re-run 2026-10-10 with the query above and `game:paper -is:funny`,
      reproduces.
-     **Slotted:** RH-2, the record's identity, its applied set and its moment.
+     **Re-slotted (2026-10-12):** RH-2 was split in two (decision 12), and the
+     record's new object went to the second.
+     **Slotted:** RH-3, the record's identity, its applied set and its moment.
 
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
@@ -9503,8 +9512,8 @@ that is wrong today.
      shown to fail first. The move's riders then run in the batch's phase 3,
      so a Zombie no longer enters between two deaths of one event
      (`replacement-architecture.md` §2b.6).
-     **Slotted:** RH-2, the record's identity, its applied set and its moment;
-     its piece stands alone if RH-2 runs past the band.
+     **Slotted:** RH-2, the batch's members, decided together (renamed
+     2026-10-12, decision 12): the inner move is a fact on its member's record.
 
 ### Found by RH-1 — the act and the cause (2026-10-11)
 

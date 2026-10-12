@@ -143,7 +143,8 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The record's identity, its applied set and its moment | `RH-2` | `replacement-architecture.md` |
+| The batch's members, decided together | `RH-2` | `replacement-architecture.md` |
+| The record's identity, its applied set and its moment | `RH-3` | `replacement-architecture.md` |
 | The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
 | Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
