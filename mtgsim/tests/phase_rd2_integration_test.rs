@@ -43,7 +43,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
-use mtgsim::types::zones::ZoneChangeCause;
+use mtgsim::types::zones::ZoneChangeAct;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -66,6 +66,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -158,6 +159,7 @@ fn fixture_row(
         id: 0,
         source,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
         created_on_turn: turn,
         targets: Vec::new(),
@@ -278,7 +280,7 @@ fn a_rider_on_a_group_reads_the_members_amounts_summed() {
         .iter()
         .filter(|r| matches!(
             r.event,
-            GameEvent::ZoneChange { cause: ZoneChangeCause::Milled, .. }
+            GameEvent::ZoneChange { act: ZoneChangeAct::Milled, .. }
         ))
         .map(|r| r.batch())
         .collect();
@@ -535,6 +537,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         source: spell,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
         replaced_amount: None,
         damage_prevented: None,

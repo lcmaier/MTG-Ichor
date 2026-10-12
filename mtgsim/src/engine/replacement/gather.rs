@@ -23,17 +23,18 @@
 //!
 //! Plus CR 614.15's self-replacement effects, which belong to the resolving
 //! spell or ability rather than to any source above and would arrive through
-//! `ActionContext::resolution`. `ResolutionContext` has no field to carry them
-//! and gains one with the first card that needs one — §11 item 3, and the
-//! reason `ReplacementClass::SelfReplacement` currently has a step and no
-//! producer.
+//! the proposal's cause, whose `EventCause::Effect` names the resolving
+//! object. Nothing carries them yet, and the field lands with the first card
+//! that needs one — §11 item 3, and the reason
+//! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
-use crate::events::event::{CounterSubject, DamageTarget};
+use crate::events::cause::{EventCause, GeneratedBy};
+use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
 use crate::state::continuous_effects::puts_a_replacement_ability;
@@ -46,7 +47,7 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::targeting::matched;
@@ -187,11 +188,10 @@ pub(crate) fn gather(
 ) -> Vec<ReplacementInstance> {
     game.diagnostics.record_replacement_gather();
 
-    // What *caused* this event, for [`ReplacementDef::by`]: the controller of the
-    // resolving spell or ability (CR 608.2; CR 109.5's "you"), or `None` for a
-    // turn-based or state-based action — the same expression the pipeline hands
-    // `Query::Event::cause`, since a "can't" and a replacement print one predicate.
-    let cause = ctx.resolution.map(|r| r.controller);
+    // What *caused* this event, for [`ReplacementDef::by`] — the same value the
+    // pipeline hands `Query::Event::cause`, since a "can't" and a replacement
+    // print one predicate.
+    let cause = ctx.cause;
 
     // CR 614.17c's filter is applied at the door rather than at the end: with
     // no self-replacement producer, a blocked event has no candidates at all
@@ -392,8 +392,8 @@ pub(crate) fn gather(
 struct EventProposal<'a, 'g> {
     action: &'a GameAction,
     subject: EventSubject,
-    /// Who caused it, for [`ReplacementDef::by`].
-    cause: Option<PlayerId>,
+    /// Who or what caused it, for [`ReplacementDef::by`].
+    cause: EventCause,
     /// CR 614.12's look-ahead for the subject, when the caller holds one; the
     /// CR 616.1f re-ask of a later batch member does not.
     frame: Option<&'a EntryFrame<'g>>,
@@ -559,7 +559,7 @@ pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, O
 /// from `producer` (CR 106.6a, 106.12b)? [`def_applies`], asked of a
 /// production nobody has proposed: `oracle::mana_supply` reads what a tap
 /// would make before the window opens. The cause is the producing ability's
-/// controller, as `resolve_mana_effect`'s resolution makes it.
+/// effect, as `resolve_mana_effect`'s resolution makes it.
 pub(crate) fn applies_to_mana_production(
     game: &GameState,
     def: &ReplacementDef,
@@ -567,10 +567,12 @@ pub(crate) fn applies_to_mana_production(
     controller: PlayerId,
     player: PlayerId,
     producer: ObjectId,
+    generated_by: GeneratedBy,
     tapped_for_mana: bool,
 ) -> bool {
     let action = GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana };
-    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause: Some(player), frame: None };
+    let cause = EventCause::Effect { resolution: ResolutionStamp { source: producer, controller: player }, generated_by };
+    let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause, frame: None };
     def_applies(game, def, source, controller, &proposal)
 }
 
@@ -617,7 +619,7 @@ pub(super) fn applies_to(
     instance: &ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
-    cause: Option<PlayerId>,
+    cause: EventCause,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     let p = EventProposal { action, subject, cause, frame };
@@ -638,8 +640,8 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(p.cause, controller))
-        && pattern_watches(game, &def.pattern, p.action, controller)
+    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, controller))
+        && pattern_watches(game, &def.pattern, p.action, &p.cause, controller)
         && set_affects(
             game,
             &def.affected_objects,
@@ -721,6 +723,14 @@ pub(crate) fn set_affects(
     }
 }
 
+/// CR 601's "was it cast", for an object entering the battlefield: it is the
+/// resolving spell (CR 608.3a), and the spell carries the facts of a cast
+/// (CR 400.7d). Anything else entering was not cast: a land played, a card an
+/// effect puts there, a copy of a permanent spell (CR 707.10).
+fn entering_spell_was_cast(game: &GameState, object: ObjectId) -> bool {
+    game.resolving.as_ref().is_some_and(|r| r.id == object && r.cast.is_some())
+}
+
 /// Does this pattern watch for the proposed event's kind (CR 614.1)?
 ///
 /// `pub(crate)` for the same reason [`set_affects`] is: `Restriction::Event`
@@ -730,6 +740,7 @@ pub(crate) fn pattern_watches(
     game: &GameState,
     pattern: &EventPattern,
     action: &GameAction,
+    cause: &EventCause,
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
@@ -764,17 +775,10 @@ pub(crate) fn pattern_watches(
         }
 
         (
-            EventPattern::ZoneChange { from, to, cause, object },
-            GameAction::ZoneChange {
-                object: moving,
-                from: actual_from,
-                to: actual_to,
-                cause: actual_cause,
-            },
+            EventPattern::ZoneChange { change, object },
+            GameAction::ZoneChange { object: moving, from, to, act },
         ) => {
-            from.map(|z| z == *actual_from).unwrap_or(true)
-                && to.map(|z| z == *actual_to).unwrap_or(true)
-                && cause.map(|c| c == *actual_cause).unwrap_or(true)
+            change.matches(Some(*from), *to, Some(*act))
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -783,21 +787,14 @@ pub(crate) fn pattern_watches(
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
         // zone-change pattern admitting that destination watches an entry too
-        // (Worms of the Earth, Grafdigger's Cage), `from` and `cause` compared as
+        // (Worms of the Earth, Grafdigger's Cage), `from` and `act` compared as
         // above and `object` read in its source zone (the Cage's ruling). A token's
-        // entry has neither `from` nor `cause`.
+        // entry has neither `from` nor `act`.
         (
-            EventPattern::ZoneChange { from, to, cause, object },
-            GameAction::EnterBattlefield {
-                object: moving,
-                from: actual_from,
-                cause: actual_cause,
-                ..
-            },
+            EventPattern::ZoneChange { change, object },
+            GameAction::EnterBattlefield { object: moving, from, act, .. },
         ) => {
-            to.map(|z| z == Zone::Battlefield).unwrap_or(true)
-                && from.map(|z| Some(z) == *actual_from).unwrap_or(true)
-                && cause.map(|c| Some(c) == *actual_cause).unwrap_or(true)
+            change.matches(*from, Zone::Battlefield, *act)
                 && object
                     .as_ref()
                     .map(|f| matched(game.object_matches_filter(*moving, f, you)))
@@ -826,21 +823,22 @@ pub(crate) fn pattern_watches(
         // around is `set_affects`'s question one function below; these ask only
         // about the event, and a gain has nothing to ask.
         (EventPattern::GainLife, GameAction::GainLife { .. }) => true,
-        (EventPattern::LoseLife { cause }, GameAction::LoseLife { cause: actual, .. }) => {
-            cause.map(|c| c.matches(*actual)).unwrap_or(true)
+        (EventPattern::LoseLife { cause: asked }, GameAction::LoseLife { damage_source, .. }) => {
+            asked.map(|c| c.matches(*damage_source, cause)).unwrap_or(true)
         }
 
-        // CR 601's fact off the entry's cause: `Resolved` is a permanent spell
-        // that was cast, everything else was not.
+        // CR 400.7d's fact: the entering object is the resolving spell, and its
+        // cast facts say it was cast. A copy of a permanent spell enters by the
+        // same rule and was never cast (CR 707.10).
         (
             EventPattern::EnterBattlefield { cast },
-            GameAction::EnterBattlefield { cause, .. },
+            GameAction::EnterBattlefield { object, .. },
         ) => cast
-            .map(|required| (*cause == Some(ZoneChangeCause::Resolved)) == required)
+            .map(|required| entering_spell_was_cast(game, *object) == required)
             .unwrap_or(true),
 
-        (EventPattern::Destroy { source }, GameAction::Destroy { source: actual, .. }) => {
-            source.map(|p| p.matches(*actual)).unwrap_or(true)
+        (EventPattern::Destroy { source }, GameAction::Destroy { .. }) => {
+            source.map(|p| p.matches(cause)).unwrap_or(true)
         }
 
         // CR 614.16's "one or more" is the one count read (as `CreateTokens` reads
@@ -1038,9 +1036,7 @@ fn counter_replacements(
             CounterEffectKind::Replacement,
             ReplacementDef::new(
                 EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    cause: None,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
                 ObjectSet::SourceOnly,
@@ -1135,9 +1131,7 @@ fn commander_zone_replacement(
     // no check to make here.
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange {
-            from: None,
-            to: Some(*to),
-            cause: None,
+            change: ZoneChangePattern { from: None, to: Some(*to), act: None },
             object: None,
         },
         ObjectSet::Fixed(vec![*object]),
@@ -1201,7 +1195,7 @@ mod tests {
             from: Some(Zone::Stack),
             controller: 0,
             mods: EnterMods::NONE,
-            cause: Some(ZoneChangeCause::Resolved),
+            act: Some(crate::types::zones::ZoneChangeAct::Put),
         };
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
@@ -1239,8 +1233,8 @@ mod tests {
 
         let dp = test_dp();
         let ctx = ActionContext::new(&dp);
-        game.change_zone(faith, Zone::Hand, ZoneChangeCause::Returned, &ctx).unwrap();
-        game.change_zone(faith, Zone::Battlefield, ZoneChangeCause::Returned, &ctx).unwrap();
+        game.change_zone(faith, Zone::Hand, crate::types::zones::ZoneChangeAct::Put, &ctx).unwrap();
+        game.change_zone(faith, Zone::Battlefield, crate::types::zones::ZoneChangeAct::Put, &ctx).unwrap();
         assert_eq!(gain_in_the_lineage(&mut game), 6, "a new object's ability is a new effect");
     }
 }

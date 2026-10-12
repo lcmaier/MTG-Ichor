@@ -34,7 +34,7 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
-    setup_two_player_game, test_ctx, test_dp,
+    setup_two_player_game, test_dp,
 };
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -61,6 +61,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -74,7 +75,7 @@ fn resolve_spell(
 fn advance(game: &mut GameState, dp: &dyn DecisionProvider, steps: usize) {
     let ctx = ActionContext::new(dp);
     for _ in 0..steps {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
     }
 }
 
@@ -88,7 +89,7 @@ fn to_next_turn(game: &mut GameState, dp: &dyn DecisionProvider) -> (PlayerId, u
     let ctx = ActionContext::new(dp);
     let before = game.recorded_events().len();
     for _ in 0..200 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if let Some(begun) = game.recorded_events().records_from(before).iter().find_map(|r| match &r.event {
             GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
             _ => None,
@@ -341,7 +342,7 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
 
     let before = game.recorded_events().len();
     let hand_before = game.players[0].hand.len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
 
     // CR 500.11: proceed past it as though it didn't exist. The draw step's
     // *contents* are never proposed — no draw, no turn-based action — and the
@@ -374,7 +375,7 @@ fn eon_hub_takes_the_turn_from_the_untap_step_to_the_draw_step() {
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) });
 
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
     assert_eq!((phase, step), (PhaseType::Beginning, Some(StepType::Draw)));
 
     let steps: Vec<StepType> = game
@@ -437,7 +438,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     // Walk to player 1's draw step, which is where the skip will arrive.
     to_next_turn(&mut game, &test_dp());
     while game.phase.step != Some(StepType::Draw) {
-        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
     let drawn_before = cards_drawn(&game);
     assert_eq!(game.active_player, 1);
@@ -446,7 +447,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     // drawn: the step is under way and is not un-started.
     put_on_battlefield(&mut game, yawgmoths_bargain(), 1);
     let before = game.recorded_events().len();
-    game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+    game.advance_turn(&test_dp()).unwrap();
     assert_eq!(
         game.phase,
         Phase { phase_type: PhaseType::Precombat, step: None },
@@ -468,7 +469,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     let before = game.recorded_events().len();
     let drawn_before = cards_drawn(&game);
     while game.phase.phase_type == PhaseType::Beginning {
-        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
     assert!(
         !game.recorded_events().records_from(before).iter().any(|r| matches!(
@@ -536,7 +537,7 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(1)]);
 
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
     assert_eq!((phase, step), (PhaseType::Combat, Some(StepType::BeginCombat)));
     assert!(
         game.recorded_events().records_from(before).iter().any(|r| matches!(
@@ -570,7 +571,7 @@ fn a_skipped_phase_proposes_none_of_its_steps() {
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
 
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
 
     // Straight from the precombat main phase to the postcombat one.
     assert_eq!((phase, step), (PhaseType::Postcombat, None));
@@ -638,7 +639,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
     assert_eq!(
         (phase, step),
         (PhaseType::Beginning, Some(StepType::Draw)),
@@ -729,6 +730,7 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
         source: creature,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -814,7 +816,7 @@ fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
     assert!(!game.attacks_declared);
 
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
+    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
     assert_eq!((phase, step), (PhaseType::Combat, Some(StepType::EndCombat)));
     assert_eq!(
         steps_begun_from(&game, before),

@@ -12,13 +12,14 @@ use std::cell::RefCell;
 
 use mtgsim::cards::phase_lf_cards;
 use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
-use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
     place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -31,7 +32,7 @@ use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -134,6 +135,7 @@ fn resolve_edict(
         source: edict,
         ability_source: None,
         controller: caster,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -179,6 +181,7 @@ fn resolve_edict_effect(
         source,
         ability_source: None,
         controller: caster,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -322,7 +325,7 @@ fn test_a_sacrifice_with_no_controller_satisfies_no_source_filter() {
             object: bear,
             from: Zone::Battlefield,
             to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
+            act: ZoneChangeAct::Sacrificed,
         },
         &test_ctx(),
     )
@@ -477,8 +480,8 @@ fn test_indestructible_still_blocks_a_destroy_now_that_it_is_a_restriction() {
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: tank, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: tank },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
 
@@ -506,8 +509,8 @@ fn test_losing_the_keyword_lifts_the_prohibition_within_the_same_turn() {
     ));
 
     game.execute_action(
-        GameAction::Destroy { object: tank, source: DestructionSource::Effect(killer) },
-        &test_ctx(),
+        GameAction::Destroy { object: tank },
+        &effect_ctx(&game, killer),
     )
     .unwrap();
 
@@ -518,9 +521,9 @@ fn test_losing_the_keyword_lifts_the_prohibition_within_the_same_turn() {
 #[test]
 fn test_losing_indestructible_with_lethal_damage_marked_dies_to_the_sba() {
     // The *other* half of CR 702.12b, and a different road to the same
-    // restriction: CR 704.5g's destruction carries
-    // `DestructionSource::StateBasedAction`, where the test above carries
-    // `Effect`. `EventPattern::Destroy { source: None }` matches both, which is
+    // restriction: CR 704.5g's destruction is caused by the state-based
+    // action, where the test above is an effect's.
+    // `EventPattern::Destroy { source: None }` matches both, which is
     // 702.12b's own words — "such permanents aren't destroyed by lethal damage,
     // **and** they ignore the state-based action that checks for lethal damage".
     //
@@ -650,6 +653,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         source,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -688,7 +692,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
-    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None, trigger: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller: 0, generated_by: mtgsim::events::cause::GeneratedBy::Spell, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None, trigger: None };
 
     let err = game
         .resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new())

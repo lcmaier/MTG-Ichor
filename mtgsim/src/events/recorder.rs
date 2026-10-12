@@ -178,7 +178,7 @@ mod tests {
         EventRecord {
             seq: EventSeq(seq),
             event: GameEvent::StateBasedActionPerformed,
-            stamp: EventStamp::default(),
+            stamp: EventStamp { batch: None, cause: crate::events::cause::EventCause::Harness },
             names: None,
             place_in_turn: None,
         }

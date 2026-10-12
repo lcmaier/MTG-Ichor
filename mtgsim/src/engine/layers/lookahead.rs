@@ -31,7 +31,7 @@ use crate::types::replacement::EnterMods;
 /// with it. Nothing here is written back anywhere.
 pub struct Lookahead {
     pub object: ObjectId,
-    /// The entity `place_on_battlefield` would build, from the one
+    /// The entity `perform_entry` would build, from the one
     /// constructor both call (`PermanentState::entering`), out of the pending
     /// `EnterMods` — CR 614.12 clause (1).
     pub(super) entity: PermanentState,
@@ -56,7 +56,7 @@ impl Lookahead {
     /// `object` as it would exist on the battlefield under `controller`, having
     /// entered with `mods`.
     pub fn new(game: &GameState, object: ObjectId, controller: PlayerId, mods: &EnterMods) -> Self {
-        // Timestamps as the move and `place_on_battlefield` would allocate
+        // Timestamps as the move and `perform_entry` would allocate
         // them — the entity's, then one per counter row in `mods` order — read
         // off `next_timestamp` without advancing it. Only the order matters:
         // later than every registered row, which is where CR 613.7a puts an
@@ -179,6 +179,7 @@ pub fn compute_as_entering(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
     use super::Lookahead;
@@ -232,7 +233,7 @@ mod tests {
 
         let predicted = Lookahead::new(&game, card, 0, &mods).entity;
         game.move_object(card, Zone::Battlefield).expect("a hand card moves");
-        let placed = game.place_on_battlefield(card, 0, &mods).clone();
+        let placed = place_on_battlefield(&mut game, card, 0, &mods).clone();
 
         assert_eq!(predicted.timestamp, placed.timestamp);
         assert!(placed.tapped && predicted.tapped);

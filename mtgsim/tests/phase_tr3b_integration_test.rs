@@ -46,7 +46,7 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -75,7 +75,7 @@ fn tap_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 }
 
 fn sacrifice(game: &mut GameState, id: ObjectId) {
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
 }
 
 /// Activate `source`'s first ability for `player`, answering every prompt
@@ -109,7 +109,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -354,7 +354,7 @@ fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     assert_eq!(dragons.len(), 2);
 
     let dp = RecordingDecisionProvider::picking(0);
-    let destroy = |id| GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction };
+    let destroy = |id| GameAction::Destroy { object: id };
     game.execute_actions(dragons.iter().map(|&id| destroy(id)).collect(), &ActionContext::new(&dp)).unwrap();
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 25, "one trigger for the two deaths");
@@ -402,8 +402,8 @@ fn a_creature_that_left_and_came_back_is_not_the_one_referred_to() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let totem = put_on_battlefield(&mut game, haste_totem(), 0);
     activate_and_resolve(&mut game, 0, totem);
-    game.change_zone(bears, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     advance_to(&mut game, 0, StepType::End);
     place_and_resolve(&mut game);
@@ -783,7 +783,7 @@ fn banishing_light_gone_before_its_trigger_resolves_exiles_nothing() {
     let light = put_on_battlefield(&mut game, banishing_light(), 0);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "the enters trigger, targeting the creature");
-    game.change_zone(light, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(light, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(zone(&game, bears), Zone::Battlefield, "CR 610.3b: the event came after it triggered");
@@ -873,7 +873,7 @@ fn two_until_returns_from_one_event_are_one_event() {
     let lights = [banish(&mut game, 0, &dp), banish(&mut game, 0, &dp)];
     assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Exile, Zone::Exile));
 
-    let destroy = |id| GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction };
+    let destroy = |id| GameAction::Destroy { object: id };
     game.execute_actions(lights.iter().map(|&id| destroy(id)).collect(), &ActionContext::new(&dp)).unwrap();
     assert_eq!((zone(&game, first), zone(&game, second)), (Zone::Battlefield, Zone::Battlefield));
     place_and_resolve(&mut game);
@@ -897,7 +897,7 @@ fn banishing_lights_aura_returns_enchanting_what_its_owner_chooses() {
 
     let dp = RecordingDecisionProvider::picking(1);
     game.execute_actions(
-        vec![GameAction::Destroy { object: light, source: DestructionSource::StateBasedAction }],
+        vec![GameAction::Destroy { object: light }],
         &ActionContext::new(&dp),
     )
     .unwrap();

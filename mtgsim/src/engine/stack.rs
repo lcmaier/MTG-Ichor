@@ -1,6 +1,7 @@
 use crate::oracle::characteristics::{has_permanent_type, has_subtype};
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
 use crate::state::battlefield::{CastFacts, CostChoices};
 use crate::state::game_state::{GameState, ResolvingObject};
@@ -138,6 +139,13 @@ impl GameState {
             source: object_id,
             ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
+            // CR 113.3: a spell's instructions, or an activated or a triggered
+            // ability's.
+            generated_by: match (entry.is_spell, &entry.trigger) {
+                (true, _) => GeneratedBy::Spell,
+                (false, Some(_)) => GeneratedBy::TriggeredAbility,
+                (false, None) => GeneratedBy::ActivatedAbility,
+            },
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext`.
@@ -170,8 +178,9 @@ impl GameState {
         // `resolving` is what makes the object's presence on the stack expected
         // rather than a second removal. Not optional for v1 Commander: a commander
         // permanent spell resolves through here, and CR 903.9b has to be able to
-        // offer the command zone instead.
-        let actx = ActionContext::resolving(dp, &ctx);
+        // offer the command zone instead. Each move is a rule's (CR 608.2n,
+        // 608.3a, 608.3e), not the spell's effect: no keyword action, so `Put`.
+        let rule = |rule| ActionContext::game_rule(dp, rule);
         if !self.objects.contains_key(&object_id) {
             // CR 800.4a — the resolving object left the game during its own
             // resolution, because its owner did (a spell that makes its own
@@ -187,15 +196,15 @@ impl GameState {
                 // CR 608.3a (608.3c for an Aura, below): enters under its CR 110.2b
                 // *default* controller, a steal's Layer 2 row still applying on top
                 // (CR 400.7a). The entry's performer announces it.
-                self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
+                self.change_zone(object_id, Zone::Battlefield, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellResolves))?;
                 // CR 608.3e — "if a permanent spell resolves but its controller
                 // can't put it onto the battlefield, that player puts it into
                 // its owner's graveyard." The entry was refused (CR 614.17d) or
                 // dropped (CR 614.6) and the card is still on the stack; an
                 // entry *substituted* by a zone change took it elsewhere and
-                // needs nothing. The spell resolved, so the trip is `Resolved`.
+                // needs nothing.
                 if self.get_object(object_id)?.zone == Zone::Stack {
-                    self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
+                    self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellCantEnter))?;
                 }
 
                 // Rule 303.4f: Aura spell resolves → enters attached to its
@@ -230,7 +239,7 @@ impl GameState {
                 // "will continue to resolve fully", and Stunning Reversal's
                 // "Exile Stunning Reversal" is such a spell; the graveyard
                 // trip is for a card that is still there to make it.
-                self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
+                self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::SpellResolves))?;
             }
         } else {
             // Ability: ceases to exist (CR 608.2n) — removed from objects
@@ -243,15 +252,15 @@ impl GameState {
 
         // --- Emit event ---
         // A spell finishing resolution is already recorded: the `ZoneChange`
-        // above carries `ZoneChangeCause::Resolved` and says where it went. An
+        // above, caused by CR 608.2n's or 608.3's rule, says where it went. An
         // ability leaves no zone change, so this is where it is announced —
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
         if let Some(identity) = entry.ability_identity {
-            self.emit_event(GameEvent::AbilityResolved {
-                identity,
-                controller: entry.controller,
-            });
+            self.emit_event(
+                GameEvent::AbilityResolved { identity, controller: entry.controller },
+                EventCause::GameRule(GameRule::AbilityResolves),
+            );
         }
 
         Ok(())
@@ -271,13 +280,13 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         if entry.is_spell {
-            // CR 608.2b — it doesn't resolve, and this is a real zone change.
-            // It belongs to no resolution: the spell never resolved.
+            // CR 608.2b — it doesn't resolve, and this is a real zone change,
+            // the rule's and no resolution's: the spell never resolved.
             self.change_zone(
                 object_id,
                 Zone::Graveyard,
-                ZoneChangeCause::Fizzled,
-                &ActionContext::new(dp),
+                ZoneChangeAct::Put,
+                &ActionContext::game_rule(dp, GameRule::TargetsIllegal),
             )?;
         } else {
             // Ability: no destination zone, so the stack removal is explicit —
@@ -288,10 +297,11 @@ impl GameState {
 
         // An ability by its identity, as `resolve_taken` announces one: the
         // object just removed names nothing to a reader of the record.
-        match entry.ability_identity {
-            Some(identity) => self.emit_event(GameEvent::AbilityFizzled { identity, controller }),
-            None => self.emit_event(GameEvent::SpellFizzled { spell_id: object_id, controller }),
-        }
+        let fizzled = match entry.ability_identity {
+            Some(identity) => GameEvent::AbilityFizzled { identity, controller },
+            None => GameEvent::SpellFizzled { spell_id: object_id, controller },
+        };
+        self.emit_event(fizzled, EventCause::GameRule(GameRule::TargetsIllegal));
 
         Ok(())
     }
@@ -299,6 +309,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::engine::resolve::ResolvedTarget;
@@ -648,7 +659,7 @@ mod tests {
         // Put a creature on the battlefield
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, creature_id, 1, &EnterMods::NONE);
 
         // Put Pacifism on the stack targeting the creature
         let aura_id = put_permanent_on_stack_with_targets(
@@ -676,7 +687,7 @@ mod tests {
 
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, creature_id, 1, &EnterMods::NONE);
 
         let aura_id = put_permanent_on_stack_with_targets(
             &mut game,

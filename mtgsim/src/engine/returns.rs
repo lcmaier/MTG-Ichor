@@ -4,6 +4,7 @@
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::resolve::ResolvedTarget;
+use crate::events::cause::EventCause;
 use crate::events::event::{EventSeq, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
@@ -11,16 +12,17 @@ use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
-use crate::types::zones::{UntilReturn, Zone, ZoneChangeCause};
+use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
 use crate::ui::decision::DecisionProvider;
 
-/// One object going back: where to, and under whose control if that is the
-/// battlefield.
+/// One object going back: where to, under whose control if that is the
+/// battlefield, and what caused it — the effect returning it.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Return {
     pub object: ObjectId,
     pub to: Zone,
     pub controller: PlayerId,
+    pub cause: EventCause,
 }
 
 impl GameState {
@@ -28,17 +30,18 @@ impl GameState {
     /// against the board before any of them entered, so it cannot be a
     /// permanent entering beside it (Calix, Destiny's Hand's ruling); an Aura
     /// with none stays where it is (CR 303.4g). An object already where it
-    /// is going, or on the stack, is not moved.
+    /// is going, or on the stack, is not moved. Each return is caused by its
+    /// own effect, and the event is `ctx`'s.
     pub(crate) fn return_objects(&mut self, returns: &[Return], ctx: &ActionContext) -> Result<(), String> {
         let mut batch = Vec::new();
         let mut hosts = Vec::new();
-        for &Return { object, to, controller } in returns {
+        for &Return { object, to, controller, cause } in returns {
             let from = self.get_object(object)?.zone;
             if from == to || from == Zone::Stack {
                 continue;
             }
             if to != Zone::Battlefield {
-                batch.push(GameAction::ZoneChange { object, from, to, cause: ZoneChangeCause::Returned });
+                batch.push((GameAction::ZoneChange { object, from, to, act: ZoneChangeAct::Put }, cause));
                 continue;
             }
             if has_subtype(self, object, &Subtype::Enchantment(EnchantmentType::Aura)) {
@@ -47,12 +50,12 @@ impl GameState {
                     None => continue,
                 }
             }
-            batch.extend(self.entry_proposal(object, Some(from), controller, Some(ZoneChangeCause::Returned)));
+            batch.extend(self.entry_proposal(object, Some(from), controller, Some(ZoneChangeAct::Put)).map(|entry| (entry, cause)));
         }
         if batch.is_empty() {
             return Ok(());
         }
-        self.execute_actions(batch, ctx)?;
+        self.execute_caused_actions(batch, ctx)?;
         // As the Aura spell's attach (`engine/stack.rs`): an Aura whose entry
         // happened, to a host still there.
         for (aura, host) in hosts {
@@ -124,18 +127,20 @@ impl GameState {
         returns: Vec<(ObjectRef, Zone)>,
         under: ReturnUnder,
         controller: PlayerId,
+        cause: EventCause,
     ) {
         if returns.is_empty() {
             return;
         }
         let id = UntilReturnId(self.next_until_return_id);
         self.next_until_return_id += 1;
-        self.emit_event(GameEvent::UntilReturnMade {
+        let made = GameEvent::UntilReturnMade {
             id,
             source: source.id,
             controller,
             returns: returns.iter().map(|(object, _)| object.id).collect(),
-        });
+        };
+        self.emit_event(made, cause);
         let created_at = self.events.next_seq();
         let owner = self.owner_now_or(source.id, controller);
         self.until_returns.push(UntilReturn {
@@ -148,6 +153,7 @@ impl GameState {
             controller,
             owner,
             created_at,
+            cause,
         });
     }
 
@@ -162,8 +168,13 @@ impl GameState {
         source: Option<ObjectRef>,
         referred: &[ObjectRef],
     ) -> Result<bool, String> {
-        let TriggerEvent::ZoneChange { subject, from: Some(Zone::Battlefield), to: None, cause: None, owner: None, .. } =
-            until
+        let TriggerEvent::ZoneChange {
+            subject,
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: None, act: None },
+            by: None,
+            owner: None,
+            ..
+        } = until
         else {
             return Err(format!("CR 610.3a/b asks whether {until:?} has happened since, which needs that event's history"));
         };
@@ -183,7 +194,9 @@ impl GameState {
     /// simultaneous (610.3d). Each object goes back to its previous zone
     /// while it is still the object the exile moved (CR 400.7), a permanent
     /// under its owner's control unless the card said otherwise (610.3c).
-    /// The return is no part of a resolution whose batch caused the event.
+    /// The return is no part of a resolution whose batch caused the event:
+    /// each is the effect its exile left behind (610.3), and carries that
+    /// exile's cause.
     pub(crate) fn return_until(&mut self, due: Vec<UntilReturn>, ctx: Option<&ActionContext>) -> Result<(), String> {
         if due.is_empty() {
             return Ok(());
@@ -200,10 +213,11 @@ impl GameState {
                     ReturnUnder::Owner => self.get_object(object)?.owner,
                     ReturnUnder::You => until.controller,
                 };
-                returns.push(Return { object, to, controller });
+                returns.push(Return { object, to, controller, cause: until.cause });
             }
         }
-        self.return_objects(&returns, &ActionContext::new(ctx.dp))
+        let Some(first) = returns.first().map(|r| r.cause) else { return Ok(()) };
+        self.return_objects(&returns, &ctx.caused_by(first))
     }
 }
 
@@ -211,6 +225,7 @@ impl GameState {
 mod tests {
     use crate::cards::creatures::grizzly_bears;
     use crate::engine::actions::GameAction;
+    use crate::events::cause::EventCause;
     use crate::test_support::{put_in_exile, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, test_ctx};
     use crate::types::effects::{PlayerRef, ReturnUnder};
     use crate::types::triggers::{Multiplicity, TriggerEvent};
@@ -226,7 +241,7 @@ mod tests {
         let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
         let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
         let (source, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
-        game.wait_to_return(gains, source, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 0);
+        game.wait_to_return(gains, source, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 0, EventCause::Harness);
 
         game.execute_action(GameAction::GainLife { player: 1, amount: 1, source: source.id }, &test_ctx()).unwrap();
         assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Exile, "another player's gain is not \"you\"");
@@ -246,7 +261,7 @@ mod tests {
         let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
         let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
         let (source_ref, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
-        game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1);
+        game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1, EventCause::Harness);
         game.remove_from_game(source).unwrap();
 
         game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: exiled }, &test_ctx()).unwrap();

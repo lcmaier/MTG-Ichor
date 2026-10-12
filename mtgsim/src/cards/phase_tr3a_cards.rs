@@ -163,6 +163,7 @@ mod tests {
             source: id,
             ability_source: None,
             controller,
+            generated_by: crate::events::cause::GeneratedBy::Spell,
             targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
@@ -190,7 +191,7 @@ mod tests {
             if game.result.is_some() || game.turn_number > last {
                 return;
             }
-            game.advance_turn(&test_ctx()).expect("advancing");
+            game.advance_turn(&test_dp()).expect("advancing");
             place_and_resolve(game);
         }
     }
@@ -199,7 +200,7 @@ mod tests {
     /// resolving what triggers on the way.
     fn play_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         for _ in 0..200 {
-            game.advance_turn(&test_ctx()).expect("advancing");
+            game.advance_turn(&test_dp()).expect("advancing");
             if game.active_player == whose && game.phase.step == Some(step) {
                 return;
             }

@@ -16,9 +16,9 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;
-use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game};
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
 
 /// Helper: cast a targeted creature spell from hand and resolve it.
 fn cast_and_resolve_targeted_spell(
@@ -101,7 +101,7 @@ fn test_color_change_expires_at_cleanup() {
     // Six positions from the precombat main phase: nothing attacked, so
     // CR 508.8's three combat steps are refused at the proposal site.
     for _ in 0..6 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     // Verify we're in cleanup
@@ -203,7 +203,7 @@ fn test_chromatic_ward_removed_on_ltb() {
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Destroy the ward
-    game.change_zone(ward_id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(ward_id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
 
     // Back to just green
     assert_eq!(game.continuous_effects.len(), 0);

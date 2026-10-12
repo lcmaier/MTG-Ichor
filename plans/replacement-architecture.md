@@ -155,12 +155,11 @@ the enforcement.
 | Type | Where | What it is | Growth |
 |---|---|---|---|
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
-| `ActionContext` | `engine/actions.rs` | `{ dp, resolution }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt | grows only if a new ambient input appears |
-| `ZoneChangeCause` | `types/zones.rs` | Why an object moved. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per distinct reason a mover can name |
-| `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeCause` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
+| `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind, and what the performer's records name | grows only if a new input every mutation needs appears |
+| `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
 | `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
-| `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
+| `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over the destruction's cause, CR 701.8b's two ways | closed by CR 701.8b |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
 | `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `cause`, since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `cause` is the act, `to` where it went. It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
@@ -386,13 +385,13 @@ name of its own, `ZoneChangeAct`, so "cause" means one thing.
 
 ```rust
 /// What caused an event. Every proposal names one (`ActionContext::cause`),
-/// and the batch stamps it on every record (`EventStamp::cause`).
+/// and every emitter puts it on its record (`EventStamp::cause`).
 pub enum EventCause {
     /// An effect (CR 609.1): a resolving spell or ability (CR 608.2), a
-    /// replacement effect's rider (CR 615.5), a mana ability (CR 605.3b).
-    /// `kind` is which of CR 113.3's four it is, which The Master,
-    /// Multiplied's "triggered abilities" reads.
-    Effect { resolution: ResolutionStamp, kind: SpellOrAbility },
+    /// replacement effect's rider (CR 615.5) or its CR 614.13 moves, a mana
+    /// ability (CR 605.3b), an "until" exile's return (CR 610.3).
+    /// `generated_by` is what generated it (decision 10).
+    Effect { resolution: ResolutionStamp, generated_by: GeneratedBy },
     /// A cost being paid (CR 118.1, 601.2h, 602.2b), by whom and for what.
     /// "Costs aren't effects" (Library of Leng's ruling).
     Cost { player: PlayerId, paying_for: ObjectId },
@@ -416,21 +415,36 @@ pub enum EventCause {
 }
 ```
 
+```rust
+/// What generated an effect (decision 10).
+pub enum GeneratedBy {
+    Spell,              // CR 113.3a
+    ActivatedAbility,   // CR 113.3b
+    TriggeredAbility,   // CR 113.3c
+    StaticAbility,      // CR 113.3d: a static ability's replacement effect
+    Counters(CounterType), // CR 122.1c/d/h: the shield's prevention rider
+}
+```
+
 Each of the four rule enums has one variant per rule the engine performs, and
-no catchall, as `ZoneChangeCause` had none:
+no catchall, as `ZoneChangeAct` has none (as built in RH-1, `events/cause.rs`):
 - `SpecialAction`: `PlayLand` (116.2a). The other special actions (face-down,
   suspend, foretell, plot, companion and the rest of 116.2) join with their
   mechanics.
-- `TurnBasedAction`: `Untap` (502.3), `Draw` (504.1), `CombatDamage` (510.2),
-  `CleanupDiscard` (514.1), `CleanupDamage` (514.2).
+- `TurnBasedAction`: `Untap` (502.3), `Draw` (504.1), `DeclareAttackers`
+  (508.1, whose taps and record it causes), `DeclareBlockers` (509.1),
+  `CombatDamage` (510.2), `CleanupDiscard` (514.1). CR 514.2's damage removal
+  announces nothing, so it has no variant until it does.
 - `StateBasedAction`: one per CR 704.5 or 704.6 subrule the sweep performs.
-  704.5g and 704.5h stay one, `LethalDamage`, as in `DestroyedBySba`: CR
-  701.8b calls both "destroyed", and no card tells them apart.
-- `GameRule`: `SpellResolves` (608.2n), `PermanentSpellResolves` (608.3a),
-  `PermanentSpellCantEnter` (608.3e), `TargetsIllegal` (608.2b),
-  `ControllerLeftTheGame` (800.4a, which says itself that it "is not a
-  state-based action"), and the records no action makes: a turn, phase or step
-  beginning, and an ability triggering (CR 603.2).
+  704.5g and 704.5h stay one, `LethalDamage`: CR 701.8b calls both
+  "destroyed", and no card tells them apart.
+- `GameRule`: `OpeningHand` (103.5), `SpellResolves` and `AbilityResolves`
+  (608.2n), `PermanentSpellResolves` (608.3a), `PermanentSpellCantEnter`
+  (608.3e), `TargetsIllegal` (608.2b), `ControllerLeftTheGame` (800.4a, which
+  says itself that it "is not a state-based action"), `StateBasedCheck` (704.3's
+  one event, whose members are each their own subrule's), and the records no
+  action makes: a turn, phase or step beginning, an ability triggering (CR
+  603.2) and a triggered ability put on the stack with its targets (603.3).
 
 **Decision 2: a special action is a cause of its own.** CR 116.1 sets special
 actions apart from spells and abilities, since they "don't use the stack", and
@@ -466,9 +480,9 @@ Priced:
 
   The tests are decision 7.
 
-**One value on both sides.** The proposal's cause is `ActionContext::cause`.
-`open_batch` stamps it on every record the batch emits, as it stamps the
-resolution today. So two readers ask one value:
+**One value on both sides.** The proposal's cause is `ActionContext::cause`,
+and the performer that emits a record passes the same value to `emit_event`
+(decision 11). So two readers ask one value:
 - Sigarda's "can't" and Nephalia Academy's replacement, which read the
   proposal (`EventProposal::cause`);
 - Guerrilla Tactics' trigger, which reads the record.
@@ -483,7 +497,16 @@ That is Sigarda's ruling ("the result of game rules") and Library of Leng's
 state-based actions one event, and each is still its own rule. So every batch
 takes its context's cause except the sweep's, which passes each member's
 subrule beside the member. Phase 1 gives that cause to the member's
-`EventProposal`, and phase 2 puts it on the stamp while the member performs.
+`EventProposal`, and phase 2 performs the member under it, so its records
+name it.
+CR 610.3d's returns are the other such event (`execute_caused_actions`): each
+"until" return is its own exile's effect.
+
+**A replacement effect's own events are its effect's.** Its rider (CR 615.5),
+its CR 614.13 moves and the counters it puts on an entering permanent are
+caused by the effect, under its controller, generated by what generated it: a
+registered row by its creating spell or ability, a static ability by itself, a
+counter by the counter (`pipeline::caused_by_replacement`).
 
 **A payment inside a resolution is caused by the resolution.** CR 118.12 makes
 the action in "[A player] may [do something]. If [that player] [does, doesn't,
@@ -500,9 +523,11 @@ has no ruling; it goes to CP-1, which builds CR 118.12a's "unless"
 - `DestructionSource` (`Effect(ObjectId)` or `StateBasedAction`) is the
   destruction's cause. `GameAction::Destroy` loses it, and the shield
   counter's "as the result of an effect" (CR 122.1c) asks the cause.
-- `LifeLossCause`'s `Effect` and `Cost` are the cause. It keeps `Damage {
-  source }`: that the loss is a result of damage (CR 120.3a) is a fact about
-  the event, not about who caused it.
+- `LifeLossCause`'s `Effect` and `Cost` are the cause. Its `Damage {
+  source }` stays: that the loss is a result of damage (CR 120.3a) is a fact
+  about the event, not about who caused it. With one arm left the type went,
+  and the proposal is `LoseLife { damage_source: Option<ObjectId> }` (as built
+  in RH-1); `LifeLossCausePattern` asks it and the cause.
 - `EventProposal::cause: Option<PlayerId>` is the cause's controller.
 
 `DrawCause` stays. It says which draw of an instruction this is (CR 121.2), so
@@ -818,7 +843,7 @@ own boards, and the rest does not depend on it.
 
 ### 2b.11 Decisions, and what is left open
 
-Taken here. All nine were approved by the owner on 2026-10-11, at #242's
+Taken here. The first nine were approved by the owner on 2026-10-11, at #242's
 review: 1–6, 8 and 9 as written (9 with its performance priced in §2b.10), and
 option A of three for 7. The other two
 options were every test naming a real cause, or `test_ctx()` quietly naming one
@@ -852,6 +877,29 @@ replacement's ability (§2b.4).
    construction, at 113 mechanical lines.
 9. Item 248 is filed and fixed in RH-2 by deciding a destruction's move with
    the destruction.
+10. **Taken at RH-1's build (the owner, 2026-10-11): an effect's `kind` is
+    `generated_by: GeneratedBy`, built now, with five arms.** The sketch's
+    `SpellOrAbility` could not say what made CR 122.1c's shield counter's
+    prevention rider ("prevent that damage and remove a shield counter"): the
+    counter, and no spell or ability, so `Counters(CounterType)` joins CR
+    113.3's four. "A spell or ability [someone] controls" skips it, and
+    Library of Leng's "an effect" sees it. Two printed cards read the kind
+    among `o:"causes" game:paper -is:funny`'s 49: The Master, Multiplied
+    ("triggered abilities you control can't cause") and Firesong and
+    Sunspeaker ("a white instant or sorcery spell causes", which Renewed
+    Faith's cycling trigger must not satisfy). The other 47 ask an effect and
+    its controller, or are Panharmonicon's family, whose "causes" is an event
+    making a trigger trigger.
+11. **Taken at RH-1's review (2026-10-12), from the owner asking why
+    `emit_event` could not just carry a cause: every emitter names its
+    cause.** The build first stamped a cause ambiently inside a batch, from
+    the context that opened it, restamped per member for CR 704.3's sweep,
+    and made only emitters outside a batch name theirs. All 18 ambient sites
+    sat in a performer holding the context, so `emit_event(event, cause)` is
+    the one door and the batch carries only its id. A probe asserted the
+    two agreed on every record of the suite and 800 fuzz games before the
+    ambient cause was deleted. A forgotten cause is now a compile error
+    rather than a runtime `Err`.
 
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
@@ -895,51 +943,23 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
 | `ShuffleLibrary { player }` | 701.24a | RF | the third no-`EventPattern` variant — nothing printed says "would shuffle … instead" — and the first in-game writer of a library's order; proposed by `Primitive::ShuffleLibrary`, the rider of Darksteel Colossus's "shuffle it into its owner's library" (CR 701.24c) |
 
-`ZoneChangeCause` is the semantic carrier that makes CR 701.8b answerable:
+`ZoneChangeAct` (§2b.2) is the semantic carrier that makes CR 701.8b
+answerable: `Destroyed`, `Sacrificed`, `Discarded`, `Milled`, `Countered`,
+`Cast`, `Drawn`, `PlayedAsLand`, and `Put`, a move named by where it goes. Its
+21-variant predecessor, `ZoneChangeCause`, also said who moved an object; since
+RH-1 that is the cause (§2b.3), and the rule a move obeys is no act.
 
-```rust
-// Derived from call sites, not researched from the card pool — see §11.
-// **No catchall.** Every mover names its reason.
-pub enum ZoneChangeCause {
-    // --- effects (CR 701), one per object-moving `Primitive` ---
-    Destroyed,       // 701.8b way 1 — an effect using the word "destroy"
-    Sacrificed,      // 701.21 — NOT destruction
-    Exiled,          // 701.13
-    Discarded,       // 701.9 — includes the CR 514.1 cleanup discard
-    Milled,          // 701.17
-    Returned,        // "return to hand" / "return to the battlefield"
-    PutIntoLibrary,  // top / bottom / shuffled-in; *position* is a field, not a cause
-
-    // --- state-based actions (CR 704.5) ---
-    DestroyedBySba,  // 704.5g lethal damage + 704.5h deathtouch = 701.8b ways 2 and 3
-    ZeroToughness,   // 704.5f — NOT destruction
-    ZeroLoyalty,     // 704.5i
-    LegendRule,      // 704.5j
-    AuraSba,         // 704.5m — 704.5n only unattaches, it does not move
-
-    // --- the stack ---
-    Cast,            // hand (or elsewhere) → stack
-    Resolved,        // 608.2n (instant/sorcery → graveyard), 608.3a/c (permanent spell → battlefield)
-    Countered,       // 701.6
-    Fizzled,         // 608.2b — every target illegal; does not resolve
-
-    // --- turn structure and special actions ---
-    Drawn,           // 121.5 makes this trigger-visibly distinct from "put into hand"
-    PlayedAsLand,    // 305.1 / 505.6b
-}
-```
-
-Three rules for `cause`, all learned the hard way elsewhere in this tree:
+Three rules for `act`, all learned the hard way elsewhere in this tree:
 
 - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
   `perform_action` cannot recover that from `(from, to)`.
-- **Nothing may branch on `cause` outside the replacement pipeline and the
+- **Nothing may branch on `act` outside the replacement pipeline and the
   trigger matcher.** It is not a general-purpose tag; a third reader is a third
   place for it to drift.
 - **No catchall variant.** No `Other`, no `Unknown`, no `#[non_exhaustive]`.
   This is the whole of what makes the enum cheap to extend later — see §11's
-  "the one that blocks". A site with no honest reason to give is a site whose
-  reason nobody worked out.
+  "the one that blocks". A site with no honest act to give is a site whose
+  act nobody worked out.
 
 Type-specific death events (`CreatureDied`, `PlaneswalkerDied`,
 `LegendRuleSacrificed`) become display sugar in Phase RA and stop being trigger
@@ -3736,11 +3756,25 @@ The design is §2b, reviewed in its own PR before any code (`roadmap-v2.md`
 A6o). Both PRs sit inside A6d, after the design and before A6m and TR-4a.
 Branches are `replacement/rh-<n>-…`.
 
-#### RH-1 — the act and the cause
+#### RH-1 — the act and the cause — ✅ landed 2026-10-11
 
-`ZoneChangeAct` and `EventCause` (§2b.2, §2b.3), with the folds and the
-reader's pattern (§2b.7). The A/B expects `IDENTICAL`. Pieces and sizes:
-§2b.10.
+**Shipped:** `ZoneChangeAct` (`types/zones.rs`), nine acts, in place of
+`ZoneChangeCause`. The rule variants and `Resolved` moved to the cause, and
+every rule's move is a `Put`. `EventCause` (`events/cause.rs`) is on every
+proposal and on every record's stamp, `EventStamp { batch, cause }` (40 bytes;
+the record 144). Every emitter names it (decision 11). `GeneratedBy` is
+decision 10's, with its counters arm. CR 704.3's state-based batch and CR
+610.3d's returns name a cause per member (`execute_caused_actions`).
+`DestructionSource` and `LifeLossCause` folded into the cause, which leaves
+`LoseLife { damage_source }`, and `SourceFilter::matches` reads the cause. Both
+zone-change arms hold `ZoneChangePattern { from, to, act }`. The trigger arm's
+`by` is read through `cause_asked_by`, the one line RH-2 changes. The log line
+says "[act] by cause". The engine arm is `IDENTICAL` to `main` at two seats and
+four on both pools, at +0.03% instructions per decision (`fuzz-record.md`).
+Guerrilla Tactics is not registered: its hand leg needs a frame
+(`codebase-state.md` item 249, TR-4a), so §2b.10's rule stands its fixture in.
+Closes item 176's act and cause halves. Claims no atom. Trace page: no, since
+the record's words changed and no read is answered differently.
 
 #### RH-2 — the record's identity, its applied set and its moment
 
@@ -3842,10 +3876,10 @@ the bug.
 
 3. **Deferred — how self-replacement effects (CR 614.15) reach the pipeline**
    (Open until the post-RE audit, 2026-09-15). They belong to the resolving
-   spell/ability, not to any registry, so they arrive through
-   `ActionContext::resolution`. `ResolutionContext` is
-   `{source, ability_source, controller, targets, replaced_amount,
-   damage_prevented}` today and needs one more field. Low breadth
+   spell/ability, not to any registry, so they arrive through the proposal's
+   cause: `EventCause::Effect` names the resolving object (RH-1 replaced
+   `ActionContext`'s resolution reference with its cause, §2b.3), and the
+   resolving object's spell or ability needs one more field to carry them. Low breadth
    (Aang's Journey and kin), so the hook landed in RB and the field lands with
    the first card that needs it. Do not build a general mechanism first.
 

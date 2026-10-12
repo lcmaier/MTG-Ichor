@@ -38,7 +38,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -62,7 +62,7 @@ fn pending(game: &GameState) -> usize {
 
 /// Resolve `effect` as if `source`'s controller had cast it: no targets.
 fn resolve_as(game: &mut GameState, source: ObjectId, effect: Effect) {
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&effect, &ctx, &test_dp()).expect("resolving");
 }
 
@@ -149,7 +149,7 @@ fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::
         .records()
         .iter()
         .filter_map(|r| match r.event {
-            GameEvent::ZoneChange { object_id, cause: ZoneChangeCause::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
+            GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
             _ => None,
         })
         .collect()
@@ -159,7 +159,7 @@ fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -275,7 +275,7 @@ fn two_clauses_after_one_may_read_its_one_answer() {
             if_you(CostAnswer::Doesnt, draw_one()),
         ]);
         let hand = game.players[0].hand.len();
-        let ctx = ResolutionContext::untargeted(source, 0);
+        let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
         game.resolve_effect(&effect, &ctx, &answering_may(source, yes)).unwrap();
         if yes {
             assert_eq!((game.players[0].life_total, game.players[0].hand.len()), (21, hand));
@@ -319,7 +319,7 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
     assert_eq!(game.stack.len(), 4, "two spells, and the two triggers above them");
 
     game.execute_action(
-        GameAction::ZoneChange { object: stillness, from: Zone::Battlefield, to: Zone::Exile, cause: ZoneChangeCause::Exiled },
+        GameAction::ZoneChange { object: stillness, from: Zone::Battlefield, to: Zone::Exile, act: ZoneChangeAct::Put },
         &test_ctx(),
     )
     .unwrap();
@@ -351,7 +351,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
     let stolen = put_on_battlefield(&mut game, card_of_type("Wandering Idol", CardType::Artifact), 1);
     let ctx = ResolutionContext {
         ability_source: Some(ObjectRef { id: stolen, zone_change_epoch: game.get_object(stolen).unwrap().zone_change_epoch }),
-        ..ResolutionContext::untargeted(stolen, 0)
+        ..ResolutionContext::untargeted(stolen, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     let sacrifice_this = Effect::Sequence(vec![
         Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
@@ -395,7 +395,7 @@ fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
     }
     let dp = RecordingDecisionProvider::picking(0);
     let each_opponent = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents));
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_opponent, 1), &ctx, &dp).unwrap();
 
     assert_eq!(dp.prompts(), 3, "each opponent chose one of two");
@@ -421,7 +421,7 @@ fn each_player_chooses_in_apnap_order_and_the_caster_waits_their_turn() {
     }
     let dp = RecordingDecisionProvider::picking(0);
     let each_player = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone));
-    let ctx = ResolutionContext::untargeted(source, 0);
+    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_player, 1), &ctx, &dp).unwrap();
 
     assert_eq!(dp.prompts(), 4, "each player chose one of two");
@@ -447,7 +447,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
     );
     let ctx = ResolutionContext {
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
-        ..ResolutionContext::untargeted(source, 0)
+        ..ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&exiles, &ctx, &test_dp()).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
@@ -497,7 +497,7 @@ fn an_enters_trigger_reads_its_controller_and_power_once_its_source_is_sacrifice
         by: 0,
     };
     game.execute_action(grow, &test_ctx()).unwrap();
-    game.change_zone(reckoner, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+    game.change_zone(reckoner, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 1, "player 0's 20 life met the \"if\", and it was last a 4/4");
@@ -521,7 +521,7 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
     );
     let ctx = ResolutionContext {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(reckoner)]),
-        ..ResolutionContext::untargeted(thief, 1)
+        ..ResolutionContext::untargeted(thief, 1, mtgsim::events::cause::GeneratedBy::Spell)
     };
     game.resolve_effect(&steal, &ctx, &test_dp()).unwrap();
     assert_eq!(get_effective_controller(&game, reckoner), Some(1));
@@ -548,7 +548,7 @@ fn a_cast_trigger_reads_the_power_of_a_spell_countered_in_response() {
         .build();
     let spell = cast(&mut game, 0, ogre);
     place(&mut game, &test_dp());
-    game.change_zone(spell, Zone::Graveyard, ZoneChangeCause::Countered, &test_ctx()).unwrap();
+    game.change_zone(spell, Zone::Graveyard, ZoneChangeAct::Countered, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 17, "the countered spell's 3");
@@ -571,7 +571,7 @@ fn a_draw_trigger_reads_the_power_of_a_card_discarded_in_response() {
     let card = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
     game.draw_card(0, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
-    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 18, "the discarded card's 2");
@@ -777,7 +777,7 @@ fn cosis_trickster_sees_an_opponents_shuffle_even_of_an_empty_library() {
 
     assert!(game.players[1].library.is_empty());
     let idol = put_on_battlefield(&mut game, card_of_type("Shuffling Idol", CardType::Artifact), 1);
-    game.resolve_effect(&shuffle, &ResolutionContext::untargeted(idol, 1), &test_dp()).unwrap();
+    game.resolve_effect(&shuffle, &ResolutionContext::untargeted(idol, 1, mtgsim::events::cause::GeneratedBy::Spell), &test_dp()).unwrap();
     assert_eq!(pending(&game), 1);
     place(&mut game, &test_dp());
     resolve_answering(&mut game, true);

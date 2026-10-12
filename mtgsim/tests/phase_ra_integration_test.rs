@@ -10,8 +10,9 @@
 use std::sync::Arc;
 
 use mtgsim::cards::{alpha, basic_lands, creatures, phase5_pre_cards};
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
+use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::{BatchId, GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{
     AbilityDef, AbilityType, CardData, CardDataBuilder,
@@ -19,6 +20,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
+    test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -73,17 +75,28 @@ fn self_anthem_creature() -> Arc<CardData> {
         .build()
 }
 
-/// Every `ZoneChange` in the log, as `(object, from, to, cause)`.
-fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
+/// Every `ZoneChange` in the log, as `(object, from, to, act)`.
+fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeAct)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
-                Some((*object_id, *from, *to, *cause))
+            GameEvent::ZoneChange { object_id, from, to, act, .. } => {
+                Some((*object_id, *from, *to, *act))
             }
             _ => None,
         })
         .collect()
+}
+
+/// The cause of the last `ZoneChange` in the log.
+fn last_zone_change_cause(game: &GameState) -> Option<EventCause> {
+    let recorded = game.recorded_events();
+    recorded
+        .records()
+        .iter()
+        .rev()
+        .find(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
+        .map(|r| r.stamp.cause)
 }
 
 /// The LKI frame on the single `ZoneChange` that moved `id`.
@@ -119,7 +132,7 @@ fn test_the_lki_frame_is_the_permanent_as_it_last_existed() {
         Some(3),
     );
 
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let lki = lki_for(&game, id).expect("a permanent leaving the battlefield has a frame");
@@ -144,7 +157,7 @@ fn test_the_lki_frame_carries_the_abilities_the_object_had() {
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
 
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let lki = lki_for(&game, id).unwrap();
@@ -183,16 +196,16 @@ fn test_the_zone_change_carries_the_reason_the_engine_moved_it() {
     let destroyed = put_on_battlefield(&mut game, self_anthem_creature(), 0);
     let sacrificed = put_on_battlefield(&mut game, self_anthem_creature(), 0);
 
-    game.change_zone(destroyed, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(destroyed, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
-    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(sacrificed, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(
         zone_changes(&game),
         vec![
-            (destroyed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Destroyed),
-            (sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::Sacrificed),
+            (destroyed, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Destroyed),
+            (sacrificed, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Sacrificed),
         ],
     );
 }
@@ -201,17 +214,17 @@ fn test_the_zone_change_carries_the_reason_the_engine_moved_it() {
 fn test_a_land_play_is_a_zone_change_with_a_reason() {
     // `play_land` wrote straight to `move_object` until RA-3 — a fourth,
     // undocumented bypass of the chokepoint, and the single most frequent zone
-    // change in the game. `ZoneChangeCause::PlayedAsLand` had no call site at
+    // change in the game. `ZoneChangeAct::PlayedAsLand` had no call site at
     // all, which is how it went unnoticed.
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, basic_lands::forest(), 0);
     game.phase.phase_type = mtgsim::state::game_state::PhaseType::Precombat;
 
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert_eq!(
         zone_changes(&game),
-        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeCause::PlayedAsLand)],
+        vec![(land, Zone::Hand, Zone::Battlefield, ZoneChangeAct::PlayedAsLand)],
     );
 }
 
@@ -230,7 +243,7 @@ fn test_a_stale_zone_change_proposal_is_loud() {
     // battlefield, `DealDamage` for a target that is not.
     let mut game = setup_two_player_game();
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
-    game.change_zone(id, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx())
         .unwrap();
 
     let stale = game.execute_action(
@@ -238,7 +251,7 @@ fn test_a_stale_zone_change_proposal_is_loud() {
             object: id,
             from: Zone::Battlefield,
             to: Zone::Exile,
-            cause: ZoneChangeCause::Exiled,
+            act: ZoneChangeAct::Put,
         },
         &test_ctx(),
     );
@@ -396,12 +409,8 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     assert_eq!(
         damage.resolution(),
         Some(ResolutionStamp { source: bolt, controller: 0 }),
-        "the stamp is provenance: which resolution proposed this mutation. \
-         CR 614.15 is what makes the *proposal* side of it load-bearing — a \
-         self-replacement effect belongs to the resolving spell rather than to \
-         any registry, so `apply_replacements` finds it through \
-         `ActionContext::resolution`. Carrying it onto the record as well is a \
-         separate, weaker call: nothing matches on it yet",
+        "the stamp is provenance: the resolution whose effect caused this \
+         mutation, which `Effect::Remember` reads back",
     );
 }
 
@@ -465,9 +474,9 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
 
     let dp = ScriptedDecisionProvider::new();
     let ctx = ActionContext::new(&dp);
-    game.play_land(0, first, &ctx).unwrap();
+    game.play_land(0, first, ctx.dp).unwrap();
     game.players[0].lands_played_this_turn = 0;
-    game.play_land(0, second, &ctx).unwrap();
+    game.play_land(0, second, ctx.dp).unwrap();
 
     let batches: Vec<Option<BatchId>> = game
         .recorded_events()
@@ -501,10 +510,11 @@ fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
     assert_eq!(
         zone_changes(&game),
         vec![
-            (id, Zone::Hand, Zone::Stack, ZoneChangeCause::Cast),
-            (id, Zone::Stack, Zone::Battlefield, ZoneChangeCause::Resolved),
+            (id, Zone::Hand, Zone::Stack, ZoneChangeAct::Cast),
+            (id, Zone::Stack, Zone::Battlefield, ZoneChangeAct::Put),
         ],
     );
+    assert_eq!(last_zone_change_cause(&game), Some(EventCause::GameRule(GameRule::PermanentSpellResolves)));
 }
 
 #[test]
@@ -526,8 +536,9 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
 
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Resolved)),
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put)),
     );
+    assert_eq!(last_zone_change_cause(&game), Some(EventCause::GameRule(GameRule::SpellResolves)), "CR 608.2n");
 }
 
 #[test]
@@ -571,14 +582,18 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
 
     // The target leaves before the spell resolves, so all its targets are
     // illegal and CR 608.2b counters it by game rules.
-    game.change_zone(victim, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(victim, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
 
     assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
     assert_eq!(
         zone_changes(&game).last().copied(),
-        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)),
-        "countered by game rules is not the same fact as resolved",
+        Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeAct::Put)),
+    );
+    assert_eq!(
+        last_zone_change_cause(&game),
+        Some(EventCause::GameRule(GameRule::TargetsIllegal)),
+        "removed by game rules (CR 608.2b) is not the same fact as resolved",
     );
 }
 
@@ -591,7 +606,7 @@ fn test_a_resolving_ability_leaves_no_zone_change() {
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
     let before = game.recorded_events().len();
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert!(
         !game.recorded_events().records_from(before).iter().any(|r| matches!(
@@ -633,7 +648,7 @@ fn test_one_death_carries_every_type_that_died() {
 
     assert_eq!(
         zone_changes(&game),
-        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeCause::DestroyedBySba)],
+        vec![(id, Zone::Battlefield, Zone::Graveyard, ZoneChangeAct::Destroyed)],
         "one permanent left the battlefield once",
     );
     let lki = lki_for(&game, id).expect("it was a permanent");
@@ -669,19 +684,24 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
         .records()
         .iter()
         .find_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, owner, from, to, cause, lki }
+            GameEvent::ZoneChange { object_id, owner, from, to, act, lki }
                 if *object_id == died =>
             {
-                Some((*owner, *from, *to, *cause, lki.as_ref().map(|d| d.chars())))
+                Some((*owner, *from, *to, *act, r.stamp.cause, lki.as_ref().map(|d| d.chars())))
             }
             _ => None,
         })
         .expect("the legend rule moved it");
 
-    let (owner, from, to, cause, lki) = record;
+    let (owner, from, to, act, cause, lki) = record;
     assert_eq!(owner, 1, "the `owner` the deleted events carried");
     assert_eq!((from, to), (Zone::Battlefield, Zone::Graveyard), "\"dies\"");
-    assert_eq!(cause, ZoneChangeCause::LegendRule, "the rule number, as a cause");
+    assert_eq!(act, ZoneChangeAct::Put, "CR 704.5j puts it there, which is no keyword action");
+    assert_eq!(
+        cause,
+        EventCause::StateBasedAction(StateBasedAction::LegendRule),
+        "the rule number, as the cause"
+    );
     let lki = lki.expect("a permanent leaving the battlefield has a frame");
     assert!(lki.types.contains(&CardType::Creature), "the type the event named");
     assert!(
@@ -746,7 +766,7 @@ fn test_the_log_line_still_says_what_died() {
         .expect("the death is in the log");
 
     for expected in ["Gideon, Test Subject", "P0", "Battlefield", "Graveyard",
-                     "DestroyedBySba", "Creature", "Planeswalker"] {
+                     "LethalDamage", "Creature", "Planeswalker"] {
         assert!(line.contains(expected), "log line {:?} is missing {:?}", line, expected);
     }
 }
@@ -772,6 +792,7 @@ fn test_a_multi_target_destroy_is_one_event() {
         source: a,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![
             mtgsim::engine::resolve::ResolvedTarget::Object(a),
             mtgsim::engine::resolve::ResolvedTarget::Object(b),
@@ -821,7 +842,7 @@ fn test_tapping_for_mana_is_recorded() {
     let mut game = setup_two_player_game();
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert!(game.battlefield.get(&land).unwrap().tapped);
     assert!(

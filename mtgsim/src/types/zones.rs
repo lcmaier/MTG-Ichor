@@ -1,6 +1,7 @@
+use crate::events::cause::EventCause;
 use crate::events::event::EventSeq;
 use crate::types::effects::ReturnUnder;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
+use crate::types::ids::{ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent};
 
 /// CR 610.3 — the return an "until" exile waits to make: a one-shot effect
@@ -31,6 +32,9 @@ pub struct UntilReturn {
     /// The first record performed after it was made: an event before it is
     /// not the one it waits for.
     pub created_at: EventSeq,
+    /// What the return is caused by: the exile's own effect, which CR 610.3
+    /// makes the second one-shot effect's.
+    pub cause: EventCause,
 }
 
 /// Game zones (rule 400.1)
@@ -193,17 +197,19 @@ impl std::ops::BitAnd for ZoneSet {
     }
 }
 
-/// Why the engine is moving an object between zones.
+/// What a zone change did, in the CR's word for it (`replacement-architecture.md`
+/// §2b.2): a keyword action's (CR 701), a cast's (601.2a), a draw's (121.1), a
+/// land play's (305.1), or [`Self::Put`], a move named only by where it goes.
 ///
-/// This is the semantic carrier that makes CR 701.8b answerable: `(from, to)`
-/// cannot distinguish a sacrifice from a destruction from an SBA, and 1,287
-/// printed cards trigger on "dies" while 278 want "sacrifices" specifically.
+/// This is what makes CR 701.8b answerable: `(from, to)` cannot tell a
+/// sacrifice from a destruction, and 278 printed cards want "sacrifices". Who
+/// or what made the move is the cause, `EventStamp`'s, and not this.
 ///
-/// **Derived from call sites, not researched from the card pool.** It records
-/// what the engine was doing, so the input set is finite and readable off the
-/// tree (`replacement-architecture.md` §11). No printed card asks for a cause
-/// finer than a call site can name: "destroyed by" appears on 1 card in all of
-/// Magic, "was sacrificed" on 3, "if it was destroyed" on 0.
+/// **A redirect keeps it** (CR 614.6). A replacement that changes only where the
+/// move goes leaves the event the one that happens, so a card Leyline of the
+/// Void exiles was still discarded (Fiery Temper's ruling). That is why there is
+/// no exile act to name: "is exiled" reads `to`, and a pattern asking an act
+/// for it would miss a sacrifice Rest in Peace exiled.
 ///
 /// Three rules (`CLAUDE.md`, the chokepoint invariant):
 ///
@@ -212,93 +218,34 @@ impl std::ops::BitAnd for ZoneSet {
 /// - **Nothing may branch on it outside the replacement pipeline and the
 ///   trigger matcher.** A third reader is a third place for it to drift.
 /// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
-///   Widening is only expensive when an existing site was labeled with a
-///   coarse variant that should have been finer, and re-triaging it is
-///   guesswork that fails silently. A genuinely new mutation arrives with its
-///   own call site, so it adds a variant and touches nothing existing; a site
-///   with no honest reason to give is a site whose reason nobody has worked
+///   A site with no honest act to give is a site whose act nobody has worked
 ///   out — see `cast.rs::rollback_cast_to_hand`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ZoneChangeCause {
-    // --- effects (CR 701), one per object-moving `Primitive` ---
-    /// 701.8b way 1 — an effect using the word "destroy".
+pub enum ZoneChangeAct {
+    // --- keyword actions (CR 701), one per object-moving `Primitive` ---
+    /// 701.8a.
     Destroyed,
-    /// 701.21 — NOT destruction. The distinction 278 cards care about.
+    /// 701.21a — NOT destruction.
     Sacrificed,
-    /// 701.13.
-    Exiled,
-    /// 701.9 — includes the CR 514.1 cleanup discard.
+    /// 701.9a — includes the CR 514.1 cleanup discard.
     Discarded,
-    /// 701.17.
+    /// 701.17a.
     Milled,
-    /// "return to hand" / "return to the battlefield" — an object going *back*
-    /// somewhere. Not the same as [`Self::PutIntoHand`]; see there.
-    Returned,
-    /// A card put into a hand from somewhere it was never in — the CR 121.5
-    /// non-draw, and specifically **not** a draw: Nadu, Winged Wisdom ("reveal
-    /// the top card of your library … otherwise, put it into your hand"),
-    /// impulse-style "look at the top N and put one in your hand".
-    ///
-    /// 857 cards move library→hand without the word "draw" (493 say "put it
-    /// into your hand"), so this is a class, not a corner.
-    ///
-    /// **Kept separate from `Returned` on naming honesty, not on card demand.**
-    /// The merge criterion in §11 asks whether a printed card distinguishes two
-    /// reasons *as a cause*, and by that test these would collapse — nothing
-    /// asks "was it returned or put". They stay apart because `Returned` means
-    /// an object going back where it was, a Nadu card was never in hand, and a
-    /// site labeled with a variant whose name does not describe it is exactly
-    /// the coarse-label failure the no-catchall ban exists to prevent. The cost
-    /// of the extra variant is zero while nothing matches exhaustively.
-    ///
-    /// Note this carries no draw/non-draw meaning by itself — `GameEvent::CardDrawn`
-    /// is what CR 121.5 turns on. This is the *reason for the move*.
-    PutIntoHand,
-    /// Top, bottom, or shuffled in. *Position* is a field, not a cause.
-    PutIntoLibrary,
-
-    // --- state-based actions (CR 704.5) ---
-    /// 704.5g lethal damage + 704.5h deathtouch. One variant, because CR 701.8b
-    /// calls both "destroyed" and no card distinguishes them as a *cause*.
-    DestroyedBySba,
-    /// 704.5f — NOT destruction, so regeneration and indestructible do not help.
-    ZeroToughness,
-    /// 704.5i.
-    ZeroLoyalty,
-    /// 704.5j.
-    LegendRule,
-    /// 704.5m. (704.5n only unattaches an Equipment; it moves nothing.)
-    AuraSba,
+    /// A move named by where it goes and nothing else: CR 701.13a's exile
+    /// ("move it to the exile zone from wherever it is"), a return, a card put
+    /// into a hand or a library, and every move a rule makes — a state-based
+    /// action's (CR 704.5f is "put into its owner's graveyard", which 701.8b
+    /// says is not destroyed), a resolution's last step (608.2n, 608.3a, 608.3e,
+    /// 608.2b) and a departed player's exiles (800.4a). The cause names the rule.
+    /// Not a draw, which CR 121.5 tells apart from "put into your hand".
+    Put,
 
     // --- the stack ---
-    /// Hand (or elsewhere) → stack.
+    /// CR 601.2a's move, announced at 601.2i.
     Cast,
-    /// A stack object finished resolving: CR 608.2n for an instant or sorcery
-    /// (to its owner's graveyard), CR 608.3a/c for a permanent spell (onto the
-    /// battlefield, attached if it is an Aura).
-    Resolved,
-    /// 701.6.
+    /// 701.6a. Not CR 608.2b's spell whose targets are all illegal, which a
+    /// rule puts into the graveyard (`Put`, `GameRule::TargetsIllegal`).
     Countered,
-    /// 608.2b — every target illegal, so the spell or ability "doesn't
-    /// resolve" and is removed from the stack. The current CR does not call
-    /// this a countering; CR 701.6's `Countered` is a different action.
-    Fizzled,
-
-    // --- Commander (CR 903) ---
-    /// CR 704.6d / 903.9a — a commander in a graveyard or exile is moved to the
-    /// command zone by a **state-based action**. CR 903.9b's replacement has no
-    /// variant: it changes only the destination, so the move keeps the act it
-    /// replaced, a bounce or a tuck (CR 614.6).
-    CommanderZoneSba,
-
-    // --- multiplayer (CR 800.4) ---
-    /// CR 800.4a's fourth sentence and CR 800.4c — an object whose controller
-    /// has left the game and which nobody still in the game controls is
-    /// exiled. Two rules, one variant: the engine's reason is the same in both
-    /// — there is no player left to control it — and the difference between
-    /// them is *when* the question is asked, which the moment of the move
-    /// already says.
-    ControllerLeftTheGame,
 
     // --- turn structure and special actions ---
     /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
@@ -307,73 +254,32 @@ pub enum ZoneChangeCause {
     PlayedAsLand,
 }
 
-/// What destroyed a permanent (CR 701.8b).
+/// What a zone-change arm asks of a move (`replacement-architecture.md` §2b.7):
+/// where it came from, where it went, and what was done; `None` asks nothing.
 ///
-/// CR 701.8b enumerates exactly two ways: "as a result of an effect that uses
-/// the word 'destroy'" or "as a result of the state-based actions that check
-/// for lethal damage (704.5g) or damage from a source with deathtouch
-/// (704.5h)". This is that enumeration, and it is a field on
-/// [`GameAction::Destroy`](crate::engine::actions::GameAction) rather than a
-/// bare `Option<ObjectId>` for the reason [`ZoneChangeCause`] has no catchall:
-/// `None` would be a two-variant enum spelled as an absence, and the second
-/// variant's meaning would live only in a doc comment.
-///
-/// **It has a printed customer.** CR 122.1c's shield counter reads "If this
-/// permanent would be destroyed **as the result of an effect**, instead remove
-/// a shield counter from it" — a shield counter does not answer lethal damage
-/// through this path at all (its *other* half, the prevention effect, stops
-/// the damage before 704.5g ever asks). Without the distinction the counter
-/// would save a creature twice over.
+/// A destination word ("is exiled", "dies", "is put into a graveyard") reads
+/// `from` and `to`, and an act word ("sacrifices", "discards") reads `act`.
+/// With no exile act to name, "is exiled" is `to: Some(Exile)`, which a
+/// sacrifice Rest in Peace exiled satisfies, as CR 614.6 says it should.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DestructionSource {
-    /// CR 701.8b way 1 — a resolving spell or ability that uses the word
-    /// "destroy". Carries the object whose effect it was.
-    Effect(ObjectId),
-    /// CR 701.8b ways 2 and 3 — the CR 704.5g/704.5h state-based actions. One
-    /// variant for both, because CR 701.8b calls both "destroyed" and no card
-    /// distinguishes lethal damage from deathtouch as a *cause*.
-    StateBasedAction,
+pub struct ZoneChangePattern {
+    pub from: Option<Zone>,
+    pub to: Option<Zone>,
+    pub act: Option<ZoneChangeAct>,
 }
 
-impl DestructionSource {
-    /// The zone-change cause the destruction lowers to (CR 701.8a).
-    pub fn zone_change_cause(self) -> ZoneChangeCause {
-        match self {
-            DestructionSource::Effect(_) => ZoneChangeCause::Destroyed,
-            DestructionSource::StateBasedAction => ZoneChangeCause::DestroyedBySba,
-        }
+impl ZoneChangePattern {
+    /// Does a move from `from` to `to` by `act` fit? An entering token came
+    /// from nowhere by no act (`None`), so it fits only a pattern that asks
+    /// neither.
+    pub fn matches(&self, from: Option<Zone>, to: Zone, act: Option<ZoneChangeAct>) -> bool {
+        self.from.is_none_or(|z| Some(z) == from)
+            && self.to.is_none_or(|z| z == to)
+            && self.act.is_none_or(|a| Some(a) == act)
     }
 }
 
-/// Why a player is losing life — the third of this module's "why" carriers,
-/// beside [`ZoneChangeCause`] and [`DestructionSource`].
-///
-/// **A fact, not bookkeeping.** Whether a life loss was a result of damage is
-/// unrecoverable a moment later, and three separate things read it: CR 120.3a's
-/// decomposition needs the damage's source so `GameEvent::LifeChanged` can keep
-/// naming it, Ali from Cairo's family watches "damage that would reduce your
-/// life total" and is a `LoseLife` replacement rather than a prevention effect
-/// (its own ruling: "this effect does not prevent damage, it prevents the
-/// damage from turning into loss of life"), and CR 120.3b's poison counters
-/// hang off the same distinction. Recording it costs one field at six
-/// construction sites; re-deriving it later is impossible.
-///
-/// Life *gain* needs no counterpart: `GameAction::GainLife` already carries the
-/// source object, because lifelink was the first thing that gained any.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LifeLossCause {
-    /// CR 120.3a — "damage dealt to a player causes that player to lose that
-    /// much life". Carries the damage's source, which is the object
-    /// `GameEvent::LifeChanged` names.
-    Damage { source: ObjectId },
-    /// A resolving spell or ability that says "loses N life".
-    Effect,
-    /// CR 118.4's life payment — Phyrexian mana and the additional costs that
-    /// spell it out. Not a loss of life "caused by" anything with a source.
-    Cost,
-}
-
-/// Why a card is being drawn — the fourth of this module's "why" carriers.
+/// Which draw of an instruction a card is (CR 121.2).
 ///
 /// **Ten printed cards ask, and none of them can recover the answer a moment
 /// later.** "Except the first one you draw in each of your draw steps" —

@@ -17,15 +17,15 @@
 
 use std::sync::Arc;
 
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
+use mtgsim::events::cause::{EventCause, GameRule};
 use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield,
-    put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_ctx,
-    test_dp, vanilla_creature, RecordingDecisionProvider,
+    put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -86,6 +86,7 @@ fn resolve_with(
         source,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -231,7 +232,7 @@ fn bear_token() -> TokenDef {
 
 /// Wind the turn on to the next unit — the drainer returns when one begins.
 fn advance(game: &mut GameState) {
-    game.advance_turn(&test_ctx()).expect("advancing the turn");
+    game.advance_turn(&test_dp()).expect("advancing the turn");
 }
 
 // ---------------------------------------------------------------------------
@@ -542,15 +543,16 @@ fn a_permanent_the_departing_player_controls_but_does_not_own_is_exiled() {
     departs(&mut game, 0, &test_dp());
 
     assert_eq!(game.get_object(angel).unwrap().zone, Zone::Exile);
-    let causes: Vec<ZoneChangeCause> = game
+    let moves: Vec<(ZoneChangeAct, EventCause)> = game
         .recorded_events()
-        .events()
-        .filter_map(|e| match e {
-            GameEvent::ZoneChange { object_id, cause, .. } if *object_id == angel => Some(*cause),
+        .records()
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::ZoneChange { object_id, act, .. } if *object_id == angel => Some((*act, r.stamp.cause)),
             _ => None,
         })
         .collect();
-    assert_eq!(causes, vec![ZoneChangeCause::ControllerLeftTheGame]);
+    assert_eq!(moves, vec![(ZoneChangeAct::Put, EventCause::GameRule(GameRule::ControllerLeftTheGame))]);
 }
 
 /// The fourth clause does not fire while somebody still in the game controls

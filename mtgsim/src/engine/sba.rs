@@ -6,6 +6,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use crate::events::cause::{EventCause, GameRule, StateBasedAction};
 use crate::events::event::{GameEvent, LossReason};
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
@@ -13,7 +14,7 @@ use crate::oracle::characteristics::{
 };
 use crate::state::game_state::{GameResult, GameState};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
-use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
@@ -21,18 +22,19 @@ use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
 use crate::ui::decision::DecisionProvider;
 
-/// The zone change `cause` calls for on `id`.
+/// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
+/// it goes, the subrule beside it its cause.
 ///
 /// **CR 704.5g does not come through here**; it uses [`sba_destroy`], because
 /// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
 /// not. That distinction is the whole of why regeneration and shield counters
 /// save a creature from lethal damage but not from zero toughness.
-fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> GameAction {
+fn sba_put_into_graveyard(id: ObjectId) -> GameAction {
     GameAction::ZoneChange {
         object: id,
         from: Zone::Battlefield,
         to: Zone::Graveyard,
-        cause,
+        act: ZoneChangeAct::Put,
     }
 }
 
@@ -44,17 +46,19 @@ fn sba_zone_change(id: ObjectId, cause: ZoneChangeCause) -> GameAction {
 /// have something to watch. Proposing the zone change directly would make a
 /// state-based death indistinguishable from every other trip to the graveyard.
 fn sba_destroy(id: ObjectId) -> GameAction {
-    GameAction::Destroy { object: id, source: DestructionSource::StateBasedAction }
+    GameAction::Destroy { object: id }
 }
 
-/// CR 704.5a–c and 704.6c — `player` would lose the game.
+/// CR 704.5a–c and 704.6c — `player` would lose the game, caused by
+/// `state_based_action`. A loss an effect causes is `Primitive::LoseGame`'s
+/// (CR 104.3e), proposed by its resolution and never through here.
 ///
 /// The **event**, proposed like every other state-based action, so that
 /// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
 /// CR 704.7's collapse can see two reasons as one loss
 /// (`replacement-architecture.md` §9, RE decision 5).
-fn sba_player_loses(player: PlayerId, reason: LossReason) -> GameAction {
-    GameAction::PlayerLoses { player, reason }
+fn sba_player_loses(player: PlayerId, reason: LossReason, state_based_action: StateBasedAction) -> (GameAction, StateBasedAction) {
+    (GameAction::PlayerLoses { player, reason }, state_based_action)
 }
 
 /// How many performing state-based checks in one run of
@@ -108,8 +112,6 @@ impl GameState {
             return Ok(false);
         }
 
-        // CR 704 sweeps are turn-based, not part of any resolution.
-        let actx = ActionContext::new(decisions);
         let mut any_performed = false;
 
         // CR 704.6d's "since the last time state-based actions were checked",
@@ -145,25 +147,26 @@ impl GameState {
         // `next_turn_taker` gates CR 800.4k. **Appended last** (CR 800.4a with
         // 704.3): a loss removes other members' subjects, so a creature its player
         // owns that dies in this check is destroyed first, and leaves from the graveyard.
-        let mut batch: Vec<GameAction> = Vec::new();
-        let mut player_losses: Vec<GameAction> = Vec::new();
+        // Each member with the subrule that performs it, its cause (CR 704.5, 704.6).
+        let mut batch: Vec<(GameAction, StateBasedAction)> = Vec::new();
+        let mut player_losses: Vec<(GameAction, StateBasedAction)> = Vec::new();
         for i in 0..self.players.len() {
             if !self.in_game(i) {
                 continue;
             }
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
-                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero));
+                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero, StateBasedAction::ZeroLife));
             }
             // 704.5b — attempted to draw from an empty library since the last
             // check.
             if drew_from_empty[i] {
-                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
+                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary, StateBasedAction::DrewFromEmptyLibrary));
             }
             // 704.5c — ten or more poison counters, read off the player's
             // kind → count map (CR 122.1f).
             if self.players[i].counter_count(CounterType::Poison) >= 10 {
-                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters));
+                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters, StateBasedAction::TenPoisonCounters));
             }
         }
 
@@ -172,7 +175,7 @@ impl GameState {
         // action (only 903.9b is a replacement). Offered here, **performed with the
         // deaths** in CR 704.3's one event, so no owner decides against a board an
         // earlier acceptance changed. `since`, read at the top, is the epoch boundary.
-        let commander_moves: Vec<GameAction> = {
+        let commander_moves: Vec<(GameAction, StateBasedAction)> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
             for (id, obj) in moved_since(self, since) {
                 if !obj.is_commander {
@@ -187,15 +190,16 @@ impl GameState {
             // same time, so the active player is asked first. Stable, so one
             // player's two commanders keep `moved_since`'s order between them.
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
-            let mut accepted: Vec<GameAction> = Vec::new();
+            let mut accepted: Vec<(GameAction, StateBasedAction)> = Vec::new();
             for (id, owner, from) in to_offer {
                 if ask_commander_to_command_zone(decisions, self, owner, id) {
-                    accepted.push(GameAction::ZoneChange {
+                    let to_command = GameAction::ZoneChange {
                         object: id,
                         from,
                         to: Zone::Command,
-                        cause: ZoneChangeCause::CommanderZoneSba,
-                    });
+                        act: ZoneChangeAct::Put,
+                    };
+                    accepted.push((to_command, StateBasedAction::CommanderToCommandZone));
                 }
             }
             accepted
@@ -213,7 +217,7 @@ impl GameState {
                 continue;
             }
             if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroToughness));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroToughness));
             }
         }
 
@@ -237,7 +241,7 @@ impl GameState {
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id));
             if lethal {
-                batch.push(sba_destroy(id));
+                batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
             }
         }
 
@@ -247,7 +251,7 @@ impl GameState {
                 continue;
             }
             if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                batch.push(sba_zone_change(id, ZoneChangeCause::ZeroLoyalty));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
             }
         }
 
@@ -294,7 +298,7 @@ impl GameState {
                 }
             }
             for id in chosen {
-                batch.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
+                batch.push((sba_put_into_graveyard(id), StateBasedAction::LegendRule));
             }
         }
 
@@ -333,7 +337,7 @@ impl GameState {
             .collect();
 
         for id in auras_to_graveyard {
-            batch.push(sba_zone_change(id, ZoneChangeCause::AuraSba));
+            batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
@@ -344,7 +348,7 @@ impl GameState {
             if self.in_game(i)
                 && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
             {
-                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage));
+                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage, StateBasedAction::CommanderDamage));
             }
         }
 
@@ -360,7 +364,7 @@ impl GameState {
         // one applied set per permanent or player, named by the first condition in
         // CR order (a dead duplicate legend was destroyed, 704.5g).
         let mut seen: HashSet<EventSubject> = HashSet::new();
-        batch.retain(|action| seen.insert(subject_of(action)));
+        batch.retain(|(action, _)| seen.insert(subject_of(action)));
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
@@ -368,7 +372,8 @@ impl GameState {
             // dropped `Destroy` would re-check forever. A replaced loss's rider counts
             // (CR 615.5), or Stunning Reversal's "immediately after" opens a window.
             let before = self.events.next_seq();
-            self.execute_actions(batch, &actx)?;
+            let members = batch.into_iter().map(|(action, rule)| (action, EventCause::StateBasedAction(rule))).collect();
+            self.execute_caused_actions(members, &ActionContext::game_rule(decisions, GameRule::StateBasedCheck))?;
             any_performed |= self.events.next_seq() > before;
         }
 
@@ -396,7 +401,10 @@ impl GameState {
 
         for (equip_id, host_id) in equip_bad_host {
             self.detach(equip_id);
-            self.emit_event(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
+            self.emit_event(
+                GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id },
+                EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally),
+            );
             any_performed = true;
         }
 
@@ -425,7 +433,10 @@ impl GameState {
 
         for (att_id, host_id) in detachments {
             self.detach(att_id);
-            self.emit_event(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
+            self.emit_event(
+                GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id },
+                EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached),
+            );
             any_performed = true;
         }
 
@@ -448,7 +459,10 @@ impl GameState {
         for (id, pairs) in annihilation_targets {
             self.remove_counters(id, CounterType::PlusOnePlusOne, pairs);
             self.remove_counters(id, CounterType::MinusOneMinusOne, pairs);
-            self.emit_event(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
+            self.emit_event(
+                GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs },
+                EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate),
+            );
             any_performed = true;
         }
 
@@ -465,13 +479,16 @@ impl GameState {
         for (id, zone, _) in tokens_to_remove {
             self.remove_from_zone_collection(id, zone)?;
             self.remove_object(id);
-            self.emit_event(GameEvent::TokenCeasedToExist { object_id: id });
+            self.emit_event(
+                GameEvent::TokenCeasedToExist { object_id: id },
+                EventCause::StateBasedAction(StateBasedAction::TokenOutsideTheBattlefield),
+            );
             any_performed = true;
         }
 
         // CR 704.3 — one check, one event.
         if any_performed {
-            self.emit_event(GameEvent::StateBasedActionPerformed);
+            self.emit_event(GameEvent::StateBasedActionPerformed, EventCause::GameRule(GameRule::StateBasedCheck));
         }
 
         Ok(any_performed)
@@ -507,8 +524,10 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::types::replacement::EnterMods;
-    use crate::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+    use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
+    use crate::events::cause::{EventCause, StateBasedAction};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
@@ -533,7 +552,7 @@ mod tests {
 
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = game.add_object(obj);
-        game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 2; // lethal for a 2/2
+        place_on_battlefield(&mut game, bears_id, 0, &EnterMods::NONE).damage_marked = 2; // lethal for a 2/2
 
         // SBA should destroy the creature
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -554,7 +573,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        let bf = game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        let bf = place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
         bf.damage_marked = 1; // only 1 damage
         bf.damaged_by_deathtouch = true; // but from deathtouch
 
@@ -576,7 +595,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        let bf = game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        let bf = place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
         bf.damage_marked = 0;
         bf.damaged_by_deathtouch = true;
 
@@ -603,7 +622,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
         game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 3);
         game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 2);
 
@@ -627,7 +646,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
         game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 4);
         game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 4);
 
@@ -702,7 +721,7 @@ mod tests {
                 object,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Sacrificed,
+                act: ZoneChangeAct::Sacrificed,
             })
             .collect();
         game.execute_actions(batch, &ctx).unwrap();
@@ -734,7 +753,7 @@ mod tests {
         let mut obj = GameObject::new(data, 0, Zone::Battlefield);
         obj.is_token = true;
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -756,7 +775,7 @@ mod tests {
 
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = game.add_object(obj);
-        game.place_on_battlefield(bears_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, bears_id, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -778,7 +797,7 @@ mod tests {
                 .power_toughness(2, 2)
                 .build();
             let id = game.add_object(GameObject::new(data, 0, Zone::Battlefield));
-            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            place_on_battlefield(game, id, 0, &EnterMods::NONE);
             id
         };
         let id1 = place(game);
@@ -791,15 +810,15 @@ mod tests {
         game: &GameState,
     ) -> Vec<(
         crate::types::ids::ObjectId,
-        ZoneChangeCause,
+        EventCause,
         Option<crate::events::event::BatchId>,
     )> {
         game.recorded_events()
             .records()
             .iter()
             .filter_map(|r| match &r.event {
-                crate::events::event::GameEvent::ZoneChange { object_id, cause, .. } => {
-                    Some((*object_id, *cause, r.batch()))
+                crate::events::event::GameEvent::ZoneChange { object_id, .. } => {
+                    Some((*object_id, r.stamp.cause, r.batch()))
                 }
                 _ => None,
             })
@@ -860,12 +879,12 @@ mod tests {
             !game.battlefield.contains_key(&healthy),
             "704.5j applied: keeping the damaged one puts the healthy one away",
         );
-        // Which rule claimed which permanent, read off the zone change itself.
+        // Which rule claimed which permanent, read off the zone change's cause.
         assert_eq!(
             zone_changes(&game).into_iter().map(|(id, c, _)| (id, c)).collect::<Vec<_>>(),
             vec![
-                (doomed, ZoneChangeCause::DestroyedBySba),
-                (healthy, ZoneChangeCause::LegendRule),
+                (doomed, EventCause::StateBasedAction(StateBasedAction::LethalDamage)),
+                (healthy, EventCause::StateBasedAction(StateBasedAction::LegendRule)),
             ],
         );
     }
@@ -905,7 +924,7 @@ mod tests {
         );
         assert_eq!(
             moves[0].1,
-            ZoneChangeCause::DestroyedBySba,
+            EventCause::StateBasedAction(StateBasedAction::LethalDamage),
             "704.5g comes first in CR order, so it is what claims the permanent",
         );
     }
@@ -951,11 +970,11 @@ mod tests {
 
         let obj1 = GameObject::new(legend1_data, 0, Zone::Battlefield);
         let id1 = game.add_object(obj1);
-        game.place_on_battlefield(id1, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id1, 0, &EnterMods::NONE);
 
         let obj2 = GameObject::new(legend2_data, 0, Zone::Battlefield);
         let id2 = game.add_object(obj2);
-        game.place_on_battlefield(id2, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id2, 0, &EnterMods::NONE);
 
         // Both on the battlefield
         assert!(game.battlefield.contains_key(&id1));
@@ -997,7 +1016,7 @@ mod tests {
                 .build();
             let obj = GameObject::new(data, controller, Zone::Battlefield);
             let id = game.add_object(obj);
-            game.place_on_battlefield(id, controller, &EnterMods::NONE);
+            place_on_battlefield(game, id, controller, &EnterMods::NONE);
             id
         };
 
@@ -1048,11 +1067,11 @@ mod tests {
 
         let obj1 = GameObject::new(legend1, 0, Zone::Battlefield);
         let id1 = game.add_object(obj1);
-        game.place_on_battlefield(id1, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id1, 0, &EnterMods::NONE);
 
         let obj2 = GameObject::new(legend2, 0, Zone::Battlefield);
         let id2 = game.add_object(obj2);
-        game.place_on_battlefield(id2, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id2, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -1078,11 +1097,11 @@ mod tests {
 
         let obj1 = GameObject::new(data1, 0, Zone::Battlefield);
         let id1 = game.add_object(obj1);
-        game.place_on_battlefield(id1, 0, &EnterMods::NONE); // controller = player 0
+        place_on_battlefield(&mut game, id1, 0, &EnterMods::NONE); // controller = player 0
 
         let obj2 = GameObject::new(data2, 1, Zone::Battlefield);
         let id2 = game.add_object(obj2);
-        game.place_on_battlefield(id2, 1, &EnterMods::NONE); // controller = player 1
+        place_on_battlefield(&mut game, id2, 1, &EnterMods::NONE); // controller = player 1
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -1110,7 +1129,7 @@ mod tests {
         // which the pipeline gathers; placing it directly, the test applies
         // that ability and nothing else.
         let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
-        game.place_on_battlefield(pw_id, 0, &mods);
+        place_on_battlefield(&mut game, pw_id, 0, &mods);
 
         // Verify ETB set loyalty counters
         assert_eq!(
@@ -1150,7 +1169,7 @@ mod tests {
         // which the pipeline gathers; placing it directly, the test applies
         // that ability and nothing else.
         let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
-        game.place_on_battlefield(pw_id, 0, &mods);
+        place_on_battlefield(&mut game, pw_id, 0, &mods);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);
@@ -1179,7 +1198,7 @@ mod tests {
         // which the pipeline gathers; placing it directly, the test applies
         // that ability and nothing else.
         let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
-        game.place_on_battlefield(pw_id, 0, &mods);
+        place_on_battlefield(&mut game, pw_id, 0, &mods);
 
         let entry = game.battlefield.get(&pw_id).unwrap();
         assert_eq!(entry.counter_count(crate::types::effects::CounterType::Loyalty), 3);
@@ -1202,7 +1221,7 @@ mod tests {
         // which the pipeline gathers; placing it directly, the test applies
         // that ability and nothing else.
         let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
-        game.place_on_battlefield(pw_id, 0, &mods);
+        place_on_battlefield(&mut game, pw_id, 0, &mods);
 
         // Should have 0 loyalty counters (loyalty(0) → guard skips adding)
         assert_eq!(
@@ -1234,7 +1253,7 @@ mod tests {
         let obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(obj);
         // Place on battlefield with no attached_to (simulates losing its host)
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1245,13 +1264,13 @@ mod tests {
         // Verify the move was recorded, and recorded as 704.5m's doing. There
         // is no `AuraDied` — the zone change plus its cause says more than it
         // did, including where the Aura went.
-        let has_event = game.recorded_events().events().any(|e| {
+        let has_event = game.recorded_events().records().iter().any(|r| {
             matches!(
-                e,
+                r.event,
                 crate::events::event::GameEvent::ZoneChange {
-                    object_id, to: Zone::Graveyard, cause: ZoneChangeCause::AuraSba, ..
-                } if *object_id == aura_id
-            )
+                    object_id, to: Zone::Graveyard, act: ZoneChangeAct::Put, ..
+                } if object_id == aura_id
+            ) && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
         });
         assert!(has_event);
     }
@@ -1268,7 +1287,7 @@ mod tests {
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
         let host_id = game.add_object(host_obj);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // Create an aura attached to the host
         let aura_data = CardDataBuilder::new("Pacifism")
@@ -1277,7 +1296,7 @@ mod tests {
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment
         game.attach(aura_id, host_id);
@@ -1314,7 +1333,7 @@ mod tests {
             .build();
         let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
         let land_id = game.add_object(land_obj);
-        game.place_on_battlefield(land_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, land_id, 0, &EnterMods::NONE);
 
         // Create an equipment
         let equip_data = CardDataBuilder::new("Bonesplitter")
@@ -1323,7 +1342,7 @@ mod tests {
             .build();
         let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
         let equip_id = game.add_object(equip_obj);
-        game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, equip_id, 0, &EnterMods::NONE);
 
         // Illegally attach equipment to the land
         game.attach(equip_id, land_id);
@@ -1357,7 +1376,7 @@ mod tests {
             .build();
         let creature_obj = GameObject::new(creature_data, 0, Zone::Battlefield);
         let creature_id = game.add_object(creature_obj);
-        game.place_on_battlefield(creature_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, creature_id, 0, &EnterMods::NONE);
 
         let equip_data = CardDataBuilder::new("Bonesplitter")
             .card_type(CardType::Artifact)
@@ -1365,7 +1384,7 @@ mod tests {
             .build();
         let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
         let equip_id = game.add_object(equip_obj);
-        game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, equip_id, 0, &EnterMods::NONE);
 
         // Legally attach
         game.attach(equip_id, creature_id);
@@ -1388,7 +1407,7 @@ mod tests {
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
         let host_id = game.add_object(host_obj);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // A plain creature illegally attached to the host
         let att_data = CardDataBuilder::new("Hill Giant")
@@ -1397,7 +1416,7 @@ mod tests {
             .build();
         let att_obj = GameObject::new(att_data, 0, Zone::Battlefield);
         let att_id = game.add_object(att_obj);
-        game.place_on_battlefield(att_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, att_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment
         game.attach(att_id, host_id);
@@ -1423,7 +1442,7 @@ mod tests {
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
         let host_id = game.add_object(host_obj);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         let aura_data = CardDataBuilder::new("Pacifism")
             .card_type(CardType::Enchantment)
@@ -1431,7 +1450,7 @@ mod tests {
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Attach
         game.attach(aura_id, host_id);
@@ -1455,7 +1474,7 @@ mod tests {
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Aura is on the battlefield but not attached to anything
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
@@ -1541,7 +1560,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE).damage_marked = 11; // lethal for an 11/11
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE).damage_marked = 11; // lethal for an 11/11
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         // No SBA should destroy it
@@ -1561,7 +1580,7 @@ mod tests {
             .build();
         let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
         let land_id = game.add_object(land_obj);
-        game.place_on_battlefield(land_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, land_id, 0, &EnterMods::NONE);
 
         // Create an Aura with "Enchant creature" attached to the land
         let aura_data = CardDataBuilder::new("Pacifism")
@@ -1571,7 +1590,7 @@ mod tests {
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
         let aura_id = game.add_object(aura_obj);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment (Aura enchanting a land with "Enchant creature")
         game.attach(aura_id, land_id);

@@ -46,7 +46,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::compute_characteristics;
-use crate::events::event::{GameEvent, NamesAsAnnounced};
+use crate::events::cause::EventCause;
+use crate::events::event::{EventStamp, GameEvent, NamesAsAnnounced};
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 
@@ -834,52 +835,47 @@ impl GameState {
         }
     }
 
-    /// Record and log a performed event — the one door every emitter uses.
+    /// Record and log a performed event, caused by `cause`, into the open
+    /// batch if there is one — the door every emitter uses. A record outside
+    /// every batch is its own window, dispatched before this returns.
     ///
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
-    pub(crate) fn emit_event(&mut self, event: GameEvent) {
-        self.emit_record(event, false, None);
+    pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) {
+        let stamp = self.events.stamp_caused_by(cause);
+        self.emit_record(event, stamp, None);
     }
 
     /// The same door for a record emitted outside any batch whose dispatch
     /// may have to ask a player something: `AttackersDeclared`, the one such
     /// record that can carry two occurrences of one arm, which CR 603.7b's
     /// choice for a delayed trigger asks between. The turn-based action that
-    /// emits it holds the provider.
+    /// emits it holds the provider, and its context names the cause.
     pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) {
-        self.emit_record(event, false, Some(ctx));
+        let stamp = self.events.stamp_caused_by(ctx.cause);
+        self.emit_record(event, stamp, Some(ctx));
     }
 
-    /// The same door for a record that carries no batch and no resolution
-    /// whatever is ambient — `GameEvent::AbilityTriggered`, a consequence of
-    /// an event rather than part of it (`triggers-architecture.md` §4.8).
-    pub(crate) fn emit_event_unstamped(&mut self, event: GameEvent) {
-        self.emit_record(event, true, None);
+    /// The same door for a record that joins no batch whatever is open —
+    /// `GameEvent::AbilityTriggered`, a consequence of an event rather than
+    /// part of it (`triggers-architecture.md` §4.8).
+    pub(crate) fn emit_event_unbatched(&mut self, event: GameEvent, cause: EventCause) {
+        self.emit_record(event, EventStamp { batch: None, cause }, None);
     }
 
-    fn emit_record(&mut self, event: GameEvent, unstamped: bool, ctx: Option<&ActionContext>) {
-        let stamp = if unstamped {
-            crate::events::event::EventStamp::default()
-        } else {
-            self.events.current_stamp()
-        };
+    fn emit_record(&mut self, event: GameEvent, stamp: EventStamp, ctx: Option<&ActionContext>) {
         let names = self.names_as_announced(&event);
         self.trace(|| {
             let mut r = Record::new(RecordKind::Event);
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
-            r.field_opt_u64("resolution", stamp.resolution.map(|s| s.source.raw()));
-            r.field_str("text", &crate::ui::display::format_event(self, &event, &names));
+            r.field_opt_u64("resolution", stamp.cause.resolution().map(|s| s.source.raw()));
+            r.field_str("text", &crate::ui::display::format_event(self, &event, &names, &stamp.cause));
             r
         });
         let seq = self.events.next_seq();
-        if unstamped {
-            self.events.emit_unstamped(event, names);
-        } else {
-            self.events.emit_with_names(event, names);
-        }
+        self.events.push(event, stamp, names);
         // CR 603.2 — an event outside any batch is its own window, and the
         // matcher runs before this returns (§4.1). A batched record waits for
         // its batch's close in `execute_actions`.
@@ -955,7 +951,7 @@ mod tests {
         use crate::engine::actions::ActionContext;
         use crate::engine::trace_records;
         use crate::test_support::{install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
-        use crate::types::zones::{Zone, ZoneChangeCause};
+        use crate::types::zones::{Zone, ZoneChangeAct};
         use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
         use crate::ui::decision::PriorityAction;
 
@@ -968,7 +964,7 @@ mod tests {
         let dp = RecordingDecisionProvider::picking(0);
         // The entry's `batch`, `pipeline`, `event` and `batch_end`, and Soul
         // Warden's `trigger`; then its `pending` as it is put on the stack.
-        game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         game.place_pending_triggers(&dp).unwrap();
         let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         game.trace(|| trace_records::decision("pick_n", 0, &ctx, &[ChoiceOption::Action(PriorityAction::Pass)]));
@@ -1005,13 +1001,13 @@ mod tests {
         use crate::test_support::{
             install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider,
         };
-        use crate::types::zones::{Zone, ZoneChangeCause};
+        use crate::types::zones::{Zone, ZoneChangeAct};
 
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
         let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
-        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         let trace = install_trace(&mut game, "names");
         game.bump_layer_epoch();
         let (diagnostics, lines) = (format!("{:?}", game.diagnostics), trace.lines().len());

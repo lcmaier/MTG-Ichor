@@ -380,6 +380,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::engine::targeting::FilterIdentity;
     use crate::types::replacement::EnterMods;
     use super::*;
@@ -432,7 +433,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert_eq!(can_attack(&game, 0, id), Err(CombatError::CreatureHasSummoningSickness(id)));
     }
@@ -447,7 +448,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert_eq!(can_attack(&game, 0, id), Ok(()));
     }

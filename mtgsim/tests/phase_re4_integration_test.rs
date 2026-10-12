@@ -22,7 +22,7 @@ use mtgsim::cards::phase_re_cards::{
     hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, soldier_token,
     thought_reflection,
 };
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -52,7 +52,7 @@ use mtgsim::types::replacement::{
     TokenKind, TokenSubstitution,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -76,6 +76,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -360,7 +361,7 @@ fn parallel_lives_doubles_the_zombie_a_replacement_effect_makes() {
     put_on_battlefield(&mut game, parallel_lives(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
+    game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx())
         .unwrap();
 
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
@@ -616,7 +617,7 @@ fn hallowed_moonlight_exiles_a_returned_card_in_one_move() {
     let start = game.recorded_events().records().len();
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(bear, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("the entry is replaced, and that is not an error");
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
@@ -640,9 +641,7 @@ fn a_token_that_cannot_enter_is_not_created() {
     let no_creatures = static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
         Restriction::Event {
             pattern: EventPattern::ZoneChange {
-                from: None,
-                to: Some(Zone::Battlefield),
-                cause: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
                 object: None,
             },
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
@@ -745,6 +744,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,

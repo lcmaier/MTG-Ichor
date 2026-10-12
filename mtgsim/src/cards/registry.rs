@@ -358,7 +358,7 @@ const PERFORMANCE_POOL: [&str; 106] = [
     "Hardened Scales",
     // The pool's discard outside the cleanup step, and its scry. Two cards
     // because they are two keyword actions with nothing in common: Mind Rot is
-    // `{2}{B}` for one batch of two `ZoneChange { cause: Discarded }` members
+    // `{2}{B}` for one batch of two `ZoneChange { act: Discarded }` members
     // from a resolution, and Opt is `{U}` for a `GameAction::Scry` — a
     // proposal, a prompt and a library rewrite. Opt also draws, so it is the
     // cheapest card in the pool that puts two instructions in one resolution

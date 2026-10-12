@@ -47,7 +47,7 @@ use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yields};
 use mtgsim::ui::cli::CliDecisionProvider;
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
-use mtgsim::ui::display::format_event;
+use mtgsim::ui::display::format_record;
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -158,7 +158,7 @@ fn main() {
             let turn_began = records.iter().rposition(|r| matches!(r.event, GameEvent::TurnBegin { .. })).unwrap_or(0);
             println!("This turn's events, up to the error:");
             for record in &records[turn_began..] {
-                println!("  {}", format_event(&game.state, &record.event, &record.names));
+                println!("  {}", format_record(&game.state, record));
             }
         }
     }

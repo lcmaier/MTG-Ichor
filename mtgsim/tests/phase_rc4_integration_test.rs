@@ -23,7 +23,7 @@ use mtgsim::cards::phase_lf_cards::humility;
 use mtgsim::cards::phase_rc_cards::{
     adaptive_shimmerer, chainbreaker, containment_priest, dryad_arbor, keldon_warlord, root_maze,
 };
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_as_entering;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
@@ -49,7 +49,7 @@ use mtgsim::types::replacement::{
     EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -82,7 +82,7 @@ fn entries_of(game: &GameState, id: ObjectId) -> Vec<usize> {
 /// so the CR 616.1 loop runs. Reanimation's shape (`phase_rc_integration_test`).
 fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     id
 }
@@ -205,9 +205,7 @@ fn static_restriction(name: &str, what: Restriction) -> Arc<CardData> {
 fn lands_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::ZoneChange {
-            from: None,
-            to: Some(Zone::Battlefield),
-            cause: None,
+            change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
             object: None,
         },
         affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
@@ -470,7 +468,7 @@ fn test_containment_priest_exiles_a_creature_that_was_not_cast() {
 
     let dp = RecordingDecisionProvider::picking(0);
     let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
-    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the zone change happens; the entry is what gets replaced");
     assert_eq!(dp.prompts(), 0, "an exit beside an enters-with is one outcome");
 
@@ -510,7 +508,7 @@ fn test_containment_priest_ignores_tokens() {
             from: None,
             controller: 0,
             mods: EnterMods::NONE,
-            cause: None,
+            act: None,
         },
         &ActionContext::new(&test_dp()),
     )
@@ -546,7 +544,7 @@ fn test_dryad_arbor_played_as_a_land_is_exiled_by_containment_priest() {
     put_on_battlefield(&mut game, containment_priest(), 1);
 
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, arbor, &test_dp()).expect("the land drop is legal");
 
     assert!(game.exile.contains(&arbor));
     assert!(!game.battlefield.contains_key(&arbor));
@@ -573,7 +571,7 @@ fn test_an_exit_beside_an_enters_tapped_is_one_outcome_and_not_asked() {
 
     let dp = RecordingDecisionProvider::picking(0);
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, &ActionContext::new(&dp)).unwrap();
+    game.play_land(0, arbor, &dp).unwrap();
 
     assert_eq!(dp.prompts(), 0, "the exile wins whichever applied first");
     assert!(game.exile.contains(&arbor));
@@ -599,7 +597,7 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
         vec![1],
     );
-    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());
     let entry = game.battlefield.get(&shimmerer).unwrap();
@@ -613,7 +611,7 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
         vec![0],
     );
-    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());
     let entry = game.battlefield.get(&shimmerer).unwrap();
@@ -699,7 +697,7 @@ fn test_lands_cant_enter_keeps_a_returned_forest_in_the_graveyard() {
     put_on_battlefield(&mut game, static_restriction("Lands can't enter", lands_cant_enter()), 1);
 
     let forest = put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 0);
-    game.change_zone(forest, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(forest, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     assert_eq!(game.get_object(forest).unwrap().zone, Zone::Graveyard);
     assert!(game.players[0].graveyard.contains(&forest));
@@ -718,7 +716,7 @@ fn test_a_cant_enter_is_decided_on_the_frame_at_the_entry() {
     put_on_battlefield(&mut game, everything_is_a_land(), 1);
 
     let bears = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(
         game.get_object(bears).unwrap().zone,
         Zone::Graveyard,
@@ -803,7 +801,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
 fn test_dryad_arbor_is_a_summoning_sick_land_creature() {
     let mut game = setup_two_player_game();
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, &test_ctx()).unwrap();
+    game.play_land(0, arbor, &test_dp()).unwrap();
 
     assert!(game.battlefield.contains_key(&arbor));
     assert!(is_creature(&game, arbor));
@@ -821,7 +819,7 @@ fn test_blood_moon_makes_dryad_arbor_a_mountain_dryad() {
     put_on_battlefield(&mut game, blood_moon(), 1);
 
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    game.play_land(0, arbor, &test_ctx()).unwrap();
+    game.play_land(0, arbor, &test_dp()).unwrap();
 
     let subtypes = get_effective_subtypes(&game, arbor);
     assert!(subtypes.contains(&Subtype::Land(LandType::Mountain)));

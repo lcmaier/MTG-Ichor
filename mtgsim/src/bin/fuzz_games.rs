@@ -112,7 +112,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{IdMap, ObjectId};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -538,23 +538,15 @@ fn extract_stats<'a>(
                 // CR 608 — a spell finishes resolving by leaving the stack: an instant or
                 // sorcery to the graveyard, a permanent spell to the battlefield.
                 //
-                // **A spell resolved iff its stack departure was stamped by its own
-                // resolution** (`EventStamp::resolution`), which is exact:
-                // `resolve_top_of_stack` performs that move under
-                // `ActionContext::resolving`, and every other way off the stack is stamped
-                // by somebody else or by nobody — a counter (CR 701.5) by the countering
-                // spell, a fizzle (CR 608.3b) by `ActionContext::new`, an exile off the
-                // stack by that effect. The cause could not do the job when this was
-                // written: CR 608.2m's graveyard move is an event like any other, and under
-                // Leyline of the Void a resolved sorcery left as `Stack -> Exile [Exiled]`
-                // (13 of Hymn to Tourach's 142 casts in 200 `stress` games, 2026-09-14).
-                // Since item 176 a redirect keeps the act (CR 614.6), so that move reads
-                // `[Resolved]` and a countered spell's `[Countered]`. → `codebase-state.md`
-                // "Found by RE-8", item 131.
-                if !watch.is_empty()
-                    && *from == Zone::Stack
-                    && record.resolution().is_some_and(|r| r.source == *object_id)
-                {
+                // **A spell resolved iff its stack departure was caused by resolution's
+                // rule or by its own effect** (`resolved_off_the_stack`), which is exact:
+                // a counter (CR 701.5) is the countering spell's, a fizzle (CR 608.2b)
+                // `TargetsIllegal`'s, an exile off the stack that effect's. The act could
+                // not do the job: under Leyline of the Void a resolved sorcery once left as
+                // `Stack -> Exile [Exiled]` (13 of Hymn to Tourach's 142 casts in 200
+                // `stress` games, 2026-09-14). → `codebase-state.md` "Found by RE-8",
+                // item 131.
+                if !watch.is_empty() && *from == Zone::Stack && resolved_off_the_stack(record, *object_id) {
                     bump(&mut stats, named(*object_id), false);
                 }
                 if *from == Zone::Hand && *to == Zone::Battlefield {
@@ -596,11 +588,26 @@ fn extract_stats<'a>(
     stats
 }
 
+/// Whether `object` leaving the stack in `record` was the spell resolving: the
+/// rule's last step of a resolution (CR 608.2n, 608.3a, 608.3e), or its own
+/// effect moving it, which CR 608.2m lets it continue past.
+fn resolved_off_the_stack(record: &mtgsim::events::event::EventRecord, object: ObjectId) -> bool {
+    use mtgsim::events::cause::{EventCause, GameRule};
+    match record.stamp.cause {
+        EventCause::Effect { resolution, .. } => resolution.source == object,
+        cause => matches!(
+            cause,
+            EventCause::GameRule(GameRule::SpellResolves | GameRule::PermanentSpellResolves | GameRule::PermanentSpellCantEnter)
+        ),
+    }
+}
+
 /// CR 601.2i — nothing leaves the stack by resolving unless it was cast.
 ///
 /// A spell reaches the stack at CR 601.2a and is announced at 601.2i, so every
-/// object leaving the stack with `ZoneChangeCause::Resolved` has a `SpellCast`
-/// behind it; an ability ceases to exist instead and emits no zone change. An
+/// object that leaves the stack by resolving ([`resolved_off_the_stack`]) has a
+/// `SpellCast` behind it; an ability ceases to exist instead and emits no zone
+/// change. An
 /// object with none was stranded on the stack by a cast that failed after
 /// 601.2a and did not rewind (`codebase-state.md` item 16c). Reported the way
 /// a panic is, since it is a wrong answer rather than a slow one.
@@ -611,22 +618,19 @@ fn extract_stats<'a>(
 /// region that must be byte-identical across runs, and the index was the
 /// stable handle when ids were not (they are now, since A4g).
 fn uncast_resolutions<'a>(
-    events: impl Iterator<Item = &'a GameEvent>,
+    records: impl Iterator<Item = &'a mtgsim::events::event::EventRecord>,
     game: &mtgsim::state::game_state::GameState,
 ) -> Vec<String> {
     let mut casts: IdMap<ObjectId, u32> = IdMap::default();
     let mut violations = Vec::new();
-    for (index, event) in events.enumerate() {
-        match event {
+    for (index, record) in records.enumerate() {
+        match &record.event {
             GameEvent::SpellCast { spell_id, .. } => {
                 *casts.entry(*spell_id).or_insert(0) += 1;
             }
-            GameEvent::ZoneChange {
-                object_id,
-                from: Zone::Stack,
-                cause: ZoneChangeCause::Resolved,
-                ..
-            } => {
+            GameEvent::ZoneChange { object_id, from: Zone::Stack, .. }
+                if resolved_off_the_stack(record, *object_id) =>
+            {
                 let owed = casts.entry(*object_id).or_insert(0);
                 if *owed == 0 {
                     let name = game
@@ -994,7 +998,7 @@ fn run_one_game(
             game.result(),
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
-            uncast_resolutions(recorded.events(), &game.state),
+            uncast_resolutions(recorded.records().iter(), &game.state),
             {
                 let mut s = extract_stats(
                     recorded.records().iter(),

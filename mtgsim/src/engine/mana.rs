@@ -10,11 +10,13 @@
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::resolve::ResolutionContext;
+use crate::events::cause::GeneratedBy;
 use crate::objects::card_data::AbilityType;
 use crate::types::costs::Cost;
 use crate::types::effects::{Effect, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::ui::decision::DecisionProvider;
 
 impl GameState {
     /// Activate a mana ability on a permanent.
@@ -26,7 +28,7 @@ impl GameState {
         player_id: PlayerId,
         permanent_id: ObjectId,
         ability_id: AbilityId,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // Snapshot the ability definition (clone to release borrow).
         // Effective, not printed — intrinsic land mana abilities (CR 305.6) are
@@ -54,8 +56,9 @@ impl GameState {
         // A mana ability's cost is usually just {T}, but Krark-Clan Ironworks'
         // is a sacrifice, and which artifact pays it is a choice — taken here,
         // before anything moves.
-        let plan = self.plan_payment(&ability.costs, player_id, permanent_id, ctx)?;
-        self.pay_costs(&plan, player_id, permanent_id, ctx)?;
+        let paying = ActionContext::paying_cost(dp, player_id, permanent_id);
+        let plan = self.plan_payment(&ability.costs, player_id, permanent_id, &paying)?;
+        self.pay_costs(&plan, player_id, permanent_id, &paying)?;
 
         // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana
         // ability of that permanent that includes the {T} symbol in its
@@ -64,7 +67,7 @@ impl GameState {
         let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::TapSelf));
 
         // Resolve effect immediately (mana abilities don't use the stack)
-        self.resolve_mana_effect(&ability.effect, player_id, permanent_id, tapped_for_mana, ctx)?;
+        self.resolve_mana_effect(&ability.effect, player_id, permanent_id, tapped_for_mana, dp)?;
 
         Ok(())
     }
@@ -97,11 +100,11 @@ impl GameState {
         player_id: PlayerId,
         source: ObjectId,
         tapped_for_mana: bool,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let mut resolution = ResolutionContext::untargeted(source, player_id);
+                let mut resolution = ResolutionContext::untargeted(source, player_id, GeneratedBy::ActivatedAbility);
                 resolution.ability_source = self.object_ref(source);
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount_expr) in &output.mana {
@@ -115,12 +118,12 @@ impl GameState {
                         special: output.special.clone(),
                         tapped_for_mana,
                     },
-                    &ActionContext::resolving(ctx.dp, &resolution),
+                    &ActionContext::resolving(dp, &resolution),
                 )
             }
             Effect::Sequence(effects) => {
                 for sub_effect in effects {
-                    self.resolve_mana_effect(sub_effect, player_id, source, tapped_for_mana, ctx)?;
+                    self.resolve_mana_effect(sub_effect, player_id, source, tapped_for_mana, dp)?;
                 }
                 Ok(())
             }
@@ -131,7 +134,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::test_ctx;
+    use crate::test_support::{test_dp};
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
@@ -166,7 +169,7 @@ mod tests {
 
         assert_eq!(game.players[0].mana_pool.total(), 0);
 
-        game.activate_mana_ability(0, forest_id, ability_id, &test_ctx()).unwrap();
+        game.activate_mana_ability(0, forest_id, ability_id, &test_dp()).unwrap();
 
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
         assert!(game.battlefield.get(&forest_id).unwrap().tapped);
@@ -176,8 +179,8 @@ mod tests {
     fn test_cannot_activate_already_tapped() {
         let (mut game, forest_id, ability_id) = setup_with_forest();
 
-        game.activate_mana_ability(0, forest_id, ability_id, &test_ctx()).unwrap();
-        let result = game.activate_mana_ability(0, forest_id, ability_id, &test_ctx());
+        game.activate_mana_ability(0, forest_id, ability_id, &test_dp()).unwrap();
+        let result = game.activate_mana_ability(0, forest_id, ability_id, &test_dp());
         assert!(result.is_err());
     }
 
@@ -185,7 +188,7 @@ mod tests {
     fn test_cannot_activate_opponents_permanent() {
         let (mut game, forest_id, ability_id) = setup_with_forest();
 
-        let result = game.activate_mana_ability(1, forest_id, ability_id, &test_ctx());
+        let result = game.activate_mana_ability(1, forest_id, ability_id, &test_dp());
         assert!(result.is_err());
     }
 }

@@ -36,10 +36,11 @@ use crate::types::effects::{
     PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
-use crate::types::ids::{ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
-use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
+use crate::events::cause::{EventCause, StateBasedAction};
+use crate::types::zones::{DrawCause, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// One replacement or prevention effect.
 ///
@@ -89,9 +90,9 @@ pub struct ReplacementDef {
     ///
     /// **Here and not on [`EventPattern`]**, which is where §9's decision 8
     /// put it. Two reasons, and the second is the one that decides: an
-    /// `EventPattern` arm constrains the event's own fields, and who controls
-    /// the proposing spell is `ActionContext::resolution` rather than anything
-    /// on the `GameAction`; and `Restriction::Event` reuses `EventPattern`
+    /// `EventPattern` arm constrains the event's own fields, and what caused
+    /// it is `ActionContext::cause` rather than anything on the `GameAction`;
+    /// and `Restriction::Event` reuses `EventPattern`
     /// verbatim while already carrying a `by` of its own, so a cause predicate
     /// on the pattern would give a "can't" two of them with one meaning.
     ///
@@ -181,7 +182,7 @@ pub struct ReplacementDef {
 ///
 /// **Exactly one arm per `GameAction` variant, and it grows on no other axis.**
 /// Within an arm, constraints on the event's fields reuse existing vocabulary —
-/// `ObjectFilter`, `ZoneChangeCause`, `CardType` — rather than inventing
+/// `ObjectFilter`, `ZoneChangeAct`, `CardType` — rather than inventing
 /// per-mechanic predicates. A change that adds an arm here without a
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
@@ -240,15 +241,14 @@ pub enum EventPattern {
     /// **Watches an entry too, when `to` admits the battlefield.** Entering is
     /// the zone change onto it (CR 614.1c), proposed as
     /// `GameAction::EnterBattlefield` and nothing else, and `pattern_watches`
-    /// compares `from` and `cause` against the entry's. That is Worms of the
+    /// compares `from` and `act` against the entry's. That is Worms of the
     /// Earth's and Grafdigger's Cage's shape, and it shares CR 616.1's step
     /// with [`Self::EnterBattlefield`] — one event.
     ZoneChange {
-        from: Option<Zone>,
-        to: Option<Zone>,
-        /// Nothing outside this pipeline and the trigger matcher may branch on
-        /// a cause — see [`ZoneChangeCause`].
-        cause: Option<ZoneChangeCause>,
+        /// Where from, where to, and what was done. Nothing outside this
+        /// pipeline and the trigger matcher may branch on an act — see
+        /// [`ZoneChangeAct`].
+        change: ZoneChangePattern,
         /// A constraint on the moving object beyond what `affected` says.
         ///
         /// `affected` scopes *which* objects the effect applies to; this scopes
@@ -331,8 +331,8 @@ pub enum EventPattern {
     /// CR 119.3 / 120.3a — "if you would lose life". The event's subject is
     /// the losing player.
     ///
-    /// `cause` is the loss's own [`LifeLossCause`](crate::types::zones::LifeLossCause),
-    /// and it is the field Ali from Cairo exists for: its clamp is on *damage*,
+    /// `cause` asks whether the loss is damage's (CR 120.3a), an effect's or a
+    /// cost's, and it is the field Ali from Cairo exists for: its clamp is on *damage*,
     /// and its own ruling is that the effect "does not prevent damage, it
     /// prevents the damage from turning into loss of life" — so it watches the
     /// loss CR 120.3a contains inside the damage rather than the damage.
@@ -350,10 +350,11 @@ pub enum EventPattern {
     Tap,
 
     /// CR 701.8b / 614.8. The **outer** event: performing it proposes an inner
-    /// `ZoneChange { cause: Destroyed | DestroyedBySba }`.
+    /// `ZoneChange { act: Destroyed }`.
     Destroy {
         /// CR 122.1c reads "would be destroyed **as the result of an effect**",
-        /// which is CR 701.8b way 1 only. `None` matches either way.
+        /// which is CR 701.8b way 1 only, asked of the destruction's cause.
+        /// `None` matches either way.
         source: Option<DestructionSourcePattern>,
     },
 
@@ -367,12 +368,12 @@ pub enum EventPattern {
     /// from. So this arm carries no object filter of its own; its one
     /// constraint is about the *event*.
     ///
-    /// `cast` is CR 601's fact, projected off the entry's [`ZoneChangeCause`]:
-    /// `Some(true)` matches a permanent spell that resolved (`Resolved`),
-    /// `Some(false)` everything else — a land drop, an effect putting a card
-    /// onto the battlefield, a token. Containment Priest and Hallowed
-    /// Moonlight read "and it wasn't cast", and a `ZoneChangeCause` field
-    /// could not say *wasn't*. `None` matches either.
+    /// `cast` is CR 601's fact, read off CR 400.7d's facts the resolving spell
+    /// carries: `Some(true)` matches a permanent spell that was cast entering
+    /// as it resolves, `Some(false)` everything else — a land drop, an effect
+    /// putting a card onto the battlefield, a token, a copy of a permanent
+    /// spell (CR 707.10). Containment Priest and Hallowed Moonlight read "and
+    /// it wasn't cast", which an act could not say. `None` matches either.
     ///
     /// One field today, and the axis it grows along is CR 400.7d: a permanent's
     /// abilities may reference facts about the spell it was — whether it was
@@ -687,10 +688,10 @@ impl SourcePattern {
     }
 }
 
-/// Which of CR 701.8b's ways destroyed the permanent.
-///
-/// A pattern rather than a [`DestructionSource`]: the event carries the
-/// destroying object's id and a pattern must not have to name it.
+/// Which of CR 701.8b's two ways destroyed the permanent, asked of the
+/// destruction's cause: "as a result of an effect that uses the word
+/// 'destroy'", or "the state-based actions that check for lethal damage
+/// (704.5g) or damage from a source with deathtouch (704.5h)".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DestructionSourcePattern {
     /// CR 701.8b way 1 — an effect that uses the word "destroy".
@@ -700,15 +701,13 @@ pub enum DestructionSourcePattern {
 }
 
 impl DestructionSourcePattern {
-    pub fn matches(self, source: DestructionSource) -> bool {
-        matches!(
-            (self, source),
-            (DestructionSourcePattern::Effect, DestructionSource::Effect(_))
-                | (
-                    DestructionSourcePattern::StateBasedAction,
-                    DestructionSource::StateBasedAction
-                )
-        )
+    pub fn matches(self, cause: &EventCause) -> bool {
+        match self {
+            DestructionSourcePattern::Effect => matches!(cause, EventCause::Effect { .. }),
+            DestructionSourcePattern::StateBasedAction => {
+                matches!(cause, EventCause::StateBasedAction(StateBasedAction::LethalDamage))
+            }
+        }
     }
 }
 
@@ -798,34 +797,31 @@ impl EventPattern {
     }
 }
 
-/// [`LifeLossCause`] with its payload dropped — what
-/// [`EventPattern::LoseLife`] can ask about a loss.
+/// What [`EventPattern::LoseLife`] can ask about a loss: whether it is damage's
+/// (CR 120.3a, the loss's `damage_source`), or else an effect's or a cost's
+/// (its cause).
 ///
-/// **A projection and not the cause itself**, exactly as
-/// [`DestructionSourcePattern`] is of [`DestructionSource`]: `LifeLossCause::Damage`
-/// carries the damage's source, and Ali from Cairo's "damage that would reduce
-/// your life total" is about damage from *anything*. A pattern holding the cause
-/// verbatim could only name one source object, which no printed card does — and
-/// the field a card could want beside it is CR 609.7's source predicate, which
-/// [`SourcePattern`] already is and which nothing prints about a life loss.
+/// **About damage from anything**: Ali from Cairo's "damage that would reduce
+/// your life total" names no source. The field a card could want beside it is
+/// CR 609.7's source predicate, which [`SourcePattern`] already is and which
+/// nothing prints about a life loss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LifeLossCausePattern {
     /// CR 120.3a — the loss contained in damage.
     Damage,
-    /// A resolving spell or ability's "loses N life".
+    /// A spell's or an ability's effect, not as damage: "loses N life".
     Effect,
     /// CR 119.4's life payment.
     Cost,
 }
 
 impl LifeLossCausePattern {
-    pub fn matches(self, cause: LifeLossCause) -> bool {
-        matches!(
-            (self, cause),
-            (LifeLossCausePattern::Damage, LifeLossCause::Damage { .. })
-                | (LifeLossCausePattern::Effect, LifeLossCause::Effect)
-                | (LifeLossCausePattern::Cost, LifeLossCause::Cost)
-        )
+    pub fn matches(self, damage_source: Option<ObjectId>, cause: &EventCause) -> bool {
+        match self {
+            LifeLossCausePattern::Damage => damage_source.is_some(),
+            LifeLossCausePattern::Effect => damage_source.is_none() && matches!(cause, EventCause::Effect { .. }),
+            LifeLossCausePattern::Cost => damage_source.is_none() && matches!(cause, EventCause::Cost { .. }),
+        }
     }
 }
 
@@ -1278,10 +1274,10 @@ pub struct AuxiliaryMove {
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
     pub filter: ObjectFilter,
 
-    /// Where the chosen objects go, and why. The `cause` is what separates
-    /// devour's sacrifice from an exile, and 278 cards care (CR 701.21).
+    /// Where the chosen objects go, and what was done. The `act` is what
+    /// separates devour's sacrifice from an exile, and 278 cards care (CR 701.21).
     pub to: Zone,
-    pub cause: ZoneChangeCause,
+    pub act: ZoneChangeAct,
 
     /// The upper bound on how many may be chosen. `None` is "any number", which
     /// is what both printed shapes say; a bounded form would be `Some(n)`.
@@ -1719,11 +1715,11 @@ pub enum GameActionTemplate {
     /// [`TemplateAmount::ReplacedAmount`] exists for: "that much" is the
     /// replaced event's own number.
     ///
-    /// `cause` is [`LifeLossCause::Effect`] and is not a field: a substituted
-    /// loss is produced by the replacement effect, which is an effect, and no
-    /// printed substitution claims to be damage or a payment. Ali from Cairo
-    /// reading `Some(Damage)` is what makes that distinction load-bearing
-    /// rather than cosmetic.
+    /// Its `damage_source` is `None` and is not a field: no printed
+    /// substitution claims to be damage, and Ali from Cairo reading
+    /// `Some(Damage)` is what makes that load-bearing rather than cosmetic. It
+    /// keeps the replaced event's cause (CR 614.6); which replacement made it
+    /// a loss is the record's applied set (`replacement-architecture.md` §2b.4).
     LoseLife { amount: TemplateAmount },
 
     /// CR 614.16's kind-changing substitution — the creation, with the defs
@@ -1841,7 +1837,7 @@ impl ReplacementClass {
     /// card could forget, and a control-changing effect filed under `Other`
     /// would be chosen in the wrong order silently. `SelfReplacement` is the
     /// one class no rewrite implies — CR 614.15 is about where the effect
-    /// *came from* — and it lands with `ActionContext::resolution`'s field
+    /// *came from* — and it lands with the field that carries those effects
     /// (`replacement-architecture.md` §11 item 3). `BackFaceUp` waits on
     /// transform.
     pub fn from_rewrite(rewrite: &Rewrite) -> Self {

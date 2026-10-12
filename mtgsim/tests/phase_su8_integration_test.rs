@@ -7,7 +7,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_rc_cards::{master_biomancer, thunder_thrash_elder};
 use mtgsim::cards::phase_tr1_cards::{felidar_sovereign, soul_warden};
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::events::event::{DamageTarget, EventSeq};
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
@@ -18,6 +18,7 @@ use mtgsim::state::trace::{FieldValue, RecordKind, TraceRecord};
 use mtgsim::test_support::{
     fill_library, install_trace, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game,
     test_ctx, vanilla_creature, RecordingDecisionProvider,
+    test_dp,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -65,7 +66,7 @@ fn a_debug_builds_order_check_writes_nothing_to_the_trace() {
     let trace = install_trace(&mut game, "item 210");
     // No answer queued: a CR 616.1 prompt here fails the test.
     let dp = ScriptedDecisionProvider::new();
-    game.change_zone(bears, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the Bears return");
 
     let entering = trace.of_kind("layer_walk").into_iter().filter(|line| line.contains("\"membership\":\"entering\"")).count();
@@ -186,7 +187,7 @@ fn upkeep_of(game: &mut GameState, player: PlayerId) {
         fill_library(game, p, 10);
     }
     for _ in 0..20 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
         if game.active_player == player && game.phase.step == Some(StepType::Upkeep) {
             return;
         }
@@ -342,7 +343,7 @@ fn an_ordering_says_what_another_ability_answered() {
     let second = put_in_graveyard(&mut game, soul_warden(), 0);
     let trace = install_trace(&mut game, "an ordering");
     let dp = ScriptedDecisionProvider::new();
-    game.change_zone(second, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+    game.change_zone(second, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "the first Warden's, waiting");
 
     let context = ChoiceContext::new(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First });

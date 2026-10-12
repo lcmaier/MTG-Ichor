@@ -35,7 +35,7 @@ pub(crate) fn batch(
     inherited: usize,
 ) -> Record {
     let mut r = Record::new(RecordKind::Batch);
-    r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
+    r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.field_u64("inherited", inherited as u64);
     r.key("members").begin_array();
@@ -62,7 +62,7 @@ pub(crate) fn batch(
 /// rendered ahead of the perform loop, which consumes the decisions.
 pub(crate) fn batch_end(game: &GameState, decided: &[Option<String>], riders: usize) -> Record {
     let mut r = Record::new(RecordKind::BatchEnd);
-    r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
+    r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.key("members").begin_array();
     for (i, action) in decided.iter().enumerate() {

@@ -309,7 +309,7 @@ pub enum ObjectSet {
     /// creature". Resolved during the walk off the source's `attached_to`,
     /// never captured, for the same reason `Filter` stores its `PlayerRef`
     /// unresolved: `register_static_effects` runs inside
-    /// `place_on_battlefield`, before the resolution attaches the Aura, so a
+    /// `perform_entry`, before the resolution attaches the Aura, so a
     /// snapshot would be empty for every Aura ever cast. An unattached source
     /// names nothing.
     Host,

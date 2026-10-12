@@ -24,7 +24,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, CardTypes};
 use crate::types::effects::{Condition, Effect};
 use crate::types::triggers::{TriggerEvent, TriggerSubject};
-use crate::types::zones::{Zone, ZoneSet};
+use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 /// The zones in which `ability` functions (CR 113.6), for an object whose
 /// effective card types are `types`.
@@ -101,8 +101,12 @@ fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) ->
 /// CR 113.6k for one trigger condition.
 fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
-        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: Some(zone), .. } => ZoneSet::of(*zone),
-        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: None, .. } => ZoneSet::ALL,
+        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: Some(zone), .. }, .. } => {
+            ZoneSet::of(*zone)
+        }
+        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: None, .. }, .. } => {
+            ZoneSet::ALL
+        }
         _ => default_zones(types),
     }
 }

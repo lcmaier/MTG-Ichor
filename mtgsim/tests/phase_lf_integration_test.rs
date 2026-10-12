@@ -25,7 +25,7 @@ use mtgsim::test_support::{
     setup_two_player_game, static_ability, vanilla_creature,
 };
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
@@ -466,6 +466,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         source: caster,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -508,6 +509,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
         source: caster,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -547,6 +549,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -601,6 +604,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -685,7 +689,7 @@ fn test_citanul_hierophants_grant_retires_when_it_leaves() {
         put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
     assert_eq!(get_effective_abilities(&game, bears).len(), 1);
 
-    game.change_zone(hierophants, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(hierophants, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(get_effective_abilities(&game, bears).is_empty());
 }
 

@@ -8,6 +8,7 @@ use crate::engine::combat::validation::{
     can_block, validate_attackers, validate_blockers,
     AttackConstraints, BlockConstraints,
 };
+use crate::events::cause::{EventCause, TurnBasedAction};
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::has_keyword;
 use crate::engine::priority::REJECTION_LIMIT;
@@ -65,7 +66,7 @@ impl GameState {
             .collect();
 
         // Apply: tap each attacker and set attacking info (rule 508.1f)
-        let actx = ActionContext::new(decisions);
+        let actx = ActionContext::turn_based(decisions, TurnBasedAction::DeclareAttackers);
         for (creature_id, target) in &proposed {
             if self.battlefield.contains_key(creature_id) {
                 // Rule 702.20b: Vigilance prevents tapping from attacking
@@ -168,9 +169,10 @@ impl GameState {
             }
 
             let blocker_pairs: Vec<(ObjectId, ObjectId)> = proposed.clone();
-            self.emit_event(GameEvent::BlockersDeclared {
-                blockers: blocker_pairs,
-            });
+            self.emit_event(
+                GameEvent::BlockersDeclared { blockers: blocker_pairs },
+                EventCause::TurnBasedAction(TurnBasedAction::DeclareBlockers),
+            );
         }
 
         self.blockers_declared = true;
@@ -222,7 +224,7 @@ impl GameState {
 
         // Apply damage (mutating). Combat damage is a turn-based action, not
         // part of any resolution (CR 510.2).
-        let actx = ActionContext::new(decisions);
+        let actx = ActionContext::turn_based(decisions, TurnBasedAction::CombatDamage);
         self.apply_combat_damage(assignments, &actx)?;
 
         if first_strike_only {

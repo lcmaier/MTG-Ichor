@@ -5,8 +5,9 @@
 
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::basic_lands;
-use mtgsim::test_support::test_ctx;
+use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{AbilityType, CardData};
 use mtgsim::objects::object::GameObject;
@@ -50,21 +51,21 @@ fn test_full_opening_sequence() {
     assert_eq!(game.phase.phase_type, PhaseType::Beginning);
 
     // -- Advance through Beginning phase --
-    game.advance_turn(&test_ctx()).unwrap();
+    game.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.phase.step, Some(StepType::Upkeep));
 
-    game.advance_turn(&test_ctx()).unwrap();
+    game.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.phase.step, Some(StepType::Draw));
     assert_eq!(game.players[0].hand.len(), 1, "Player 0 should have drawn a card");
     assert_eq!(game.players[0].library.len(), 9);
 
-    game.advance_turn(&test_ctx()).unwrap();
+    game.advance_turn(&test_dp()).unwrap();
     assert_eq!(game.phase.phase_type, PhaseType::Precombat);
     assert_eq!(game.phase.step, None);
 
     // -- Play a land from hand --
     let land_id = game.players[0].hand[0];
-    game.play_land(0, land_id, &test_ctx()).unwrap();
+    game.play_land(0, land_id, &test_dp()).unwrap();
 
     assert!(game.battlefield.contains_key(&land_id));
     assert_eq!(game.get_object(land_id).unwrap().zone, Zone::Battlefield);
@@ -73,13 +74,13 @@ fn test_full_opening_sequence() {
 
     // -- Tap the land for mana (explicit ability ID) --
     let ability_id = get_mana_ability_id(&game, land_id);
-    game.activate_mana_ability(0, land_id, ability_id, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land_id, ability_id, &test_dp()).unwrap();
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
     assert!(game.battlefield.get(&land_id).unwrap().tapped);
 
     // -- Can't tap again --
-    assert!(game.activate_mana_ability(0, land_id, ability_id, &test_ctx()).is_err());
+    assert!(game.activate_mana_ability(0, land_id, ability_id, &test_dp()).is_err());
 
     // -- Advance through the rest of the turn --
     //
@@ -87,7 +88,7 @@ fn test_full_opening_sequence() {
     // combat-damage steps are refused at the proposal site when nothing
     // attacked, so `advance_turn` does not stop on them.
     for _ in 0..7 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     assert_eq!(game.turn_number, 2);
@@ -104,18 +105,18 @@ fn test_two_turn_land_and_mana_cycle() {
 
     // -- Turn 1: Player 0 --
     for _ in 0..3 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
     assert_eq!(game.phase.phase_type, PhaseType::Precombat);
 
     let land1_id = game.players[0].hand[0];
-    game.play_land(0, land1_id, &test_ctx()).unwrap();
+    game.play_land(0, land1_id, &test_dp()).unwrap();
     let ability1 = get_mana_ability_id(&game, land1_id);
-    game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land1_id, ability1, &test_dp()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 
     for _ in 0..7 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     // -- Turn 2: Player 1 --
@@ -123,17 +124,17 @@ fn test_two_turn_land_and_mana_cycle() {
     assert_eq!(game.active_player, 1);
 
     for _ in 0..3 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     let land2_id = game.players[1].hand[0];
-    game.play_land(1, land2_id, &test_ctx()).unwrap();
+    game.play_land(1, land2_id, &test_dp()).unwrap();
     let ability2 = get_mana_ability_id(&game, land2_id);
-    game.activate_mana_ability(1, land2_id, ability2, &test_ctx()).unwrap();
+    game.activate_mana_ability(1, land2_id, ability2, &test_dp()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1);
 
     for _ in 0..7 {
-        game.advance_turn(&test_ctx()).unwrap();
+        game.advance_turn(&test_dp()).unwrap();
     }
 
     // -- Turn 3: Player 0 again --
@@ -142,7 +143,7 @@ fn test_two_turn_land_and_mana_cycle() {
 
     assert!(!game.battlefield.get(&land1_id).unwrap().tapped);
 
-    game.activate_mana_ability(0, land1_id, ability1, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land1_id, ability1, &test_dp()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
 }
 
@@ -154,16 +155,16 @@ fn test_event_log_records_zone_changes() {
 
     let initial_events = game.recorded_events().len();
 
-    game.advance_turn(&test_ctx()).unwrap(); // Untap -> Upkeep
-    game.advance_turn(&test_ctx()).unwrap(); // Upkeep -> Draw
+    game.advance_turn(&test_dp()).unwrap(); // Untap -> Upkeep
+    game.advance_turn(&test_dp()).unwrap(); // Upkeep -> Draw
 
     assert!(game.recorded_events().len() > initial_events, "Should have emitted events");
 
     let events_before_play = game.recorded_events().len();
-    game.advance_turn(&test_ctx()).unwrap(); // Draw -> Precombat
+    game.advance_turn(&test_dp()).unwrap(); // Draw -> Precombat
 
     let land_id = game.players[0].hand[0];
-    game.play_land(0, land_id, &test_ctx()).unwrap();
+    game.play_land(0, land_id, &test_dp()).unwrap();
 
     assert!(game.recorded_events().len() > events_before_play, "Playing a land should emit a zone change event");
 }
@@ -208,7 +209,7 @@ fn test_sba_integration_with_turn_structure() {
 
     let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
     let bears_id = game.add_object(bears);
-    game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 3;
+    place_on_battlefield(&mut game, bears_id, 0, &EnterMods::NONE).damage_marked = 3;
 
     game.check_state_based_actions_loop(&mtgsim::ui::decision::ScriptedDecisionProvider::new()).unwrap();
 

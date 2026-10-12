@@ -13,15 +13,16 @@ use mtgsim::cards::phase_re_cards::{platinum_angel, raise_the_alarm};
 use mtgsim::cards::phase_tr1_cards::{blood_artist, soul_warden};
 use mtgsim::cards::phase_tr2a_cards::vengeful_warchief;
 use mtgsim::cards::phase_tr2b_cards::nykthos_paragon;
-use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction};
+use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
-    place_vanilla_creature, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
+    place_vanilla_creature, put_in_hand, put_on_battlefield, setup_two_player_game, test_dp,
     RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::effects::{CounterType, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -46,6 +47,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(Vec::new()),
         replaced_amount: None,
         damage_prevented: None,
@@ -233,8 +235,8 @@ fn blood_artists_drain_triggers_the_opponents_vengeful_warchief() {
     let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let wrath = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let destroy = GameAction::Destroy { object: bears, source: DestructionSource::Effect(wrath) };
-    game.execute_action(destroy, &test_ctx()).unwrap();
+    let destroy = GameAction::Destroy { object: bears };
+    game.execute_action(destroy, &effect_ctx(&game, wrath)).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "Blood Artist saw the Bears die");
 
     let dp = ScriptedDecisionProvider::new();

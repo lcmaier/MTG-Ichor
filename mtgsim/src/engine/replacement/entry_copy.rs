@@ -17,7 +17,7 @@ use crate::types::effects::{CopyException, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{CopyAdditions, EnterMods, EntryCopy};
 
-use super::pipeline::{evaluate_enter_template, strip_prohibited_counters};
+use super::pipeline::{caused_by_replacement, evaluate_enter_template, strip_prohibited_counters};
 use super::{EntryFrame, ReplacementInstance};
 
 /// `mods`, entering as the copy of `captured` that `chosen` makes, with
@@ -63,7 +63,8 @@ pub(super) fn enter_as_copy(
         copy: Some(EntryCopy { values: Arc::clone(&values), added: CopyAdditions::default() }),
         ..mods.clone()
     };
-    let additions = strip_prohibited_counters(game, object, controller, &as_the_copy, &additions, chosen.controller);
+    let additions =
+        strip_prohibited_counters(game, object, controller, &as_the_copy, &additions, caused_by_replacement(game, chosen)?);
     let replaced_status = additions.status.map(|_| mods.status);
     mods.merge(&additions);
     mods.copy = Some(EntryCopy { values, added: CopyAdditions { counters: additions.counters, replaced_status } });

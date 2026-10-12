@@ -1,5 +1,4 @@
 use crate::oracle::legality::candidate_priority_actions;
-use crate::engine::actions::ActionContext;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
 use crate::ui::ask::ask_choose_priority_action;
@@ -121,10 +120,7 @@ impl GameState {
                         false,
                     ),
                     PriorityAction::PlayLand(card_id) => (
-                        self.play_land(
-                            current_priority, *card_id,
-                            &ActionContext::new(decisions),
-                        ),
+                        self.play_land(current_priority, *card_id, decisions),
                         false,
                     ),
                     PriorityAction::ActivateAbility(permanent_id, ability_id) => 'activation: {
@@ -152,8 +148,7 @@ impl GameState {
                             .unwrap_or(false);
                         let result = if is_mana {
                             self.activate_mana_ability(
-                                current_priority, *permanent_id, *ability_id,
-                                &ActionContext::new(decisions),
+                                current_priority, *permanent_id, *ability_id, decisions,
                             )
                         } else {
                             let idx = abilities.iter()

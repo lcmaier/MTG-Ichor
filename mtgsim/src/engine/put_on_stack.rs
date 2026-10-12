@@ -12,7 +12,8 @@
 
 use std::sync::Arc;
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
+use crate::events::cause::EventCause;
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
@@ -79,8 +80,8 @@ impl GameState {
         // The check the enumeration asks, so the two agree.
         can_begin_to_cast(self, player_id, card_id).map_err(|reason| reason.to_string())?;
 
-        // Casting is not itself a resolution (CR 601), so no resolution stamp.
-        let actx = ActionContext::new(decisions);
+        // What the payment proposes, it causes as a cost (CR 601.2h).
+        let actx = ActionContext::paying_cost(decisions, player_id, card_id);
 
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
@@ -291,12 +292,10 @@ impl GameState {
         if let Some(card) = card_before_cast {
             self.note_delayed_source_left(card);
         }
-        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
-        self.announce_targeted_records(card_id);
-        self.emit_event(GameEvent::SpellCast {
-            spell_id: card_id,
-            caster: player_id,
-        });
+        let casting = EventCause::Casting(player_id);
+        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, casting)?;
+        self.announce_targeted_records(card_id, casting);
+        self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting);
 
         Ok(())
     }
@@ -365,8 +364,10 @@ impl GameState {
 
     /// `GameEvent::Targeted` for each distinct object or player the stack
     /// object `by`'s targeting instances chose, in the order first chosen.
-    /// The one emitter of the record; its callers own the moment.
-    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId) {
+    /// The one emitter of the record; its callers own the moment, outside every
+    /// batch, and name what caused it: a cast, an activation, or a triggered
+    /// ability put on the stack.
+    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause) {
         let Some(entry) = self.stack_entries.get(&by) else { return };
         let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
         for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
@@ -378,7 +379,7 @@ impl GameState {
         let ability_source = entry.ability_identity.map(|identity| identity.source.id);
         let controller = entry.controller;
         for (target, instances) in targeted {
-            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances });
+            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause);
         }
     }
 
@@ -488,7 +489,7 @@ impl GameState {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
         }
-        let actx = ActionContext::new(decisions);
+        let actx = ActionContext::paying_cost(decisions, player_id, source_id);
         let plan = match self.plan_payment(&ability_costs, player_id, source_id, &actx) {
             Ok(plan) => plan,
             Err(e) => {
@@ -504,8 +505,9 @@ impl GameState {
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
-        self.announce_targeted_records(ability_obj_id);
-        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id });
+        let activating = EventCause::Activating(player_id);
+        self.announce_targeted_records(ability_obj_id, activating);
+        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating);
 
         Ok(())
     }
@@ -601,8 +603,7 @@ impl GameState {
                 decisions, self, player_id, spell_or_ability_id, &remaining, &legal,
             ) {
                 Some((perm_id, ability_id)) => {
-                    let actx = ActionContext::new(decisions);
-                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, &actx) {
+                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, decisions) {
                         // Enumeration said this was legal but activation
                         // failed — likely staleness or a `can_pay_ability_costs`
                         // over-approximation bug. Blacklist so we can't loop
@@ -634,7 +635,7 @@ impl GameState {
     /// happen — and CR 903.9b redirecting a commander mid-rollback is exactly
     /// the wrong answer.
     ///
-    /// It is also what the no-catchall rule predicts. `ZoneChangeCause` names
+    /// It is also what the no-catchall rule predicts. `ZoneChangeAct` names
     /// why the engine moved an object, every mover names its reason, and a
     /// rewind has no honest reason to give (`replacement-architecture.md` §11).
     /// A site with nothing to say is a site that does not belong on the

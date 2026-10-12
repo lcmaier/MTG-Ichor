@@ -14,15 +14,17 @@
 //! what its "that object", "that player", "that many" and occurrences are.
 
 use std::sync::Arc;
+use crate::types::restriction::SourceFilter;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -309,9 +311,12 @@ pub enum TriggerEvent {
     /// CR 603.6c makes *not* a leaves-the-battlefield ability.
     ZoneChange {
         subject: TriggerSubject,
-        from: Option<Zone>,
-        to: Option<Zone>,
-        cause: Option<ZoneChangeCause>,
+        change: ZoneChangePattern,
+        /// Who or what caused it, for "a spell or ability an opponent controls
+        /// causes" (Guerrilla Tactics, Sacred Ground): the cause of what the
+        /// arm names, its act's or its destination's
+        /// (`replacement-architecture.md` §2b.7).
+        by: Option<SourceFilter>,
         owner: Option<PlayerRef>,
         multiplicity: Multiplicity,
     },
@@ -400,7 +405,7 @@ impl TriggerEvent {
     /// class). The other classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
-            TriggerEvent::ZoneChange { from, .. } => *from == Some(Zone::Battlefield),
+            TriggerEvent::ZoneChange { change, .. } => change.from == Some(Zone::Battlefield),
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
@@ -924,6 +929,9 @@ pub struct DelayedProvenance {
     /// The resolution creating it, if one is: a replacement's rider (CR
     /// 603.7f) is none.
     pub resolution: Option<CreatingResolution>,
+    /// What caused its creation: the effect creating it, a resolution's or a
+    /// rider's.
+    pub cause: EventCause,
 }
 
 /// CR 603.7c — what a delayed triggered ability refers to: the objects and
@@ -1034,6 +1042,7 @@ impl PendingTrigger {
 mod tests {
     use super::*;
     use crate::events::event::EventSeq;
+    use crate::types::zones::ZoneChangeAct;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
@@ -1051,7 +1060,7 @@ mod tests {
                 owner: 0,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
-                cause: ZoneChangeCause::Destroyed,
+                act: ZoneChangeAct::Destroyed,
                 lki: None,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),
@@ -1068,7 +1077,7 @@ mod tests {
             ("PhaseBegin", GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 }),
             ("StepBegin", GameEvent::StepBegin { step: StepType::Upkeep, player: 0 }),
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
-            ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None, cause: None }),
+            ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
             ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![id] }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
@@ -1098,7 +1107,7 @@ mod tests {
         let each = Multiplicity::PerOccurrence;
         let expected: Vec<(TriggerEvent, &[&str])> = vec![
             (
-                TriggerEvent::ZoneChange { subject: this.clone(), from: None, to: None, cause: None, owner: None, multiplicity: each },
+                TriggerEvent::ZoneChange { subject: this.clone(), change: ZoneChangePattern { from: None, to: None, act: None }, by: None, owner: None, multiplicity: each },
                 &["ZoneChange", "LeftTheGame"],
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),

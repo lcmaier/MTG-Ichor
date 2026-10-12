@@ -55,6 +55,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,

@@ -62,7 +62,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -168,7 +168,7 @@ impl DecisionProvider for ById {
 /// the replacement pipeline, as "return target creature card" does.
 fn enter(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, dp: &dyn DecisionProvider) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(dp))
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(dp))
         .expect("the entry is proposed");
     id
 }
@@ -236,7 +236,7 @@ fn resolve_spell(
     dp: &dyn DecisionProvider,
 ) {
     let source = game.add_object(GameObject::new(card.clone(), controller, Zone::Stack));
-    let ctx = ResolutionContext { targets: ChosenTargets::one(targets), ..ResolutionContext::untargeted(source, controller) };
+    let ctx = ResolutionContext { targets: ChosenTargets::one(targets), ..ResolutionContext::untargeted(source, controller, mtgsim::events::cause::GeneratedBy::Spell) };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("resolution");
 }
 
@@ -340,7 +340,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
         .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
-            pattern: EventPattern::ZoneChange { from: None, to: Some(Zone::Battlefield), cause: None, object: None },
+            pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
             affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land)),
             affected_players: PlayerSet::Nobody,
             by: None,
@@ -612,7 +612,7 @@ fn a_creature_entering_beside_clone_is_not_a_candidate() {
         from: Some(Zone::Graveyard),
         controller: 0,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Returned),
+        act: Some(ZoneChangeAct::Put),
     };
     let dp = ById::new().then(0, "ChooseCopySource", &[donor]);
     game.execute_actions(vec![entry(clone), entry(bears)], &ActionContext::new(&dp)).expect("both enter");
@@ -646,7 +646,7 @@ fn a_clone_of_a_token_is_not_a_token() {
     };
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
-    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1), &ById::new()).expect("created");
+    game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell), &ById::new()).expect("created");
     let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 
     let clone = clone_of(&mut game, 0, token);
@@ -713,7 +713,7 @@ fn a_clone_beside_essence_of_the_wild_enters_as_the_essence() {
         } else {
             ById::new().then(0, "ChooseReplacementEffect", &[essence])
         };
-        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         assert_eq!(get_effective_name(&game, clone), "Essence of the Wild", "Clone first: {clone_first}");
         assert_eq!(get_effective_power(&game, clone), Some(6));
     }
@@ -968,7 +968,7 @@ fn a_clone_in_the_graveyard_is_a_clone_and_its_rows_are_gone() {
 
     let dp = ById::new();
     let ctx = ActionContext::new(&dp);
-    game.change_zone(clone, Zone::Graveyard, ZoneChangeCause::Destroyed, &ctx).unwrap();
+    game.change_zone(clone, Zone::Graveyard, ZoneChangeAct::Destroyed, &ctx).unwrap();
     assert_eq!(get_effective_name(&game, clone), "Clone");
     assert_eq!(get_effective_power(&game, bears), Some(2));
     assert!(!game.continuous_effects.iter().any(|e| e.source == clone), "no row outlives its source");

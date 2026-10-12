@@ -25,7 +25,7 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr2a_cards::{
     elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
 };
-use mtgsim::engine::actions::{DestructionSource, DrawCause, GameAction, LifeLossCause};
+use mtgsim::engine::actions::{DrawCause, GameAction};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -39,6 +39,7 @@ use mtgsim::state::history::TurnSummary;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
     setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
@@ -53,7 +54,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -112,8 +113,8 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
         put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
     place_triggers(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1);
-    game.change_zone(sapling, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(sapling, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(sapling, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(sapling, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(game.get_object(sapling).unwrap().zone, Zone::Battlefield, "it came back");
 
     // The first trigger resolves; the return's own trigger is still pending.
@@ -142,6 +143,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
         source: treason,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -164,7 +166,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
     game.execute_action(GameAction::DrawCards { player: 0, n: 2, cause: DrawCause::Effect }, &ctx).unwrap();
     game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: mine }, &ctx).unwrap();
     game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: mine }, &ctx).unwrap();
-    game.execute_action(GameAction::LoseLife { player: 0, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();
     let damage = GameAction::DealDamage {
         source: theirs,
         target: DamageTarget::Player(0),
@@ -174,7 +176,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
         source_lki: None,
     };
     game.execute_action(damage, &ctx).unwrap();
-    game.execute_action(GameAction::Destroy { object: mine, source: DestructionSource::Effect(theirs) }, &ctx).unwrap();
+    game.execute_action(GameAction::Destroy { object: mine }, &ctx).unwrap();
 
     let counted = [
         (TurnFact::SpellsCast, 0),
@@ -208,8 +210,8 @@ fn a_stolen_creatures_death_is_counted_on_its_controllers_row() {
     let mut game = setup_two_player_game();
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
     steal(&mut game, bear, 0);
-    let destroy = GameAction::Destroy { object: bear, source: DestructionSource::Effect(bear) };
-    game.execute_action(destroy, &test_ctx()).unwrap();
+    let destroy = GameAction::Destroy { object: bear };
+    game.execute_action(destroy, &effect_ctx(&game, bear)).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
     assert_eq!(this_turns_row(&game, 0).count(TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
     assert_eq!(this_turns_row(&game, 1).count(TurnFact::ControlledCreaturesDied), 0, "its owner did not");
@@ -274,7 +276,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
-        game.state.advance_turn(&test_ctx()).expect("advancing");
+        game.state.advance_turn(&test_dp()).expect("advancing");
     }
     let turn = game.state.turn_number;
     assert_eq!(
@@ -305,10 +307,10 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
     let grudge = TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
     let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::ThisObject)), 0);
     let ctx = test_ctx();
-    game.execute_action(GameAction::LoseLife { player: 0, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();
     assert_eq!(pending_triggers(&game), 1);
     game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: keeper }, &ctx).unwrap();
-    game.execute_action(GameAction::LoseLife { player: 1, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::LoseLife { player: 1, amount: 2, damage_source: None }, &ctx).unwrap();
     assert_eq!(pending_triggers(&game), 1, "a gain, and another player's loss, trigger nothing");
 
     let a = put_on_battlefield(&mut game, grizzly_bears(), 1);
@@ -622,6 +624,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -695,6 +698,7 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -767,6 +771,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64) {
         source,
         ability_source: None,
         controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -815,6 +820,7 @@ fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -840,6 +846,7 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
         source,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -915,7 +922,7 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
 fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     stock_libraries(game, 10);
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -1086,7 +1093,7 @@ fn since_your_last_turn_spans_the_turns_after_it() {
         )
     };
     let lose = |game: &mut GameState| {
-        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, damage_source: None }, &test_ctx())
             .unwrap();
     };
 
@@ -1132,7 +1139,7 @@ fn this_game_sums_every_turn_so_far() {
 
     advance_to(&mut game, 0, StepType::Upkeep);
     while game.phase.phase_type != PhaseType::Precombat {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
     }
     cast_and_drain(&mut game, 0, first_contact());
     assert_eq!(life_total(&game, 0), 22, "the second, two turns later");
@@ -1151,7 +1158,7 @@ fn paladin_reads_last_turns_loss_whatever_else_happened() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let ctx = test_ctx();
-    game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 1, damage_source: None }, &ctx).unwrap();
     game.execute_action(GameAction::GainLife { player: 0, amount: 5, source }, &ctx).unwrap();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
 
@@ -1179,7 +1186,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
         by: 0,
     };
     game.execute_action(counters(CounterType::PlusOnePlusOne, 2), &test_ctx()).unwrap();
-    game.execute_action(GameAction::Destroy { object: paladin, source: DestructionSource::Effect(paladin) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object: paladin }, &effect_ctx(&game, paladin))
         .unwrap();
     resolve_all(&mut game);
     assert_eq!(life_total(&game, 0), 23);
@@ -1215,7 +1222,7 @@ fn warchief_counts_paid_life_as_lost_life() {
 
     let mut game = setup_two_player_game();
     let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 0);
-    game.execute_action(GameAction::LoseLife { player: 0, amount: 5, cause: LifeLossCause::Effect }, &test_ctx())
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 5, damage_source: None }, &test_ctx())
         .unwrap();
     resolve_all(&mut game);
     assert_eq!(plus_one_counters(&game, warchief), 1, "one counter for five life");
@@ -1251,7 +1258,7 @@ fn warchiefs_counter_goes_on_after_the_activation_and_before_it_resolves() {
 #[test]
 fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
     let lose = |game: &mut GameState| {
-        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, damage_source: None }, &test_ctx())
             .unwrap();
     };
     // It enters after the loss.
@@ -1313,6 +1320,7 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
         source,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -1387,6 +1395,7 @@ fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Sub
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -1432,7 +1441,7 @@ fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
     // And after it Blood Artist is itself again.
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    game.execute_action(GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object: bear }, &effect_ctx(&game, source))
         .unwrap();
     assert_eq!(pending_triggers(&game), 1, "a creature dying now");
 }

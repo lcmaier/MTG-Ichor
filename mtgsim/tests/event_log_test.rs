@@ -30,7 +30,7 @@ use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Prim
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
@@ -49,7 +49,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -139,7 +139,7 @@ fn a_spell_that_does_not_resolve_says_why() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bolt = bolt_at(&mut game, 0, bears);
-    game.change_zone(bears, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     resolve_top(&mut game);
 
     let log = format_event_log(&game);
@@ -158,6 +158,7 @@ fn a_countered_spell_says_whose_it_was() {
         source: counter,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bolt)]),
         replaced_amount: None,
         damage_prevented: None,
@@ -187,6 +188,7 @@ fn a_countered_ability_is_named_by_its_source() {
         source: stifle,
         ability_source: None,
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(ability)]),
         replaced_amount: None,
         damage_prevented: None,

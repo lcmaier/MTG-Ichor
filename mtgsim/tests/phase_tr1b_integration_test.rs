@@ -24,7 +24,7 @@ use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::phase_lf_cards::humility;
 use mtgsim::cards::phase_tr1_cards::{blood_artist, soul_warden, wild_growth};
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -34,6 +34,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, install_trace, put_on_battlefield, registered, setup_two_player_game, test_ctx,
     vanilla_creature,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -43,7 +44,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -62,9 +63,9 @@ fn pending(game: &GameState) -> usize {
 fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
     let batch = objects
         .iter()
-        .map(|&object| GameAction::Destroy { object, source: DestructionSource::Effect(source) })
+        .map(|&object| GameAction::Destroy { object })
         .collect();
-    game.execute_actions(batch, &test_ctx()).expect("the wipe");
+    game.execute_actions(batch, &effect_ctx(game, source)).expect("the wipe");
 }
 
 /// An enchantment that watches creatures die, and is not one itself.
@@ -138,9 +139,8 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
             dies(a_creature()).into(),
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::Filter(a_creature()),
-                from: None,
-                to: Some(Zone::Graveyard),
-                cause: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                by: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -208,9 +208,8 @@ fn dread_shaped() -> Arc<CardData> {
     };
     let from_anywhere = TriggerEvent::ZoneChange {
         subject: TriggerSubject::ThisObject,
-        from: None,
-        to: Some(Zone::Graveyard),
-        cause: None,
+        change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+        by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     };

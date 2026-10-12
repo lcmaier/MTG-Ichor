@@ -163,7 +163,7 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
 }
 
 /// The log line the decomposition must not change: `LifeChanged` still names
-/// the damage's source, which is what `LifeLossCause::Damage` carries.
+/// the damage's source, which is what the loss's `damage_source` carries.
 #[test]
 fn the_life_change_from_damage_still_names_the_damage_source() {
     let mut game = setup_two_player_game();

@@ -53,7 +53,7 @@ in the `Effect` tree, which is where the replacement track put it too.
 
 **Three. The predicates reuse the vocabulary that exists.** Within an arm,
 "whose", "which object", "from which zone", "why" are `PlayerRef`,
-`ObjectFilter`, `Zone`, `ZoneChangeCause`, `CounterType`, `StepType` — the
+`ObjectFilter`, `Zone`, `ZoneChangeAct`, `CounterType`, `StepType` — the
 leaves the filters, the patterns and the conditions already share.
 `Condition` (twelve leaves, `types/effects.rs`) is the intervening "if" and
 the state trigger's predicate; it grows a leaf only when a registered card
@@ -293,7 +293,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
-| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `cause`, which a redirect keeps (CR 614.6, `codebase-state.md` item 176); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None`. **The record's whole contract** (the act, the cause, the applied set, the object the move made, and when the record is matched) is `replacement-architecture.md` §2b: RH-1 makes `cause` the act (`ZoneChangePattern`) and adds `by` for the cause | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
+| `ZoneChange` | `ZoneChange { subject, change: ZoneChangePattern { from, to, act }, by: Option<SourceFilter>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/countered by `act`, which a redirect keeps (CR 614.6); exiled by `to: Exile`, since CR 701.13a's act is its destination; "from anywhere" `from: None`; "a spell or ability an opponent controls causes" by `by`, which asks the cause of what the arm names (since RH-1). **The record's whole contract** (the act, the cause, the applied set, the object the move made, and when the record is matched) is `replacement-architecture.md` §2b | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
@@ -343,11 +343,11 @@ happens and rewritable by the closed `Rewrite` algebra; a `TriggerEvent` arm
 reads a *performed* record, after, with frames, look-back and multiplicity.
 Ten of TR-1's twelve arms have a sibling in shape (`Attacks` and
 `AbilityTriggers` have none), and the vocabulary is already shared at the
-leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeCause`. What is
-worth sharing is a *field struct* — a `ZoneChangePattern { from, to, cause }`
-both `ZoneChange` arms hold, and `SourcePattern` for damage where the trigger
-arm has a `TriggerSubject` — and TR-4's widening of `ZoneChange` is the
-moment. Never a shared enum. Layers watch nothing.
+leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeAct`. What is
+worth sharing is a *field struct* — `ZoneChangePattern { from, to, act }`,
+which both `ZoneChange` arms hold since RH-1 (`replacement-architecture.md`
+§2b.7), and `SourcePattern` for damage where the trigger arm has a
+`TriggerSubject`. Never a shared enum. Layers watch nothing.
 
 ### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
 
@@ -1145,6 +1145,10 @@ For each record, the candidates are the union of:
    graveyard from anywhere" functions everywhere it can be; Guerrilla
    Tactics' discard functions in the hand); a condition about other
    objects functions on the battlefield unless 113.6b states otherwise.
+   **Amended 2026-10-11 (RH-1):** the map loses the card as it moves, before
+   the window's dispatch, so a condition about this object *leaving* such a
+   zone is asked off the departure's frame, on leg 2 (`codebase-state.md`
+   item 249, TR-4a).
 4. **The record's own subject**, wherever it is now — CR 603.10's default
    is "objects that exist immediately after an event", and a card
    discarded into a graveyard exists there with its printed abilities.
@@ -2117,7 +2121,7 @@ read at dispatch and never later, since the outermost dispatch flushes it
 | `resolve.rs` `Primitive::GainControl` | writes the Layer 2 row | unchanged — the sweep detects it | TR-4 |
 | `ui/choice_types.rs`, `ui/ask.rs`, `ui/cli.rs`, `trace_records.rs`, `sba.rs` | five exhaustive `ChoiceKind` matches in `src`, four test files | one arm each per new kind (§9) | per phase |
 | `ui/display.rs::format_event` | 34 arms | −3, +4, one renamed | TR-1, TR-4, TR-5 |
-| `fuzz_games` | reads `EventStamp::resolution` for casts | a `Triggers placed` row and an `AbilityTriggered` count in `--dump-events` | TR-1 |
+| `fuzz_games` | reads the record's resolution (`EventRecord::resolution`) for casts | a `Triggers placed` row and an `AbilityTriggered` count in `--dump-events` | TR-1 |
 
 ---
 
@@ -2615,7 +2619,7 @@ agreed; instructions per decision +0.17%.
 
 | Piece | ~additions |
 |---|---|
-| `Lki` widened, and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~510 |
+| `Lki` widened, and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters`; the frame for a condition about this object leaving a zone other than the battlefield, with **Guerrilla Tactics** (`codebase-state.md` item 249, ~140 with its tests) | ~510 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
 | tests, 29: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); item 173's Bridge from Below in a graveyard, and the Jailer fixture that follows it | ~1,070 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |

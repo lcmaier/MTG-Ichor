@@ -34,7 +34,7 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::state::game_state::GameState;
-use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::{
     put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
@@ -113,7 +113,7 @@ fn cast_and_resolve(
 /// Remove a permanent from the battlefield the way a response would — through
 /// the chokepoint, with a cause, so CR 614 sees it.
 fn exile(game: &mut GameState, id: ObjectId) {
-    game.change_zone(id, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
+    game.change_zone(id, Zone::Exile, ZoneChangeAct::Put, &test_ctx())
         .expect("exiling a permanent");
 }
 
@@ -192,6 +192,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,

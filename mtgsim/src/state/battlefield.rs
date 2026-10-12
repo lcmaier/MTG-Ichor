@@ -228,7 +228,7 @@ impl PermanentState {
     /// `controller` with `mods`.
     ///
     /// **The one function that turns a proposal into an entity**, called by
-    /// the performer (`GameState::place_on_battlefield`) and by the CR 614.12
+    /// the performer (`GameState::perform_entry`) and by the CR 614.12
     /// look-ahead (`layers::Lookahead`), so the frame can never read a
     /// permanent the performer would not build. The two differ only in the
     /// timestamps they pass: the performer's allocated, the frame's predicted.

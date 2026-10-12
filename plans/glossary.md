@@ -275,21 +275,21 @@ game state is mutated. Everything else proposes. → `CLAUDE.md`.
 
 **act** — what a zone change did, in the CR's word for it: destroyed,
 sacrificed, discarded, milled, countered, cast, drawn, played as a land (CR
-701, 601.2, 121.1, 305.1), or only put somewhere. A **redirect** keeps it (CR
-614.6), so a reader asks the act for an act word ("sacrifices", "discards")
-and the destination for a destination word ("is exiled", "dies"). Today the
-act shares `ZoneChangeCause` with who did it, and RH-1 splits the two
-(`replacement-architecture.md` §2b.2). Not the **cause**.
+701, 601.2, 121.1, 305.1), or only put somewhere (`ZoneChangeAct::Put`). A
+**redirect** keeps it (CR 614.6), so a reader asks the act for an act word
+("sacrifices", "discards") and the destination for a destination word ("is
+exiled", "dies"). → `ZoneChangeAct`, `replacement-architecture.md` §2b.2.
+Not the **cause**.
 
 **cause** — who or what caused an event, in CR 400.7j's sense, which sets "an
 effect causes" beside "the cost of a spell or ability causes": an effect ("a
-spell or ability an opponent controls causes"), a cost (CR 118), a special
-action (CR 116), a turn-based or state-based action (CR 703, 704), or a rule. `LifeLossCause` and `DrawCause` use the word this way,
-and `EventStamp`'s `resolution` holds part of it today. RH-1 makes it one
-value on every proposal and every record (`replacement-architecture.md`
-§2b.3). Not the **performer**, which is the function that performs an action,
-and not the **act**: until RH-1, `ZoneChangeCause` is the act, which is why
-it is renamed there.
+spell or ability an opponent controls causes"), a cost (CR 118), a cast or an
+activation, a special action (CR 116), a turn-based or state-based action (CR
+703, 704), or a rule. One value on every proposal (`ActionContext::cause`) and
+every record (`EventStamp::cause`), which its emitter names.
+`DrawCause` keeps the older sense, which draw of an instruction this is.
+→ `EventCause`, `replacement-architecture.md` §2b.3. Not the **performer**,
+which is the function that performs an action, and not the **act**.
 
 **redirect** — a replacement that changes only where a move goes (CR 614.6):
 Rest in Peace's exile in place of a graveyard, CR 903.9b's command zone in
@@ -592,7 +592,7 @@ instant. → `engine::triggers::dispatch`.
 record: does the record fit the ability's trigger event (the arm, its subject,
 its players), and do its once-each-turn limits and its intervening "if" (CR
 603.4) let it trigger? Yes queues a trigger. Besides the replacement pipeline,
-the only code that may branch on a zone change's `cause`.
+the only code that may branch on a zone change's `act`.
 → `match_def` in `engine::triggers::dispatch`.
 
 **multiplicity** — CR 603.2c's question about one arm: does it trigger once

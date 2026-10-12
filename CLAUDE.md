@@ -43,7 +43,7 @@ by id and `put_on_stack.rs::activate_ability` must all index the *effective* lis
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
 **Three exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast and play legality
-before the object is a permanent), `register_static_effects` (circular inside `place_on_battlefield`)
+before the object is a permanent), `register_static_effects` (circular inside `perform_entry`)
 and `// AS PRINTED:` (the card shown as printed; no rule reads it). → `layers-architecture.md`; `codebase-state.md`.
 
 ## Registry membership is not effect existence
@@ -74,8 +74,8 @@ off the object's own effective ability list at layers 4, 5 and 7a; registering o
 invisible to CR 614 no matter how loudly it is *emitted* — the pipeline reads the proposal, not
 the event. Propose with `execute_action` / `change_zone`.
 
-- **`ZoneChange` carries a `ZoneChangeCause`, and there is no catchall.** Every mover names its
-  reason; only the replacement pipeline and the trigger matcher may branch on `cause`.
+- **A `ZoneChange` names its `ZoneChangeAct` and every proposal its `EventCause`; no catchall.** Only
+  the pipeline and the trigger matcher branch on `act`; every emitter names its record's cause.
 - **Performers are loud; callers check legality.** That makes CR 608.2b's partial resolution
   the *caller's* job — see `Primitive::Untap`/`Destroy`.
 - **"Becomes" events fire on the transition only (CR 603.2e).** A redundant tap announces nothing.

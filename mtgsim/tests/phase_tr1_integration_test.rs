@@ -32,7 +32,7 @@ use mtgsim::cards::phase_re_cards::eon_hub;
 use mtgsim::cards::phase_tr1_cards::{
     blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
 };
-use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -48,6 +48,7 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
     static_ability, test_ctx, test_dp, vanilla_creature, StackWatcher,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
@@ -62,7 +63,7 @@ use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerSubject, TriggerTier,
 };
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -133,9 +134,9 @@ fn expect_target_player(dp: &ScriptedDecisionProvider, index: usize) {
 fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
     let batch = objects
         .iter()
-        .map(|&object| GameAction::Destroy { object, source: DestructionSource::Effect(source) })
+        .map(|&object| GameAction::Destroy { object })
         .collect();
-    game.execute_actions(batch, &test_ctx()).expect("the wipe");
+    game.execute_actions(batch, &effect_ctx(game, source)).expect("the wipe");
 }
 
 /// Resolve `effect` for `controller` against `targets`, the way the stack
@@ -152,6 +153,7 @@ fn resolve_effect_from(
         source,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
@@ -170,7 +172,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
     }
     let ctx = test_ctx();
     for _ in 0..200 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -187,7 +189,7 @@ fn next_upkeep(game: &mut GameState) -> PlayerId {
     }
     let ctx = test_ctx();
     for _ in 0..200 {
-        game.advance_turn(&ctx).expect("advancing");
+        game.advance_turn(ctx.dp).expect("advancing");
         if game.phase.step == Some(StepType::Upkeep) {
             return game.active_player;
         }
@@ -751,7 +753,7 @@ fn entering_tapped_is_not_becoming_tapped() {
             from: Some(Zone::Hand),
             controller: 0,
             mods,
-            cause: Some(ZoneChangeCause::Resolved),
+            act: Some(ZoneChangeAct::Put),
         },
         &test_ctx(),
     )
@@ -856,9 +858,8 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
             triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Filter(a_creature()),
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Exile),
-                    cause: None,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
+                    by: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -952,7 +953,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
         watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it),
         0,
     );
-    game.change_zone(grower, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(grower, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1, "the ability still goes on the stack");
     resolve_top(&mut game, &test_dp());
@@ -989,7 +990,7 @@ fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
     destroy_all(&mut game, &[creature], source);
     assert_eq!(pending(&game), 1);
-    game.change_zone(creature, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(creature, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
     assert_eq!(game.get_object(creature).unwrap().zone, Zone::Hand, "not in the first zone it went to: nothing happens");
@@ -1032,7 +1033,7 @@ fn humility_strips_an_etb_before_it_can_trigger() {
         from: Some(Zone::Hand),
         controller,
         mods: EnterMods::NONE,
-        cause: Some(ZoneChangeCause::Resolved),
+        act: Some(ZoneChangeAct::Put),
     };
     let batch = vec![entry(&game, scholar, 0), entry(&game, hum, 1)];
     game.execute_actions(batch, &test_ctx()).unwrap();
@@ -1256,7 +1257,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     );
     place(&mut game, &dp);
     game.players[0].life_total = 10;
-    game.change_zone(target, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    game.change_zone(target, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let before = game.recorded_events().len();
     resolve_top(&mut game, &dp);
     assert!(game.stack.is_empty());
@@ -1372,7 +1373,7 @@ fn wild_growth_adds_its_mana_at_once_without_the_stack() {
     assert!(game.attach(aura, land));
     let ability = forest().abilities[0].id;
 
-    game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, ability, &test_dp()).unwrap();
 
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 2, "the land's {{G}} and the Aura's");
     assert_eq!(pending(&game), 0, "CR 605.4a — never queued");
@@ -1400,7 +1401,7 @@ fn wild_growths_mana_is_the_auras_and_does_not_tap_the_land_for_mana_again() {
         let aura = put_on_battlefield(&mut game, wild_growth(), 0);
         assert!(game.attach(aura, land));
     }
-    game.activate_mana_ability(0, land, forest().abilities[0].id, &test_ctx()).unwrap();
+    game.activate_mana_ability(0, land, forest().abilities[0].id, &test_dp()).unwrap();
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 3);
 }
 
@@ -1412,7 +1413,7 @@ fn wild_growth_adds_to_the_lands_controllers_pool() {
     let land = put_on_battlefield(&mut game, forest(), 1);
     let aura = put_on_battlefield(&mut game, wild_growth(), 0);
     assert!(game.attach(aura, land));
-    game.activate_mana_ability(1, land, forest().abilities[0].id, &test_ctx()).unwrap();
+    game.activate_mana_ability(1, land, forest().abilities[0].id, &test_dp()).unwrap();
     assert_eq!(game.players[1].mana_pool.amount(ManaType::Green), 2);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 0);
 }
@@ -1561,9 +1562,8 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
             triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Any,
-                    from: Some(Zone::Hand),
-                    to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Discarded),
+                    change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
+                    by: None,
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::PerOccurrence,
                 },
@@ -1669,9 +1669,8 @@ fn guile_shaped() -> Arc<CardData> {
         "Incarnate Echo",
         TriggerEvent::ZoneChange {
             subject: TriggerSubject::ThisObject,
-            from: None,
-            to: Some(Zone::Graveyard),
-            cause: None,
+            change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+            by: None,
             owner: None,
             multiplicity: Multiplicity::PerOccurrence,
         },
@@ -1766,9 +1765,8 @@ fn dread_shaped() -> Arc<CardData> {
         .ability(triggered_ability("", whenever(
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::ThisObject,
-                from: None,
-                to: Some(Zone::Graveyard),
-                cause: None,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                by: None,
                 owner: None,
                 multiplicity: Multiplicity::PerOccurrence,
             },
@@ -1831,9 +1829,8 @@ fn one_ability_two_zones() -> Arc<CardData> {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::ThisObject,
-                    from: None,
-                    to: Some(Zone::Graveyard),
-                    cause: None,
+                    change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                    by: None,
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },

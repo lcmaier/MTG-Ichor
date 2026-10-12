@@ -8,13 +8,15 @@
 //!
 //! This replaces v1's scattered `to_battlefield()`, `to_graveyard()`, etc. methods.
 
-use crate::engine::actions::{ActionContext, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, ZoneChangeAct};
+use crate::events::cause::SpecialAction;
 use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::zones::Zone;
+use crate::ui::decision::DecisionProvider;
 
 impl GameState {
     /// Move a game object from one zone to another.
@@ -40,7 +42,7 @@ impl GameState {
     ///
     /// **This function performs the move and announces nothing.** The
     /// `GameEvent::ZoneChange` is emitted by `GameState::announce_zone_change`,
-    /// whose callers know the [`ZoneChangeCause`] and, for the two performer
+    /// whose callers know the [`ZoneChangeAct`] and, for the two performer
     /// arms, capture the CR 603.10a LKI frame before the object stops being a
     /// permanent. That split is also what makes the `// CAST-ROLLBACK:` tag
     /// true: a rewind really is unobservable, and so is the 601.2a move it undoes.
@@ -170,7 +172,7 @@ impl GameState {
     /// the event it must be found for.
     ///
     /// Not the battlefield, which is an entry with a performer of its own
-    /// (`place_on_battlefield`), or before the first turn
+    /// (`perform_entry`), or before the first turn
     /// [`Self::create_on_battlefield`]; loud about it, like [`Self::put_token_into`].
     /// A spell put on the stack this way still needs its `StackEntry`, which
     /// is the caller's. The command zone at setup — a commander before the
@@ -231,7 +233,7 @@ impl GameState {
     /// **The one door, and there are exactly two callers** — [`Self::move_object`]
     /// for a zone change and [`Self::put_token_into`] for a token created
     /// somewhere other than the battlefield (CR 111.7). The battlefield has a
-    /// third door of its own, `GameState::place_on_battlefield`, because an
+    /// third door of its own, `GameState::perform_entry`, because an
     /// entering permanent is not *in* play until the CR 614.1c pipeline has
     /// decided what it enters as — which is after both of these return.
     fn arrive_in_zone(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
@@ -300,9 +302,10 @@ impl GameState {
             *player.library.last().unwrap()
         };
 
-        self.change_zone(card_id, Zone::Hand, ZoneChangeCause::Drawn, ctx)?;
+        self.change_zone(card_id, Zone::Hand, ZoneChangeAct::Drawn, ctx)?;
         // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
-        self.emit_event(GameEvent::CardDrawn { player_id, card_id });
+        // Named, not read off a batch: CR 103.5's opening hands draw outside one.
+        self.emit_event(GameEvent::CardDrawn { player_id, card_id }, ctx.cause);
         Ok(Some(card_id))
     }
 
@@ -314,7 +317,7 @@ impl GameState {
         &mut self,
         player_id: PlayerId,
         card_id: ObjectId,
-        ctx: &ActionContext,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // The check the enumeration asks, so the two agree.
         crate::oracle::legality::can_play_land(self, player_id, card_id).map_err(|reason| reason.to_string())?;
@@ -322,7 +325,8 @@ impl GameState {
         // Through the chokepoint: CR 305.1 makes playing a land a special action
         // that still puts a permanent onto the battlefield, so every ETB
         // replacement has to see it.
-        self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
+        let ctx = ActionContext::special_action(dp, player_id, SpecialAction::PlayLand);
+        self.change_zone(card_id, Zone::Battlefield, ZoneChangeAct::PlayedAsLand, &ctx)?;
 
         let player = self.get_player_mut(player_id)?;
         player.lands_played_this_turn += 1;
@@ -544,12 +548,13 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::types::replacement::EnterMods;
     use crate::test_support::test_ctx;
     use crate::objects::object::GameObject;
     use crate::state::game_state::GameState;
     use crate::types::zones::Zone;
-    use crate::test_support::{forest as make_forest, stock_libraries};
+    use crate::test_support::{forest as make_forest, stock_libraries, test_dp};
 
     /// Put one card in player 0's library and return its id.
     fn game_with_one_card_library() -> (GameState, crate::types::ids::ObjectId) {
@@ -630,7 +635,7 @@ mod tests {
         game.change_zone(
             forest_id,
             Zone::Hand,
-            crate::engine::actions::ZoneChangeCause::PutIntoHand,
+            crate::engine::actions::ZoneChangeAct::Put,
             &test_ctx(),
         ).unwrap();
 
@@ -694,7 +699,7 @@ mod tests {
 
         // Advance to Precombat main phase (Untap -> Upkeep -> Draw -> Precombat)
         for _ in 0..3 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
         assert_eq!(game.phase.phase_type, crate::state::game_state::PhaseType::Precombat);
 
@@ -704,7 +709,7 @@ mod tests {
         game.players[0].hand.push(forest_id);
 
         // Play it
-        game.play_land(0, forest_id, &test_ctx()).unwrap();
+        game.play_land(0, forest_id, &test_dp()).unwrap();
 
         assert!(game.players[0].hand.len() == 1); // drew 1 card during draw step
         assert!(game.battlefield.contains_key(&forest_id));
@@ -718,7 +723,7 @@ mod tests {
         let forest2_id = game.add_object(forest2);
         game.players[0].hand.push(forest2_id);
 
-        let result = game.play_land(0, forest2_id, &test_ctx());
+        let result = game.play_land(0, forest2_id, &test_dp());
         assert!(result.is_err());
     }
 
@@ -732,7 +737,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[0].hand.push(forest_id);
 
-        let result = game.play_land(0, forest_id, &test_ctx());
+        let result = game.play_land(0, forest_id, &test_dp());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("main phase"));
     }
@@ -744,7 +749,7 @@ mod tests {
 
         // Advance to Precombat main (player 0 is active)
         for _ in 0..3 {
-            game.advance_turn(&test_ctx()).unwrap();
+            game.advance_turn(&test_dp()).unwrap();
         }
 
         // Player 1 tries to play a land during player 0's turn
@@ -752,7 +757,7 @@ mod tests {
         let forest_id = game.add_object(forest);
         game.players[1].hand.push(forest_id);
 
-        let result = game.play_land(1, forest_id, &test_ctx());
+        let result = game.play_land(1, forest_id, &test_dp());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("active player"));
     }
@@ -764,7 +769,7 @@ mod tests {
         // Create a forest on the battlefield
         let forest = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        game.place_on_battlefield(forest_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, forest_id, 0, &EnterMods::NONE);
 
         // Move to graveyard
         game.move_object(forest_id, Zone::Graveyard).unwrap();
@@ -781,12 +786,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // Create an "attachment" (e.g. Equipment) on the battlefield
         let equip = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let equip_id = game.add_object(equip);
-        game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, equip_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.attach(equip_id, host_id);
@@ -811,12 +816,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // Create an attachment on the battlefield
         let aura = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let aura_id = game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.attach(aura_id, host_id);

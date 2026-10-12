@@ -12,7 +12,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase_rc_cards::{
     adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
 };
-use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -89,14 +89,14 @@ fn enters_with(
 /// `put_on_battlefield`, which skips the pipeline entirely.
 ///
 /// Reanimation's shape, and the cause is picked to be honest rather than
-/// convenient: `ZoneChangeCause` has no catchall, and "return target creature
+/// convenient: `ZoneChangeAct` has no catchall, and "return target creature
 /// card from your graveyard to the battlefield" is a real effect with a real
 /// cause. Every entry road in the engine converges on the same
 /// `perform_action` arm, so which one a test takes changes nothing but the
 /// label.
 fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> ObjectId {
     let id = put_in_graveyard(game, card, player);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
     id
 }
@@ -126,7 +126,7 @@ fn test_tapland_enters_tapped() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).expect("the land drop is legal");
+    game.play_land(0, land, &test_dp()).expect("the land drop is legal");
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,
@@ -147,7 +147,7 @@ fn test_tapland_is_tapped_through_the_pipeline_not_by_hand() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     // The entry was announced exactly once, by the performer.
     assert_eq!(entries(&game), vec![(land, 0)]);
@@ -164,7 +164,7 @@ fn test_enters_tapped_does_not_leak_to_other_permanents() {
     let mut game = setup_two_player_game();
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
     assert!(game.battlefield.get(&land).unwrap().tapped);
 
     let bears = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -334,7 +334,7 @@ fn test_two_entry_replacements_accumulate() {
     // `pipeline::ordering_cannot_change_outcome` says so. A provider with nothing
     // scripted is the witness — a prompt would fail this test.
     let id = put_in_graveyard(&mut game, data, 0);
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .expect("it enters");
 
     let entry = game.battlefield.get(&id).unwrap();
@@ -432,7 +432,7 @@ fn test_blood_moon_strips_an_entering_taplands_ability() {
     put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert!(
         !game.battlefield.get(&land).unwrap().tapped,
@@ -533,7 +533,7 @@ fn test_entering_permanent_is_gathered_before_it_is_a_source() {
     assert!(game.replacement_effects.is_empty(), "and the registry is empty");
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,
@@ -571,7 +571,7 @@ fn test_entry_is_announced_exactly_once_per_permanent() {
     let a = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     let b = reanimate(&mut game, chainbreaker(), 1);
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert_eq!(entries(&game), vec![(a, 0), (b, 1), (land, 0)]);
 }
@@ -638,7 +638,7 @@ fn test_direct_enter_battlefield_action_still_performs() {
             from: None,
             controller: 0,
             mods: EnterMods::NONE,
-            cause: None,
+            act: None,
         },
         &ActionContext::new(&test_dp()),
     )
@@ -721,7 +721,7 @@ fn test_root_maze_taps_an_entering_land() {
     put_on_battlefield(&mut game, root_maze(), 1);
 
     let forest = put_in_hand(&mut game, mtgsim::cards::basic_lands::forest(), 0);
-    game.play_land(0, forest, &test_ctx()).unwrap();
+    game.play_land(0, forest, &test_dp()).unwrap();
 
     assert!(
         game.battlefield.get(&forest).unwrap().tapped,
@@ -755,7 +755,7 @@ fn test_two_commuting_entry_replacements_do_not_ask() {
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
     // A provider with nothing scripted: a prompt here fails the test.
-    game.play_land(0, land, &test_ctx()).unwrap();
+    game.play_land(0, land, &test_dp()).unwrap();
 
     assert!(
         game.battlefield.get(&land).unwrap().tapped,
@@ -778,7 +778,7 @@ fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
     put_on_battlefield(&mut game, root_maze(), 1);
 
     let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
-    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+    game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx())
         .unwrap();
 
     let entry = game.battlefield.get(&scarecrow).unwrap();

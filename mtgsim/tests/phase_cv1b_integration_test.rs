@@ -56,6 +56,7 @@ use mtgsim::test_support::{
     lightning_bolt, pacifism, place_vanilla_creature, put_in_hand, put_on_battlefield, put_spell_on_stack,
     set_attacking, set_blocked_by, set_blocking, setup_two_player_game, test_ctx, test_dp,
     RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -70,7 +71,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -88,6 +89,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
@@ -99,9 +101,9 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
 
 /// `id` leaves the battlefield for `to` and comes straight back: the shape a
 /// blink or a reanimation makes, which no registered card makes yet.
-fn leave_and_return(game: &mut GameState, id: ObjectId, to: Zone, cause: ZoneChangeCause) {
+fn leave_and_return(game: &mut GameState, id: ObjectId, to: Zone, cause: ZoneChangeAct) {
     game.change_zone(id, to, cause, &test_ctx()).unwrap();
-    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     assert_eq!(game.get_object(id).unwrap().zone, Zone::Battlefield, "the object came back");
 }
 
@@ -156,6 +158,7 @@ fn replacement_row(game: &mut GameState, def: ReplacementDef) {
         id: 0,
         source: mtgsim::types::ids::new_object_id(),
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
         created_on_turn: turn,
         targets: Vec::new(),
@@ -183,7 +186,7 @@ fn cant_be_destroyed(game: &mut GameState, object: ObjectId) {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object, source: DestructionSource::Effect(by) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object }, &effect_ctx(game, by))
         .unwrap();
 }
 
@@ -237,7 +240,7 @@ fn a_creature_exiled_and_returned_is_a_new_object() {
     game.attach(aura, bears);
     assert_eq!(pt(&game, bears), (Some(6), Some(6)), "2/2, +3/+3 and a counter");
 
-    leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeCause::Exiled);
+    leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeAct::Put);
 
     assert_eq!(pt(&game, bears), (Some(2), Some(2)), "no pump, no counter");
     assert!(game.continuous_effects.is_empty(), "the pump's row named only the old object");
@@ -256,7 +259,7 @@ fn a_copy_on_two_creatures_keeps_applying_to_the_one_that_stayed() {
     resolve_spell(&mut game, mirrorweave(), 0, &[angel]);
     assert_eq!((get_effective_name(&game, a), get_effective_name(&game, b)), ("Serra Angel".into(), "Serra Angel".into()));
 
-    leave_and_return(&mut game, a, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, a, Zone::Graveyard, ZoneChangeAct::Destroyed);
 
     assert_eq!(get_effective_name(&game, a), "Grizzly Bears", "a new object, copying nothing");
     assert_eq!(get_effective_name(&game, b), "Serra Angel");
@@ -303,6 +306,7 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
         source: circle,
         ability_source: game.object_ref(circle),
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -311,7 +315,7 @@ fn a_shield_against_a_chosen_source_does_not_watch_the_object_it_returns_as() {
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp).unwrap();
     assert_eq!(game.replacement_effects.len(), 1);
 
-    leave_and_return(&mut game, red, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, red, Zone::Graveyard, ZoneChangeAct::Destroyed);
     assert_eq!(game.replacement_effects.len(), 1, "it watches the existence it chose, by identity");
 
     deal_damage(&mut game, red, DamageTarget::Player(0), 4);
@@ -327,7 +331,7 @@ fn a_shield_on_a_creature_ends_when_it_moves() {
     let red = put_on_battlefield(&mut game, red_creature(3), 1);
     resolve_spell(&mut game, mending_hands(), 0, &[bears]);
 
-    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeCause::Returned);
+    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     assert!(game.replacement_effects.is_empty());
 
     deal_damage(&mut game, red, DamageTarget::Object(bears), 3);
@@ -351,7 +355,7 @@ fn a_shield_for_you_and_a_creature_keeps_protecting_you() {
         .affecting_players(PlayerSet::You),
     );
 
-    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     let row = game.replacement_effects.iter().next().expect("the player half keeps the row");
     assert_eq!(row.def.affected_objects, ObjectSet::Fixed(Vec::new()));
 
@@ -371,7 +375,7 @@ fn a_restriction_on_a_creature_ends_when_it_moves() {
     destroy(&mut game, bears);
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "the restriction holds");
 
-    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeCause::Returned);
+    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     assert!(game.restrictions.is_empty());
     destroy(&mut game, bears);
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Graveyard);
@@ -410,7 +414,7 @@ fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let announced: Vec<ResolvedTarget> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
     assert_eq!(announced, vec![ResolvedTarget::Object(bears)], "players first, then the Bears");
 
-    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
     assert!(fizzled(&game, bolt));
@@ -430,7 +434,7 @@ fn two_references_to_one_creature_both_end_at_one_move() {
     resolve_spell(&mut game, giant_growth(), 1, &[bears]);
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
 
-    leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeCause::Exiled);
+    leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeAct::Put);
     assert_eq!(pt(&game, bears), (Some(2), Some(2)));
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert!(fizzled(&game, bolt));
@@ -448,7 +452,7 @@ fn a_choice_made_at_cast_finds_nothing_once_its_object_has_moved() {
     let spell = cast_from_pool(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], RecordingDecisionProvider::picking(0));
     assert!(!game.stack_entries[&spell].chosen_targets[0].is_targeted());
 
-    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeCause::Returned);
+    leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
     assert!(!fizzled(&game, spell), "a choice does not fizzle");
@@ -582,6 +586,7 @@ fn resolve_spell_with(
         source: id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.iter().copied().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
@@ -767,7 +772,7 @@ fn mirrorforms_copies_last_until_their_subject_moves() {
     mtgsim::test_support::pass_turn(&mut game);
     assert_eq!((get_effective_name(&game, bears), get_effective_name(&game, ring)), ("Serra Angel".into(), "Serra Angel".into()));
 
-    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     assert_eq!(get_effective_name(&game, bears), "Grizzly Bears");
     assert_eq!(get_effective_name(&game, ring), "Serra Angel");
 }
@@ -966,7 +971,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
         }
     }
     for _ in 0..200 {
-        game.advance_turn(&test_ctx()).expect("advancing");
+        game.advance_turn(&test_dp()).expect("advancing");
         if game.active_player == whose && game.phase.step == Some(step) {
             return;
         }
@@ -1117,7 +1122,7 @@ fn cryptoplasm_whose_target_is_gone_stays_what_it_was() {
 
     advance_to(&mut game, 0, StepType::Upkeep);
     let trigger = place_targeting(&mut game, bears);
-    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeCause::Destroyed);
+    leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).unwrap();
     assert!(!game.stack.contains(&trigger));
     assert_eq!(get_effective_name(&game, crypto), "Serra Angel");
@@ -1142,7 +1147,7 @@ fn a_clone_of_cryptoplasm_copies_what_it_copies_and_has_its_ability() {
     let clone = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::clone(), 1);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(crypto)]);
-    game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &mtgsim::engine::actions::ActionContext::new(&dp))
+    game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
         .unwrap();
     assert_eq!(get_effective_name(&game, clone), "Serra Angel");
     assert!(has_cryptoplasms_ability(&game, clone));
@@ -1228,6 +1233,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         source,
         ability_source: None,
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets,
         replaced_amount: None,
         damage_prevented: None,
@@ -1286,7 +1292,7 @@ fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
     let spark = mtgsim::test_support::put_in_graveyard(&mut game, phase_cv_cards::spark_double(), 0);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseCopySource { source: spark }, vec![ChoiceOption::Object(bears)]);
-    game.change_zone(spark, Zone::Battlefield, ZoneChangeCause::Returned, &mtgsim::engine::actions::ActionContext::new(&dp))
+    game.change_zone(spark, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());
 

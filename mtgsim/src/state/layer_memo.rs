@@ -199,6 +199,7 @@ impl LayerMemo {
 /// the debug audit under `fuzz_games` instead.
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
     use crate::engine::layers::compute_characteristics;
@@ -218,7 +219,7 @@ mod tests {
     use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
     use crate::types::replacement::EnterMods;
-    use crate::types::zones::{Zone, ZoneChangeCause};
+    use crate::types::zones::{Zone, ZoneChangeAct};
 
     /// Query `id`, and say whether the memo answered.
     fn query(game: &GameState, id: ObjectId) -> (Option<Arc<EffectiveCharacteristics>>, bool) {
@@ -316,7 +317,7 @@ mod tests {
         assert_eq!(controller(&game, card), (Some(0), true));
 
         game.move_object(card, Zone::Battlefield).unwrap();
-        game.place_on_battlefield(card, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, card, 1, &EnterMods::NONE);
         assert_eq!(controller(&game, card), (Some(1), false), "the entity is the seed now");
     }
 
@@ -328,7 +329,7 @@ mod tests {
         assert_eq!(power(&game, bears), (Some(3), false));
         assert_eq!(power(&game, bears), (Some(3), true));
 
-        game.change_zone(bears, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+        game.change_zone(bears, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
         assert_eq!(power(&game, bears), (Some(2), false), "no entity, so no counter");
     }
 

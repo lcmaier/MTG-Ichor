@@ -30,13 +30,14 @@ use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     card_of_type, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
+    effect_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
@@ -51,10 +52,10 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
-use mtgsim::types::zones::{DestructionSource, Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::display::format_event;
+use mtgsim::ui::display::format_record;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object, source: DestructionSource::Effect(by) }, &test_ctx())
+    game.execute_action(GameAction::Destroy { object }, &effect_ctx(game, by))
         .unwrap();
 }
 
@@ -185,6 +186,7 @@ fn circle_chooses(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption) 
         source: circle,
         ability_source: game.object_ref(circle),
         controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
@@ -253,8 +255,8 @@ fn a_shield_does_not_prevent_the_damage_of_the_object_its_source_became() {
     let probe = put_on_battlefield(&mut game, red_probe(), 1);
     circle_chooses(&mut game, circle, now(probe));
 
-    game.change_zone(probe, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
-    game.change_zone(probe, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    game.change_zone(probe, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.execute_action(
         GameAction::DealDamage {
             source: probe,
@@ -333,8 +335,8 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let wisp = put_on_battlefield(&mut game, flickerwisp(), 0);
     let stray = put_in_hand(&mut game, grizzly_bears(), 0);
-    game.change_zone(wisp, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    game.change_zone(wisp, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(wisp, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(wisp, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let wisp_was = game.object_ref(wisp).unwrap();
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Exile);
@@ -346,7 +348,7 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     assert!(!sources.iter().any(|s| s.id == stray), "a card in hand that nothing names");
 
     destroy(&mut game, wisp);
-    game.change_zone(bears, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(bears, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let sources = damage_sources(&game, None);
     assert!(sources.contains(&wisp_was), "the trigger's source, as it last existed");
     assert!(sources.contains(&exiled), "the card it names, though it has left exile");
@@ -366,7 +368,7 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
     let was = game.object_ref(myr).unwrap();
     destroy(&mut game, myr);
     game.perform_sba_and_triggers(&RecordingDecisionProvider::picking(0)).unwrap();
-    game.change_zone(myr, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
+    game.change_zone(myr, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     let offered = activate_circle(&mut game, circle, as_it_was(was));
     assert_eq!(offered, logged(&game, &[now(circle), now(myr), as_it_was(was)]));
@@ -779,11 +781,11 @@ fn top_targets(game: &GameState) -> Vec<Vec<ResolvedTarget>> {
 
 /// The words of each reflexive trigger's creation, in the log.
 fn reflexive_lines(game: &GameState) -> Vec<String> {
-    let names = NamesAsAnnounced::default();
     game.recorded_events()
-        .events()
-        .filter(|e| matches!(e, GameEvent::DelayedTriggerCreated { duration: DelayedDuration::Reflexive(_), .. }))
-        .map(|e| format_event(game, e, &names))
+        .records()
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::DelayedTriggerCreated { duration: DelayedDuration::Reflexive(_), .. }))
+        .map(|r| format_record(game, r))
         .collect()
 }
 
@@ -993,6 +995,7 @@ fn a_circle_that_chose_cornered_crook_prevents_its_damage_after_it_dies() {
         source: circle,
         ability_source: game.object_ref(circle),
         controller: 1,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,

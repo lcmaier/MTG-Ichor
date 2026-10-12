@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use crate::engine::actions::{ActionContext, GameAction, LifeLossCause, ZoneChangeCause};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::types::costs::Cost;
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
@@ -456,13 +456,13 @@ impl GameState {
                     GameAction::LoseLife {
                         player: player_id,
                         amount: *amount,
-                        cause: LifeLossCause::Cost,
+                        damage_source: None,
                     },
                     ctx,
                 )
             }
             Cost::SacrificeSelf => {
-                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Sacrificed, ctx)
+                self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Sacrificed, ctx)
             }
             Cost::Sacrifice(_, n) => {
                 let chosen = plan.sacrifices.get(&idx).ok_or_else(|| {
@@ -484,7 +484,7 @@ impl GameState {
                         object,
                         from: Zone::Battlefield,
                         to: Zone::Graveyard,
-                        cause: ZoneChangeCause::Sacrificed,
+                        act: ZoneChangeAct::Sacrificed,
                     })
                     .collect();
                 self.execute_actions(batch, ctx).map(|_| ())

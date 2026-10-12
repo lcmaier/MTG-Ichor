@@ -45,7 +45,7 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
-use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -73,6 +73,7 @@ fn resolve_spell(
         source: source_id,
         ability_source: None,
         controller,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         targets: ChosenTargets::one(targets.into_iter().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
@@ -830,9 +831,7 @@ fn restriction_creature() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::ZoneChange {
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    cause: Some(ZoneChangeCause::Sacrificed),
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
