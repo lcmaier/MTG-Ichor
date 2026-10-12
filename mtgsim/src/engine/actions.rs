@@ -4,7 +4,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{BatchMember, ReplacementInstanceId, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason};
+use crate::events::event::{CounterSubject, DamageTarget, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -484,12 +484,13 @@ pub enum GameAction {
     /// Proposed by the state-based-action check for CR 704.5a–c and 704.6c,
     /// one member per player whatever the number of reasons (CR 704.7 — Lich's
     /// Mirror's ruling: "a single Lich's Mirror will replace all of them"),
-    /// carrying the first reason in CR order; and by `Primitive::LoseGame` for
-    /// CR 104.3e. Concession (104.3a) is a *leave* that then loses and is not
-    /// proposed through here.
+    /// caused by the first reason's subrule in CR order; and by
+    /// `Primitive::LoseGame` for CR 104.3e, caused by its effect. Why the
+    /// player lost is that cause and nothing here: no rule decides from it
+    /// (CR 603.9's triggers fire "regardless of the reason"). Concession
+    /// (104.3a) is a *leave* that then loses and is not proposed through here.
     PlayerLoses {
         player: PlayerId,
-        reason: LossReason,
     },
 
     /// CR 701.22 — a player scries N. The event's subject is the player.
@@ -1661,7 +1662,7 @@ impl GameState {
             // Loud on a player who has left: the check gates on `player_lost`, so a
             // second loss is a caller's bug. CR 704.5b's flag is the check's to clear,
             // and CR 104.2a and 104.4a are the batch's, settled after it performs.
-            GameAction::PlayerLoses { player, reason } => {
+            GameAction::PlayerLoses { player } => {
                 if self.player_lost[player] {
                     return Err(format!("player {} has already left the game", player));
                 }
@@ -1670,7 +1671,7 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player, reason }, ctx.cause);
+                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause);
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of

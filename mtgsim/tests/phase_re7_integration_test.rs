@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use mtgsim::engine::actions::ZoneChangeAct;
-use mtgsim::events::cause::{EventCause, GameRule};
-use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
+use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
@@ -983,8 +983,12 @@ fn a_two_player_game_leaves_the_departed_players_objects_where_they_are() {
     assert!(departures(&game).is_empty());
     assert_eq!(
         game.recorded_events()
-            .events()
-            .filter(|e| matches!(e, GameEvent::PlayerLost { reason: LossReason::LifeReachedZero, .. }))
+            .records()
+            .iter()
+            .filter(|r| {
+                matches!(r.event, GameEvent::PlayerLost { .. })
+                    && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::ZeroLife)
+            })
             .count(),
         1
     );

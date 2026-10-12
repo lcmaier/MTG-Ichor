@@ -5,7 +5,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, LossReason, ResolutionStamp};
+use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, ResolutionStamp};
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
@@ -714,7 +714,7 @@ impl GameState {
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
                 if self.in_game(player) {
                     self.execute_action(
-                        GameAction::PlayerLoses { player, reason: LossReason::Effect },
+                        GameAction::PlayerLoses { player },
                         &actx,
                     )?;
                 }

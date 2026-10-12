@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::events::cause::{EventCause, GameRule, StateBasedAction};
-use crate::events::event::{GameEvent, LossReason};
+use crate::events::event::GameEvent;
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
@@ -57,8 +57,8 @@ fn sba_destroy(id: ObjectId) -> GameAction {
 /// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
 /// CR 704.7's collapse can see two reasons as one loss
 /// (`replacement-architecture.md` §9, RE decision 5).
-fn sba_player_loses(player: PlayerId, reason: LossReason, state_based_action: StateBasedAction) -> (GameAction, StateBasedAction) {
-    (GameAction::PlayerLoses { player, reason }, state_based_action)
+fn sba_player_loses(player: PlayerId, state_based_action: StateBasedAction) -> (GameAction, StateBasedAction) {
+    (GameAction::PlayerLoses { player }, state_based_action)
 }
 
 /// How many performing state-based checks in one run of
@@ -156,17 +156,17 @@ impl GameState {
             }
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
-                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero, StateBasedAction::ZeroLife));
+                player_losses.push(sba_player_loses(i, StateBasedAction::ZeroLife));
             }
             // 704.5b — attempted to draw from an empty library since the last
             // check.
             if drew_from_empty[i] {
-                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary, StateBasedAction::DrewFromEmptyLibrary));
+                player_losses.push(sba_player_loses(i, StateBasedAction::DrewFromEmptyLibrary));
             }
             // 704.5c — ten or more poison counters, read off the player's
             // kind → count map (CR 122.1f).
             if self.players[i].counter_count(CounterType::Poison) >= 10 {
-                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters, StateBasedAction::TenPoisonCounters));
+                player_losses.push(sba_player_loses(i, StateBasedAction::TenPoisonCounters));
             }
         }
 
@@ -348,7 +348,7 @@ impl GameState {
             if self.in_game(i)
                 && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
             {
-                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage, StateBasedAction::CommanderDamage));
+                player_losses.push(sba_player_loses(i, StateBasedAction::CommanderDamage));
             }
         }
 
@@ -1502,12 +1502,10 @@ mod tests {
         assert!(game.player_lost[0]);
         assert!(!game.player_lost[1]);
 
-        // Verify correct LossReason
-        let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::PlayerLost {
-                player_id: 0,
-                reason: crate::events::event::LossReason::PoisonCounters,
-            })
+        // The loss names its subrule as its cause.
+        let has_event = game.recorded_events().records().iter().any(|r| {
+            matches!(r.event, crate::events::event::GameEvent::PlayerLost { player_id: 0 })
+                && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::TenPoisonCounters)
         });
         assert!(has_event);
     }
@@ -1539,11 +1537,9 @@ mod tests {
         assert!(performed);
         assert!(game.player_lost[1]);
 
-        let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::PlayerLost {
-                player_id: 1,
-                reason: crate::events::event::LossReason::CommanderDamage,
-            })
+        let has_event = game.recorded_events().records().iter().any(|r| {
+            matches!(r.event, crate::events::event::GameEvent::PlayerLost { player_id: 1 })
+                && r.stamp.cause == EventCause::StateBasedAction(StateBasedAction::CommanderDamage)
         });
         assert!(has_event);
     }

@@ -207,7 +207,6 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::engine::actions::GameAction;
-    use crate::events::event::LossReason;
     use crate::objects::card_data::CardDataBuilder;
     use crate::test_support::{
         put_in_hand, put_on_battlefield, registered, setup_game, static_ability, test_ctx, vanilla_creature,
@@ -388,7 +387,7 @@ mod tests {
         assert_eq!(power(&game, creature), (Some(2), false));
         assert_eq!(power(&game, creature), (Some(2), true));
 
-        game.execute_action(GameAction::PlayerLoses { player: 2, reason: LossReason::LifeReachedZero }, &test_ctx())
+        game.execute_action(GameAction::PlayerLoses { player: 2 }, &test_ctx())
             .unwrap();
         assert_eq!(power(&game, creature), (Some(1), false), "the one opponent at 10 or less has left");
     }

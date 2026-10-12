@@ -29,7 +29,7 @@ use mtgsim::engine::actions::{DrawCause, GameAction};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
@@ -809,7 +809,7 @@ fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
     let mut game = setup_game(4);
     stock_libraries(&mut game, 5);
     set_active_player(&mut game, 2);
-    game.execute_action(GameAction::PlayerLoses { player: 3, reason: LossReason::Effect }, &test_ctx())
+    game.execute_action(GameAction::PlayerLoses { player: 3 }, &test_ctx())
         .unwrap();
     let each_draws = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),

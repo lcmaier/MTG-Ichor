@@ -1657,9 +1657,8 @@ pub enum Primitive {
     SetLifeTotal(AmountExpr),
 
     // === The game's end (CR 104.2b, 104.3e) ===
-    /// "Target player loses the game" — a `GameAction::PlayerLoses` with
-    /// `LossReason::Effect`, so it can be replaced or refused like a
-    /// state-based loss.
+    /// "Target player loses the game" — a `GameAction::PlayerLoses` caused by
+    /// the effect, so it can be replaced or refused like a state-based loss.
     LoseGame,
     /// "You win the game" — a `GameAction::PlayerWins`.
     WinGame,

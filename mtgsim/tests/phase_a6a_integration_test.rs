@@ -18,7 +18,6 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::events::event::LossReason;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
@@ -358,7 +357,7 @@ fn a_departed_players_actions_this_turn_are_still_found() {
     let spell = put_in_hand(&mut game, free_instant(), 1);
     game.cast_spell(1, spell, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).expect("castable");
     resolve_all(&mut game);
-    game.execute_action(GameAction::PlayerLoses { player: 1, reason: LossReason::Effect }, &test_ctx())
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx())
         .expect("the loss");
     assert!(!game.in_game(1), "player 1 has left the game");
 
