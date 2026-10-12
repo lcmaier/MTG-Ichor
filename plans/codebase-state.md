@@ -8108,8 +8108,15 @@ linked-ability records an entry makes.
      returned to" or o:"are returned to")`; 61 with `kw:madness`; 201 with
      `(o:"sacrificed this way" or o:"discarded this way" or o:"milled this way"
      or o:"countered this way" or o:"destroyed this way")`.
-     **Slotted:** RH-1 (the act and the cause) and RH-2 (the applied set), Phase
-     RH, before A6m and TR-4a.
+     **The act and the cause closed 2026-10-11**, RH-1
+     (`replacement/rh-1-act-and-cause`): `ZoneChangeAct` and `EventCause` as
+     §2b designs them, and the trap above with them, since no destination act
+     is left to name. `tests/instead_keeps_the_act_test.rs` keeps every act
+     and its cause under a redirect, and `phase_rh1_integration_test.rs` runs
+     six kinds of cause through Sigarda's filter, Nephalia Academy's
+     replacement and a trigger shaped like Guerrilla Tactics. The third
+     question, which replacements applied, stays open.
+     **Slotted:** RH-2 (the applied set), Phase RH, before A6m and TR-4a.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -9498,3 +9505,32 @@ that is wrong today.
      (`replacement-architecture.md` §2b.6).
      **Slotted:** RH-2, the record's identity, its applied set and its moment;
      its piece stands alone if RH-2 runs past the band.
+
+### Found by RH-1 — the act and the cause (2026-10-11)
+
+249. **A trigger condition about this object leaving a zone other than the
+     battlefield is never asked.** CR 113.6k makes "When a spell or ability
+     an opponent controls causes you to discard this card" function in the
+     hand, and `zone_function::condition_zones` derives that. But the zone
+     map that makes the card a candidate (`zone_trigger_sources`,
+     `triggers-architecture.md` §4.2's third leg) drops the card as it moves
+     (`engine/zones.rs`, the branch for a departure from elsewhere), and the
+     dispatch runs at the window's close, after the move. In the graveyard
+     the condition does not function, and the record carries no frame, since
+     `lki` is captured for battlefield departures only. So no leg asks it.
+     Guerrilla Tactics, written for RH-1, never triggered. It was withdrawn
+     under `replacement-architecture.md` §2b.10's rule, and the fixture
+     shaped like it in `phase_rh1_integration_test.rs` stands in.
+     **Reachability (2026-10-11):** not reachable: no registered card has a
+     `ThisObject` condition whose `from` is a zone other than the battlefield
+     (`grep -rn "from: Some(Zone::" src/cards`). Obstinate Baloth and the
+     other cards that put a discarded card onto the battlefield are
+     replacements, which `gather` asks before the move, so they are not this.
+     **Sized:** ~60 lines of code and ~80 of tests. Every such condition
+     looks back by necessity: the object it names functions only in the zone
+     it left. So a departure whose mover has such a condition captures a
+     frame on its record, `TriggerEvent::looks_back` says yes for the arm,
+     and leg 2 asks it in the zone the frame left. That is TR-4a's capture,
+     with one more class behind its gate.
+     **Slotted:** TR-4a, the frame. Guerrilla Tactics registers with it, from
+     RH-1's text and rulings.

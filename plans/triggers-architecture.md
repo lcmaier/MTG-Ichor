@@ -1145,6 +1145,10 @@ For each record, the candidates are the union of:
    graveyard from anywhere" functions everywhere it can be; Guerrilla
    Tactics' discard functions in the hand); a condition about other
    objects functions on the battlefield unless 113.6b states otherwise.
+   **Amended 2026-10-11 (RH-1):** the map loses the card as it moves, before
+   the window's dispatch, so a condition about this object *leaving* such a
+   zone is asked off the departure's frame, on leg 2 (`codebase-state.md`
+   item 249, TR-4a).
 4. **The record's own subject**, wherever it is now — CR 603.10's default
    is "objects that exist immediately after an event", and a card
    discarded into a graveyard exists there with its printed abilities.
@@ -2615,7 +2619,7 @@ agreed; instructions per decision +0.17%.
 
 | Piece | ~additions |
 |---|---|
-| `Lki` widened, and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~510 |
+| `Lki` widened, and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters`; the frame for a condition about this object leaving a zone other than the battlefield, with **Guerrilla Tactics** (`codebase-state.md` item 249, ~140 with its tests) | ~510 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
 | tests, 29: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); item 173's Bridge from Below in a graveyard, and the Jailer fixture that follows it | ~1,070 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |

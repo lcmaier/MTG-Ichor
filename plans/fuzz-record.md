@@ -37,6 +37,38 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-11 for RH-1** (`replacement/rh-1-act-and-cause`: the
+act and the cause, `replacement-architecture.md` §2b). No card joins the
+registry or the pool (188 registered, 106 pooled): Guerrilla Tactics was
+withdrawn under §2b.10's rule (`codebase-state.md` item 249), so the engine
+arm is also the shipped one. `close_out.py` against **main** `661c4a9`
+(#242's merge), with one arm: **engine** `8d5d535`, every commit of the PR
+that changes a `fuzz_games` (the docs and pictures after it change none).
+
+**Predictions, from the brief, before any arm ran:**
+- engine `IDENTICAL` to `main` on every row, gameplay and cost, on both
+  pools at two seats and four. RH-1 renames what a record says and decides
+  nothing from it: no pooled card reads a cause, and the folds keep every
+  answer the old fields gave.
+- Every dispatch agreed.
+- Instructions per decision within ±0.3%, the stamp growing from a
+  resolution to a cause.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 162,763 / 165,874 | 331,993 / 341,449 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6498 M → 0.6510 M, **+0.18%** |
+
+Every prediction held. The audit's counts are TR-3c's shipped arm's to the
+digit, as an `IDENTICAL` pool should read. The copies report found no near-copy
+and no shared shape. Its sixteen "same composition" pairs are the cause
+threaded through callers that already existed (`emit_event_caused` beside
+`cause`, `paying_cost` beside `plan_payment`). The sitting ran in 120 s.
+
+**§3 fixture rows:** unchanged, since the engine arm is `IDENTICAL` on both
+pools. TR-3c's tables below stand.
+
 **Re-recorded 2026-10-09 for TR-3c** (#239: the reflexive trigger, and items
 229, 225, 103 and 99's first half). Cornered Crook joins the registry, not
 the pool (187 → 188 registered, 106 pooled), so the `stress` §3 column is a

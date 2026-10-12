@@ -3745,11 +3745,26 @@ The design is §2b, reviewed in its own PR before any code (`roadmap-v2.md`
 A6o). Both PRs sit inside A6d, after the design and before A6m and TR-4a.
 Branches are `replacement/rh-<n>-…`.
 
-#### RH-1 — the act and the cause
+#### RH-1 — the act and the cause — ✅ landed 2026-10-11
 
-`ZoneChangeAct` and `EventCause` (§2b.2, §2b.3), with the folds and the
-reader's pattern (§2b.7). The A/B expects `IDENTICAL`. Pieces and sizes:
-§2b.10.
+**Shipped:** `ZoneChangeAct` (`types/zones.rs`), nine acts, in place of
+`ZoneChangeCause`. The rule variants and `Resolved` moved to the cause, and
+every rule's move is a `Put`. `EventCause` (`events/cause.rs`) is on every
+proposal and on every record's stamp, `EventStamp { batch, cause }` (40 bytes;
+the record 144). It is ambient inside a batch, and named by the emitter
+outside one, where a record with neither is an `Err`. `GeneratedBy` is
+decision 10's, with its counters arm. CR 704.3's state-based batch and CR
+610.3d's returns name a cause per member (`execute_caused_actions`).
+`DestructionSource` and `LifeLossCause` folded into the cause, which leaves
+`LoseLife { damage_source }`, and `SourceFilter::matches` reads the cause. Both
+zone-change arms hold `ZoneChangePattern { from, to, act }`. The trigger arm's
+`by` is read through `cause_asked_by`, the one line RH-2 changes. The log line
+says "[act] by cause". The engine arm is `IDENTICAL` to `main` at two seats and
+four on both pools, at +0.18% instructions per decision (`fuzz-record.md`).
+Guerrilla Tactics is not registered: its hand leg needs a frame
+(`codebase-state.md` item 249, TR-4a), so §2b.10's rule stands its fixture in.
+Closes item 176's act and cause halves. Claims no atom. Trace page: no, since
+the record's words changed and no read is answered differently.
 
 #### RH-2 — the record's identity, its applied set and its moment
 
