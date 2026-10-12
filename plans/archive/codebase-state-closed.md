@@ -5188,3 +5188,52 @@ test fails.
      records; ~30 lines and a fixture.
      **Slotted:** with the first registered card that performs its reflexive
      trigger's event twice in one resolution.
+
+### Item 248 — closed 2026-10-12 by PR #244 (RH-2)
+
+Closed by RH-2 (`replacement-architecture.md` §2b.6, §9). A destruction's move
+(CR 701.8a) is its inner event, decided in phase 1 right after its subject
+group, with a fresh applied set, against the board before any member of the
+batch has performed (CR 704.3, 614.4): `GameState::decide_destruction_moves`.
+The member carries the decided move as `BatchMember::inner_move`. Phase 2
+performs it right after its destruction, and its riders join the batch's
+phase 3, so Kalitas's Zombie enters after the whole event. A destruction that
+was replaced or stopped is no longer a `Destroy` and decides no move.
+`tests/phase_rh2_integration_test.rs` holds the fixtures: Kalitas placed
+first and placed second, a wipe that takes Kalitas with two of the opponent's
+creatures (the Zombies after every death), two players' Kalitases exiling
+each other, and a shield counter that leaves no move to decide. The first,
+third and fourth failed on the tree before the fix; the other two pass on
+both. The same build answered §2b.11's open question about the other outer
+event: CR 800.4a's exiles, proposed one at a time, are now one batch.
+
+*Original entry:*
+
+248. **A destruction's move is decided after the event has begun, so a
+     replacement whose source died earlier in the same event is gone.**
+     `GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a
+     nested batch, so in a batch of several destructions each later member's
+     move is decided after the earlier members performed. Kalitas, Traitor of
+     Ghet dying beside an opponent's creature in one state-based check is
+     gone when that creature's death is decided, and the creature goes to the
+     graveyard. Its ruling (2016-01-22): "If Kalitas dies at the same time as
+     creatures your opponents control, those creature cards will be exiled
+     and you'll get that many Zombies." CR 704.3 decides every member against
+     one board, and CR 614.4 needs the effect to exist before the event, which
+     here is the batch.
+     **Reachability (2026-10-10):** reachable — wrong today: Kalitas is
+     registered, and a probe through the public API (both creatures marked
+     with lethal damage, then `check_state_based_actions`) sends the creature
+     to the graveyard when Kalitas was placed first and exiles it when Kalitas
+     was placed second. Any wrath or combat trade that kills Kalitas beside an
+     opponent's creature reaches it, in whichever order the batch performs.
+     **Sized:** ~180 lines of code and ~200 of tests: a destruction's move is
+     decided with the destruction, in phase 1, as an inner event with its
+     outer (`plans/glossary.md`'s "outer event / inner event"). A result (CR
+     120.3's life loss, a creation's entries) is still decided after the
+     event that produced it. Both batch orders and a wrath are fixtures, each
+     shown to fail first. The move's riders then run in the batch's phase 3,
+     so a Zombie no longer enters between two deaths of one event
+     (`replacement-architecture.md` §2b.6).
+     **Slotted:** RH-2, the batch's members, decided together (renamed
+     2026-10-12, decision 12): the inner move is a fact on its member's record.

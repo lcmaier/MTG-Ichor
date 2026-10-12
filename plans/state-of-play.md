@@ -117,6 +117,7 @@ is derived.
 | 2026-10-08 | The returns and "until", with Flickerwisp and Banishing Light | `TR-3b` | `triggers-architecture.md` |
 | 2026-10-09 | The reflexive trigger, item 225 and item 99 | `TR-3c` | `triggers-architecture.md` |
 | 2026-10-11 | The act and the cause | `RH-1` | `replacement-architecture.md` |
+| 2026-10-12 | The batch's members, decided together | `RH-2` | `replacement-architecture.md` |
 
 ### Named, not yet landed
 
@@ -143,7 +144,6 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The batch's members, decided together | `RH-2` | `replacement-architecture.md` |
 | The record's identity, its applied set and its moment | `RH-3` | `replacement-architecture.md` |
 | The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
 | Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
@@ -156,7 +156,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 188 |
 | …of them in `PERFORMANCE_POOL` | 106 |
-| `#[test]` functions | 2231 |
+| `#[test]` functions | 2240 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -178,13 +178,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 303 |
-| …closed, still recorded | 148 |
+| …closed, still recorded | 149 |
 | …open — unreachable, and says why | 104 |
-| **…open — reachable, wrong today** | **5** |
+| **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 153 of 155 |
+| …open, carrying an explicit `**Sized:**` | 152 of 154 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -198,7 +198,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 100 |
+| …slotted to a phase or roadmap row still to come | 99 |
 | …slotted to the first registered card that needs it | 43 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |

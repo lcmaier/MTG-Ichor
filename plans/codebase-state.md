@@ -9486,34 +9486,15 @@ ones on the last-known-information and zone-change surface are items 176 and
 contract (`roadmap-v2.md` A6o). Asking when each fact is taken found one board
 that is wrong today.
 
-248. **A destruction's move is decided after the event has begun, so a
-     replacement whose source died earlier in the same event is gone.**
-     `GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a
-     nested batch, so in a batch of several destructions each later member's
-     move is decided after the earlier members performed. Kalitas, Traitor of
-     Ghet dying beside an opponent's creature in one state-based check is
-     gone when that creature's death is decided, and the creature goes to the
-     graveyard. Its ruling (2016-01-22): "If Kalitas dies at the same time as
-     creatures your opponents control, those creature cards will be exiled
-     and you'll get that many Zombies." CR 704.3 decides every member against
-     one board, and CR 614.4 needs the effect to exist before the event, which
-     here is the batch.
-     **Reachability (2026-10-10):** reachable — wrong today: Kalitas is
-     registered, and a probe through the public API (both creatures marked
-     with lethal damage, then `check_state_based_actions`) sends the creature
-     to the graveyard when Kalitas was placed first and exiles it when Kalitas
-     was placed second. Any wrath or combat trade that kills Kalitas beside an
-     opponent's creature reaches it, in whichever order the batch performs.
-     **Sized:** ~180 lines of code and ~200 of tests: a destruction's move is
-     decided with the destruction, in phase 1, as an inner event with its
-     outer (`plans/glossary.md`'s "outer event / inner event"). A result (CR
-     120.3's life loss, a creation's entries) is still decided after the
-     event that produced it. Both batch orders and a wrath are fixtures, each
-     shown to fail first. The move's riders then run in the batch's phase 3,
-     so a Zombie no longer enters between two deaths of one event
-     (`replacement-architecture.md` §2b.6).
-     **Slotted:** RH-2, the batch's members, decided together (renamed
-     2026-10-12, decision 12): the inner move is a fact on its member's record.
+248. **~~A destruction's move is decided after the event has begun, so a
+     replacement whose source died earlier in the same event is gone.~~ — ✅
+     CLOSED 2026-10-12 (PR #244, RH-2).** — archived.
+     Done: each surviving destruction's move is decided in phase 1, right
+     after its group, against the board no member has changed
+     (`GameState::decide_destruction_moves`), and performed right after its
+     destruction in phase 2 (`BatchMember::inner_move`).
+     **Reachability (2026-10-12):** closed — PR #244.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 248".
 
 ### Found by RH-1 — the act and the cause (2026-10-11)
 

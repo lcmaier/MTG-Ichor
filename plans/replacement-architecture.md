@@ -3852,13 +3852,36 @@ Guerrilla Tactics is not registered: its hand leg needs a frame
 Closes item 176's act and cause halves. Claims no atom. Trace page: no, since
 the record's words changed and no read is answered differently.
 
-#### RH-2 — the batch's members, decided together
+#### RH-2 — the batch's members, decided together — ✅ landed 2026-10-12
 
-One record per batch member, in place of §2b.10's four vectors; `LossReason`
-folded into the cause; L7's one set (§2b.8); and item 248, a destruction's move
-decided with the destruction (§2b.6). Claims no atom. It moves the stream where
-a replacement's source on a move to the graveyard dies in the batch it
-replaces. Pieces and sizes: §2b.10.
+**Shipped (#244):** `BatchMember` (`engine/replacement/pipeline.rs`), one record
+per member: its place in batch order, its event as CR 616.1 rewrites it, its
+cause, its applied set and a destruction's `inner_move`. Members move into
+their `SubjectGroup`s in decision order (`subject_groups`, which sorts as
+`apnap_batch_order` did), and phase 2 performs them sorted by place. The four
+vectors and the seven position pairs are gone. `apply_replacements` takes a
+group's members mutably and the later groups read-only, and writes each
+decision and applied set onto its member. `LossReason` folded into the cause
+(decision 12): `PlayerLoses { player }`, `PlayerLost { player_id }`, and the
+log says "PlayerLost: P1 by ZeroLife". L7's set is `GameState::departs_with`:
+owned or default-controlled (CR 110.2b), empty at two seats. Item 248:
+`decide_destruction_moves` decides each surviving destruction's move right
+after its group, with a fresh applied set; phase 2 performs it right after the
+destruction; its riders join phase 3. §2b.11's leaving question was answered
+the same way: CR 800.4a's exiles are one batch. The fixtures
+(`phase_rh2_integration_test.rs`) found three wrong answers, each shown
+failing first:
+- item 248, in three of its boards;
+- L7's controlled side, a conditional grant missed by the look-back;
+- the leaving's exiles, decided one at a time.
+
+The record arm is `IDENTICAL` to `main` on every row. Shipped is `IDENTICAL`
+on `performance`'s gameplay; on `stress`, 4 games of 200 differ at two seats
+and 22 at four, every one item 248's. Instructions per decision are −0.77%,
+most of it item 248's moves no longer re-walking a board an earlier member had
+changed (`fuzz-record.md`). Closes item 248. Claims no atom. Trace page: no.
+The read path is RD-2's page's loop, unchanged; what moved is when one of its
+calls is made, and the fixtures assert it in both batch orders.
 
 #### RH-3 — the record's identity, its applied set and its moment
 
