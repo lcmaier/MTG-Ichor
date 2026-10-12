@@ -592,27 +592,22 @@ fn extract_stats<'a>(
 /// rule's last step of a resolution (CR 608.2n, 608.3a, 608.3e), or its own
 /// effect moving it, which CR 608.2m lets it continue past.
 fn resolved_off_the_stack(record: &mtgsim::events::event::EventRecord, object: ObjectId) -> bool {
-    use mtgsim::events::cause::EventCause;
+    use mtgsim::events::cause::{EventCause, GameRule};
     match record.stamp.cause {
         EventCause::Effect { resolution, .. } => resolution.source == object,
-        cause => left_the_stack_by_resolving(cause),
+        cause => matches!(
+            cause,
+            EventCause::GameRule(GameRule::SpellResolves | GameRule::PermanentSpellResolves | GameRule::PermanentSpellCantEnter)
+        ),
     }
-}
-
-/// CR 608.2n, 608.3a and 608.3e — a resolution's last step, as a cause.
-fn left_the_stack_by_resolving(cause: mtgsim::events::cause::EventCause) -> bool {
-    use mtgsim::events::cause::{EventCause, GameRule};
-    matches!(
-        cause,
-        EventCause::GameRule(GameRule::SpellResolves | GameRule::PermanentSpellResolves | GameRule::PermanentSpellCantEnter)
-    )
 }
 
 /// CR 601.2i — nothing leaves the stack by resolving unless it was cast.
 ///
 /// A spell reaches the stack at CR 601.2a and is announced at 601.2i, so every
-/// object a resolution's last step moves off the stack has a `SpellCast`
-/// behind it; an ability ceases to exist instead and emits no zone change. An
+/// object that leaves the stack by resolving ([`resolved_off_the_stack`]) has a
+/// `SpellCast` behind it; an ability ceases to exist instead and emits no zone
+/// change. An
 /// object with none was stranded on the stack by a cast that failed after
 /// 601.2a and did not rewind (`codebase-state.md` item 16c). Reported the way
 /// a panic is, since it is a wrong answer rather than a slow one.
@@ -634,7 +629,7 @@ fn uncast_resolutions<'a>(
                 *casts.entry(*spell_id).or_insert(0) += 1;
             }
             GameEvent::ZoneChange { object_id, from: Zone::Stack, .. }
-                if left_the_stack_by_resolving(record.stamp.cause) =>
+                if resolved_off_the_stack(record, *object_id) =>
             {
                 let owed = casts.entry(*object_id).or_insert(0);
                 if *owed == 0 {
