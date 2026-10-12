@@ -209,7 +209,7 @@ fn event_amount(action: &GameAction) -> Option<u64> {
 /// What generated a replacement effect, for what it causes beyond rewriting
 /// its event: a registered row is its creating spell's or ability's, a static
 /// ability's is its own, and a counter's is the counter's (CR 122.1c/d/h).
-fn generated_by_of(game: &GameState, chosen: &ReplacementInstance) -> Result<GeneratedBy, String> {
+fn replacement_generator(game: &GameState, chosen: &ReplacementInstance) -> Result<GeneratedBy, String> {
     match chosen.id {
         ReplacementInstanceId::StaticAbility(..) => Ok(GeneratedBy::StaticAbility),
         ReplacementInstanceId::Counter(_, counter, _) => Ok(GeneratedBy::Counters(counter)),
@@ -228,10 +228,10 @@ fn generated_by_of(game: &GameState, chosen: &ReplacementInstance) -> Result<Gen
 /// What a replacement effect's own events are caused by — its rider's (CR
 /// 615.5), its CR 614.13 moves, the counters it puts on an entering
 /// permanent: its effect, under its controller.
-pub(super) fn effect_cause(game: &GameState, chosen: &ReplacementInstance) -> Result<EventCause, String> {
+pub(super) fn caused_by_replacement(game: &GameState, chosen: &ReplacementInstance) -> Result<EventCause, String> {
     Ok(EventCause::Effect {
         resolution: ResolutionStamp { source: chosen.source, controller: chosen.controller },
-        generated_by: generated_by_of(game, chosen)?,
+        generated_by: replacement_generator(game, chosen)?,
     })
 }
 
@@ -618,7 +618,7 @@ pub(crate) fn apply_replacements(
         if let Some(then) = chosen.def.then.clone() {
             riders.push(Rider {
                 source: chosen.source,
-                generated_by: generated_by_of(game, &chosen)?,
+                generated_by: replacement_generator(game, &chosen)?,
                 // The group's final applied set, once the loop has it.
                 lineage: HashSet::new(),
                 controller: chosen.controller,
@@ -1993,7 +1993,7 @@ fn apply_rewrite(
                 let extra = evaluate_enter_template(
                     game, template, chosen, object, controller, &mods,
                 )?;
-                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, effect_cause(game, chosen)?);
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
@@ -2009,7 +2009,7 @@ fn apply_rewrite(
         Rewrite::EnterAfterMoving(aux) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, act } => {
                 let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
-                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, effect_cause(game, chosen)?);
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, caused_by_replacement(game, chosen)?);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, act }), changed))
             }
@@ -2957,7 +2957,7 @@ fn entry_copy_donor(
 /// — and Solemnity's.
 ///
 /// `cause` is CR 101.2's — the effect that proposed them, the replacement's
-/// own (`effect_cause`), CR 306.5b's loyalty included, since that is the
+/// own (`caused_by_replacement`), CR 306.5b's loyalty included, since that is the
 /// permanent's own ability. The synthetic event's putter is CR 122.6a's
 /// default, the controller the permanent enters under, which is what the
 /// entry door reads too.
@@ -3169,9 +3169,12 @@ fn apply_auxiliary_move(
     // other permanent's controller, which is what the card's "you" means.
     let you = chosen.controller;
     let _ = entering_controller;
-    // The moves are the replacement's own effect, not the entry's (CR 614.13),
-    // which is why Sigarda does not stop her own devour.
-    let cause = effect_cause(game, chosen)?;
+    // The moves are caused by the replacement effect (CR 614.13), never by
+    // whatever caused the entry. Devour sacrifices under the entering
+    // creature's own ability, which the player making the sacrifices controls,
+    // even when an opponent's spell put the creature onto the battlefield. So
+    // Sigarda's "spells and abilities your opponents control" never stops them.
+    let cause = caused_by_replacement(game, chosen)?;
 
     let candidates = auxiliary_candidates(game, aux, you, cause)?;
     if candidates.is_empty() {
@@ -3253,7 +3256,7 @@ pub(crate) fn auxiliary_zone(game: &GameState, aux: &AuxiliaryMove, you: PlayerI
 }
 
 /// Why `id`, in `aux`'s zone, may not be chosen, if it may not. `cause` is the
-/// move's: the replacement effect's own ([`effect_cause`]).
+/// move's: the replacement effect's own ([`caused_by_replacement`]).
 pub(crate) fn not_auxiliary(
     game: &GameState,
     aux: &AuxiliaryMove,

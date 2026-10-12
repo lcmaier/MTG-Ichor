@@ -69,9 +69,12 @@ fn ability(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> Abili
     }
 }
 
-/// **Fixture.** An enchantment watching `change` of its controller's cards,
-/// anywhere, in `shape`, asking whether an opponent's spell or ability caused
-/// it.
+/// **Fixture.** One of three test enchantments, picked by `shape`, each with
+/// a single ability that asks of `change` to its controller's cards whether a
+/// spell or ability an opponent controls caused it: a "can't" (Sigarda's
+/// shape), a replacement (Nephalia Academy's) or a trigger (Guerrilla
+/// Tactics'). The `match` is how one board runs under all three readers of
+/// the cause; a printed card has one shape and writes it directly.
 fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
     let by = SourceFilter::ControlledBy(PlayerRef::Opponent);
     let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
@@ -267,10 +270,10 @@ fn an_instants_trip(shape: Option<Shape>) -> Outcome {
 /// opponent controls" admits.
 #[test]
 fn each_kind_of_cause_is_named_on_its_record() {
-    let p0_effect = |o: &Outcome| matches!(o.cause, Some(EventCause::Effect { resolution, generated_by: GeneratedBy::Spell }) if resolution.controller == 1);
+    let p1s_spell = |o: &Outcome| matches!(o.cause, Some(EventCause::Effect { resolution, generated_by: GeneratedBy::Spell }) if resolution.controller == 1);
     let spell = an_opponents_spell(None);
     assert_eq!(spell.zone, Zone::Graveyard);
-    assert!(p0_effect(&spell), "{:?}", spell.cause);
+    assert!(p1s_spell(&spell), "{:?}", spell.cause);
     assert!(matches!(a_cost(None).cause, Some(EventCause::Cost { player: 0, .. })));
     assert_eq!(the_cleanup_discard(None).cause, Some(EventCause::TurnBasedAction(TurnBasedAction::CleanupDiscard)));
     assert_eq!(

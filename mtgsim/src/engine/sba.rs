@@ -49,15 +49,16 @@ fn sba_destroy(id: ObjectId) -> GameAction {
     GameAction::Destroy { object: id }
 }
 
-/// CR 704.5a–c and 704.6c — `player` would lose the game, with the subrule
-/// that says so.
+/// CR 704.5a–c and 704.6c — `player` would lose the game, caused by
+/// `state_based_action`. A loss an effect causes is `Primitive::LoseGame`'s
+/// (CR 104.3e), proposed by its resolution and never through here.
 ///
 /// The **event**, proposed like every other state-based action, so that
 /// Exquisite Archangel can replace it, Platinum Angel can refuse it, and
 /// CR 704.7's collapse can see two reasons as one loss
 /// (`replacement-architecture.md` §9, RE decision 5).
-fn sba_player_loses(player: PlayerId, reason: LossReason, rule: StateBasedAction) -> (GameAction, StateBasedAction) {
-    (GameAction::PlayerLoses { player, reason }, rule)
+fn sba_player_loses(player: PlayerId, reason: LossReason, state_based_action: StateBasedAction) -> (GameAction, StateBasedAction) {
+    (GameAction::PlayerLoses { player, reason }, state_based_action)
 }
 
 /// How many performing state-based checks in one run of
