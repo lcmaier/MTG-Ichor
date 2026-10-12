@@ -48,8 +48,8 @@ const BATCH_NESTING_LIMIT: usize = 32;
 ///
 /// - `dp` answers the CR 616.1 ordering prompt.
 /// - `cause` is what a "can't" and a replacement effect ask of the proposal
-///   ("a spell or ability an opponent controls causes"), and what the batch
-///   stamps on every record it emits (`replacement-architecture.md` §2b.3).
+///   ("a spell or ability an opponent controls causes"), and what the
+///   performer's records name (`replacement-architecture.md` §2b.3).
 ///
 /// One constructor per kind of cause, so a proposal says what caused it where
 /// it is made. An entry point that starts a rule's action — a turn's units, a
@@ -725,7 +725,7 @@ impl GameState {
         own_causes: Option<Vec<EventCause>>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_batch(ctx.cause);
+        let previous = self.events.open_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
@@ -811,7 +811,7 @@ impl GameState {
             self.nesting.decomposition_depth,
             inherited.len()
         );
-        let previous = self.events.open_batch(ctx.cause);
+        let previous = self.events.open_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
         let result = self.execute_batch_inner(batch, None, ctx, inherited);
@@ -843,7 +843,7 @@ impl GameState {
         batch: Vec<GameAction>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_new_batch(ctx.cause);
+        let previous = self.events.open_new_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
@@ -994,8 +994,9 @@ impl GameState {
             vec![HashSet::new(); batch.len()];
         let mut decided_ok = Ok(());
         for g in 0..groups.len() {
+            let (_, group_members) = &groups[g];
             let members: Vec<(usize, GameAction)> =
-                groups[g].1.iter().map(|&i| (i, batch[i].clone())).collect();
+                group_members.iter().map(|&i| (i, batch[i].clone())).collect();
             let later: Vec<(usize, &GameAction)> = groups[g + 1..]
                 .iter()
                 .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
@@ -1003,8 +1004,9 @@ impl GameState {
             let riders_before = riders.len();
             // A group is one subject's, and where members name their own causes
             // CR 704.7's dedupe left one member per subject, so the group's cause
-            // is its member's.
-            let group_ctx = ctx.caused_by(groups[g].1.first().map_or(ctx.cause, |&i| cause_of_member(i)));
+            // is its member's. No group is empty; `ctx.cause` only spares an index.
+            let group_cause = group_members.first().copied().map_or(ctx.cause, cause_of_member);
+            let group_ctx = ctx.caused_by(group_cause);
             match apply_replacements(self, members, &later, &group_ctx, inherited, &mut riders) {
                 Ok((results, applied)) => {
                     // CR 614.5 — the riders this group queued are the rest of
@@ -1068,9 +1070,7 @@ impl GameState {
             let Some(action) = action else { continue };
             // Each member performs under its own cause, which its records carry.
             let member_ctx = ctx.caused_by(cause_of_member(i));
-            let outer = self.events.restamp_cause(member_ctx.cause);
             let result = self.perform_action(action.clone(), &member_ctx, &applied_to[i]);
-            self.events.close_batch(outer);
             if let Err(e) = result {
                 performed_ok = Err(e);
                 break;
@@ -1307,7 +1307,7 @@ impl GameState {
                     target,
                     amount,
                     is_combat,
-                })?;
+                }, ctx.cause);
 
                 // CR 120.3a — **a contained proposal, not a subtraction**, in this
                 // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
@@ -1382,7 +1382,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     source: Some(source),
-                })?;
+                }, ctx.cause);
 
                 Ok(())
             }
@@ -1405,7 +1405,7 @@ impl GameState {
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
                     source: damage_source,
-                })?;
+                }, ctx.cause);
 
                 Ok(())
             }
@@ -1439,7 +1439,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
-                self.emit_event(GameEvent::Untapped { object_id: object })?;
+                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause);
                 Ok(())
             }
 
@@ -1458,7 +1458,7 @@ impl GameState {
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host })?;
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause);
                 }
                 Ok(())
             }
@@ -1473,7 +1473,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
-                self.emit_event(GameEvent::Tapped { object_id: object })?;
+                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause);
                 Ok(())
             }
 
@@ -1501,7 +1501,7 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 })?;
+                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause);
                 Ok(())
             }
 
@@ -1533,7 +1533,7 @@ impl GameState {
                     subject,
                     counter,
                     added: -(removed as i32),
-                })?;
+                }, ctx.cause);
                 Ok(())
             }
 
@@ -1584,7 +1584,7 @@ impl GameState {
                     // CR 111.2's first sentence — the token is created — and
                     // its second is `perform_entry`'s.
                     (None, None) => {
-                        self.announce_token_created(object, Zone::Battlefield)?;
+                        self.announce_token_created(object, Zone::Battlefield, ctx.cause)?;
                     }
                     (from, act) => {
                         return Err(format!(
@@ -1609,7 +1609,7 @@ impl GameState {
             // is. `put_token_into` performs; this arm announces.
             GameAction::CreateTokenIn { object, zone } => {
                 self.put_token_into(object, zone)?;
-                self.announce_token_created(object, zone)
+                self.announce_token_created(object, zone, ctx.cause)
             }
 
             // --- Turn structure (CR 500, 614.10) ----------------------------
@@ -1625,7 +1625,7 @@ impl GameState {
                 self.begin_turn(turn, player);
                 self.extra_turn = extra_turn;
                 self.priority_player = player;
-                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn })?;
+                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn }, ctx.cause);
                 Ok(())
             }
 
@@ -1634,13 +1634,13 @@ impl GameState {
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.emit_event(GameEvent::PhaseBegin { phase, player })?;
+                self.emit_event(GameEvent::PhaseBegin { phase, player }, ctx.cause);
                 Ok(())
             }
 
             GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
-                self.emit_event(GameEvent::StepBegin { step, player })?;
+                self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause);
                 Ok(())
             }
 
@@ -1677,7 +1677,7 @@ impl GameState {
                     player_id: player,
                     n,
                     looked_at: k as u64,
-                })?;
+                }, ctx.cause);
                 Ok(())
             }
 
@@ -1687,7 +1687,7 @@ impl GameState {
             GameAction::ShuffleLibrary { player } => {
                 self.get_player(player)?;
                 self.shuffle_library(player);
-                self.emit_event(GameEvent::LibraryShuffled { player_id: player })?;
+                self.emit_event(GameEvent::LibraryShuffled { player_id: player }, ctx.cause);
                 Ok(())
             }
 
@@ -1705,12 +1705,12 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player, reason })?;
+                self.emit_event(GameEvent::PlayerLost { player_id: player, reason }, ctx.cause);
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of
                 // the departure, so its nested batch joins this one (§4.2).
-                self.player_left_the_game(player, ctx.dp)
+                self.player_left_the_game(player, ctx)
             }
 
             // CR 104.1 — "immediately". Recorded here and read by everything that
@@ -1724,7 +1724,7 @@ impl GameState {
                 if self.result.is_none() {
                     self.result = Some(GameResult::Winner(player));
                 }
-                self.emit_event(GameEvent::PlayerWon { player_id: player })?;
+                self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause);
                 Ok(())
             }
 
@@ -1762,7 +1762,7 @@ impl GameState {
                     source_id: source,
                     mana: announced,
                     tapped_for_mana,
-                })?;
+                }, ctx.cause);
                 Ok(())
             }
         }
@@ -1831,7 +1831,7 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event_caused(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki }, cause);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki }, cause);
         Ok(())
     }
 
@@ -1844,9 +1844,11 @@ impl GameState {
         &mut self,
         object: ObjectId,
         zone: Zone,
+        cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone })
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause);
+        Ok(())
     }
 
     /// CR 614.1c's entry as a proposal, or `None` where a rule refuses it

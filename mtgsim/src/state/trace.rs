@@ -835,23 +835,14 @@ impl GameState {
         }
     }
 
-    /// Record and log a performed event into the open batch, stamped with its
-    /// cause — the door every performer uses. Outside every batch there is no
-    /// cause to stamp, so this refuses rather than guess one.
+    /// Record and log a performed event, caused by `cause`, into the open
+    /// batch if there is one — the door every emitter uses. A record outside
+    /// every batch is its own window, dispatched before this returns.
     ///
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
-    pub(crate) fn emit_event(&mut self, event: GameEvent) -> Result<(), String> {
-        let stamp = self.events.batch_stamp(&event)?;
-        self.emit_record(event, stamp, None);
-        Ok(())
-    }
-
-    /// The same door for an emitter that names what caused its record: one
-    /// outside every batch (`replacement-architecture.md` §2b.3), a cast, an
-    /// activation, a declaration or a rule, and the CR 601.2i move.
-    pub(crate) fn emit_event_caused(&mut self, event: GameEvent, cause: EventCause) {
+    pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) {
         let stamp = self.events.stamp_caused_by(cause);
         self.emit_record(event, stamp, None);
     }

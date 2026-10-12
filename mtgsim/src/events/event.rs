@@ -554,9 +554,8 @@ pub struct EventStamp {
     /// emitted outside `GameState::execute_actions` — a spell being cast, an
     /// activation, an ability triggering.
     pub batch: Option<BatchId>,
-    /// Who or what caused it (`replacement-architecture.md` §2b.3): the
-    /// proposal's cause, stamped by its batch, or the one an emitter outside a
-    /// batch names.
+    /// Who or what caused it (`replacement-architecture.md` §2b.3), as its
+    /// emitter names it: for a performed proposal, the proposal's cause.
     pub cause: EventCause,
 }
 
@@ -606,13 +605,6 @@ impl EventRecord {
     }
 }
 
-/// A batch while it is open: its id, and the cause its records are stamped with.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OpenBatch {
-    id: BatchId,
-    cause: EventCause,
-}
-
 /// The performed stream's records until their last reader has run, and the
 /// context the next one is stamped with (`triggers-architecture.md` §4.1).
 ///
@@ -630,17 +622,14 @@ pub struct EventWindow {
     records: Vec<EventRecord>,
     /// The sequence number the next record takes.
     next_seq: usize,
-    /// The batch the next record joins and the cause it is stamped with;
-    /// `None` outside every batch.
+    /// The batch the next record joins; `None` outside every batch.
     ///
-    /// **Ambient, and deliberately so.** The alternative is an
-    /// `emit_with(event, stamp)` at every emission site, each a chance to
-    /// forget and no way to notice — the stamp has no test of its own at most
-    /// of them. Scoping it to `execute_actions` instead means the context is
-    /// established once per performed action, by the one function that knows it.
-    /// **Outside a batch nothing is ambient**: an emitter there names its own
-    /// cause ([`Self::emit_caused`]), and one that names none is an error
-    /// ([`Self::emit`]) rather than a record with a guessed cause.
+    /// **Ambient, and deliberately so.** Which batch a record belongs to is
+    /// the batch's fact, not its emitter's: an emitter deep inside a performer
+    /// cannot know whether it is the outermost event or a result nested in
+    /// one (CR 120.4c). Scoping it to `execute_actions` means it is
+    /// established once per batch, by the one function that knows it. The
+    /// cause is the emitter's, and every emitter names it.
     ///
     /// This is not the ambient state `CLAUDE.md` bans. That rule is about
     /// `rand::rng()`: an ambient *source* silently changes the game's outcome
@@ -648,7 +637,7 @@ pub struct EventWindow {
     /// it changes what a record says about a mutation, never whether the mutation
     /// happens — and its lifetime is a single `open_batch`/`close_batch` pair
     /// that `execute_actions` opens and closes on the same code path.
-    open: Option<OpenBatch>,
+    open: Option<BatchId>,
     /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
     next_batch: u64,
     /// Where a flushed record goes, if anything wants the whole stream.
@@ -660,23 +649,8 @@ impl EventWindow {
         EventWindow::default()
     }
 
-    /// The stamp a record that names no cause of its own carries: the open
-    /// batch's. Outside every batch there is no cause to stamp, and an emitter
-    /// there names its own ([`Self::stamp_caused_by`]); one that did not is
-    /// reported, not guessed at.
-    pub(crate) fn batch_stamp(&self, event: &GameEvent) -> Result<EventStamp, String> {
-        match self.open {
-            Some(open) => Ok(EventStamp { batch: Some(open.id), cause: open.cause }),
-            None => Err(format!(
-                "{event:?} was emitted outside every batch with no cause: an emitter outside a batch \
-                 names its own (replacement-architecture.md section 2b.3)"
-            )),
-        }
-    }
-
-    /// The stamp a record caused by `cause` carries, in the open batch if
-    /// there is one: what an emitter outside every batch — a cast, an
-    /// activation, a declaration — names for its record.
+    /// The stamp a record caused by `cause` carries: the open batch, if there
+    /// is one, and the cause its emitter names.
     pub(crate) fn stamp_caused_by(&self, cause: EventCause) -> EventStamp {
         EventStamp { batch: self.current_batch(), cause }
     }
@@ -733,7 +707,7 @@ impl EventWindow {
     /// The batch the next emitted event joins — the trace sink's join key
     /// between a batch record and the events performed inside it.
     pub fn current_batch(&self) -> Option<BatchId> {
-        self.open.map(|open| open.id)
+        self.open
     }
 
     /// Open a batch, returning what to hand back to [`Self::close_batch`].
@@ -744,19 +718,14 @@ impl EventWindow {
     /// that one event (CR 120.4c) before it occurs (CR 120.4d). They are
     /// proposed from inside the damage's batch, so a second batch id would
     /// split one event into two.
-    ///
-    /// `cause` is not inherited the same way — it comes from the proposing
-    /// `ActionContext` every time, because the honest answer to "what caused
-    /// this" is what proposed it. In practice the nested call carries the
-    /// enclosing context, so the two rules agree.
-    pub(crate) fn open_batch(&mut self, cause: EventCause) -> Option<OpenBatch> {
+    pub(crate) fn open_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
-        let id = previous.map(|open| open.id).unwrap_or_else(|| {
+        let id = previous.unwrap_or_else(|| {
             let id = BatchId(self.next_batch);
             self.next_batch += 1;
             id
         });
-        self.open = Some(OpenBatch { id, cause });
+        self.open = Some(id);
         previous
     }
 
@@ -765,27 +734,16 @@ impl EventWindow {
     /// `GameState::execute_actions_new_batch` is the only caller and owns the
     /// rules argument for why CR 614.13's auxiliary moves are not a result of
     /// the event they are nested inside.
-    pub(crate) fn open_new_batch(&mut self, cause: EventCause) -> Option<OpenBatch> {
+    pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
         let id = BatchId(self.next_batch);
         self.next_batch += 1;
-        self.open = Some(OpenBatch { id, cause });
-        previous
-    }
-
-    /// Stamp the open batch's records with `cause` from here on, returning what
-    /// to hand back to [`Self::close_batch`] — CR 704.3's one event, whose
-    /// members are each their own rule's action. A no-op outside every batch.
-    pub(crate) fn restamp_cause(&mut self, cause: EventCause) -> Option<OpenBatch> {
-        let previous = self.open;
-        if let Some(open) = &mut self.open {
-            open.cause = cause;
-        }
+        self.open = Some(id);
         previous
     }
 
     /// Close a batch, restoring what [`Self::open_batch`] returned.
-    pub(crate) fn close_batch(&mut self, previous: Option<OpenBatch>) {
+    pub(crate) fn close_batch(&mut self, previous: Option<BatchId>) {
         self.open = previous;
     }
 
@@ -862,7 +820,7 @@ mod tests {
     #[test]
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut window = EventWindow::new();
-        let outer = window.open_batch(EventCause::Harness);
+        let outer = window.open_batch();
         window.push(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
         window.push(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED }, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(outer);
@@ -880,9 +838,9 @@ mod tests {
         // gain is proposed from inside the damage's performance, so it must not
         // open a batch of its own.
         let mut window = EventWindow::new();
-        let outer = window.open_batch(EventCause::Harness);
+        let outer = window.open_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
-        let inner = window.open_batch(EventCause::Harness);
+        let inner = window.open_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(inner);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
@@ -896,47 +854,38 @@ mod tests {
     #[test]
     fn test_separate_batches_get_separate_ids() {
         let mut window = EventWindow::new();
-        let prev = window.open_batch(EventCause::Harness);
+        let prev = window.open_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(prev);
-        let prev = window.open_batch(EventCause::Harness);
+        let prev = window.open_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(prev);
 
         assert_ne!(window.held()[0].batch(), window.held()[1].batch());
     }
 
-    /// Outside every batch nothing is ambient: a record that names no cause
-    /// there is an error, never a record with a guessed one.
+    /// Two records of one batch keep the causes their emitters named: CR
+    /// 704.3's one event, whose members are each their own rule's action.
+    /// Outside every batch a record joins none and keeps its cause the same way.
     #[test]
-    fn a_record_outside_every_batch_must_name_its_cause() {
-        use crate::events::cause::GameRule;
+    fn a_record_keeps_its_emitters_cause_inside_a_batch_and_out() {
+        use crate::events::cause::{GameRule, StateBasedAction};
         let mut window = EventWindow::new();
-        assert!(window.batch_stamp(&GameEvent::StateBasedActionPerformed).is_err());
-
+        let (legend, zero) = (StateBasedAction::LegendRule, StateBasedAction::ZeroToughness);
+        let outer = window.open_batch();
+        for rule in [legend, zero] {
+            let stamp = window.stamp_caused_by(EventCause::StateBasedAction(rule));
+            window.push(GameEvent::StateBasedActionPerformed, stamp, None);
+        }
+        window.close_batch(outer);
         let check = EventCause::GameRule(GameRule::StateBasedCheck);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(check), None);
-        assert_eq!(window.held()[0].stamp, EventStamp { batch: None, cause: check });
-    }
 
-    /// CR 704.3's one event stamps each member with its own rule, and closing
-    /// the batch puts back what was open before it.
-    #[test]
-    fn a_restamped_batch_keeps_its_id_and_closes_to_what_was_open() {
-        use crate::events::cause::StateBasedAction;
-        let mut window = EventWindow::new();
-        let outer = window.open_batch(EventCause::Harness);
-        let previous = window.restamp_cause(EventCause::StateBasedAction(StateBasedAction::LegendRule));
-        let event = GameEvent::StateBasedActionPerformed;
-        window.push(event.clone(), window.batch_stamp(&event).unwrap(), None);
-        window.close_batch(previous);
-        window.push(event.clone(), window.batch_stamp(&event).unwrap(), None);
-        window.close_batch(outer);
-
-        let [restamped, after] = window.held() else { panic!("two records") };
-        assert_eq!(restamped.batch(), after.batch(), "one batch");
-        assert_eq!(restamped.stamp.cause, EventCause::StateBasedAction(StateBasedAction::LegendRule));
-        assert_eq!(after.stamp.cause, EventCause::Harness);
-        assert!(window.batch_stamp(&event).is_err(), "the batch closed");
+        let [first, second, after] = window.held() else { panic!("three records") };
+        assert_eq!(first.batch(), second.batch(), "one batch");
+        assert!(first.batch().is_some());
+        assert_eq!(first.stamp.cause, EventCause::StateBasedAction(legend));
+        assert_eq!(second.stamp.cause, EventCause::StateBasedAction(zero));
+        assert_eq!(after.stamp, EventStamp { batch: None, cause: check });
     }
 }

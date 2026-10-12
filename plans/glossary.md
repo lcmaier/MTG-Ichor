@@ -286,7 +286,7 @@ effect causes" beside "the cost of a spell or ability causes": an effect ("a
 spell or ability an opponent controls causes"), a cost (CR 118), a cast or an
 activation, a special action (CR 116), a turn-based or state-based action (CR
 703, 704), or a rule. One value on every proposal (`ActionContext::cause`) and
-every record (`EventStamp::cause`); outside a batch an emitter names its own.
+every record (`EventStamp::cause`), which its emitter names.
 `DrawCause` keeps the older sense, which draw of an instruction this is.
 → `EventCause`, `replacement-architecture.md` §2b.3. Not the **performer**,
 which is the function that performs an action, and not the **act**.

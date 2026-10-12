@@ -155,7 +155,7 @@ the enforcement.
 | Type | Where | What it is | Growth |
 |---|---|---|---|
 | `GameAction` | `engine/actions.rs` | The proposal vocabulary — what a caller asks for, before CR 614 sees it | **grows**, one variant per replaceable event kind (§8a) |
-| `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind | grows only if a new ambient input appears |
+| `ActionContext` | `engine/actions.rs` | `{ dp, cause }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt; `cause` is the proposal's `EventCause` (§2b.3), one constructor per kind, and what the performer's records name | grows only if a new input every mutation needs appears |
 | `ZoneChangeAct` | `types/zones.rs` | What a move did, in the CR's word (§2b.2), kept through a redirect. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per keyword action that moves an object |
 | `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
@@ -385,7 +385,7 @@ name of its own, `ZoneChangeAct`, so "cause" means one thing.
 
 ```rust
 /// What caused an event. Every proposal names one (`ActionContext::cause`),
-/// and the batch stamps it on every record (`EventStamp::cause`).
+/// and every emitter puts it on its record (`EventStamp::cause`).
 pub enum EventCause {
     /// An effect (CR 609.1): a resolving spell or ability (CR 608.2), a
     /// replacement effect's rider (CR 615.5) or its CR 614.13 moves, a mana
@@ -480,9 +480,9 @@ Priced:
 
   The tests are decision 7.
 
-**One value on both sides.** The proposal's cause is `ActionContext::cause`.
-`open_batch` stamps it on every record the batch emits, as it stamps the
-resolution today. So two readers ask one value:
+**One value on both sides.** The proposal's cause is `ActionContext::cause`,
+and the performer that emits a record passes the same value to `emit_event`
+(decision 11). So two readers ask one value:
 - Sigarda's "can't" and Nephalia Academy's replacement, which read the
   proposal (`EventProposal::cause`);
 - Guerrilla Tactics' trigger, which reads the record.
@@ -497,7 +497,8 @@ That is Sigarda's ruling ("the result of game rules") and Library of Leng's
 state-based actions one event, and each is still its own rule. So every batch
 takes its context's cause except the sweep's, which passes each member's
 subrule beside the member. Phase 1 gives that cause to the member's
-`EventProposal`, and phase 2 puts it on the stamp while the member performs.
+`EventProposal`, and phase 2 performs the member under it, so its records
+name it.
 CR 610.3d's returns are the other such event (`execute_caused_actions`): each
 "until" return is its own exile's effect.
 
@@ -889,6 +890,16 @@ replacement's ability (§2b.4).
     Faith's cycling trigger must not satisfy). The other 47 ask an effect and
     its controller, or are Panharmonicon's family, whose "causes" is an event
     making a trigger trigger.
+11. **Taken at RH-1's review (2026-10-12), from the owner asking why
+    `emit_event` could not just carry a cause: every emitter names its
+    cause.** The build first stamped a cause ambiently inside a batch, from
+    the context that opened it, restamped per member for CR 704.3's sweep,
+    and made only emitters outside a batch name theirs. All 18 ambient sites
+    sat in a performer holding the context, so `emit_event(event, cause)` is
+    the one door and the batch carries only its id. A probe asserted the
+    two agreed on every record of the suite and 800 fuzz games before the
+    ambient cause was deleted. A forgotten cause is now a compile error
+    rather than a runtime `Err`.
 
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
@@ -3751,8 +3762,7 @@ Branches are `replacement/rh-<n>-…`.
 `ZoneChangeCause`. The rule variants and `Resolved` moved to the cause, and
 every rule's move is a `Put`. `EventCause` (`events/cause.rs`) is on every
 proposal and on every record's stamp, `EventStamp { batch, cause }` (40 bytes;
-the record 144). It is ambient inside a batch, and named by the emitter
-outside one, where a record with neither is an `Err`. `GeneratedBy` is
+the record 144). Every emitter names it (decision 11). `GeneratedBy` is
 decision 10's, with its counters arm. CR 704.3's state-based batch and CR
 610.3d's returns name a cause per member (`execute_caused_actions`).
 `DestructionSource` and `LifeLossCause` folded into the cause, which leaves

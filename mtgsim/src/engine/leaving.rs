@@ -13,7 +13,7 @@
 //! Commander" item 4.
 
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
-use crate::events::cause::GameRule;
+use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::get_effective_controller;
 use crate::state::game_state::GameState;
@@ -36,15 +36,15 @@ impl GameState {
     pub(crate) fn player_left_the_game(
         &mut self,
         player: PlayerId,
-        dp: &dyn DecisionProvider,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         if !self.is_multiplayer() {
             return Ok(());
         }
-        self.owned_objects_leave(player)?;
+        self.owned_objects_leave(player, ctx.cause)?;
         self.end_control_given_to(player);
         self.uncarded_stack_objects_cease(player)?;
-        self.exile_objects_no_player_in_game_controls(dp)
+        self.exile_objects_no_player_in_game_controls(ctx.dp)
     }
 
     /// CR 800.4a's first sentence — "all objects (see rule 109) owned by that
@@ -62,7 +62,7 @@ impl GameState {
     ///
     /// The order among the seven is this function's and not the CR's, which
     /// names none: the board first, because that is what a reader is watching.
-    fn owned_objects_leave(&mut self, player: PlayerId) -> Result<(), String> {
+    fn owned_objects_leave(&mut self, player: PlayerId, cause: EventCause) -> Result<(), String> {
         let mut leaving: Vec<(ObjectId, Zone)> = Vec::new();
         let owned = |game: &GameState, id: &ObjectId| {
             game.objects.get(id).is_some_and(|obj| obj.owner == player)
@@ -101,7 +101,7 @@ impl GameState {
             self.hand_over_lki(id, lki.as_ref());
             self.note_delayed_source_moving(id);
             self.remove_from_game(id)?;
-            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki })?;
+            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause);
         }
         Ok(())
     }

@@ -140,7 +140,7 @@ impl GameState {
             controller,
             returns: returns.iter().map(|(object, _)| object.id).collect(),
         };
-        self.emit_event_caused(made, cause);
+        self.emit_event(made, cause);
         let created_at = self.events.next_seq();
         let owner = self.owner_now_or(source.id, controller);
         self.until_returns.push(UntilReturn {

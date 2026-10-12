@@ -86,7 +86,7 @@ impl GameState {
             rules_text: template.rules_text,
             duration: template.duration,
         };
-        self.emit_event_caused(created, provenance.cause);
+        self.emit_event(created, provenance.cause);
         let delayed = DelayedTrigger {
             id,
             def: Arc::clone(&template.def),

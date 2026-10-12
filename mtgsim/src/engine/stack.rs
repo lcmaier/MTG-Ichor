@@ -257,7 +257,7 @@ impl GameState {
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
         if let Some(identity) = entry.ability_identity {
-            self.emit_event_caused(
+            self.emit_event(
                 GameEvent::AbilityResolved { identity, controller: entry.controller },
                 EventCause::GameRule(GameRule::AbilityResolves),
             );
@@ -301,7 +301,7 @@ impl GameState {
             Some(identity) => GameEvent::AbilityFizzled { identity, controller },
             None => GameEvent::SpellFizzled { spell_id: object_id, controller },
         };
-        self.emit_event_caused(fizzled, EventCause::GameRule(GameRule::TargetsIllegal));
+        self.emit_event(fizzled, EventCause::GameRule(GameRule::TargetsIllegal));
 
         Ok(())
     }

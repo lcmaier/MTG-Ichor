@@ -902,7 +902,7 @@ impl GameState {
                                 controller,
                                 countered_by: ctx.source,
                             };
-                            self.emit_event_caused(countered, actx.cause);
+                            self.emit_event(countered, actx.cause);
                         }
                     }
                 }
@@ -929,7 +929,7 @@ impl GameState {
                                 controller: entry.controller,
                                 countered_by: ctx.source,
                             };
-                            self.emit_event_caused(countered, actx.cause);
+                            self.emit_event(countered, actx.cause);
                         }
                     }
                 }

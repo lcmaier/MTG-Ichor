@@ -295,7 +295,7 @@ impl GameState {
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, casting)?;
         self.announce_targeted_records(card_id, casting);
-        self.emit_event_caused(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting);
+        self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting);
 
         Ok(())
     }
@@ -379,7 +379,7 @@ impl GameState {
         let ability_source = entry.ability_identity.map(|identity| identity.source.id);
         let controller = entry.controller;
         for (target, instances) in targeted {
-            self.emit_event_caused(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause);
+            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause);
         }
     }
 
@@ -507,7 +507,7 @@ impl GameState {
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating);
-        self.emit_event_caused(GameEvent::AbilityActivated { identity, controller: player_id }, activating);
+        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating);
 
         Ok(())
     }

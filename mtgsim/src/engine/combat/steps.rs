@@ -169,7 +169,7 @@ impl GameState {
             }
 
             let blocker_pairs: Vec<(ObjectId, ObjectId)> = proposed.clone();
-            self.emit_event_caused(
+            self.emit_event(
                 GameEvent::BlockersDeclared { blockers: blocker_pairs },
                 EventCause::TurnBasedAction(TurnBasedAction::DeclareBlockers),
             );

@@ -1402,7 +1402,7 @@ impl GameState {
         // anything can look.
         let effective = crate::oracle::characteristics::get_effective_controller(self, id)
             .unwrap_or(controller);
-        self.emit_event_caused(
+        self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
         );
