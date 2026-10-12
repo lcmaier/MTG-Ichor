@@ -309,6 +309,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::engine::resolve::ResolvedTarget;
@@ -658,7 +659,7 @@ mod tests {
         // Put a creature on the battlefield
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, creature_id, 1, &EnterMods::NONE);
 
         // Put Pacifism on the stack targeting the creature
         let aura_id = put_permanent_on_stack_with_targets(
@@ -686,7 +687,7 @@ mod tests {
 
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
         let creature_id = game.add_object(creature);
-        game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, creature_id, 1, &EnterMods::NONE);
 
         let aura_id = put_permanent_on_stack_with_targets(
             &mut game,

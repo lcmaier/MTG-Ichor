@@ -29,6 +29,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::keyword_creatures::wall_of_stone;
 use mtgsim::cards::phase_lf_cards::humility;
@@ -147,7 +148,7 @@ fn an_entry_edit_is_in_the_frame_and_on_the_permanent() {
 
     let rows = game.continuous_effects.iter().count();
     let placed = game.add_object(GameObject::new(grizzly_bears(), 0, Zone::Battlefield));
-    game.place_on_battlefield(placed, 0, &mods);
+    place_on_battlefield(&mut game, placed, 0, &mods);
     assert!(has_subtype(&game, placed, &mutant()));
     assert_eq!(game.continuous_effects.iter().count(), rows, "state on the permanent, not a row");
 }

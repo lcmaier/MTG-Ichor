@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::creatures;
 use mtgsim::test_support::{place_bare, test_ctx};
 use mtgsim::cards::keyword_creatures;
@@ -47,7 +48,7 @@ fn place_creature_sick(
     let data = card_factory();
     let obj = GameObject::new(data, owner, Zone::Battlefield);
     let id = game.add_object(obj);
-    game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
+    place_on_battlefield(game, id, owner, &EnterMods::NONE); // entered this turn = summoning sick
     id
 }
 

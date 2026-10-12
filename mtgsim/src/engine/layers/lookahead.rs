@@ -179,6 +179,7 @@ pub fn compute_as_entering(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
     use super::Lookahead;
@@ -232,7 +233,7 @@ mod tests {
 
         let predicted = Lookahead::new(&game, card, 0, &mods).entity;
         game.move_object(card, Zone::Battlefield).expect("a hand card moves");
-        let placed = game.place_on_battlefield(card, 0, &mods).clone();
+        let placed = place_on_battlefield(&mut game, card, 0, &mods).clone();
 
         assert_eq!(predicted.timestamp, placed.timestamp);
         assert!(placed.tapped && predicted.tapped);

@@ -629,7 +629,7 @@ pub fn put_on_battlefield(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = game.add_object(obj);
     let mods = intrinsic_entry_mods(game, id, player);
-    let entry = game.place_on_battlefield(id, player, &mods);
+    let entry = place_on_battlefield(game, id, player, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
     // Both fields are layer-walk inputs, and the entry's own dispatch has
@@ -655,7 +655,7 @@ pub fn put_on_battlefield_under(
     let obj = GameObject::new(card_data, owner, Zone::Battlefield);
     let id = game.add_object(obj);
     let mods = intrinsic_entry_mods(game, id, controller);
-    let entry = game.place_on_battlefield(id, controller, &mods);
+    let entry = place_on_battlefield(game, id, controller, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
     game.bump_layer_epoch();
@@ -906,6 +906,20 @@ pub fn put_in_command_zone(game: &mut GameState, card_data: Arc<CardData>, playe
         .expect("create_in_zone refuses only the battlefield")
 }
 
+/// `id` becomes a permanent under `controller` with `mods`, by fiat: the
+/// entry's performer with no proposal before it, so no replacement effect
+/// sees it, announced as caused by the harness (`EventCause::Harness`). What
+/// [`put_on_battlefield`] and its siblings build on, for a test that made the
+/// object itself.
+pub fn place_on_battlefield<'g>(
+    game: &'g mut GameState,
+    id: ObjectId,
+    controller: PlayerId,
+    mods: &crate::types::replacement::EnterMods,
+) -> &'g mut PermanentState {
+    game.perform_entry(id, controller, mods, crate::events::cause::EventCause::Harness)
+}
+
 /// Put a permanent onto the battlefield with ETB hooks, entering **this** turn — so it
 /// is summoning-sick.
 ///
@@ -920,7 +934,7 @@ pub fn put_on_battlefield_this_turn(
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = game.add_object(obj);
     let mods = intrinsic_entry_mods(game, id, player);
-    game.place_on_battlefield(id, player, &mods);
+    place_on_battlefield(game, id, player, &mods);
     id
 }
 

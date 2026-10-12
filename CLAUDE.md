@@ -43,7 +43,7 @@ by id and `put_on_stack.rs::activate_ability` must all index the *effective* lis
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
 **Three exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast and play legality
-before the object is a permanent), `register_static_effects` (circular inside `place_on_battlefield`)
+before the object is a permanent), `register_static_effects` (circular inside `perform_entry`)
 and `// AS PRINTED:` (the card shown as printed; no rule reads it). → `layers-architecture.md`; `codebase-state.md`.
 
 ## Registry membership is not effect existence

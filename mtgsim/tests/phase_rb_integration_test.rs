@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
@@ -1629,7 +1630,7 @@ fn place_commander(game: &mut GameState, owner: PlayerId, zone: Zone) -> ObjectI
     let id = game.add_object(obj);
     match zone {
         Zone::Battlefield => {
-            game.place_on_battlefield(id, owner, &EnterMods::NONE);
+            place_on_battlefield(game, id, owner, &EnterMods::NONE);
         }
         Zone::Graveyard => game.players[owner].graveyard.push(id),
         Zone::Library => game.players[owner].library.push(id),

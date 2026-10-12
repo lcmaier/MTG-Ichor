@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::alpha;
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::{GameState, Phase};
@@ -367,7 +368,7 @@ fn test_summoning_sick_cannot_attack() {
     let data = creatures::grizzly_bears();
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
     let bears_id = game.state.add_object(obj);
-    game.state.place_on_battlefield(bears_id, 0, &EnterMods::NONE); // entered this turn = summoning sick
+    place_on_battlefield(&mut game.state, bears_id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 

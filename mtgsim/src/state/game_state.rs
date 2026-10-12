@@ -151,7 +151,7 @@ pub struct ResolvingObject {
     /// CR 800.4c and therefore 4-player Commander.
     pub default_controller: PlayerId,
     /// CR 400.7d's facts about the spell, off its `StackEntry`, carried the
-    /// same way for the same reason: `place_on_battlefield` writes
+    /// same way for the same reason: `perform_entry` writes
     /// `PermanentState::cast` off them, and the entry is gone by then. `None`
     /// for an ability, and for a copy of a spell, which isn't cast.
     pub cast: Option<crate::state::battlefield::CastFacts>,
@@ -456,7 +456,7 @@ pub struct GameState {
     /// (Layer 6) and `copied_replacement_zones` (`copy-effects-architecture.md`
     /// §4.7); Layer 3 is the route still without one.
     ///
-    /// **Engine-maintained.** `place_on_battlefield` inserts and
+    /// **Engine-maintained.** `perform_entry` inserts and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
     pub replacement_ability_sources: IdSet<ObjectId>,
@@ -522,7 +522,7 @@ pub struct GameState {
     /// static restriction abilities and it must add a leg to the gate, or the
     /// source is silently dead on every board the gate skips.
     ///
-    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.
     pub restriction_ability_sources: IdSet<ObjectId>,
 
@@ -537,7 +537,7 @@ pub struct GameState {
     /// the gather *sweeps* — sorted by timestamp, not the whole battlefield —
     /// which is why it holds sources rather than a count.
     ///
-    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
+    /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.
     pub cost_modification_ability_sources: IdSet<ObjectId>,
 
@@ -641,7 +641,7 @@ pub struct GameState {
     /// they entered as (CR 707.5), each against the record kinds those defs
     /// read — the dispatcher's fast-path gate,
     /// `replacement_ability_sources`' twin: written by
-    /// `register_static_effects` from `place_on_battlefield`, removed by
+    /// `register_static_effects` from `perform_entry`, removed by
     /// `cleanup_zone_state`, over-approximating in one direction only. A
     /// triggered ability an object has without having printed one reaches
     /// the sweep through `RegistryScopeSummary::unattributed_trigger_zones`.
@@ -1285,7 +1285,7 @@ impl GameState {
     /// exact non-determinism the ordered sweeps exist to prevent
     /// (`CLAUDE.md`), so it is prevented here rather than asserted about.
     ///
-    /// Callers are `place_on_battlefield` and the test helpers that build a
+    /// Callers are `perform_entry` and the test helpers that build a
     /// board without ETB hooks.
     pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, mut entry: PermanentState) {
         entry.timestamp = self.object_timestamp(id);
@@ -1341,13 +1341,13 @@ impl GameState {
     /// A layer-walk input was written; every memoized frame is now stale.
     ///
     /// **After the write, never before it.** A performer may query between
-    /// the two — `place_on_battlefield` asks for the effective controller after
+    /// the two — `perform_entry` asks for the effective controller after
     /// inserting the entity — and a bump on entry would hand that query a frame
     /// from before the write.
     ///
     /// The inputs, and the one writer of each: `battlefield`, `objects[id].zone`
     /// and the players' graveyards in `move_object`; the entity in
-    /// `place_on_battlefield`; its counters in `add_counters` /
+    /// `perform_entry`; its counters in `add_counters` /
     /// `remove_counters`; its `attached_to` in `attach` / `detach`
     /// (`ObjectSet::Host` reads it at every layer); the
     /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
@@ -1408,13 +1408,6 @@ impl GameState {
         );
 
         self.battlefield.get_mut(&id).unwrap()
-    }
-
-    /// A test or tool putting a permanent onto the battlefield directly:
-    /// [`Self::perform_entry`], caused by the harness.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn place_on_battlefield(&mut self, id: ObjectId, controller: PlayerId, mods: &EnterMods) -> &mut PermanentState {
-        self.perform_entry(id, controller, mods, crate::events::cause::EventCause::Harness)
     }
 
     /// The state half of an entry: `id` becomes a permanent under
@@ -1669,7 +1662,7 @@ impl GameState {
     ///
     /// **Two callers, and the zone is why** (`layers-architecture.md` §13d):
     ///
-    /// - `place_on_battlefield`, for `Zone::Battlefield` — there rather than in
+    /// - `perform_entry`, for `Zone::Battlefield` — there rather than in
     ///   `move_object` because the entity does not exist until the CR 614.1c
     ///   pipeline has decided what the permanent enters *as*.
     /// - `move_object`, for every other zone — Wonder arriving in a graveyard.
@@ -1683,7 +1676,7 @@ impl GameState {
     /// layer (`CLAUDE.md`).
     ///
     /// Reads the abilities the object arrived with, never a frame: it runs
-    /// inside `place_on_battlefield`, before this object's own effect is
+    /// inside `perform_entry`, before this object's own effect is
     /// registered, so computing effective characteristics here would be
     /// circular. Those are the printed ones, or a copy's when the permanent
     /// entered as one (CR 707.5), which is how every gate's printed leg sees an
@@ -2288,6 +2281,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use super::*;
 
     // -----------------------------------------------------------------------
@@ -2462,7 +2456,7 @@ mod tests {
             let mut game = GameState::new(2, 20);
             let obj = GameObject::new(card, 0, Zone::Battlefield);
             let id = game.add_object(obj);
-            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
         }
     }
 

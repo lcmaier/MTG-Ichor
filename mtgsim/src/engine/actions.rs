@@ -2005,6 +2005,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use super::*;
     use crate::test_support::test_ctx;
     use crate::events::event::DamageTarget;
@@ -2194,7 +2195,7 @@ mod tests {
 
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
 
         (game, id)
     }
@@ -2314,7 +2315,7 @@ mod tests {
                 .build();
             let obj = GameObject::new(data, 0, Zone::Battlefield);
             let id = game.add_object(obj);
-            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            place_on_battlefield(game, id, 0, &EnterMods::NONE);
             id
         };
 
@@ -2374,7 +2375,7 @@ mod tests {
         let mut obj = GameObject::new(general, 0, Zone::Battlefield);
         obj.is_commander = true;
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE);
 
         (game, id)
     }
@@ -2464,7 +2465,7 @@ mod tests {
             let mut obj = GameObject::new(data, 0, Zone::Battlefield);
             obj.is_commander = true;
             let id = game.add_object(obj);
-            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            place_on_battlefield(game, id, 0, &EnterMods::NONE);
             id
         };
 

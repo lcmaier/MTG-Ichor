@@ -374,6 +374,7 @@ fn check_block_set_constraints(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use super::*;
     use crate::types::replacement::EnterMods;
     use crate::objects::card_data::CardDataBuilder;
@@ -407,7 +408,7 @@ mod tests {
     /// Place a creature that still has summoning sickness.
     fn place_creature_sick(game: &mut GameState, owner: PlayerId) -> ObjectId {
         let id = game.add_object(GameObject::new(make_bears(), owner, Zone::Battlefield));
-        game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
+        place_on_battlefield(game, id, owner, &EnterMods::NONE); // entered this turn = summoning sick
         id
     }
 
@@ -783,7 +784,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         let result = validate_attackers(
             &game, 0,
@@ -816,7 +817,7 @@ mod tests {
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = game.add_object(obj);
-        game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
+        place_on_battlefield(&mut game, id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         // Should be able to pay tap cost despite summoning sickness
         let result = game.can_pay_costs(

@@ -548,6 +548,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::types::replacement::EnterMods;
     use crate::test_support::test_ctx;
     use crate::objects::object::GameObject;
@@ -768,7 +769,7 @@ mod tests {
         // Create a forest on the battlefield
         let forest = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        game.place_on_battlefield(forest_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, forest_id, 0, &EnterMods::NONE);
 
         // Move to graveyard
         game.move_object(forest_id, Zone::Graveyard).unwrap();
@@ -785,12 +786,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // Create an "attachment" (e.g. Equipment) on the battlefield
         let equip = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let equip_id = game.add_object(equip);
-        game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, equip_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.attach(equip_id, host_id);
@@ -815,12 +816,12 @@ mod tests {
         // Create a host creature on the battlefield
         let host = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let host_id = game.add_object(host);
-        game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, host_id, 0, &EnterMods::NONE);
 
         // Create an attachment on the battlefield
         let aura = GameObject::new(make_forest(), 0, Zone::Battlefield);
         let aura_id = game.add_object(aura);
-        game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
+        place_on_battlefield(&mut game, aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment relationship
         game.attach(aura_id, host_id);

@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::basic_lands;
 use mtgsim::test_support::{test_ctx, test_dp};
 use mtgsim::cards::registry::CardRegistry;
@@ -208,7 +209,7 @@ fn test_sba_integration_with_turn_structure() {
 
     let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
     let bears_id = game.add_object(bears);
-    game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 3;
+    place_on_battlefield(&mut game, bears_id, 0, &EnterMods::NONE).damage_marked = 3;
 
     game.check_state_based_actions_loop(&mtgsim::ui::decision::ScriptedDecisionProvider::new()).unwrap();
 

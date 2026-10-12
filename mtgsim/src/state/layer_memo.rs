@@ -199,6 +199,7 @@ impl LayerMemo {
 /// the debug audit under `fuzz_games` instead.
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
     use crate::engine::layers::compute_characteristics;
@@ -316,7 +317,7 @@ mod tests {
         assert_eq!(controller(&game, card), (Some(0), true));
 
         game.move_object(card, Zone::Battlefield).unwrap();
-        game.place_on_battlefield(card, 1, &EnterMods::NONE);
+        place_on_battlefield(&mut game, card, 1, &EnterMods::NONE);
         assert_eq!(controller(&game, card), (Some(1), false), "the entity is the seed now");
     }
 

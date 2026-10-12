@@ -571,6 +571,7 @@ fn next_turn_unit(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::place_on_battlefield;
     use crate::types::replacement::EnterMods;
     use crate::test_support::{test_dp};
     use crate::objects::card_data::CardDataBuilder;
@@ -649,7 +650,7 @@ mod tests {
             .build();
         let forest = GameObject::new(forest_data, 0, crate::types::zones::Zone::Battlefield);
         let forest_id = game.add_object(forest);
-        game.place_on_battlefield(forest_id, 0, &EnterMods::NONE).tapped = true;
+        place_on_battlefield(&mut game, forest_id, 0, &EnterMods::NONE).tapped = true;
 
         // Advance past turn 1 (on_step_begin already fired for current untap)
         game.advance_turn(&test_dp()).unwrap();
@@ -682,10 +683,10 @@ mod tests {
         // One tapped, one already untapped, both controlled by player 0.
         let tapped_id = game.add_object(GameObject::new(
             land("Tapped Forest"), 0, crate::types::zones::Zone::Battlefield));
-        game.place_on_battlefield(tapped_id, 0, &EnterMods::NONE).tapped = true;
+        place_on_battlefield(&mut game, tapped_id, 0, &EnterMods::NONE).tapped = true;
         let untapped_id = game.add_object(GameObject::new(
             land("Untapped Forest"), 0, crate::types::zones::Zone::Battlefield));
-        game.place_on_battlefield(untapped_id, 0, &EnterMods::NONE).tapped = false;
+        place_on_battlefield(&mut game, untapped_id, 0, &EnterMods::NONE).tapped = false;
 
         let before = game.recorded_events().len();
         // Walk to player 0's next untap step.
@@ -722,7 +723,7 @@ mod tests {
         for name in ["Forest A", "Forest B"] {
             let id = game.add_object(GameObject::new(
                 land(name), 0, crate::types::zones::Zone::Battlefield));
-            game.place_on_battlefield(id, 0, &EnterMods::NONE).tapped = true;
+            place_on_battlefield(&mut game, id, 0, &EnterMods::NONE).tapped = true;
         }
 
         let before = game.recorded_events().len();
