@@ -541,7 +541,7 @@ the step's batch, and one context cause cannot tell the two cards apart.
 
 **Decision 3: the record keeps the whole applied set, in the order it applied,
 not one redirecting replacement.** CR 614.5 already tracks the set, and the
-loop holds it per member (`applied_to`, which reaches `perform_action` today).
+loop holds it per member (`BatchMember::applied`, which reaches `perform_action`).
 CR 616.1f's loop can apply several replacements to one move, and a single slot
 would keep one and drop the rest. Madness's "when this card is exiled this
 way" (CR 702.35a; 61 cards, `kw:madness game:paper -is:funny`, re-run

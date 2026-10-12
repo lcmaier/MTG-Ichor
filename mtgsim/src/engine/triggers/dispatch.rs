@@ -681,10 +681,10 @@ impl GameState {
     /// each such permanent they own, since CR 800.4a takes those with them.
     /// When it is true the batch snapshots the lists before performing
     /// (`LookBackSnapshot`).
-    pub(crate) fn departs_an_ability_list_source(&self, decided: &[Option<GameAction>]) -> bool {
+    pub(crate) fn departs_an_ability_list_source<'a>(&self, mut decided: impl Iterator<Item = &'a GameAction>) -> bool {
         let sources = &self.continuous_effects.summary().ability_list_sources;
         !sources.is_empty()
-            && decided.iter().flatten().any(|action| match action {
+            && decided.any(|action| match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => sources.contains(object),
                 GameAction::PlayerLoses { player, .. } => sources
@@ -704,9 +704,9 @@ impl GameState {
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
     /// subject is, a card a draw trigger named. The move hands the frame to
     /// each entry naming the mover (`hand_over_lki`).
-    pub(crate) fn capture_lki(&mut self, decided: &[Option<GameAction>]) {
+    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
         let mut named: Option<Vec<ObjectRef>> = None;
-        for action in decided.iter().flatten() {
+        for action in decided {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => {

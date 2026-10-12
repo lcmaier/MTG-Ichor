@@ -48,11 +48,12 @@ arms are `ToEffectSource` and `ToDamageSourceController`; sense 3 is
 `replacement-architecture.md` §3.3's five and `cost-architecture.md` §4's two.
 
 **member** — two, and they are one word for a reason: each names the unit its
-subsystem *iterates*. **(1)** `Member`: one proposal inside a batch, as the
-replacement pipeline works through it — the proposal's index into the batch,
-plus its event as rewritten so far. The event becomes `None` when a replacement
-drops the proposal outright (CR 614.6, 614.7a, 614.17); the member itself stays,
-so the index it carries stays valid. **(2)** One object in the layer walk's
+subsystem *iterates*. **(1)** `BatchMember`: one proposal inside a batch, from
+its proposal to its performance, as one record — its place in batch order, its
+cause, its event as the replacement pipeline rewrites it, and the applied set
+its subject group's loop ended with. The event becomes `None` when a
+replacement drops the proposal outright (CR 614.6, 614.7a, 614.17); the member
+itself stays, and phase 2 performs the members sorted by place. **(2)** One object in the layer walk's
 **working set** — what `Board::members` holds and what a pass computes a frame
 for. Its opposite is a *non-member*, an object no row can reach, which gets
 `compute_non_member`: a solo walk of its own CDAs, exact precisely because

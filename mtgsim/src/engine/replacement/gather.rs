@@ -153,7 +153,7 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
 ///
 /// That is why this is one function with an entry arm rather than a wrapper
 /// around a subject-shaped one. A subject cannot answer for an entry, and both
-/// callers — the CR 616.1 loop and `apnap_batch_order` — hold the action.
+/// callers — the CR 616.1 loop and `subject_groups` — hold the action.
 pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<PlayerId> {
     match action {
         GameAction::EnterBattlefield { controller, .. } => Some(*controller),
