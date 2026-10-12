@@ -2718,7 +2718,7 @@ named them.
 | **Size** | unsized: a design first, against the copy track's shapes, then about a PR per mechanic, casting path included |
 | **Blocks** | about 150 Adventure cards (Scryfall, 2026-09-29: `is:adventure game:paper -is:funny` returns 151, `t:adventure` returns 138), 19 Prototype (`keyword:prototype`), and 13 Omen (`t:omen`) |
 | **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
-| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29), sized and slotted among `roadmap-v2.md` B6's copy phases at the docs audit (A6h) |
+| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed with CV-5's card model beside PM-0, and built after CV-5 (`roadmap-v2.md` §3a, "From triggers to Phase 8", 2026-10-12) |
 
 ### 2.42 The board editor's other advanced settings — history, a card's lines, setup actions
 
