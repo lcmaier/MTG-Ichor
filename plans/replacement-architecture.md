@@ -980,12 +980,16 @@ Open:
   effect's rider, and §4.1a reads every `then` that way. If a judge reads a
   replacement's "instead ... and" as one event, decision 5 dispatches a
   replacement's riders with the event and only a prevention's after it.
-- **Item 248's other outer events**: the destruction is the one outer event
-  whose inner is a move. A player's leaving may be a second: `engine/leaving.rs`
-  proposes CR 800.4a's exiles one at a time, after its first two clauses have
-  run, and each is decided against the board the earlier ones left. RH-2
-  checks it with a fixture replacement that watches an exile, beside item
-  248's own boards.
+- ~~**Item 248's other outer events**~~ — **answered in RH-2 (2026-10-12).**
+  The destruction is the one outer event whose inner is a move. A player's
+  leaving looked like a second: `engine/leaving.rs` proposed CR 800.4a's exiles
+  one at a time, after its first two clauses had run, and each was decided
+  against the board the earlier ones left. RH-2's fixture replacement, which
+  sends a move into exile to the graveyard instead, was gone for the exiles
+  after its own when it was exiled first. The exiles are one instruction over a
+  set, so they are not inner events of the leaving but one event of their own
+  (CR 608.2f's reading): `exile_objects_no_player_in_game_controls` proposes
+  them as one batch, for CR 800.4a and 800.4c alike.
 
 ---
 

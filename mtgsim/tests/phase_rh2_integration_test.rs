@@ -24,11 +24,12 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
-    PlayerSet, Primitive,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact,
+    PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -243,3 +244,58 @@ fn a_destruction_a_shield_counter_replaced_proposes_no_move() {
     assert!(!game.recorded_events().events().any(|e| matches!(e, GameEvent::ZoneChange { .. })));
 }
 
+// ---------------------------------------------------------------------------
+// §2b.11's other outer event: CR 800.4a's exiles, one event
+// ---------------------------------------------------------------------------
+
+/// "If a permanent would be put into exile from the battlefield, put it into
+/// its owner's graveyard instead." A fixture: the replacement that watches
+/// CR 800.4a's fourth clause.
+fn exile_to_graveyard_watcher() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture: exiles go to the graveyard")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::ZoneChange {
+                change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
+                object: None,
+            },
+            ObjectSet::battlefield_filter(ObjectFilter::All),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Graveyard }),
+        )))))
+        .build()
+}
+
+/// Player 1 leaves controlling two permanents they do not own, the watcher
+/// and a bystander, `watcher_first` or second in the battlefield's order.
+fn the_leaving_player_controls_a_watcher_and_a_bystander(watcher_first: bool) -> (GameState, ObjectId, ObjectId) {
+    let mut game = setup_game(4);
+    let (watcher, bystander) = if watcher_first {
+        let watcher = put_on_battlefield_under(&mut game, exile_to_graveyard_watcher(), 2, 1);
+        (watcher, put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 3, 1))
+    } else {
+        let bystander = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 3, 1);
+        (put_on_battlefield_under(&mut game, exile_to_graveyard_watcher(), 2, 1), bystander)
+    };
+
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).unwrap();
+    (game, watcher, bystander)
+}
+
+/// CR 800.4a's fourth clause exiles everything the leaving player still
+/// controls as one event, so the watcher, there before the event (CR 614.4),
+/// replaces every exile in it, its own included, whichever goes first.
+#[test]
+fn the_leaving_players_exiles_are_one_event_with_the_watcher_first() {
+    let (game, watcher, bystander) = the_leaving_player_controls_a_watcher_and_a_bystander(true);
+
+    assert_eq!(game.get_object(watcher).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(bystander).unwrap().zone, Zone::Graveyard, "decided against the board with the watcher");
+}
+
+#[test]
+fn the_leaving_players_exiles_are_one_event_with_the_watcher_second() {
+    let (game, watcher, bystander) = the_leaving_player_controls_a_watcher_and_a_bystander(false);
+
+    assert_eq!(game.get_object(watcher).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(bystander).unwrap().zone, Zone::Graveyard);
+}
