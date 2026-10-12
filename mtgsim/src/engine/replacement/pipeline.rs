@@ -147,11 +147,16 @@ pub(crate) struct BatchMember {
     /// CR 614.5's applied set its group's loop ended with, which a performer
     /// that decomposes hands on (§3.2d).
     pub applied: HashSet<ReplacementInstanceId>,
+    /// A destruction's move (CR 701.8a), its inner event, decided right after
+    /// its group against the same board and performed right after it: item
+    /// 248. `None` for every other member, and for a destruction that was
+    /// replaced or stopped, which no longer moves anything.
+    pub inner_move: Option<Box<BatchMember>>,
 }
 
 impl BatchMember {
     pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
-        BatchMember { place, event: Some(action), cause, applied: HashSet::new() }
+        BatchMember { place, event: Some(action), cause, applied: HashSet::new(), inner_move: None }
     }
 }
 

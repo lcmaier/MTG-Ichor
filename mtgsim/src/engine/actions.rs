@@ -320,8 +320,9 @@ pub enum GameAction {
 
     /// Destroy a permanent (CR 701.8).
     ///
-    /// **The outer event.** Performing it proposes an inner
-    /// `ZoneChange { to: Graveyard, act: Destroyed }` under the same cause, so a
+    /// **The outer event.** Its inner `ZoneChange { to: Graveyard, act:
+    /// Destroyed }` is decided with it, under the same cause and against the
+    /// same board, and performed right after it (`BatchMember::inner_move`), so a
     /// destruction is two events and a replacement can watch either. Which of
     /// CR 701.8b's two ways destroyed it — an effect, or a state-based action
     /// (704.5g/h) — is the cause, which CR 122.1c's shield counter reads ("as
@@ -977,7 +978,9 @@ impl GameState {
             // CR 704.7's dedupe left one member per subject, so the group's cause
             // is its member's. No group is empty; `ctx.cause` only spares an index.
             let group_ctx = ctx.caused_by(group.first().map_or(ctx.cause, |m| m.cause));
-            if let Err(e) = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders) {
+            let decided = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders)
+                .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders));
+            if let Err(e) = decided {
                 decided_ok = Err(e);
                 break;
             }
@@ -1028,7 +1031,16 @@ impl GameState {
             let Some(action) = member.event else { continue };
             // Each member performs under its own cause, which its records carry.
             let member_ctx = ctx.caused_by(member.cause);
-            let result = self.perform_action(action.clone(), &member_ctx, &member.applied);
+            let mut result = self.perform_action(action.clone(), &member_ctx, &member.applied);
+            // A destruction's move, decided with it, happens right after it
+            // (CR 701.8a) and is no event of the batch's own: what the batch
+            // performed is the destruction.
+            if result.is_ok()
+                && let Some(inner) = member.inner_move
+                && let Some(movement) = inner.event
+            {
+                result = self.perform_action(movement, &member_ctx, &inner.applied);
+            }
             if let Err(e) = result {
                 performed_ok = Err(e);
                 break;
@@ -1120,6 +1132,48 @@ impl GameState {
             }
         }
         groups
+    }
+
+    /// Item 248: each destruction `group` decided proposes its move (CR
+    /// 701.8a), and the move is decided now, with it, against the board no
+    /// member of the batch has changed yet. CR 704.3 decides every member
+    /// against one board, and CR 614.4 wants a replacement to exist before the
+    /// event, which is the batch: Kalitas dying beside an opponent's creature
+    /// still exiles it, whichever of them the batch performs first.
+    ///
+    /// An inner event, so it is decided right after its outer, in its group's
+    /// place in CR 101.4's order, and its riders join the batch's (CR 615.5,
+    /// after the whole event). A fresh applied set: the move is contained in
+    /// the destruction, not a finer grain of it (§3.2d). A destruction that was
+    /// replaced (a regeneration, a shield counter) or stopped is no longer a
+    /// `Destroy`, and one of an object already gone keeps the performer's own
+    /// loud refusal.
+    fn decide_destruction_moves(
+        &mut self,
+        group: &mut [BatchMember],
+        later: &[SubjectGroup],
+        ctx: &ActionContext,
+        riders: &mut Vec<crate::engine::replacement::Rider>,
+    ) -> Result<(), String> {
+        use crate::engine::replacement::apply_replacements;
+
+        for member in group.iter_mut() {
+            let Some(GameAction::Destroy { object }) = member.event else { continue };
+            if !self.battlefield.contains_key(&object) {
+                continue;
+            }
+            let movement = GameAction::ZoneChange {
+                object,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                act: ZoneChangeAct::Destroyed,
+            };
+            let mut inner = BatchMember::proposed(member.place, movement, member.cause);
+            let member_ctx = ctx.caused_by(member.cause);
+            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &HashSet::new(), riders)?;
+            member.inner_move = Some(Box::new(inner));
+        }
+        Ok(())
     }
 
     /// Resolve one queued rider — see [`Rider`](crate::engine::replacement::Rider)
@@ -1504,11 +1558,9 @@ impl GameState {
             }
 
             // CR 701.8a — "move it from the battlefield to its owner's graveyard".
-            // The **outer** event: this performer proposes the inner zone change,
-            // which re-enters the pipeline with a fresh applied set (§3.2d
-            // containment). That is what lets CR 122.1h's finality counter turn the
-            // graveyard trip into an exile while CR 122.1c's shield counter, watching
-            // the destruction itself, has already declined.
+            // The **outer** event, which performs nothing of its own: its move was
+            // decided with it in phase 1 (`decide_destruction_moves`), and phase 2
+            // performs that move right after this arm.
             GameAction::Destroy { object } => {
                 // Loud, like `Tap`/`Untap`: destroying something off the battlefield does
                 // nothing (CR 701.8b), and CR 608.2b's partial resolution is the caller's
@@ -1518,15 +1570,6 @@ impl GameState {
                         "Cannot destroy {}: not on the battlefield", object
                     ));
                 }
-                self.execute_action(
-                    GameAction::ZoneChange {
-                        object,
-                        from: Zone::Battlefield,
-                        to: Zone::Graveyard,
-                        act: ZoneChangeAct::Destroyed,
-                    },
-                    ctx,
-                )?;
                 Ok(())
             }
 

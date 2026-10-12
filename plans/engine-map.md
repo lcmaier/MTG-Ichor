@@ -175,7 +175,7 @@ table, the enum and the match disagree.
 | `Tap` | on the transition only; `Tapped` | — |
 | `AddCounters` | counters on a permanent or a player; `CountersChanged` | — |
 | `RemoveCounters` | as many as there are (CR 701.2); announced only if any | — |
-| `Destroy` | the outer event only | `ZoneChange` to the graveyard |
+| `Destroy` | the outer event only; its `ZoneChange` to the graveyard, decided with it in phase 1 (`decide_destruction_moves`, item 248), is performed right after it | — |
 | `EnterBattlefield` | the move (or a token's creation), then `perform_entry` | — |
 | `CreateTokens` | the objects, then every entry as one batch | `EnterBattlefield` per token |
 | `CreateTokenIn` | `put_token_into`; `TokenCreated` | — |
