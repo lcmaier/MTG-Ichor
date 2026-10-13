@@ -28,8 +28,8 @@ pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
 /// battlefield": every card that event moved. One trigger matched all of the
 /// event's records (CR 603.2c's "one or more"), and each record says where its
 /// card went (`GameEvent::new_object`), so a card that has moved again since
-/// is not found. `Err` for a record that is not a zone change, which says
-/// only the object's id (`codebase-state.md` item 250).
+/// is not found. `Err` for a record that is not a zone change: it says only
+/// the object's id, not which existence of it the event was about.
 pub(crate) fn triggering_objects(binding: &TriggerBinding) -> Result<Vec<ObjectRef>, String> {
     binding
         .records

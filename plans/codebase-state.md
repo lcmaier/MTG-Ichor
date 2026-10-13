@@ -7891,9 +7891,9 @@ and the reading below, which the audit makes and the dispatcher does not.
 
 175. **~~A window's LKI and newcomers answer records that are not theirs.~~
      — ✅ CLOSED 2026-10-12 (PR #245, RH-3).** — archived.
-     Done: a window whose batch queued riders is dispatched in two parts,
-     what the batch performed before the riders run, then the riders' records
-     (`dispatch_before_riders`, decision 5). All six readers are boards in
+     Done: a batch that queued riders is dispatched before they run, and
+     the riders' records are a batch of their own, dispatched after
+     (`run_riders_as_their_own_event`, decision 5). All six readers are boards in
      `phase_rh3_integration_test.rs`, each shown failing first.
      **Reachability (2026-10-12):** closed — PR #245.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 175".

@@ -651,6 +651,13 @@ window where it failed. Item 175's sized alternative was to tag each candidate
 list with the batch it was taken before. It answers only the look-back arms and
 would need a snapshot for each of the other four, so this replaces it.
 
+**As built (RH-3, #245's review):** the riders' records are a batch of their
+own. The batch that dispatches its own window closes, dispatches what it
+performed, and then runs its riders in a new batch with its own dispatch
+(`run_riders_as_their_own_event`). An earlier build kept one batch open across
+both parts and reopened it for the riders; the review asked whether that was
+needed, and it was not.
+
 What moves: a "one or more" trigger over an event and its rider now sees two
 events, the rider's "immediately afterward" (CR 615.5). Kalitas's Zombies, made
 by riders, enter in a dispatch after the exiles they ride on. This moves the
@@ -3856,8 +3863,9 @@ destruction's move decided with the destruction (item 248) (#244). 4 + 22
 
 #### RH-3 — the record's new object, its applied replacements and its moment — ✅ landed 2026-10-12
 
-`new_epoch`, `applied` with `AppliedSet`'s order, "them", the destination's
-cause, L1–L6's homes and the two-part dispatch (#245). Ten fixtures failed
+`new_epoch`, `applied` with `AppliedReplacements`' order, "them", the
+destination's cause, L1–L6's homes, and riders as an event of their own
+(#245). Ten fixtures failed
 first. The record arm is `IDENTICAL`; shipped differs in 2 four-seat `stress`
 games, a CR 610.3 return now ahead of a rider's Zombies; +0.11% instructions
 per decision.

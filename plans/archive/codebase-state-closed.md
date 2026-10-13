@@ -5242,12 +5242,11 @@ event: CR 800.4a's exiles, proposed one at a time, are now one batch.
 
 Closed by RH-3 (`replacement-architecture.md` §2b.6, decision 5, and §9). The
 batch that dispatches its window, the outermost one or a CR 614.13 auxiliary
-one, now dispatches what it performed, nested batches included, before its
-riders run, and the riders' records at its close
-(`GameState::dispatch_before_riders`). The first part runs as the close's
-dispatch would: the batch closed and the nesting as it is outside, so a CR
-610.3 return or a triggered mana ability it performs is an event of its own.
-The window flushes once, at the close. The ~40-line tag design below was
+one, now closes and dispatches what it performed, nested batches included,
+before its riders run, and then runs the riders as an event of their own, a
+new batch with its own dispatch (`GameState::run_riders_as_their_own_event`).
+A CR 610.3 return or a triggered mana ability the first dispatch performs is
+an event of its own, as at any window's close. The ~40-line tag design below was
 superseded on 2026-10-10. `tests/phase_rh3_integration_test.rs` has a board
 for each reader, and each failed on the tree before the fix: a newcomer's
 look-back arm and its ordinary arm, a departed frame against a death the rider
@@ -5340,7 +5339,7 @@ and `EventCause` on every record's stamp. RH-3 (#245) kept the third fact: the
 record's `applied` is CR 614.5's set in the order it applied
 (`replacement-architecture.md` §2b.4, decision 3), each entry its instance,
 what its effect's events are caused by and whether it redirected the move. The
-loop's set (`AppliedSet`) keeps its order and says whether each effect applied
+loop's set (`AppliedReplacements`) keeps its order and says whether each effect applied
 or was declined. A zone-change arm that names no act asks the destination's
 cause, the last redirect's (`GameEvent::redirected_by`), which the owner
 decided at #242's review: Rest in Peace exiles what your own Doom Blade
@@ -5511,7 +5510,7 @@ this way" (CR 702.35a) will ask.
 Closed by RH-3 (`replacement-architecture.md` §2b.5). `GameEvent::ZoneChange`
 carries `new_epoch`, read at the one emitter, and `new_object()` pairs it with
 the id. The binding's subject is built off the record at both sites
-(`subject_identity`), "them" is `EffectRecipient::TriggeringObjects`, and
+(`subject_after`), "them" is `EffectRecipient::TriggeringObjects`, and
 `Effect::Remember` and CR 610.3's returns read each record's new object
 (`put_into_since`). The item's fixture, a rider that exiles a creature right
 after it died, failed on the tree before the fix: the dies trigger's "return

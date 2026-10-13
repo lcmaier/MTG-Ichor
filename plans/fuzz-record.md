@@ -88,6 +88,12 @@ sittings ran in 137 s, with one more for shipped's callgrind reading.
 **§3 fixture rows, shipped, two seats, 50 games / seed 12345:** RH-2's to the
 digit on both pools, gameplay and cost.
 
+**The review arm** `afc6c11`, where a batch's riders became a batch of their
+own instead of a reopened one, against shipped `ae618f1`: **IDENTICAL** on
+every row, gameplay and cost, both pools, at two seats and four; the same
+dispatch counts agreed (162,773 / 165,843 and 332,014 / 341,588);
+instructions per decision 0.6448 M → 0.6445 M, −0.05%.
+
 **Re-recorded 2026-10-12 for RH-2** (#244: the batch's members, decided
 together, `replacement-architecture.md` §2b.6, §2b.8, §2b.10). No card joins
 the registry or the pool (188 registered, 106 pooled). `close_out.py` against

@@ -9558,25 +9558,26 @@ move stamped, read at the one emitter, and `applied: Option<Arc<[AppliedReplacem
 (`events/event.rs`): CR 614.5's set in the order it applied, each entry its
 instance, what its effect's own events are caused by (`by`, its source and
 controller then) and whether it redirected the move. `GameEvent` stays 72
-bytes. `AppliedSet` (`engine/replacement/instance.rs`) is the loop's set in
+bytes. `AppliedReplacements` (`engine/replacement/instance.rs`) is the loop's set in
 insertion order, each entry applied or declined; a rider's and a
-decomposition's events start from `handed_down()`, the same effects with no
+decomposition's events start from `without_redirects()`, the same effects with no
 redirect of their own. CR 903.9b's exempt effect never joins it.
 
-The readers: the binding's subject at both sites is `subject_identity`, a zone
+The readers: the binding's subject at both sites is `subject_after`, a zone
 change's new object; "them" is `EffectRecipient::TriggeringObjects`, each
 matched zone change's new object while it is still that object, and refused
 over a record of another kind (`codebase-state.md` item 250); `Effect::Remember`
 and CR 610.3's returns read each record's new object through `put_into_since`.
 A zone-change arm that names no act asks `GameEvent::redirected_by()`, the last
 redirect's cause, else the record's (§2b.4's decided reading). The log line
-names each replacement that applied. Decision 5 is `dispatch_before_riders`
-(`engine/actions.rs`): the batch that owns its window (`WindowDispatch`)
-dispatches what it performed with the batch closed and the outer nesting
-restored, reopens it for its riders, and flushes once at its close. L1–L6's
+names each replacement that applied. Decision 5 is
+`run_riders_as_their_own_event` (`engine/actions.rs`): the batch that
+dispatches its own window closes and dispatches what it performed, then runs
+its riders in a new batch with its own dispatch. A first build reopened the
+batch for its riders; the review removed that. L1–L6's
 homes (§2b.8): `CurrentOrLastKnown` (`oracle/characteristics.rs`, four
 projections), `GameState::find`, `GameEvent::lki()`, `capture_of`,
-`hand_over_before_leaving` and `put_into_since` with `MadeThere`. The atoms'
+`hand_over_before_leaving` and `put_into_since`. The atoms'
 boards needed two verbs nothing had built, `ReturnToHand` and
 `ShuffleIntoLibrary`; no registered card uses either.
 
