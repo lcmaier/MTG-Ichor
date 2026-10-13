@@ -55,9 +55,7 @@ impl TargetRef {
     /// 800.4a's departure is the target check's question, not this one's.
     pub fn still_exists(self, game: &GameState) -> bool {
         match self {
-            TargetRef::Object(object) => {
-                game.objects.get(&object.id).is_some_and(|o| o.zone_change_epoch == object.zone_change_epoch)
-            }
+            TargetRef::Object(object) => game.find(object).is_some(),
             TargetRef::Player(_) => true,
         }
     }
@@ -486,7 +484,10 @@ impl GameState {
             // walks the declared clauses rather than the atoms.
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
-            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => Err(format!(
+            EffectRecipient::TriggeringObject
+            | EffectRecipient::TriggeringObjects
+            | EffectRecipient::TriggeringPlayer
+            | EffectRecipient::Referred => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its

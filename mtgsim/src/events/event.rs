@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use super::cause::EventCause;
 use super::recorder::RecorderHandle;
-use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId, UntilReturnId};
+use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
+use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
@@ -52,6 +53,14 @@ pub enum GameEvent {
         /// It names the existence that left (CR 400.7), which `object_id`
         /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
         lki: Option<Lki>,
+        /// The replacement effects that applied to this move, in the order
+        /// they applied (CR 614.5), each as it applied. `None` for a move
+        /// nothing replaced.
+        applied: Option<Arc<[AppliedReplacement]>>,
+        /// CR 400.7e's new object: the epoch the move stamped, which
+        /// [`GameEvent::new_object`] pairs with `object_id`. A later move
+        /// makes another object, which "it" never finds (CR 603.6c).
+        new_epoch: ZoneChangeEpoch,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -402,6 +411,43 @@ pub enum GameEvent {
 }
 
 impl GameEvent {
+    /// The card or permanent this zone change put into its destination, as an
+    /// `ObjectRef`: its id with the epoch the move gave it. A moved object is a
+    /// new object (CR 400.7), so this is how "return it" after a dies trigger
+    /// finds the card in the graveyard, and finds nothing once it has moved
+    /// again (CR 603.6c). `None` for a record that is not a zone change.
+    pub fn new_object(&self) -> Option<ObjectRef> {
+        match self {
+            GameEvent::ZoneChange { object_id, new_epoch, .. } => {
+                Some(ObjectRef { id: *object_id, zone_change_epoch: *new_epoch })
+            }
+            _ => None,
+        }
+    }
+
+    /// What caused the move to go where it went, when a replacement changed
+    /// that: the last one that did (CR 614.6). `None` for a move that went
+    /// where it was proposed to, and for any other record.
+    pub fn redirected_by(&self) -> Option<EventCause> {
+        match self {
+            GameEvent::ZoneChange { applied: Some(applied), .. } => {
+                applied.iter().rev().find(|a| a.redirected).map(|a| a.by)
+            }
+            _ => None,
+        }
+    }
+
+    /// The last known information this record carries (CR 603.10a), with the
+    /// zone its object left and its owner: a zone change's or a leaving's, and
+    /// `None` for every other record and for a move no look-back reads.
+    pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
+        match self {
+            GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
+            | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            _ => None,
+        }
+    }
+
     /// The objects this event names as they are when it is announced, whose
     /// names its record keeps where a copy makes one other than its card's
     /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
@@ -523,6 +569,19 @@ pub struct BatchId(pub u64);
 pub struct ResolutionStamp {
     pub source: ObjectId,
     pub controller: PlayerId,
+}
+
+/// One replacement effect that applied to an event, as it applied (CR 614.5;
+/// `replacement-architecture.md` §2b.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AppliedReplacement {
+    pub instance: ReplacementInstanceId,
+    /// What its effect's own events are caused by: its source and its
+    /// controller as it applied, which may have left or changed hands since.
+    pub by: EventCause,
+    /// Whether it changed where the move goes: CR 614.6's modified event is
+    /// then the replacement's, and so is "who exiled it".
+    pub redirected: bool,
 }
 
 /// The context every emitted event is stamped with.
@@ -713,9 +772,11 @@ impl EventWindow {
 
     /// Open a batch that does **not** join an enclosing one.
     ///
-    /// `GameState::execute_actions_new_batch` is the only caller and owns the
-    /// rules argument for why CR 614.13's auxiliary moves are not a result of
-    /// the event they are nested inside.
+    /// Two callers, each with the rules argument for why its events are not a
+    /// result of the event they are nested inside:
+    /// `GameState::execute_actions_new_batch` for CR 614.13's auxiliary moves,
+    /// and `GameState::execute_riders` for a replacement's
+    /// rider, which CR 615.5 puts "immediately afterward".
     pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
         let id = BatchId(self.next_batch);

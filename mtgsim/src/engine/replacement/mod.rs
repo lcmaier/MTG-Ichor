@@ -35,8 +35,8 @@ pub(crate) use gather::{
     EventSubject,
 };
 pub use gather::CounterEffectKind;
-pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};
-pub use instance::ReplacementInstance;
+pub(crate) use instance::AppliedReplacements;
+pub use instance::{GameRuleReplacement, ReplacementInstance, ReplacementInstanceId};
 pub(crate) use lookahead::EntryFrame;
 pub(crate) use pipeline::{
     apply_replacements, auxiliary_zone, not_an_opponent, not_auxiliary, BatchMember, NotAnOpponent, NotAuxiliary,

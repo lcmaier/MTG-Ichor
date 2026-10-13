@@ -390,9 +390,12 @@ pub struct TriggerBinding {
 }
 ```
 
-**Amended 2026-10-10 (`replacement-architecture.md` §2b.5):** a zone change's
-record carries the object the move made (`new_epoch`), so in RH-3 `subject`
-is read off the record rather than off the store at dispatch (item 177).
+**Amended 2026-10-10 (`replacement-architecture.md` §2b.5), as built in RH-3
+(#245):** a zone change's record carries the object the move made
+(`new_epoch`), so `subject` is read off the record rather than off the store at
+dispatch (`subject_after`, item 177). "Them" on a "one or more" binding is
+`EffectRecipient::TriggeringObjects`, each matched zone change's new object;
+over another kind of record it is refused (`codebase-state.md` item 250).
 
 **The projections live on the arm, and they are exhaustive matches.**
 `TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
@@ -1062,7 +1065,10 @@ outermost `open_batch`.
 window whose outermost batch queued riders is dispatched in two parts. What
 the batch performed is dispatched before its riders run, and the riders'
 records at its close, so every live read is taken immediately after the event
-(item 175). RH-3 builds it.
+(item 175). Built in RH-3 (#245) as two batches: the batch closes and its
+window is dispatched, and its riders then run as a new batch with its own
+dispatch (`execute_riders`), so "one window, one batch id"
+still holds.
 
 **Where the records live, and when they go (the bounded-state PR,
 2026-09-25; item 42).** `GameState.events` is an `EventWindow`. It holds each

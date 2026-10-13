@@ -9491,3 +9491,110 @@ found them.
     budget question it is waiting on. → RE-9's archive, "Measured again at
     review".
 
+#### RH — the zone-change record (§2b) — ✅ landed 2026-10-12
+
+*Evicted 2026-10-12 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+The design is §2b, reviewed in its own PR before any code (#242, `roadmap-v2.md`
+A6o). The PRs sat inside A6d, after the design and before A6m and TR-4a.
+Branches were `replacement/rh-<n>-…`. RH-2 was split out of the second on
+2026-10-12 (§2b.11, decision 12).
+
+#### RH-1 — the act and the cause — ✅ landed 2026-10-11
+
+**Shipped:** `ZoneChangeAct` (`types/zones.rs`), nine acts, in place of
+`ZoneChangeCause`. The rule variants and `Resolved` moved to the cause, and
+every rule's move is a `Put`. `EventCause` (`events/cause.rs`) is on every
+proposal and on every record's stamp, `EventStamp { batch, cause }` (40 bytes;
+the record 144). Every emitter names it (decision 11). `GeneratedBy` is
+decision 10's, with its counters arm. CR 704.3's state-based batch and CR
+610.3d's returns name a cause per member (`execute_caused_actions`).
+`DestructionSource` and `LifeLossCause` folded into the cause, which leaves
+`LoseLife { damage_source }`, and `SourceFilter::matches` reads the cause. Both
+zone-change arms hold `ZoneChangePattern { from, to, act }`. The trigger arm's
+`by` is read through `cause_asked_by`, the one line RH-3 changes. The log line
+says "[act] by cause". The engine arm is `IDENTICAL` to `main` at two seats and
+four on both pools, at +0.03% instructions per decision (`fuzz-record.md`).
+Guerrilla Tactics is not registered: its hand leg needs a frame
+(`codebase-state.md` item 249, TR-4a), so §2b.10's rule stands its fixture in.
+Closes item 176's act and cause halves. Claims no atom. Trace page: no, since
+the record's words changed and no read is answered differently.
+
+#### RH-2 — the batch's members, decided together — ✅ landed 2026-10-12
+
+**Shipped (#244):** `BatchMember` (`engine/replacement/pipeline.rs`), one record
+per member: its place in batch order, its event as CR 616.1 rewrites it, its
+cause, its applied set and a destruction's `inner_move`. Members move into
+their `SubjectGroup`s in decision order (`subject_groups`, which sorts as
+`apnap_batch_order` did), and phase 2 performs them sorted by place. The four
+vectors and the seven position pairs are gone. `apply_replacements` takes a
+group's members mutably and the later groups read-only, and writes each
+decision and applied set onto its member. `LossReason` folded into the cause
+(decision 12): `PlayerLoses { player }`, `PlayerLost { player_id }`, and the
+log says "PlayerLost: P1 by ZeroLife". L7's set is `GameState::departs_with`:
+owned or default-controlled (CR 110.2b), empty at two seats. Item 248:
+`decide_destruction_moves` decides each surviving destruction's move right
+after its group, with a fresh applied set; phase 2 performs it right after the
+destruction; its riders join phase 3. §2b.11's leaving question was answered
+the same way: CR 800.4a's exiles are one batch. The fixtures
+(`phase_rh2_integration_test.rs`) found three wrong answers, each shown
+failing first:
+- item 248, in three of its boards;
+- L7's controlled side, a conditional grant missed by the look-back;
+- the leaving's exiles, decided one at a time.
+
+The record arm is `IDENTICAL` to `main` on every row. Shipped is `IDENTICAL`
+on `performance`'s gameplay; on `stress`, 4 games of 200 differ at two seats
+and 22 at four, every one item 248's. Instructions per decision are −0.77%,
+most of it item 248's moves no longer re-walking a board an earlier member had
+changed (`fuzz-record.md`). Closes item 248. Claims no atom. Trace page: no.
+The read path is RD-2's page's loop, unchanged; what moved is when one of its
+calls is made, and the fixtures assert it in both batch orders.
+
+#### RH-3 — the record's new object, its applied replacements and its moment — ✅ landed 2026-10-12
+
+**Shipped (#245):** `GameEvent::ZoneChange` carries `new_epoch`, the epoch the
+move stamped, read at the one emitter, and `applied: Option<Arc<[AppliedReplacement]>>`
+(`events/event.rs`): CR 614.5's set in the order it applied, each entry its
+instance, what its effect's own events are caused by (`by`, its source and
+controller then) and whether it redirected the move. `GameEvent` stays 72
+bytes. `AppliedReplacements` (`engine/replacement/instance.rs`) is the loop's set in
+insertion order, each entry applied or declined; a rider's and a
+decomposition's events start from `without_redirects()`, the same effects with no
+redirect of their own. CR 903.9b's exempt effect never joins it.
+
+The readers: the binding's subject at both sites is `subject_after`, a zone
+change's new object; "them" is `EffectRecipient::TriggeringObjects`, each
+matched zone change's new object while it is still that object, and refused
+over a record of another kind (`codebase-state.md` item 250); `Effect::Remember`
+and CR 610.3's returns read each record's new object through `put_into_since`.
+A zone-change arm that names no act asks `GameEvent::redirected_by()`, the last
+redirect's cause, else the record's (§2b.4's decided reading). The log line
+names each replacement that applied. Decision 5 is
+`execute_riders` (`engine/actions.rs`): the batch that
+dispatches its own window closes and dispatches what it performed, then runs
+its riders in a new batch with its own dispatch. A first build reopened the
+batch for its riders; the review removed that. L1–L6's
+homes (§2b.8): `CurrentOrLastKnown` (`oracle/characteristics.rs`, four
+projections), `GameState::find`, `GameEvent::lki()`, `capture_of`,
+`hand_over_before_leaving` and `put_into_since`. The atoms'
+boards needed two verbs nothing had built, `ReturnToHand` and
+`ShuffleIntoLibrary`; no registered card uses either.
+
+`phase_rh3_integration_test.rs` holds 15 boards. Ten were shown failing on the
+tree before their fix: item 177's rider board, Hero of Bretagard's "who exiled
+it" under Rest in Peace, and eight for decision 5 (a newcomer's look-back and
+ordinary arms, a departed frame against a later death, "one or more" across an
+event and its rider, the intervening "if", "if it was cast", visibility, and
+the controller). ATOM-400.7e-001 and -002 are covered, with a madness-shaped
+discard keeping its own instance on the record.
+
+The record arm is `IDENTICAL` to `main` on every row. Shipped is `IDENTICAL` on
+`performance` and on `stress` at two seats; at four seats 2 `stress` games of
+200 diverge, each a CR 610.3 return now performed in the first dispatch, ahead
+of the Kalitas Zombies the event's rider makes, and 3 more only announce their
+triggers before the riders' records. Instructions per decision are +0.11%
+(`fuzz-record.md`). Closes items 175 and 177, and 176's applied-set half. Trace
+page: no. The read path is TR-1's page's dispatch, unchanged; what moved is
+when it is called for a window whose batch queued riders, and the fixtures
+assert it reader by reader.

@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
+use crate::engine::triggers::binding::triggering_objects;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
@@ -120,6 +121,7 @@ impl GameState {
             && (unread(BoundReads::SOURCE) || a.origin == b.origin)
             && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
             && (unread(BoundReads::REFERRED) || x.referred == y.referred)
+            && (unread(BoundReads::OBJECTS) || triggering_objects(x) == triggering_objects(y))
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this

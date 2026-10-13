@@ -1,10 +1,10 @@
-use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
-use crate::engine::replacement::{BatchMember, ReplacementInstanceId, SubjectGroup};
+use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -726,30 +726,42 @@ impl GameState {
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
+        // The outermost batch dispatches its window at its close. A nested one
+        // joined an enclosing window and dispatches nothing of its own.
+        let outermost = self.nesting.batch_depth == 0;
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
         // carry sets of their own. Put back afterwards for the rider's next proposal.
         let rider_lineage = self.rider_lineage.take();
-        let empty = HashSet::new();
-        let inherited = rider_lineage.as_ref().unwrap_or(&empty);
+        let none_applied = AppliedReplacements::EMPTY;
+        let inherited = rider_lineage.as_ref().unwrap_or(&none_applied);
         // A new lineage either way for the decomposition count: a rider's
         // draw inside a doubled draw starts counting from zero, or the
         // invariant `execute_actions_decomposing` asserts — depth bounded by
         // the inherited set — would be asked across two lineages at once.
         let outer_depth = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(proposals, ctx, inherited);
+        let result = match self.execute_batch_inner(proposals, ctx, inherited) {
+            // A nested batch's riders are part of the window it joined.
+            Ok((performed, riders)) if !outermost => self.resolve_riders(riders, ctx).map(|()| (performed, Vec::new())),
+            decided => decided,
+        };
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
         self.events.close_batch(previous);
-        // CR 603.2, at the close of the *outermost* batch and after its riders:
-        // the window is the event, so two permanents entering together each
-        // see the other's static abilities before either is checked (603.6a),
-        // and a "one or more" trigger reads the batch (603.2c). A nested call
-        // joined this window and dispatches nothing of its own.
-        self.dispatch_after_batch(result, mark, window, ctx)
+        let (performed, riders) = result?;
+        if outermost {
+            // CR 603.2, at the batch's close: the window is the event. Every
+            // permanent on the battlefield after it, the newcomers included, is
+            // checked for an enters trigger that matches it (603.6a), so two
+            // creatures entering together each see the other enter; and a "one
+            // or more" trigger fires once for it (603.2c).
+            self.dispatch_batch(mark, window, ctx)?;
+            self.execute_riders(riders, ctx)?;
+        }
+        Ok(performed)
     }
 
     /// The dispatch at a batch door: the window, when this was the outermost
@@ -799,7 +811,7 @@ impl GameState {
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
-        inherited: &HashSet<ReplacementInstanceId>,
+        inherited: &AppliedReplacements,
     ) -> Result<Vec<GameAction>, String> {
         self.nesting.decomposition_depth += 1;
         debug_assert!(
@@ -814,7 +826,10 @@ impl GameState {
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, inherited);
+        // Always inside the instruction's batch, so its riders are part of it.
+        let result = self
+            .execute_batch_inner(proposals, ctx, inherited)
+            .and_then(|(performed, riders)| self.resolve_riders(riders, ctx).map(|()| performed));
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
@@ -849,7 +864,7 @@ impl GameState {
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, &HashSet::new());
+        let result = self.execute_batch_inner(proposals, ctx, &AppliedReplacements::EMPTY);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
@@ -857,12 +872,14 @@ impl GameState {
         // enclosing batch — CR 614.13's moves are not a result of the entry
         // they are nested inside, so a devoured creature's death triggers
         // before the entry's ETB (§4.1).
-        let performed = result?;
+        let (performed, riders) = result?;
         self.dispatch_batch(mark, window, ctx)?;
+        self.execute_riders(riders, ctx)?;
         Ok(performed)
     }
 
-    /// The three phases of one batch — decide, perform, riders.
+    /// One batch's two phases, decide and perform, handing back the riders its
+    /// replacements queued for the caller to run (`run_riders`).
     ///
     /// **Split out from its two callers because Rust has no `finally`.**
     /// [`Self::execute_actions`] and [`Self::execute_actions_new_batch`] differ
@@ -892,8 +909,8 @@ impl GameState {
         &mut self,
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
-        inherited: &HashSet<ReplacementInstanceId>,
-    ) -> Result<Vec<GameAction>, String> {
+        inherited: &AppliedReplacements,
+    ) -> Result<(Vec<GameAction>, Vec<crate::engine::replacement::Rider>), String> {
         use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
 
@@ -913,7 +930,7 @@ impl GameState {
         // riders (Stunning Reversal's survivor wins before the rider's seven draws).
         // The ending batch's own members all perform; they were one event.
         if self.result.is_some() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         }
 
         // Loud rather than a draw: a nesting this deep is a lost lineage, the
@@ -1091,16 +1108,28 @@ impl GameState {
             self.settle_game_result();
         }
 
-        // --- Phase 3: the queued riders, in application order ----------------
-        //
-        // "Immediately afterward" (CR 615.5) means after the events happened, not
-        // mid-loop. Unconditional once queued (CR 615.12), so this runs even for a
-        // member whose event was dropped entirely.
-        for rider in riders {
-            self.resolve_rider(rider, ctx)?;
-        }
+        Ok((performed, riders))
+    }
 
-        Ok(performed)
+    /// [`Self::resolve_riders`] as a batch of their own, dispatched at its
+    /// close, the way `execute_actions` performs proposals: the riders of a
+    /// batch that dispatches its own window, run once that window has been
+    /// dispatched (`replacement-architecture.md` §2b.6). CR 603.4 checks a
+    /// trigger "when the trigger event occurs", so the event is read before
+    /// any rider changes the board, and CR 615.5's "immediately afterward"
+    /// makes the riders' events a second event to a "one or more" trigger.
+    fn execute_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
+        if riders.is_empty() {
+            return Ok(());
+        }
+        let previous = self.events.open_new_batch();
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
+        self.nesting.batch_depth += 1;
+        let result = self.resolve_riders(riders, ctx);
+        self.nesting.batch_depth -= 1;
+        self.events.close_batch(previous);
+        result?;
+        self.dispatch_batch(mark, window, ctx)
     }
 
     /// The batch's members in their subject groups, in the order CR 616.1
@@ -1170,17 +1199,22 @@ impl GameState {
             };
             let mut inner = BatchMember::proposed(member.place, movement, member.cause);
             let member_ctx = ctx.caused_by(member.cause);
-            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &HashSet::new(), riders)?;
+            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &AppliedReplacements::EMPTY, riders)?;
             member.inner_move = Some(Box::new(inner));
         }
         Ok(())
     }
 
-    /// Resolve one queued rider — see [`Rider`](crate::engine::replacement::Rider)
-    /// for which rule gives it this timing (CR 615.5 for a prevention effect,
-    /// CR 614.1a/614.6 for a plain replacement).
+    /// Resolve the riders a batch queued, in application order, inside
+    /// whatever batch is open, so their events join it; [`Self::execute_riders`]
+    /// gives them a batch of their own. See [`Rider`](crate::engine::replacement::Rider)
+    /// for which rule gives a rider its timing (CR 615.5 for a prevention
+    /// effect, CR 614.1a/614.6 for a plain replacement). "Immediately
+    /// afterward" means after the events happened, not mid-loop, and a rider
+    /// is unconditional once queued (CR 615.12), so each runs even for a member
+    /// whose event was dropped entirely.
     ///
-    /// Its `ResolutionContext` names the event's subject as the single resolved
+    /// Each one's `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
     /// object *or the player* the replacement was about and one written with
     /// `EffectRecipient::Controller` acts for the effect's own controller. The
@@ -1191,6 +1225,14 @@ impl GameState {
     /// A player subject becomes a `ResolvedTarget::Player` rather than being
     /// flattened away: Angel of Suffering's "prevent that damage and mill twice
     /// that many cards" mills the player the damage was aimed at.
+    fn resolve_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
+        for rider in riders {
+            self.resolve_rider(rider, ctx)?;
+        }
+        Ok(())
+    }
+
+    /// One of [`Self::resolve_riders`].
     fn resolve_rider(
         &mut self,
         rider: crate::engine::replacement::Rider,
@@ -1267,7 +1309,7 @@ impl GameState {
         &mut self,
         action: GameAction,
         ctx: &ActionContext,
-        lineage: &HashSet<ReplacementInstanceId>,
+        lineage: &AppliedReplacements,
     ) -> Result<(), String> {
         match action {
             // `unpreventable` is read by the pipeline and by nothing here:
@@ -1443,7 +1485,7 @@ impl GameState {
                         from, object
                     ));
                 }
-                self.perform_zone_change(object, from, to, act, ctx.cause)
+                self.perform_zone_change(object, from, to, act, ctx.cause, lineage.applied())
             }
 
             GameAction::Untap { object } => {
@@ -1586,7 +1628,7 @@ impl GameState {
                         ));
                     }
                     (Some(from), Some(act)) => {
-                        self.perform_zone_change(object, from, Zone::Battlefield, act, ctx.cause)?;
+                        self.perform_zone_change(object, from, Zone::Battlefield, act, ctx.cause, lineage.applied())?;
                     }
                     // A token: created in the zone, so there is no move to
                     // perform (`create_tokens`). What there is to announce is
@@ -1791,6 +1833,7 @@ impl GameState {
         to: Zone,
         act: ZoneChangeAct,
         cause: EventCause,
+        applied: Option<Arc<[AppliedReplacement]>>,
     ) -> Result<(), String> {
         // Loud: the proposal describes a board, and performing it against a
         // different one is a caller bug. The pipeline matches on `from`, so a
@@ -1806,20 +1849,9 @@ impl GameState {
             return Ok(());
         }
 
-        // CR 603.10a — the frame the batch took before any member moved
-        // (`take_captured_lki`). A permanent, not merely an object in the
-        // zone: a token whose entry is being decided has no entity and nothing
-        // to look back at (`create_tokens`).
-        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            self.take_captured_lki(object)
-        } else {
-            None
-        };
-        self.hand_over_lki(object, lki.as_ref());
-        self.note_delayed_source_moving(object);
-
+        let lki = self.hand_over_before_leaving(object, from);
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, act, lki, cause)
+        self.announce_zone_change(object, from, to, act, lki, applied, cause)
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -1837,10 +1869,12 @@ impl GameState {
         to: Zone,
         act: ZoneChangeAct,
         lki: Option<Lki>,
+        applied: Option<Arc<[AppliedReplacement]>>,
         cause: EventCause,
     ) -> Result<(), String> {
-        let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki }, cause);
+        let moved = self.get_object(object)?;
+        let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause);
         Ok(())
     }
 

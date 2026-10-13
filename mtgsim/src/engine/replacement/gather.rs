@@ -36,7 +36,7 @@ use crate::engine::zone_function::functions_in;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
+use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -754,22 +754,13 @@ pub(crate) fn pattern_watches(
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
+            let dealing = CurrentOrLastKnown { id: *dealt_by, lki: source_lki.as_ref() };
             combat.map(|c| c == *is_combat).unwrap_or(true)
                 && source
                     .as_ref()
                     .map(|p| {
-                        p.object.is_none_or(|chosen| {
-                            Some(chosen) == damage_source_existence(game, *dealt_by, source_lki.as_ref())
-                        })
-                            && p.filter
-                                .as_ref()
-                                .map(|f| {
-                                    matched(match source_lki {
-                                        Some(lki) => game.object_matches_filter_in_frame(*dealt_by, f, you, lki.chars()),
-                                        None => game.object_matches_filter(*dealt_by, f, you),
-                                    })
-                                })
-                                .unwrap_or(true)
+                        p.object.is_none_or(|chosen| Some(chosen) == dealing.existence(game))
+                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you))).unwrap_or(true)
                     })
                     .unwrap_or(true)
         }
@@ -1221,7 +1212,13 @@ mod tests {
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
         let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling);
         let gain_in_the_lineage = |game: &mut GameState| {
-            game.rider_lineage = Some(std::collections::HashSet::from([applied]));
+            let mut lineage = crate::engine::replacement::AppliedReplacements::EMPTY;
+            lineage.apply(crate::events::event::AppliedReplacement {
+                instance: applied,
+                by: crate::events::cause::EventCause::Harness,
+                redirected: false,
+            });
+            game.rider_lineage = Some(lineage);
             let before = game.players[0].life_total;
             let dp = test_dp();
             game.execute_action(GameAction::GainLife { player: 0, amount: 3, source: faith }, &ActionContext::new(&dp))

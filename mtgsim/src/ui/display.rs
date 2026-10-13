@@ -848,12 +848,13 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
     }
 }
 
-/// An object as it was in the zone it left: its look-back frame from the
-/// battlefield (CR 603.10a), its card anywhere else.
-fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Lki>) -> String {
+/// An object as an event read it (CR 608.2h): by its last known information
+/// when the event carries one, since it had left (a look-back frame, a source
+/// dealing damage after it left), and as its record named it otherwise.
+fn as_it_left(game: &GameState, id: ObjectId, lki: Option<&Lki>, announced: &NamesAsAnnounced) -> String {
     match lki {
         Some(lki) => object_label(game, id, &lki.chars().name),
-        None => name_with_id(game, id, &None),
+        None => name_with_id(game, id, announced),
     }
 }
 
@@ -905,7 +906,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
     use crate::events::event::GameEvent::*;
     let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
     match event {
-        ZoneChange { object_id, owner, from, to, act, lki } => {
+        ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
             // type it had, which is what a Gideon or an artifact creature needs.
             let was = lki.as_ref().map(|f| {
@@ -915,8 +916,17 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
-            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}",
-                    as_it_left(game, *object_id, lki), was, owner, from, to, act, cause_words(game, cause))
+            // Each replacement that applied, in order, and the ones that sent
+            // it somewhere else.
+            let replaced = applied.as_deref().map(|applied| {
+                let each: Vec<String> = applied
+                    .iter()
+                    .map(|a| format!("{}{}", cause_words(game, &a.by), if a.redirected { " (redirected)" } else { "" }))
+                    .collect();
+                format!(", replaced by {}", each.join(", "))
+            }).unwrap_or_default();
+            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}{}",
+                    as_it_left(game, *object_id, lki.as_ref(), announced), was, owner, from, to, act, cause_words(game, cause), replaced)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -981,11 +991,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
                 crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
             };
-            // A source that had left dealt it as it last existed.
-            let source = match source_lki {
-                Some(lki) => object_label(game, *source_id, &lki.chars().name),
-                None => obj_name(game, *source_id),
-            };
+            let source = as_it_left(game, *source_id, source_lki.as_ref(), announced);
             format!(
                 "DamageDealt: {} -> {} for {}{}",
                 source,
@@ -1059,7 +1065,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
         }
         LeftTheGame { object_id, owner, from, lki } => {
-            format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki), owner, from)
+            format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki.as_ref(), announced), owner, from)
         }
         TokenCreated { object_id, owner, zone } => {
             format!("TokenCreated: {} (P{}, in {:?})", obj_name(game, *object_id), owner, zone)
@@ -1221,7 +1227,10 @@ mod tests {
         // change names the object as it was in the zone it left.
         let log = format_event_log(&game);
         let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
-        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness"));
+        // Its own CR 707.9 replacement applied to its entry, and is named.
+        has(format!(
+            "ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness, replaced by StaticAbility of Clone ({clone}) [P0]"
+        ));
         has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
         has(format!("Tapped: Grizzly Bears (Clone, {clone})"));
         has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed] by Harness"));

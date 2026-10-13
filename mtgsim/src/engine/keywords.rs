@@ -5,7 +5,7 @@
 // assignment. Called from perform_action in actions.rs.
 
 use crate::events::event::DamageTarget;
-use crate::oracle::characteristics::damage_source_characteristics;
+use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
@@ -20,7 +20,7 @@ fn deals_damage_with(
     lki: Option<&Lki>,
     keyword: KeywordFlag,
 ) -> bool {
-    damage_source_characteristics(game, source, lki).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
+    CurrentOrLastKnown { id: source, lki }.characteristics(game).is_some_and(|chars| chars.keyword_flags.contains(&keyword))
 }
 
 /// Apply the deathtouch flag to a damage target if the source has deathtouch.

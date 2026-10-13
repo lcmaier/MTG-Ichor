@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, ResolutionStamp};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -24,7 +24,7 @@ use crate::types::replacement::{
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawCause, Zone};
-use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
+use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
@@ -35,7 +35,7 @@ use crate::ui::ask::ask_choose_replacement;
 use super::entry_copy::enter_as_copy;
 use super::gather::{applies_to, must_choose_among};
 use super::{
-    chooser_for, gather, subject_of, EntryFrame, EventSubject, ReplacementInstance,
+    chooser_for, gather, subject_of, AppliedReplacements, EntryFrame, EventSubject, ReplacementInstance,
     ReplacementInstanceId,
 };
 
@@ -76,7 +76,7 @@ pub(crate) struct Rider {
     /// resulting events". Given a fresh set instead, two Reflections and two
     /// Collectors across two seats handed one draw back and forth until the
     /// stack overflowed (`replacement-architecture.md` §11 item 77).
-    pub lineage: HashSet<ReplacementInstanceId>,
+    pub lineage: AppliedReplacements,
     pub controller: PlayerId,
     /// The event's subject. Becomes the rider's single resolved target, so
     /// `EffectRecipient::Target` in a `then` names the object or the player the
@@ -146,7 +146,7 @@ pub(crate) struct BatchMember {
     pub cause: EventCause,
     /// CR 614.5's applied set its group's loop ended with, which a performer
     /// that decomposes hands on (§3.2d).
-    pub applied: HashSet<ReplacementInstanceId>,
+    pub applied: AppliedReplacements,
     /// A destruction's move (CR 701.8a), its inner event, decided right after
     /// its group against the same board (CR 704.3, 614.4) and performed right
     /// after it. `None` for every other member, and for a destruction that was
@@ -156,7 +156,7 @@ pub(crate) struct BatchMember {
 
 impl BatchMember {
     pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
-        BatchMember { place, event: Some(action), cause, applied: HashSet::new(), inner_move: None }
+        BatchMember { place, event: Some(action), cause, applied: AppliedReplacements::EMPTY, inner_move: None }
     }
 }
 
@@ -266,6 +266,20 @@ pub(super) fn caused_by_replacement(game: &GameState, chosen: &ReplacementInstan
     })
 }
 
+/// Where a proposal moves its object, for whether a rewrite changed it: a
+/// move's destination, the battlefield for an entry, `None` for any other
+/// event. Entering is a zone change, proposed as its own arm because it
+/// carries what CR 614.1c's effects modify (tapped, counters, a copy), and a
+/// rewrite can turn one arm into the other (Containment Priest's exile), so
+/// both are asked.
+fn destination(action: &GameAction) -> Option<Zone> {
+    match action {
+        GameAction::ZoneChange { to, .. } => Some(*to),
+        GameAction::EnterBattlefield { .. } => Some(Zone::Battlefield),
+        _ => None,
+    }
+}
+
 /// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
 /// never happens, so there is nothing for a replacement effect to replace.
 ///
@@ -363,7 +377,7 @@ pub(crate) fn apply_replacements(
     group: &mut [BatchMember],
     later: &[SubjectGroup],
     ctx: &ActionContext,
-    inherited: &HashSet<ReplacementInstanceId>,
+    inherited: &AppliedReplacements,
     riders: &mut Vec<Rider>,
 ) -> Result<(), String> {
     debug_assert!(
@@ -379,7 +393,7 @@ pub(crate) fn apply_replacements(
     );
     let riders_before = riders.len();
 
-    let mut applied: HashSet<ReplacementInstanceId> = inherited.clone();
+    let mut applied: AppliedReplacements = inherited.clone();
     // Declining is tracked separately from CR 614.5's applied set: CR 903.9b is
     // both `exempt_from_614_5` and optional, so a decline recorded only in the
     // applied set is re-offered forever — a hang (`CLAUDE.md`; §11 item 14).
@@ -556,7 +570,7 @@ pub(crate) fn apply_replacements(
             ) {
                 // Marking it applied is CR 614.5's "one opportunity" — being
                 // offered and refusing *is* the opportunity.
-                applied.insert(chosen.id);
+                applied.decline(chosen.id);
                 declined.insert(chosen.id);
                 if let Some(mut t) = trace.take() {
                     t.optional = Some(OptionalAnswer::Declined);
@@ -567,10 +581,6 @@ pub(crate) fn apply_replacements(
             if let Some(t) = &mut trace {
                 t.optional = Some(OptionalAnswer::Accepted);
             }
-        }
-
-        if !chosen.def.exempt_from_614_5 {
-            applied.insert(chosen.id);
         }
 
         // The one rewrite that differs per member: Mending Hands' count facing two
@@ -591,8 +601,10 @@ pub(crate) fn apply_replacements(
         let mut replaced_amount: Option<u64> = None;
         let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
+        let mut redirected = false;
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
+            let went_to = destination(&event);
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
@@ -634,9 +646,19 @@ pub(crate) fn apply_replacements(
                     game.restore_observers(saved);
                 }
             }
+            redirected |= next.as_ref().is_some_and(|next| destination(next) != went_to);
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
             group[pos].event = next;
+        }
+        // Into the set once applied, before the next iteration gathers (CR
+        // 614.5); CR 903.9b's exempt effect never joins it.
+        if !chosen.def.exempt_from_614_5 {
+            applied.apply(AppliedReplacement {
+                instance: chosen.id,
+                by: caused_by_replacement(game, &chosen)?,
+                redirected,
+            });
         }
 
         // Queued, not resolved (§4.1a). A later replacement in the same loop
@@ -646,7 +668,7 @@ pub(crate) fn apply_replacements(
                 source: chosen.source,
                 generated_by: replacement_generator(game, &chosen)?,
                 // The group's final applied set, once the loop has it.
-                lineage: HashSet::new(),
+                lineage: AppliedReplacements::EMPTY,
                 controller: chosen.controller,
                 // The first member's subject, read before its rewrite: CR 615.5's "that much"
                 // is about the event the effect replaced, so a later redirect in the same loop
@@ -673,9 +695,9 @@ pub(crate) fn apply_replacements(
 ///
 /// The set itself goes to the last member, so the common group, one member
 /// and no rider, copies nothing.
-fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: HashSet<ReplacementInstanceId>) {
+fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: AppliedReplacements) {
     for rider in queued {
-        rider.lineage = applied.clone();
+        rider.lineage = applied.without_redirects();
     }
     if let Some((last, rest)) = group.split_last_mut() {
         for member in rest {
@@ -1039,7 +1061,7 @@ fn next_damage_shares(
 fn ordering_cannot_change_outcome(
     game: &GameState,
     ctx: &ActionContext,
-    applied: &HashSet<ReplacementInstanceId>,
+    applied: &AppliedReplacements,
     choosable: &[Candidate],
     entering: Option<ObjectId>,
     event: &GameAction,
@@ -1094,7 +1116,7 @@ fn ordering_cannot_change_outcome(
 fn counters_invite_a_multiplier(
     game: &GameState,
     ctx: &ActionContext,
-    applied: &HashSet<ReplacementInstanceId>,
+    applied: &AppliedReplacements,
     choosable: &[Candidate],
     event: &GameAction,
 ) -> bool {
@@ -2862,10 +2884,9 @@ fn retarget_destination(
         // owner, which is its controller for every card cast from its owner's
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
-        RetargetSpec::ToDamageSourceController => match damage_source_lki {
-            Some(frame) => Some(DamageTarget::Player(frame.chars().controller)),
-            None => controller_or_owner(game, damage_source).map(DamageTarget::Player),
-        },
+        RetargetSpec::ToDamageSourceController => {
+            CurrentOrLastKnown { id: damage_source, lki: damage_source_lki }.controller(game).map(DamageTarget::Player)
+        }
     }
 }
 

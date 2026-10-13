@@ -5,6 +5,9 @@
 //! keys on the answer lives in `pipeline.rs` — both need these and neither owns
 //! them.
 
+use std::sync::Arc;
+
+use crate::events::event::AppliedReplacement;
 use crate::state::replacement_effects::ReplacementEffectId;
 use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
@@ -57,6 +60,66 @@ pub enum ReplacementInstanceId {
     /// commander the rule is about, so two commanders leaving at once are two
     /// instances and CR 614.5 (or its 903.9b exception) applies to each.
     GameRule(ObjectRef, GameRuleReplacement),
+}
+
+/// What CR 616.1's loop has done with replacement effects for one event and
+/// the events that replace it. CR 614.5 gives each effect "only one
+/// opportunity to affect an event or any modified events that may replace that
+/// event", and an effect uses it by applying or, for a "you may ... instead",
+/// by being declined. The loop offers neither kind again, and the event's
+/// record keeps the ones that applied, in order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppliedReplacements {
+    /// In the order they applied.
+    applied: Vec<AppliedReplacement>,
+    /// Optional effects their chooser declined.
+    declined: Vec<ReplacementInstanceId>,
+}
+
+impl AppliedReplacements {
+    /// An event nothing has replaced yet.
+    pub const EMPTY: AppliedReplacements = AppliedReplacements { applied: Vec::new(), declined: Vec::new() };
+
+    /// Whether `id` has had its one opportunity: it applied, or was declined.
+    pub fn contains(&self, id: &ReplacementInstanceId) -> bool {
+        self.applied.iter().any(|a| a.instance == *id) || self.declined.contains(id)
+    }
+
+    /// Adds an effect that applied, last, unless it has had its opportunity.
+    pub fn apply(&mut self, applied: AppliedReplacement) {
+        if !self.contains(&applied.instance) {
+            self.applied.push(applied);
+        }
+    }
+
+    /// Adds an optional effect its chooser declined, unless it has had its
+    /// opportunity.
+    pub fn decline(&mut self, id: ReplacementInstanceId) {
+        if !self.contains(&id) {
+            self.declined.push(id);
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.applied.len() + self.declined.len()
+    }
+
+    /// The effects that applied, in the order they did: what the record of
+    /// the event keeps. `None` when none did.
+    pub fn applied(&self) -> Option<Arc<[AppliedReplacement]>> {
+        (!self.applied.is_empty()).then(|| self.applied.as_slice().into())
+    }
+
+    /// The same effects, with none marked as having redirected: what a
+    /// rider's events start from. They had their chance at the event the rider
+    /// is the rest of (CR 614.5), and none of them moved the rider's own
+    /// events anywhere.
+    pub fn without_redirects(&self) -> AppliedReplacements {
+        AppliedReplacements {
+            applied: self.applied.iter().map(|a| AppliedReplacement { redirected: false, ..*a }).collect(),
+            declined: self.declined.clone(),
+        }
+    }
 }
 
 /// Which rule-shaped replacement effect a [`ReplacementInstanceId::GameRule`]

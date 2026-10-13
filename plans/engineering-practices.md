@@ -80,6 +80,10 @@ source files. The rule that was missing:
 - **One rule cite beats a paragraph.** If a comment needs more than about four
   lines, that is the signal its reasoning belongs in `plans/` with a one-line
   pointer from the source.
+- **Say the rule, never a plans doc's number for it.** A `codebase-state.md`
+  item ("item 248") or a doc's private label ("L7") means nothing to a reader
+  of the code, the less once it is archived; write the CR rule or the
+  behavior instead. Plans docs may cite items (the owner, 2026-10-12, #244).
 - **A war story goes in the commit message or the architecture doc.** Source
   comments are read by someone changing the code now; the story of what the code
   used to be is read once, by someone doing archaeology, and `git log` and

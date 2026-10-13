@@ -40,7 +40,9 @@ impl BoundReads {
     /// "That card", "that token": what a delayed trigger refers to (CR
     /// 603.7c).
     pub const REFERRED: BoundReads = BoundReads(1 << 6);
-    const EVERYTHING: BoundReads = BoundReads((1 << 7) - 1);
+    /// "Them": the objects the matched zone changes made.
+    pub const OBJECTS: BoundReads = BoundReads(1 << 7);
+    const EVERYTHING: BoundReads = BoundReads(u8::MAX);
 
     pub fn contains(self, fact: BoundReads) -> bool {
         self.0 & fact.0 == fact.0
@@ -97,6 +99,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         | EffectRecipient::EachOf(_) => BoundReads::NOTHING,
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
         EffectRecipient::TriggeringObject => BoundReads::SUBJECT,
+        EffectRecipient::TriggeringObjects => BoundReads::OBJECTS,
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
         EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),

@@ -7889,77 +7889,14 @@ lists triggering once per list where CR 603.2c allows one per event, fixed in
 the shared loop (`one_ability_triggers_once_per_death_across_a_survivors_two_lists`),
 and the reading below, which the audit makes and the dispatcher does not.
 
-175. **A window's LKI and newcomers answer records that are not theirs.** The dispatcher asks every frame a window's departures carry,
-     and every live list, about every record in the window. When the records
-     come from more than one batch — a rider's, after its replaced event
-     performed — a permanent that left in the first batch answers the look-back
-     arms of a death in the second, which happened after it was gone, and a
-     permanent that entered between them answers the look-back arms of a death
-     before it arrived. CR 603.10a looks back to the instant before each
-     event, when neither was there. The audit reads each record's objects as
-     they were before the outermost batch that performed it; within one
-     batch, a destruction's nested move included, the two agree.
-
-     **Two more readers of the same window (the type-surface re-sweep,
-     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The window closes after
-     its riders, and the dispatcher reads live state then, so two other checks
-     read the wrong moment for a record from the replaced event's batch:
-     - **CR 603.4's first check.** `match_def` evaluates the intervening "if"
-       with `settled_holds` at the window's close. The CR checks it "when the
-       trigger event occurs". CR 615.5 puts the rider "immediately afterward",
-       so a rider that changes the condition, such as Kalitas's Zombie entering
-       under "if you control no creatures", flips the answer.
-     - **A newcomer's ordinary arms.** CR 603.6a and 603.10 check the objects
-       that exist immediately after the event, and a permanent a rider created
-       did not. The fix above tags a newcomer's list with the batch it entered
-       in, but uses the tag only for look-back arms. It should gate every arm
-       the same way.
-
-     Both depend on when the condition is evaluated, which is
-     `triggers-architecture.md` §4.1's decision. One option is to dispatch a
-     rider-bearing window per batch: the replaced event's records first, then
-     the rider's. **Sized:** about 30 lines on top of the 40 below, once §4.1
-     decides.
-
-     **Reachability (2026-09-24):** unreachable — the one registered
-     intervening "if" (Felidar Sovereign's upkeep check) sits on a step
-     beginning, which no rider follows, and the one registered rider that
-     creates a permanent (Kalitas) makes a Zombie with no abilities.
-
-     **Reachability (2026-09-22):** unreachable — every audited sitting (both
-     pools at two seats and four, Commander scale, and the forced Humility and
-     TR-1 boards) read zero disagreements, so no pooled card builds such a
-     window with a look-back source on either side of it.
-
-     **Sized:** ~40 lines: each candidate list names the batch it was taken
-     before (a record's LKI, a newcomer's entry), and a look-back arm is
-     asked of it only for the records that batch performed — the audit's
-     rule, `TriggerCandidateFrame::LastKnown { snapshot: Some(k) }`, taken for
-     the dispatcher's own candidates. Item 176's record design, before TR-4,
-     takes this item as an input (2026-09-24).
-
-     **Three more readers of the same moment (the triggers midpoint audit,
-     2026-10-08).** At the window's close the matcher also reads, live:
-     - `EntersBattlefield`'s `was_cast`, off the permanent's `cast`
-       (`occurrences_matching_arm`), which reads false once a rider has
-       moved the permanent;
-     - CR 603.2f's visibility (`visible_to_all`), whose doc says "the object
-       as the event left it";
-     - CR 603.3a's controller, `controller_or_owner` of each live candidate,
-       which the CR fixes "at the time it triggered".
-     Each reads the board after the riders, so the option above, a
-     rider-bearing window dispatched per batch, would answer all five.
-
-     **Designed (2026-10-10):** `replacement-architecture.md` §2b.6, decision 5.
-     A window whose outermost batch queued riders is dispatched in two parts:
-     what the batch performed before its riders run, then the riders' records.
-     The five readers then read the board immediately after the event, and the
-     record needs no batch tag. The ~40-line tag design above is superseded.
-     The item keeps no slot of its own.
-     **Re-slotted (2026-10-12):** RH-2 was split in two at #243's review
-     (`replacement-architecture.md` §2b.11, decision 12), and the two-part
-     dispatch went to the second.
-     **Slotted:** RH-3, the record's identity, its applied set and its moment.
+175. **~~A window's LKI and newcomers answer records that are not theirs.~~
+     — ✅ CLOSED 2026-10-12 (PR #245, RH-3).** — archived.
+     Done: a batch that queued riders is dispatched before they run, and
+     the riders' records are a batch of their own, dispatched after
+     (`execute_riders`, decision 5). All six readers are boards in
+     `phase_rh3_integration_test.rs`, each shown failing first.
+     **Reachability (2026-10-12):** closed — PR #245.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 175".
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -7968,161 +7905,14 @@ and the reading below, which the audit makes and the dispatcher does not.
 kind of reference, and `backlog.md` §2.2 gains constraints on the
 linked-ability records an entry makes.
 
-176. **A zone change's record mixes what was done with who did it, and drops
-     which replacement redirected it.** Re-scoped 2026-09-24, on #185's review.
-     Found as one wrong answer: `substitute` wrote the template's `cause` over
-     the act, so a redirected discard, sacrifice, destroy, mill or counter was
-     performed as `Exiled`, and Nephalia Academy was never offered after
-     Leyline of the Void (fixed; the block at the end). The review asked
-     whether one `cause` is itself the smell. It is: the CR asks three things
-     of a zone change, and the record answers them unevenly.
-
-     **The rule the fix kept is CR 614.6's, for any move.** A replacement that
-     changes only where a move goes leaves the event the one that happens,
-     from any zone to any zone. Graveyards are where the rules say so outright,
-     because destroy, discard, mill, sacrifice and counter are defined by their
-     move (CR 701.8a, 701.9a, 701.17a, 701.21a, 701.6a): CR 701.9c and the
-     Rest in Peace (2018-03-16), Leyline of the Void (2024-09-20) and Nephalia
-     Academy (2016-07-13) rulings for discard, CR 701.17c for mill, CR 608.2c's
-     example for counter. It is as true away from a graveyard: CR 903.9b's
-     commander is still `Returned` in the command zone, a Dryad Arbor that
-     Containment Priest exiles is still `PlayedAsLand`, a Nexus of Fate
-     shuffled in is still `Resolved`, and unearth, flashback and buyback
-     (CR 702.84a, 702.34a, 702.27a) redirect moves that never involve one.
-
-     What the origin and destination decide is which of a reader's words stay
-     true. **Act words** (sacrifice, discard, mill, counter, destroy, cast)
-     stay true, and read the act. **Destination words** (exiled, returned,
-     dies, enters) read `from` and `to`: an unearthed creature bounced into
-     exile is `Returned, to: Exile`, and it was not returned to a hand. So a
-     redirected move carries two acts, and each has its own performer. A
-     creature Diabolic Edict makes P1 sacrifice under Rest in Peace was
-     sacrificed at the edict's instruction and exiled by Rest in Peace's
-     replacement.
-
-     **The three questions:**
-
-     | question | CR | the record today | gap |
-     |---|---|---|---|
-     | what was done | the 701 keyword actions; 601.2a; 608.2n; 704.5f's "put into its owner's graveyard", which 701.8b says is not destroyed | `ZoneChangeCause` | mixed with the performer: `DestroyedBySba`, `ZeroToughness`, `LegendRule` and the other rule variants are two facts in one slot |
-     | who did it | an effect (Academy's and Sigarda's "a spell or ability an opponent controls"); a cost (701.9c); a rule (704.5, 514.1) | `EventStamp::resolution`, else `None` | a cost payment, a state-based action, a turn-based action and combat damage all record `None`, so a discard paid as a cost and the cleanup discard are the same record |
-     | which replacement redirected it | 614.5's applied set; 702.35a, madness's "exiled this way" (61 cards, `kw:madness`) | dropped once the event performs | no field. CR 615.13's prevention already has one: `GameEvent::DamagePrevented { by }` ("Before Triggered abilities" item 16) |
-
-     **The trap until it lands.** A destination word must not be read off the
-     act, and nothing enforces that: `TriggerEvent::ZoneChange` (TR-1) and
-     `EventPattern::ZoneChange` both take any `ZoneChangeCause`. Athreos,
-     Shroud-Veiled's "dies or is put into exile" written as `cause:
-     Some(Exiled)` would miss a sacrifice that Rest in Peace exiled, and "is
-     returned to" written as `cause: Some(Returned)` would fire on the
-     unearthed creature above. No registered card writes either. For ranking
-     only: 43 printed triggers read "is put into exile" or "is exiled", and 6
-     read "is returned to".
-
-     **Reachability (2026-09-24):** unreachable — nothing reads the performer
-     or a redirecting replacement off a performed record, and no registered
-     pattern names a destination act. Academy and Sigarda read the performer
-     off the proposal, which has it. The act half was reachable and wrong on
-     the Leyline and Academy board, and is fixed.
-
-     **Sized:** a design section first, in `replacement-architecture.md`'s
-     event spine with a pointer from `triggers-architecture.md`'s `ZoneChange`
-     pattern row, reviewed before any code. **It covers the zone-change
-     record's whole contract**, not only these three questions: which object
-     the move made (item 177) and the moment each fact is taken at (item 175)
-     are the same record's. Seven of the eleven items opened since TR-1 sit on
-     that surface (167, 168, 169, 174, 175, 176, 177), found one review or
-     audit at a time because the record was never designed as a unit: the
-     replacement docs designed the proposal, the triggers doc the matcher.
-     The section takes 175 and 177 as inputs and says whether each keeps its
-     own slot. It carries the reader interface with the record: act words read the act, destination words `to`,
-     performer words the performer, and "this way" the redirecting
-     replacement, so a pattern cannot name "exiled" as an act. The record's
-     diff is smaller than the 238 `ZoneChangeCause` sites (44 in `src`, 194 in
-     tests), because the act variants keep their names. What moves is the 19
-     sites on rule variants, `Resolved`'s 19 on one decision, the cost-payment
-     sites, and the pipeline keeping the applied set on the performed record.
-     Open for the design:
-     - whether `Resolved` is an act or a rule's move (CR 608.2n);
-     - whether a special action, such as a land play, is a performer of its
-       own;
-     - whether the record names one redirecting replacement or the applied
-       list;
-     - whether the performer lives on the stamp, where every event kind would
-       have one, or on `ZoneChange`.
-
-     **Back-stop:** before TR-4, designed and reviewed first. TR-4 widens the
-     zone-change record (CR 603.10a's other two classes) and lands item 177,
-     so the contract is settled before that phase touches it. This PR's first
-     re-scope said TR-2, on the assumption that TR-2's arms read the record
-     first. They do not: none of TR-2–TR-6's registered cards or arms reads a
-     cause, a performer or a redirect (`triggers-architecture.md` §12). TR-2
-     reads draws, life, casts and shuffles; TR-4's zone-change cards read
-     destinations; Multani's Presence reads `SpellCountered`. The first
-     readers are Phase 8's sacrifice and discard triggers, "this way" clauses
-     and madness.
-
-     **Fixed 2026-09-24**, `replacement/instead-keeps-the-act`: the act.
-     `ZoneChangeTo { to }` names only a destination and `substitute` keeps the
-     event's `cause`; 11 production and 7 test sites lost theirs. Only that
-     template had the defect: `DrawCards` already carried the event's cause,
-     and the other five change the event's kind, so the original act really
-     does not happen. Decisions:
-     1. An entry turned into a zone change (Containment Priest, Hallowed
-        Moonlight) keeps the entry's own cause, by the same rule.
-     2. `CommanderZoneReplacement` is no longer a cause: a bounced commander
-        keeps `Returned`, with `to: Command`. It did not become the redirect's
-        marker, because the marker names an instance and a cause names an act.
-     3. The performed record names no redirecting instance yet. That is this
-        item's third question.
-
-     The act's readers were three: the CR 616.1f re-gather (Academy, the one
-     that was wrong), trigger arms on a cause (none registered;
-     `trigger-survey.md` table two counts 555 "sacrifices" and 436 "discards"
-     cards), and a resolution's "this way" clauses (201 cards across the five
-     acts with `game:paper -is:funny`). `tests/instead_keeps_the_act_test.rs`
-     has one board per act, and each failed against the pre-fix tree. The A/B
-     is in `fuzz-record.md`. Item 131's first two instances were this defect,
-     found at RE-8 and scheduled onto critical-path item 6; they closed with
-     it.
-
-     **A6l's inputs (2026-10-10).** The duplicate inventory found seven facts
-     on this surface read in more than one place
-     (`plans/references/duplicate-inventory.md` §3.1, L1–L7), and the design
-     names each one's home: the damage source as it deals damage (five
-     spellings, two of them the helpers #239 put side by side), "this
-     reference is still the object" (ten), the frame a record carries
-     (three), taking a mover's frame, the handoff before a leave, what a
-     resolution put into a zone since a mark, and the set a decided
-     `PlayerLoses` takes. The rename of "departed frame" to LKI (§4 there) is
-     its own PR, A6n (#241), just before the design (the owner, 2026-10-10, at #240's
-     review), so the design is written in the vocabulary it keeps.
-
-     **Designed (2026-10-10):** `replacement-architecture.md` §2b, the record's
-     whole contract. The act is `ZoneChangeAct`, nine variants: the keyword
-     acts a redirect keeps, and `Put` for a move named only by where it goes,
-     which closes the trap above, since no destination act is left to name. Who
-     did it is `EventCause`, on every record's stamp, and the rule variants and
-     `Resolved` move there. Which replacements applied is the record's
-     `applied`, CR 614.5's set in the order it applied. Each of L1–L7 has a home
-     (§2b.8). The item keeps no slot of its own. Its counts, re-run 2026-10-10
-     with `game:paper -is:funny`, all reproduce: 43 with `(o:"when " or
-     o:"whenever ") (o:"is put into exile" or o:"is exiled" or o:"are put into
-     exile" or o:"are exiled")`; 6 with `(o:"when " or o:"whenever ") (o:"is
-     returned to" or o:"are returned to")`; 61 with `kw:madness`; 201 with
-     `(o:"sacrificed this way" or o:"discarded this way" or o:"milled this way"
-     or o:"countered this way" or o:"destroyed this way")`.
-     **The act and the cause closed 2026-10-11**, RH-1
-     (`replacement/rh-1-act-and-cause`): `ZoneChangeAct` and `EventCause` as
-     §2b designs them, and the trap above with them, since no destination act
-     is left to name. `tests/instead_keeps_the_act_test.rs` keeps every act
-     and its cause under a redirect, and `phase_rh1_integration_test.rs` runs
-     six kinds of cause through Sigarda's filter, Nephalia Academy's
-     replacement and a trigger shaped like Guerrilla Tactics. The third
-     question, which replacements applied, stays open.
-     **Re-slotted (2026-10-12):** the applied set went to RH-3 when RH-2 was
-     split (`replacement-architecture.md` §2b.11, decision 12). It is read off
-     RH-2's batch member record.
-     **Slotted:** RH-3 (the applied set), Phase RH, before A6m and TR-4a.
+176. **~~A zone change's record mixes what was done with who did it, and drops
+     which replacement redirected it.~~ — ✅ CLOSED 2026-10-12 (PR #245, RH-3;
+     its act and cause halves in #243, RH-1).** — archived.
+     Done: the record keeps CR 614.5's set in the order it applied
+     (`applied`), each entry with its cause and whether it redirected, and a
+     destination word asks the last redirect's cause (`redirected_by`).
+     **Reachability (2026-10-12):** closed — PR #245.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 176".
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8132,63 +7922,13 @@ sharpened. `triggers-architecture.md` is amended in §3.5, §6.4 and §7 (CR
 603.2h's gate is keyed by the controller too) and in §3.11 (the last-known frame
 keeps the cost decisions).
 
-177. **A zone-change record does not say which object the move made, so a
-     binding takes its subject's identity at dispatch.** `GameEvent::ZoneChange`
-     carries the `object_id`, not the `zone_change_epoch` that `move_object`
-     stamped. `TriggerBinding.subject` is read live when the window closes:
-     `subject.and_then(|id| self.object_ref(id))` in `dispatch.rs`, "the
-     subject's epoch at dispatch". But the rules fix that identity at the move:
-     - CR 400.7e names "the new object that it became in the zone it moved to".
-     - CR 603.6c looks for the card "only in the first zone that it went to".
-
-     Two readers get a later identity:
-     - **A second move inside the window.** A rider (CR 615.5) runs before the
-       window's dispatch. If it moves the same object again, the binding takes
-       the second move's epoch, and "return it" finds the card in its second
-       zone.
-     - **"Them".** A `OncePerEvent` binding has no subject. "Put them onto the
-       battlefield" (Hedge Shredder) or "choose one of them" (Colossal
-       Grave-Reaver) has only each record's `object_id`, so it would have to
-       read live. 59 cards: `(o:"when " or o:"whenever ") o:"one or more" (o:"
-       them " or o:" them." or o:"those cards" or o:"those creatures")`.
-
-     `triggers-architecture.md` §3.9's delayed-trigger refs, "filled from the
-     records the creating instruction performed" by id and epoch, read the same
-     missing field.
-
-     **Reachability (2026-09-24):** unreachable. No registered rider moves an
-     object that moved earlier in its window: Exquisite Archangel's exile finds
-     nothing once the Archangel has died (item 125). And no registered trigger
-     reads "them".
-
-     **Sized:** ~20–30 lines.
-     - `ZoneChange` gains the epoch `move_object` stamped, at its one emit site
-       (`announce_zone_change`) and at the patterns that name every field.
-     - The binding reads that epoch from the record instead of from the store.
-     - One fixture: a rider that exiles a graveyard's cards after the replaced
-       event put a creature there; the creature's dies trigger then does
-       nothing.
-
-     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
-     item 176's design settles just before TR-4.
-
-     **A6l's input (2026-10-10).** The identity this item puts on the record
-     is compared by hand in ten places today, an epoch or
-     `object_ref(id) == Some(r)` (`plans/references/duplicate-inventory.md`
-     §3.1, L2); the design names the one query they all become.
-
-     **Designed (2026-10-10):** `replacement-architecture.md` §2b.5. The record
-     carries `new_epoch`, the epoch `arrive_in_zone` stamped, and only that: the
-     existence that left is already `lki.object` where CR 603.10a frames the
-     move. The binding's subject, "them" and `Effect::Remember` read it off the
-     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2, and to RH-3
-     with the item on 2026-10-12
-     (`triggers-architecture.md` §13). The item keeps no slot of its own. Its
-     59, re-run 2026-10-10 with the query above and `game:paper -is:funny`,
-     reproduces.
-     **Re-slotted (2026-10-12):** RH-2 was split in two (decision 12), and the
-     record's new object went to the second.
-     **Slotted:** RH-3, the record's identity, its applied set and its moment.
+177. **~~A zone-change record does not say which object the move made, so a
+     binding takes its subject's identity at dispatch.~~ — ✅ CLOSED 2026-10-12
+     (PR #245, RH-3).** — archived.
+     Done: the record carries `new_epoch`, and the binding's subject, "them",
+     `Effect::Remember` and CR 610.3's returns read each record's new object.
+     **Reachability (2026-10-12):** closed — PR #245.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 177".
 
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
@@ -9524,3 +9264,23 @@ that is wrong today.
      with one more class behind its gate.
      **Slotted:** TR-4a, the frame. Guerrilla Tactics registers with it, from
      RH-1's text and rulings.
+
+### Found by RH-3 — the record's new object, its applied replacements and its moment (2026-10-12)
+
+250. **"Them" over a record that is not a zone change is refused.**
+     `EffectRecipient::TriggeringObjects` finds each matched zone change's
+     new object (CR 400.7e). A damage, attack or entry record names its
+     object by id only, and the binding keeps one subject, so a "them" there
+     has no existence to find and `triggering_objects` refuses it rather than
+     read the object live, which would find an object that has since moved
+     and come back (CR 400.7). 28 of the 59 printed "them" triggers are of
+     that kind, by their trigger condition: 14 combat damage, 9 attacks and
+     5 entries (Descendants' Fury, Aloy, Celes, and the rest).
+     **Reachability (2026-10-12):** unreachable — no registered card writes
+     `TriggeringObjects`.
+     **Sized:** ~50 lines of code and ~80 of tests. A `OncePerEvent`
+     binding keeps each matched occurrence's identity at dispatch beside its
+     record, as a `PerOccurrence` binding keeps its one subject, one
+     collection of records each with its occurrences rather than two lists
+     kept in step (`engineering-practices.md` §2c).
+     **Slotted:** TR-5a, combat's shapes, where 23 of the 28 are.

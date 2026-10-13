@@ -968,13 +968,13 @@ impl RememberedObject {
         id == self.object.id
             && match self.left_at {
                 Some(at) => at == seq,
-                None => game.object_ref(id) == Some(self.object),
+                None => game.find(self.object).is_some(),
             }
     }
 
     /// The object, while it is still this existence (CR 603.7c).
     pub fn found(self, game: &GameState) -> Option<ObjectId> {
-        (game.object_ref(self.object.id) == Some(self.object)).then_some(self.object.id)
+        game.find(self.object).map(|_| self.object.id)
     }
 }
 
@@ -1062,6 +1062,8 @@ mod tests {
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
                 lki: None,
+                applied: None,
+                new_epoch: 1,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),
             ("Tapped", GameEvent::Tapped { object_id: id }),

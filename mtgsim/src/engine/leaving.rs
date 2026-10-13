@@ -106,17 +106,10 @@ impl GameState {
         }
 
         for (id, from) in leaving {
-            // CR 603.10a, off the frame the loss's batch took before performing
-            // (`take_captured_lki`). CR 603.6c is what wants it — a leaves-
-            // the-battlefield ability triggers "when a phased-in permanent
-            // leaves the game because its owner leaves the game".
-            let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
-                self.take_captured_lki(id)
-            } else {
-                None
-            };
-            self.hand_over_lki(id, lki.as_ref());
-            self.note_delayed_source_moving(id);
+            // CR 603.6c wants the frame: a leaves-the-battlefield ability
+            // triggers "when a phased-in permanent leaves the game because its
+            // owner leaves the game".
+            let lki = self.hand_over_before_leaving(id, from);
             self.remove_from_game(id)?;
             self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause);
         }

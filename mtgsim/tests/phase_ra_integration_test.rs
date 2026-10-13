@@ -684,7 +684,7 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
         .records()
         .iter()
         .find_map(|r| match &r.event {
-            GameEvent::ZoneChange { object_id, owner, from, to, act, lki }
+            GameEvent::ZoneChange { object_id, owner, from, to, act, lki, .. }
                 if *object_id == died =>
             {
                 Some((*owner, *from, *to, *act, r.stamp.cause, lki.as_ref().map(|d| d.chars())))

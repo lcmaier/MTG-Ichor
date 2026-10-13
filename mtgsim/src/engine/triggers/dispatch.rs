@@ -2,8 +2,8 @@
 //!
 //! A dispatch is the matcher's run over one **window**: every record one
 //! batch stamped, run when the outermost `execute_actions` that opened it is
-//! about to return, after its riders; or one unbatched record, run inside
-//! `emit_event` before it returns (§4.1). The instant is still synchronous
+//! about to return, its riders' records then forming a batch of their own; or
+//! one unbatched record, run inside `emit_event` before it returns (§4.1). The instant is still synchronous
 //! with the mutation — before the next proposal, before the state-based
 //! check, before anyone receives priority — so "that instant is now" holds
 //! and the layer walk answers live.
@@ -533,7 +533,7 @@ impl GameState {
         let named = self.named_trigger_carriers(window_kinds);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
-                frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
+                r.event.lki().is_some_and(|(lki, ..)| lki.chars().abilities.iter().any(is_triggered))
             })
         });
         // The battlefield probe and the named rows read the mask. The zone
@@ -780,12 +780,33 @@ impl GameState {
     /// nested batch and the event it belongs to is the outer one.
     fn capture_frame(&mut self, id: ObjectId) {
         let Some(object) = self.object_ref(id) else { return };
-        if self.lki_captures.iter().any(|d| d.object == object) {
+        if self.capture_of(object).is_some() {
             return;
         }
         if let Some(frame) = compute_characteristics(self, id) {
             self.lki_captures.push(LkiCapture { object, frame: Some(frame) });
         }
+    }
+
+    /// The capture its batch took of `object`, if one did.
+    fn capture_of(&mut self, object: ObjectRef) -> Option<&mut LkiCapture> {
+        self.lki_captures.iter_mut().find(|d| d.object == object)
+    }
+
+    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from`, before it
+    /// moves: the frame its batch took, to every entry that names it, and to a
+    /// delayed trigger it is the source of. Returns the frame its record
+    /// carries, a permanent's; a token whose entry is still being decided has
+    /// no entity and nothing to look back at (`create_tokens`).
+    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
+        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
+            self.take_captured_lki(id)
+        } else {
+            None
+        };
+        self.hand_over_lki(id, lki.as_ref());
+        self.note_delayed_source_moving(id);
+        lki
     }
 
     /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
@@ -795,7 +816,7 @@ impl GameState {
     /// for any other mover the one `capture_lki` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
+    fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
         let frame = match lki {
             Some(lki) => Arc::clone(&lki.frame),
             None => match self.take_named_frame(id) {
@@ -820,18 +841,14 @@ impl GameState {
     /// departure had one.
     fn take_named_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
         let object = self.object_ref(id)?;
-        self.lki_captures.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
+        self.capture_of(object)?.frame.take()
     }
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
+    fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
         let object = self.object_ref(id)?;
-        let taken = self
-            .lki_captures
-            .iter_mut()
-            .find(|d| d.object == object)
-            .and_then(|d| d.frame.take());
+        let taken = self.take_named_frame(id);
         // Every departure is decided by a batch, which framed it first.
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
         taken
@@ -940,7 +957,7 @@ impl GameState {
         let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
-                if self.object_ref(frame.object.id) == Some(frame.object) {
+                if self.find(frame.object).is_some() {
                     before.entry(frame.object.id).or_default().push((k, frame.chars.as_ref()));
                 }
             }
@@ -965,13 +982,8 @@ impl GameState {
         // object that left had, asked look-back conditions only.
         let frames: Vec<(ObjectId, PlayerId, Zone, &EffectiveCharacteristics)> = records
             .iter()
-            .filter_map(|(_, r)| match &r.event {
-                GameEvent::ZoneChange { object_id, owner, from, lki: Some(frame), .. }
-                | GameEvent::LeftTheGame { object_id, owner, from, lki: Some(frame) } => {
-                    Some((*object_id, *owner, *from, frame.chars()))
-                }
-                _ => None,
-            })
+            .filter_map(|(_, r)| r.event.lki())
+            .map(|(lki, from, owner)| (lki.object.id, owner, from, lki.chars()))
             .collect();
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
@@ -1121,7 +1133,7 @@ impl GameState {
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![(*record).clone()],
-                                subject: subject.and_then(|id| self.object_ref(id)),
+                                subject: subject.and_then(|id| self.subject_after(&record.event, id)),
                                 mana,
                             });
                         }
@@ -1261,7 +1273,7 @@ impl GameState {
         match (arm, event) {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki },
+                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
             ) => one(
                 change.matches(Some(*from), *to, Some(*act))
                     && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
@@ -1487,6 +1499,21 @@ impl GameState {
         None
     }
 
+    /// "That object" as a trigger remembers it: `id` together with the
+    /// zone-change epoch that tells this object from what it becomes if it
+    /// moves again (CR 400.7). For a zone change of `id`, the epoch is the one
+    /// the move gave it, which the record carries, so "return it" after a dies
+    /// trigger looks for the card only in the graveyard it went to (CR
+    /// 603.6c), even if something moved it before the dispatch. Any other
+    /// record names `id` alone, so the object is taken as the dispatch finds
+    /// it, which is right after the event.
+    pub(super) fn subject_after(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
+        match event.new_object() {
+            Some(made) if made.id == id => Some(made),
+            _ => self.object_ref(id),
+        }
+    }
+
     /// `id` as the object it is now: its id and its current existence (CR
     /// 400.7). `None` for an id no longer in the store.
     pub fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
@@ -1560,18 +1587,13 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// The cause a zone-change arm's `by` asks of `record`
 /// (`replacement-architecture.md` §2b.7): the act's when the arm names an act
 /// ("causes you to discard"), the destination's when it names only where the
-/// move went ("causes a land to be put into your graveyard"). One answer until
-/// the record keeps its applied set: RH-2 makes the destination's the last
-/// redirect's (§2b.4), on this line.
-fn cause_asked_by(_change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
-    record.stamp.cause
-}
-
-/// The CR 603.10a frame a record carries, if it carries one.
-fn frame_of(event: &GameEvent) -> Option<&EffectiveCharacteristics> {
-    match event {
-        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(Lki::chars),
-        _ => None,
+/// move went ("causes a land to be put into your graveyard"). A redirect
+/// keeps the act (CR 614.6) and makes the destination its replacement's
+/// (§2b.4).
+fn cause_asked_by(change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
+    match change.act {
+        Some(_) => record.stamp.cause,
+        None => record.event.redirected_by().unwrap_or(record.stamp.cause),
     }
 }
 

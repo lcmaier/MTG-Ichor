@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use rand::rngs::StdRng;
@@ -580,7 +579,7 @@ pub struct GameState {
     /// On `GameState` rather than on `ResolutionContext` because it is scoped
     /// to a call, like `entry_selection`, and a rider is resolved through the
     /// same `resolve_effect` every spell is (`codebase-state.md` item 40).
-    pub(crate) rider_lineage: Option<HashSet<crate::engine::replacement::ReplacementInstanceId>>,
+    pub(crate) rider_lineage: Option<crate::engine::replacement::AppliedReplacements>,
 
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
@@ -2261,6 +2260,13 @@ impl GameState {
     /// Get a mutable reference to a game object
     pub fn get_object_mut(&mut self, id: ObjectId) -> Result<&mut GameObject, String> {
         self.objects.get_mut(&id).ok_or_else(|| format!("Object {} not found", id))
+    }
+
+    /// The object `object` names, while it is still that existence (CR 400.7):
+    /// `None` once a move has made it a new object, or it has left the game.
+    /// CR 603.6's "unable to be found" is this answering `None`.
+    pub fn find(&self, object: ObjectRef) -> Option<&GameObject> {
+        self.objects.get(&object.id).filter(|o| o.zone_change_epoch == object.zone_change_epoch)
     }
 
     // --- Player accessors ---

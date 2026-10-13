@@ -101,19 +101,13 @@ impl GameState {
     }
 
     /// What resolution `stamp` exiled from `mark` on and is still in exile,
-    /// by identity, each with the zone it came from.
+    /// by identity, each with the zone it came from. A token it created in
+    /// exile came from no zone and is never returned (CR 111.8, 610.3).
     pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventSeq) -> Vec<(ObjectRef, Zone)> {
-        let mut exiled: Vec<(ObjectRef, Zone)> = Vec::new();
-        for record in self.events.resolution_records(stamp, mark) {
-            if let GameEvent::ZoneChange { object_id, from, to: Zone::Exile, .. } = &record.event
-                && let Some(object) = self.object_ref(*object_id)
-                && self.get_object(*object_id).is_ok_and(|o| o.zone == Zone::Exile)
-                && !exiled.iter().any(|(seen, _)| *seen == object)
-            {
-                exiled.push((object, *from));
-            }
-        }
-        exiled
+        self.put_into_since(stamp, mark, Zone::Exile)
+            .into_iter()
+            .filter_map(|(object, from)| Some((object, from?)))
+            .collect()
     }
 
     /// CR 610.3 — make the return an "until" exile waits to make: what it
@@ -185,7 +179,7 @@ impl GameState {
             TriggerSubject::Referred => referred.to_vec(),
             other => return Err(format!("CR 610.3a/b asks whether {other:?} has left since, which needs its history")),
         };
-        let here = |object: &ObjectRef| self.object_ref(object.id) == Some(*object) && self.battlefield.contains_key(&object.id);
+        let here = |object: &ObjectRef| self.find(*object).is_some() && self.battlefield.contains_key(&object.id);
         Ok(watched.is_empty() || !watched.iter().all(here))
     }
 
