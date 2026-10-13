@@ -783,6 +783,11 @@ pub enum EffectRecipient {
     /// one comparison): a creature that died and was returned before the
     /// trigger resolves is a new object and this resolves to nothing.
     TriggeringObject,
+    /// "Them", "those cards" on a "one or more" trigger (CR 603.2c): the
+    /// object each matched zone change made (CR 400.7e), found while it is
+    /// still that object, so a card moved again before the trigger resolves
+    /// is not one of them (CR 603.6c).
+    TriggeringObjects,
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,

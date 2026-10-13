@@ -176,8 +176,8 @@ impl GameState {
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
                 let id = frame.object.id;
-                let candidate = match self.objects.get(&id) {
-                    Some(object) if object.zone_change_epoch == frame.object.zone_change_epoch => TriggerCandidate {
+                let candidate = match self.find(frame.object) {
+                    Some(object) => TriggerCandidate {
                         id,
                         controller: controller_or_owner(self, id).unwrap_or(object.owner),
                         owner: object.owner,
@@ -188,14 +188,14 @@ impl GameState {
                     },
                     // Moved or gone since the snapshot: its list from then,
                     // under its controller then (CR 603.3a, 603.10a).
-                    moved_or_gone => TriggerCandidate {
+                    None => TriggerCandidate {
                         id,
                         controller: frame.chars.controller,
                         owner: frame.owner,
                         zone: frame.zone,
                         host: None,
                         frame: TriggerCandidateFrame::LastKnown { chars: &frame.chars, snapshot: Some(k) },
-                        card: match moved_or_gone {
+                        card: match self.objects.get(&id) {
                             Some(object) => Arc::clone(&object.card_data),
                             None => CardDataBuilder::new(&frame.chars.name).build(),
                         },

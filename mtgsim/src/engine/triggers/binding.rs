@@ -9,7 +9,6 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
-use crate::events::event::GameEvent;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
@@ -20,15 +19,23 @@ use crate::types::triggers::{Lki, TriggerBinding};
 /// left.
 pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
     let subject = binding.subject?;
-    match &binding.records.first()?.event {
-        GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
-        | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
-            if *object_id == subject.id =>
-        {
-            Some(frame)
-        }
-        _ => None,
-    }
+    let (lki, ..) = binding.records.first()?.event.lki()?;
+    (lki.object.id == subject.id).then_some(lki)
+}
+
+/// "Them" (CR 603.2c): the object each matched zone change made (CR 400.7e),
+/// in record order. `Err` for a record of another kind, which names no
+/// existence of its object for the resolution to find.
+pub(crate) fn triggering_objects(binding: &TriggerBinding) -> Result<Vec<ObjectRef>, String> {
+    binding
+        .records
+        .iter()
+        .map(|record| {
+            record.event.new_object().ok_or_else(|| {
+                format!("\"them\" names the objects zone changes made, and record {} is {:?}", record.seq.0, record.event)
+            })
+        })
+        .collect()
 }
 
 /// The last known information a stack object carries for `object` (CR
@@ -72,8 +79,7 @@ impl GameState {
     /// store and its `zone_change_epoch` is the one the dispatcher saw.
     pub fn bound_object(&self, binding: &TriggerBinding) -> Option<ObjectId> {
         let reference = binding.subject?;
-        let object = self.objects.get(&reference.id)?;
-        (object.zone_change_epoch == reference.zone_change_epoch).then_some(reference.id)
+        self.find(reference).map(|_| reference.id)
     }
 
     /// "That player" — the matched event's `player_of` on the first record.
@@ -133,6 +139,11 @@ impl GameState {
             EffectRecipient::TriggeringObject => {
                 self.bound_object(binding).map(ResolvedTarget::Object).into_iter().collect()
             }
+            EffectRecipient::TriggeringObjects => triggering_objects(binding)?
+                .into_iter()
+                .filter(|&object| self.find(object).is_some())
+                .map(|object| ResolvedTarget::Object(object.id))
+                .collect(),
             EffectRecipient::TriggeringPlayer => {
                 self.bound_player(binding).map(ResolvedTarget::Player).into_iter().collect()
             }

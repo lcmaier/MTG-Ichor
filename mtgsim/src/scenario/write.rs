@@ -549,7 +549,7 @@ impl<'g> Writer<'g> {
         // A count of an object that has since moved names nothing: the object
         // it was is gone (CR 400.7), and nothing reads the entry again.
         let ability_of = |writer: &mut Self, source: crate::types::ids::ObjectRef, ability: crate::types::ids::AbilityId| {
-            let obj = state.objects.get(&source.id).filter(|o| o.zone_change_epoch == source.zone_change_epoch)?;
+            let obj = state.find(source)?;
             let place = obj.card_data.abilities.iter().position(|a| a.id.definition() == ability.definition());
             if place.is_none() || obj.zone != Zone::Battlefield {
                 writer.report("a \"this turn\" count of an ability not printed on a permanent on the battlefield");

@@ -1837,8 +1837,9 @@ impl GameState {
         lki: Option<Lki>,
         cause: EventCause,
     ) -> Result<(), String> {
-        let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki }, cause);
+        let moved = self.get_object(object)?;
+        let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, new_epoch }, cause);
         Ok(())
     }
 

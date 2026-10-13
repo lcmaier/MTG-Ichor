@@ -269,6 +269,7 @@ impl GameState {
             Effect::Atom(
                 primitive,
                 recipient @ (EffectRecipient::TriggeringObject
+                | EffectRecipient::TriggeringObjects
                 | EffectRecipient::TriggeringPlayer
                 | EffectRecipient::Referred),
             ) => {
@@ -1341,6 +1342,7 @@ impl GameState {
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::TriggeringObject
+                    | EffectRecipient::TriggeringObjects
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => {
                         debug_assert!(
@@ -1635,6 +1637,7 @@ impl GameState {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::TriggeringObject
+                    | EffectRecipient::TriggeringObjects
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => targets
                         .iter()
@@ -1690,12 +1693,37 @@ impl GameState {
                 self.return_objects(&returns, &actx)
             }
 
+            Primitive::ReturnToHand => {
+                let batch = self.events_for(primitive, targets, ctx)?;
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // Into its owner's library, then each such library is shuffled
+            // (CR 701.24a), as one event of one member per library.
+            Primitive::ShuffleIntoLibrary => {
+                let batch = self.events_for(primitive, targets, ctx)?;
+                let mut owners: Vec<PlayerId> = Vec::new();
+                for action in &batch {
+                    if let GameAction::ZoneChange { object, .. } = action
+                        && let Ok(owner) = self.get_object(*object).map(|o| o.owner)
+                        && !owners.contains(&owner)
+                    {
+                        owners.push(owner);
+                    }
+                }
+                self.execute_actions(batch, &actx)?;
+                let shuffles: Vec<GameAction> = owners.into_iter().map(|player| GameAction::ShuffleLibrary { player }).collect();
+                if !shuffles.is_empty() {
+                    self.execute_actions(shuffles, &actx)?;
+                }
+                Ok(())
+            }
+
             // === Unimplemented primitives — `backlog.md` §2.5 ===
 
-            Primitive::ReturnToHand
-            | Primitive::PutOnTopOfLibrary
+            Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
-            | Primitive::ShuffleIntoLibrary
             | Primitive::Surveil(_)
             | Primitive::Fight => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))
@@ -2269,6 +2297,11 @@ impl GameState {
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Sacrificed,
             }),
+            // To its owner's hand or library (CR 400.3), from wherever it is.
+            Primitive::ReturnToHand | Primitive::ShuffleIntoLibrary => {
+                let to = if matches!(primitive, Primitive::ReturnToHand) { Zone::Hand } else { Zone::Library };
+                self.objects.get(&object).map(|obj| GameAction::ZoneChange { object, from: obj.zone, to, act: ZoneChangeAct::Put })
+            }
             Primitive::Tap => is_permanent.then_some(GameAction::Tap { object }),
             Primitive::Untap => is_permanent.then_some(GameAction::Untap { object }),
             Primitive::AddCounters { counter, amount, by } => match is_permanent {
@@ -2632,30 +2665,31 @@ impl GameState {
             })
             .collect();
         let into = primitive.moves_into();
-        let candidates: Vec<ObjectId> = match into {
+        // A moved object is the one its record says the move made (CR 400.7e).
+        let candidates: Vec<ObjectRef> = match into {
             Some(zone) => self
                 .events
                 .resolution_records(ctx.stamp(), mark)
                 .filter_map(|record| match &record.event {
-                    GameEvent::ZoneChange { object_id, to, .. } if *to == zone => Some(*object_id),
-                    GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => Some(*object_id),
+                    GameEvent::ZoneChange { to, .. } if *to == zone => record.event.new_object(),
+                    GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => {
+                        self.object_ref(*object_id)
+                    }
                     _ => None,
                 })
                 .collect(),
             None => acted_on
                 .iter()
                 .filter_map(|t| match t {
-                    ResolvedTarget::Object(id) => Some(*id),
+                    ResolvedTarget::Object(id) => self.object_ref(*id),
                     ResolvedTarget::Player(_) => None,
                 })
                 .collect(),
         };
         let mut objects: Vec<RememberedObject> = Vec::new();
-        for id in candidates {
-            let still_there = into.is_none_or(|zone| self.objects.get(&id).is_some_and(|o| o.zone == zone));
-            if let Some(object) = self.object_ref(id).filter(|_| still_there)
-                && !objects.iter().any(|r| r.object == object)
-            {
+        for object in candidates {
+            let still_there = self.find(object).is_some_and(|o| into.is_none_or(|zone| o.zone == zone));
+            if still_there && !objects.iter().any(|r| r.object == object) {
                 objects.push(RememberedObject::now(object));
             }
         }
@@ -2668,7 +2702,7 @@ impl GameState {
     /// being gone, which the primitive meets as an empty target slice.
     pub(crate) fn this_object(&self, ctx: &ResolutionContext) -> Option<ObjectId> {
         match ctx.ability_source {
-            Some(source) => (self.object_ref(source.id) == Some(source)).then_some(source.id),
+            Some(source) => self.find(source).map(|_| source.id),
             None => {
                 let id = ctx.source;
                 let here = self.battlefield.contains_key(&id)

@@ -905,7 +905,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
     use crate::events::event::GameEvent::*;
     let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
     match event {
-        ZoneChange { object_id, owner, from, to, act, lki } => {
+        ZoneChange { object_id, owner, from, to, act, lki, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
             // type it had, which is what a Gideon or an artifact creature needs.
             let was = lki.as_ref().map(|f| {

@@ -125,7 +125,7 @@ fn waiting_trigger(game: &GameState, delayed: &DelayedTrigger) -> Option<Waiting
     };
     let id = delayed.source.id;
     let source = match &delayed.source_frame {
-        Some(frame) if game.object_ref(id) != Some(delayed.source) => object_label(game, id, &frame.name),
+        Some(frame) if game.find(delayed.source).is_none() => object_label(game, id, &frame.name),
         _ => named(game, id),
     };
     Some(WaitingTrigger {

@@ -1311,7 +1311,7 @@ pub fn ask_choose_damage_source(
     );
     let options: Vec<ChoiceOption> = candidates
         .iter()
-        .map(|&object| match game.object_ref(object.id) == Some(object) {
+        .map(|&object| match game.find(object).is_some() {
             true => ChoiceOption::Object(object.id),
             false => ChoiceOption::LastKnown(object),
         })

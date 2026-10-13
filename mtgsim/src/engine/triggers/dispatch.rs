@@ -533,7 +533,7 @@ impl GameState {
         let named = self.named_trigger_carriers(window_kinds);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
-                frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
+                r.event.lki().is_some_and(|(lki, ..)| lki.chars().abilities.iter().any(is_triggered))
             })
         });
         // The battlefield probe and the named rows read the mask. The zone
@@ -940,7 +940,7 @@ impl GameState {
         let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
-                if self.object_ref(frame.object.id) == Some(frame.object) {
+                if self.find(frame.object).is_some() {
                     before.entry(frame.object.id).or_default().push((k, frame.chars.as_ref()));
                 }
             }
@@ -965,13 +965,8 @@ impl GameState {
         // object that left had, asked look-back conditions only.
         let frames: Vec<(ObjectId, PlayerId, Zone, &EffectiveCharacteristics)> = records
             .iter()
-            .filter_map(|(_, r)| match &r.event {
-                GameEvent::ZoneChange { object_id, owner, from, lki: Some(frame), .. }
-                | GameEvent::LeftTheGame { object_id, owner, from, lki: Some(frame) } => {
-                    Some((*object_id, *owner, *from, frame.chars()))
-                }
-                _ => None,
-            })
+            .filter_map(|(_, r)| r.event.lki())
+            .map(|(lki, from, owner)| (lki.object.id, owner, from, lki.chars()))
             .collect();
 
         let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
@@ -1121,7 +1116,7 @@ impl GameState {
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![(*record).clone()],
-                                subject: subject.and_then(|id| self.object_ref(id)),
+                                subject: subject.and_then(|id| self.subject_identity(&record.event, id)),
                                 mana,
                             });
                         }
@@ -1261,7 +1256,7 @@ impl GameState {
         match (arm, event) {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki },
+                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, new_epoch: _ },
             ) => one(
                 change.matches(Some(*from), *to, Some(*act))
                     && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
@@ -1487,6 +1482,17 @@ impl GameState {
         None
     }
 
+    /// Which existence "that object" is for an occurrence whose subject is
+    /// `id` (CR 400.7): the object a zone change's move made (CR 400.7e,
+    /// 603.6c), and for any other record the object as the dispatch finds it,
+    /// immediately after the event.
+    pub(super) fn subject_identity(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
+        match event.new_object() {
+            Some(made) if made.id == id => Some(made),
+            _ => self.object_ref(id),
+        }
+    }
+
     /// `id` as the object it is now: its id and its current existence (CR
     /// 400.7). `None` for an id no longer in the store.
     pub fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
@@ -1565,14 +1571,6 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// redirect's (§2b.4), on this line.
 fn cause_asked_by(_change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
     record.stamp.cause
-}
-
-/// The CR 603.10a frame a record carries, if it carries one.
-fn frame_of(event: &GameEvent) -> Option<&EffectiveCharacteristics> {
-    match event {
-        GameEvent::ZoneChange { lki, .. } | GameEvent::LeftTheGame { lki, .. } => lki.as_ref().map(Lki::chars),
-        _ => None,
-    }
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name

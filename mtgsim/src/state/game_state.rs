@@ -2262,6 +2262,13 @@ impl GameState {
         self.objects.get_mut(&id).ok_or_else(|| format!("Object {} not found", id))
     }
 
+    /// The object `object` names, while it is still that existence (CR 400.7):
+    /// `None` once a move has made it a new object, or it has left the game.
+    /// CR 603.6's "unable to be found" is this answering `None`.
+    pub fn find(&self, object: ObjectRef) -> Option<&GameObject> {
+        self.objects.get(&object.id).filter(|o| o.zone_change_epoch == object.zone_change_epoch)
+    }
+
     // --- Player accessors ---
 
     pub fn get_player(&self, id: PlayerId) -> Result<&PlayerState, String> {

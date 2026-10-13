@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::cause::EventCause;
 use super::recorder::RecorderHandle;
-use crate::types::ids::{DelayedTriggerId, ObjectId, PlayerId, UntilReturnId};
+use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
@@ -52,6 +52,10 @@ pub enum GameEvent {
         /// It names the existence that left (CR 400.7), which `object_id`
         /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
         lki: Option<Lki>,
+        /// CR 400.7e's new object: the epoch the move stamped, which
+        /// [`GameEvent::new_object`] pairs with `object_id`. A later move
+        /// makes another object, which "it" never finds (CR 603.6c).
+        new_epoch: ZoneChangeEpoch,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -402,6 +406,28 @@ pub enum GameEvent {
 }
 
 impl GameEvent {
+    /// The object a zone change made (CR 400.7e), which "it", "that card" and
+    /// "them" name after the move. `None` for any other record.
+    pub fn new_object(&self) -> Option<ObjectRef> {
+        match self {
+            GameEvent::ZoneChange { object_id, new_epoch, .. } => {
+                Some(ObjectRef { id: *object_id, zone_change_epoch: *new_epoch })
+            }
+            _ => None,
+        }
+    }
+
+    /// The last known information this record carries (CR 603.10a), with the
+    /// zone its object left and its owner: a zone change's or a leaving's, and
+    /// `None` for every other record and for a move no look-back reads.
+    pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
+        match self {
+            GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
+            | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            _ => None,
+        }
+    }
+
     /// The objects this event names as they are when it is announced, whose
     /// names its record keeps where a copy makes one other than its card's
     /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
