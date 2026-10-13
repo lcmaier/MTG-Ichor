@@ -605,8 +605,10 @@ with `object_id` as an `ObjectRef`.
 
 - **The binding's subject comes from the record.** For a zone change, it is
   the move's new object. For any other record, it is the object at dispatch,
-  which §2b.6 moves to the instant after the event. `dispatch.rs`'s
-  `subject.and_then(|id| self.object_ref(id))` goes.
+  which §2b.6 moves to the instant after the event. Two sites build the
+  subject with `subject.and_then(|id| self.object_ref(id))`, and both go: an
+  object's trigger in `dispatch.rs`'s `match_candidates`, and a delayed
+  trigger's in `delayed.rs`'s `add_occurrences` (recounted at RH-3's start).
 - **"Them" reads each record.** A `OncePerEvent` binding holds every record it
   matched, so "put them onto the battlefield" (Hedge Shredder) finds each card
   by its own record's new object. 59 cards: `(o:"when " or o:"whenever ")
@@ -732,7 +734,7 @@ already rewrites what the batch hands it, and L1–L6 in RH-3.
 | | The fact | Copies today | Its home |
 |---|---|---|---|
 | L1 | the damage source as it deals damage: CR 608.2h's current information, else its last known information | five: `damage_source_existence` and `damage_source_characteristics` (`oracle/characteristics.rs`), `pattern_watches`' filter (`replacement/gather.rs`), `retarget_destination`'s `ToDamageSourceController` (`replacement/pipeline.rs`), and `as_it_left` with `format_event` (`ui/display.rs`) | one CR 608.2h reader: the object while it is where the effect expected it, else its `Lki`, with four projections (existence, characteristics, controller, a filter's answer). `bound_characteristics` (`triggers/binding.rs`) asks the same question of a bound object and reads it too |
-| L2 | this reference is still the object (CR 400.7) | ten: an epoch comparison or `object_ref(id) == Some(r)` | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
+| L2 | this reference is still the object (CR 400.7) | eleven: four epoch comparisons and seven `object_ref(id) == Some(r)`, the seventh `ui/waiting.rs`'s `!=` (recounted at RH-3's start; the inventory listed ten) | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
 | L3 | the CR 603.10a frame a record carries | `frame_of` and `find_matches`' second leg (`triggers/dispatch.rs`), `subject_lki` (`triggers/binding.rs`) | a method on `GameEvent` |
 | L4 | taking a mover's frame | `take_captured_lki` opens with `take_named_frame`'s body, and `capture_frame` repeats the lookup | one take; the battlefield caller asserts it found a frame |
 | L5 | the handoff before an object leaves | `perform_zone_change` and `owned_objects_leave` (`engine/leaving.rs`) each take the frame, call `hand_over_lki`, then `note_delayed_source_moving` | one function both performers call |
@@ -841,8 +843,8 @@ moves the stream (decision 5), so it needs the A/B, read game by game.
 
 | Piece | Code | Tests |
 |---|---|---|
-| `new_epoch` at the emitter; the binding's subject, "them" and `Effect::Remember` read off the record | ~70 | — |
-| L2's query (ten copies), L3's method (three), L4's take, L5's handoff | ~110 | — |
+| `new_epoch` at the emitter; the binding's subject (two sites, §2b.5), "them" and `Effect::Remember` read off the record | ~70 | — |
+| L2's query (eleven copies, §2b.8), L3's method (three), L4's take, L5's handoff | ~110 | — |
 | `applied`: the ordered applied set (11 sites), the performer writing it from the member, the log | ~120 | — |
 | decision 5: the two-part dispatch | ~40 | — |
 | L1's CR 608.2h reader (five copies), L6's query | ~120 | — |
