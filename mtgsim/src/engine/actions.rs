@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedSet, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -1441,7 +1443,7 @@ impl GameState {
                         from, object
                     ));
                 }
-                self.perform_zone_change(object, from, to, act, ctx.cause)
+                self.perform_zone_change(object, from, to, act, ctx.cause, lineage.applied())
             }
 
             GameAction::Untap { object } => {
@@ -1584,7 +1586,7 @@ impl GameState {
                         ));
                     }
                     (Some(from), Some(act)) => {
-                        self.perform_zone_change(object, from, Zone::Battlefield, act, ctx.cause)?;
+                        self.perform_zone_change(object, from, Zone::Battlefield, act, ctx.cause, lineage.applied())?;
                     }
                     // A token: created in the zone, so there is no move to
                     // perform (`create_tokens`). What there is to announce is
@@ -1789,6 +1791,7 @@ impl GameState {
         to: Zone,
         act: ZoneChangeAct,
         cause: EventCause,
+        applied: Option<Arc<[AppliedReplacement]>>,
     ) -> Result<(), String> {
         // Loud: the proposal describes a board, and performing it against a
         // different one is a caller bug. The pipeline matches on `from`, so a
@@ -1817,7 +1820,7 @@ impl GameState {
         self.note_delayed_source_moving(object);
 
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, act, lki, cause)
+        self.announce_zone_change(object, from, to, act, lki, applied, cause)
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -1835,11 +1838,12 @@ impl GameState {
         to: Zone,
         act: ZoneChangeAct,
         lki: Option<Lki>,
+        applied: Option<Arc<[AppliedReplacement]>>,
         cause: EventCause,
     ) -> Result<(), String> {
         let moved = self.get_object(object)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, new_epoch }, cause);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause);
         Ok(())
     }
 

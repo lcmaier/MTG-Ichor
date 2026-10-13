@@ -293,7 +293,7 @@ impl GameState {
             self.note_delayed_source_left(card);
         }
         let casting = EventCause::Casting(player_id);
-        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, casting)?;
+        self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
         self.announce_targeted_records(card_id, casting);
         self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting);
 

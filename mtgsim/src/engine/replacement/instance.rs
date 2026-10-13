@@ -5,6 +5,9 @@
 //! keys on the answer lives in `pipeline.rs` — both need these and neither owns
 //! them.
 
+use std::sync::Arc;
+
+use crate::events::event::AppliedReplacement;
 use crate::state::replacement_effects::ReplacementEffectId;
 use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
@@ -64,32 +67,77 @@ pub enum ReplacementInstanceId {
 /// The order is the record's (`replacement-architecture.md` §2b.4), and a set
 /// holds zero to three, so it is a list read linearly.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AppliedSet(Vec<ReplacementInstanceId>);
+pub struct AppliedSet(Vec<AppliedSetEntry>);
+
+/// How an effect joined an applied set: it applied, or it was offered and
+/// declined, which is CR 614.5's one opportunity all the same.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AppliedSetEntry {
+    Applied(AppliedReplacement),
+    Declined(ReplacementInstanceId),
+}
+
+impl AppliedSetEntry {
+    fn instance(&self) -> &ReplacementInstanceId {
+        match self {
+            AppliedSetEntry::Applied(applied) => &applied.instance,
+            AppliedSetEntry::Declined(id) => id,
+        }
+    }
+}
 
 impl AppliedSet {
     pub fn contains(&self, id: &ReplacementInstanceId) -> bool {
-        self.0.contains(id)
+        self.0.iter().any(|entry| entry.instance() == id)
     }
 
-    /// Adds `id` last, unless it is already in the set.
-    pub fn insert(&mut self, id: ReplacementInstanceId) {
-        if !self.0.contains(&id) {
-            self.0.push(id);
+    /// Adds an effect that applied, last, unless it is already in the set.
+    pub fn apply(&mut self, applied: AppliedReplacement) {
+        if !self.contains(&applied.instance) {
+            self.0.push(AppliedSetEntry::Applied(applied));
+        }
+    }
+
+    /// Adds an effect that was offered and declined, last, unless it is
+    /// already in the set.
+    pub fn decline(&mut self, id: ReplacementInstanceId) {
+        if !self.contains(&id) {
+            self.0.push(AppliedSetEntry::Declined(id));
         }
     }
 
     pub fn len(&self) -> usize {
         self.0.len()
     }
-}
 
-impl FromIterator<ReplacementInstanceId> for AppliedSet {
-    fn from_iter<I: IntoIterator<Item = ReplacementInstanceId>>(ids: I) -> Self {
-        let mut set = AppliedSet::default();
-        for id in ids {
-            set.insert(id);
-        }
-        set
+    /// The effects that applied, in the order they did: what the record of
+    /// the event keeps. `None` when none did.
+    pub fn applied(&self) -> Option<Arc<[AppliedReplacement]>> {
+        let applied: Vec<AppliedReplacement> = self
+            .0
+            .iter()
+            .filter_map(|entry| match entry {
+                AppliedSetEntry::Applied(applied) => Some(*applied),
+                AppliedSetEntry::Declined(_) => None,
+            })
+            .collect();
+        (!applied.is_empty()).then(|| applied.into())
+    }
+
+    /// The set a rider's or a decomposition's events start from (CR 614.5's
+    /// "modified events"): the same effects, none of which redirected them.
+    pub fn handed_down(&self) -> AppliedSet {
+        AppliedSet(
+            self.0
+                .iter()
+                .map(|entry| match entry {
+                    AppliedSetEntry::Applied(applied) => {
+                        AppliedSetEntry::Applied(AppliedReplacement { redirected: false, ..*applied })
+                    }
+                    AppliedSetEntry::Declined(id) => AppliedSetEntry::Declined(*id),
+                })
+                .collect(),
+        )
     }
 }
 

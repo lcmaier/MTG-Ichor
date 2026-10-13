@@ -1221,7 +1221,13 @@ mod tests {
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
         let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling);
         let gain_in_the_lineage = |game: &mut GameState| {
-            game.rider_lineage = Some(crate::engine::replacement::AppliedSet::from_iter([applied]));
+            let mut lineage = crate::engine::replacement::AppliedSet::default();
+            lineage.apply(crate::events::event::AppliedReplacement {
+                instance: applied,
+                by: crate::events::cause::EventCause::Harness,
+                redirected: false,
+            });
+            game.rider_lineage = Some(lineage);
             let before = game.players[0].life_total;
             let dp = test_dp();
             game.execute_action(GameAction::GainLife { player: 0, amount: 3, source: faith }, &ActionContext::new(&dp))

@@ -12,21 +12,26 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
-use mtgsim::engine::actions::GameAction;
+use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
+use mtgsim::engine::replacement::ReplacementInstanceId;
+use mtgsim::events::cause::{EventCause, GeneratedBy};
+use mtgsim::events::event::{GameEvent, ResolutionStamp};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, put_on_battlefield, put_in_library, setup_two_player_game,
+    creature_with_ability, effect_ctx, put_in_hand, put_in_library, put_on_battlefield, setup_two_player_game,
     static_ability, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount,
+    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, ReturnUnder,
+    SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::restriction::SourceFilter;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{Zone, ZoneChangePattern};
+use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::decision::DecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -244,7 +249,7 @@ fn them_finds_each_card_by_its_own_record() {
                 object,
                 from: Zone::Library,
                 to: Zone::Graveyard,
-                act: mtgsim::engine::actions::ZoneChangeAct::Milled,
+                act: ZoneChangeAct::Milled,
             })
             .collect(),
         &test_ctx(),
@@ -253,10 +258,130 @@ fn them_finds_each_card_by_its_own_record() {
     assert_eq!(game.pending_triggers.len(), 1, "CR 603.2c: one trigger for the one event");
 
     place(&mut game, &test_dp());
-    game.change_zone(second, Zone::Exile, mtgsim::engine::actions::ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(second, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
     assert_eq!(game.get_object(first).unwrap().zone, Zone::Hand);
     assert_eq!(game.get_object(third).unwrap().zone, Zone::Hand);
     assert_eq!(game.get_object(second).unwrap().zone, Zone::Exile, "a new object since the mill (CR 400.7)");
+}
+
+// ---------------------------------------------------------------------------
+// The replacements that applied (CR 614.5, 614.6)
+// ---------------------------------------------------------------------------
+
+/// "If you would discard this card, discard it into exile", the replacement
+/// half of madness (CR 702.35a), functioning from its owner's hand (CR
+/// 113.6b).
+fn discards_into_exile() -> Arc<CardData> {
+    let replacement = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Hand), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Discarded) },
+            object: None,
+        },
+        ObjectSet::SourceOnly,
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    );
+    let mut ability = static_ability(Effect::Conditional(
+        Condition::SourceInZone(ZoneSet::HAND),
+        Box::new(Effect::Replacement(Box::new(replacement))),
+    ));
+    ability.id = new_ability_id();
+    creature_with_ability("Fixture: madness", 2, 2, ability)
+}
+
+/// "When this card is exiled this way" asks whether the card's own madness
+/// applied to the discard that exiled it (CR 702.35a): the record keeps it,
+/// with the act it kept (CR 614.6) and who it acted for.
+#[test]
+fn a_madness_discard_keeps_its_own_replacement_on_the_record() {
+    let mut game = setup_two_player_game();
+    let card = put_in_hand(&mut game, discards_into_exile(), 0);
+    let before = game.object_ref(card).unwrap();
+    let madness = game.get_object(card).unwrap().card_data.abilities[0].id;
+
+    game.change_zone(card, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
+
+    let recorded = game.recorded_events();
+    let record = recorded
+        .records()
+        .iter()
+        .rev()
+        .find(|r| matches!(r.event, GameEvent::ZoneChange { object_id, .. } if object_id == card))
+        .expect("the discard's record")
+        .clone();
+    let GameEvent::ZoneChange { to, act, applied, .. } = &record.event else { unreachable!() };
+    assert_eq!((*to, *act), (Zone::Exile, ZoneChangeAct::Discarded), "discarded into exile");
+    let applied = applied.as_deref().expect("a replacement applied");
+    assert_eq!(applied.len(), 1);
+    assert_eq!(applied[0].instance, ReplacementInstanceId::StaticAbility(before, madness), "this card's own madness");
+    assert!(applied[0].redirected, "it changed where the card went");
+    assert_eq!(
+        applied[0].by,
+        EventCause::Effect {
+            resolution: ResolutionStamp { source: card, controller: 0 },
+            generated_by: GeneratedBy::StaticAbility,
+        }
+    );
+}
+
+/// "Whenever a spell or ability you control exiles one or more permanents",
+/// shaped like Hero of Bretagard's battlefield half.
+fn exile_watcher() -> Arc<CardData> {
+    card_of_type_with(
+        "Fixture: exiles watcher",
+        CardType::Enchantment,
+        triggered_ability(
+            "",
+            whenever(
+                TriggerEvent::ZoneChange {
+                    subject: TriggerSubject::Any,
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Exile), act: None },
+                    by: Some(SourceFilter::ControlledBy(PlayerRef::You)),
+                    owner: None,
+                    multiplicity: Multiplicity::OncePerEvent,
+                },
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            ),
+        ),
+    )
+}
+
+/// Player 0 watches; `rest_in_peace` is whose Rest in Peace is out, if any;
+/// `exiler` is whose effect removes a creature, by destroying it or, with no
+/// Rest in Peace, by exiling it. The count of the watcher's triggers.
+fn exiles_seen(rest_in_peace: Option<PlayerId>, exiler: PlayerId) -> usize {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, exile_watcher(), 0);
+    if let Some(player) = rest_in_peace {
+        put_on_battlefield(&mut game, mtgsim::cards::phase_rb_cards::rest_in_peace(), player);
+    }
+    let spell = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), exiler);
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    game.pending_triggers.clear();
+    let ctx = effect_ctx(&game, spell);
+    match rest_in_peace {
+        Some(_) => game.execute_action(GameAction::Destroy { object: victim }, &ctx).unwrap(),
+        None => game.change_zone(victim, Zone::Exile, ZoneChangeAct::Put, &ctx).unwrap(),
+    }
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    game.pending_triggers.len()
+}
+
+/// Who exiled a creature Rest in Peace sent to exile is Rest in Peace's
+/// controller (CR 614.6: the modified event is the replacement's), not the
+/// destroyer's; a direct exile is its spell's. The owner's ruling at #242's
+/// review, after Hero of Bretagard's.
+#[test]
+fn who_exiled_a_redirected_move_is_the_replacements_controller() {
+    assert_eq!(exiles_seen(None, 0), 1, "your own exile");
+    assert_eq!(exiles_seen(None, 1), 0, "an opponent's exile");
+    assert_eq!(exiles_seen(Some(1), 0), 0, "your destroy, which an opponent's Rest in Peace exiled");
+    assert_eq!(exiles_seen(Some(0), 1), 1, "an opponent's destroy, which your Rest in Peace exiled");
+}
+
+/// The record grew by what it holds and not by a byte (§2b.10's pricing).
+#[test]
+fn the_event_keeps_its_size() {
+    assert_eq!(std::mem::size_of::<GameEvent>(), 72);
 }

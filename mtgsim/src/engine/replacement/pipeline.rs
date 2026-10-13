@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, ResolutionStamp};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -264,6 +264,17 @@ pub(super) fn caused_by_replacement(game: &GameState, chosen: &ReplacementInstan
         resolution: ResolutionStamp { source: chosen.source, controller: chosen.controller },
         generated_by: replacement_generator(game, chosen)?,
     })
+}
+
+/// Where a proposal moves its object, for whether a rewrite changed it: a
+/// move's destination, the battlefield for an entry, `None` for any other
+/// event.
+fn destination(action: &GameAction) -> Option<Zone> {
+    match action {
+        GameAction::ZoneChange { to, .. } => Some(*to),
+        GameAction::EnterBattlefield { .. } => Some(Zone::Battlefield),
+        _ => None,
+    }
 }
 
 /// CR 614.7a / 120.8 / 119.10 — the proposals that describe an event which
@@ -556,7 +567,7 @@ pub(crate) fn apply_replacements(
             ) {
                 // Marking it applied is CR 614.5's "one opportunity" — being
                 // offered and refusing *is* the opportunity.
-                applied.insert(chosen.id);
+                applied.decline(chosen.id);
                 declined.insert(chosen.id);
                 if let Some(mut t) = trace.take() {
                     t.optional = Some(OptionalAnswer::Declined);
@@ -567,10 +578,6 @@ pub(crate) fn apply_replacements(
             if let Some(t) = &mut trace {
                 t.optional = Some(OptionalAnswer::Accepted);
             }
-        }
-
-        if !chosen.def.exempt_from_614_5 {
-            applied.insert(chosen.id);
         }
 
         // The one rewrite that differs per member: Mending Hands' count facing two
@@ -591,8 +598,10 @@ pub(crate) fn apply_replacements(
         let mut replaced_amount: Option<u64> = None;
         let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
+        let mut redirected = false;
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
+            let went_to = destination(&event);
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
@@ -634,9 +643,19 @@ pub(crate) fn apply_replacements(
                     game.restore_observers(saved);
                 }
             }
+            redirected |= next.as_ref().is_some_and(|next| destination(next) != went_to);
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
             group[pos].event = next;
+        }
+        // Into the set once applied, before the next iteration gathers (CR
+        // 614.5); CR 903.9b's exempt effect never joins it.
+        if !chosen.def.exempt_from_614_5 {
+            applied.apply(AppliedReplacement {
+                instance: chosen.id,
+                by: caused_by_replacement(game, &chosen)?,
+                redirected,
+            });
         }
 
         // Queued, not resolved (§4.1a). A later replacement in the same loop
@@ -675,7 +694,7 @@ pub(crate) fn apply_replacements(
 /// and no rider, copies nothing.
 fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: AppliedSet) {
     for rider in queued {
-        rider.lineage = applied.clone();
+        rider.lineage = applied.handed_down();
     }
     if let Some((last, rest)) = group.split_last_mut() {
         for member in rest {

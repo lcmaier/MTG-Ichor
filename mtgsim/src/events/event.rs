@@ -7,6 +7,7 @@ use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
+use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::targeting::TargetRef;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
@@ -52,6 +53,10 @@ pub enum GameEvent {
         /// It names the existence that left (CR 400.7), which `object_id`
         /// cannot: what a dies trigger's "it deals damage" was (CR 608.2h).
         lki: Option<Lki>,
+        /// The replacement effects that applied to this move, in the order
+        /// they applied (CR 614.5), each as it applied. `None` for a move
+        /// nothing replaced.
+        applied: Option<Arc<[AppliedReplacement]>>,
         /// CR 400.7e's new object: the epoch the move stamped, which
         /// [`GameEvent::new_object`] pairs with `object_id`. A later move
         /// makes another object, which "it" never finds (CR 603.6c).
@@ -417,6 +422,18 @@ impl GameEvent {
         }
     }
 
+    /// What caused the move to go where it went, when a replacement changed
+    /// that: the last one that did (CR 614.6). `None` for a move that went
+    /// where it was proposed to, and for any other record.
+    pub fn redirected_by(&self) -> Option<EventCause> {
+        match self {
+            GameEvent::ZoneChange { applied: Some(applied), .. } => {
+                applied.iter().rev().find(|a| a.redirected).map(|a| a.by)
+            }
+            _ => None,
+        }
+    }
+
     /// The last known information this record carries (CR 603.10a), with the
     /// zone its object left and its owner: a zone change's or a leaving's, and
     /// `None` for every other record and for a move no look-back reads.
@@ -549,6 +566,19 @@ pub struct BatchId(pub u64);
 pub struct ResolutionStamp {
     pub source: ObjectId,
     pub controller: PlayerId,
+}
+
+/// One replacement effect that applied to an event, as it applied (CR 614.5;
+/// `replacement-architecture.md` §2b.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AppliedReplacement {
+    pub instance: ReplacementInstanceId,
+    /// What its effect's own events are caused by: its source and its
+    /// controller as it applied, which may have left or changed hands since.
+    pub by: EventCause,
+    /// Whether it changed where the move goes: CR 614.6's modified event is
+    /// then the replacement's, and so is "who exiled it".
+    pub redirected: bool,
 }
 
 /// The context every emitted event is stamped with.

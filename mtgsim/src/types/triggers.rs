@@ -1062,6 +1062,7 @@ mod tests {
                 to: Zone::Graveyard,
                 act: ZoneChangeAct::Destroyed,
                 lki: None,
+                applied: None,
                 new_epoch: 1,
             }),
             ("LeftTheGame", GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None }),

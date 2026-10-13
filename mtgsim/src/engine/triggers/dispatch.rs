@@ -1256,7 +1256,7 @@ impl GameState {
         match (arm, event) {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
-                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, new_epoch: _ },
+                GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
             ) => one(
                 change.matches(Some(*from), *to, Some(*act))
                     && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
@@ -1566,11 +1566,14 @@ fn is_triggered(def: &AbilityDef) -> bool {
 /// The cause a zone-change arm's `by` asks of `record`
 /// (`replacement-architecture.md` §2b.7): the act's when the arm names an act
 /// ("causes you to discard"), the destination's when it names only where the
-/// move went ("causes a land to be put into your graveyard"). One answer until
-/// the record keeps its applied set: RH-2 makes the destination's the last
-/// redirect's (§2b.4), on this line.
-fn cause_asked_by(_change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
-    record.stamp.cause
+/// move went ("causes a land to be put into your graveyard"). A redirect
+/// keeps the act (CR 614.6) and makes the destination its replacement's
+/// (§2b.4).
+fn cause_asked_by(change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
+    match change.act {
+        Some(_) => record.stamp.cause,
+        None => record.event.redirected_by().unwrap_or(record.stamp.cause),
+    }
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name

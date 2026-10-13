@@ -905,7 +905,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
     use crate::events::event::GameEvent::*;
     let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
     match event {
-        ZoneChange { object_id, owner, from, to, act, lki, new_epoch: _ } => {
+        ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
             // type it had, which is what a Gideon or an artifact creature needs.
             let was = lki.as_ref().map(|f| {
@@ -915,8 +915,17 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 names.sort();
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
-            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}",
-                    as_it_left(game, *object_id, lki), was, owner, from, to, act, cause_words(game, cause))
+            // Each replacement that applied, in order, and the ones that sent
+            // it somewhere else.
+            let replaced = applied.as_deref().map(|applied| {
+                let each: Vec<String> = applied
+                    .iter()
+                    .map(|a| format!("{}{}", cause_words(game, &a.by), if a.redirected { " (redirected)" } else { "" }))
+                    .collect();
+                format!(", replaced by {}", each.join(", "))
+            }).unwrap_or_default();
+            format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}{}",
+                    as_it_left(game, *object_id, lki), was, owner, from, to, act, cause_words(game, cause), replaced)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -1221,7 +1230,10 @@ mod tests {
         // change names the object as it was in the zone it left.
         let log = format_event_log(&game);
         let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
-        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness"));
+        // Its own CR 707.9 replacement applied to its entry, and is named.
+        has(format!(
+            "ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness, replaced by StaticAbility of Clone ({clone}) [P0]"
+        ));
         has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
         has(format!("Tapped: Grizzly Bears (Clone, {clone})"));
         has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed] by Harness"));
