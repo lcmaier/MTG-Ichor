@@ -37,6 +37,57 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-12 for RH-3** (#245: the record's new object, its
+applied replacements and its moment, `replacement-architecture.md`
+§2b.4–§2b.8). No card joins the registry or the pool (188 registered, 106
+pooled). `close_out.py` against **main** `2dae2be` (#244's merge), with two
+arms:
+- **record** `e51762c`: the ordered applied set, `new_epoch` and its readers,
+  `applied` and the destination's cause, and L1–L6's homes;
+- **shipped** `ae618f1`: the record arm and decision 5, the two-part dispatch.
+  The docs commits after it change no `fuzz_games`.
+
+**Predictions, written before any arm ran (#245's body):**
+- record: `IDENTICAL` on every row, gameplay and cost, both pools, at two
+  seats and four.
+- shipped against record: `performance` gameplay `IDENTICAL`, its cost rows
+  moving by the dispatches a Darksteel Colossus window adds; `stress`
+  differing where a rider-bearing window carries a trigger, of the order of
+  RH-2's 22 four-seat games.
+- Instructions per decision, shipped against `main`, between −0.05 and +0.2
+  points, and likely within ±0.05.
+- Every dispatch agreed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, record vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / 2 games of 200 apart |
+| `Memo hits`, `main` → shipped, performance / stress | 54,555 → 54,555 / 65,372 → 65,372 | 170,153 → 170,153 / 194,998 → 194,913 |
+| `Layer frames`, `main` → shipped, performance / stress | 3,993 → 3,993 / 4,607 → 4,607 | 13,223 → 13,223 / 14,591 → 14,588 |
+| `Candidate visits`, `main` → shipped, performance / stress | 41.0 → 41.0 / 44.0 → 43.9 | 161.1 → 161.1 / 143.8 → 143.5 |
+| audit, record, performance / stress, dispatches agreed | 162,763 / 165,786 | 331,993 / 341,502 |
+| audit, shipped, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| instructions / decision, record vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6442 M → 0.6446 M, **+0.07%** |
+| instructions / decision, shipped vs `main`, the same board | | 0.6442 M → 0.6449 M, **+0.11%** |
+
+**One prediction broke: `stress` moved far less than predicted.** Two
+four-seat games of 200 diverge, and none at two seats. A rider-bearing window
+changes a game only when something in its first dispatch acts before the
+riders, and on this board that is one thing. In games 72 and 115 (a per-game
+diff of the `--dump-events` streams of the record and shipped arms, names
+masked) the event exiled an "until" source, and the CR 610.3 return it made
+due is now performed in the first dispatch, ahead of the Zombies Kalitas's
+rider makes. Three more games only announce their triggers before the riders'
+records, with the same events. That ordering is §2b.11's open question about a
+rider's records in the play. `main` read 0.6442 M on this sitting, against the
+0.6453 M #244's sitting read, so the brief's baseline is re-read here. The
+record arm's +0.07% is code-only (the applied set's entries and the record's
+`Arc`), and decision 5 adds +0.04. Every dispatch agreed in both arms. The
+sittings ran in 137 s, with one more for shipped's callgrind reading.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345:** RH-2's to the
+digit on both pools, gameplay and cost.
+
 **Re-recorded 2026-10-12 for RH-2** (#244: the batch's members, decided
 together, `replacement-architecture.md` §2b.6, §2b.8, §2b.10). No card joins
 the registry or the pool (188 registered, 106 pooled). `close_out.py` against
