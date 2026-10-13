@@ -621,14 +621,14 @@ with `object_id` as an `ObjectRef`.
 - **`Effect::Remember` and §3.9's refs** take a moved object's identity from
   its record too.
 - **Only the new existence is added.** The existence that left is `lki.object`
-  wherever CR 603.10a frames the move (TR-4a widens that to its three classes),
+  wherever CR 603.10a frames the move (TR-4c widens that to its three classes),
   and `RememberedObject.left_at` answers it for the rest. A second epoch on
   every record would be a second copy of `lki.object`.
 - **Atoms.** ATOM-400.7e-001 is an Aura's own "put into a graveyard from the
   battlefield" ability, its Aura put there by CR 704.5m, returning itself.
   ATOM-400.7e-002 is a "from anywhere" trigger, which needs no 400.7e. Both are
   Phase 7, and nothing covers them today. RH-3's fixtures cover both, and
-  Rancor (TR-4a) is the card.
+  Rancor (TR-4c) is the card.
 
 ### 2b.6 The moment each fact is taken at (item 175)
 

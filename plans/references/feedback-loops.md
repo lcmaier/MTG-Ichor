@@ -252,7 +252,7 @@ gate off across audited fuzz games (`triggers-architecture.md` §4.10). CR
 
 CR 603.2d's multipliers (Panharmonicon's "triggers an additional time")
 change how many times an ability triggers, reading the event that caused it.
-They write nothing a trigger reads, so they are TR-5b's multiplier and not a
+They write nothing a trigger reads, so they are TR-5d's multiplier and not a
 class here.
 
 Three events no trigger produces, so no row has them: a creature attacking or
