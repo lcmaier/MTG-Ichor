@@ -24,7 +24,7 @@ use crate::types::replacement::{
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawCause, Zone};
-use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
+use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
@@ -2881,10 +2881,9 @@ fn retarget_destination(
         // owner, which is its controller for every card cast from its owner's
         // own hand. A source that left before dealing it is asked as it last
         // existed (CR 608.2h).
-        RetargetSpec::ToDamageSourceController => match damage_source_lki {
-            Some(frame) => Some(DamageTarget::Player(frame.chars().controller)),
-            None => controller_or_owner(game, damage_source).map(DamageTarget::Player),
-        },
+        RetargetSpec::ToDamageSourceController => {
+            CurrentOrLastKnown { id: damage_source, lki: damage_source_lki }.controller(game).map(DamageTarget::Player)
+        }
     }
 }
 

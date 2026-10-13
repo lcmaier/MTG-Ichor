@@ -3,7 +3,7 @@
 //! chooses as it enters the battlefield (CR 303.4f/g).
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::engine::resolve::ResolvedTarget;
+use crate::engine::resolve::{MadeThere, ResolvedTarget};
 use crate::events::cause::EventCause;
 use crate::events::event::{EventSeq, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
@@ -103,17 +103,10 @@ impl GameState {
     /// What resolution `stamp` exiled from `mark` on and is still in exile,
     /// by identity, each with the zone it came from.
     pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventSeq) -> Vec<(ObjectRef, Zone)> {
-        let mut exiled: Vec<(ObjectRef, Zone)> = Vec::new();
-        for record in self.events.resolution_records(stamp, mark) {
-            if let GameEvent::ZoneChange { from, to: Zone::Exile, .. } = &record.event
-                && let Some(object) = record.event.new_object()
-                && self.find(object).is_some_and(|o| o.zone == Zone::Exile)
-                && !exiled.iter().any(|(seen, _)| *seen == object)
-            {
-                exiled.push((object, *from));
-            }
-        }
-        exiled
+        self.put_into_since(stamp, mark, Zone::Exile, MadeThere::Excluded)
+            .into_iter()
+            .filter_map(|(object, from)| Some((object, from?)))
+            .collect()
     }
 
     /// CR 610.3 — make the return an "until" exile waits to make: what it

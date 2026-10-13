@@ -167,6 +167,14 @@ pub enum ResolvedTarget {
     Player(PlayerId),
 }
 
+/// Whether a token a resolution created in a zone is among what it put there
+/// ([`GameState::put_into_since`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MadeThere {
+    Counts,
+    Excluded,
+}
+
 impl GameState {
     /// Resolve an effect tree in the given context.
     ///
@@ -2664,36 +2672,59 @@ impl GameState {
                 ResolvedTarget::Object(_) => None,
             })
             .collect();
-        let into = primitive.moves_into();
-        // A moved object is the one its record says the move made (CR 400.7e).
-        let candidates: Vec<ObjectRef> = match into {
+        let objects = match primitive.moves_into() {
             Some(zone) => self
-                .events
-                .resolution_records(ctx.stamp(), mark)
-                .filter_map(|record| match &record.event {
-                    GameEvent::ZoneChange { to, .. } if *to == zone => record.event.new_object(),
-                    GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => {
-                        self.object_ref(*object_id)
+                .put_into_since(ctx.stamp(), mark, zone, MadeThere::Counts)
+                .into_iter()
+                .map(|(object, _)| RememberedObject::now(object))
+                .collect(),
+            None => {
+                let mut objects: Vec<RememberedObject> = Vec::new();
+                for t in acted_on {
+                    if let ResolvedTarget::Object(id) = t
+                        && let Some(object) = self.object_ref(*id)
+                        && !objects.iter().any(|r| r.object == object)
+                    {
+                        objects.push(RememberedObject::now(object));
                     }
-                    _ => None,
-                })
-                .collect(),
-            None => acted_on
-                .iter()
-                .filter_map(|t| match t {
-                    ResolvedTarget::Object(id) => self.object_ref(*id),
-                    ResolvedTarget::Player(_) => None,
-                })
-                .collect(),
+                }
+                objects
+            }
         };
-        let mut objects: Vec<RememberedObject> = Vec::new();
-        for object in candidates {
-            let still_there = self.find(object).is_some_and(|o| into.is_none_or(|zone| o.zone == zone));
-            if still_there && !objects.iter().any(|r| r.object == object) {
-                objects.push(RememberedObject::now(object));
+        Referred { objects, players }
+    }
+
+    /// What resolution `stamp` put into `zone` from `mark` on and is still
+    /// there, once each: every object by the one its record says the move made
+    /// (CR 400.7e), with the zone it came from. A token it created there is
+    /// one when `made_there` counts it: CR 603.7c's "that card" may name one,
+    /// and CR 610.3's return never does (CR 111.8).
+    pub(crate) fn put_into_since(
+        &self,
+        stamp: ResolutionStamp,
+        mark: crate::events::event::EventSeq,
+        zone: Zone,
+        made_there: MadeThere,
+    ) -> Vec<(ObjectRef, Option<Zone>)> {
+        let mut put: Vec<(ObjectRef, Option<Zone>)> = Vec::new();
+        for record in self.events.resolution_records(stamp, mark) {
+            let moved = match &record.event {
+                GameEvent::ZoneChange { from, to, .. } if *to == zone => record.event.new_object().map(|o| (o, Some(*from))),
+                GameEvent::TokenCreated { object_id, zone: made_in, .. }
+                    if *made_in == zone && made_there == MadeThere::Counts =>
+                {
+                    self.object_ref(*object_id).map(|o| (o, None))
+                }
+                _ => None,
+            };
+            if let Some((object, from)) = moved
+                && self.find(object).is_some_and(|o| o.zone == zone)
+                && !put.iter().any(|(seen, _)| *seen == object)
+            {
+                put.push((object, from));
             }
         }
-        Referred { objects, players }
+        put
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,

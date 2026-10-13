@@ -780,12 +780,33 @@ impl GameState {
     /// nested batch and the event it belongs to is the outer one.
     fn capture_frame(&mut self, id: ObjectId) {
         let Some(object) = self.object_ref(id) else { return };
-        if self.lki_captures.iter().any(|d| d.object == object) {
+        if self.capture_of(object).is_some() {
             return;
         }
         if let Some(frame) = compute_characteristics(self, id) {
             self.lki_captures.push(LkiCapture { object, frame: Some(frame) });
         }
+    }
+
+    /// The capture its batch took of `object`, if one did.
+    fn capture_of(&mut self, object: ObjectRef) -> Option<&mut LkiCapture> {
+        self.lki_captures.iter_mut().find(|d| d.object == object)
+    }
+
+    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from`, before it
+    /// moves: the frame its batch took, to every entry that names it, and to a
+    /// delayed trigger it is the source of. Returns the frame its record
+    /// carries, a permanent's; a token whose entry is still being decided has
+    /// no entity and nothing to look back at (`create_tokens`).
+    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
+        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
+            self.take_captured_lki(id)
+        } else {
+            None
+        };
+        self.hand_over_lki(id, lki.as_ref());
+        self.note_delayed_source_moving(id);
+        lki
     }
 
     /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
@@ -795,7 +816,7 @@ impl GameState {
     /// for any other mover the one `capture_lki` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
+    fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
         let frame = match lki {
             Some(lki) => Arc::clone(&lki.frame),
             None => match self.take_named_frame(id) {
@@ -820,18 +841,14 @@ impl GameState {
     /// departure had one.
     fn take_named_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
         let object = self.object_ref(id)?;
-        self.lki_captures.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
+        self.capture_of(object)?.frame.take()
     }
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
+    fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
         let object = self.object_ref(id)?;
-        let taken = self
-            .lki_captures
-            .iter_mut()
-            .find(|d| d.object == object)
-            .and_then(|d| d.frame.take());
+        let taken = self.take_named_frame(id);
         // Every departure is decided by a batch, which framed it first.
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
         taken

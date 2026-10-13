@@ -1807,18 +1807,7 @@ impl GameState {
             return Ok(());
         }
 
-        // CR 603.10a — the frame the batch took before any member moved
-        // (`take_captured_lki`). A permanent, not merely an object in the
-        // zone: a token whose entry is being decided has no entity and nothing
-        // to look back at (`create_tokens`).
-        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            self.take_captured_lki(object)
-        } else {
-            None
-        };
-        self.hand_over_lki(object, lki.as_ref());
-        self.note_delayed_source_moving(object);
-
+        let lki = self.hand_over_before_leaving(object, from);
         self.move_object(object, to)?;
         self.announce_zone_change(object, from, to, act, lki, applied, cause)
     }

@@ -11,7 +11,10 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::engine::targeting::FilterRefusal;
+use crate::types::effects::ObjectFilter;
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::triggers::Lki;
 use crate::types::keywords::KeywordFlag;
 
 /// Check if a permanent has an effective keyword ability.
@@ -22,34 +25,48 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
         .unwrap_or(false)
 }
 
-/// The existence that deals damage (CR 400.7): the one its last known
-/// information is of, when the damage carries it because an effect has the
-/// source deal damage after it left (CR 608.2h), and the object as it is
-/// otherwise. What a chosen source of damage is matched against (CR 609.7a);
-/// the next function is the same source's characteristics.
-pub fn damage_source_existence(
-    game: &GameState,
-    source: ObjectId,
-    lki: Option<&crate::types::triggers::Lki>,
-) -> Option<crate::types::ids::ObjectRef> {
-    match lki {
-        Some(lki) => Some(lki.object),
-        None => game.object_ref(source),
-    }
+/// CR 608.2h's read of an object an effect asks about: its last known
+/// information when it has left the zone the effect expected it in, which the
+/// event then carries as `lki`, and its current information otherwise. A
+/// source dealing damage after it left is the customer (CR 609.7a, 702.15c,
+/// 702.2e): what it is, what it has, whose it is, and what a filter says of it.
+#[derive(Clone, Copy)]
+pub struct CurrentOrLastKnown<'a> {
+    pub id: ObjectId,
+    pub lki: Option<&'a Lki>,
 }
 
-/// The characteristics `source` deals damage with: `lki`, its last known
-/// information, when the damage carries one because an effect has it deal
-/// damage after it left (CR 608.2h, 702.15c, 702.2e), and the object as it
-/// is otherwise.
-pub fn damage_source_characteristics(
-    game: &GameState,
-    source: ObjectId,
-    lki: Option<&crate::types::triggers::Lki>,
-) -> Option<Arc<EffectiveCharacteristics>> {
-    match lki {
-        Some(lki) => Some(Arc::clone(&lki.frame)),
-        None => compute_characteristics(game, source),
+impl CurrentOrLastKnown<'_> {
+    /// Which existence it is (CR 400.7): what a chosen source of damage is
+    /// matched against (CR 609.7a).
+    pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
+        match self.lki {
+            Some(lki) => Some(lki.object),
+            None => game.object_ref(self.id),
+        }
+    }
+
+    pub fn characteristics(&self, game: &GameState) -> Option<Arc<EffectiveCharacteristics>> {
+        match self.lki {
+            Some(lki) => Some(Arc::clone(&lki.frame)),
+            None => compute_characteristics(game, self.id),
+        }
+    }
+
+    /// Its controller (CR 109.5), or its owner while it has none.
+    pub fn controller(&self, game: &GameState) -> Option<PlayerId> {
+        match self.lki {
+            Some(lki) => Some(lki.chars().controller),
+            None => controller_or_owner(game, self.id),
+        }
+    }
+
+    /// `filter` asked of it, "you" being `you` (CR 109.5).
+    pub fn matches(&self, game: &GameState, filter: &ObjectFilter, you: PlayerId) -> Result<bool, FilterRefusal> {
+        match self.lki {
+            Some(lki) => game.object_matches_filter_in_frame(self.id, filter, you, lki.chars()),
+            None => game.object_matches_filter(self.id, filter, you),
+        }
     }
 }
 

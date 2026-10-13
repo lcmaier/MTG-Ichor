@@ -36,7 +36,7 @@ use crate::engine::zone_function::functions_in;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controller_or_owner, damage_source_existence};
+use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -754,22 +754,13 @@ pub(crate) fn pattern_watches(
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
+            let dealing = CurrentOrLastKnown { id: *dealt_by, lki: source_lki.as_ref() };
             combat.map(|c| c == *is_combat).unwrap_or(true)
                 && source
                     .as_ref()
                     .map(|p| {
-                        p.object.is_none_or(|chosen| {
-                            Some(chosen) == damage_source_existence(game, *dealt_by, source_lki.as_ref())
-                        })
-                            && p.filter
-                                .as_ref()
-                                .map(|f| {
-                                    matched(match source_lki {
-                                        Some(lki) => game.object_matches_filter_in_frame(*dealt_by, f, you, lki.chars()),
-                                        None => game.object_matches_filter(*dealt_by, f, you),
-                                    })
-                                })
-                                .unwrap_or(true)
+                        p.object.is_none_or(|chosen| Some(chosen) == dealing.existence(game))
+                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you))).unwrap_or(true)
                     })
                     .unwrap_or(true)
         }
