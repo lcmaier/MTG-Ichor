@@ -1212,7 +1212,7 @@ mod tests {
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
         let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling);
         let gain_in_the_lineage = |game: &mut GameState| {
-            let mut lineage = crate::engine::replacement::AppliedSet::default();
+            let mut lineage = crate::engine::replacement::AppliedReplacements::EMPTY;
             lineage.apply(crate::events::event::AppliedReplacement {
                 instance: applied,
                 by: crate::events::cause::EventCause::Harness,

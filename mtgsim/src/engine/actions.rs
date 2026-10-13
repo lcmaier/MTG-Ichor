@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
-use crate::engine::replacement::{AppliedSet, BatchMember, SubjectGroup};
+use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, BatchId, CounterSubject, DamageTarget, EventSeq, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -638,35 +638,6 @@ impl DamageResults {
     }
 }
 
-/// Where a batch's window begins and what surrounds the batch, for the batch
-/// that dispatches the window: the outermost one, or a CR 614.13 auxiliary
-/// one, which is a window of its own (`triggers-architecture.md` §4.1).
-struct WindowDispatch {
-    /// The first record not yet dispatched.
-    mark: EventSeq,
-    window: Option<BatchId>,
-    /// Whether this batch dispatches its window at its close.
-    dispatches: bool,
-    /// The batch open outside this one, and the nesting there.
-    previous: Option<BatchId>,
-    batch_depth: usize,
-    decomposition_depth: usize,
-}
-
-impl WindowDispatch {
-    /// Taken as the batch opens, before it nests anything.
-    fn opened(game: &GameState, previous: Option<BatchId>, dispatches: bool) -> Self {
-        WindowDispatch {
-            mark: game.events.next_seq(),
-            window: game.events.current_batch(),
-            dispatches,
-            previous,
-            batch_depth: game.nesting.batch_depth,
-            decomposition_depth: game.nesting.decomposition_depth,
-        }
-    }
-}
-
 impl GameState {
     /// Execute a game action: mutate state and emit the corresponding event.
     ///
@@ -754,32 +725,43 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch();
-        let mut own = WindowDispatch::opened(self, previous, self.nesting.batch_depth == 0);
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
+        // The outermost batch dispatches its window at its close. A nested one
+        // joined an enclosing window and dispatches nothing of its own.
+        let outermost = self.nesting.batch_depth == 0;
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
         // carry sets of their own. Put back afterwards for the rider's next proposal.
         let rider_lineage = self.rider_lineage.take();
-        let empty = AppliedSet::default();
-        let inherited = rider_lineage.as_ref().unwrap_or(&empty);
+        let none_applied = AppliedReplacements::EMPTY;
+        let inherited = rider_lineage.as_ref().unwrap_or(&none_applied);
         // A new lineage either way for the decomposition count: a rider's
         // draw inside a doubled draw starts counting from zero, or the
         // invariant `execute_actions_decomposing` asserts — depth bounded by
         // the inherited set — would be asked across two lineages at once.
         let outer_depth = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(proposals, ctx, inherited, &mut own);
+        let result = match self.execute_batch_inner(proposals, ctx, inherited) {
+            // A nested batch's riders are part of the window it joined.
+            Ok((performed, riders)) if !outermost => self.run_riders(riders, ctx).map(|()| (performed, Vec::new())),
+            decided => decided,
+        };
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
         self.events.close_batch(previous);
-        // CR 603.2, at the close of the *outermost* batch, for what it did not
-        // dispatch before its riders: the window is the event, so two
-        // permanents entering together each see the other's static abilities
-        // before either is checked (603.6a), and a "one or more" trigger reads
-        // the batch (603.2c). A nested call joined this window and dispatches
-        // nothing of its own.
-        self.dispatch_after_batch(result, own.mark, own.window, ctx)
+        let (performed, riders) = result?;
+        if outermost {
+            // CR 603.2, at the batch's close: the window is the event. Every
+            // permanent on the battlefield after it, the newcomers included, is
+            // checked for an enters trigger that matches it (603.6a), so two
+            // creatures entering together each see the other enter; and a "one
+            // or more" trigger fires once for it (603.2c).
+            self.dispatch_batch(mark, window, ctx)?;
+            self.run_riders_as_their_own_event(riders, ctx)?;
+        }
+        Ok(performed)
     }
 
     /// The dispatch at a batch door: the window, when this was the outermost
@@ -829,7 +811,7 @@ impl GameState {
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
-        inherited: &AppliedSet,
+        inherited: &AppliedReplacements,
     ) -> Result<Vec<GameAction>, String> {
         self.nesting.decomposition_depth += 1;
         debug_assert!(
@@ -841,18 +823,17 @@ impl GameState {
             inherited.len()
         );
         let previous = self.events.open_batch();
-        let mut own = WindowDispatch {
-            // As it is once this batch closes, below.
-            decomposition_depth: self.nesting.decomposition_depth - 1,
-            ..WindowDispatch::opened(self, previous, self.nesting.batch_depth == 0)
-        };
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, inherited, &mut own);
+        // Always inside the instruction's batch, so its riders are part of it.
+        let result = self
+            .execute_batch_inner(proposals, ctx, inherited)
+            .and_then(|(performed, riders)| self.run_riders(riders, ctx).map(|()| performed));
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
-        self.dispatch_after_batch(result, own.mark, own.window, ctx)
+        self.dispatch_after_batch(result, mark, window, ctx)
     }
 
     /// [`Self::execute_actions`], but the batch gets a **new** id instead of
@@ -878,12 +859,12 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_new_batch();
-        let mut own = WindowDispatch::opened(self, previous, true);
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, &AppliedSet::default(), &mut own);
+        let result = self.execute_batch_inner(proposals, ctx, &AppliedReplacements::EMPTY);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
@@ -891,12 +872,14 @@ impl GameState {
         // enclosing batch — CR 614.13's moves are not a result of the entry
         // they are nested inside, so a devoured creature's death triggers
         // before the entry's ETB (§4.1).
-        let performed = result?;
-        self.dispatch_batch(own.mark, own.window, ctx)?;
+        let (performed, riders) = result?;
+        self.dispatch_batch(mark, window, ctx)?;
+        self.run_riders_as_their_own_event(riders, ctx)?;
         Ok(performed)
     }
 
-    /// The three phases of one batch — decide, perform, riders.
+    /// One batch's two phases, decide and perform, handing back the riders its
+    /// replacements queued for the caller to run (`run_riders`).
     ///
     /// **Split out from its two callers because Rust has no `finally`.**
     /// [`Self::execute_actions`] and [`Self::execute_actions_new_batch`] differ
@@ -926,9 +909,8 @@ impl GameState {
         &mut self,
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
-        inherited: &AppliedSet,
-        own: &mut WindowDispatch,
-    ) -> Result<Vec<GameAction>, String> {
+        inherited: &AppliedReplacements,
+    ) -> Result<(Vec<GameAction>, Vec<crate::engine::replacement::Rider>), String> {
         use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
 
@@ -948,7 +930,7 @@ impl GameState {
         // riders (Stunning Reversal's survivor wins before the rider's seven draws).
         // The ending batch's own members all perform; they were one event.
         if self.result.is_some() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         }
 
         // Loud rather than a draw: a nesting this deep is a lost lineage, the
@@ -1126,42 +1108,42 @@ impl GameState {
             self.settle_game_result();
         }
 
-        // CR 603.4 checks a trigger "when the trigger event occurs", and the
-        // riders come after it: the window is dispatched up to here first
-        // (`replacement-architecture.md` §2b.6).
-        if own.dispatches && !riders.is_empty() {
-            self.dispatch_before_riders(own, ctx)?;
-        }
+        Ok((performed, riders))
+    }
 
-        // --- Phase 3: the queued riders, in application order ----------------
-        //
-        // "Immediately afterward" (CR 615.5) means after the events happened, not
-        // mid-loop. Unconditional once queued (CR 615.12), so this runs even for a
-        // member whose event was dropped entirely.
+    /// The riders a batch queued, in application order. "Immediately
+    /// afterward" (CR 615.5) means after the events happened, not mid-loop,
+    /// and a rider is unconditional once queued (CR 615.12), so this runs even
+    /// for a member whose event was dropped entirely.
+    fn run_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
         for rider in riders {
             self.resolve_rider(rider, ctx)?;
         }
-
-        Ok(performed)
+        Ok(())
     }
 
-    /// What a batch has performed, before its riders run, dispatched as its
-    /// window's close would dispatch it: the batch closed and the nesting as it
-    /// is outside, so what the dispatch performs, a CR 610.3 return or a
-    /// triggered mana ability, is an event of its own. The batch then reopens
-    /// for its riders, whose records are the window's second part. Nothing is
-    /// flushed until the close.
-    fn dispatch_before_riders(&mut self, own: &mut WindowDispatch, ctx: &ActionContext) -> Result<(), String> {
-        let open = self.events.current_batch();
-        self.events.close_batch(own.previous);
-        let batch_depth = std::mem::replace(&mut self.nesting.batch_depth, own.batch_depth);
-        let decomposition_depth = std::mem::replace(&mut self.nesting.decomposition_depth, own.decomposition_depth);
-        let result = self.dispatch_window(own.mark, own.window, ctx);
-        self.nesting.batch_depth = batch_depth;
-        self.nesting.decomposition_depth = decomposition_depth;
-        self.events.reopen_batch(open);
-        own.mark = self.events.next_seq();
-        result
+    /// The riders of a batch that dispatches its own window, run once that
+    /// window has been dispatched, as an event of their own: a new batch with
+    /// its own dispatch (`replacement-architecture.md` §2b.6). CR 603.4 checks
+    /// a trigger "when the trigger event occurs", so the event is read before
+    /// any rider changes the board, and CR 615.5's "immediately afterward"
+    /// makes the riders' events a second event to a "one or more" trigger.
+    fn run_riders_as_their_own_event(
+        &mut self,
+        riders: Vec<crate::engine::replacement::Rider>,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        if riders.is_empty() {
+            return Ok(());
+        }
+        let previous = self.events.open_new_batch();
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
+        self.nesting.batch_depth += 1;
+        let result = self.run_riders(riders, ctx);
+        self.nesting.batch_depth -= 1;
+        self.events.close_batch(previous);
+        result?;
+        self.dispatch_batch(mark, window, ctx)
     }
 
     /// The batch's members in their subject groups, in the order CR 616.1
@@ -1231,7 +1213,7 @@ impl GameState {
             };
             let mut inner = BatchMember::proposed(member.place, movement, member.cause);
             let member_ctx = ctx.caused_by(member.cause);
-            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &AppliedSet::default(), riders)?;
+            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &AppliedReplacements::EMPTY, riders)?;
             member.inner_move = Some(Box::new(inner));
         }
         Ok(())
@@ -1328,7 +1310,7 @@ impl GameState {
         &mut self,
         action: GameAction,
         ctx: &ActionContext,
-        lineage: &AppliedSet,
+        lineage: &AppliedReplacements,
     ) -> Result<(), String> {
         match action {
             // `unpreventable` is read by the pipeline and by nothing here:

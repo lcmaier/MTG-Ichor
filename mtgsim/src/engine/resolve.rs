@@ -167,14 +167,6 @@ pub enum ResolvedTarget {
     Player(PlayerId),
 }
 
-/// Whether a token a resolution created in a zone is among what it put there
-/// ([`GameState::put_into_since`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MadeThere {
-    Counts,
-    Excluded,
-}
-
 impl GameState {
     /// Resolve an effect tree in the given context.
     ///
@@ -2674,7 +2666,7 @@ impl GameState {
             .collect();
         let objects = match primitive.moves_into() {
             Some(zone) => self
-                .put_into_since(ctx.stamp(), mark, zone, MadeThere::Counts)
+                .put_into_since(ctx.stamp(), mark, zone)
                 .into_iter()
                 .map(|(object, _)| RememberedObject::now(object))
                 .collect(),
@@ -2695,24 +2687,20 @@ impl GameState {
     }
 
     /// What resolution `stamp` put into `zone` from `mark` on and is still
-    /// there, once each: every object by the one its record says the move made
-    /// (CR 400.7e), with the zone it came from. A token it created there is
-    /// one when `made_there` counts it: CR 603.7c's "that card" may name one,
-    /// and CR 610.3's return never does (CR 111.8).
+    /// there, once each: every object it moved there, as the object its move
+    /// made (CR 400.7e), with the zone it came from, and every token it
+    /// created there, which came from no zone (CR 111.2).
     pub(crate) fn put_into_since(
         &self,
         stamp: ResolutionStamp,
         mark: crate::events::event::EventSeq,
         zone: Zone,
-        made_there: MadeThere,
     ) -> Vec<(ObjectRef, Option<Zone>)> {
         let mut put: Vec<(ObjectRef, Option<Zone>)> = Vec::new();
         for record in self.events.resolution_records(stamp, mark) {
             let moved = match &record.event {
                 GameEvent::ZoneChange { from, to, .. } if *to == zone => record.event.new_object().map(|o| (o, Some(*from))),
-                GameEvent::TokenCreated { object_id, zone: made_in, .. }
-                    if *made_in == zone && made_there == MadeThere::Counts =>
-                {
+                GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => {
                     self.object_ref(*object_id).map(|o| (o, None))
                 }
                 _ => None,

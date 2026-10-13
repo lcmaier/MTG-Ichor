@@ -62,47 +62,51 @@ pub enum ReplacementInstanceId {
     GameRule(ObjectRef, GameRuleReplacement),
 }
 
-/// CR 614.5's applied set: the replacement effects that have affected an
-/// event, or been offered to it and declined, in the order they joined it.
-/// The order is the record's (`replacement-architecture.md` §2b.4), and a set
-/// holds zero to three, so it is a list read linearly.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AppliedSet(Vec<AppliedSetEntry>);
-
-/// How an effect joined an applied set: it applied, or it was offered and
-/// declined, which is CR 614.5's one opportunity all the same.
+/// The replacement effects that have already had their one chance at an event
+/// (CR 614.5: "it gets only one opportunity to affect an event or any modified
+/// events that may replace that event"), in the order they had it. The CR 616.1
+/// loop never offers one of these again, and the event's record keeps the ones
+/// that applied. Zero to three long, so a list read linearly.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum AppliedSetEntry {
+pub struct AppliedReplacements(Vec<Opportunity>);
+
+/// How an effect used its one opportunity: it applied, or it was offered and
+/// declined ("you may ... instead"), which uses it all the same.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Opportunity {
     Applied(AppliedReplacement),
     Declined(ReplacementInstanceId),
 }
 
-impl AppliedSetEntry {
+impl Opportunity {
     fn instance(&self) -> &ReplacementInstanceId {
         match self {
-            AppliedSetEntry::Applied(applied) => &applied.instance,
-            AppliedSetEntry::Declined(id) => id,
+            Opportunity::Applied(applied) => &applied.instance,
+            Opportunity::Declined(id) => id,
         }
     }
 }
 
-impl AppliedSet {
+impl AppliedReplacements {
+    /// An event nothing has replaced yet.
+    pub const EMPTY: AppliedReplacements = AppliedReplacements(Vec::new());
+
     pub fn contains(&self, id: &ReplacementInstanceId) -> bool {
-        self.0.iter().any(|entry| entry.instance() == id)
+        self.0.iter().any(|opportunity| opportunity.instance() == id)
     }
 
-    /// Adds an effect that applied, last, unless it is already in the set.
+    /// Adds an effect that applied, last, unless it is already here.
     pub fn apply(&mut self, applied: AppliedReplacement) {
         if !self.contains(&applied.instance) {
-            self.0.push(AppliedSetEntry::Applied(applied));
+            self.0.push(Opportunity::Applied(applied));
         }
     }
 
     /// Adds an effect that was offered and declined, last, unless it is
-    /// already in the set.
+    /// already here.
     pub fn decline(&mut self, id: ReplacementInstanceId) {
         if !self.contains(&id) {
-            self.0.push(AppliedSetEntry::Declined(id));
+            self.0.push(Opportunity::Declined(id));
         }
     }
 
@@ -116,25 +120,27 @@ impl AppliedSet {
         let applied: Vec<AppliedReplacement> = self
             .0
             .iter()
-            .filter_map(|entry| match entry {
-                AppliedSetEntry::Applied(applied) => Some(*applied),
-                AppliedSetEntry::Declined(_) => None,
+            .filter_map(|opportunity| match opportunity {
+                Opportunity::Applied(applied) => Some(*applied),
+                Opportunity::Declined(_) => None,
             })
             .collect();
         (!applied.is_empty()).then(|| applied.into())
     }
 
-    /// The set a rider's or a decomposition's events start from (CR 614.5's
-    /// "modified events"): the same effects, none of which redirected them.
-    pub fn handed_down(&self) -> AppliedSet {
-        AppliedSet(
+    /// The same effects, with none marked as having redirected: what a
+    /// rider's events start from. They had their chance at the event the rider
+    /// is the rest of (CR 614.5), and none of them moved the rider's own
+    /// events anywhere.
+    pub fn without_redirects(&self) -> AppliedReplacements {
+        AppliedReplacements(
             self.0
                 .iter()
-                .map(|entry| match entry {
-                    AppliedSetEntry::Applied(applied) => {
-                        AppliedSetEntry::Applied(AppliedReplacement { redirected: false, ..*applied })
+                .map(|opportunity| match opportunity {
+                    Opportunity::Applied(applied) => {
+                        Opportunity::Applied(AppliedReplacement { redirected: false, ..*applied })
                     }
-                    AppliedSetEntry::Declined(id) => AppliedSetEntry::Declined(*id),
+                    Opportunity::Declined(id) => Opportunity::Declined(*id),
                 })
                 .collect(),
         )

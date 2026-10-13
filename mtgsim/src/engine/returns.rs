@@ -3,7 +3,7 @@
 //! chooses as it enters the battlefield (CR 303.4f/g).
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::engine::resolve::{MadeThere, ResolvedTarget};
+use crate::engine::resolve::ResolvedTarget;
 use crate::events::cause::EventCause;
 use crate::events::event::{EventSeq, GameEvent, ResolutionStamp};
 use crate::oracle::characteristics::has_subtype;
@@ -101,9 +101,10 @@ impl GameState {
     }
 
     /// What resolution `stamp` exiled from `mark` on and is still in exile,
-    /// by identity, each with the zone it came from.
+    /// by identity, each with the zone it came from. A token it created in
+    /// exile came from no zone and is never returned (CR 111.8, 610.3).
     pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventSeq) -> Vec<(ObjectRef, Zone)> {
-        self.put_into_since(stamp, mark, Zone::Exile, MadeThere::Excluded)
+        self.put_into_since(stamp, mark, Zone::Exile)
             .into_iter()
             .filter_map(|(object, from)| Some((object, from?)))
             .collect()

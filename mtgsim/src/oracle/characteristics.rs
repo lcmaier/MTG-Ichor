@@ -37,8 +37,11 @@ pub struct CurrentOrLastKnown<'a> {
 }
 
 impl CurrentOrLastKnown<'_> {
-    /// Which existence it is (CR 400.7): what a chosen source of damage is
-    /// matched against (CR 609.7a).
+    /// Which object it is, as an `ObjectRef`: for one that left, the object
+    /// that left, else the object now. A moved object is a new object (CR
+    /// 400.7), and a "choose a source" prevention (CR 609.7a) remembers its
+    /// source this way, so it still matches damage from that source after the
+    /// source has left the battlefield.
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
         match self.lki {
             Some(lki) => Some(lki.object),

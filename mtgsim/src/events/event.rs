@@ -411,8 +411,11 @@ pub enum GameEvent {
 }
 
 impl GameEvent {
-    /// The object a zone change made (CR 400.7e), which "it", "that card" and
-    /// "them" name after the move. `None` for any other record.
+    /// The card or permanent this zone change put into its destination, as an
+    /// `ObjectRef`: its id with the epoch the move gave it. A moved object is a
+    /// new object (CR 400.7), so this is how "return it" after a dies trigger
+    /// finds the card in the graveyard, and finds nothing once it has moved
+    /// again (CR 603.6c). `None` for a record that is not a zone change.
     pub fn new_object(&self) -> Option<ObjectRef> {
         match self {
             GameEvent::ZoneChange { object_id, new_epoch, .. } => {
@@ -769,9 +772,11 @@ impl EventWindow {
 
     /// Open a batch that does **not** join an enclosing one.
     ///
-    /// `GameState::execute_actions_new_batch` is the only caller and owns the
-    /// rules argument for why CR 614.13's auxiliary moves are not a result of
-    /// the event they are nested inside.
+    /// Two callers, each with the rules argument for why its events are not a
+    /// result of the event they are nested inside:
+    /// `GameState::execute_actions_new_batch` for CR 614.13's auxiliary moves,
+    /// and `GameState::run_riders_as_their_own_event` for a replacement's
+    /// rider, which CR 615.5 puts "immediately afterward".
     pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
         let id = BatchId(self.next_batch);
@@ -783,12 +788,6 @@ impl EventWindow {
     /// Close a batch, restoring what [`Self::open_batch`] returned.
     pub(crate) fn close_batch(&mut self, previous: Option<BatchId>) {
         self.open = previous;
-    }
-
-    /// Open `batch` again, after a dispatch made with it closed between its
-    /// events and its riders: the riders' events join it.
-    pub(crate) fn reopen_batch(&mut self, batch: Option<BatchId>) {
-        self.open = batch;
     }
 
     /// Hand every held record to the recorder, or drop it when none is

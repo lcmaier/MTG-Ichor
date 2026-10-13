@@ -423,7 +423,7 @@ impl GameState {
             instances: delayed.instances.clone(),
             event,
             records: vec![record.clone()],
-            subject: subject.and_then(|id| self.subject_identity(&record.event, id)),
+            subject: subject.and_then(|id| self.subject_after(&record.event, id)),
             mana: false,
         };
         match delayed.def.condition.events()[event.0].multiplicity() {

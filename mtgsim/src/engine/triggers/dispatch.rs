@@ -2,9 +2,8 @@
 //!
 //! A dispatch is the matcher's run over one **window**: every record one
 //! batch stamped, run when the outermost `execute_actions` that opened it is
-//! about to return, or in two parts when it queued riders, what it performed
-//! before them and theirs at its close; or one unbatched record, run inside
-//! `emit_event` before it returns (§4.1). The instant is still synchronous
+//! about to return, its riders' records then forming a batch of their own; or
+//! one unbatched record, run inside `emit_event` before it returns (§4.1). The instant is still synchronous
 //! with the mutation — before the next proposal, before the state-based
 //! check, before anyone receives priority — so "that instant is now" holds
 //! and the layer walk answers live.
@@ -370,19 +369,6 @@ impl GameState {
         batch: Option<BatchId>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        let result = self.dispatch_window(mark, batch, ctx);
-        self.flush_window_unless_nested();
-        result
-    }
-
-    /// [`Self::dispatch_batch`] without the flush: the first part of a window
-    /// whose riders are still to run (`replacement-architecture.md` §2b.6).
-    pub(crate) fn dispatch_window(
-        &mut self,
-        mark: EventSeq,
-        batch: Option<BatchId>,
-        ctx: &ActionContext,
-    ) -> Result<(), String> {
         let window: Vec<EventSeq> = self
             .events
             .records_since(mark)
@@ -395,7 +381,9 @@ impl GameState {
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
         let audit = self.take_audit_snapshots(batch);
-        self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref())
+        let result = self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref());
+        self.flush_window_unless_nested();
+        result
     }
 
     /// One record emitted outside any batch — a cast, an activation, an
@@ -1145,7 +1133,7 @@ impl GameState {
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![(*record).clone()],
-                                subject: subject.and_then(|id| self.subject_identity(&record.event, id)),
+                                subject: subject.and_then(|id| self.subject_after(&record.event, id)),
                                 mana,
                             });
                         }
@@ -1511,11 +1499,15 @@ impl GameState {
         None
     }
 
-    /// Which existence "that object" is for an occurrence whose subject is
-    /// `id` (CR 400.7): the object a zone change's move made (CR 400.7e,
-    /// 603.6c), and for any other record the object as the dispatch finds it,
-    /// immediately after the event.
-    pub(super) fn subject_identity(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
+    /// "That object" as a trigger remembers it: `id` together with the
+    /// zone-change epoch that tells this object from what it becomes if it
+    /// moves again (CR 400.7). For a zone change of `id`, the epoch is the one
+    /// the move gave it, which the record carries, so "return it" after a dies
+    /// trigger looks for the card only in the graveyard it went to (CR
+    /// 603.6c), even if something moved it before the dispatch. Any other
+    /// record names `id` alone, so the object is taken as the dispatch finds
+    /// it, which is right after the event.
+    pub(super) fn subject_after(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
         match event.new_object() {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),

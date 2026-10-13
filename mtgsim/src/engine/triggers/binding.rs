@@ -23,9 +23,13 @@ pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
     (lki.object.id == subject.id).then_some(lki)
 }
 
-/// "Them" (CR 603.2c): the object each matched zone change made (CR 400.7e),
-/// in record order. `Err` for a record of another kind, which names no
-/// existence of its object for the resolution to find.
+/// What "them" means in a trigger like Hedge Shredder's "Whenever one or more
+/// land cards are put into your graveyard from your library, put them onto the
+/// battlefield": every card that event moved. One trigger matched all of the
+/// event's records (CR 603.2c's "one or more"), and each record says where its
+/// card went (`GameEvent::new_object`), so a card that has moved again since
+/// is not found. `Err` for a record that is not a zone change, which says
+/// only the object's id (`codebase-state.md` item 250).
 pub(crate) fn triggering_objects(binding: &TriggerBinding) -> Result<Vec<ObjectRef>, String> {
     binding
         .records
