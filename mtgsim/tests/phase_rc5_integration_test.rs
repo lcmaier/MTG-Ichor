@@ -403,7 +403,7 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
 ///
 /// The choice is one player's either way — CR 616.1's chooser is the affected
 /// object's controller — so what the fourth player buys is the proof that the
-/// other three are not asked and that `apnap_batch_order` does not reshuffle a
+/// other three are not asked and that `subject_groups` does not reshuffle a
 /// single-member batch into someone else's turn.
 // COVERS-PARTIAL: ATOM-614.13b-001
 #[test]

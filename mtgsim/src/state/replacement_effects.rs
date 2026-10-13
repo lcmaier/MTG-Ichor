@@ -270,7 +270,7 @@ impl EntrySelectionScope {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PreventionAllocationScope {
     /// Each chosen instance's answer: how much of its count each batch member
-    /// (by index into the batch) is to be given. Members without an entry get
+    /// (by its place in the batch) is to be given. Members without an entry get
     /// nothing from that instance.
     ///
     /// **A `Vec` scanned linearly, not a map**, for [`EntrySelectionScope`]'s

@@ -237,8 +237,10 @@ Four properties of that picture are load-bearing and easy to break:
 ## 2b. The zone-change record — its whole contract (items 175, 176, 177)
 
 *Designed 2026-10-10 in a PR of its own, #242 (`roadmap-v2.md` A6o), and
-reviewed before any code. Built as Phase RH (§9) in two PRs: RH-1, the act and the
-cause; RH-2, the record's identity, its applied set and its moment.*
+reviewed before any code. Built as Phase RH (§9) in three PRs: RH-1, the act and
+the cause; RH-2, the batch's members, decided together; RH-3, the record's
+identity, its applied set and its moment. RH-2 was split out on 2026-10-12
+(decision 12).*
 
 **Where it sits.** A move between zones takes the spine above. A caller
 proposes it (`GameAction::ZoneChange`, or `EnterBattlefield` for the
@@ -539,7 +541,7 @@ the step's batch, and one context cause cannot tell the two cards apart.
 
 **Decision 3: the record keeps the whole applied set, in the order it applied,
 not one redirecting replacement.** CR 614.5 already tracks the set, and the
-loop holds it per member (`applied_to`, which reaches `perform_action` today).
+loop holds it per member (`BatchMember::applied`, which reaches `perform_action`).
 CR 616.1f's loop can apply several replacements to one move, and a single slot
 would keep one and drop the rest. Madness's "when this card is exiled this
 way" (CR 702.35a; 61 cards, `kw:madness game:paper -is:funny`, re-run
@@ -619,7 +621,7 @@ with `object_id` as an `ObjectRef`.
 - **Atoms.** ATOM-400.7e-001 is an Aura's own "put into a graveyard from the
   battlefield" ability, its Aura put there by CR 704.5m, returning itself.
   ATOM-400.7e-002 is a "from anywhere" trigger, which needs no 400.7e. Both are
-  Phase 7, and nothing covers them today. RH-2's fixtures cover both, and
+  Phase 7, and nothing covers them today. RH-3's fixtures cover both, and
   Rancor (TR-4a) is the card.
 
 ### 2b.6 The moment each fact is taken at (item 175)
@@ -631,7 +633,7 @@ with `object_id` as an `ObjectRef`.
 | the applied set | when the member's CR 616.1 loop ends | CR 614.5 |
 | `lki`, and a survivor's ability lists | before the outermost batch performs (`capture_lki`, `LookBackSnapshot`; items 174 and 167) | CR 603.10's "immediately prior to the event" |
 | the new object | at the move | CR 400.7e |
-| what a dispatch reads live: the intervening "if", a newcomer's arms, `was_cast`, visibility, the controller | **today** at the window's close, after the riders; **after RH-2** immediately after the event, before its riders | CR 603.4 checks "when the trigger event occurs"; 603.6a, 603.2f and 603.3a; CR 615.5 puts the rider "immediately afterward" |
+| what a dispatch reads live: the intervening "if", a newcomer's arms, `was_cast`, visibility, the controller | **today** at the window's close, after the riders; **after RH-3** immediately after the event, before its riders | CR 603.4 checks "when the trigger event occurs"; 603.6a, 603.2f and 603.3a; CR 615.5 puts the rider "immediately afterward" |
 
 **Decision 5: a window whose batch queued riders is dispatched in two parts.**
 The outermost batch dispatches what it performed, its nested batches included,
@@ -646,7 +648,7 @@ would need a snapshot for each of the other four, so this replaces it.
 What moves: a "one or more" trigger over an event and its rider now sees two
 events, the rider's "immediately afterward" (CR 615.5). Kalitas's Zombies, made
 by riders, enter in a dispatch after the exiles they ride on. This moves the
-fuzz stream, and RH-2's A/B shows where.
+fuzz stream, and RH-3's A/B shows where.
 
 **Item 248: a destruction's move is decided after the event has begun.**
 `GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a nested
@@ -724,7 +726,8 @@ there is no destination act to name.
 ### 2b.8 One home for each of L1–L7
 
 `plans/references/duplicate-inventory.md` §3.1 found seven facts on this
-surface computed in more than one place. Each gets one home in RH-2.
+surface computed in more than one place. Each gets one home: L7 in RH-2, which
+already rewrites what the batch hands it, and L1–L6 in RH-3.
 
 | | The fact | Copies today | Its home |
 |---|---|---|---|
@@ -744,13 +747,24 @@ snapshot covers a controlled one. One set makes the outer check say what it
 means. RH-2's fixture puts a stolen ability-list source on both sides of a
 leaving, and is shown to fail first if it finds a wrong answer.
 
+**As built in RH-2 (`GameState::departs_with`):** "controlled" is the default
+controller (CR 110.2, 110.2b), since that is what the player still controls
+once clause 2 has ended the effects giving them control. Read before the
+leaving, owned or default-controlled covers everything clause 4 can exile, and
+neither half reads the layer memo. The set is empty in a two-player game, which
+ends instead (CR 104.2a). The fixture found a wrong answer: a grant whose source
+the leaving player controlled and did not own, conditional on that player
+("as long as you control a creature"), ended at the loss. The exile's own
+snapshot was taken after that, so a survivor looking back missed the grant.
+
 ### 2b.9 What this changes elsewhere
 
-- `codebase-state.md`: item 175 goes to RH-2 and loses its own slot. Item 176
-  goes to RH-1 (the act and the cause) and RH-2 (the applied set). Item 177
-  goes to RH-2 with the two CR 400.7e atoms. Item 248, found here, goes to
-  RH-2.
-- `triggers-architecture.md`: §3.3's `ZoneChange` row points here. In RH-2,
+- `codebase-state.md`: item 175 goes to RH-3 and loses its own slot. Item 176
+  goes to RH-1 (the act and the cause) and RH-3 (the applied set). Item 177
+  goes to RH-3 with the two CR 400.7e atoms. Item 248, found here, goes to
+  RH-2. (As re-slotted on 2026-10-12, decision 12; until then RH-2 held all
+  four.)
+- `triggers-architecture.md`: §3.3's `ZoneChange` row points here. In RH-3,
   §3.4's `subject` ("at dispatch") reads the record, and §4.1's dispatch gains
   its two parts. §12's TR-4 loses item 177, so TR-4a widens `Lki` and changes
   nothing else on the record.
@@ -760,11 +774,17 @@ leaving, and is shown to fail first if it finds a wrong answer.
 
 ### 2b.10 The build: Phase RH, sized
 
-Two engine PRs, split on one seam. RH-1 changes the record's vocabulary and
-nothing a game does. RH-2 changes what the record holds and when it is read.
-Both are sized against `engineering-practices.md` §4's band of 1,500–2,500,
-code and tests apart. Sizings have run 1.5–2× on code, so the band check uses
-that range.
+Three engine PRs, split on two seams. RH-1 changes the record's vocabulary and
+nothing a game does. RH-2 changes how a batch carries its members and when a
+destruction's move is decided. RH-3 changes what the record holds and when it
+is read. Each is sized against `engineering-practices.md` §4's band of
+1,500–2,500, code and tests apart. Sizings have run 1.5–2× on code, so the band
+check uses that range.
+
+**Re-split on 2026-10-12** (decision 12), when RH-2's brief counted what a batch
+member is today. The second seam is the batch's: RH-2 changes what a batch
+member carries and when it is decided, and writes nothing new onto the record.
+The `LossReason` fold rides with it.
 
 **RH-1: the act and the cause.** Expected to read `IDENTICAL` against `main`
 on every counter: no answer changes, only the record's words.
@@ -786,22 +806,50 @@ Guerrilla Tactics is registered in RH-1 only if its hand leg (CR 113.6k,
 `triggers-architecture.md` §4.2's third leg) needs nothing new. Otherwise its
 fixture stands in.
 
-**RH-2: the record's identity, its applied set and its moment.** This one
-moves the stream (decision 5, item 248), so it needs the A/B, read game by
-game.
+**What a batch member is today: four vectors aligned by position** (counted on
+`main` `35dffa0`, 2026-10-12). `execute_batch_inner` keeps each member's facts
+in four vectors:
+- `batch`, the proposals;
+- `own_causes`, an `Option<Vec<EventCause>>`;
+- `decided`;
+- `applied_to`.
+
+CR 111.8's token filter has to zip and unzip the first two to keep them aligned.
+Seven lines in `pipeline.rs` and `actions.rs` pass a member as a position pair:
+`(usize, GameAction)`, `(usize, &GameAction)` or `(usize, Option<GameAction>)`.
+Item 248 would add a fifth fact per member, its decided inner move, and RH-3's
+`applied` is the fourth, which the performer will write onto the record. So one
+record per member comes first, and the facts each PR adds land on it.
+
+**RH-2: the batch's members, decided together.** This one moves the stream
+(item 248), so it needs the A/B, read game by game.
+
+| Piece | Code | Tests |
+|---|---|---|
+| one record per member: the four vectors and the seven position pairs go; `apply_replacements` takes the group's members and writes each one's decision and applied set onto it; the trace's two batch records read the members | ~150 | — |
+| `LossReason` folds into the cause: `PlayerLoses { player }` and `PlayerLost { player_id }`, the log's words read from the cause (20 lines in 7 `src` files, 20 in 5 test files, none in the dev GUI) | ~30 | ~25 |
+| L7's set, owned or controlled, read by both copies | ~30 | ~120 |
+| item 248: a destruction's move decided with the destruction, performed after it in phase 2, its riders in phase 3 | ~180 | — |
+| tests: item 248 in both batch orders, under a destroy-all and with two players' Kalitases; a destruction replaced, so no move is decided; §2b.11's leaving board, a replacement watching CR 800.4a's exiles | — | ~310 |
+| **total** | **~390** (×1.5–2: 585–780) | **~455** |
+
+RH-2 is ~845 as sized and 1,040–1,235 at the multiplier, under the band's
+floor. The owner took the size for the seam (decision 12).
+
+**RH-3: the record's identity, its applied set and its moment.** This one
+moves the stream (decision 5), so it needs the A/B, read game by game.
 
 | Piece | Code | Tests |
 |---|---|---|
 | `new_epoch` at the emitter; the binding's subject, "them" and `Effect::Remember` read off the record | ~70 | — |
 | L2's query (ten copies), L3's method (three), L4's take, L5's handoff | ~110 | — |
-| `applied`: the ordered applied set (11 sites), the performer writing it, the log | ~120 | — |
+| `applied`: the ordered applied set (11 sites), the performer writing it from the member, the log | ~120 | — |
 | decision 5: the two-part dispatch | ~40 | — |
-| item 248: a destruction's move decided with the destruction | ~180 | — |
-| L1's CR 608.2h reader (five copies), L6's query, L7's set | ~150 | — |
-| tests: item 177's rider board (a rider that exiles the graveyard's cards after the creature died there, so the dies trigger's "return it" does nothing) and a "them" fixture; ATOM-400.7e-001 and -002; a "when this card is exiled this way" fixture shaped like madness; item 175's five readers, a board each, and "one or more" across an event and its rider; item 248 in both batch orders and under a wrath; L7's stolen source on both sides | — | ~950 |
-| **total** | **~670** (×1.5–2: 1,000–1,340) | **~950** |
+| L1's CR 608.2h reader (five copies), L6's query | ~120 | — |
+| tests: item 177's rider board (a rider that exiles the graveyard's cards after the creature died there, so the dies trigger's "return it" does nothing) and a "them" fixture; ATOM-400.7e-001 and -002; a "when this card is exiled this way" fixture shaped like madness; item 175's five readers, a board each, and "one or more" across an event and its rider | — | ~700 |
+| **total** | **~460** (×1.5–2: 690–920) | **~700** |
 
-RH-2 is ~1,620 as sized and 1,950–2,300 at the multiplier, inside the band.
+RH-3 is ~1,160 as sized and 1,390–1,620 at the multiplier, at the band's floor.
 Each PR's close-out adds about 300 lines of docs.
 
 **Performance, priced before building** (asked at #242's review). Every
@@ -835,11 +883,10 @@ number comes from the callgrind arm A6n's close-out left in WSL
   per state-based member, and a `u64` read per announced move.
 
 Predicted: RH-1 within ±0.3 points of `main`, since it is code-only and the
-record keeps its size. RH-2 between −0.1 and +0.2. Both are read at
-close-out by `close_out.py` on this same board, against `engineering-practices.md`
-§3.1's budget. If RH-2 crosses 2,500 during
-the build, item 248 is the piece that stands alone: it has its own rule and its
-own boards, and the rest does not depend on it.
+record keeps its size. RH-2 between −0.1 and +0.1: item 248's −0.04, and a
+batch that no longer clones each proposal into its group. RH-3 between −0.05
+and +0.2, decision 5's ceiling. Each is read at close-out by `close_out.py` on
+this same board, against `engineering-practices.md` §3.1's budget.
 
 ### 2b.11 Decisions, and what is left open
 
@@ -859,10 +906,10 @@ replacement's ability (§2b.4).
    (measured), and its price is the sites.
 5. A rider-bearing window is dispatched in two parts, with no batch tag on the
    record. Item 175's tag design is superseded.
-6. The build is Phase RH, two PRs (RH-1, RH-2), after this design and before
-   A6m and TR-4a. TR-4a then only widens `Lki`. A6m comes after RH because its
-   first PR merges "resolution and the engine's records" (item 244), which RH-1
-   reshapes.
+6. The build is Phase RH, after this design and before A6m and TR-4a: two PRs
+   as decided here, three since decision 12 (RH-1, RH-2, RH-3). TR-4a then only
+   widens `Lki`. A6m comes after RH because its first PR merges "resolution and
+   the engine's records" (item 244), which RH-1 reshapes.
 7. Tests keep one door. `ActionContext::new` stays as the test door, with
    `EventCause::Harness`: a test or tool moving objects directly. It compiles
    only under tests, so once the 14 production sites name their causes by
@@ -900,6 +947,29 @@ replacement's ability (§2b.4).
     two agreed on every record of the suite and 800 fuzz games before the
     ambient cause was deleted. A forgotten cause is now a compile error
     rather than a runtime `Err`.
+12. **Taken at #243's review (the owner, 2026-10-12): one record per batch
+    member leads RH-2, and `LossReason` folds into the cause.** The record is
+    §2b.10's four-vectors finding: a member's proposal, cause, decision and
+    applied set live together, and item 248's inner move and RH-3's `applied`
+    land on it. The rest of the old RH-2 (`new_epoch`, `applied`, the two-part
+    dispatch, L1–L6, items 175 and 177 and 176's applied-set half) becomes
+    RH-3.
+    `LossReason` is the fourth copy of a fact the cause already holds. Its
+    four state-based reasons are `StateBasedAction`'s `ZeroLife`,
+    `DrewFromEmptyLibrary`, `TenPoisonCounters` and `CommanderDamage`, and its
+    `Effect` is `EventCause::Effect`. No rule decides from it, and its one
+    reader outside the tests is the log line. So `PlayerLoses { player }` and
+    `PlayerLost { player_id }` carry none, and the log says the cause.
+    Three ways to lose have no cause yet, and each gets one when it is built:
+    - CR 104.3a's concession, a player's own act, once something offers it;
+    - CR 104.3g's team, which loses once all its players have;
+    - CR 104.3i's Emperor game, whose team loses with its emperor.
+
+    The last two are a team's loss rather than a player's, so they may be a
+    rule over a batch's losses, as CR 104.2a's win is
+    (`settle_game_result`), rather than a proposal at all. CR 104.3h's range of
+    influence needs nothing new: a win that makes opponents lose is still the
+    effect that said so.
 
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
@@ -910,11 +980,16 @@ Open:
   effect's rider, and §4.1a reads every `then` that way. If a judge reads a
   replacement's "instead ... and" as one event, decision 5 dispatches a
   replacement's riders with the event and only a prevention's after it.
-- **Item 248's other outer events**: the destruction is the one outer event
-  whose inner is a move. A player's leaving may be a second: `engine/leaving.rs`
-  proposes CR 800.4a's exiles one at a time, after its first two clauses have
-  run, and each is decided against the board the earlier ones left. RH-2
-  checks it with a fixture replacement that watches an exile.
+- ~~**Item 248's other outer events**~~ — **answered in RH-2 (2026-10-12).**
+  The destruction is the one outer event whose inner is a move. A player's
+  leaving looked like a second: `engine/leaving.rs` proposed CR 800.4a's exiles
+  one at a time, after its first two clauses had run, and each was decided
+  against the board the earlier ones left. RH-2's fixture replacement, which
+  sends a move into exile to the graveyard instead, was gone for the exiles
+  after its own when it was exiled first. The exiles are one instruction over a
+  set, so they are not inner events of the leaving but one event of their own
+  (CR 608.2f's reading): `exile_objects_no_player_in_game_controls` proposes
+  them as one batch, for CR 800.4a and 800.4c alike.
 
 ---
 
@@ -3750,11 +3825,12 @@ block. Closes §11 item 4 and critical-path 6a.
 measurement: `plans/archive/replacement-architecture-landed.md`, "RF"
 (evicted 2026-09-16).
 
-### Phase RH — the zone-change record (§2b) — sized 2026-10-10, two PRs
+### Phase RH — the zone-change record (§2b) — sized 2026-10-10, three PRs since 2026-10-12
 
 The design is §2b, reviewed in its own PR before any code (`roadmap-v2.md`
-A6o). Both PRs sit inside A6d, after the design and before A6m and TR-4a.
-Branches are `replacement/rh-<n>-…`.
+A6o). The PRs sit inside A6d, after the design and before A6m and TR-4a.
+Branches are `replacement/rh-<n>-…`. RH-2 was split out of the second on
+2026-10-12 (§2b.11, decision 12).
 
 #### RH-1 — the act and the cause — ✅ landed 2026-10-11
 
@@ -3768,7 +3844,7 @@ decision 10's, with its counters arm. CR 704.3's state-based batch and CR
 `DestructionSource` and `LifeLossCause` folded into the cause, which leaves
 `LoseLife { damage_source }`, and `SourceFilter::matches` reads the cause. Both
 zone-change arms hold `ZoneChangePattern { from, to, act }`. The trigger arm's
-`by` is read through `cause_asked_by`, the one line RH-2 changes. The log line
+`by` is read through `cause_asked_by`, the one line RH-3 changes. The log line
 says "[act] by cause". The engine arm is `IDENTICAL` to `main` at two seats and
 four on both pools, at +0.03% instructions per decision (`fuzz-record.md`).
 Guerrilla Tactics is not registered: its hand leg needs a frame
@@ -3776,11 +3852,42 @@ Guerrilla Tactics is not registered: its hand leg needs a frame
 Closes item 176's act and cause halves. Claims no atom. Trace page: no, since
 the record's words changed and no read is answered differently.
 
-#### RH-2 — the record's identity, its applied set and its moment
+#### RH-2 — the batch's members, decided together — ✅ landed 2026-10-12
 
-`new_epoch`, `applied`, the two-part dispatch, item 248, and L1–L7's homes
-(§2b.4–§2b.8). Claims ATOM-400.7e-001 and -002. It moves the stream. Pieces and
-sizes: §2b.10.
+**Shipped (#244):** `BatchMember` (`engine/replacement/pipeline.rs`), one record
+per member: its place in batch order, its event as CR 616.1 rewrites it, its
+cause, its applied set and a destruction's `inner_move`. Members move into
+their `SubjectGroup`s in decision order (`subject_groups`, which sorts as
+`apnap_batch_order` did), and phase 2 performs them sorted by place. The four
+vectors and the seven position pairs are gone. `apply_replacements` takes a
+group's members mutably and the later groups read-only, and writes each
+decision and applied set onto its member. `LossReason` folded into the cause
+(decision 12): `PlayerLoses { player }`, `PlayerLost { player_id }`, and the
+log says "PlayerLost: P1 by ZeroLife". L7's set is `GameState::departs_with`:
+owned or default-controlled (CR 110.2b), empty at two seats. Item 248:
+`decide_destruction_moves` decides each surviving destruction's move right
+after its group, with a fresh applied set; phase 2 performs it right after the
+destruction; its riders join phase 3. §2b.11's leaving question was answered
+the same way: CR 800.4a's exiles are one batch. The fixtures
+(`phase_rh2_integration_test.rs`) found three wrong answers, each shown
+failing first:
+- item 248, in three of its boards;
+- L7's controlled side, a conditional grant missed by the look-back;
+- the leaving's exiles, decided one at a time.
+
+The record arm is `IDENTICAL` to `main` on every row. Shipped is `IDENTICAL`
+on `performance`'s gameplay; on `stress`, 4 games of 200 differ at two seats
+and 22 at four, every one item 248's. Instructions per decision are −0.77%,
+most of it item 248's moves no longer re-walking a board an earlier member had
+changed (`fuzz-record.md`). Closes item 248. Claims no atom. Trace page: no.
+The read path is RD-2's page's loop, unchanged; what moved is when one of its
+calls is made, and the fixtures assert it in both batch orders.
+
+#### RH-3 — the record's identity, its applied set and its moment
+
+`new_epoch`, `applied`, the two-part dispatch, and L1–L6's homes (§2b.4–§2b.8).
+Closes items 175 and 177, and item 176's applied-set half. Claims
+ATOM-400.7e-001 and -002. It moves the stream. Pieces and sizes: §2b.10.
 
 ### Interleaved — Commander
 

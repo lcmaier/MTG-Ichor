@@ -22,7 +22,8 @@ use mtgsim::cards::phase_re_cards::{
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::events::event::{GameEvent, LossReason};
+use mtgsim::events::cause::{EventCause, StateBasedAction};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::battlefield::AttackTarget;
@@ -158,15 +159,21 @@ fn sba(game: &mut GameState, dp: &dyn DecisionProvider) -> bool {
     game.check_state_based_actions(dp).expect("checking state-based actions")
 }
 
-/// Every `PlayerLost` this game has recorded, in order.
-fn losses(game: &GameState) -> Vec<(PlayerId, LossReason)> {
+/// Every `PlayerLost` this game has recorded, in order, with its cause.
+fn losses(game: &GameState) -> Vec<(PlayerId, EventCause)> {
     game.recorded_events()
-        .events()
-        .filter_map(|e| match e {
-            GameEvent::PlayerLost { player_id, reason } => Some((*player_id, *reason)),
+        .records()
+        .iter()
+        .filter_map(|r| match r.event {
+            GameEvent::PlayerLost { player_id } => Some((player_id, r.stamp.cause)),
             _ => None,
         })
         .collect()
+}
+
+/// A loss's cause when a state-based action performed it (CR 704.5, 704.6).
+fn state_based(rule: StateBasedAction) -> EventCause {
+    EventCause::StateBasedAction(rule)
 }
 
 /// Every `PlayerWon` this game has recorded, in order.
@@ -220,7 +227,7 @@ fn a_player_at_zero_life_loses_as_a_proposal_the_pipeline_sees() {
 
     assert!(sba(&mut game, &test_dp()));
 
-    assert_eq!(losses(&game), vec![(1, LossReason::LifeReachedZero)]);
+    assert_eq!(losses(&game), vec![(1, state_based(StateBasedAction::ZeroLife))]);
     assert!(game.player_lost[1]);
     assert_eq!(
         game.diagnostics.replacement_gathers(),
@@ -240,7 +247,7 @@ fn drawing_from_an_empty_library_loses_at_the_next_check() {
 
     assert!(sba(&mut game, &test_dp()));
 
-    assert_eq!(losses(&game), vec![(0, LossReason::DrawnFromEmptyLibrary)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::DrewFromEmptyLibrary))]);
     assert_eq!(game.result, Some(GameResult::Winner(1)));
 }
 
@@ -258,7 +265,7 @@ fn drawing_more_cards_than_the_library_holds_draws_the_rest_and_then_loses() {
     assert_eq!(cards_drawn(&game, 0), 2, "the two that were there are drawn (CR 104.3c)");
     assert!(game.players[0].has_drawn_from_empty_library);
     assert!(sba(&mut game, &test_dp()));
-    assert_eq!(losses(&game), vec![(0, LossReason::DrawnFromEmptyLibrary)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::DrewFromEmptyLibrary))]);
 }
 
 /// CR 704.7 — a player who would lose for two reasons in one check is one
@@ -274,7 +281,7 @@ fn two_reasons_are_one_loss_carrying_the_first_in_cr_order() {
 
     assert_eq!(
         losses(&game),
-        vec![(0, LossReason::LifeReachedZero)],
+        vec![(0, state_based(StateBasedAction::ZeroLife))],
         "one loss, and 704.5a comes before 704.5b"
     );
     assert_eq!(game.diagnostics.replacement_gathers(), gathers + 1, "one member, not two");
@@ -634,7 +641,11 @@ fn an_effect_may_state_that_a_player_loses_the_game() {
     resolve_with(&mut game, 0, &effect, vec![ResolvedTarget::Player(1)], &test_dp());
 
     assert!(game.player_lost[1]);
-    assert_eq!(losses(&game), vec![(1, LossReason::Effect)]);
+    let losses = losses(&game);
+    assert!(
+        matches!(losses[..], [(1, EventCause::Effect { resolution, .. })] if resolution.controller == 0),
+        "the effect that said so is the loss's cause: {losses:?}"
+    );
     assert_eq!(game.result, Some(GameResult::Winner(0)));
 }
 
@@ -786,7 +797,7 @@ fn a_replaced_empty_library_loss_is_not_proposed_again_until_the_next_draw() {
     // Trying again, with the Archangel now in exile, loses.
     draw_one(&mut game, 0, &test_dp());
     assert!(sba(&mut game, &test_dp()));
-    assert_eq!(losses(&game), vec![(0, LossReason::DrawnFromEmptyLibrary)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::DrewFromEmptyLibrary))]);
 }
 
 /// The Archangel's first ruling, first half: the loss and the Archangel's own
@@ -870,7 +881,7 @@ fn exquisite_archangel_applies_to_a_poison_loss_and_then_the_poison_still_loses(
 
     assert_eq!(life_changes(&game, 0), vec![(40, 20)]);
     assert_eq!(zone_of(&game, archangel), Zone::Exile);
-    assert_eq!(losses(&game), vec![(0, LossReason::PoisonCounters)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::TenPoisonCounters))]);
     assert_eq!(game.result, Some(GameResult::Winner(1)));
 }
 
@@ -959,7 +970,7 @@ fn stunning_reversal_from_minus_five_is_a_gain_of_six() {
     // Once.
     game.players[0].life_total = 0;
     assert!(sba(&mut game, &test_dp()));
-    assert_eq!(losses(&game), vec![(0, LossReason::LifeReachedZero)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::ZeroLife))]);
 }
 
 /// Stunning Reversal's eighth ruling: *"you'll lose the game immediately
@@ -982,7 +993,7 @@ fn stunning_reversal_with_a_short_library_loses_immediately_after() {
 
     // The repeat is the loss.
     assert!(sba(&mut game, &test_dp()));
-    assert_eq!(losses(&game), vec![(0, LossReason::DrawnFromEmptyLibrary)]);
+    assert_eq!(losses(&game), vec![(0, state_based(StateBasedAction::DrewFromEmptyLibrary))]);
     assert_eq!(game.result, Some(GameResult::Winner(1)));
 }
 
@@ -1069,7 +1080,7 @@ fn platinum_angel_leaving_the_battlefield_lets_the_next_check_lose() {
     assert!(sba(&mut game, &test_dp()));
     assert_eq!(
         losses(&game),
-        vec![(0, LossReason::LifeReachedZero)],
+        vec![(0, state_based(StateBasedAction::ZeroLife))],
         "one loss, first reason in CR order"
     );
     assert_eq!(game.result, Some(GameResult::Winner(1)));

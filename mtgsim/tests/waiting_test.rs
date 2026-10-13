@@ -16,7 +16,6 @@ use mtgsim::test_support::{put_in_hand, setup_game, setup_two_player_game, stock
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
-use mtgsim::events::event::LossReason;
 use mtgsim::ui::waiting::{what_is_waiting, TriggersIn, WaitingTurn};
 
 // ---------------------------------------------------------------------------
@@ -159,6 +158,6 @@ fn a_departed_players_extra_turn_is_not_waiting() {
     resolve_spell(&mut game, time_walk(), 2);
     assert_eq!(what_is_waiting(&game).extra_turns.len(), 1);
 
-    game.execute_action(GameAction::PlayerLoses { player: 2, reason: LossReason::Effect }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::PlayerLoses { player: 2 }, &test_ctx()).unwrap();
     assert!(what_is_waiting(&game).extra_turns.is_empty());
 }

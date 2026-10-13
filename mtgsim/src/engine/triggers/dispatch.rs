@@ -678,35 +678,34 @@ impl GameState {
     /// abilities a *surviving* object has: true when one of them takes off
     /// the battlefield a permanent that is the source of a copy effect, or of
     /// an effect that grants or removes abilities. A player losing counts for
-    /// each such permanent they own, since CR 800.4a takes those with them.
+    /// each such permanent that goes with them (`departs_with`, CR 800.4a).
     /// When it is true the batch snapshots the lists before performing
     /// (`LookBackSnapshot`).
-    pub(crate) fn departs_an_ability_list_source(&self, decided: &[Option<GameAction>]) -> bool {
+    pub(crate) fn departs_an_ability_list_source<'a>(&self, mut decided: impl Iterator<Item = &'a GameAction>) -> bool {
         let sources = &self.continuous_effects.summary().ability_list_sources;
         !sources.is_empty()
-            && decided.iter().flatten().any(|action| match action {
+            && decided.any(|action| match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => sources.contains(object),
-                GameAction::PlayerLoses { player, .. } => sources
-                    .iter()
-                    .any(|s| self.objects.get(s).is_some_and(|o| o.owner == *player)),
+                GameAction::PlayerLoses { player } => sources.iter().any(|&s| self.departs_with(s, *player)),
                 _ => false,
             })
     }
 
     /// CR 603.10a before the batch performs: frame each permanent `decided`
-    /// takes off the battlefield, in batch order. A player leaving takes
-    /// every permanent, since CR 800.4a's fourth clause decides what it exiles
-    /// only after its first two have run. The frames are memo hits: nothing
-    /// has changed since the batch began deciding.
+    /// takes off the battlefield, in batch order. A player leaving takes what
+    /// goes with them (`departs_with`): CR 800.4a's fourth clause exiles only
+    /// after its first two have run, so the set is everything it may exile.
+    /// The frames are memo hits: nothing has changed since the batch began
+    /// deciding.
     ///
     /// **And every other mover an entry names, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
     /// subject is, a card a draw trigger named. The move hands the frame to
     /// each entry naming the mover (`hand_over_lki`).
-    pub(crate) fn capture_lki(&mut self, decided: &[Option<GameAction>]) {
+    pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
         let mut named: Option<Vec<ObjectRef>> = None;
-        for action in decided.iter().flatten() {
+        for action in decided {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => {
@@ -720,13 +719,15 @@ impl GameState {
                         self.capture_frame(*object);
                     }
                 }
-                GameAction::PlayerLoses { player, .. } => {
+                GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
-                        self.capture_frame(id);
+                        if self.departs_with(id, *player) {
+                            self.capture_frame(id);
+                        }
                     }
                     let named = named.get_or_insert_with(|| self.objects_entries_name());
                     for object in named.iter() {
-                        if self.objects.get(&object.id).is_some_and(|o| o.owner == *player) {
+                        if self.departs_with(object.id, *player) {
                             self.capture_frame(object.id);
                         }
                     }

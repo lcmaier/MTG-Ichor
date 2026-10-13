@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
-use crate::engine::replacement::ReplacementInstanceId;
+use crate::engine::replacement::{BatchMember, ReplacementInstanceId, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason};
+use crate::events::event::{CounterSubject, DamageTarget, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -320,8 +320,9 @@ pub enum GameAction {
 
     /// Destroy a permanent (CR 701.8).
     ///
-    /// **The outer event.** Performing it proposes an inner
-    /// `ZoneChange { to: Graveyard, act: Destroyed }` under the same cause, so a
+    /// **The outer event.** Its inner `ZoneChange { to: Graveyard, act:
+    /// Destroyed }` is decided with it, under the same cause and against the
+    /// same board, and performed right after it (`BatchMember::inner_move`), so a
     /// destruction is two events and a replacement can watch either. Which of
     /// CR 701.8b's two ways destroyed it — an effect, or a state-based action
     /// (704.5g/h) — is the cause, which CR 122.1c's shield counter reads ("as
@@ -484,12 +485,13 @@ pub enum GameAction {
     /// Proposed by the state-based-action check for CR 704.5a–c and 704.6c,
     /// one member per player whatever the number of reasons (CR 704.7 — Lich's
     /// Mirror's ruling: "a single Lich's Mirror will replace all of them"),
-    /// carrying the first reason in CR order; and by `Primitive::LoseGame` for
-    /// CR 104.3e. Concession (104.3a) is a *leave* that then loses and is not
-    /// proposed through here.
+    /// caused by the first reason's subrule in CR order; and by
+    /// `Primitive::LoseGame` for CR 104.3e, caused by its effect. Why the
+    /// player lost is that cause and nothing here: no rule decides from it
+    /// (CR 603.9's triggers fire "regardless of the reason"). Concession
+    /// (104.3a) is a *leave* that then loses and is not proposed through here.
     PlayerLoses {
         player: PlayerId,
-        reason: LossReason,
     },
 
     /// CR 701.22 — a player scries N. The event's subject is the player.
@@ -700,7 +702,7 @@ impl GameState {
         batch: Vec<GameAction>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        self.execute_batch(batch, None, ctx)
+        self.execute_batch(batch.into_iter().map(|action| (action, ctx.cause)).collect(), ctx)
     }
 
     /// [`Self::execute_actions`] for one event whose members have causes of
@@ -713,16 +715,13 @@ impl GameState {
         members: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let (batch, causes) = members.into_iter().unzip();
-        self.execute_batch(batch, Some(causes), ctx)
+        self.execute_batch(members, ctx)
     }
 
-    /// [`Self::execute_actions`]' body; `own_causes` is each member's cause
-    /// where they differ (CR 704.3), and `None` where every member is `ctx`'s.
+    /// [`Self::execute_actions`]' body, each proposal with its cause.
     fn execute_batch(
         &mut self,
-        batch: Vec<GameAction>,
-        own_causes: Option<Vec<EventCause>>,
+        proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch();
@@ -740,7 +739,7 @@ impl GameState {
         // the inherited set — would be asked across two lineages at once.
         let outer_depth = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, own_causes, ctx, inherited);
+        let result = self.execute_batch_inner(proposals, ctx, inherited);
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
@@ -814,7 +813,8 @@ impl GameState {
         let previous = self.events.open_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, None, ctx, inherited);
+        let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
+        let result = self.execute_batch_inner(proposals, ctx, inherited);
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
@@ -848,7 +848,8 @@ impl GameState {
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, None, ctx, &HashSet::new());
+        let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
+        let result = self.execute_batch_inner(proposals, ctx, &HashSet::new());
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
@@ -889,34 +890,22 @@ impl GameState {
     /// event is the whole batch.
     fn execute_batch_inner(
         &mut self,
-        batch: Vec<GameAction>,
-        own_causes: Option<Vec<EventCause>>,
+        proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
         inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
-        use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
+        use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
 
         // CR 111.8 — a token that has left the battlefield "remains in its
         // current zone instead" of moving again. A rule, so no event: nothing
-        // is proposed, and no replacement sees it. A member's own cause goes
-        // with it.
-        let (batch, own_causes) = match own_causes {
-            None => {
-                let mut batch = batch;
-                batch.retain(|action| !self.moves_a_token_not_on_the_battlefield(action));
-                (batch, None)
+        // is proposed, and no replacement sees it, and its place goes with it.
+        let mut members: Vec<BatchMember> = Vec::with_capacity(proposals.len());
+        for (action, cause) in proposals {
+            if !self.moves_a_token_not_on_the_battlefield(&action) {
+                members.push(BatchMember::proposed(members.len(), action, cause));
             }
-            Some(causes) => {
-                let (batch, causes): (Vec<GameAction>, Vec<EventCause>) = batch
-                    .into_iter()
-                    .zip(causes)
-                    .filter(|(action, _)| !self.moves_a_token_not_on_the_battlefield(action))
-                    .unzip();
-                (batch, Some(causes))
-            }
-        };
-        let cause_of_member = |i: usize| own_causes.as_ref().map_or(ctx.cause, |causes| causes[i]);
+        }
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -944,9 +933,9 @@ impl GameState {
         // proposal: a `ZoneChange` onto the battlefield here has bypassed
         // `change_zone`'s routing and would be performed with no entity.
         debug_assert!(
-            !batch
+            !members
                 .iter()
-                .any(|a| matches!(a, GameAction::ZoneChange { to: Zone::Battlefield, .. })),
+                .any(|m| matches!(m.event, Some(GameAction::ZoneChange { to: Zone::Battlefield, .. }))),
             "a ZoneChange onto the battlefield is not a proposal: entering is proposed as \
              GameAction::EnterBattlefield, which change_zone routes to \
              (replacement-architecture.md section 9, RC-4b)"
@@ -963,85 +952,59 @@ impl GameState {
         // exclusions and CR 615.7's answers belong to these entries, saved and
         // restored like the stamp, and filled before the first member is decided.
         let outer_selection = std::mem::take(&mut self.entry_selection);
-        self.entry_selection.entering = batch
+        self.entry_selection.entering = members
             .iter()
-            .filter_map(|a| match a {
-                GameAction::EnterBattlefield { object, .. } => Some(*object),
+            .filter_map(|m| match m.event {
+                Some(GameAction::EnterBattlefield { object, .. }) => Some(object),
                 _ => None,
             })
             .collect();
         let outer_allocations = std::mem::take(&mut self.prevention_allocations);
 
-        let mut groups: Vec<(EventSubject, Vec<usize>)> = Vec::new();
-        for index in self.apnap_batch_order(&batch) {
-            let subject = subject_of(&batch[index]);
-            match groups.iter_mut().find(|(s, _)| *s == subject) {
-                Some((_, members)) => members.push(index),
-                None => groups.push((subject, vec![index])),
-            }
-        }
+        let mut groups = self.subject_groups(members);
 
         // The trace sink's first emit point: the proposals as they entered,
         // and the subject groups CR 616.1 will decide them in.
-        self.trace(|| trace_records::batch(self, &batch, &groups, inherited.len()));
+        self.trace(|| trace_records::batch(self, &groups, inherited.len()));
 
         let mut riders: Vec<Rider> = Vec::new();
-        let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
-        // What each member's CR 616.1 loop applied, carried into phase 2 for the
-        // one performer that decomposes. Per member only because `decided` is
-        // indexed that way; a group's members share one set.
-        let mut applied_to: Vec<HashSet<ReplacementInstanceId>> =
-            vec![HashSet::new(); batch.len()];
         let mut decided_ok = Ok(());
         for g in 0..groups.len() {
-            let (_, group_members) = &groups[g];
-            let members: Vec<(usize, GameAction)> =
-                group_members.iter().map(|&i| (i, batch[i].clone())).collect();
-            let later: Vec<(usize, &GameAction)> = groups[g + 1..]
-                .iter()
-                .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
-                .collect();
-            let riders_before = riders.len();
+            // The groups after this one are read, never decided, here: CR
+            // 615.7's count is allocated across every member it applies to.
+            let (through_this, later) = groups.split_at_mut(g + 1);
+            let group = &mut through_this[g].members;
             // A group is one subject's, and where members name their own causes
             // CR 704.7's dedupe left one member per subject, so the group's cause
             // is its member's. No group is empty; `ctx.cause` only spares an index.
-            let group_cause = group_members.first().copied().map_or(ctx.cause, cause_of_member);
-            let group_ctx = ctx.caused_by(group_cause);
-            match apply_replacements(self, members, &later, &group_ctx, inherited, &mut riders) {
-                Ok((results, applied)) => {
-                    // CR 614.5 — the riders this group queued are the rest of
-                    // its replacements' effects, and carry everything that
-                    // applied to the event, including what applied after
-                    // they were queued.
-                    for rider in &mut riders[riders_before..] {
-                        rider.lineage = applied.clone();
-                    }
-                    for (i, action) in results {
-                        decided[i] = action;
-                        applied_to[i] = applied.clone();
-                    }
-                }
-                Err(e) => {
-                    decided_ok = Err(e);
-                    break;
-                }
+            let group_ctx = ctx.caused_by(group.first().map_or(ctx.cause, |m| m.cause));
+            let decided = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders)
+                .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders));
+            if let Err(e) = decided {
+                decided_ok = Err(e);
+                break;
             }
         }
         self.entry_selection = outer_selection;
         self.prevention_allocations = outer_allocations;
         decided_ok?;
 
+        // Batch order, not APNAP: CR 101.4 sequenced the choices, and the events
+        // are simultaneous, though observable (a graveyard is ordered).
+        let mut decided: Vec<BatchMember> = groups.into_iter().flat_map(|g| g.members).collect();
+        decided.sort_by_key(|m| m.place);
+
         // CR 603.10's "immediately prior to the event": a survivor's abilities
         // change only if a decided member removes an ability-changing effect's
         // source, so then the lists are saved now (`LookBackSnapshot`).
         let snapshot = self
-            .departs_an_ability_list_source(&decided)
+            .departs_an_ability_list_source(decided.iter().filter_map(|m| m.event.as_ref()))
             .then(|| self.look_back_frames())
             .filter(|frames| !frames.is_empty());
         // The departing members' own frames, for the same reason: taken as each
         // moved, a later one would see an earlier one gone (item 174).
         let frames_from = self.lki_captures.len();
-        self.capture_lki(&decided);
+        self.capture_lki(decided.iter().filter_map(|m| m.event.as_ref()));
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();
@@ -1049,13 +1012,11 @@ impl GameState {
 
         // --- Phase 2: perform, in batch order -------------------------------
         //
-        // Batch order, not APNAP: CR 101.4 sequenced the choices, and the events
-        // are simultaneous, though observable (a graveyard is ordered). Rendered
-        // first, in a traced game only, for `batch_end`'s record.
+        // Rendered first, in a traced game only, for `batch_end`'s record.
         let decided_rendered: Option<Vec<Option<String>>> = self.trace_on().then(|| {
             decided
                 .iter()
-                .map(|d| d.as_ref().map(crate::state::trace::render_debug))
+                .map(|m| m.event.as_ref().map(crate::state::trace::render_debug))
                 .collect()
         });
         let mut performed = Vec::with_capacity(decided.len());
@@ -1066,11 +1027,20 @@ impl GameState {
         // nested batch or a CR 615.5 rider is summed by that call's own loop, so
         // it gains in a separate event and is never counted twice.
         let mut lifelink_gains = Vec::new();
-        for (i, action) in decided.into_iter().enumerate() {
-            let Some(action) = action else { continue };
+        for member in decided {
+            let Some(action) = member.event else { continue };
             // Each member performs under its own cause, which its records carry.
-            let member_ctx = ctx.caused_by(cause_of_member(i));
-            let result = self.perform_action(action.clone(), &member_ctx, &applied_to[i]);
+            let member_ctx = ctx.caused_by(member.cause);
+            let mut result = self.perform_action(action.clone(), &member_ctx, &member.applied);
+            // A destruction's move, decided with it, happens right after it
+            // (CR 701.8a) and is no event of the batch's own: what the batch
+            // performed is the destruction.
+            if result.is_ok()
+                && let Some(inner) = member.inner_move
+                && let Some(movement) = inner.event
+            {
+                result = self.perform_action(movement, &member_ctx, &inner.applied);
+            }
             if let Err(e) = result {
                 performed_ok = Err(e);
                 break;
@@ -1133,27 +1103,77 @@ impl GameState {
         Ok(performed)
     }
 
-    /// Indices into `batch`, ordered active-player-first by the CR 616.1
-    /// chooser for each member (CR 101.4's APNAP).
+    /// The batch's members in their subject groups, in the order CR 616.1
+    /// decides them: each member placed active-player-first by its CR 616.1
+    /// chooser (CR 101.4's APNAP), then grouped by subject in that order.
     ///
     /// Stable within a player, so a sweep that built its batch from
     /// `battlefield_ids_ordered` keeps that order among its own members.
-    fn apnap_batch_order(&self, batch: &[GameAction]) -> Vec<usize> {
-        use crate::engine::replacement::chooser_for;
+    fn subject_groups(&self, mut members: Vec<BatchMember>) -> Vec<SubjectGroup> {
+        use crate::engine::replacement::{chooser_for, subject_of};
 
         let n = self.players.len();
-        let mut order: Vec<usize> = (0..batch.len()).collect();
-        order.sort_by_key(|&i| {
-            let chooser = chooser_for(self, &batch[i]);
+        members.sort_by_key(|m| {
             // `None` — an object with neither controller nor owner — sorts
             // last; the pipeline errors on it rather than guessing, and this
             // keeps that error deterministic.
-            match chooser {
+            match m.event.as_ref().and_then(|a| chooser_for(self, a)) {
                 Some(p) => self.apnap_index(p),
                 None => n,
             }
         });
-        order
+        let mut groups: Vec<SubjectGroup> = Vec::new();
+        for member in members {
+            // Every member is still its proposal here, so none is skipped.
+            let Some(subject) = member.event.as_ref().map(subject_of) else { continue };
+            match groups.iter_mut().find(|g| g.subject == subject) {
+                Some(group) => group.members.push(member),
+                None => groups.push(SubjectGroup { subject, members: vec![member] }),
+            }
+        }
+        groups
+    }
+
+    /// Each destruction `group` decided proposes its move (CR 701.8a), and the
+    /// move is decided now, with it, against the board no member of the batch
+    /// has changed yet. CR 704.3 decides every member
+    /// against one board, and CR 614.4 wants a replacement to exist before the
+    /// event, which is the batch: Kalitas dying beside an opponent's creature
+    /// still exiles it, whichever of them the batch performs first.
+    ///
+    /// An inner event, so it is decided right after its outer, in its group's
+    /// place in CR 101.4's order, and its riders join the batch's (CR 615.5,
+    /// after the whole event). A fresh applied set: the move is contained in
+    /// the destruction, not a finer grain of it (§3.2d). A destruction that was
+    /// replaced (a regeneration, a shield counter) or stopped is no longer a
+    /// `Destroy`, and one of an object already gone keeps the performer's own
+    /// loud refusal.
+    fn decide_destruction_moves(
+        &mut self,
+        group: &mut [BatchMember],
+        later: &[SubjectGroup],
+        ctx: &ActionContext,
+        riders: &mut Vec<crate::engine::replacement::Rider>,
+    ) -> Result<(), String> {
+        use crate::engine::replacement::apply_replacements;
+
+        for member in group.iter_mut() {
+            let Some(GameAction::Destroy { object }) = member.event else { continue };
+            if !self.battlefield.contains_key(&object) {
+                continue;
+            }
+            let movement = GameAction::ZoneChange {
+                object,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                act: ZoneChangeAct::Destroyed,
+            };
+            let mut inner = BatchMember::proposed(member.place, movement, member.cause);
+            let member_ctx = ctx.caused_by(member.cause);
+            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &HashSet::new(), riders)?;
+            member.inner_move = Some(Box::new(inner));
+        }
+        Ok(())
     }
 
     /// Resolve one queued rider — see [`Rider`](crate::engine::replacement::Rider)
@@ -1538,11 +1558,9 @@ impl GameState {
             }
 
             // CR 701.8a — "move it from the battlefield to its owner's graveyard".
-            // The **outer** event: this performer proposes the inner zone change,
-            // which re-enters the pipeline with a fresh applied set (§3.2d
-            // containment). That is what lets CR 122.1h's finality counter turn the
-            // graveyard trip into an exile while CR 122.1c's shield counter, watching
-            // the destruction itself, has already declined.
+            // The **outer** event, which performs nothing of its own: its move was
+            // decided with it in phase 1 (`decide_destruction_moves`), and phase 2
+            // performs that move right after this arm.
             GameAction::Destroy { object } => {
                 // Loud, like `Tap`/`Untap`: destroying something off the battlefield does
                 // nothing (CR 701.8b), and CR 608.2b's partial resolution is the caller's
@@ -1552,15 +1570,6 @@ impl GameState {
                         "Cannot destroy {}: not on the battlefield", object
                     ));
                 }
-                self.execute_action(
-                    GameAction::ZoneChange {
-                        object,
-                        from: Zone::Battlefield,
-                        to: Zone::Graveyard,
-                        act: ZoneChangeAct::Destroyed,
-                    },
-                    ctx,
-                )?;
                 Ok(())
             }
 
@@ -1696,7 +1705,7 @@ impl GameState {
             // Loud on a player who has left: the check gates on `player_lost`, so a
             // second loss is a caller's bug. CR 704.5b's flag is the check's to clear,
             // and CR 104.2a and 104.4a are the batch's, settled after it performs.
-            GameAction::PlayerLoses { player, reason } => {
+            GameAction::PlayerLoses { player } => {
                 if self.player_lost[player] {
                     return Err(format!("player {} has already left the game", player));
                 }
@@ -1705,7 +1714,7 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player, reason }, ctx.cause);
+                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause);
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of

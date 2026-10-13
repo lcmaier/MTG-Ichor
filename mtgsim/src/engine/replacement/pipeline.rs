@@ -129,12 +129,43 @@ struct Applied {
     prevented: u64,
 }
 
-/// One member of a subject group as the loop carries it: its index in the
-/// batch, and its proposal as decided so far — `None` once dropped (CR 614.6,
-/// 614.7a, 614.17).
-struct Member {
-    index: usize,
-    event: Option<GameAction>,
+/// One member of a batch, from its proposal to its performance: CR 704.3
+/// decides every member against one board, then performs them all, and these
+/// are the facts that carries between the two.
+#[derive(Debug)]
+pub(crate) struct BatchMember {
+    /// Its place in the batch as proposed, which phase 2 performs in: CR 101.4
+    /// orders the choices, and the events are simultaneous but observable (a
+    /// graveyard is ordered).
+    pub place: usize,
+    /// The proposal, as its group's CR 616.1 loop rewrites it, and `None` once
+    /// dropped (CR 614.6, 614.7a, 614.17).
+    pub event: Option<GameAction>,
+    /// What caused it: the batch's cause, or its own rule's in CR 704.3's sweep
+    /// and its own exile's in CR 610.3d's returns.
+    pub cause: EventCause,
+    /// CR 614.5's applied set its group's loop ended with, which a performer
+    /// that decomposes hands on (§3.2d).
+    pub applied: HashSet<ReplacementInstanceId>,
+    /// A destruction's move (CR 701.8a), its inner event, decided right after
+    /// its group against the same board (CR 704.3, 614.4) and performed right
+    /// after it. `None` for every other member, and for a destruction that was
+    /// replaced or stopped, which no longer moves anything.
+    pub inner_move: Option<Box<BatchMember>>,
+}
+
+impl BatchMember {
+    pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
+        BatchMember { place, event: Some(action), cause, applied: HashSet::new(), inner_move: None }
+    }
+}
+
+/// The members of one batch that share a subject (`plans/glossary.md`), in
+/// the order CR 616.1 decides them.
+#[derive(Debug)]
+pub(crate) struct SubjectGroup {
+    pub subject: EventSubject,
+    pub members: Vec<BatchMember>,
 }
 
 /// One applicable effect in a group's iteration, with the members it applies
@@ -306,7 +337,7 @@ fn never_happens(action: &GameAction) -> bool {
 /// that scopes it, not the turn: CR 510.4's two combat damage steps are two
 /// batches, so a first striker and a regular blocker spend two counters.
 ///
-/// Returns each member's index with what happens to it — `None` when its
+/// Writes onto each member what happens to it — its `event`, `None` when the
 /// event does not happen at all (CR 614.6) — **and the group's applied set**,
 /// which is what a performer that decomposes hands to the events it decomposes
 /// into (§3.2d; the `inherited` paragraph below is the same rule from the
@@ -329,24 +360,24 @@ fn never_happens(action: &GameAction) -> bool {
 /// is the termination argument, not a nicety.
 pub(crate) fn apply_replacements(
     game: &mut GameState,
-    group: Vec<(usize, GameAction)>,
-    later: &[(usize, &GameAction)],
+    group: &mut [BatchMember],
+    later: &[SubjectGroup],
     ctx: &ActionContext,
     inherited: &HashSet<ReplacementInstanceId>,
     riders: &mut Vec<Rider>,
-) -> Result<(Vec<(usize, Option<GameAction>)>, HashSet<ReplacementInstanceId>), String> {
-    let subject = subject_of(&group[0].1);
+) -> Result<(), String> {
     debug_assert!(
-        group.iter().all(|(_, a)| subject_of(a) == subject),
+        group.windows(2).all(|pair| pair[0].event.as_ref().map(subject_of) == pair[1].event.as_ref().map(subject_of)),
         "a subject group is built by `execute_batch_inner` from one subject"
     );
     // An entry is its own subject, so the CR 614.12 frame below — built for
     // one entering permanent — is built for a group of one.
     debug_assert!(
         group.len() == 1
-            || !group.iter().any(|(_, a)| matches!(a, GameAction::EnterBattlefield { .. })),
+            || !group.iter().any(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))),
         "an entry shares its subject with nothing"
     );
+    let riders_before = riders.len();
 
     let mut applied: HashSet<ReplacementInstanceId> = inherited.clone();
     // Declining is tracked separately from CR 614.5's applied set: CR 903.9b is
@@ -357,13 +388,6 @@ pub(crate) fn apply_replacements(
     // which owns the whole termination argument for the effects CR 614.5 does
     // not govern.
     let mut exempt_applied: Option<ReplacementInstanceId> = None;
-    let mut members: Vec<Member> = group
-        .into_iter()
-        .map(|(index, event)| Member { index, event: Some(event) })
-        .collect();
-    let finish = |members: Vec<Member>| -> Vec<(usize, Option<GameAction>)> {
-        members.into_iter().map(|m| (m.index, m.event)).collect()
-    };
 
     let mut iteration: u64 = 0;
     // Unbounded on purpose: every iteration consumes something finite — CR 614.5's
@@ -373,15 +397,16 @@ pub(crate) fn apply_replacements(
         iteration += 1;
         // CR 614.7a — a non-event has nothing to replace; ahead of the "can't" check,
         // and per member, since a prevention can empty one member of a group.
-        for m in &mut members {
+        for m in group.iter_mut() {
             if m.event.as_ref().is_some_and(never_happens) {
                 m.event = None;
             }
         }
-        // Owned, because the gather below walks `members` mutably; one small
+        // Owned, because the gather below walks `group` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
-        let Some(first) = members.iter().find_map(|m| m.event.clone()) else {
-            return Ok((finish(members), applied));
+        let Some(first) = group.iter().find_map(|m| m.event.clone()) else {
+            give_applied_set(group, &mut riders[riders_before..], applied);
+            return Ok(());
         };
 
         // The group's key, not the member's subject: a `Rewrite::Retarget` (CR 614.9)
@@ -402,7 +427,7 @@ pub(crate) fn apply_replacements(
         // CR 614.4 — gathered against live state at proposal, per member, keyed by
         // CR 614.5's identity: one instance over two members is one candidate.
         let mut candidates: Vec<Candidate> = Vec::new();
-        for (pos, m) in members.iter_mut().enumerate() {
+        for (pos, m) in group.iter_mut().enumerate() {
             let Some(event) = m.event.as_ref() else {
                 continue;
             };
@@ -420,7 +445,7 @@ pub(crate) fn apply_replacements(
                 },
             );
             if let (Some(t), Some(prohibited)) = (&mut trace, prohibited) {
-                t.prohibited.push((m.index, prohibited));
+                t.prohibited.push((m.place, prohibited));
             }
             let blocked = prohibited.is_some();
             let mut any = false;
@@ -445,14 +470,15 @@ pub(crate) fn apply_replacements(
             }
         }
         if let Some(t) = &mut trace {
-            t.candidates(&candidates, &members);
+            t.candidates(&candidates, group);
             t.frame_computed = frame.computed();
         }
         if candidates.is_empty() {
             if let Some(t) = trace {
-                game.trace(|| t.record(game, &members));
+                game.trace(|| t.record(game, group));
             }
-            return Ok((finish(members), applied));
+            give_applied_set(group, &mut riders[riders_before..], applied);
+            return Ok(());
         }
 
         // CR 616.1a–e's ladder: everything below the first non-empty step is
@@ -534,7 +560,7 @@ pub(crate) fn apply_replacements(
                 declined.insert(chosen.id);
                 if let Some(mut t) = trace.take() {
                     t.optional = Some(OptionalAnswer::Declined);
-                    game.trace(|| t.record(game, &members));
+                    game.trace(|| t.record(game, group));
                 }
                 continue;
             }
@@ -553,7 +579,7 @@ pub(crate) fn apply_replacements(
         // two, is a member insertion and unbuilt (§11 item 23).
         let shares = match (&chosen.def.rewrite, chosen.def.uses) {
             (Rewrite::Amount(AmountRewrite::PreventRemaining), Uses::NextDamage(remaining)) => {
-                Some(next_damage_shares(game, ctx, &chosen, remaining, &members, &applicable, later)?)
+                Some(next_damage_shares(game, ctx, &chosen, remaining, group, &applicable, later)?)
             }
             _ => None,
         };
@@ -566,7 +592,7 @@ pub(crate) fn apply_replacements(
         let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
         for (k, &pos) in applicable.iter().enumerate() {
-            let event = members[pos].event.take().expect("gathered this iteration, so live");
+            let event = group[pos].event.take().expect("gathered this iteration, so live");
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
@@ -610,7 +636,7 @@ pub(crate) fn apply_replacements(
             }
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
-            members[pos].event = next;
+            group[pos].event = next;
         }
 
         // Queued, not resolved (§4.1a). A later replacement in the same loop
@@ -635,8 +661,27 @@ pub(crate) fn apply_replacements(
         consume_use(game, &chosen, outcome);
         if let Some(mut t) = trace.take() {
             t.rewrite = Some(render_debug(&chosen.def.rewrite));
-            game.trace(|| t.record(game, &members));
+            game.trace(|| t.record(game, group));
         }
+    }
+}
+
+/// The group's final applied set, given to each member and to each rider the
+/// group queued. CR 614.5: a rider is the rest of its replacement's effect, so
+/// it carries everything that applied to the event, including what applied
+/// after it was queued.
+///
+/// The set itself goes to the last member, so the common group, one member
+/// and no rider, copies nothing.
+fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: HashSet<ReplacementInstanceId>) {
+    for rider in queued {
+        rider.lineage = applied.clone();
+    }
+    if let Some((last, rest)) = group.split_last_mut() {
+        for member in rest {
+            member.applied = applied.clone();
+        }
+        last.applied = applied;
     }
 }
 
@@ -737,14 +782,14 @@ impl IterationTrace {
         }
     }
 
-    fn candidates(&mut self, candidates: &[Candidate], group: &[Member]) {
+    fn candidates(&mut self, candidates: &[Candidate], group: &[BatchMember]) {
         self.candidates = candidates
             .iter()
             .map(|c| CandidateRow {
                 id: render_debug(&c.instance.id),
                 source: c.instance.source,
                 class: render_debug(&c.instance.def.class),
-                members: c.members.iter().map(|&pos| group[pos].index).collect(),
+                members: c.members.iter().map(|&pos| group[pos].place).collect(),
                 bucket: false,
             })
             .collect();
@@ -756,7 +801,7 @@ impl IterationTrace {
         }
     }
 
-    fn record(self, game: &GameState, members: &[Member]) -> Record {
+    fn record(self, game: &GameState, members: &[BatchMember]) -> Record {
         let mut r = Record::new(RecordKind::ReplacementPipeline);
         r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
         r.field_u64("iteration", self.iteration);
@@ -793,7 +838,7 @@ impl IterationTrace {
         r.key("results").begin_array();
         for m in members {
             r.begin_object();
-            r.field_u64("i", m.index as u64);
+            r.field_u64("i", m.place as u64);
             r.field_opt_str("event", m.event.as_ref().map(render_debug).as_deref());
             r.end();
         }
@@ -828,16 +873,16 @@ fn next_damage_shares(
     ctx: &ActionContext,
     chosen: &ReplacementInstance,
     remaining: u64,
-    members: &[Member],
+    members: &[BatchMember],
     applicable: &[usize],
-    later: &[(usize, &GameAction)],
+    later: &[SubjectGroup],
 ) -> Result<Vec<u64>, String> {
-    // This group's applicable members: batch index, damage source, amount.
+    // This group's applicable members: place in the batch, damage source, amount.
     let mut here: Vec<(usize, ObjectId, u64)> = Vec::with_capacity(applicable.len());
     for &pos in applicable {
         let m = &members[pos];
         match m.event.as_ref() {
-            Some(GameAction::DealDamage { source, amount, .. }) => here.push((m.index, *source, *amount)),
+            Some(GameAction::DealDamage { source, amount, .. }) => here.push((m.place, *source, *amount)),
             other => {
                 return Err(format!(
                     "replacement {:?} prevents \"the remaining\" damage but matched {:?}, \
@@ -853,10 +898,10 @@ fn next_damage_shares(
     if let Some(stored) = game.prevention_allocations.shares_for(chosen.id) {
         return Ok(here
             .iter()
-            .map(|(index, _, amount)| {
+            .map(|(place, _, amount)| {
                 stored
                     .iter()
-                    .find(|(i, _)| i == index)
+                    .find(|(p, _)| p == place)
                     .map(|(_, share)| *share)
                     .unwrap_or(0)
                     .min(*amount)
@@ -869,15 +914,15 @@ fn next_damage_shares(
     // each with the chooser CR 616.1 would give its own group.
     let mut buckets: Vec<(usize, ObjectId, u64, Option<PlayerId>)> = here
         .iter()
-        .map(|&(index, source, amount)| {
-            let action = members.iter().find(|m| m.index == index).and_then(|m| m.event.as_ref());
-            (index, source, amount, action.and_then(|a| chooser_for(game, a)))
+        .map(|&(place, source, amount)| {
+            let action = members.iter().find(|m| m.place == place).and_then(|m| m.event.as_ref());
+            (place, source, amount, action.and_then(|a| chooser_for(game, a)))
         })
         .collect();
-    for (index, action) in later {
-        if let GameAction::DealDamage { source, amount, .. } = action
+    for m in later.iter().flat_map(|g| &g.members) {
+        if let Some(action @ GameAction::DealDamage { source, amount, .. }) = &m.event
             && applies_to(game, chosen, action, subject_of(action), ctx.cause, None) {
-            buckets.push((*index, *source, *amount, chooser_for(game, action)));
+            buckets.push((m.place, *source, *amount, chooser_for(game, action)));
         }
     }
 

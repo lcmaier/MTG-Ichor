@@ -1028,9 +1028,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellFizzled { spell_id, controller } => format!("SpellFizzled: {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, *spell_id), controller),
         AbilityFizzled { identity, controller } => format!(
             "AbilityFizzled: {}'s {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), ability_word(*identity), controller),
-        PlayerLost { player_id, reason } => {
-            format!("PlayerLost: P{} ({:?})", player_id, reason)
-        }
+        PlayerLost { player_id } => format!("PlayerLost: P{} by {}", player_id, cause_words(game, cause)),
         PlayerWon { player_id } => format!("PlayerWon: P{}", player_id),
         CountersChanged { subject, counter, added } => {
             let verb = if *added >= 0 { "put on" } else { "removed from" };

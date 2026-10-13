@@ -246,32 +246,65 @@ landed row's landed sentences.
 | A6k | ✅ 2026-10-08 (PRs #235, #236, #237) — **the triggers midpoint audit**: §2.1's third comment sweep, clippy's allows dated, the shape review of the trigger code with items 231–236, and four of them fixed |  | 3 |
 | A6l | ✅ 2026-10-10 (PR #240) — **the duplicate instrument and the engine's first inventory**: `plans/similar_functions.py` keys each function by its inputs, its reads and its tests, `close_out.py` runs it against `main`, and `plans/references/duplicate-inventory.md` dispositions every entry over `main` |  | 1 |
 | A6n | ✅ 2026-10-10 (PR #241) — **the LKI rename**: `DepartedFrame` is `Lki`, its family says LKI, and a damage source's is `source_lki`, so "departed" means only a player and "frame" only a characteristics snapshot (`plans/glossary.md`) |  | 1 |
-| A6o | **The zone-change record** (`replacement-architecture.md` §2b, Phase RH; `codebase-state.md` items 175–177 and 248): its design (#242), then RH-1, the act and the cause, and RH-2, the record's identity, its applied set and its moment | inside A6d, after A6n and before A6m. TR-4a widens this record, so its contract is settled first. A6m's first PR merges the engine's records (item 244), which RH-1 reshapes. RH-2 fixes a wrong answer a registered card reaches (item 248) | 3 |
+| A6o | **The zone-change record** (`replacement-architecture.md` §2b, Phase RH; `codebase-state.md` items 175–177 and 248): its design (#242), then RH-1, the act and the cause (#243); RH-2, the batch's members, decided together (#244); and RH-3, the record's identity, its applied set and its moment | inside A6d, after A6n and before A6m. TR-4a widens this record, so its contract is settled first. A6m's first PR merges the engine's records (item 244), which RH-1 reshapes. RH-2 fixes a wrong answer a registered card reaches (item 248), and its one record per batch member is where RH-3's applied set is read from | 4 |
 | A6m | **The inventory's merges outside the trigger code**, `codebase-state.md` items 242–246, as two PRs: the board's queries with resolution and its records (items 242, 244), then mana with the two `ObjectFilter` leaf tables (items 243, 245, the tables' design first); the scenario format and the dev GUI's copies (item 246) ride in the dev GUI notes PR between them | inside A6d, after A6o and before TR-4a: TR-4 and TR-5 (targeting, counters, opponents, the affected set) would otherwise write these facts again, so they build on one helper each. Two PRs because the five sum to about one band (1,200–2,050 lines sized); resolution in the first because it carries the one wrong answer a card could reach first; mana before MA-7, which would widen its copies | 2 |
-| A6d | **TR-3a, TR-3b, A6k, TR-3c, A6l, A6n (the LKI rename), A6o (the zone-change record: its design, RH-1, RH-2), A6m, TR-4a, TR-4b, TR-5a, TR-5b, TR-6, TR-7**, in that order | §12's splits, TR-3c split from TR-3b at its design review (#234); TR-5a needs only TR-2b and may move up to just after it; A6o's design is reviewed as its own PR before its two builds; TR-7 is the Krark-Clan Ironworks loop, the track's showcase, and comes after B12's MA-3, which builds its any-color mana, a draw inside a mana ability and a window inside one | 9 |
-| A6e | **Item 6's close audit** | `engineering-practices.md` §9; its readiness pass reads the three floors, callgrind instructions per decision beside the loaded rate | 1 |
+| A6d | **TR-3a, TR-3b, A6k, TR-3c, A6l, A6n (the LKI rename), A6o (the zone-change record: its design, RH-1, RH-2, RH-3), A6m, TR-4a, TR-4b, TR-5a, TR-5b, TR-6, TR-7**, in that order | §12's splits, TR-3c split from TR-3b at its design review (#234); TR-5a needs only TR-2b and may move up to just after it; A6o's design is reviewed as its own PR before its two builds; TR-7 is the Krark-Clan Ironworks loop, the track's showcase, and comes after B12's MA-3, which builds its any-color mana, a draw inside a mana ability and a window inside one | 9 |
+| A6e | **Item 6's close audit**, and a naming sweep beside it | `engineering-practices.md` §9; its readiness pass reads the three floors, callgrind instructions per decision beside the loaded rate. The sweep: about 30 of the ~200 standalone functions called from other files have names that are unclear where they are used (#243's review, 2026-10-12), and a helper should carry its subsystem's noun (`engineering-practices.md` §2b); once item 6 is whole, its names are settled enough to sweep once | 1 |
 | A6h | **The docs audit** (the owner, 2026-09-28): the architecture docs, `codebase-state.md`, `backlog.md` and `roadmap-v2.md` read against the tree, each fact stated once where it lives, and superseded text corrected where it stands rather than pointed at; `roadmap-v2.md`'s rows re-checked against the cut of 2026-10-02 (the owner's rule at A6g's ability names), which left each row what is left, why it sits where it does and its scope, and moved what each landed PR built, its dated decisions and its sizes to `plans/archive/roadmap-v2-landed.md`. **Added 2026-09-29 (RG's review):** the survey of two roads to one state, `codebase-state.md` item 188: code that builds one state or performs one change in two places that can drift, as `PermanentState::entering` unified the entering permanent's. | CV-2's design review found the copy doc holding superseded text in three sections, and the fix it first tried, sections pointing at the one that replaced them, is a second spec database kept by hand. At the end of phase 6, beside A6e, because the triggers phase is the longest run of docs written against a moving tree. `codebase-state.md` main item 185, the inventory of the engine's elisions, is proposed for the same sitting | 1, docs |
 | A6f | **The information-model design**: `backlog.md` §2.9 merged with §2.34 (the query, the per-viewer knowledge record, the redeal), reviewed before any build, with a cost section setting a ceiling on each cost against a floor (§2.9's slot) | the floors' survey found the query alone insufficient for honest search, and the knowledge record is forked state that floor 3 bounds; a design pass first, as B9 set; the build keeps B4's back-stop | 1, docs |
 
-**Beside A, pulled when a card family wants them, on neither side of the doc**
-— what each owes the doc, and its atoms, are in its B row: RS-2 after A6c's item 10
-(hexproof is the family, and item 10's own "before RS-2" is the link), with
-`permission-architecture.md`'s PM-0 designed beside it (B11), CV-3 and CV-4, RS-3a → RS-4 → RS-3b (B5's order),
-CV-5 → CV-6 → CV-7 (B6, with CV-7's back-stop), §2.24's permission half after
-B5 (B8), item 30's capture PR (§5 amendment 1), B1's CP-1 after B12's MA-1, item 140
-with the first fork harness (Phase 10's), and the four open
-layers items `layers-architecture.md` §13c names — "Before Layers" item 4,
-item 7's grant-over-a-filter half, item 7d, item 10's 1a/1b split — each with
-its own trigger.
+**Nothing runs beside A any more.** Each row that used to be pulled by its
+card family has a place in the list below. Two things stay off it on purpose:
+item 140, with Phase 10's first fork harness, and the four open layers items
+`layers-architecture.md` §13c names ("Before Layers" item 4, item 7's
+grant-over-a-filter half, item 7d, item 10's 1a/1b split), each with the first
+card that needs it.
+
+### From triggers to Phase 8, in order (the owner, 2026-10-12)
+
+Until this list, the route was ordered only to the end of item 6. Section B
+fixed one chain after it (B11's first build, then B2, B3 and B4), and every
+other row waited for "the card family that wants it" with a back-stop of
+"before Phase 8". A back-stop says no later than; it never says when, so the
+half-built subsystems had no place on the route. Each now has one. The table's
+order is the route; `CLAUDE.md` restates it and owns it. What each piece
+builds stays in its row in B, or its architecture doc.
+
+| Step | Row | Why here |
+|---|---|---|
+| **RS-2**, the read side of "can't": hexproof, shroud, protection | B5's family; `cant-effects-architecture.md` | Its prerequisites have landed (A4i, item 10 with CV-1b). PM-0 designs its reasons beside it, so "why can't I" is designed once |
+| **PM-0**, the permission design, with **a card's characteristic sets** designed beside it | B11; B6's CV-5 with `backlog.md` §2.41 | PM-1 casts a commander from the command zone, and B2 needs it. Which characteristics a spell is cast with (a back face, a split half, an Adventure, a Prototype, an Omen, face down) is the cast path's question too, so the two are designed against one cast path rather than one rebuilt under the other |
+| **PM-1**, casting from the command zone | B11 | B2's commander is cast from there (CR 903.8) |
+| **B2**, the Commander format and designation | B2 | |
+| **B3**, four seats: CR 800 and 802 | B3 | |
+| **B4**, the information model's build, on A6f's design | B4 | **Milestone: a four-player Commander game plays end to end** |
+| **RS-3a, RS-4, RS-3b** | B5 | Combat's "can't"s are the largest family (1,267 of 1,277 Tier-1a clauses), and B8 is cut against them |
+| **B8's permission half**, "as though" | B8 | After B5, never before (its row says why). A Phase 8 gate |
+| **CP-1** with B8's payment half, then **CP-2** | B1 | CP-1 extends MA-1's check, and B8's payment half rides on its payment site |
+| **MA-4, MA-5, MA-6** | B12 | The rest of mana; MA-7, MA-2 and MA-3 went before TR-7 |
+| **B9**, mana provenance: its design, then 1–2 PRs | B9 | It extends the check the mana phases finish |
+| **PM's later builds** | B11 | Flashback and the other cast-from-elsewhere families, alternative costs an effect provides, `codebase-state.md` item 203 |
+| **CV-5**, double-faced cards, then the other characteristic sets: split, flip, Adventure, Prototype, Omen | B6; `backlog.md` §2.41 | The card model PM-0's design settled, built after PM's builds because they share the cast path. Before CV-6, whose face-down status sits beside face-up, and CV-7, whose meld is a double-faced card. About 835 printed cards (Scryfall, 2026-10-12, each `game:paper -is:funny`: `is:transform` 388, `is:mdfc` 99, `is:meld` 21, `is:flip` 20, `is:split` 123, `is:adventure` 152, `kw:prototype` 19, and §2.41's 13 Omens) |
+| **CV-3, CV-4**, token and spell copies | B6 | Free of every dependency; here so the copy track runs as one stretch |
+| **CV-6**, face-down permanents and morph | B6 | After CV-5 |
+| **CV-7**, merging and meld | B6 | A Phase 8 gate |
+| **B10**, a clone during a deep stack: its design, then one PR | B10 | A Phase 8 gate |
+| **A4l**, damage divided among targets | A4l | Before Phase 8's 48 "divided as you choose" cards |
+
+**Only these bind:** RS-3a, then RS-4, then RS-3b; B8 after B5; CP-1 carries
+B8's payment half; CV-5, then CV-6, then CV-7; PM-1 before B2; B4 after A6f.
+The rest of the order ranks each piece by the cards it unblocks and keeps a
+subsystem's phases together, so it may be reordered by a decision recorded
+here. **B7's lattice** (§4's table) is card features rather than engine
+mechanisms, so its items go into Phase 8's own plan with their cards.
+
 
 ### B. What breadth needs — beside and after triggers
 
-**The order after triggers (the owner, 2026-09-29): B2, B3 and B4 first, ahead of the
-mechanism rows B5–B10**, with B11's first build before B2, since B2's commander is cast
-from the command zone (the owner, 2026-10-05), so a four-player Commander game is playable end to end before
-breadth: the format and its designation, then CR 800 and 802 at four seats, then the
-information model built on A6f's design. The mechanism rows follow, each keeping its
-back-stop and pulled by the card family that wants it; B1's last PR, CP-1, goes any time.
+**The order after triggers is the list above**, "From triggers to Phase 8"
+(the owner, 2026-10-12). It keeps 2026-09-29's choice, a four-player Commander
+game playable end to end before the mechanism rows, and gives those rows their
+places. Each row below keeps its scope and its back-stop.
 
 | # | Do this | Why here | PRs |
 |---|---|---|---:|

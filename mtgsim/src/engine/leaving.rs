@@ -12,7 +12,7 @@
 //! and CR 800.4f–i and CR 802, which are `codebase-state.md`'s "Before
 //! Commander" item 4.
 
-use crate::engine::actions::{ActionContext, ZoneChangeAct};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::get_effective_controller;
@@ -24,6 +24,23 @@ use crate::engine::layers::types::{EffectModification, EffectOrigin};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
+    /// CR 800.4a — whether `object` goes when `player` leaves the game: what
+    /// they own leaves the game with them, and what they still control once
+    /// the effects giving them control have ended is exiled. That second half
+    /// is what they control by default (CR 110.2, 110.2b), which is the one
+    /// set both of a batch's readers ask before the leaving performs: its
+    /// snapshot of the survivors' abilities and its frames (CR 603.10a).
+    ///
+    /// Asked before the leaving, so it may include an object that stays: a
+    /// permanent another player holds by an effect that outlives the leaving.
+    /// Framing one costs a memo read; missing one that goes is a wrong
+    /// look-back. Empty in a two-player game, which ends instead (CR 104.2a).
+    pub(crate) fn departs_with(&self, object: ObjectId, player: PlayerId) -> bool {
+        self.is_multiplayer()
+            && (self.objects.get(&object).is_some_and(|obj| obj.owner == player)
+                || crate::engine::layers::compute::base_controller(self, object, None) == Some(player))
+    }
+
     /// CR 800.4a — `player` has just left the game; take their objects with
     /// them, end the control they were given, and exile what is left behind.
     ///
@@ -218,6 +235,12 @@ impl GameState {
     /// Layer 2 row's, so a surviving row that names a live player is exactly
     /// the case this does not exile.
     ///
+    /// **One event**: "those objects are exiled" is one instruction over a
+    /// set, as a spell's is (CR 608.2f), so every exile is decided against
+    /// the board before any of them (CR 614.4). A replacement whose source is
+    /// among the exiled replaces every exile in it, whichever the batch
+    /// performs first; one at a time, it was gone for the ones after it.
+    ///
     /// Free while everyone is still playing, which is the two-player game and
     /// the part of every other one before the first departure.
     pub(crate) fn exile_objects_no_player_in_game_controls(
@@ -227,27 +250,21 @@ impl GameState {
         if !self.is_multiplayer() || self.player_lost.iter().all(|&lost| !lost) {
             return Ok(());
         }
-        let orphaned: Vec<ObjectId> = self
+        let orphaned: Vec<GameAction> = self
             .battlefield_ids_ordered()
             .into_iter()
             .chain(self.stack.iter().copied())
             .filter(|&id| get_effective_controller(self, id).is_some_and(|p| !self.in_game(p)))
+            .filter_map(|object| {
+                let from = self.objects.get(&object)?.zone;
+                Some(GameAction::ZoneChange { object, from, to: Zone::Exile, act: ZoneChangeAct::Put })
+            })
             .collect();
-        for id in orphaned {
-            // Each exile is a proposal, so a replacement effect may have moved
-            // a later object while an earlier one was being exiled, and the
-            // sweep's answer for it is a board old. Re-asked rather than
-            // trusted.
-            if !self.objects.contains_key(&id) {
-                continue;
-            }
-            if get_effective_controller(self, id).is_some_and(|p| self.in_game(p)) {
-                continue;
-            }
-            let rule = ActionContext::game_rule(dp, GameRule::ControllerLeftTheGame);
-            self.change_zone(id, Zone::Exile, ZoneChangeAct::Put, &rule)?;
+        if orphaned.is_empty() {
+            return Ok(());
         }
-        Ok(())
+        let rule = ActionContext::game_rule(dp, GameRule::ControllerLeftTheGame);
+        self.execute_actions(orphaned, &rule).map(|_| ())
     }
 }
 

@@ -37,6 +37,113 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-12 for RH-2** (#244: the batch's members, decided
+together, `replacement-architecture.md` §2b.6, §2b.8, §2b.10). No card joins
+the registry or the pool (188 registered, 106 pooled). `close_out.py` against
+**main** `35dffa0` (#243's merge), with three arms:
+- **record** `5dfff9f`: one record per batch member, and `LossReason` folded
+  into the cause;
+- **member** `b286e1b`: the record arm and L7's one set;
+- **shipped** `df2e1ee`: the member arm, item 248, and CR 800.4a's exiles as
+  one event. The docs commits after it change no `fuzz_games`.
+
+**Predictions, written into #244's body before any arm ran:**
+- record: `IDENTICAL` on every row, gameplay and cost, both pools, at two
+  seats and four.
+- member: gameplay rows `IDENTICAL`, save a four-seat game where a leaving
+  player controlled an ability-list source they did not own; Memo hits drop
+  wherever a loss is decided, since the frames are of what departs.
+- shipped: `performance` gameplay `IDENTICAL`, its cost rows moving; `stress`
+  differing where Kalitas dies in the batch that kills an opponent's
+  creature, or a Zombie no longer enters between two deaths.
+- Instructions per decision, shipped against `main`, between −0.1 and +0.1
+  points. §2b.10 priced item 248 at −0.04.
+- Every dispatch agreed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay and cost rows, record vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, member vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → member, performance / stress | 54,577 → 54,551 / 65,419 → 65,395 | 170,213 → 170,145 / 195,042 → 194,975 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / 4 games of 200 apart | **IDENTICAL** / 22 games of 200 apart |
+| `Layer frames`, `main` → shipped, performance / stress | 4,039 → 3,993 / 4,642 → 4,607 | 13,397 → 13,223 / 14,714 → 14,591 |
+| `Board walks`, `main` → shipped, performance / stress | 210 → 209 / 233 → 231 | 440 → 435 / 488 → 484 |
+| audit, record and member, performance / stress, dispatches agreed | 162,763 / 165,874 | 331,993 / 341,449 |
+| audit, shipped, performance / stress, dispatches agreed | 162,763 / 165,786 | 331,993 / 341,502 |
+| instructions / decision, member vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6501 M → 0.6496 M, **−0.07%** |
+| instructions / decision, shipped vs `main`, the same board | | 0.6503 M → 0.6453 M, **−0.77%** |
+
+**One prediction broke: instructions per decision, at −0.77%.** The member
+arm reads −0.07%, so item 248 is about −0.7 points of it. §2b.10 priced only
+the nested batch it removes (−0.04). It said the move's gather "can only hit
+the layer memo more often", and did not price that. Before, a destruction's
+move was decided after earlier members had performed, and each performance
+bumps the layer epoch, so the move's gather re-walked a board that had just
+changed. Now every move is decided before any member performs. On the
+callgrind board that is about 174 fewer layer frames a game (13,397 → 13,223
+at four seats on `performance`), with gameplay `IDENTICAL`, so the drop is
+the same games doing less work.
+
+**The `stress` games apart: 4 of 200 at two seats and 22 of 200 at four,
+every one item 248's**, by its first difference in a per-game diff of the
+event dumps (the `PlayerLost` line masked, the one intended text change):
+- **A rider now runs after the whole batch** (CR 615.5): a Kalitas Zombie,
+  or a Divine Visitation Angel in its place, enters after every death of the
+  check, and after a loss in the same check. Four-seat games 24, 39, 49, 72,
+  84, 89, 92, 115, 119, 122, 125, 131, 137, 140, 166 and 200, and two-seat
+  161. In two-seat game 11, the loss in that check ended the game first (CR
+  104.1), so no Angel is made.
+- **An exile replacement's source dying first is still there when the other
+  deaths are decided**: Kalitas in four-seat games 41, 110 and 198 and
+  two-seat games 115 and 86 (in 86 its owner is now offered Kalitas beside
+  another exile, so Replacement prompts moves), and an animated Rest in
+  Peace in four-seat games 95 and 147.
+- **Four-seat game 54, the reverse**: Humility dies first in batch order. On
+  `main` the later deaths were decided after it had left, so an exiling
+  ability it had removed had come back, and they went to exile. Now they are
+  decided while Humility is still there, so they go to the graveyard. It is
+  the same rule (CR 704.3, 614.4) from the other side.
+
+None is L7's: the member arm is `IDENTICAL` on gameplay at both seat counts,
+so no pooled game reaches the controlled-source board its fixture found. Every
+dispatch agreed in every arm. The sittings ran in 174 s, 81 s for the member
+arm's reading, and 23 s for the fixture rows.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** The gameplay
+rows read TR-3c's to the digit on both pools; only the cost rows move.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 21 (42.0%) / 29 (58.0%) | 26 (52.0%) / 24 (48.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 27.8 | 27.6 |
+| Spells cast | 21.3 | 21.0 |
+| Lands played | 16.5 | 17.0 |
+| Combat w/ atk | 10.3 | 8.4 |
+| Creatures died | 6.7 | 4.4 |
+| Damage events | 21.3 | 18.7 |
+| Total damage | 54.6 | 54.9 |
+| Life changes | 14.9 | 13.4 |
+| **Layer walks** | **318** | **390** |
+| **Board walks** | **197** | **232** |
+| **Memo hits** | **49,385** | **63,565** |
+| **Layer frames** | **3,625** | **4,416** |
+| **Frames/walk** | **11.38** | **11.31** |
+| **Dependency checks** | **6** | **37** |
+| **Replacement gathers** | **958** | **1025** |
+| **Restriction queries** | **959** | **1027** |
+| Mana productions | 62 | 89 |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.20 | 0.64 |
+| Max batch depth | 5 | 4 |
+| Decisions | 182 | 256 |
+| Priority decisions | 68 | 104 |
+| Actions reversed | 0.2 | 0.2 |
+| Triggers placed | 2.0 | 2.0 |
+| Windows past gate | 31.2 | 52.2 |
+| Candidate visits | 36.9 | 55.6 |
+| Trigger matches | 3.0 | 2.9 |
+
 **Re-recorded 2026-10-11 for RH-1** (`replacement/rh-1-act-and-cause`: the
 act and the cause, `replacement-architecture.md` §2b). No card joins the
 registry or the pool (188 registered, 106 pooled): Guerrilla Tactics was

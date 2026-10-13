@@ -1,7 +1,7 @@
 //! Every record the engine writes to the trace sink, one function per kind.
 //!
 //! The emit points call these and nothing else, so an emit point is one line —
-//! `self.trace(|| trace_records::batch(self, &batch, &groups, inherited))` —
+//! `self.trace(|| trace_records::batch(self, &groups, inherited))` —
 //! and the shape of every record is in this file rather than inline in the
 //! function it observes. The sink, the handle and the JSON builder are
 //! `state::trace`; the one record built elsewhere is the CR 616.1 iteration's,
@@ -13,9 +13,8 @@
 //! the sink's cost model lives: rendering an action, sorting a type set and
 //! resolving a name all happen inside these functions and nowhere else.
 
-use crate::engine::actions::GameAction;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::replacement::EventSubject;
+use crate::engine::replacement::{BatchMember, SubjectGroup};
 use crate::engine::targeting::TargetInstance;
 use crate::events::event::EventSeq;
 use crate::state::game_state::{AbilityIdentity, GameState};
@@ -28,29 +27,27 @@ use crate::ui::decision::PriorityAction;
 
 /// `batch` — the proposals as they entered `execute_batch_inner`, and the
 /// subject groups CR 616.1 decides them in, in APNAP order.
-pub(crate) fn batch(
-    game: &GameState,
-    proposals: &[GameAction],
-    groups: &[(EventSubject, Vec<usize>)],
-    inherited: usize,
-) -> Record {
+pub(crate) fn batch(game: &GameState, groups: &[SubjectGroup], inherited: usize) -> Record {
     let mut r = Record::new(RecordKind::Batch);
     r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.field_u64("inherited", inherited as u64);
+    let mut proposals: Vec<&BatchMember> = groups.iter().flat_map(|g| &g.members).collect();
+    proposals.sort_by_key(|m| m.place);
     r.key("members").begin_array();
-    for (i, action) in proposals.iter().enumerate() {
+    for m in proposals {
         r.begin_object();
-        r.field_u64("i", i as u64);
-        r.field_str("action", &render_debug(action));
+        r.field_u64("i", m.place as u64);
+        r.field_opt_str("action", m.event.as_ref().map(render_debug).as_deref());
         r.end();
     }
     r.end();
     r.key("groups").begin_array();
-    for (subject, members) in groups {
+    for group in groups {
         r.begin_object();
-        r.field_str("subject", &render_debug(subject));
-        r.field_usizes("members", members);
+        r.field_str("subject", &render_debug(&group.subject));
+        let places: Vec<usize> = group.members.iter().map(|m| m.place).collect();
+        r.field_usizes("members", &places);
         r.end();
     }
     r.end();

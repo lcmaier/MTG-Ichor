@@ -240,7 +240,9 @@ pub enum GameEvent {
     /// Emitted by the `GameAction::PlayerLoses` performer, so a loss a
     /// replacement effect prevented (Exquisite Archangel) or a "can't" refused
     /// (Platinum Angel) announces nothing.
-    PlayerLost { player_id: PlayerId, reason: LossReason },
+    /// Why is the record's cause: the state-based action's subrule, or the
+    /// effect that said so (CR 104.3e).
+    PlayerLost { player_id: PlayerId },
     /// CR 104.2b — an effect stated that this player wins. Emitted by the
     /// `GameAction::PlayerWins` performer. CR 104.2a's win — the last player
     /// standing — is not an event: it is the outcome the losses imply, recorded
@@ -455,26 +457,6 @@ impl GameEvent {
         };
         named.into_iter().flatten().chain(listed.iter().copied()).chain(paired.iter().flat_map(|&(a, b)| [a, b]))
     }
-}
-
-/// Why a player lost the game.
-///
-/// Carried by `GameAction::PlayerLoses` and read by nothing that decides: every
-/// printed "would lose the game" replacement and every printed "can't lose"
-/// applies to every reason (`replacement-architecture.md` §9, RE decision 5),
-/// so `EventPattern::PlayerLoses` has no field for it and this is the log's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LossReason {
-    /// Life total reached 0 or below (rule 704.5a)
-    LifeReachedZero,
-    /// Attempted to draw from an empty library (rule 704.5b)
-    DrawnFromEmptyLibrary,
-    /// Accumulated 10 or more poison counters (rule 704.5c)
-    PoisonCounters,
-    /// Dealt 21 or more combat damage by a single commander (rule 704.6c)
-    CommanderDamage,
-    /// An effect said so (rule 104.3e) — `Primitive::LoseGame`.
-    Effect,
 }
 
 /// What damage is being dealt to.

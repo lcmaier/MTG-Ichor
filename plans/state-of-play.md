@@ -31,10 +31,10 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
    TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
-Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
-then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 after MA-1), the
-information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10), the mana check (`mana-architecture.md` MA-1–MA-6: MA-3 before TR-7, the rest before Phase 8) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, after MA-1, before Phase 8), and a clone during a deep stack (item 183, B10 — before Phase 8).
-Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
+MA-7, MA-2 and MA-3 go before 6's TR-7. **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
+four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
+information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-4–MA-6; B9; PM's
+later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
 
@@ -117,6 +117,7 @@ is derived.
 | 2026-10-08 | The returns and "until", with Flickerwisp and Banishing Light | `TR-3b` | `triggers-architecture.md` |
 | 2026-10-09 | The reflexive trigger, item 225 and item 99 | `TR-3c` | `triggers-architecture.md` |
 | 2026-10-11 | The act and the cause | `RH-1` | `replacement-architecture.md` |
+| 2026-10-12 | The batch's members, decided together | `RH-2` | `replacement-architecture.md` |
 
 ### Named, not yet landed
 
@@ -143,7 +144,7 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The record's identity, its applied set and its moment | `RH-2` | `replacement-architecture.md` |
+| The record's identity, its applied set and its moment | `RH-3` | `replacement-architecture.md` |
 | The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
 | Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
@@ -155,7 +156,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 188 |
 | …of them in `PERFORMANCE_POOL` | 106 |
-| `#[test]` functions | 2231 |
+| `#[test]` functions | 2240 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -177,13 +178,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 303 |
-| …closed, still recorded | 148 |
+| …closed, still recorded | 149 |
 | …open — unreachable, and says why | 104 |
-| **…open — reachable, wrong today** | **5** |
+| **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 153 of 155 |
+| …open, carrying an explicit `**Sized:**` | 152 of 154 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -197,7 +198,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 100 |
+| …slotted to a phase or roadmap row still to come | 99 |
 | …slotted to the first registered card that needs it | 43 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |

@@ -7956,7 +7956,10 @@ and the reading below, which the audit makes and the dispatcher does not.
      The five readers then read the board immediately after the event, and the
      record needs no batch tag. The ~40-line tag design above is superseded.
      The item keeps no slot of its own.
-     **Slotted:** RH-2, the record's identity, its applied set and its moment.
+     **Re-slotted (2026-10-12):** RH-2 was split in two at #243's review
+     (`replacement-architecture.md` §2b.11, decision 12), and the two-part
+     dispatch went to the second.
+     **Slotted:** RH-3, the record's identity, its applied set and its moment.
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8116,7 +8119,10 @@ linked-ability records an entry makes.
      six kinds of cause through Sigarda's filter, Nephalia Academy's
      replacement and a trigger shaped like Guerrilla Tactics. The third
      question, which replacements applied, stays open.
-     **Slotted:** RH-2 (the applied set), Phase RH, before A6m and TR-4a.
+     **Re-slotted (2026-10-12):** the applied set went to RH-3 when RH-2 was
+     split (`replacement-architecture.md` §2b.11, decision 12). It is read off
+     RH-2's batch member record.
+     **Slotted:** RH-3 (the applied set), Phase RH, before A6m and TR-4a.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8175,11 +8181,14 @@ keeps the cost decisions).
      carries `new_epoch`, the epoch `arrive_in_zone` stamped, and only that: the
      existence that left is already `lki.object` where CR 603.10a frames the
      move. The binding's subject, "them" and `Effect::Remember` read it off the
-     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2
+     record. ATOM-400.7e-001 and -002 move from TR-4 to RH-2, and to RH-3
+     with the item on 2026-10-12
      (`triggers-architecture.md` §13). The item keeps no slot of its own. Its
      59, re-run 2026-10-10 with the query above and `game:paper -is:funny`,
      reproduces.
-     **Slotted:** RH-2, the record's identity, its applied set and its moment.
+     **Re-slotted (2026-10-12):** RH-2 was split in two (decision 12), and the
+     record's new object went to the second.
+     **Slotted:** RH-3, the record's identity, its applied set and its moment.
 
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
@@ -9477,34 +9486,15 @@ ones on the last-known-information and zone-change surface are items 176 and
 contract (`roadmap-v2.md` A6o). Asking when each fact is taken found one board
 that is wrong today.
 
-248. **A destruction's move is decided after the event has begun, so a
-     replacement whose source died earlier in the same event is gone.**
-     `GameAction::Destroy`'s performer proposes its move (CR 701.8a) as a
-     nested batch, so in a batch of several destructions each later member's
-     move is decided after the earlier members performed. Kalitas, Traitor of
-     Ghet dying beside an opponent's creature in one state-based check is
-     gone when that creature's death is decided, and the creature goes to the
-     graveyard. Its ruling (2016-01-22): "If Kalitas dies at the same time as
-     creatures your opponents control, those creature cards will be exiled
-     and you'll get that many Zombies." CR 704.3 decides every member against
-     one board, and CR 614.4 needs the effect to exist before the event, which
-     here is the batch.
-     **Reachability (2026-10-10):** reachable — wrong today: Kalitas is
-     registered, and a probe through the public API (both creatures marked
-     with lethal damage, then `check_state_based_actions`) sends the creature
-     to the graveyard when Kalitas was placed first and exiles it when Kalitas
-     was placed second. Any wrath or combat trade that kills Kalitas beside an
-     opponent's creature reaches it, in whichever order the batch performs.
-     **Sized:** ~180 lines of code and ~200 of tests: a destruction's move is
-     decided with the destruction, in phase 1, as an inner event with its
-     outer (`plans/glossary.md`'s "outer event / inner event"). A result (CR
-     120.3's life loss, a creation's entries) is still decided after the
-     event that produced it. Both batch orders and a wrath are fixtures, each
-     shown to fail first. The move's riders then run in the batch's phase 3,
-     so a Zombie no longer enters between two deaths of one event
-     (`replacement-architecture.md` §2b.6).
-     **Slotted:** RH-2, the record's identity, its applied set and its moment;
-     its piece stands alone if RH-2 runs past the band.
+248. **~~A destruction's move is decided after the event has begun, so a
+     replacement whose source died earlier in the same event is gone.~~ — ✅
+     CLOSED 2026-10-12 (PR #244, RH-2).** — archived.
+     Done: each surviving destruction's move is decided in phase 1, right
+     after its group, against the board no member has changed
+     (`GameState::decide_destruction_moves`), and performed right after its
+     destruction in phase 2 (`BatchMember::inner_move`).
+     **Reachability (2026-10-12):** closed — PR #244.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 248".
 
 ### Found by RH-1 — the act and the cause (2026-10-11)
 

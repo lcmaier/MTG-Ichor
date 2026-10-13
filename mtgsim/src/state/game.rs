@@ -572,11 +572,10 @@ mod tests {
     /// batch, so the settlement is the batch's (CR 104.2a / 104.4a).
     fn lose(game: &mut Game, player: usize) {
         use crate::engine::actions::GameAction;
-        use crate::events::event::LossReason;
         let dp = ScriptedDecisionProvider::new();
         game.state
             .execute_action(
-                GameAction::PlayerLoses { player, reason: LossReason::Effect },
+                GameAction::PlayerLoses { player },
                 &ActionContext::new(&dp),
             )
             .unwrap();
