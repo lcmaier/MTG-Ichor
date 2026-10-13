@@ -1134,9 +1134,9 @@ impl GameState {
         groups
     }
 
-    /// Item 248: each destruction `group` decided proposes its move (CR
-    /// 701.8a), and the move is decided now, with it, against the board no
-    /// member of the batch has changed yet. CR 704.3 decides every member
+    /// Each destruction `group` decided proposes its move (CR 701.8a), and the
+    /// move is decided now, with it, against the board no member of the batch
+    /// has changed yet. CR 704.3 decides every member
     /// against one board, and CR 614.4 wants a replacement to exist before the
     /// event, which is the batch: Kalitas dying beside an opponent's creature
     /// still exiles it, whichever of them the batch performs first.

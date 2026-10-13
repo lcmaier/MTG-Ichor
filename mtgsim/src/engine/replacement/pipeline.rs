@@ -148,8 +148,8 @@ pub(crate) struct BatchMember {
     /// that decomposes hands on (§3.2d).
     pub applied: HashSet<ReplacementInstanceId>,
     /// A destruction's move (CR 701.8a), its inner event, decided right after
-    /// its group against the same board and performed right after it: item
-    /// 248. `None` for every other member, and for a destruction that was
+    /// its group against the same board (CR 704.3, 614.4) and performed right
+    /// after it. `None` for every other member, and for a destruction that was
     /// replaced or stopped, which no longer moves anything.
     pub inner_move: Option<Box<BatchMember>>,
 }
@@ -670,12 +670,18 @@ pub(crate) fn apply_replacements(
 /// group queued. CR 614.5: a rider is the rest of its replacement's effect, so
 /// it carries everything that applied to the event, including what applied
 /// after it was queued.
+///
+/// The set itself goes to the last member, so the common group, one member
+/// and no rider, copies nothing.
 fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: HashSet<ReplacementInstanceId>) {
     for rider in queued {
         rider.lineage = applied.clone();
     }
-    for member in group.iter_mut() {
-        member.applied = applied.clone();
+    if let Some((last, rest)) = group.split_last_mut() {
+        for member in rest {
+            member.applied = applied.clone();
+        }
+        last.applied = applied;
     }
 }
 

@@ -1,14 +1,14 @@
 //! RH-2: the batch's members, decided together (`replacement-architecture.md`
 //! §2b.6, §2b.8).
 //!
-//! Two facts a batch decides before it performs anything, and the boards that
+//! Three facts a batch decides before it performs anything, and the boards that
 //! showed each read at the wrong moment:
-//! - L7, which permanents a player's leaving takes (CR 800.4a): what they own
+//! - which permanents a player's leaving takes (CR 800.4a): what they own
 //!   leaves the game with them and what they still control is exiled, so a
 //!   source on either side is looked back at (CR 603.10a);
-//! - item 248, a destruction's move (CR 701.8a), decided with the destruction
-//!   against the board before any member of its batch has performed (CR 704.3,
-//!   614.4).
+//! - a destruction's move (CR 701.8a), decided with the destruction against
+//!   the board before any member of its batch has performed (CR 704.3, 614.4);
+//! - CR 800.4a's exiles, decided together as one event.
 
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ fn pending_from(game: &GameState, source: ObjectId) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// L7 — what a player's leaving takes (CR 800.4a), looked back at (CR 603.10a)
+// What a player's leaving takes (CR 800.4a), looked back at (CR 603.10a)
 // ---------------------------------------------------------------------------
 
 /// A 1/1 whose grant lasts while its controller is in the game and controls a
@@ -80,7 +80,7 @@ fn granter_while_you_control_a_creature() -> Arc<CardData> {
         .build()
 }
 
-/// L7's controlled side: a source the leaving player controls by default and
+/// The controlled side: a source the leaving player controls by default and
 /// does not own is exiled by CR 800.4a's fourth clause, which is part of the
 /// leaving, so the carrier looks back to the grant it had before the leaving
 /// began, not to the lists after the loss ended the grant.
@@ -101,7 +101,7 @@ fn a_source_the_leaving_player_controls_and_does_not_own_is_looked_back_at() {
     );
 }
 
-/// L7's owned side: a source the leaving player owns and another player
+/// The owned side: a source the leaving player owns and another player
 /// controls leaves the game with its owner (CR 800.4a's first clause, 603.6c).
 #[test]
 fn a_source_the_leaving_player_owns_and_does_not_control_is_looked_back_at() {
@@ -116,7 +116,7 @@ fn a_source_the_leaving_player_owns_and_does_not_control_is_looked_back_at() {
 }
 
 // ---------------------------------------------------------------------------
-// Item 248 — a destruction's move, decided with the destruction
+// A destruction's move, decided with the destruction (CR 701.8a, 704.3)
 // ---------------------------------------------------------------------------
 
 /// The tokens `player` controls.
@@ -245,7 +245,7 @@ fn a_destruction_a_shield_counter_replaced_proposes_no_move() {
 }
 
 // ---------------------------------------------------------------------------
-// §2b.11's other outer event: CR 800.4a's exiles, one event
+// CR 800.4a's exiles, one event
 // ---------------------------------------------------------------------------
 
 /// "If a permanent would be put into exile from the battlefield, put it into
