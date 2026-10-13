@@ -785,6 +785,12 @@ impl EventWindow {
         self.open = previous;
     }
 
+    /// Open `batch` again, after a dispatch made with it closed between its
+    /// events and its riders: the riders' events join it.
+    pub(crate) fn reopen_batch(&mut self, batch: Option<BatchId>) {
+        self.open = batch;
+    }
+
     /// Hand every held record to the recorder, or drop it when none is
     /// attached. The numbering carries on.
     pub(crate) fn flush(&mut self) {

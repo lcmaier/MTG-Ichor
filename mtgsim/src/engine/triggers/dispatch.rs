@@ -2,7 +2,8 @@
 //!
 //! A dispatch is the matcher's run over one **window**: every record one
 //! batch stamped, run when the outermost `execute_actions` that opened it is
-//! about to return, after its riders; or one unbatched record, run inside
+//! about to return, or in two parts when it queued riders, what it performed
+//! before them and theirs at its close; or one unbatched record, run inside
 //! `emit_event` before it returns (§4.1). The instant is still synchronous
 //! with the mutation — before the next proposal, before the state-based
 //! check, before anyone receives priority — so "that instant is now" holds
@@ -369,6 +370,19 @@ impl GameState {
         batch: Option<BatchId>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
+        let result = self.dispatch_window(mark, batch, ctx);
+        self.flush_window_unless_nested();
+        result
+    }
+
+    /// [`Self::dispatch_batch`] without the flush: the first part of a window
+    /// whose riders are still to run (`replacement-architecture.md` §2b.6).
+    pub(crate) fn dispatch_window(
+        &mut self,
+        mark: EventSeq,
+        batch: Option<BatchId>,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
         let window: Vec<EventSeq> = self
             .events
             .records_since(mark)
@@ -381,9 +395,7 @@ impl GameState {
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
         let audit = self.take_audit_snapshots(batch);
-        let result = self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref());
-        self.flush_window_unless_nested();
-        result
+        self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref())
     }
 
     /// One record emitted outside any batch — a cast, an activation, an

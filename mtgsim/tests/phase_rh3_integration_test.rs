@@ -11,25 +11,27 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{another, dies, leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::engine::replacement::ReplacementInstanceId;
 use mtgsim::events::cause::{EventCause, GeneratedBy};
-use mtgsim::events::event::{GameEvent, ResolutionStamp};
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::events::event::{DamageTarget, GameEvent, ResolutionStamp};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::controller_or_owner;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, effect_ctx, put_in_hand, put_in_library, put_on_battlefield, setup_two_player_game,
+    creature_with_ability, effect_ctx, put_in_hand, put_in_library, put_on_battlefield, put_spell_on_stack,
+    setup_two_player_game,
     static_ability, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, ReturnUnder,
-    SelectionFilter, TargetCount,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
+    Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::restriction::SourceFilter;
-use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::decision::DecisionProvider;
@@ -384,4 +386,340 @@ fn who_exiled_a_redirected_move_is_the_replacements_controller() {
 #[test]
 fn the_event_keeps_its_size() {
     assert_eq!(std::mem::size_of::<GameEvent>(), 72);
+}
+
+// ---------------------------------------------------------------------------
+// The moment: immediately after the event, before its riders (CR 603.4, 615.5)
+// ---------------------------------------------------------------------------
+
+fn gain_one() -> Effect {
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+}
+
+/// The triggers `source` has waiting to be put on the stack.
+fn pending_from(game: &GameState, source: ObjectId) -> Vec<PlayerId> {
+    game.pending_triggers.iter().filter(|t| t.origin.source() == source).map(|t| t.controller).collect()
+}
+
+/// A 2/2 creature token with `abilities`.
+fn token_with(abilities: Vec<AbilityDef>) -> TokenDef {
+    TokenDef {
+        name: Some("Fixture Token".into()),
+        colors: Vec::new(),
+        types: vec![CardType::Creature],
+        subtypes: Vec::new(),
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(2),
+        keyword_flags: Vec::new(),
+        abilities,
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+    }
+}
+
+/// "If a creature an opponent controls would die, exile it instead and
+/// create [token]": Kalitas's shape on an enchantment, so its controller can
+/// control no creature.
+fn exiler_making(token: TokenDef) -> Arc<CardData> {
+    let replacement = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+            object: None,
+        },
+        ObjectSet::battlefield_filter(ObjectFilter::And(
+            Box::new(a_creature()),
+            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        )),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    )
+    .with_then(Effect::Atom(Primitive::CreateToken(token, AmountExpr::Fixed(1)), EffectRecipient::Controller));
+    card_of_type_with(
+        "Fixture: exiles and makes a token",
+        CardType::Enchantment,
+        static_ability(Effect::Replacement(Box::new(replacement))),
+    )
+}
+
+/// "If a source would deal damage to a creature, prevent that damage, then
+/// [verb] that creature": a rider (CR 615.5) acting on the creature right
+/// after the event it rode on.
+fn prevents_then(verb: Primitive) -> Arc<CardData> {
+    let replacement = ReplacementDef::new(
+        EventPattern::DealDamage { source: None, combat: None },
+        ObjectSet::battlefield_filter(a_creature()),
+        Rewrite::Prevent,
+    )
+    .with_then(Effect::Atom(
+        verb,
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+    ));
+    card_of_type_with(
+        "Fixture: prevents damage to a creature, then acts on it",
+        CardType::Enchantment,
+        static_ability(Effect::Replacement(Box::new(replacement))),
+    )
+}
+
+/// One damage from `source` to `creature`, proposed with `others` as one
+/// event.
+fn with_one_damage(others: Vec<GameAction>, source: ObjectId, creature: ObjectId) -> Vec<GameAction> {
+    let mut batch = others;
+    batch.push(GameAction::DealDamage {
+        source,
+        source_lki: None,
+        target: DamageTarget::Object(creature),
+        amount: 1,
+        is_combat: false,
+        unpreventable: false,
+    });
+    batch
+}
+
+/// A permanent a rider made did not exist when the event it rides on
+/// happened, so it does not look back at that event (CR 603.10a): its
+/// leaves-the-battlefield ability sees nothing. Read at the window's close,
+/// the token saw the death before it.
+#[test]
+fn a_permanent_a_rider_makes_does_not_look_back_at_the_event_before_it() {
+    let mut game = setup_two_player_game();
+    let watches = triggered_ability("", whenever(leaves_the_battlefield(a_creature()), gain_one()));
+    put_on_battlefield(&mut game, exiler_making(token_with(vec![watches])), 0);
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert_eq!(game.pending_triggers.len(), 0, "the token was made after the creature left");
+}
+
+/// The same newcomer's ordinary arm (CR 603.6a): what it asks is the board
+/// immediately after the event, where it was not.
+#[test]
+fn a_permanent_a_rider_makes_does_not_see_the_event_before_it() {
+    let mut game = setup_two_player_game();
+    let watches = triggered_ability(
+        "",
+        whenever(
+            TriggerEvent::ZoneChange {
+                subject: TriggerSubject::Any,
+                change: ZoneChangePattern { from: None, to: Some(Zone::Exile), act: None },
+                by: None,
+                owner: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            gain_one(),
+        ),
+    );
+    put_on_battlefield(&mut game, exiler_making(token_with(vec![watches])), 0);
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
+    assert_eq!(game.pending_triggers.len(), 0, "the token was made after the creature was exiled");
+}
+
+/// A permanent that left in the event is not there when its rider destroys
+/// another creature, so its last known information answers only the event it
+/// left in (CR 603.10a). Read at the window's close, it saw the later death.
+#[test]
+fn a_permanent_that_left_does_not_look_back_at_a_death_after_it() {
+    let mut game = setup_two_player_game();
+    let watcher = put_on_battlefield(
+        &mut game,
+        creature_with_ability("Fixture: another dies", 1, 1, triggered_ability("", whenever(dies(another(a_creature())), gain_one()))),
+        0,
+    );
+    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy), 1);
+    let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let later = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: watcher }], source, later), &test_ctx())
+        .unwrap();
+    assert_eq!(game.get_object(later).unwrap().zone, Zone::Graveyard, "the rider destroyed it");
+    assert!(pending_from(&game, watcher).is_empty(), "it had left before the rider's death");
+}
+
+/// Decision 5's reading of CR 615.5's "immediately afterward": a rider's
+/// records are an event after the one it rides on, so "whenever one or more
+/// creatures die" sees two (`replacement-architecture.md` §2b.11's open
+/// question).
+#[test]
+fn one_or_more_sees_an_event_and_its_rider_as_two_events() {
+    let mut game = setup_two_player_game();
+    let watcher = put_on_battlefield(
+        &mut game,
+        card_of_type_with(
+            "Fixture: one or more die",
+            CardType::Enchantment,
+            triggered_ability("", whenever(dies(a_creature()).once_per_event(), gain_one())),
+        ),
+        0,
+    );
+    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy), 1);
+    let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let second = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: first }], source, second), &test_ctx())
+        .unwrap();
+    assert_eq!(game.get_object(second).unwrap().zone, Zone::Graveyard);
+    assert_eq!(pending_from(&game, watcher).len(), 2, "the death, then the rider's");
+}
+
+/// CR 603.4 checks an intervening "if" when the trigger event occurs, before
+/// the rider's Zombie enters: player 0 controlled no creature then. Read at
+/// the window's close, the Zombie made the "if" true.
+#[test]
+fn the_intervening_if_is_checked_when_the_event_occurs() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, exiler_making(token_with(Vec::new())), 0);
+    let mut def = whenever(
+        leaves_the_battlefield(ObjectFilter::And(
+            Box::new(a_creature()),
+            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        )),
+        gain_one(),
+    );
+    def.intervening_if = Some(Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(a_creature()) });
+    let watcher = put_on_battlefield(
+        &mut game,
+        card_of_type_with("Fixture: if you control a creature", CardType::Enchantment, triggered_ability("", def)),
+        0,
+    );
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    assert_eq!(game.battlefield.len(), 3, "the exiler, the watcher and the Zombie");
+    assert!(pending_from(&game, watcher).is_empty(), "no creature was player 0's when the creature left");
+}
+
+/// "Creatures enter tapped, then return that creature to its owner's hand."
+fn enters_tapped_then_bounces() -> Arc<CardData> {
+    let replacement = ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::battlefield_filter(a_creature()),
+        Rewrite::EnterWith(EnterModsTemplate::tapped()),
+    )
+    .with_then(Effect::Atom(
+        Primitive::ReturnToHand,
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+    ));
+    card_of_type_with(
+        "Fixture: enters tapped, then bounces",
+        CardType::Enchantment,
+        static_ability(Effect::Replacement(Box::new(replacement))),
+    )
+}
+
+/// "Whenever a creature enters, if it was cast" reads the permanent as it
+/// entered (CR 400.7d): a rider bouncing it right after takes nothing back.
+/// Read at the window's close, the permanent was gone, and so was its cast.
+#[test]
+fn was_it_cast_reads_the_permanent_as_it_entered() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, enters_tapped_then_bounces(), 0);
+    let watcher = put_on_battlefield(
+        &mut game,
+        card_of_type_with(
+            "Fixture: a cast creature enters",
+            CardType::Enchantment,
+            triggered_ability(
+                "",
+                whenever(
+                    TriggerEvent::EntersBattlefield {
+                        subject: TriggerSubject::Filter(a_creature()),
+                        controller: None,
+                        from: None,
+                        was_cast: Some(true),
+                        multiplicity: Multiplicity::PerOccurrence,
+                    },
+                    gain_one(),
+                ),
+            ),
+        ),
+        0,
+    );
+    let bear = put_spell_on_stack(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Hand, "the rider bounced it");
+    assert_eq!(pending_from(&game, watcher).len(), 1, "it was cast, and it entered");
+}
+
+/// CR 603.2f asks visibility of the object as the event left it: in the
+/// graveyard, public. A rider returning it to a hand right after hides it
+/// only afterwards. Read at the window's close, the card was in a hand.
+#[test]
+fn a_source_hidden_after_the_event_is_seen_as_the_event_left_it() {
+    let mut game = setup_two_player_game();
+    let returner = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+            object: None,
+        },
+        ObjectSet::battlefield_filter(a_creature()),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Graveyard }),
+    )
+    .with_then(Effect::Atom(
+        Primitive::ReturnToHand,
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+    ));
+    put_on_battlefield(
+        &mut game,
+        card_of_type_with(
+            "Fixture: dying creatures go to a hand right after",
+            CardType::Enchantment,
+            static_ability(Effect::Replacement(Box::new(returner))),
+        ),
+        0,
+    );
+    let card = put_on_battlefield(&mut game, gains_when_put_into_a_graveyard(), 0);
+
+    game.execute_action(GameAction::Destroy { object: card }, &test_ctx()).unwrap();
+    assert_eq!(game.get_object(card).unwrap().zone, Zone::Hand, "the rider returned it");
+    assert_eq!(pending_from(&game, card).len(), 1, "it was in a graveyard, public, when it triggered");
+}
+
+/// "When this is put into a graveyard from anywhere, you gain 1 life."
+fn gains_when_put_into_a_graveyard() -> Arc<CardData> {
+    creature_with_ability(
+        "Fixture: gains from anywhere",
+        2,
+        2,
+        triggered_ability(
+            "",
+            whenever(
+                TriggerEvent::ZoneChange {
+                    subject: TriggerSubject::ThisObject,
+                    change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
+                    by: None,
+                    owner: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                },
+                gain_one(),
+            ),
+        ),
+    )
+}
+
+/// CR 603.3a: a triggered ability's controller is its source's when it
+/// triggered. A rider that steals the source right after the event steals it
+/// too late. Read at the window's close, the thief controlled the trigger.
+#[test]
+fn a_trigger_is_controlled_by_its_sources_controller_when_it_triggered() {
+    let mut game = setup_two_player_game();
+    let watcher = put_on_battlefield(
+        &mut game,
+        creature_with_ability("Fixture: a creature dies", 1, 1, triggered_ability("", whenever(dies(a_creature()), gain_one()))),
+        0,
+    );
+    put_on_battlefield(&mut game, prevents_then(Primitive::GainControl(Duration::UntilEndOfTurn)), 1);
+    let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: victim }], source, watcher), &test_ctx())
+        .unwrap();
+    assert_eq!(controller_or_owner(&game, watcher), Some(1), "the rider stole it (CR 613.1b)");
+    assert_eq!(pending_from(&game, watcher), vec![0], "player 0 controlled it when the creature died");
 }
