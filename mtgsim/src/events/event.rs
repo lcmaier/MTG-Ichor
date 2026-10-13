@@ -775,7 +775,7 @@ impl EventWindow {
     /// Two callers, each with the rules argument for why its events are not a
     /// result of the event they are nested inside:
     /// `GameState::execute_actions_new_batch` for CR 614.13's auxiliary moves,
-    /// and `GameState::run_riders_as_their_own_event` for a replacement's
+    /// and `GameState::execute_riders` for a replacement's
     /// rider, which CR 615.5 puts "immediately afterward".
     pub(crate) fn open_new_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;

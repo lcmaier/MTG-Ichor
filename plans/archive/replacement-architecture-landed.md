@@ -9571,7 +9571,7 @@ and CR 610.3's returns read each record's new object through `put_into_since`.
 A zone-change arm that names no act asks `GameEvent::redirected_by()`, the last
 redirect's cause, else the record's (§2b.4's decided reading). The log line
 names each replacement that applied. Decision 5 is
-`run_riders_as_their_own_event` (`engine/actions.rs`): the batch that
+`execute_riders` (`engine/actions.rs`): the batch that
 dispatches its own window closes and dispatches what it performed, then runs
 its riders in a new batch with its own dispatch. A first build reopened the
 batch for its riders; the review removed that. L1–L6's

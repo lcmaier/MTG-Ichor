@@ -1067,7 +1067,7 @@ the batch performed is dispatched before its riders run, and the riders'
 records at its close, so every live read is taken immediately after the event
 (item 175). Built in RH-3 (#245) as two batches: the batch closes and its
 window is dispatched, and its riders then run as a new batch with its own
-dispatch (`run_riders_as_their_own_event`), so "one window, one batch id"
+dispatch (`execute_riders`), so "one window, one batch id"
 still holds.
 
 **Where the records live, and when they go (the bounded-state PR,

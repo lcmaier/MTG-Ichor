@@ -5244,7 +5244,7 @@ Closed by RH-3 (`replacement-architecture.md` §2b.6, decision 5, and §9). The
 batch that dispatches its window, the outermost one or a CR 614.13 auxiliary
 one, now closes and dispatches what it performed, nested batches included,
 before its riders run, and then runs the riders as an event of their own, a
-new batch with its own dispatch (`GameState::run_riders_as_their_own_event`).
+new batch with its own dispatch (`GameState::execute_riders`).
 A CR 610.3 return or a triggered mana ability the first dispatch performs is
 an event of its own, as at any window's close. The ~40-line tag design below was
 superseded on 2026-10-10. `tests/phase_rh3_integration_test.rs` has a board

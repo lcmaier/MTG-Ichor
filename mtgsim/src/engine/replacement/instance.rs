@@ -62,70 +62,52 @@ pub enum ReplacementInstanceId {
     GameRule(ObjectRef, GameRuleReplacement),
 }
 
-/// The replacement effects that have already had their one chance at an event
-/// (CR 614.5: "it gets only one opportunity to affect an event or any modified
-/// events that may replace that event"), in the order they had it. The CR 616.1
-/// loop never offers one of these again, and the event's record keeps the ones
-/// that applied. Zero to three long, so a list read linearly.
+/// What CR 616.1's loop has done with replacement effects for one event and
+/// the events that replace it. CR 614.5 gives each effect "only one
+/// opportunity to affect an event or any modified events that may replace that
+/// event", and an effect uses it by applying or, for a "you may ... instead",
+/// by being declined. The loop offers neither kind again, and the event's
+/// record keeps the ones that applied, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppliedReplacements(Vec<Opportunity>);
-
-/// How an effect used its one opportunity: it applied, or it was offered and
-/// declined ("you may ... instead"), which uses it all the same.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Opportunity {
-    Applied(AppliedReplacement),
-    Declined(ReplacementInstanceId),
-}
-
-impl Opportunity {
-    fn instance(&self) -> &ReplacementInstanceId {
-        match self {
-            Opportunity::Applied(applied) => &applied.instance,
-            Opportunity::Declined(id) => id,
-        }
-    }
+pub struct AppliedReplacements {
+    /// In the order they applied.
+    applied: Vec<AppliedReplacement>,
+    /// Optional effects their chooser declined.
+    declined: Vec<ReplacementInstanceId>,
 }
 
 impl AppliedReplacements {
     /// An event nothing has replaced yet.
-    pub const EMPTY: AppliedReplacements = AppliedReplacements(Vec::new());
+    pub const EMPTY: AppliedReplacements = AppliedReplacements { applied: Vec::new(), declined: Vec::new() };
 
+    /// Whether `id` has had its one opportunity: it applied, or was declined.
     pub fn contains(&self, id: &ReplacementInstanceId) -> bool {
-        self.0.iter().any(|opportunity| opportunity.instance() == id)
+        self.applied.iter().any(|a| a.instance == *id) || self.declined.contains(id)
     }
 
-    /// Adds an effect that applied, last, unless it is already here.
+    /// Adds an effect that applied, last, unless it has had its opportunity.
     pub fn apply(&mut self, applied: AppliedReplacement) {
         if !self.contains(&applied.instance) {
-            self.0.push(Opportunity::Applied(applied));
+            self.applied.push(applied);
         }
     }
 
-    /// Adds an effect that was offered and declined, last, unless it is
-    /// already here.
+    /// Adds an optional effect its chooser declined, unless it has had its
+    /// opportunity.
     pub fn decline(&mut self, id: ReplacementInstanceId) {
         if !self.contains(&id) {
-            self.0.push(Opportunity::Declined(id));
+            self.declined.push(id);
         }
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.applied.len() + self.declined.len()
     }
 
     /// The effects that applied, in the order they did: what the record of
     /// the event keeps. `None` when none did.
     pub fn applied(&self) -> Option<Arc<[AppliedReplacement]>> {
-        let applied: Vec<AppliedReplacement> = self
-            .0
-            .iter()
-            .filter_map(|opportunity| match opportunity {
-                Opportunity::Applied(applied) => Some(*applied),
-                Opportunity::Declined(_) => None,
-            })
-            .collect();
-        (!applied.is_empty()).then(|| applied.into())
+        (!self.applied.is_empty()).then(|| self.applied.as_slice().into())
     }
 
     /// The same effects, with none marked as having redirected: what a
@@ -133,17 +115,10 @@ impl AppliedReplacements {
     /// is the rest of (CR 614.5), and none of them moved the rider's own
     /// events anywhere.
     pub fn without_redirects(&self) -> AppliedReplacements {
-        AppliedReplacements(
-            self.0
-                .iter()
-                .map(|opportunity| match opportunity {
-                    Opportunity::Applied(applied) => {
-                        Opportunity::Applied(AppliedReplacement { redirected: false, ..*applied })
-                    }
-                    Opportunity::Declined(id) => Opportunity::Declined(*id),
-                })
-                .collect(),
-        )
+        AppliedReplacements {
+            applied: self.applied.iter().map(|a| AppliedReplacement { redirected: false, ..*a }).collect(),
+            declined: self.declined.clone(),
+        }
     }
 }
 

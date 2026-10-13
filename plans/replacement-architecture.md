@@ -654,7 +654,7 @@ would need a snapshot for each of the other four, so this replaces it.
 **As built (RH-3, #245's review):** the riders' records are a batch of their
 own. The batch that dispatches its own window closes, dispatches what it
 performed, and then runs its riders in a new batch with its own dispatch
-(`run_riders_as_their_own_event`). An earlier build kept one batch open across
+(`execute_riders`). An earlier build kept one batch open across
 both parts and reopened it for the riders; the review asked whether that was
 needed, and it was not.
 

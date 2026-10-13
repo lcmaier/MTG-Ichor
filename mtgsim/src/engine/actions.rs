@@ -744,7 +744,7 @@ impl GameState {
         self.nesting.batch_depth += 1;
         let result = match self.execute_batch_inner(proposals, ctx, inherited) {
             // A nested batch's riders are part of the window it joined.
-            Ok((performed, riders)) if !outermost => self.run_riders(riders, ctx).map(|()| (performed, Vec::new())),
+            Ok((performed, riders)) if !outermost => self.resolve_riders(riders, ctx).map(|()| (performed, Vec::new())),
             decided => decided,
         };
         self.nesting.batch_depth -= 1;
@@ -759,7 +759,7 @@ impl GameState {
             // creatures entering together each see the other enter; and a "one
             // or more" trigger fires once for it (603.2c).
             self.dispatch_batch(mark, window, ctx)?;
-            self.run_riders_as_their_own_event(riders, ctx)?;
+            self.execute_riders(riders, ctx)?;
         }
         Ok(performed)
     }
@@ -829,7 +829,7 @@ impl GameState {
         // Always inside the instruction's batch, so its riders are part of it.
         let result = self
             .execute_batch_inner(proposals, ctx, inherited)
-            .and_then(|(performed, riders)| self.run_riders(riders, ctx).map(|()| performed));
+            .and_then(|(performed, riders)| self.resolve_riders(riders, ctx).map(|()| performed));
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
@@ -874,7 +874,7 @@ impl GameState {
         // before the entry's ETB (§4.1).
         let (performed, riders) = result?;
         self.dispatch_batch(mark, window, ctx)?;
-        self.run_riders_as_their_own_event(riders, ctx)?;
+        self.execute_riders(riders, ctx)?;
         Ok(performed)
     }
 
@@ -1111,35 +1111,21 @@ impl GameState {
         Ok((performed, riders))
     }
 
-    /// The riders a batch queued, in application order. "Immediately
-    /// afterward" (CR 615.5) means after the events happened, not mid-loop,
-    /// and a rider is unconditional once queued (CR 615.12), so this runs even
-    /// for a member whose event was dropped entirely.
-    fn run_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
-        for rider in riders {
-            self.resolve_rider(rider, ctx)?;
-        }
-        Ok(())
-    }
-
-    /// The riders of a batch that dispatches its own window, run once that
-    /// window has been dispatched, as an event of their own: a new batch with
-    /// its own dispatch (`replacement-architecture.md` §2b.6). CR 603.4 checks
-    /// a trigger "when the trigger event occurs", so the event is read before
+    /// [`Self::resolve_riders`] as a batch of their own, dispatched at its
+    /// close, the way `execute_actions` performs proposals: the riders of a
+    /// batch that dispatches its own window, run once that window has been
+    /// dispatched (`replacement-architecture.md` §2b.6). CR 603.4 checks a
+    /// trigger "when the trigger event occurs", so the event is read before
     /// any rider changes the board, and CR 615.5's "immediately afterward"
     /// makes the riders' events a second event to a "one or more" trigger.
-    fn run_riders_as_their_own_event(
-        &mut self,
-        riders: Vec<crate::engine::replacement::Rider>,
-        ctx: &ActionContext,
-    ) -> Result<(), String> {
+    fn execute_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
         if riders.is_empty() {
             return Ok(());
         }
         let previous = self.events.open_new_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
-        let result = self.run_riders(riders, ctx);
+        let result = self.resolve_riders(riders, ctx);
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         result?;
@@ -1219,11 +1205,16 @@ impl GameState {
         Ok(())
     }
 
-    /// Resolve one queued rider — see [`Rider`](crate::engine::replacement::Rider)
-    /// for which rule gives it this timing (CR 615.5 for a prevention effect,
-    /// CR 614.1a/614.6 for a plain replacement).
+    /// Resolve the riders a batch queued, in application order, inside
+    /// whatever batch is open, so their events join it; [`Self::execute_riders`]
+    /// gives them a batch of their own. See [`Rider`](crate::engine::replacement::Rider)
+    /// for which rule gives a rider its timing (CR 615.5 for a prevention
+    /// effect, CR 614.1a/614.6 for a plain replacement). "Immediately
+    /// afterward" means after the events happened, not mid-loop, and a rider
+    /// is unconditional once queued (CR 615.12), so each runs even for a member
+    /// whose event was dropped entirely.
     ///
-    /// Its `ResolutionContext` names the event's subject as the single resolved
+    /// Each one's `ResolutionContext` names the event's subject as the single resolved
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
     /// object *or the player* the replacement was about and one written with
     /// `EffectRecipient::Controller` acts for the effect's own controller. The
@@ -1234,6 +1225,14 @@ impl GameState {
     /// A player subject becomes a `ResolvedTarget::Player` rather than being
     /// flattened away: Angel of Suffering's "prevent that damage and mill twice
     /// that many cards" mills the player the damage was aimed at.
+    fn resolve_riders(&mut self, riders: Vec<crate::engine::replacement::Rider>, ctx: &ActionContext) -> Result<(), String> {
+        for rider in riders {
+            self.resolve_rider(rider, ctx)?;
+        }
+        Ok(())
+    }
+
+    /// One of [`Self::resolve_riders`].
     fn resolve_rider(
         &mut self,
         rider: crate::engine::replacement::Rider,
