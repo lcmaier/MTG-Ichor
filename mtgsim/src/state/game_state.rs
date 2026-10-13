@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use rand::rngs::StdRng;
@@ -580,7 +579,7 @@ pub struct GameState {
     /// On `GameState` rather than on `ResolutionContext` because it is scoped
     /// to a call, like `entry_selection`, and a rider is resolved through the
     /// same `resolve_effect` every spell is (`codebase-state.md` item 40).
-    pub(crate) rider_lineage: Option<HashSet<crate::engine::replacement::ReplacementInstanceId>>,
+    pub(crate) rider_lineage: Option<crate::engine::replacement::AppliedSet>,
 
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).

@@ -1,7 +1,5 @@
-use std::collections::HashSet;
-
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
-use crate::engine::replacement::{BatchMember, ReplacementInstanceId, SubjectGroup};
+use crate::engine::replacement::{AppliedSet, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
 use crate::events::event::{CounterSubject, DamageTarget, GameEvent};
@@ -731,7 +729,7 @@ impl GameState {
         // read: the batches nested inside the rider's own event are contained and
         // carry sets of their own. Put back afterwards for the rider's next proposal.
         let rider_lineage = self.rider_lineage.take();
-        let empty = HashSet::new();
+        let empty = AppliedSet::default();
         let inherited = rider_lineage.as_ref().unwrap_or(&empty);
         // A new lineage either way for the decomposition count: a rider's
         // draw inside a doubled draw starts counting from zero, or the
@@ -799,7 +797,7 @@ impl GameState {
         &mut self,
         batch: Vec<GameAction>,
         ctx: &ActionContext,
-        inherited: &HashSet<ReplacementInstanceId>,
+        inherited: &AppliedSet,
     ) -> Result<Vec<GameAction>, String> {
         self.nesting.decomposition_depth += 1;
         debug_assert!(
@@ -849,7 +847,7 @@ impl GameState {
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();
-        let result = self.execute_batch_inner(proposals, ctx, &HashSet::new());
+        let result = self.execute_batch_inner(proposals, ctx, &AppliedSet::default());
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
@@ -892,7 +890,7 @@ impl GameState {
         &mut self,
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
-        inherited: &HashSet<ReplacementInstanceId>,
+        inherited: &AppliedSet,
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, Rider};
         use crate::engine::trace_records;
@@ -1170,7 +1168,7 @@ impl GameState {
             };
             let mut inner = BatchMember::proposed(member.place, movement, member.cause);
             let member_ctx = ctx.caused_by(member.cause);
-            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &HashSet::new(), riders)?;
+            apply_replacements(self, std::slice::from_mut(&mut inner), later, &member_ctx, &AppliedSet::default(), riders)?;
             member.inner_move = Some(Box::new(inner));
         }
         Ok(())
@@ -1267,7 +1265,7 @@ impl GameState {
         &mut self,
         action: GameAction,
         ctx: &ActionContext,
-        lineage: &HashSet<ReplacementInstanceId>,
+        lineage: &AppliedSet,
     ) -> Result<(), String> {
         match action {
             // `unpreventable` is read by the pipeline and by nothing here:

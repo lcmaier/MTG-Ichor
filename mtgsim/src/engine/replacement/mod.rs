@@ -35,7 +35,7 @@ pub(crate) use gather::{
     EventSubject,
 };
 pub use gather::CounterEffectKind;
-pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};
+pub(crate) use instance::{AppliedSet, GameRuleReplacement, ReplacementInstanceId};
 pub use instance::ReplacementInstance;
 pub(crate) use lookahead::EntryFrame;
 pub(crate) use pipeline::{

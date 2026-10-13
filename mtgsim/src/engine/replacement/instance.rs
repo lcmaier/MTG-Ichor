@@ -59,6 +59,40 @@ pub enum ReplacementInstanceId {
     GameRule(ObjectRef, GameRuleReplacement),
 }
 
+/// CR 614.5's applied set: the replacement effects that have affected an
+/// event, or been offered to it and declined, in the order they joined it.
+/// The order is the record's (`replacement-architecture.md` §2b.4), and a set
+/// holds zero to three, so it is a list read linearly.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AppliedSet(Vec<ReplacementInstanceId>);
+
+impl AppliedSet {
+    pub fn contains(&self, id: &ReplacementInstanceId) -> bool {
+        self.0.contains(id)
+    }
+
+    /// Adds `id` last, unless it is already in the set.
+    pub fn insert(&mut self, id: ReplacementInstanceId) {
+        if !self.0.contains(&id) {
+            self.0.push(id);
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl FromIterator<ReplacementInstanceId> for AppliedSet {
+    fn from_iter<I: IntoIterator<Item = ReplacementInstanceId>>(ids: I) -> Self {
+        let mut set = AppliedSet::default();
+        for id in ids {
+            set.insert(id);
+        }
+        set
+    }
+}
+
 /// Which rule-shaped replacement effect a [`ReplacementInstanceId::GameRule`]
 /// names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
