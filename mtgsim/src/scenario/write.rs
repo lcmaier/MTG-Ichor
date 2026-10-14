@@ -556,17 +556,31 @@ impl<'g> Writer<'g> {
             }
             place.filter(|_| obj.zone == Zone::Battlefield).map(|i| (source.id, i + 1))
         };
-        for identity in &state.triggered_this_turn {
+        // The sets are hashed, so each is read in the board's order: a report
+        // is a line of the output, and a controller is a layer walk.
+        let board_order = |source: crate::types::ids::ObjectRef, ability: crate::types::ids::AbilityId| {
+            (state.object_timestamp(source.id), source.zone_change_epoch, format!("{ability:?}"))
+        };
+        // ORDER-FREE: sorted next.
+        let mut triggered: Vec<_> = state.triggered_this_turn.iter().collect();
+        triggered.sort_by_key(|identity| board_order(identity.source, identity.ability));
+        for identity in triggered {
             if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {
                 facts.push((id, n, CardWord::Triggered { ability: Some(n) }));
             }
         }
-        for (&(source, ability), &times) in &state.resolutions_this_turn {
+        // ORDER-FREE: sorted next.
+        let mut resolved: Vec<_> = state.resolutions_this_turn.iter().collect();
+        resolved.sort_by_key(|entry| board_order(entry.0.0, entry.0.1));
+        for (&(source, ability), &times) in resolved {
             if let Some((id, n)) = ability_of(self, source, ability) {
                 facts.push((id, n, CardWord::Resolved { ability: Some(n), times }));
             }
         }
-        for (identity, player) in &state.action_taken_this_turn {
+        // ORDER-FREE: sorted next.
+        let mut taken: Vec<_> = state.action_taken_this_turn.iter().collect();
+        taken.sort_by_key(|entry| (board_order(entry.0.source, entry.0.ability), entry.1));
+        for (identity, player) in taken {
             if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {
                 if crate::oracle::characteristics::get_effective_controller(state, id) != Some(*player) {
                     self.report("a once-each-turn action taken under another controller");
@@ -574,7 +588,7 @@ impl<'g> Writer<'g> {
                 facts.push((id, n, CardWord::TookOnceEachTurnAction { ability: Some(n) }));
             }
         }
-        // The sets are hashed, so the order comes from the board.
+        // By the board, and within a source by its ability's place on the card.
         facts.sort_by_key(|(id, n, word)| (state.object_timestamp(*id), *n, format!("{word:?}")));
         for (id, _, word) in facts {
             let card = self.named_card(&state.objects[&id]);

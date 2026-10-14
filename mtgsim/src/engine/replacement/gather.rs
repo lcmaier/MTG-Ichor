@@ -310,12 +310,20 @@ pub(crate) fn gather(
     // battlefield's key. The entering object is source 1a's alone: read here off
     // its source zone, its filter-scoped rows would reach its own entry, which
     // 614.12's parenthesis forbids.
-    let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
-    for (&id, printed) in game.zone_replacement_ability_sources.iter() {
-        if printed.iter().any(|def| printed_could_apply(game, id, def, &proposal)) {
-            elsewhere.push((game.object_timestamp(id), id));
-        }
-    }
+    // Sorted before any is asked, since asking walks the layers and a walk
+    // writes a trace record.
+    // ORDER-FREE: sorted by timestamp next.
+    let mut printed_sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
+        .zone_replacement_ability_sources
+        .iter()
+        .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
+        .collect();
+    printed_sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
+    let mut elsewhere: Vec<(Timestamp, ObjectId)> = printed_sources
+        .into_iter()
+        .filter(|(_, id, printed)| printed.iter().any(|def| printed_could_apply(game, *id, def, &proposal)))
+        .map(|(timestamp, id, _)| (timestamp, id))
+        .collect();
     let zone_sweep = unattributed_zones.beyond_battlefield();
     if any_named_unattributed || !zone_sweep.is_empty() {
         let mut named: Vec<ObjectId> = Vec::new();

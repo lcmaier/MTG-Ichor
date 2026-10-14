@@ -761,7 +761,10 @@ impl GameState {
             let named = [Some(pending.origin.source_ref()), pending.binding.subject];
             each(named, KeptLkiSlot::List(&mut pending.kept_lki));
         }
-        for entry in self.stack_entries.values_mut() {
+        // In stack order, never the map's: a capture is a layer walk, which
+        // writes a trace record.
+        for id in &self.stack {
+            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
             let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
             each(named, KeptLkiSlot::List(&mut entry.kept_lki));
         }
