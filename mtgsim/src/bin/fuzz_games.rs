@@ -1139,6 +1139,7 @@ fn run_games(
 fn main() {
     let mut args = parse_args();
 
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: a run with no --seed draws one, and prints it")]
     let master_seed = args.seed.unwrap_or_else(|| {
         rand::rng().random::<u64>()
     });

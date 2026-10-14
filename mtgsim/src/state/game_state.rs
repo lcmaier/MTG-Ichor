@@ -1140,6 +1140,7 @@ impl GameState {
 
     /// Point the game's randomness at the OS — for interactive play, where a
     /// fresh shuffle each time is the point.
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: interactive play wants a fresh shuffle")]
     pub fn reseed_from_entropy(&mut self) {
         self.rng = StdRng::from_os_rng();
     }
