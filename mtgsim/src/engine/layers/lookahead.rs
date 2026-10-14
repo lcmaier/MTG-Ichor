@@ -99,6 +99,8 @@ fn would_be_rows(
     let Some(obj) = game.objects.get(&object) else {
         return Vec::new();
     };
+    // PRE-LAYER ZONE: what it enters with, printed or a copy's, before it is a
+    // permanent (CR 614.12).
     let (abilities, name) = match &mods.copy {
         Some(copy) => (&copy.values.abilities, copy.values.name.as_str()),
         None => (&obj.card_data.abilities, obj.card_data.name.as_str()),

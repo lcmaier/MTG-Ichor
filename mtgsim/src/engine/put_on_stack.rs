@@ -778,6 +778,7 @@ mod tests {
         assert_eq!(resolved[0], activated[0], "same identity across activation and resolution");
 
         // And the ephemeral really is gone, so nothing could have used it.
+        // ORDER-FREE: whether any is.
         let ephemeral_still_present = game.objects.values()
             .any(|o| o.zone == Zone::Stack);
         assert!(!ephemeral_still_present);
@@ -814,12 +815,14 @@ mod tests {
         game.activate_ability(0, thaum, idx, &decisions).unwrap();
 
         // There is an ability on the stack, and it records no origin zone.
+        // ORDER-FREE: one, asserted.
         let ability_entries: Vec<_> = game.stack_entries.values()
             .filter(|e| !e.is_spell)
             .collect();
         assert_eq!(ability_entries.len(), 1, "the ability should be on the stack");
         assert_eq!(ability_entries[0].cast_from, None);
 
+        // ORDER-FREE: each entry is asked alone.
         for entry in game.stack_entries.values() {
             assert_eq!(
                 entry.cast_from.is_some(),

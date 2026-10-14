@@ -60,6 +60,7 @@ fn refused_in_play(text: &str) -> String {
 
 /// The object named `name` in `zone`, the only one there.
 fn object(state: &GameState, zone: Zone, name: &str) -> ObjectId {
+    // ORDER-FREE: the one, asserted.
     let mut found = state.objects.values().filter(|o| o.zone == zone && o.card_data.name == name).map(|o| o.id);
     let one = found.next().unwrap_or_else(|| panic!("no {name} in {zone:?}"));
     assert!(found.next().is_none(), "two of {name} in {zone:?}");

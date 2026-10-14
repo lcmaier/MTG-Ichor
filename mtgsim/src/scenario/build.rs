@@ -442,6 +442,7 @@ impl<'s> Loader<'s> {
         // CR 103.8: only a turn-1 board before its draw step has the skip to
         // come, and `begin_step` refuses every draw step while it is set.
         self.state.skip_first_draw = turn == 1 && self.scenario.step.step == Some(StepType::Upkeep) && starting_player_skips_first_draw(&self.state);
+        // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
             || self.state.players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
         self.state.attacks_declared = self.in_combat_from(StepType::DeclareAttackers) && attacked;
@@ -521,6 +522,8 @@ impl<'s> Loader<'s> {
                 continue;
             }
             let source = self.permanent_named(&card_line.card, line)?;
+            // AS PRINTED: a count names its ability by its place on the
+            // printed card, as the writer numbered it.
             let card = Arc::clone(&self.state.objects[&source].card_data);
             let reference = ObjectRef { id: source, zone_change_epoch: self.state.objects[&source].zone_change_epoch };
             for word in &card_line.words {

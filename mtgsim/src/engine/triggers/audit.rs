@@ -136,6 +136,8 @@ impl GameState {
     /// reaches has its printed abilities and nothing else. An ability on the
     /// stack is an object (CR 113.1c) without its source's abilities.
     fn objects_that_may_trigger(&self) -> Vec<ObjectId> {
+        // NO ROW REACHES: asked only of an object no row reaches, whose
+        // abilities are its printed ones.
         let printed_trigger =
             |id: &ObjectId| self.objects.get(id).is_some_and(|o| o.card_data.abilities.iter().any(|a| matches!(a.effect, Effect::Triggered(_))));
         let mut ids = self.battlefield_ids_ordered();

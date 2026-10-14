@@ -176,6 +176,7 @@ fn a_cast_from_hand_with_exact_mana_replays() {
     let start = GameStart::Scenario { path: "bolt".to_string(), seed: 0, text: BOLT_IN_HAND.to_string() };
     let (mut original, record) = recorded(&start);
     let state = &original.game().state;
+    // ORDER-FREE: one card of each name on this board.
     let named = |name: &str| state.objects.values().find(|object| object.card_data.name == name).map(|object| object.id).expect(name);
     let (bolt, mountain, bears) = (named("Lightning Bolt"), named("Mountain"), named("Grizzly Bears"));
     let tap = state.objects[&mountain].card_data.abilities[0].id;

@@ -178,6 +178,7 @@ impl<'g> Writer<'g> {
         if *last_turn_began != natural {
             self.report("turns that left the natural rotation (an extra or a skipped turn), which CR 302.6 reads");
         }
+        // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
             || players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
         if *attacks_declared != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
@@ -308,6 +309,7 @@ impl<'g> Writer<'g> {
     fn assign_tags(&mut self) {
         let state = self.state;
         let permanents = state.battlefield_ids_ordered();
+        // ORDER-FREE: sorted by timestamp next.
         let mut commanders: Vec<ObjectId> = state.objects.values().filter(|o| o.is_commander).map(|o| o.id).collect();
         commanders.sort_by_key(|&id| state.object_timestamp(id));
         for group in [&permanents, &commanders] {
@@ -550,6 +552,8 @@ impl<'g> Writer<'g> {
         // it was is gone (CR 400.7), and nothing reads the entry again.
         let ability_of = |writer: &mut Self, source: crate::types::ids::ObjectRef, ability: crate::types::ids::AbilityId| {
             let obj = state.find(source)?;
+            // AS PRINTED: a count names its ability by its place on the
+            // printed card, which is where the loader finds it again.
             let place = obj.card_data.abilities.iter().position(|a| a.id.definition() == ability.definition());
             if place.is_none() || obj.zone != Zone::Battlefield {
                 writer.report("a \"this turn\" count of an ability not printed on a permanent on the battlefield");

@@ -1398,6 +1398,7 @@ fn test_a_shield_outlives_the_permanent_that_made_it() {
 
 /// Every token on the battlefield, by name.
 fn tokens(game: &GameState) -> Vec<String> {
+    // ORDER-FREE: sorted by name next.
     let mut names: Vec<String> = game
         .battlefield
         .keys()

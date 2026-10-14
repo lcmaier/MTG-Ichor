@@ -627,6 +627,7 @@ impl GameState {
     /// which the `OrderTriggers` prompt offers — is the whole-battlefield
     /// walk's.
     fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+        // ORDER-FREE: sorted by timestamp next.
         let mut readers: Vec<(Timestamp, ObjectId)> = self
             .trigger_sources
             .iter()
@@ -917,6 +918,7 @@ impl GameState {
             on_battlefield.dedup_by_key(|&mut (_, id)| id);
             on_battlefield.into_iter().map(|(_, id)| id).collect()
         };
+        // ORDER-FREE: sorted by timestamp below.
         let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
             .zone_trigger_sources
             .keys()

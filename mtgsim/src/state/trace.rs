@@ -820,6 +820,7 @@ impl GameState {
         if !self.trace_on() {
             return;
         }
+        // ORDER-FREE: sorted by id next.
         let mut ids: Vec<ObjectId> = self.objects.keys().copied().collect();
         ids.sort_by_key(|id| id.raw());
         for id in ids {

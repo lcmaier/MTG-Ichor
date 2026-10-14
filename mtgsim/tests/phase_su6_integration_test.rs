@@ -223,6 +223,7 @@ struct AskingWhy<'a> {
 impl AskingWhy<'_> {
     fn ask(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption]) {
         let question = OpenQuestion { player, context, options };
+        // ORDER-FREE: sorted by id next.
         let mut ids: Vec<ObjectId> = game.objects.keys().copied().collect();
         ids.sort_by_key(|id| id.raw());
         let about = ids.into_iter().map(WhyAbout::Object).chain((0..game.num_players()).map(WhyAbout::Player));

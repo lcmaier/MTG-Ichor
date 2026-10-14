@@ -121,6 +121,7 @@ fn a_source_the_leaving_player_owns_and_does_not_control_is_looked_back_at() {
 
 /// The tokens `player` controls.
 fn tokens_of(game: &GameState, player: PlayerId) -> usize {
+    // ORDER-FREE: a count.
     game.battlefield
         .iter()
         .filter(|(id, entry)| entry.controller == player && game.objects.get(id).is_some_and(|o| o.is_token))

@@ -949,6 +949,7 @@ const REPLACEMENT_COUNTERS: [CounterType; 3] =
 /// reads as a card that silently does nothing. The scan skips immediately on
 /// the empty-counters case, which is almost every permanent.
 fn any_replacement_counter(game: &GameState) -> bool {
+    // ORDER-FREE: whether any has one.
     game.battlefield.values().any(|entry| {
         !entry.counters.is_empty()
             && REPLACEMENT_COUNTERS.iter().any(|c| entry.counters.contains_key(c))

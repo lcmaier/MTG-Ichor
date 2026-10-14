@@ -238,7 +238,9 @@ fn this_turns_abilities() {
     );
     let state = &game.state;
     assert_eq!(state.triggered_this_turn.len(), 1);
+    // ORDER-FREE: one entry.
     assert_eq!(state.resolutions_this_turn.values().copied().collect::<Vec<_>>(), [2]);
+    // ORDER-FREE: one entry.
     assert_eq!(state.action_taken_this_turn.iter().map(|(_, player)| *player).collect::<Vec<_>>(), [0]);
     assert!(refused("battlefield: Elvish Warmaster | controller 0\nthis turn: Elvish Warmaster | resolved 1").message.contains("ability N"));
 }

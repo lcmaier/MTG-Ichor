@@ -1211,6 +1211,7 @@ impl GameState {
     /// may still iterate the map directly; they touch disjoint entries and emit
     /// nothing.
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
+        // ORDER-FREE: sorted by timestamp next.
         let mut entries: Vec<(ObjectId, &PermanentState)> =
             self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
         entries.sort_by_key(|(_, e)| e.timestamp);
@@ -1225,6 +1226,7 @@ impl GameState {
         // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
         // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
         // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
+        // ORDER-FREE: sorted by timestamp next.
         let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
             .map(|(&id, e)| (e.timestamp, id))
@@ -1693,6 +1695,8 @@ impl GameState {
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
+        // PRE-LAYER ZONE: the abilities it arrived with, printed or a copy's. The
+        // registry this builds is the layer walk's input, so the walk cannot answer.
         // An `Arc` bump rather than a `Vec<AbilityDef>` clone: `move_object` calls
         // this on every zone change, so a deep clone would land on every draw, mill
         // and discard. The clone exists only because the loop mutates `self`.

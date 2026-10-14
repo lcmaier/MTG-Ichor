@@ -78,6 +78,7 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
         let candidates: Vec<ObjectId> = if widened {
             game.battlefield_ids_ordered()
         } else {
+            // ORDER-FREE: sorted by timestamp next.
             let mut pairs: Vec<(Timestamp, ObjectId)> = game
                 .cost_modification_ability_sources
                 .iter()
@@ -199,6 +200,8 @@ fn applies_to(
 /// summary flags, which is the caller's `widened` leg. That is why this is
 /// OR'd with them rather than consulted alone.
 fn prints_cost_ability(game: &GameState, spell: ObjectId) -> bool {
+    // NO ROW REACHES: or a summary flag says one may, and the caller's
+    // `widened` leg asks the effective list instead.
     game.objects.get(&spell).is_some_and(|obj| {
         obj.card_data.abilities.iter().any(|ability| {
             ability.ability_type == AbilityType::Static

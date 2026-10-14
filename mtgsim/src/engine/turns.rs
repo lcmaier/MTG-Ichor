@@ -360,6 +360,8 @@ impl GameState {
         }
 
         if phase_type == PhaseType::Combat {
+            // NOT AN EVENT: CR 511.3's removal from combat.
+            // ORDER-FREE: each entry is cleared alone, and nothing is announced.
             for entry in self.battlefield.values_mut() {
                 entry.clear_combat_state();
             }
@@ -398,8 +400,9 @@ impl GameState {
                 // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
                 // lives one level up in `Game::process_turn_based_actions`, not here.
 
-                // Rule 514.2: Remove all damage marked on permanents and end
-                // "until end of turn" / "this turn" effects (simultaneous)
+                // NOT AN EVENT: CR 514.2's damage wearing off. The cards that
+                // stop it are "can't"s, not replacements.
+                // ORDER-FREE: each entry is cleared alone, and nothing is announced.
                 for entry in self.battlefield.values_mut() {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
