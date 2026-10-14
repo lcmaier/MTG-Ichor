@@ -23,7 +23,7 @@ use crate::types::replacement::{
     EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
-use crate::types::zones::{DrawCause, Zone};
+use crate::types::zones::{DrawPlace, Zone};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
@@ -1365,17 +1365,17 @@ fn is_exit(rewrite: &Rewrite) -> bool {
     matches!(rewrite, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }))
 }
 
-/// [`Commuting::DrawDoubler`]'s clause: a doubler that
-/// leaves the draw where it is and admits every cause the decomposition can
-/// stamp on an inner.
+/// [`Commuting::DrawDoubler`]'s clause: a doubler that leaves the draw where
+/// it is and applies to every inner the decomposition makes.
 ///
 /// `player: None` keeps the subject, so the members differ only in `n` and the
-/// total is their product. The `cause` test is the premise's second half: the
-/// inners of a substituted instruction carry the parent's cause once and
-/// [`DrawCause::Effect`] thereafter, so a member that admits one and not the
-/// other applies to some inners and not others, and the orders diverge.
+/// total is their product. The `place` test is the premise's second half: a
+/// substitute's inners fall where the draw would have and later, so a member
+/// asking for a draw other than the draw step's first applies to all of them
+/// once it applies to the draw, and one asking for the turn's second card
+/// applies to some and not others, and the orders diverge.
 fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
-    let EventPattern::DrawCard { cause } = def.pattern else {
+    let EventPattern::DrawCard { place } = def.pattern else {
         return false;
     };
     let Rewrite::Instead(GameActionTemplate::DrawCards {
@@ -1389,12 +1389,9 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
         // premise.
         return false;
     };
-    let GameAction::DrawCard { cause: actual, .. } = event else {
-        return false;
-    };
-    *n >= 1
-        && cause.map(|c| c == *actual).unwrap_or(true)
-        && cause.map(|c| c == DrawCause::Effect).unwrap_or(true)
+    matches!(event, GameAction::DrawCard { .. })
+        && *n >= 1
+        && place.is_none_or(|place| place == DrawPlace::NotFirstInDrawStep)
 }
 
 
@@ -1800,9 +1797,7 @@ fn check_order_invariance(
     }
 
     let probe = match next {
-        GameAction::DrawCards { player, cause, .. } => {
-            GameAction::DrawCard { player: *player, cause: *cause }
-        }
+        GameAction::DrawCards { player, .. } => GameAction::DrawCard { player: *player },
         other => other.clone(),
     };
     let frame = EntryFrame::new(game, &probe);
@@ -2623,32 +2618,17 @@ fn substitute(
         }
 
         // CR 614.1a's "instead … draw": always the **instruction** (CR 121.2a), so
-        // Alms Collector sees what it watches, with the cause kept (CR 614.6) for
-        // Teferi's Ageless Insight. Three printed legs — a draw replaced, an
-        // instruction shrunk, a scry retyped — are RE-2's decisions
+        // Alms Collector sees what it watches. Three printed legs — a draw replaced,
+        // an instruction shrunk, a scry retyped — are RE-2's decisions
         // (`replacement-architecture.md` §9).
         (GameActionTemplate::DrawCards { n, player }, event) => {
             let n = template_amount(chosen, *n, &event)?;
             match event {
-                GameAction::DrawCard { player: affected, cause } => Ok(GameAction::DrawCards {
+                GameAction::DrawCard { player: affected }
+                | GameAction::DrawCards { player: affected, .. }
+                | GameAction::Scry { player: affected, .. } => Ok(GameAction::DrawCards {
                     player: draw_recipient(chosen, player.as_ref(), affected)?,
                     n,
-                    cause,
-                }),
-                GameAction::DrawCards { player: affected, cause, .. } => {
-                    Ok(GameAction::DrawCards {
-                        player: draw_recipient(chosen, player.as_ref(), affected)?,
-                        n,
-                        cause,
-                    })
-                }
-                // A scry has no `DrawCause`; the substitute's is `Effect`, since these draws
-                // are a replacement effect's and CR 121.1's turn-based draw is the step's own
-                // card — so Teferi's Ageless Insight doubles Eligeth's draws, correctly.
-                GameAction::Scry { player: affected, .. } => Ok(GameAction::DrawCards {
-                    player: draw_recipient(chosen, player.as_ref(), affected)?,
-                    n,
-                    cause: DrawCause::Effect,
                 }),
                 // A template that cannot be built from this event is a card-
                 // authoring error rather than a rules corner: the pattern is

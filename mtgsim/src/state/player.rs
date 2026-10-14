@@ -4,6 +4,7 @@ use crate::state::history::PlayerHistory;
 use crate::types::effects::CounterType;
 use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
+use crate::types::zones::DrawOrdinals;
 
 /// Per-player state in the game.
 ///
@@ -47,6 +48,69 @@ pub struct PlayerState {
     /// by the table. Advanced by the dispatcher, record by record, and by
     /// nothing else.
     pub history: PlayerHistory,
+
+    /// This player's draws, counted by the draw's performer.
+    pub draws: DrawCounts,
+}
+
+/// One player's draws this turn and in their draw step in progress, counted as
+/// each is performed (CR 121.2). Not the history's count: that one advances as
+/// a window is dispatched, and a doubled draw's second card is proposed inside
+/// the window that holds its first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrawCounts {
+    /// The turn `this_turn` counts.
+    turn: u32,
+    this_turn: u64,
+    /// Read only while this player's draw step is in progress.
+    this_draw_step: u64,
+}
+
+impl DrawCounts {
+    /// No card drawn.
+    pub const NONE: DrawCounts = DrawCounts { turn: 0, this_turn: 0, this_draw_step: 0 };
+
+    /// The counts a scenario states: `this_turn` draws on turn `turn`,
+    /// `this_draw_step` of them in the draw step in progress.
+    pub fn stated(turn: u32, this_turn: u64, this_draw_step: u64) -> Self {
+        DrawCounts { turn, this_turn, this_draw_step }
+    }
+
+    /// Where this player's next draw would fall on turn `now`, `in_draw_step`
+    /// saying whether it is their own draw step.
+    pub fn next(&self, now: u32, in_draw_step: bool) -> DrawOrdinals {
+        if now == 0 {
+            return DrawOrdinals::BEFORE_ANY_TURN;
+        }
+        let this_turn = if self.turn == now { self.this_turn } else { 0 };
+        DrawOrdinals {
+            in_turn: Some(this_turn + 1),
+            in_draw_step: in_draw_step.then_some(self.this_draw_step + 1),
+        }
+    }
+
+    /// Count a draw, and return where it fell.
+    pub(crate) fn drew(&mut self, now: u32, in_draw_step: bool) -> DrawOrdinals {
+        let ordinals = self.next(now, in_draw_step);
+        if let Some(n) = ordinals.in_turn {
+            self.turn = now;
+            self.this_turn = n;
+        }
+        if let Some(n) = ordinals.in_draw_step {
+            self.this_draw_step = n;
+        }
+        ordinals
+    }
+
+    /// CR 504: this player's draw step has begun.
+    pub(crate) fn draw_step_began(&mut self) {
+        self.this_draw_step = 0;
+    }
+
+    /// The draws counted in the draw step in progress, if it is this player's.
+    pub fn this_draw_step(&self) -> u64 {
+        self.this_draw_step
+    }
 }
 
 impl PlayerState {
@@ -65,6 +129,7 @@ impl PlayerState {
             commander_damage_taken: IdMap::default(),
             has_drawn_from_empty_library: false,
             history: PlayerHistory::before_any_turn(),
+            draws: DrawCounts::NONE,
         }
     }
 
@@ -170,5 +235,20 @@ mod tests {
 
         player.reset_lands_played();
         assert!(player.can_play_land());
+    }
+
+    /// The turn's count starts over on a new turn, the draw step's when the
+    /// step begins, and CR 103.5's opening hand is in neither.
+    #[test]
+    fn test_draw_counts_by_turn_and_draw_step() {
+        let mut draws = DrawCounts::NONE;
+        assert_eq!(draws.drew(0, false), DrawOrdinals::BEFORE_ANY_TURN);
+        assert_eq!(draws.drew(1, false), DrawOrdinals { in_turn: Some(1), in_draw_step: None });
+        draws.draw_step_began();
+        assert_eq!(draws.drew(1, true), DrawOrdinals { in_turn: Some(2), in_draw_step: Some(1) });
+        assert_eq!(draws.drew(1, true), DrawOrdinals { in_turn: Some(3), in_draw_step: Some(2) });
+        assert_eq!(draws.next(2, false), DrawOrdinals { in_turn: Some(1), in_draw_step: None });
+        draws.draw_step_began();
+        assert_eq!(draws.drew(2, true), DrawOrdinals { in_turn: Some(1), in_draw_step: Some(1) });
     }
 }

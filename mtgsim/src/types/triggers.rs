@@ -24,7 +24,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{Zone, ZoneChangePattern};
+use crate::types::zones::{DrawPlace, Zone, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -327,8 +327,9 @@ pub enum TriggerEvent {
     /// card, so a draw of three triggers three times (Psychosis Crawler's
     /// ruling). "That card" is the one drawn. A card put into a hand without
     /// the word "draw" is not drawn (CR 121.5); it is a `ZoneChange`, and never
-    /// this.
-    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity },
+    /// this. `place` is which of the player's draws it watches ("your second
+    /// card each turn"), read off the record, which took it as it was drawn.
+    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity, place: Option<DrawPlace> },
     /// CR 106.12a's "tapped for mana" reads `tapped_for_mana`.
     ManaAdded {
         source: TriggerSubject,
@@ -1089,7 +1090,7 @@ mod tests {
                 caused_by: EventSeq(0),
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
-            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
+            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id, ordinals: crate::types::zones::DrawOrdinals::BEFORE_ANY_TURN }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
             ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
@@ -1114,7 +1115,7 @@ mod tests {
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),
             (TriggerEvent::BecomesUntapped { subject: this.clone() }, &["Untapped"]),
-            (TriggerEvent::DrawsCard { player: None, multiplicity: each }, &["CardDrawn"]),
+            (TriggerEvent::DrawsCard { player: None, multiplicity: each, place: None }, &["CardDrawn"]),
             (TriggerEvent::ManaAdded { source: this.clone(), tapped_for_mana: None, mana: None }, &["ManaAdded"]),
             (
                 TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, multiplicity: each },

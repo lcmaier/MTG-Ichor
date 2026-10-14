@@ -1,4 +1,4 @@
-use crate::engine::actions::{ActionContext, DrawCause, GameAction};
+use crate::engine::actions::{ActionContext, GameAction};
 use crate::events::cause::{GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
@@ -497,12 +497,11 @@ impl GameState {
 
         // Proposed (CR 614.11's draw replacements and 614.10's skips read the
         // proposal), and as the **instruction** (CR 121.2a), CR 504.1's "draw a
-        // card"; the engine's one `DrawCause::TurnBased` site. CR 103.8a's skipped
-        // draw never begins (`begin_step`), and a departed active player draws
-        // nothing (CR 800.4j).
+        // card". CR 103.8a's skipped draw never begins (`begin_step`), and a
+        // departed active player draws nothing (CR 800.4j).
         if self.in_game(active) {
             self.execute_action(
-                GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
+                GameAction::DrawCards { player: active, n: 1 },
                 &ActionContext::turn_based(dp, TurnBasedAction::Draw),
             )?;
         }

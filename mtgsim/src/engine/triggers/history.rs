@@ -20,7 +20,9 @@ enum HistoryUpdate {
     TurnBegan { player: PlayerId, turn: u32 },
     AbilityResolved { identity: AbilityIdentity },
     SpellCast { caster: PlayerId, types: Vec<CardType> },
-    CardDrawn { player: PlayerId },
+    /// `in_turn` is the draw's own count (`DrawCounts`), so its place is that
+    /// one and not a second count of the same draws.
+    CardDrawn { player: PlayerId, in_turn: Option<u64> },
     LifeGained { player: PlayerId, amount: u64 },
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
@@ -35,7 +37,7 @@ impl HistoryUpdate {
             HistoryUpdate::AbilityResolved { .. } => return None,
             HistoryUpdate::TurnBegan { player, .. }
             | HistoryUpdate::SpellCast { caster: player, .. }
-            | HistoryUpdate::CardDrawn { player }
+            | HistoryUpdate::CardDrawn { player, .. }
             | HistoryUpdate::LifeGained { player, .. }
             | HistoryUpdate::LifeLost { player, .. }
             | HistoryUpdate::DamageTaken { player, .. }
@@ -79,7 +81,10 @@ impl GameState {
                     }
                     Some(history.add(turn, TurnFact::SpellsCast, 1))
                 }
-                HistoryUpdate::CardDrawn { .. } => Some(history.add(turn, TurnFact::CardsDrawn, 1)),
+                HistoryUpdate::CardDrawn { in_turn, .. } => {
+                    history.add(turn, TurnFact::CardsDrawn, 1);
+                    in_turn
+                }
                 HistoryUpdate::LifeGained { amount, .. } => {
                     history.add(turn, TurnFact::LifeGained, amount);
                     Some(history.add(turn, TurnFact::LifeGainEvents, 1))
@@ -141,7 +146,9 @@ impl GameState {
                     .unwrap_or_default();
                 HistoryUpdate::SpellCast { caster: *caster, types }
             }
-            GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },
+            GameEvent::CardDrawn { player_id, ordinals, .. } => {
+                HistoryUpdate::CardDrawn { player: *player_id, in_turn: ordinals.in_turn }
+            }
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
                 HistoryUpdate::LifeGained { player: *player_id, amount: (new - old) as u64 }
             }

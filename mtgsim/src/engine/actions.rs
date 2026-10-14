@@ -23,7 +23,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the act, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DrawCause, ZoneChangeAct};
+pub use crate::types::zones::ZoneChangeAct;
 
 /// How many batches may nest before the engine calls it a loop of its own
 /// making — see `NestingGuards::batch_depth`.
@@ -197,19 +197,13 @@ pub enum GameAction {
     DrawCards {
         player: PlayerId,
         n: u64,
-        cause: DrawCause,
     },
 
     /// A single card draw (CR 121.1) — **the inner event**, and
-    /// [`Self::DrawCards`]'s performer is its only producer.
-    ///
-    /// `cause` is *this draw's*, not its instruction's: an instruction's first
-    /// individual draw carries the instruction's cause and every later one is
-    /// [`DrawCause::Effect`]. See [`DrawCause`] for why that is the whole of
-    /// "except the first one you draw in each of your draw steps".
+    /// [`Self::DrawCards`]'s performer is its only producer. Which of its
+    /// player's draws it is, is counted, not carried (`DrawPlace`).
     DrawCard {
         player: PlayerId,
-        cause: DrawCause,
     },
 
     /// A player gains life.
@@ -1404,25 +1398,14 @@ impl GameState {
             // before the next (CR 121.6b). `lineage` starts each inner's CR 614.5
             // applied set from the instruction's (§3.2d): two Teferi's Ageless Insights
             // draw four rather than hang. `n == 0` loops zero times.
-            GameAction::DrawCards { player, n, cause } => {
-                for i in 0..n {
-                    self.execute_actions_decomposing(
-                        vec![GameAction::DrawCard {
-                            player,
-                            // CR 121.1's turn-based action is one card; every draw after an
-                            // instruction's first belongs to the effect that produced it, which
-                            // is what "except the first one you draw in each of your draw steps"
-                            // means once a doubler has applied to the draw step's draw.
-                            cause: if i == 0 { cause } else { DrawCause::Effect },
-                        }],
-                        ctx,
-                        lineage,
-                    )?;
+            GameAction::DrawCards { player, n } => {
+                for _ in 0..n {
+                    self.execute_actions_decomposing(vec![GameAction::DrawCard { player }], ctx, lineage)?;
                 }
                 Ok(())
             }
 
-            GameAction::DrawCard { player, cause: _ } => {
+            GameAction::DrawCard { player } => {
                 // Delegate to `draw_card`, which handles empty-library flagging
                 // (CR 121.6a) and proposes the library→hand move through
                 // `change_zone` — so the move is a nested batch member, not a
@@ -1691,6 +1674,9 @@ impl GameState {
 
             GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
+                if step == StepType::Draw {
+                    self.get_player_mut(player)?.draws.draw_step_began();
+                }
                 self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause);
                 Ok(())
             }

@@ -40,7 +40,7 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
-use crate::types::zones::{DrawCause, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{DrawPlace, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// One replacement or prevention effect.
 ///
@@ -286,15 +286,14 @@ pub enum EventPattern {
     /// Reflection, Teferi's Ageless Insight and Notion Thief watch. The event's
     /// subject is the drawing player.
     ///
-    /// `cause` is the draw's own
-    /// [`DrawCause`](crate::types::zones::DrawCause), not its instruction's:
-    /// `Some(Effect)` is the ten cards' "except the first one you draw in each
-    /// of your draw steps", and `None` — Thought Reflection's — matches either.
-    /// A doubler applied to the draw step's draw leaves a first card that is
-    /// still `TurnBased` and a second that is not, which is how the exception
-    /// survives being doubled.
+    /// `place` is asked of the draw before it is performed, by its player's
+    /// counts so far: `Some(NotFirstInDrawStep)` is the ten cards' "except the
+    /// first one you draw in each of your draw steps", and `None`, Thought
+    /// Reflection's, asks nothing. A doubler applied to the draw step's draw
+    /// leaves a first card that is the step's first and a second that is not,
+    /// which is how the exception survives being doubled.
     DrawCard {
-        cause: Option<DrawCause>,
+        place: Option<DrawPlace>,
     },
 
     /// CR 119.3 / 119.10 — "if you would gain life". The event's subject is

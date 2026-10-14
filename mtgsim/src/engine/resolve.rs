@@ -1,5 +1,5 @@
 use crate::engine::actions::{
-    ActionContext, DrawCause, GameAction, ZoneChangeAct,
+    ActionContext, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -550,7 +550,7 @@ impl GameState {
                 };
                 for player in players {
                     self.execute_action(
-                        GameAction::DrawCards { player, n: count, cause: DrawCause::Effect },
+                        GameAction::DrawCards { player, n: count },
                         &actx,
                     )?;
                 }

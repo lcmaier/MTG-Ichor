@@ -4,7 +4,7 @@ use super::cause::EventCause;
 use super::recorder::RecorderHandle;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
 use crate::types::effects::CounterType;
-use crate::types::zones::Zone;
+use crate::types::zones::{DrawOrdinals, Zone};
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
@@ -86,7 +86,10 @@ pub enum GameEvent {
     ///
     /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
     /// handles the attempt as a state-based action instead.
-    CardDrawn { player_id: PlayerId, card_id: ObjectId },
+    ///
+    /// `ordinals` is where the draw fell among its player's draws, taken as it
+    /// was performed (`DrawCounts`).
+    CardDrawn { player_id: PlayerId, card_id: ObjectId, ordinals: DrawOrdinals },
 
     // --- Mana ---
     /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as

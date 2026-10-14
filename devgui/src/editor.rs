@@ -635,7 +635,7 @@ fn has_control(cards: &[LineNumbered<CardLine>], word: &PlayerWord) -> bool {
         PlayerWord::Counter { kind, .. } => PLAYER_COUNTERS.contains(kind),
         PlayerWord::LandsPlayed { .. } | PlayerWord::LeftTheGame { .. } => true,
         PlayerWord::CommanderDamage { from, .. } => named_line(cards, from, Among::Commanders).is_some(),
-        PlayerWord::Life { .. } | PlayerWord::History { .. } => false,
+        PlayerWord::Life { .. } | PlayerWord::History { .. } | PlayerWord::DrawnThisDrawStep { .. } => false,
     }
 }
 
@@ -1054,7 +1054,8 @@ fn player_of(word: &PlayerWord) -> PlayerId {
         | PlayerWord::LandsPlayed { player, .. }
         | PlayerWord::LeftTheGame { player }
         | PlayerWord::CommanderDamage { player, .. }
-        | PlayerWord::History { player, .. } => player,
+        | PlayerWord::History { player, .. }
+        | PlayerWord::DrawnThisDrawStep { player, .. } => player,
     }
 }
 

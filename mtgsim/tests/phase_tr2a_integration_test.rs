@@ -25,7 +25,7 @@ use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr2a_cards::{
     elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
 };
-use mtgsim::engine::actions::{DrawCause, GameAction};
+use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -163,7 +163,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
     let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let ctx = test_ctx();
-    game.execute_action(GameAction::DrawCards { player: 0, n: 2, cause: DrawCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::DrawCards { player: 0, n: 2 }, &ctx).unwrap();
     game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: mine }, &ctx).unwrap();
     game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: mine }, &ctx).unwrap();
     game.execute_action(GameAction::LoseLife { player: 0, amount: 2, damage_source: None }, &ctx).unwrap();

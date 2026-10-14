@@ -1302,8 +1302,11 @@ impl GameState {
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 one(self.subject_matches(subject, Some(*object_id), referents, seq, None))
             }
-            (TriggerEvent::DrawsCard { player: who, .. }, GameEvent::CardDrawn { player_id, .. })
-            | (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, ordinals, .. }) => one(
+                who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
+                    && place.is_none_or(|place| place.holds(*ordinals)),
+            ),
+            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (

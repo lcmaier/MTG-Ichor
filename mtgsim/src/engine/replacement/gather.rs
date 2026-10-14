@@ -820,11 +820,9 @@ pub(crate) fn pattern_watches(
             at_least.map(|k| *n >= k).unwrap_or(true)
         }
 
-        // CR 121.1's individual draw. `cause` is the field the ten "except the
-        // first one you draw in each of your draw steps" cards read, and it is
-        // this draw's own rather than its instruction's — see [`DrawCause`].
-        (EventPattern::DrawCard { cause }, GameAction::DrawCard { cause: actual, .. }) => {
-            cause.map(|c| c == *actual).unwrap_or(true)
+        // CR 121.1's individual draw, at the place its player's counts give it.
+        (EventPattern::DrawCard { place }, GameAction::DrawCard { player }) => {
+            place.is_none_or(|place| place.holds(game.next_draw_ordinals(*player)))
         }
 
         // CR 119.3 / 119.10's gain and CR 120.3a's loss. Which *player* each is

@@ -213,7 +213,7 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
 /// "Whenever [whose player] draw[s] a card" (CR 121.1): one trigger per card
 /// drawn.
 pub fn draws_a_card(whose: Whose) -> CountableEvent {
-    CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence })
+    CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence, place: None })
 }
 
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).
