@@ -277,7 +277,9 @@ Item 6's close audit (`roadmap-v2.md` A6e) takes these with its hygiene pass,
 M1 with M3, then M2 with M4 (M4's design paragraph first); M5 rides in the
 dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
 
-- **M1. The board's queries** (item 242). The permanents a player controls,
+- **M1. The board's queries** (item 242). **Landed in #249 (2026-10-14)**,
+  but for whether a `PlayerRef` names a player, which went to M4 (item 245).
+  The permanents a player controls,
   inline at `sacrifice_candidates`, `choose_as_it_applies`,
   `process_untap_step` and `block_refusals` beside `permanents_controlled_by`;
   the blocker's half of CR 509.1a in `can_block` and `legal_blockers`; the
@@ -315,7 +317,8 @@ dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
   `split_mana_component` and `can_activate_as_its_controller`; whether {T} or
   {Q} can be paid, in `check_cost_resource` and `pay_single_cost`; and the
   payable mana abilities, in `available_mana_sources` and `ManaSupply::read`.
-- **M3. Resolution and the engine's records** (item 244). The permanents a
+- **M3. Resolution and the engine's records** (item 244). **Landed in #249
+  (2026-10-14).** The permanents a
   resolution's effect applies to (CR 611.2c): `affected_permanents`, inlined
   at four primitives and skipped by seven, and by the Layer 6 register,
   which `GrantKeywordFlag` alone feeds through it (§3.5); the row a
@@ -371,12 +374,14 @@ Every one is unreachable today: no registered card, path or caller reaches
 the place where the copies part. Each is in its merge's item, and each fix
 that changes an answer is shown to fail first.
 
+Each fixed one says so in its owner cell.
+
 | copies | where they part | why no registered card reaches it | owner |
 |---|---|---|---|
-| the affected set at resolution (M3) | `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`, `ChangeType`, `RemoveFromCombat`, `RemoveAllDamage`, `Restrict` and the Layer 6 register read only the targets, so "each creature you control" affects nothing | every registered filtered use of those primitives is a static ability, lowered by `register_static_effects`; the resolutions that write a filtered recipient (`ModifyPowerToughness`, `GrantKeywordFlag`, `Untap`, `DealDamage`, `CreateReplacement`) go through it | item 244 |
-| a restriction through "as long as" (M3) | `Summary::of`'s granted and copied legs miss a conditional "can't", so `is_prohibited`'s gate skips a board whose only restriction is one; the gate's own comment says a route without a leg is dead | no registered ability is a conditional restriction | item 244 |
-| lethal damage (M1) | `lethal_damage_for` clamps to at least 1, and `default_trample_assignment` gives a damaged deathtouch blocker 0; the engine's one path, inline in `assign_trample_damage`, gives the remainder | the first is called only by tests, the other two by nothing | item 242 |
-| a spell on the stack (M1) | `is_spell_on_stack` leaves out the resolving spell; `damage_sources` adds it; the audit's `objects_that_may_trigger` admits a resolving ability, which its doc excludes | the Spell filter's one registered user is Counterspell's target, which cannot be the resolving spell (CR 115.5) | item 242 |
+| the affected set at resolution (M3) | `SetPowerToughness`, `SwitchPowerToughness`, `ChangeColor`, `ChangeType`, `RemoveFromCombat`, `RemoveAllDamage`, `Restrict` and the Layer 6 register read only the targets, so "each creature you control" affects nothing | every registered filtered use of those primitives is a static ability, lowered by `register_static_effects`; the resolutions that write a filtered recipient (`ModifyPowerToughness`, `GrantKeywordFlag`, `Untap`, `DealDamage`, `CreateReplacement`) go through it | item 244, fixed in #249 |
+| a restriction through "as long as" (M3) | `Summary::of`'s granted and copied legs miss a conditional "can't", so `is_prohibited`'s gate skips a board whose only restriction is one; the gate's own comment says a route without a leg is dead | no registered ability is a conditional restriction | item 244, fixed in #249 |
+| lethal damage (M1) | `lethal_damage_for` clamps to at least 1, and `default_trample_assignment` gives a damaged deathtouch blocker 0; the engine's one path, inline in `assign_trample_damage`, gives the remainder | the first is called only by tests, the other two by nothing | item 242, fixed in #249 |
+| a spell on the stack (M1) | `is_spell_on_stack` leaves out the resolving spell; `damage_sources` adds it; the audit's `objects_that_may_trigger` admits a resolving ability, which its doc excludes | the Spell filter's one registered user is Counterspell's target, which cannot be the resolving spell (CR 115.5) | item 242, fixed in #249 |
 | a cost's pips of one type (M2) | `colored_count` misses `ManaSymbol::Colorless` | only tests call it | item 243 |
 | the `ManaAdded` arm (M2) | `mana_trigger_adds` matches "this" by id, skips the trigger's limits and asks no CR 113.6 zone | item 213 already records the limits as over-offered; the producer is on the battlefield when asked, so its id is its identity | item 243 |
 | CR 603.7a's "existed before" (T4) | `is_due` reads records of the batch its return was made in | `wait_to_return` makes a return after its exile batch closes, and no rider makes one | item 247 |
@@ -418,7 +423,7 @@ inventory keeps the old names.
    CR 506.2 and 508.5 make its protector the defending player. Unreachable
    while the engine refuses an
    attack on a battle (`combat/validation.rs`); `backlog.md` §2.23 carries it.
-3. **Two stale comments**, fixed with their merges:
+3. **Two stale comments**, fixed with their merges (#249):
    `validate_damage_source`'s doc says it loses the resolving spell, which
    `damage_sources` now adds (M1); `has_legal_choices`' "the sibling arm
    below asks it too" (M1).

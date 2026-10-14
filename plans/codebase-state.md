@@ -1531,6 +1531,10 @@ section never asked.
     **Slotted:** with the first registered card whose rider acts on a set (item
     24's "put a +1/+1 counter on each of them"), through a resolution-time
     `recipients_for`.
+    **Partly built (2026-10-14, A6m's first PR, #249):** `affected_permanents`
+    resolves a `FilteredPermanents` recipient as the effect resolves, for every
+    arm that writes a row, regenerates or removes from combat or damage.
+    `Choose` and a set named by the event ("each of them") remain.
 
 29. **~~`apply_replacements`'s `inherited` applied-set is empty at its only
     call.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
@@ -3197,8 +3201,13 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     total, so an agent that does it can never activate a mana ability *inside*
     the window — no Ironworks sacrifice mid-cast, no overpay play.
     **Slotted:** MA-6, a person's seat, which composes the seat's decorators:
-    `backlog.md` §2.22 row 5's combat defaults, on these helpers, beside row
-    7's tap solver.
+    `backlog.md` §2.22 row 5's combat defaults, beside row 7's tap solver.
+
+    **The helpers deleted (2026-10-14, A6m's first PR, #249), at the owner's
+    brief:** they were two of the four copies of lethal damage, which is one
+    function now, `combat::keywords::lethal_damage_owed`, read from CR 702.19b
+    and 702.2c, and it answers the CR read above. Row 5's decorator writes its
+    default division on it, passing the assignments made so far that step.
 
 85. **Nothing bounds CR 601.2g's window against a `DecisionProvider` that
     never stops.** CM-4 removed the engine's stop (item 70) because the CR has
@@ -9158,24 +9167,15 @@ ones on the last-known-information and zone-change surface are items 176 and
 177's inputs (a dated paragraph each); the rest are below. Item 215's
 "helpers built more than once" moves to items 242–244 and C0.
 
-242. **The board's queries are built inline beside their helpers, or with no
-     helper.** The permanents a player controls (four inline beside
-     `permanents_controlled_by`), the blocker's half of CR 509.1a, the players
-     still in the game (about twelve), CR 800.4's "left a multiplayer game"
-     (four), who an opponent is (three ways) and whether a `PlayerRef` names a
-     player (seven), a `SelectionFilter`'s candidates (twice, arm for arm), a
-     spell on the stack, "in this player's hand", a permanent's host (about
-     eleven), and lethal damage (CR 702.19b), whose two `ui/decision.rs`
-     copies nothing calls. Places: the inventory §3.3, M1.
-     **Reachability (2026-10-10):** unreachable — the copies part only where
-     no registered card reaches: lethal damage in copies no engine path
-     calls, and a spell on the stack for a filter whose one registered user,
-     Counterspell's target, cannot be the resolving spell (CR 115.5). The
-     inventory §3.5.
-     **Sized:** ~250–400 lines with tests, mechanical but for
-     `has_legal_choices`, which becomes `enumerate_legal_selections_upto`'s
-     count; two stale comments go with it. May split along the queries.
-     **Slotted:** A6m's first PR, with item 244, before TR-4a.
+242. **~~The board's queries are built inline beside their helpers, or with no
+     helper.~~ — ✅ CLOSED 2026-10-14 (PR #249).** — archived.
+     Done: one helper each, beside `in_game` for a player's question and in
+     `oracle/board.rs` for an object's. Four answers moved, on boards no
+     registered card reaches: lethal damage, the resolving spell, a creature
+     that is also a battle, a departed attack target. Whether a `PlayerRef`
+     names a player went to item 245.
+     **Reachability (2026-10-14):** closed — PR #249.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 242".
 
 243. **The mana code restates a cost's demand five times, and
      `oracle/mana_supply.rs` restates the paths it predicts.** A cost's pips
@@ -9197,29 +9197,15 @@ ones on the last-known-information and zone-change surface are items 176 and
      copies.
      **Slotted:** A6m's second PR, with item 245, before TR-4a and MA-7.
 
-244. **A resolution's affected set is skipped by seven primitives, and a
+244. **~~A resolution's affected set is skipped by seven primitives, and a
      restriction behind "as long as" has no leg at the prohibition gate's
-     granted and copied routes.** CR 611.2c's affected set is
-     `affected_permanents`; `SetPowerToughness`, `SwitchPowerToughness`,
-     `ChangeColor`, `ChangeType`, `RemoveFromCombat`, `RemoveAllDamage`,
-     `Restrict` and the Layer 6 register (but for `GrantKeywordFlag`) read
-     only the targets, so "each creature you control" at resolution affects
-     nothing. `Summary::of` tests `Effect::Restriction` and not the
-     `Conditional` around one, which `register_static_effects` and
-     `prohibition` see through, so a granted or copied conditional "can't"
-     leaves `is_prohibited`'s gate closed. With them, the resolution's other
-     copies: its continuous effect's row (seven), a static ability's rows
-     (four), an ability ceasing to exist (seven), and the small ones in the
-     inventory §3.3, M3.
-     **Reachability (2026-10-10):** unreachable — every registered filtered
-     use of those primitives is a static ability, which
-     `register_static_effects` lowers, and the resolutions that write a
-     filtered recipient go through `affected_permanents`; no registered
-     ability is a conditional restriction.
-     **Sized:** ~300–500 lines, two fixtures each shown to fail first: a
-     spell setting "creatures target player controls" to 0/2, and a granted
-     conditional "can't" as the board's only restriction.
-     **Slotted:** A6m's first PR, with item 242, before TR-4a.
+     granted and copied routes.~~ — ✅ CLOSED 2026-10-14 (PR #249).** — archived.
+     Done: ten primitives take `affected_permanents`, `Regenerate` and
+     `GainControl` among them; a filtered "can't" is read live (CR 611.2c's
+     second sentence); one peel sees through "as long as"; resolution's other
+     copies are one helper each.
+     **Reachability (2026-10-14):** closed — PR #249.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 244".
 
 245. **Two `ObjectFilter` leaf tables answer differently where one refuses a
      leaf.** `compute::object_matches_filter`, in the layer walk, and
@@ -9231,6 +9217,12 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Reachability (2026-10-10):** unreachable — each table is asked only in
      its own context, where its answer is the one that context needs; whether
      one table can serve both is the design question.
+     **Widened by A6m's first PR (2026-10-14):** whether a `PlayerRef` names
+     a player, which item 242 listed: `player_ref_is` in the dispatcher, both
+     tables' `ByController` and `ByOwner` arms, and `SourceFilter::matches`.
+     They part exactly where this item's tables do, at `Owner` (the tested
+     object's owner, the source's, or "you") and in how lazily each reads
+     "you", so the predicate is this design's to choose.
      **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
      generic over how it resolves a player and an identity.
      **Slotted:** A6m's second PR, with item 243, before TR-4a, its design paragraph reviewed first.

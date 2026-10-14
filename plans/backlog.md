@@ -1593,18 +1593,15 @@ mechanic rather than a migration, which is why it is here and not in
   second rule is one call where a seat is built (`FullControl::superseding`),
   so a test of the experience can reverse it there.
 
-  **Row 5, combat defaults.** Item 84's two callerless helpers,
-  `default_damage_assignment` and `default_trample_assignment`, are the body
-  of a `CombatDefaults<D>` that answers the two division prompts the way
-  Arena's default does — lethal to each blocker in order, the remainder to the
-  last blocker or, with trample, to the player. Policy, because CR 510.1c and
-  702.19b make the division the controller's; human under the toggle; a bot's
-  own agent divides. ~60 lines with the forwarding, **after one CR read the
-  helpers owe before they become a body**: the trample helper's deathtouch
-  branch counts a blocker with damage already marked as needing nothing,
-  and CR 702.2c says any *nonzero* amount is lethal — such a blocker still
-  needs one. Two prompts a game; after row 3, and it may ride in row 3's PR
-  if the read is clean. Item 84 is sized here now.
+  **Row 5, combat defaults.** A `CombatDefaults<D>` that answers the two
+  division prompts the way Arena's default does — lethal to each blocker in
+  order, the remainder to the last blocker or, with trample, to the player.
+  Policy, because CR 510.1c and 702.19b make the division the controller's;
+  human under the toggle; a bot's own agent divides. ~60 lines with the
+  forwarding, its lethal amounts from `combat::keywords::lethal_damage_owed`,
+  CR 702.19b's and 702.2c's one answer since A6m (#249), which deleted item
+  84's two callerless helpers as copies of it. Two prompts a game; after row
+  3, and it may ride in row 3's PR. Item 84 is sized here now.
 
   **Rows 6 and 7, the tap solver, framed.** §2.18's oracle half is a
   **matching**: pips on one side, the mana abilities `available_mana_sources`
@@ -2848,7 +2845,7 @@ function the tree defines. This is D2b-shaped work: a test written or a
 
 | CR | Atoms | Confirmed present |
 |---|---|---|
-| 120 | 8 | `assign_combat_damage`, `damage_marked`, `lethal_damage_for`, `perform_cleanup_actions` |
+| 120 | 8 | `assign_combat_damage`, `damage_marked`, `lethal_damage_owed`, `perform_cleanup_actions` |
 | 104 | 6 | `check_game_over`, `draw_card`, poison SBA |
 | 113 | 6 | `activate_mana_ability`; ability-type enum |
 | 115 | 6 | target legality checking |

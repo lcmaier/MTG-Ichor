@@ -5713,3 +5713,122 @@ chain to `DISPATCH_NESTING_LIMIT`; the move returned `Ok` before the fix. CR
      limit.
      **Slotted:** A6r, the fixes before TR-4, so that the ten trigger PRs
      after it see their own errors.
+
+### Item 242 — closed 2026-10-14 by PR #249 (A6m)
+
+Closed by A6m's first PR. One helper each, beside what it answers about. A
+player's questions are `GameState` methods beside `in_game`: the players still
+in the game in seat order (`players_in_game`) and in APNAP order
+(`players_in_game_apnap`), CR 800.4's case (`left_a_multiplayer_game`), and who
+an opponent is (`opponents_of`, `not_an_opponent`, moved from the replacement
+pipeline). An object's are in `oracle/board.rs` and beside their rules:
+`card_in_hand` (CR 400.3), `host_of` at twelve reads, `ObjectSet::Host`'s four
+resolutions among them, CR 509.1a's blocker half (`can_be_a_blocker`, which
+`can_block` and `legal_blockers` ask), and `lethal_damage_owed`.
+`has_legal_choices` is gone: `enumerate_legal_selections_upto`'s count answers
+it in the same walks. The inline copies of the permanents a player controls
+read `permanents_controlled_by`; the two declaration lists stay one pass over
+the battlefield, since their checks ask who controls each permanent. Each site
+keeps its order, and the close-out read every row identical.
+
+Four answers moved, each on a board no registered card reaches, and each board
+failed on the tree before its fix:
+- Lethal damage is CR 702.19b's and 702.2c's. The damage marked and the damage
+  other creatures assign the blocker this step count; a deathtouch source owes
+  at most 1, and nothing to a blocker already dealt lethal damage. The trample
+  path had owed it 1 (`combat/resolution.rs`'s two boards).
+- A spell on the stack counts the resolving one (CR 608.2n; Kari Zev's
+  Expertise's ruling: a spell cast while it resolves "can target the Expertise
+  spell on the stack"). `damage_sources` stopped adding it back, and the
+  dispatch audit stopped admitting a resolving ability, as its doc said.
+- The blocker half, built whole, refuses a creature that is also a battle, as
+  `can_attack` now does too (CR 508.1a, 509.1a: "they can't also be battles").
+- `validate_attackers`, a fourth copy of who an opponent is, refuses a player
+  who has left the game (CR 506.2, 800.4a).
+
+`SetController`'s opponent resolves while one opponent is left and asserts
+only where a choice was owed, where it had counted departed seats. The two
+`ui/decision.rs` defaults are deleted, and item 84 says what that means for
+their planned caller. Whether a `PlayerRef` names a player went to item 245,
+since its copies part where that item's leaf tables do.
+
+*Original entry:*
+
+242. **The board's queries are built inline beside their helpers, or with no
+     helper.** The permanents a player controls (four inline beside
+     `permanents_controlled_by`), the blocker's half of CR 509.1a, the players
+     still in the game (about twelve), CR 800.4's "left a multiplayer game"
+     (four), who an opponent is (three ways) and whether a `PlayerRef` names a
+     player (seven), a `SelectionFilter`'s candidates (twice, arm for arm), a
+     spell on the stack, "in this player's hand", a permanent's host (about
+     eleven), and lethal damage (CR 702.19b), whose two `ui/decision.rs`
+     copies nothing calls. Places: the inventory §3.3, M1.
+     **Reachability (2026-10-10):** unreachable — the copies part only where
+     no registered card reaches: lethal damage in copies no engine path
+     calls, and a spell on the stack for a filter whose one registered user,
+     Counterspell's target, cannot be the resolving spell (CR 115.5). The
+     inventory §3.5.
+     **Sized:** ~250–400 lines with tests, mechanical but for
+     `has_legal_choices`, which becomes `enumerate_legal_selections_upto`'s
+     count; two stale comments go with it. May split along the queries.
+     **Slotted:** A6m's first PR, with item 244, before TR-4a.
+
+### Item 244 — closed 2026-10-14 by PR #249 (A6m)
+
+Closed by A6m's first PR. Ten primitives took their affected set from their
+targets alone. Seven are the entry's, the Layer 6 register being
+`GrantAbility`, `RemoveKeywordFlag`, `LoseAbility` and `LoseAllAbilities`.
+`Regenerate` was added at the brief: Golgari Charm's "regenerate each creature
+you control", six cards (`o:"regenerate each"` and `o:"regenerate all"`,
+`game:paper -is:funny`). `GainControl` was found as the arms were read: Mob
+Rule's "gain control of all creatures with power 4 or greater", and CR 611.2c
+names a control change beside a characteristic change. Each takes
+`affected_permanents` now, and the row a resolution's continuous effect
+writes is built in one place (`add_resolution_effect`, `add_resolution_row`).
+
+`Restrict` is CR 611.2c's second sentence. A "can't" modifies no
+characteristic, so its set is not fixed: a filtered recipient writes one row
+whose set is the filter, asked at each query with the row's controller and
+source. Magmatic Chasm's and Seismic Stomp's rulings say so ("creatures
+without flying that enter the battlefield later in the turn won't be able to
+block"). The brief had proposed the fixed set.
+
+`Effect::as_restriction` is the one peel through "as long as", asked by
+`register_static_effects`, the sweep and both of `Summary::of`'s legs, and the
+three `as_*` readers share `and_its_condition`. Resolution's other copies are
+one each: `static_ability_rows` for the four lowerings (the look-ahead's had
+no assertion) and one CR 113.6 registration off the battlefield;
+`ability_leaves_the_stack` at six sites; `effective_ability`, a handle on the
+frame's shared list, and `printed_place`; `StackEntry::this_object`;
+`generated_by_a_static_ability_of`; `same_kind_and_putter`;
+`each_player_acted_on`; `top_of_library`; `return_controller`;
+`resolving_for`; `you_for`; `in_the_open_batch`.
+
+The two fixtures the entry named, a group regeneration, and one for each other
+primitive failed on the tree before the fix (`phase_a6m_integration_test.rs`).
+
+*Original entry:*
+
+244. **A resolution's affected set is skipped by seven primitives, and a
+     restriction behind "as long as" has no leg at the prohibition gate's
+     granted and copied routes.** CR 611.2c's affected set is
+     `affected_permanents`; `SetPowerToughness`, `SwitchPowerToughness`,
+     `ChangeColor`, `ChangeType`, `RemoveFromCombat`, `RemoveAllDamage`,
+     `Restrict` and the Layer 6 register (but for `GrantKeywordFlag`) read
+     only the targets, so "each creature you control" at resolution affects
+     nothing. `Summary::of` tests `Effect::Restriction` and not the
+     `Conditional` around one, which `register_static_effects` and
+     `prohibition` see through, so a granted or copied conditional "can't"
+     leaves `is_prohibited`'s gate closed. With them, the resolution's other
+     copies: its continuous effect's row (seven), a static ability's rows
+     (four), an ability ceasing to exist (seven), and the small ones in the
+     inventory §3.3, M3.
+     **Reachability (2026-10-10):** unreachable — every registered filtered
+     use of those primitives is a static ability, which
+     `register_static_effects` lowers, and the resolutions that write a
+     filtered recipient go through `affected_permanents`; no registered
+     ability is a conditional restriction.
+     **Sized:** ~300–500 lines, two fixtures each shown to fail first: a
+     spell setting "creatures target player controls" to 0/2, and a granted
+     conditional "can't" as the board's only restriction.
+     **Slotted:** A6m's first PR, with item 242, before TR-4a.
