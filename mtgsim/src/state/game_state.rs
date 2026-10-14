@@ -1930,8 +1930,8 @@ impl GameState {
             };
 
             for ability in values.registrable_static_abilities() {
-                let context = format!("copied ability {:?} on {}", ability.id, values.name);
-                for (affected_set, rows) in Self::static_ability_rows(ability, &context) {
+                let label = format!("copied ability {:?} on {}", ability.id, values.name);
+                for (affected_set, rows) in Self::static_ability_rows(ability, &label) {
                     // CR 613.7a clause 2 — the copy effect is "the effect that created the
                     // ability", so its timestamp is the second candidate
                     // (`static_effect_timestamp`).
@@ -1966,16 +1966,19 @@ impl GameState {
     /// An atom whose primitive has no arm in `static_primitive_rows` is loud
     /// here, for the reason [`Self::static_ability_atoms`] gives: the ability
     /// would be registered nowhere and the card would do nothing.
+    ///
+    /// `label` is what those messages call the ability's source — a card's
+    /// name, or "granted ability …" — and nothing branches on it.
     pub(crate) fn static_ability_rows(
         ability: &crate::objects::card_data::AbilityDef,
-        context: &str,
+        label: &str,
     ) -> Vec<(
         crate::engine::layers::types::ObjectSet,
         Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>,
     )> {
         let mut lowered = Vec::new();
-        for (primitive, recipient) in Self::static_ability_atoms(ability, context) {
-            let Some(affected) = Self::static_object_set(recipient, context) else {
+        for (primitive, recipient) in Self::static_ability_atoms(ability, label) {
+            let Some(affected) = Self::static_object_set(recipient, label) else {
                 continue;
             };
             let rows = Self::static_primitive_rows(primitive);
@@ -1987,7 +1990,7 @@ impl GameState {
                      ability is registered nowhere and does nothing. Either \
                      the primitive belongs on a non-static ability, or the \
                      lowering table needs an arm.",
-                    context, primitive
+                    label, primitive
                 );
                 continue;
             }
@@ -2019,9 +2022,9 @@ impl GameState {
     /// carry on rather than panicking mid-game.
     pub(crate) fn static_ability_atoms<'a>(
         ability: &'a crate::objects::card_data::AbilityDef,
-        card_name: &str,
+        label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        Self::atoms_of_static_body(&ability.effect, card_name)
+        Self::atoms_of_static_body(&ability.effect, label)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -2034,7 +2037,7 @@ impl GameState {
     /// `&ability.effect` into every call site to save one line here.
     fn atoms_of_static_body<'a>(
         body: &'a crate::types::effects::Effect,
-        card_name: &str,
+        label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
         use crate::types::effects::Effect;
 
@@ -2074,7 +2077,7 @@ impl GameState {
                              nothing while its siblings register normally — a \
                              half-working card, which is worse than one that \
                              does nothing at all.",
-                            card_name
+                            label
                         ),
                     }
                 }
@@ -2087,7 +2090,7 @@ impl GameState {
             // decision 5). A card whose condition is false as it enters still registers
             // its rows, the only reading that survives a condition changing with no zone
             // change to notice.
-            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, card_name),
+            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label),
 
             _ => {
                 debug_assert!(
@@ -2099,7 +2102,7 @@ impl GameState {
                      at which a mode is chosen or a loop runs. If the card \
                      really reads this way, it wants a triggered or activated \
                      ability instead.",
-                    card_name
+                    label
                 );
                 Vec::new()
             }
@@ -2112,7 +2115,7 @@ impl GameState {
     /// that is loud rather than a quiet `continue`.
     pub(crate) fn static_object_set(
         recipient: &crate::types::effects::EffectRecipient,
-        card_name: &str,
+        label: &str,
     ) -> Option<crate::engine::layers::types::ObjectSet> {
         use crate::engine::layers::types::ObjectSet;
         use crate::types::effects::EffectRecipient;
@@ -2146,7 +2149,7 @@ impl GameState {
                      resolves; `Controller` names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
                      control\", or `ThisObject` for \"this permanent\".",
-                    card_name, recipient
+                    label, recipient
                 );
                 None
             }

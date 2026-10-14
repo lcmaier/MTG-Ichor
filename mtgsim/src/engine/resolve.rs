@@ -1748,8 +1748,8 @@ impl GameState {
         // `static_primitive_rows`' doc gives: a granted "creatures you control
         // get +1/+1" must produce the row a printed one does. Assertions included —
         // a grant that lowers to nothing is exactly as inert and as invisible.
-        let context = format!("granted ability {:?}", granted.id);
-        for (affected, rows) in GameState::static_ability_rows(granted, &context) {
+        let label = format!("granted ability {:?}", granted.id);
+        for (affected, rows) in GameState::static_ability_rows(granted, &label) {
             let timestamp =
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 

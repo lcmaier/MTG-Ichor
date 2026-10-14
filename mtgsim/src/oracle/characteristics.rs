@@ -300,10 +300,15 @@ pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Arc<Vec<Abilit
 }
 
 /// One ability of an object's effective list, found by its id, which tells
-/// its instances apart (CR 113.10b). It holds the shared list rather than a
-/// clone of the ability.
+/// its instances apart (CR 113.10b), and read through `Deref`.
+///
+/// The ability lives inside the memoized frame's list, which
+/// [`get_effective_abilities`] hands out as a shared `Arc`. A reference into
+/// that `Arc` cannot outlive the call that fetched it, and a clone would copy
+/// the ability's effect tree on every mana activation; so this keeps the
+/// list it was found in, a refcount bump, and where in it the ability is.
 pub struct EffectiveAbility {
-    abilities: Arc<Vec<AbilityDef>>,
+    list: Arc<Vec<AbilityDef>>,
     index: usize,
 }
 
@@ -317,15 +322,15 @@ impl EffectiveAbility {
 impl std::ops::Deref for EffectiveAbility {
     type Target = AbilityDef;
     fn deref(&self) -> &AbilityDef {
-        &self.abilities[self.index]
+        &self.list[self.index]
     }
 }
 
 /// The ability with id `ability` on `id`'s effective list, if it has it.
 pub fn effective_ability(game: &GameState, id: ObjectId, ability: AbilityId) -> Option<EffectiveAbility> {
-    let abilities = get_effective_abilities(game, id);
-    let index = abilities.iter().position(|def| def.id == ability)?;
-    Some(EffectiveAbility { abilities, index })
+    let list = get_effective_abilities(game, id);
+    let index = list.iter().position(|def| def.id == ability)?;
+    Some(EffectiveAbility { list, index })
 }
 
 /// Get effective power. Routes through the layer system — accounts for P/T
