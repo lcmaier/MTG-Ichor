@@ -345,21 +345,28 @@ enum Asks {
 
 /// How an arm reads its subject off a record.
 ///
-/// Both of the last two read last known information; they differ in *when*
-/// it was taken, and so in what it can say about the subject at this event.
+/// The last two both read last known information, and read its
+/// characteristics the same way, including whatever an Aura or Equipment gave
+/// the creature: Loxodon Warhammer's lifelink is part of how a Dragonhawk that
+/// has died last existed. They differ on one question, which only
+/// `TriggerSubject::Host` asks: is this creature the one *the trigger's own*
+/// Aura or Equipment is attached to? That is a fact about the moment the
+/// trigger checks, and the two snapshots were taken at different moments.
 #[derive(Clone, Copy)]
 enum SubjectRead<'a> {
     /// On the board now.
     Now,
-    /// As it was immediately before this event (CR 603.10a's words), because
-    /// this event is its departure and the arm looks back: a dies trigger.
-    /// Everything about it holds at this event, what was attached to it
-    /// included, which "when enchanted creature dies" asks.
+    /// A snapshot taken immediately before this very event, because the event
+    /// is the creature leaving and the trigger looks back to that moment (CR
+    /// 603.10a). "When enchanted creature dies": the Aura was attached then,
+    /// so it matches.
     ImmediatelyBefore(&'a Lki),
-    /// As it was when it left, at an earlier event: a creature dealing damage
-    /// through an ability that resolved after it died (CR 608.2h). Its
-    /// characteristics answer, but its attachments do not: nothing was
-    /// attached to it at this event, the one the arm asks about.
+    /// A snapshot taken when the creature left, at an earlier event: damage it
+    /// deals afterwards through an ability that resolves later, Dragonhawk's
+    /// (CR 608.2h). Its characteristics still count, the Warhammer's lifelink
+    /// among them. "Whenever enchanted creature deals damage" asks about the
+    /// moment of the damage, when no Aura was attached to it any more, so it
+    /// does not match.
     LeftEarlier(&'a Lki),
 }
 
