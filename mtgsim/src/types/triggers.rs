@@ -1090,7 +1090,7 @@ mod tests {
                 caused_by: EventSeq(0),
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
-            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id, ordinals: crate::types::zones::DrawOrdinals::BEFORE_ANY_TURN }),
+            ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
             ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),

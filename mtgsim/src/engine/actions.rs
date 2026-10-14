@@ -4,7 +4,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -827,6 +827,12 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
+        // CR 121.2: this card's draw has ended, and the next is decided after
+        // it, so the summaries count it now rather than at the window's close.
+        if result.is_ok() {
+            let drawn: Vec<EventSeq> = self.events.records_since(mark).iter().map(|r| r.seq).collect();
+            self.advance_history(&drawn);
+        }
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
@@ -1674,9 +1680,6 @@ impl GameState {
 
             GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
-                if step == StepType::Draw {
-                    self.get_player_mut(player)?.draws.draw_step_began();
-                }
                 self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause)?;
                 Ok(())
             }

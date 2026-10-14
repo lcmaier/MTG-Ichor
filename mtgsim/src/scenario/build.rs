@@ -19,7 +19,6 @@ use crate::state::game::{starting_player_skips_first_draw, Game, RandomStreams};
 use crate::state::game_config::GameConfig;
 use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::PlayerHistory;
-use crate::state::player::DrawCounts;
 use crate::types::card_types::CardType;
 use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
@@ -51,7 +50,7 @@ impl Scenario {
         loader.load_player_words()?;
         loader.load_combat()?;
         loader.begin_turns()?;
-        loader.load_draw_counts()?;
+        loader.load_draw_step_counts()?;
         loader.load_this_turn_counts()?;
         let setup = loader.resolve_setup_actions()?;
         let game = Game { state: loader.state, config: GameConfig { starting_life: self.starting_life, ..GameConfig::unrestricted() } };
@@ -473,24 +472,20 @@ impl<'s> Loader<'s> {
         Ok(())
     }
 
-    /// Each player's draws as a draw's performer counts them: this turn's are
-    /// the history's, and those in the draw step in progress are stated.
-    fn load_draw_counts(&mut self) -> Result<(), ScenarioError> {
+    /// The cards drawn in the draw step in progress, which the history's
+    /// turn rows cannot say. After `begin_turns`, which sets the position.
+    fn load_draw_step_counts(&mut self) -> Result<(), ScenarioError> {
         let turn = self.scenario.turn;
-        let drawn_this_turn = |state: &GameState, player: PlayerId| state.players[player].history.this_turn(turn).count(TurnFact::CardsDrawn);
-        for player in 0..self.state.players.len() {
-            self.state.players[player].draws = DrawCounts::stated(turn, drawn_this_turn(&self.state, player), 0);
-        }
         for located in &self.scenario.player_words {
             let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
             let player = self.checked_player(player, located.line)?;
-            let this_turn = drawn_this_turn(&self.state, player);
+            let history = &self.state.players[player].history;
             let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
-            } else if count > this_turn {
+            } else if count > history.this_turn(turn).count(TurnFact::CardsDrawn) {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
             } else {
-                self.state.players[player].draws = DrawCounts::stated(turn, this_turn, count);
+                self.state.players[player].history.draw_step_drawn(count);
                 continue;
             };
             return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, message));

@@ -1,10 +1,11 @@
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use super::cause::EventCause;
 use super::recorder::RecorderHandle;
 use crate::types::ids::{DelayedTriggerId, ObjectId, ObjectRef, PlayerId, UntilReturnId, ZoneChangeEpoch};
 use crate::types::effects::CounterType;
-use crate::types::zones::{DrawOrdinals, Zone};
+use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
@@ -87,9 +88,7 @@ pub enum GameEvent {
     /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
     /// handles the attempt as a state-based action instead.
     ///
-    /// `ordinals` is where the draw fell among its player's draws, taken as it
-    /// was performed (`DrawCounts`).
-    CardDrawn { player_id: PlayerId, card_id: ObjectId, ordinals: DrawOrdinals },
+    CardDrawn { player_id: PlayerId, card_id: ObjectId },
 
     // --- Mana ---
     /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as
@@ -607,13 +606,25 @@ pub struct EventRecord {
     pub stamp: EventStamp,
     /// See [`NamesAsAnnounced`].
     pub names: NamesAsAnnounced,
-    /// Its place among its player's records of the same kind this turn, 1
-    /// for the first: what "the first time each turn" reads
-    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
-    /// have one — a cast, a draw, a gain, a loss — written as the record is
-    /// dispatched, when the summaries count it, and read by any trigger that
-    /// matches the record then or later in the resolution (CR 603.12).
-    pub place_in_turn: Option<u64>,
+    /// Where the turn summaries placed it, once they have counted it.
+    pub(crate) places: RecordPlaces,
+}
+
+/// A record's places, written when the turn summaries count it: as its window
+/// is dispatched, or, for a card of a draw instruction, as that card's draw
+/// ends. Four bytes a place, so the record keeps its size.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct RecordPlaces {
+    in_turn: Option<NonZeroU32>,
+    in_draw_step: Option<NonZeroU32>,
+    counted: bool,
+}
+
+impl RecordPlaces {
+    fn counted(in_turn: Option<u64>, in_draw_step: Option<u64>) -> Self {
+        let place = |n: u64| NonZeroU32::new(u32::try_from(n).unwrap_or(u32::MAX));
+        RecordPlaces { in_turn: in_turn.and_then(place), in_draw_step: in_draw_step.and_then(place), counted: true }
+    }
 }
 
 /// The names an event's objects were announced under, where one was not its
@@ -634,6 +645,27 @@ impl EventRecord {
     /// The resolution whose effect caused this event, if one did.
     pub fn resolution(&self) -> Option<ResolutionStamp> {
         self.stamp.cause.resolution()
+    }
+
+    /// Its place among its player's records of the same kind this turn, 1
+    /// for the first: what "the first time each turn" reads
+    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
+    /// have one — a cast, a draw, a gain, a loss — and read by any trigger that
+    /// matches the record then or later in the resolution (CR 603.12).
+    pub fn place_in_turn(&self) -> Option<u64> {
+        self.places.in_turn.map(|n| u64::from(n.get()))
+    }
+
+    /// A draw's place among its player's draws in their own draw step in
+    /// progress (CR 504): what "the first one you draw in each of your draw
+    /// steps" reads. `None` for any other record.
+    pub fn place_in_draw_step(&self) -> Option<u64> {
+        self.places.in_draw_step.map(|n| u64::from(n.get()))
+    }
+
+    /// Whether the turn summaries have counted it.
+    pub(crate) fn counted(&self) -> bool {
+        self.places.counted
     }
 }
 
@@ -689,15 +721,21 @@ impl EventWindow {
 
     /// Record `event` under `stamp`.
     pub(crate) fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names, place_in_turn: None });
+        self.records.push(EventRecord {
+            seq: EventSeq(self.next_seq),
+            event,
+            stamp,
+            names,
+            places: RecordPlaces::default(),
+        });
         self.next_seq += 1;
     }
 
-    /// Write record `seq`'s place in its turn, as the summaries count it.
-    pub(crate) fn note_place_in_turn(&mut self, seq: EventSeq, place: u64) {
+    /// Mark record `seq` counted by the summaries, with its places.
+    pub(crate) fn note_counted(&mut self, seq: EventSeq, in_turn: Option<u64>, in_draw_step: Option<u64>) {
         let Some(first) = self.records.first().map(|r| r.seq) else { return };
         if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {
-            record.place_in_turn = Some(place);
+            record.places = RecordPlaces::counted(in_turn, in_draw_step);
         }
     }
 

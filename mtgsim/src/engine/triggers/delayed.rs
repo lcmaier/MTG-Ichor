@@ -383,7 +383,7 @@ impl GameState {
                 (!subjects.is_empty()).then_some((EventIndex(index), subjects))
             })
             .ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn) {
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5).

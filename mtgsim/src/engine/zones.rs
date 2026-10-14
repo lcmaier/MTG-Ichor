@@ -13,6 +13,7 @@ use crate::events::cause::SpecialAction;
 use crate::events::event::GameEvent;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StepType};
+use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::zones::{DrawOrdinals, Zone};
@@ -302,21 +303,26 @@ impl GameState {
             *player.library.last().unwrap()
         };
 
-        let (now, in_draw_step) = (self.turn_number, self.in_own_draw_step(player_id));
-        let ordinals = self.get_player_mut(player_id)?.draws.drew(now, in_draw_step);
         self.change_zone(card_id, Zone::Hand, ZoneChangeAct::Drawn, ctx)?;
         // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
         // Named, not read off a batch: CR 103.5's opening hands draw outside one.
-        self.emit_event(GameEvent::CardDrawn { player_id, card_id, ordinals }, ctx.cause)?;
+        self.emit_event(GameEvent::CardDrawn { player_id, card_id }, ctx.cause)?;
         Ok(Some(card_id))
     }
 
     /// Where `player`'s next draw would fall, which a draw replacement asks of
-    /// the draw it watches before it is performed.
+    /// the draw it watches before it is performed: the history has counted
+    /// every card drawn before it, each as its draw ended (CR 121.2).
     pub(crate) fn next_draw_ordinals(&self, player: PlayerId) -> DrawOrdinals {
-        match self.players.get(player) {
-            Some(p) => p.draws.next(self.turn_number, self.in_own_draw_step(player)),
-            None => DrawOrdinals::BEFORE_ANY_TURN,
+        let (Some(history), now) = (self.players.get(player).map(|p| &p.history), self.turn_number) else {
+            return DrawOrdinals::BEFORE_ANY_TURN;
+        };
+        if now == 0 {
+            return DrawOrdinals::BEFORE_ANY_TURN;
+        }
+        DrawOrdinals {
+            in_turn: Some(history.this_turn(now).count(TurnFact::CardsDrawn) + 1),
+            in_draw_step: self.in_own_draw_step(player).then(|| history.this_draw_step() + 1),
         }
     }
 

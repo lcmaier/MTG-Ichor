@@ -41,7 +41,7 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use crate::types::zones::{Zone, ZoneSet};
+use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
 /// dispatched from the dispatch that queued it, and so on. The recursion is
@@ -1221,7 +1221,7 @@ impl GameState {
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1305,9 +1305,11 @@ impl GameState {
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 one(self.subject_matches(subject, Some(*object_id), referents, seq, None))
             }
-            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, ordinals, .. }) => one(
+            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => one(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
-                    && place.is_none_or(|place| place.matches(*ordinals)),
+                    && place.is_none_or(|place| {
+                        place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
+                    }),
             ),
             (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))

@@ -1040,7 +1040,7 @@ mod tests {
         let row = registered(card, Layer::Layer1Copy, timestamp, EffectModification::CopyFrom(Arc::new(values)));
         game.continuous_effects.add(row);
 
-        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card, ordinals: crate::types::zones::DrawOrdinals::BEFORE_ANY_TURN });
+        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card });
         assert_eq!(names.as_deref(), Some(&vec![(card, "Grizzly Bears".to_string())]));
     }
 }

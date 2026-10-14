@@ -20,6 +20,7 @@ use mtgsim::test_support::{
     creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
+use mtgsim::types::history::TurnFact;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
@@ -257,7 +258,7 @@ fn a_draw_of_three_after_the_draw_steps_card_holds_the_turns_third() {
     let binding = &game.pending_triggers.last().expect("queued, not yet on the stack").binding;
     assert!(matches!(
         binding.records[..],
-        [ref record] if matches!(record.event, GameEvent::CardDrawn { ordinals, .. } if ordinals.in_turn == Some(3))
+        [ref record] if matches!(record.event, GameEvent::CardDrawn { .. }) && record.place_in_turn() == Some(3)
     ));
 }
 
@@ -273,11 +274,8 @@ fn the_draw_steps_count_is_a_word_of_the_save() {
     let game = load("turn 3\nstep draw\nplayer 0: cards drawn this draw step 1\nplayer 0 this turn: cards drawn 2")
         .map(|built| built.game)
         .unwrap_or_else(|refusal| panic!("{refusal}"));
-    assert_eq!(game.state.players[0].draws.this_draw_step(), 1);
-    assert_eq!(
-        game.state.players[0].draws.next(3, true),
-        mtgsim::types::zones::DrawOrdinals { in_turn: Some(3), in_draw_step: Some(2) },
-    );
+    let history = &game.state.players[0].history;
+    assert_eq!((history.this_turn(3).count(TurnFact::CardsDrawn), history.this_draw_step()), (2, 1));
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains("cards drawn this draw step 1"), "{written}");
 

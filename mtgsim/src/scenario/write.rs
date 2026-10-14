@@ -223,7 +223,6 @@ impl<'g> Writer<'g> {
                 commander_damage_taken,
                 has_drawn_from_empty_library,
                 history,
-                draws,
             } = player;
             let mut facts = Vec::new();
             if *life_total != state.starting_life {
@@ -233,12 +232,8 @@ impl<'g> Writer<'g> {
             if *lands_played_this_turn > 0 {
                 facts.push(PlayerWord::LandsPlayed { player: p, count: *lands_played_this_turn });
             }
-            // This turn's draws are the history's row, which the loader reads back.
-            if state.in_own_draw_step(p) && draws.this_draw_step() > 0 {
-                facts.push(PlayerWord::DrawnThisDrawStep { player: p, count: draws.this_draw_step() });
-            }
-            if draws.next(turn, false).in_turn != Some(history.this_turn(turn).count(TurnFact::CardsDrawn) + 1) {
-                self.report(format!("player {p}'s draws this turn, which differ from the history's row"));
+            if state.in_own_draw_step(p) && history.this_draw_step() > 0 {
+                facts.push(PlayerWord::DrawnThisDrawStep { player: p, count: history.this_draw_step() });
             }
             if state.player_lost[p] {
                 facts.push(PlayerWord::LeftTheGame { player: p });
