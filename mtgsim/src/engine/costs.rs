@@ -79,36 +79,6 @@ pub enum CannotPay {
     Unchecked,
 }
 
-/// Which way a cost turns its own permanent: {T} taps it (CR 107.5), {Q}
-/// untaps it (CR 107.6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TapOrUntap {
-    Tap,
-    Untap,
-}
-
-/// Whether a permanent can pay a {T} or {Q} cost, `direction` saying which: {T}
-/// only while it is untapped, {Q} only while it is tapped, and either only if
-/// it is not summoning-sick
-/// (CR 302.6, 702.10c). The check, the payment and the mana window's re-check
-/// ask it.
-///
-/// `sick` is asked only once the tapped state has passed, which is why it is a
-/// closure: the check's answer walks the permanent's characteristics (haste is
-/// a keyword the layers can grant), and a tapped permanent refuses {T}
-/// without one. The window passes the answer it keeps for the board.
-pub(crate) fn tap_or_untap_payable(direction: TapOrUntap, tapped: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
-    match (direction, tapped) {
-        (TapOrUntap::Tap, true) => return Err(CannotPay::AlreadyTapped),
-        (TapOrUntap::Untap, false) => return Err(CannotPay::NotTapped),
-        (TapOrUntap::Tap, false) | (TapOrUntap::Untap, true) => {}
-    }
-    if sick() {
-        return Err(CannotPay::SummoningSick);
-    }
-    Ok(())
-}
-
 /// The engine's own words, for an error a caller returns as text.
 impl std::fmt::Display for CannotPay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -222,10 +192,30 @@ impl GameState {
         source_id: ObjectId,
     ) -> Result<(), CannotPay> {
         match cost {
-            Cost::TapSelf | Cost::UntapSelf => {
+            Cost::TapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
-                let direction = if *cost == Cost::TapSelf { TapOrUntap::Tap } else { TapOrUntap::Untap };
-                tap_or_untap_payable(direction, entry.tapped, || has_summoning_sickness(self, source_id))
+                if entry.tapped {
+                    return Err(CannotPay::AlreadyTapped);
+                }
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // tapping, unless they have haste. `has_summoning_sickness` is
+                // false for a noncreature permanent, so it needs no type gate here.
+                if has_summoning_sickness(self, source_id) {
+                    return Err(CannotPay::SummoningSick);
+                }
+                Ok(())
+            }
+            Cost::UntapSelf => {
+                let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
+                if !entry.tapped {
+                    return Err(CannotPay::NotTapped);
+                }
+                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
+                // paying {Q} (untap symbol), unless they have haste.
+                if has_summoning_sickness(self, source_id) {
+                    return Err(CannotPay::SummoningSick);
+                }
+                Ok(())
             }
             Cost::Mana(mana_cost) => {
                 if !self.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(mana_cost)) {

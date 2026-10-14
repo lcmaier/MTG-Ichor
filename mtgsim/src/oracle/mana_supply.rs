@@ -37,7 +37,6 @@
 use std::cell::OnceCell;
 use std::sync::Arc;
 
-use crate::engine::costs::{tap_or_untap_payable, TapOrUntap};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::mana::triggered_mana_recipient;
@@ -533,10 +532,9 @@ impl ManaAbilityWindowOffer {
         self.abilities
             .iter()
             .filter(|offered| match &offered.paid {
-                CostRecheck::WhileUntapped { sick } => game
-                    .battlefield
-                    .get(&offered.permanent)
-                    .is_some_and(|entry| tap_or_untap_payable(TapOrUntap::Tap, entry.tapped, || *sick).is_ok()),
+                CostRecheck::WhileUntapped { sick } => {
+                    !sick && game.battlefield.get(&offered.permanent).is_some_and(|entry| !entry.tapped)
+                }
                 CostRecheck::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
             })
             .map(|offered| (offered.permanent, offered.ability))
