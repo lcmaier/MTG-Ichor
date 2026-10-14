@@ -426,6 +426,7 @@ fn creature_and(filter: ObjectFilter) -> ObjectFilter {
 /// CR 208.3: a land has no power, so it is not "power 4 or greater" either.
 /// The layer walk answered `PowerLE` of a land with `false`, and so its
 /// negation with `true`.
+// COVERS-PARTIAL: ATOM-208.3-001
 #[test]
 fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
     let mut game = setup_two_player_game();
@@ -454,6 +455,7 @@ fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
 /// The selection side refused `PowerLE` of a land as a malformed question, so
 /// a `matched` asker panicked in a debug build: a filter meeting a board, not
 /// a card asking what its site cannot answer.
+// COVERS-PARTIAL: ATOM-208.3-001
 #[test]
 fn test_a_land_is_not_power_two_or_less_and_asking_is_not_malformed() {
     let mut game = setup_two_player_game();

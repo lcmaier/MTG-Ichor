@@ -98,6 +98,8 @@ WATCHLIST = [
     "multiplicity",
     # Added 2026-09-25, the bounded-state PR.
     "flush",
+    # Added 2026-10-14, A6m's second PR.
+    "referents", "demand",
     # Added 2026-09-25, item 180's review.
     "fork",
     # Added 2026-09-30, A6j.

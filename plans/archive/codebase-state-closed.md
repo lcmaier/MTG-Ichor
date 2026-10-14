@@ -5832,3 +5832,130 @@ primitive failed on the tree before the fix (`phase_a6m_integration_test.rs`).
      spell setting "creatures target player controls" to 0/2, and a granted
      conditional "can't" as the board's only restriction.
      **Slotted:** A6m's first PR, with item 242, before TR-4a.
+
+### Item 243 — closed 2026-10-14 by PR #250 (A6m)
+
+Closed by A6m's second PR. A cost's demand is `ManaCost::demand`, with
+`demand_without_choices` for the two readers that leave a hybrid or {X} symbol
+owed whole, and `ManaDemand` beside it with the subtraction the inventory and
+`remaining_cost_after_pool` both made. `ManaPool::can_pay`, `pay` (which had
+re-walked the cost after asking `can_pay`), `can_pay_with_context`,
+`remaining_cost_after_pool`, the generic-allocation prompt and the inventory
+read it. There were seven tallies, not five: the inventory's own
+`ManaDemand::of` was the seventh. `colored_count`, which only tests called and
+which missed the `Colorless` spelling, is gone.
+
+The inventory asks the engine's predicates, one each: a mana ability's
+resolution context (`ResolutionContext::of_mana_ability`, which gives
+`trigger_mana` the ability source it lacked), the `ProduceMana` proposal
+(`produce_mana`, for its three performers), whose pool a triggered mana
+ability fills (`triggered_mana_recipient`), the `ManaAdded` arm
+(`production_matches_arm`, asked for the record the production would be), a
+static replacement's existence (`functioning_replacement` and
+`replacement_exists`), a cost list's mana component (`Cost::split_mana`), {T}
+and {Q} (`tap_symbol_payable`, which the window's cached re-check asks too),
+and the walk over a player's mana abilities (`mana_abilities_of`), with the
+sacrifice fodder through `sacrifice_candidates`. Only the arm is shared with
+the dispatcher: the trigger's limits, CR 113.6's zones and CR 603.2f's
+visibility stay its own, and item 213 records the last two beside the first.
+No answer moved.
+
+*Original entry:*
+
+243. **The mana code restates a cost's demand five times, and
+     `oracle/mana_supply.rs` restates the paths it predicts.** A cost's pips
+     per type and its generic count (`ManaPool::can_pay`,
+     `can_pay_with_context`, `ManaPool::pay`, `remaining_cost_after_pool`,
+     `pips_owed`, and `ManaCost::colored_count`, which misses the `Colorless`
+     spelling); and MA-1's inventory building a mana ability's resolution
+     context, the `ProduceMana` proposal, the host's mana, the `ManaAdded`
+     arm, a static replacement's existence, a cost list's mana component and
+     {T}/{Q} payability itself, beside the engine's own. The inventory §3.3,
+     M2.
+     **Reachability (2026-10-10):** unreachable — `colored_count` and
+     `can_pay_with_context` are called only by tests, and the `ManaAdded`
+     arm's one difference that a card could reach, the trigger's limits, is
+     item 213's.
+     **Sized:** ~300–500 lines: one demand method on `ManaCost`, and the
+     inventory asking the engine's predicates, which keeps its answers.
+     Before MA-7, which reads every cost per `Cost` arm and would widen the
+     copies.
+     **Slotted:** A6m's second PR, with item 245, before TR-4a and MA-7.
+
+### Item 245 — closed 2026-10-14 by PR #250 (A6m)
+
+Closed by A6m's second PR, its design paragraph reviewed first
+(`layers-architecture.md` §3.4, "One leaf table for both askers"). The table is
+`engine::object_filter::answer`, generic over a frame and a `FilterReferents`:
+`FilterPlayers` for the layer walk, which keeps its lazy "you"; `TextReferents`
+for a selection and an effect's set; `TriggerReferents` for a trigger.
+`player_ref_names` is the one `PlayerRef` predicate, asked by both
+`ByController` and `ByOwner`, by `player_ref_is` and by `SourceFilter::matches`.
+`FilterRefusal`, `EarlierTargets` and `matched` moved with the table, and the
+two selection wrappers left without a caller went.
+
+Five answers moved, each on a board no registered card reaches, and each board
+failed on the tree before its fix (`phase_a6m_integration_test.rs`):
+- CR 208.3: a land has no power, so `Not(PowerLE(3))` no longer puts one in a
+  static effect's set; the walk had answered `PowerLE` false and negated it.
+- `PowerLE` asked of a powerless object is the rules' no, not a malformed
+  question, and no longer panics a debug build.
+- `And` and `Or` are Kleene's: an `Or` of `PowerLE` and `Token` is true of a
+  noncreature token.
+- `Owner` in a predicate is the source's owner. The selection side had read
+  the tested object's, and `ByOwner(Owner)` as always true; `SourceFilter` had
+  read "you". Item 35's second residual closed with it.
+- The askers that held a source and passed none — a replacement pattern's
+  object and damage-source filters, an auxiliary move's, a cost
+  modification's — pass it, so their `NotSource` answers.
+
+*Original entry:*
+
+245. **Two `ObjectFilter` leaf tables answer differently where one refuses a
+     leaf.** `compute::object_matches_filter`, in the layer walk, and
+     `targeting::object_matches_filter_with`, for a selection or an
+     `ObjectSet`: `NotSource` with no source, `PowerLE` with no power,
+     `OtherThanInstance` outside an announcement and `PlayerRef::Owner`. The
+     second's doc cites this file's item 14 for the pair, an archived item
+     about something else. The inventory §3.3, M4.
+     **Reachability (2026-10-10):** unreachable — each table is asked only in
+     its own context, where its answer is the one that context needs; whether
+     one table can serve both is the design question.
+     **Widened by A6m's first PR (2026-10-14):** whether a `PlayerRef` names
+     a player, which item 242 listed: `player_ref_is` in the dispatcher, both
+     tables' `ByController` and `ByOwner` arms, and `SourceFilter::matches`.
+     They part exactly where this item's tables do, at `Owner` (the tested
+     object's owner, the source's, or "you") and in how lazily each reads
+     "you", so the predicate is this design's to choose.
+     **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
+     generic over how it resolves a player and an identity.
+     **Designed (2026-10-14):** `layers-architecture.md` §3.4, "One leaf
+     table for both askers".
+     **Slotted:** A6m's second PR, with item 243, before TR-4a, its design paragraph reviewed first.
+
+### Item 246 — closed 2026-10-14 by PR #250 (A6m)
+
+Closed by A6m's second PR, into which it was folded (the owner, 2026-10-14):
+with no dev GUI notes there was no dev GUI PR for it to ride in. One helper
+each: `draw_step_skipped` for turn 1's skipped draw (CR 103.8a), which the
+loader's refusal, its `skip_first_draw` and the writer's read-back ask;
+`NamedCard::names` and `CardWord::seats`, which the loader, the writer and the
+editor call; `allocation_fits`, whose message the CLI now prints;
+`keyword_words`, for the board's text and the snapshot; `card_name` through
+`get_effective_name`, keeping "<unknown>" for an object the store has lost;
+and one `ask_take_or_leave` for the three yes-or-no prompts, the optional
+replacement's diagnostic recorded at its caller. No game answer and no picture
+moved.
+
+*Original entry:*
+
+246. **The scenario format and the dev GUI compute seven facts twice.** "The
+     first draw still to skip", a card reference's match and a permanent's
+     seat words (each in the loader or writer and the editor), whether an
+     allocation answers (`ui/ask.rs` and the CLI), a permanent's keywords as
+     words, `card_name` beside `get_effective_name`, and the
+     take-it-or-leave-it prompt three times. The inventory §3.3, M5.
+     **Reachability (2026-10-10):** reachable — not wrong: each pair answers
+     alike today, and the window is where a drift would show.
+     **Sized:** ~150–250 lines, reviewed by `engineering-practices.md` §10.
+     **Slotted:** A6m, in the dev GUI notes PR after its first PR, before TR-4a.
