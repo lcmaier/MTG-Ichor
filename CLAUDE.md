@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py   # all must pass
 ```
 
 ## Where authority lives
@@ -23,7 +23,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 | `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5) · `cost` (601.2f–h/118.7–9/613.11's cost half/903.8, `CM-*`/`CP-*`, supersedes L15's cost half) · `triggers` (603 + 117.5/405.3/500.6/605.1b/608.2a/800.4d, the CR 603.10 reader, `TR-*`) · `setup` (103, the scenario loader, the save, `SU-*`) · `permission` (601.3's allows/602.2/602.5/113.6/305.1–2/606.3, `PM-*`) · `mana` (106/605, 601.2g–h's existence half, `MA-*`). **Start at `plans/engine-map.md`**: one event through all of them, and where each invariant below lives. **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
 | `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
-| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7), **the rules pass (§8)**. §3 owns the measuring rules; the measurements are `plans/fuzz-record.md`, newest-first, a block per phase |
+| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7), **the rules pass (§8)**, the invariant gates and their tags (§11). §3 owns the measuring rules; the measurements are `plans/fuzz-record.md`, newest-first, a block per phase |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
@@ -35,16 +35,14 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 ## The layer-system invariant
 
 **Never read `card_data.{types,subtypes,supertypes,colors,keyword_flags,abilities}` for an object
-on the battlefield or the stack** — route through `oracle/characteristics.rs`. Violated at 21
-sites with silently wrong behavior, so assume a new query needs a wrapper.
+on the battlefield or the stack** — route through `oracle/characteristics.rs`, and assume a new query needs a wrapper.
 
 **Ability *indices* are part of it.** `activatable_abilities`, `priority.rs`'s re-derivation
 by id and `put_on_stack.rs::activate_ability` must all index the *effective* list; migrating one alone
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
-**Three exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast and play legality
-before the object is a permanent), `register_static_effects` (circular inside `perform_entry`)
-and `// AS PRINTED:` (the card shown as printed; no rule reads it). → `layers-architecture.md`; `codebase-state.md`.
+**An exemption is a tag in source, and `check_invariants.py` fails a read without one:** `// PRE-LAYER ZONE:`,
+`// AS PRINTED:`, `// NO ROW REACHES:`, each in `engineering-practices.md` §11. → `layers-architecture.md`.
 
 ## Registry membership is not effect existence
 
@@ -72,7 +70,7 @@ off the object's own effective ability list at layers 4, 5 and 7a; registering o
 
 **Never mutate observable game state outside `perform_action`'s own arms.** A direct write is
 invisible to CR 614 no matter how loudly it is *emitted* — the pipeline reads the proposal, not
-the event. Propose with `execute_action` / `change_zone`.
+the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` fails any other write (`engineering-practices.md` §11).
 
 - **A `ZoneChange` names its `ZoneChangeAct` and every proposal its `EventCause`; no catchall.** Only
   the pipeline and the trigger matcher branch on `act`; every emitter names its record's cause.
@@ -117,14 +115,14 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 
 ## Determinism at the decision boundary
 
-**Never iterate `game.battlefield` directly where the order is observable** — go through
-`battlefield_ordered` / `battlefield_ids_ordered`. A `DecisionProvider` picks by *index* and
+**Never iterate a `GameState` hash field where the order is observable** — go through `battlefield_ordered` /
+`battlefield_ids_ordered`, or sort; `check_invariants.py` fails one untagged. A `DecisionProvider` picks by *index* and
 `HashMap` order differs per process. The key is `PermanentState::timestamp` — CR 613.7's, which 613.7e
 reassigns from the same process-independent counter — never `ObjectId`; same for any collection reaching a choice, log **or count**.
 
-**Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`;
-draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
-are the deliberate opt-outs, for interactive play.
+**Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`, and `clippy.toml`
+refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
+are the deliberate opt-outs, for interactive play, each under `#[expect]`.
 
 The regression is `tests/determinism_test.rs`, but the id hasher (`types::ids::IdHash`) is seeded once
 per process, so the end-to-end check is three shell `fuzz_games` runs at one seed under three

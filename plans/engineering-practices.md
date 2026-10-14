@@ -2266,3 +2266,135 @@ same, but that `EditorInput`, and `Input` with it, grew from 32 bytes to 40
 with `NumberTyped`, whose second `(BoardNumber, i64)` took the niche the
 tag had. A view holding inputs grows with it: the editor's 2.7 KB a repaint
 on the large board, and one allocation (490 to 491).
+
+---
+
+## 11. The invariants as gates
+
+Three of `CLAUDE.md`'s invariants have a shape a grep can see: the
+layer-system read, the chokepoint, and determinism at the decision boundary.
+`python plans/check_invariants.py`, in CI's check job and on `CLAUDE.md`'s
+line, reads those shapes. Review held them alone until A6q (2026-10-13), and
+the read of the tree that day found each broken again within weeks of being
+written. The fourth, "randomness is owned", is a clippy lint (§11.4), and the
+guards a release build compiles out are played in CI (§11.5).
+
+**The three checks.**
+
+- **printed**: `card_data.` and one of `types`, `subtypes`, `supertypes`,
+  `colors`, `keyword_flags` or `abilities`, or the same through a local bound
+  to a whole card (`let card = &obj.card_data;`, `let Some(card) =
+  ...Arc::clone(&o.card_data)`). Allowed in `oracle/`, the route and the
+  questions asked of a card in hand, and in `cards/`, the definitions.
+- **unordered**: `.iter()`, `.keys()`, `.values()`, their `_mut` and `into_`
+  forms, `.drain()`, `.retain()`, or a `for`, over a hash-keyed field of
+  `GameState`. The fields are read off its declaration, so a new `IdMap` is
+  covered the day it is added. Tests are read too: one that takes the first
+  of two permanents out of a map passes by the hasher's seed.
+- **write**: an assignment, a `&mut` borrow or a membership-changing method
+  (`insert`, `push`, `retain`, `take`, …) on a field whose change is an event
+  (a zone's membership, life, tapped, damage, attachment, combat, the game's
+  result), or a call to the store's writer of one (`move_object`, `attach`,
+  `add_counters`, …), outside the file `PERFORMERS` names for it.
+
+`#[cfg(test)]` items and `test_support.rs` are not read by printed and write:
+a test builds and inspects a board directly, which is what it is for.
+
+### 11.1 The tags
+
+A site the rule does not mean carries a tag that says why, in the comment
+block directly above its statement or trailing on its own line. Above, it
+covers the whole statement (a `let`, an `if` with its `else`, a match arm, a
+`fn`), and a blank line between ends the block. A tag on a whole-card local
+covers every read through it. The word starts its comment line; one quoted
+mid-sentence is a mention, which is how this section can name them.
+
+| Tag | Check | Says |
+|---|---|---|
+| `PRE-LAYER ZONE:` | printed | asked before the layer system can answer for the object: cast and play legality from a hand, an entering permanent's lookahead (CR 614.12), `register_static_effects`, whose registry is the walk's own input |
+| `AS PRINTED:` | printed | the card as printed, for a display, a statistic or the scenario format's ability numbering; no rule reads it |
+| `NO ROW REACHES:` | printed | asked of an object no continuous effect reaches, whose printed characteristics are its effective ones, or with a leg that asks the effective list when a row may reach |
+| `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone and nothing announced |
+| `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i (`replacement-architecture.md` §2) |
+| `NOT AN EVENT:` | write | a write no rule makes an event: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads |
+
+`AUXILIARY-MOVE:` is the one chokepoint tag the gate does not read. It marks
+a batch, CR 614.13's moves, and a batch is proposed.
+
+**A count is not order-free if its closure walks the layers.** A walk writes
+a trace record, so a count over the battlefield that asks `has_type` of each
+permanent writes the trace in the hasher's order; `oracle/board.rs` held the
+trace to that first. The first sweep found five such sites and ordered them.
+One was reached: the first-strike sweep, whose trace for stress game 32 at
+seed 12345 differed under two hasher seeds on `main` and agrees on the fix.
+
+### 11.2 Performers and known violations
+
+`PERFORMERS`, in the script, says where each event-bearing field is written,
+a row per file with its reason: `perform_action`'s file and the store's
+(every field); `move_object`'s; the setup (a scenario's board, CR 103.3's
+shuffle); the declarations (CR 508.1, 509.1, which no effect replaces); and
+the four files that put an ability on the stack and take it off (CR 602.2a,
+603.3, 608.2n). **A new performer is a row, which a review reads in the
+diff**, the same shape as §10.2's drawing files.
+
+`KNOWN` lists the violations an item already owns, by item number, because a
+source comment carries none: item 6's three state-based writes (TR-4b,
+TR-5b), item 228's Aura attachments (TR-4b) and item 263's CR 104.4b draw
+(TR-6). An entry that matches nothing fails, so the PR that closes an item
+takes its entry off in the same diff.
+
+### 11.3 What the gate does not see
+
+- A `&CardData` handed to a function, which reads it under a name the gate
+  cannot follow. The layer question is at the call site, for review.
+- Iteration through a local bound to a map, and a write through a
+  `&mut PermanentState` a helper returned under another name.
+- The `std` `HashMap`s and `HashSet`s off `GameState`, a card's colors or a
+  permanent's counters, which `RandomState` orders differently in every
+  process. CI's determinism step runs three processes, so a leak there that
+  reaches the fuzz output fails it.
+- `devgui/`, which reaches the engine through its snapshot, by id.
+- A swallowed `Result` (item 262), and registry membership. Neither is a
+  shape.
+
+**The row's first instrument, privacy, is not built.** A6q's row asked for
+the fields that change game state to be private to the module that performs
+actions. That is about 85 fields and 2,700 read and write sites, several
+bands, and the integration tests read the fields from outside the crate. The
+write check stands in for it. Whether to make them private is A6s's question.
+
+### 11.4 Randomness: `clippy.toml`
+
+At the repository's root, so clippy reads it for both crates. Its
+`disallowed-methods` and `disallowed-types` refuse every way rand 0.9 offers
+to draw from the thread's RNG or the OS. The three opt-outs `CLAUDE.md` names
+carry `#[expect(clippy::disallowed_methods, reason = …)]`, not `allow`, so an
+opt-out that stops drawing entropy fails clippy and its attribute cannot
+outlive it. The clippy step's "never at the site" is about the lints
+`Cargo.toml`'s table allows crate-wide; these are exceptions to a lint it
+never allows.
+
+### 11.5 The checked sitting
+
+`[profile.release-checked]` is release with debug assertions and overflow
+checks on, and CI's `fuzz-checked` job plays 50 stress games under it beside
+the `check` job. The release sittings compile out every `debug_assert!`, and
+with them the layer walk's and the memo's audits, the mana watcher's and the
+pipeline's, so before A6q no CI game ran any of them.
+
+Its size was read first (2026-10-13, 16 threads, an idle machine): 200 stress
+games took 25.2 s under the profile against 0.21 s in release, about 120
+times, the memo's audit most of it. That is far past the twice-the-step that
+would have let the release sitting switch over, so the checked one is its
+own job and smaller: the first 50 games of the same seed, 14 s at four
+threads.
+
+The nine tests that assert a `debug_assert!` fires are
+`#[cfg(debug_assertions)]`, so `cargo test --release --lib` passes. Each
+guards a card the engine cannot express: the static lowering's six, the
+walk's and the condition's static-context evaluators, and two zone statements
+on one ability. **None needs to be loud in release**, because the checked
+sitting plays every registered card with them on. A card from outside the
+registry would want each as an `Err` at load, which is post-v1 custom-card
+work.
