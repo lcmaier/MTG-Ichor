@@ -3,15 +3,27 @@
 //! 1. CR 701.3d's four routes to becoming unattached, each announced as one
 //!    `Unattached` record naming its route: an unattach, a move to another
 //!    object, the attachment leaving and the host leaving.
+//! 2. CR 704.5n, 704.5p and 704.5d as members of CR 704.3's one event,
+//!    decided against the board before it (`codebase-state.md` item 6, and
+//!    `plans/references/feedback-loops.md` §4).
+
+use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::engine::actions::GameAction;
+use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    aura_enchanting_your_creature, effect_ctx, equipment, put_on_battlefield, setup_game, setup_two_player_game, test_ctx,
+    aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_on_battlefield, setup_game, setup_two_player_game,
+    static_ability, test_ctx, test_dp,
 };
+use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
+use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange};
 use mtgsim::types::ids::{ObjectId, ObjectRef};
+use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::zones::Zone;
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers
@@ -42,6 +54,53 @@ fn unattached(attachment: ObjectRef, former_host: ObjectRef, route: UnattachRout
 
 fn existence(game: &GameState, id: ObjectId) -> ObjectRef {
     game.object_ref(id).expect("in the store")
+}
+
+/// A 1/1 creature whose static ability makes each permanent of `subtype` a
+/// 2/2 creature, with `keywords` — March of the Machines' shape on a
+/// creature that can die in a state-based check.
+fn animator(subtype: Subtype, keywords: &[KeywordFlag]) -> Arc<CardData> {
+    let animated = EffectRecipient::FilteredPermanents(ObjectFilter::BySubtype(subtype));
+    let creature = TypeChange {
+        add_types: vec![CardType::Creature],
+        remove_types: Vec::new(),
+        set_types: None,
+        add_subtypes: Vec::new(),
+        remove_subtypes: Vec::new(),
+        set_subtypes: None,
+        add_supertypes: Vec::new(),
+        remove_supertypes: Vec::new(),
+        set_supertypes: None,
+    };
+    let mut effects = vec![
+        Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), animated.clone()),
+        Effect::Atom(
+            Primitive::SetPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
+            animated.clone(),
+        ),
+    ];
+    effects.extend(
+        keywords
+            .iter()
+            .map(|&k| Effect::Atom(Primitive::GrantKeywordFlag(k, Duration::WhileSourceOnBattlefield), animated.clone())),
+    );
+    CardDataBuilder::new("Probe Animator")
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .ability(static_ability(Effect::Sequence(effects)))
+        .build()
+}
+
+fn equipment_subtype() -> Subtype {
+    Subtype::Artifact(ArtifactType::Equipment)
+}
+
+fn mark_damage(game: &mut GameState, id: ObjectId, damage: u32) {
+    game.battlefield.get_mut(&id).unwrap().damage_marked = damage;
+}
+
+fn host(game: &GameState, id: ObjectId) -> Option<ObjectId> {
+    game.battlefield[&id].attached_to
 }
 
 /// Grizzly Bears with an Equipment on it, for player 0.
@@ -169,4 +228,125 @@ fn a_host_leaving_the_game_unattaches_an_equipment_another_player_owns() {
 
     assert!(game.battlefield.contains_key(&sword), "player 0's Equipment stays");
     assert_eq!(attachment_records(&game), vec![unattached(sword_ref, bears_ref, UnattachRoute::HostLeft)]);
+}
+
+// ---------------------------------------------------------------------------
+// 2. The state-based detaches and the token sweep in CR 704.3's one event
+// ---------------------------------------------------------------------------
+
+/// The census's case (`feedback-loops.md` §4): a creature that makes an
+/// attached Equipment a creature dies in the check where CR 704.5p first sees
+/// the Equipment as one. The check reads the board before it, so the
+/// Equipment is unattached at this check, not left on the creature.
+#[test]
+fn an_equipment_animated_by_a_creature_dying_in_the_check_is_unattached_at_that_check() {
+    let mut game = setup_two_player_game();
+    let (sword, bears) = equipped_bears(&mut game);
+    let animator = put_on_battlefield(&mut game, animator(equipment_subtype(), &[]), 0);
+    mark_damage(&mut game, animator, 1);
+    let (sword_ref, bears_ref) = (existence(&game, sword), existence(&game, bears));
+    game.record_events();
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+
+    assert!(!game.battlefield.contains_key(&animator));
+    assert_eq!(host(&game, sword), None, "CR 704.5p read the Equipment as the creature it was");
+    let records = game.recorded_events();
+    let record = records.records().iter().find(|r| matches!(r.event, GameEvent::Unattached { .. })).expect("unattached");
+    assert_eq!(record.event, unattached(sword_ref, bears_ref, UnattachRoute::Unattach));
+    assert_eq!(record.stamp.cause, EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached));
+}
+
+/// The same board with an Aura: unattached at this check, then CR 704.5m puts
+/// it into its owner's graveyard at the next (CR 303.4d).
+#[test]
+fn an_aura_animated_by_a_creature_dying_in_the_check_is_unattached_then_put_into_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let aura = put_on_battlefield(&mut game, aura_enchanting_your_creature("Probe Aura"), 0);
+    assert!(game.attach(aura, bears));
+    let animator = put_on_battlefield(&mut game, animator(Subtype::Enchantment(EnchantmentType::Aura), &[]), 0);
+    mark_damage(&mut game, animator, 1);
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+    assert_eq!(host(&game, aura), None, "unattached at the check that saw it a creature");
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+    assert_eq!(game.objects[&aura].zone, Zone::Graveyard, "CR 704.5m at the next");
+}
+
+/// A destroyed animated Equipment leaves once and is unattached once: by its
+/// leaving, which the check's CR 704.5p member then finds already done.
+#[test]
+fn an_animated_equipment_destroyed_in_the_check_is_unattached_once() {
+    let mut game = setup_two_player_game();
+    let (sword, bears) = equipped_bears(&mut game);
+    put_on_battlefield(&mut game, animator(equipment_subtype(), &[]), 0);
+    mark_damage(&mut game, sword, 2);
+    let (sword_ref, bears_ref) = (existence(&game, sword), existence(&game, bears));
+    game.record_events();
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+
+    assert_eq!(game.objects[&sword].zone, Zone::Graveyard);
+    assert_eq!(attachment_records(&game), vec![unattached(sword_ref, bears_ref, UnattachRoute::AttachmentLeft)]);
+}
+
+/// CR 704.7 collapses members with the same result, and an unattach is not a
+/// destruction's result: an indestructible animated Equipment with lethal
+/// damage survives CR 704.5g and is still unattached by CR 704.5p in the
+/// same check.
+#[test]
+fn an_indestructible_animated_equipment_with_lethal_damage_is_unattached_in_the_same_check() {
+    let mut game = setup_two_player_game();
+    let (sword, _) = equipped_bears(&mut game);
+    put_on_battlefield(&mut game, animator(equipment_subtype(), &[KeywordFlag::Indestructible]), 0);
+    mark_damage(&mut game, sword, 2);
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+
+    assert!(game.battlefield.contains_key(&sword), "CR 702.12b");
+    assert_eq!(host(&game, sword), None);
+}
+
+/// CR 704.5d reads the board the check began with: a token that dies in a
+/// check is in its owner's graveyard until the next, and ceases to exist
+/// there (CR 704.3, 117.5).
+#[test]
+fn a_token_that_dies_in_a_check_ceases_to_exist_at_the_next() {
+    let mut game = setup_two_player_game();
+    let token = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    game.objects.get_mut(&token).unwrap().is_token = true;
+    mark_damage(&mut game, token, 2);
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+    assert_eq!(game.objects.get(&token).map(|o| o.zone), Some(Zone::Graveyard), "died at the first check");
+
+    assert!(game.check_state_based_actions(&test_dp()).unwrap());
+    assert!(!game.objects.contains_key(&token), "ceased to exist at the next");
+    assert!(!game.check_state_based_actions(&test_dp()).unwrap());
+}
+
+/// CR 301.6: a Fortification fortifies a land, so one on a land stays, and
+/// one on a creature that is no land is unattached (CR 704.5n).
+#[test]
+fn a_fortification_stays_on_a_land_and_is_unattached_from_a_creature() {
+    let mut game = setup_two_player_game();
+    let fortification = || {
+        CardDataBuilder::new("Probe Fortification")
+            .card_type(CardType::Artifact)
+            .subtype(Subtype::Artifact(ArtifactType::Fortification))
+            .build()
+    };
+    let land = put_on_battlefield(&mut game, card_of_type("Probe Land", CardType::Land), 0);
+    let on_land = put_on_battlefield(&mut game, fortification(), 0);
+    assert!(game.attach(on_land, land));
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let on_bears = put_on_battlefield(&mut game, fortification(), 0);
+    assert!(game.attach(on_bears, bears));
+
+    game.check_state_based_actions(&test_dp()).unwrap();
+
+    assert_eq!(host(&game, on_land), Some(land));
+    assert_eq!(host(&game, on_bears), None);
 }

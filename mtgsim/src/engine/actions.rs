@@ -268,6 +268,23 @@ pub enum GameAction {
         host: ObjectId,
     },
 
+    /// Unattach an Aura, Equipment or Fortification from whatever it is
+    /// attached to and leave it on the battlefield (CR 701.3d's first
+    /// sentence) — CR 704.5n's and 704.5p's state-based action.
+    ///
+    /// A proposal because "becomes unattached" triggers read the performed
+    /// stream (CR 603.10c), and because a state-based check decides it with
+    /// the check's other members against one board (CR 704.3): a creature
+    /// that animates an Equipment and dies in the same check leaves it
+    /// attached to a creature, and only the board before the check says so.
+    /// An attachment that is attached to nothing performs nothing (CR
+    /// 603.2e), including one whose leaving earlier in the same event
+    /// unattached it (CR 701.3d). No `EventPattern` arm, for
+    /// [`Self::Attach`]'s reason.
+    Unattach {
+        attachment: ObjectId,
+    },
+
     /// Put counters on a permanent, or give them to a player (CR 122.1).
     ///
     /// A proposal rather than a direct write because CR 614.16's counter
@@ -415,6 +432,18 @@ pub enum GameAction {
     CreateTokenIn {
         object: ObjectId,
         zone: Zone,
+    },
+
+    /// A token that is not on the battlefield ceases to exist (CR 704.5d,
+    /// 111.7) — no zone change, since it goes to no zone.
+    ///
+    /// A proposal so CR 704.3 decides it with the check's other members,
+    /// against the board before any of them is performed: a token that dies
+    /// in a check ceases to exist at the next one. No `EventPattern` arm, for
+    /// [`Self::Attach`]'s reason: nothing replaces a token ceasing to exist.
+    /// Announced as `TokenCeasedToExist`.
+    TokenCeasesToExist {
+        object: ObjectId,
     },
 
     /// A turn begins (CR 500.11, 614.10) — **the unit a "skip your next turn"
@@ -1520,6 +1549,23 @@ impl GameState {
                 Ok(())
             }
 
+            GameAction::Unattach { attachment } => {
+                // Loud only for an object that does not exist. One that left
+                // the battlefield was unattached by leaving (CR 701.3d), which
+                // its move announced.
+                if !self.objects.contains_key(&attachment) {
+                    return Err(format!("Cannot unattach {}: no such object", attachment));
+                }
+                let former_host = self.battlefield.get(&attachment).and_then(|entry| entry.attached_to);
+                let (Some(former_host), Some(unattached)) =
+                    (former_host.and_then(|host| self.object_ref(host)), self.object_ref(attachment))
+                else {
+                    return Ok(());
+                };
+                self.detach(attachment);
+                self.announce_unattached(unattached, former_host, UnattachRoute::Unattach, ctx.cause)
+            }
+
             GameAction::Tap { object } => {
                 let entry = self.battlefield.get_mut(&object).ok_or_else(|| {
                     format!("Cannot tap {}: not on the battlefield", object)
@@ -1656,6 +1702,18 @@ impl GameState {
             GameAction::CreateTokenIn { object, zone } => {
                 self.put_token_into(object, zone)?;
                 self.announce_token_created(object, zone, ctx.cause)
+            }
+
+            GameAction::TokenCeasesToExist { object } => {
+                let token = self.get_object(object)?;
+                let zone = token.zone;
+                if !token.is_token || zone == Zone::Battlefield {
+                    return Err(format!("{} cannot cease to exist: CR 704.5d is a token's off the battlefield", object));
+                }
+                self.remove_from_zone_collection(object, zone)?;
+                self.remove_object(object);
+                self.emit_event(GameEvent::TokenCeasedToExist { object_id: object }, ctx.cause)?;
+                Ok(())
             }
 
             // --- Turn structure (CR 500, 614.10) ----------------------------

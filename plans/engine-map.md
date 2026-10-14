@@ -171,7 +171,8 @@ table, the enum and the match disagree.
 | `LoseLife` | the life total, 0 a local no-op; `LifeChanged` | — |
 | `ZoneChange` | `perform_zone_change`; loud on a battlefield destination | — |
 | `Untap` | on the transition only (CR 603.2e); `Untapped` | — |
-| `Attach` | `GameState::attach`, nothing if already there; `Attached` | — |
+| `Attach` | `GameState::attach`, nothing if already there; an `Unattached` from the old host, then `Attached` | — |
+| `Unattach` | `GameState::detach`, nothing if attached to nothing (CR 704.5n, 704.5p); `Unattached` | — |
 | `Tap` | on the transition only; `Tapped` | — |
 | `AddCounters` | counters on a permanent or a player; `CountersChanged` | — |
 | `RemoveCounters` | as many as there are (CR 701.2); announced only if any | — |
@@ -179,6 +180,7 @@ table, the enum and the match disagree.
 | `EnterBattlefield` | the move (or a token's creation), then `perform_entry` | — |
 | `CreateTokens` | the objects, then every entry as one batch | `EnterBattlefield` per token |
 | `CreateTokenIn` | `put_token_into`; `TokenCreated` | — |
+| `TokenCeasesToExist` | CR 704.5d: out of its zone and the store; `TokenCeasedToExist` | — |
 | `BeginTurn` | `begin_turn`; `TurnBegin` | — |
 | `BeginPhase` | the phase; `PhaseBegin` | — |
 | `BeginStep` | the step; `StepBegin` | — |

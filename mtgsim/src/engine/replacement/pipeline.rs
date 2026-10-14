@@ -221,6 +221,8 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         | GameAction::Untap { .. }
         | GameAction::Tap { .. }
         | GameAction::Attach { .. }
+        | GameAction::Unattach { .. }
+        | GameAction::TokenCeasesToExist { .. }
         | GameAction::Destroy { .. }
         | GameAction::EnterBattlefield { .. }
         // A shuffle has no amount: CR 701.24a randomizes a whole library.
