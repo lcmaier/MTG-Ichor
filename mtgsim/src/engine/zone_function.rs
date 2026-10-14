@@ -475,6 +475,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "two zone statements on one ability")]
     fn two_zone_statements_on_one_ability_are_loud() {

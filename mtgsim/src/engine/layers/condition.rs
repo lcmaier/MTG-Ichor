@@ -536,6 +536,7 @@ mod tests {
         assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears, None));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "no static-context evaluator")]
     fn mode_chosen_on_a_static_is_loud() {

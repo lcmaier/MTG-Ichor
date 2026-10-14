@@ -2269,6 +2269,7 @@ mod tests {
     /// affected object whose row's source is elsewhere, and reaching that
     /// object's frame mid-pass is the CR 613.8 dependency it declines to
     /// invent (`cost-architecture.md` §3.7).
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "no static-context evaluator")]
     fn the_walks_evaluator_still_refuses_source_power() {

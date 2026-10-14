@@ -2307,8 +2307,8 @@ mod tests {
     // `fuzz_games`.
     //
     // `debug_assert!` panics under `cargo test` (debug_assertions on) and
-    // compiles out in release, so `#[should_panic]` is the right shape and
-    // release builds keep the old skip-and-carry-on behavior.
+    // compiles out in release, so each test is `#[should_panic]` and compiled
+    // only where the assertion is. Release keeps the old skip-and-carry-on.
     // -----------------------------------------------------------------------
 
     mod static_lowering {
@@ -2394,6 +2394,7 @@ mod tests {
         /// The declining arms are declining *through* the wrapper too: a
         /// conditional body the lowering cannot express is as inert as an
         /// unconditional one, and says so at the same volume.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
@@ -2406,6 +2407,7 @@ mod tests {
 
         /// `Modal`, `Optional`, `ForEach` and `Repeat` are resolution-time
         /// shapes; a static ability never resolves.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_modal_static_body_is_loud() {
@@ -2419,6 +2421,7 @@ mod tests {
         /// The nastiest of the set, because it is *partial*: the atomic
         /// siblings register normally and only this entry vanishes, so the card
         /// half-works.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "non-atomic entry")]
         fn test_non_atom_inside_a_sequence_is_loud() {
@@ -2429,6 +2432,7 @@ mod tests {
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_targeting_recipient_on_a_static_is_loud() {
@@ -2438,6 +2442,7 @@ mod tests {
             );
         }
 
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_controller_recipient_on_a_static_is_loud() {
@@ -2447,6 +2452,7 @@ mod tests {
         /// A primitive with no arm in `static_primitive_rows`. This one is
         /// checked in `register_static_effects` rather than in a helper, so it
         /// needs the real ETB path.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "lowers to no layer rows")]
         fn test_primitive_with_no_lowering_arm_is_loud() {

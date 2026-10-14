@@ -238,6 +238,31 @@ jobs:
         working-directory: .
         run: python3 plans/check_invariants.py
 
+  # The guards a release build compiles out, played over every registered
+  # card: each `debug_assert!`, and with them the layer walk's and the memo's
+  # audits, the mana watcher's and the pipeline's (`engineering-practices.md`
+  # §11.4). The `check` job's sittings are release, so they play past all of
+  # them. A job of its own, beside `check` rather than after it, because the
+  # audits make a game about a hundred times slower: 200 stress games took
+  # 25 s here against 0.21 s in release at 16 threads (2026-10-13). So this
+  # plays the first 50 of the same seed's games, 14 s at four threads.
+  fuzz-checked:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mtgsim
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@1.98.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mtgsim
+
+      - name: Fuzz — stress pool, debug assertions on
+        run: cargo run --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool stress
+
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
   # and target. A job of its own, so it runs beside `check` and is never the
   # long pole: its cold build measured 49 s at four jobs in WSL (2026-09-30),
