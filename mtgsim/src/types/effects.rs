@@ -53,6 +53,13 @@ pub enum AmountExpr {
     /// evaluator both refuse it rather than guessing at a source they were not
     /// given.
     SourcePower,
+    /// "A number of +1/+1 counters equal to the number of +1/+1 counters this
+    /// had": the source's counters of a kind, where the ability expected it,
+    /// or as it last existed once it has left (CR 113.7a). CR 122.8 and 122.9
+    /// make what it puts new counters, never the old ones moved: a dies
+    /// trigger's source and a source sacrificed to pay the cost both had
+    /// theirs cease to exist as they left (CR 122.2). A resolution's question.
+    SourceCounters(CounterType),
     /// "That many" on a triggered ability — the amount the matched records
     /// carry, summed over them (`triggers-architecture.md` §3.4): the damage
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
@@ -592,6 +599,14 @@ pub enum Condition {
     /// the one the entry would build. No layer writes a counter, so it is
     /// never a CR 613.8 dependency; a counter write bumps the layer epoch.
     SourceHasCounters { counter: CounterType, at_least: u32 },
+    /// "If it had no -1/-1 counters on it" (persist, CR 702.79a), "if it had
+    /// no +1/+1 counters on it" (undying, CR 702.93a), and `had: true` for
+    /// "if it had one or more": the triggering object's counters as it was
+    /// immediately before the event, which for a departure is its last known
+    /// information (CR 603.10a, 113.7a), read at the trigger and again at
+    /// resolution (CR 603.4). A trigger's question; a static ability has no
+    /// triggering object, and no answer.
+    TriggeringObjectHadCounters { counter: CounterType, had: bool },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -633,9 +648,10 @@ impl Condition {
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read
-            // players, histories, the host, or a resolution.
+            // players, histories, the host, a trigger, or a resolution.
             Condition::Player { .. }
             | Condition::SpellWasKicked
+            | Condition::TriggeringObjectHadCounters { .. }
             | Condition::ModeChosen(_)
             | Condition::SourceInZone(_)
             | Condition::HostMatches(_)
@@ -1603,9 +1619,11 @@ pub enum Primitive {
     ReturnToHand,
     /// Return to the battlefield from wherever it is, under the control
     /// [`ReturnUnder`] says (CR 610.3c's owner unless the card says
-    /// otherwise). Every object one resolution returns enters as one event,
-    /// and an Aura chooses what it enchants as it enters (CR 303.4f).
-    ReturnToBattlefield(ReturnUnder),
+    /// otherwise), "with a -1/-1 counter on it" as `counters` says (CR
+    /// 122.6, persist's and undying's return). Every object one resolution
+    /// returns enters as one event, and an Aura chooses what it enchants as it
+    /// enters (CR 303.4f).
+    ReturnToBattlefield { under: ReturnUnder, counters: Vec<crate::types::replacement::EntryCounters> },
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library
@@ -1995,7 +2013,7 @@ impl Primitive {
             | Primitive::CounterSpell => Some(Zone::Graveyard),
             Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
-            Primitive::ReturnToBattlefield(_) | Primitive::CreateToken(..) => Some(Zone::Battlefield),
+            Primitive::ReturnToBattlefield { .. } | Primitive::CreateToken(..) => Some(Zone::Battlefield),
             Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
                 Some(Zone::Library)
             }

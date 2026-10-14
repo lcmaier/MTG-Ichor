@@ -818,12 +818,14 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // `attached_to`, which no layer writes.
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
         // The source's zone, its tapped status and how it was cast are off
-        // `GameState`, and the resolution-only leaf never evaluates at all.
+        // `GameState`, and the trigger's and resolution's leaves never
+        // evaluate in a walk at all.
         Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
         | Condition::SourceHasCounters { .. }
         | Condition::SpellWasKicked
+        | Condition::TriggeringObjectHadCounters { .. }
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_) => {}
         // The counts are off `GameState`; "you" is the source's controller.
@@ -1136,7 +1138,7 @@ fn static_ability_still_exists(
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
     match &ability.effect {
         Effect::Conditional(cond, _) => {
-            condition::holds(cond, game, board, effect.source, layer_index, None)
+            condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionObjects::default())
         }
         _ => true,
     }

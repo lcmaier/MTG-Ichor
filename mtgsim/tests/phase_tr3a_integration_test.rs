@@ -443,18 +443,18 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
         by: 0,
     };
     game.execute_action(counters, &test_ctx()).unwrap();
-    assert!(game.delayed_triggers[0].source_frame.is_none(), "its source is still there");
+    assert!(game.delayed_triggers[0].source_lki.is_none(), "its source is still there");
 
     game.change_zone(herald, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
-    let kept = game.delayed_triggers[0].source_frame.as_ref().map(|frame| frame.power);
+    let kept = game.delayed_triggers[0].source_lki.as_ref().map(|lki| lki.chars().power);
     assert_eq!(kept, Some(Some(4)), "the 4/4 that left");
 
     advance_to(&mut game, 0, StepType::End);
     let pending_lki = &the_delayed_pending(&game).kept_lki;
-    assert_eq!(pending_lki.iter().map(|lki| (lki.object, lki.frame.power)).collect::<Vec<_>>(), vec![(herald_then, Some(4))]);
+    assert_eq!(pending_lki.iter().map(|lki| (lki.object(), lki.chars().power)).collect::<Vec<_>>(), vec![(herald_then, Some(4))]);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let on_stack = &game.stack_entries[game.stack.last().unwrap()];
-    assert_eq!(on_stack.kept_lki.iter().map(|lki| lki.object).collect::<Vec<_>>(), vec![herald_then], "onto the stack");
+    assert_eq!(on_stack.kept_lki.iter().map(|lki| lki.object()).collect::<Vec<_>>(), vec![herald_then], "onto the stack");
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 21);
 }
@@ -473,7 +473,7 @@ fn a_spells_delayed_trigger_keeps_the_spell_as_it_left_the_stack() {
     game.resolve_top_of_stack(&test_dp()).unwrap();
     let delayed = &game.delayed_triggers[0];
     assert_eq!(delayed.source, cast);
-    let frame = delayed.source_frame.as_ref().map(|frame| frame.types.contains(&CardType::Instant));
+    let frame = delayed.source_lki.as_ref().map(|lki| lki.chars().types.contains(&CardType::Instant));
     assert_eq!(frame, Some(true), "the instant spell, framed as it left the stack");
 }
 

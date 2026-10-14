@@ -1595,12 +1595,12 @@ impl GameState {
 
             // Each object from where it is now, as one event (CR 608.2f),
             // under its owner's control or the effect's controller's.
-            Primitive::ReturnToBattlefield(under) => {
+            Primitive::ReturnToBattlefield { under, counters } => {
                 let mut returns = Vec::new();
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
                     let controller = self.return_controller(object, *under, ctx.controller)?;
-                    returns.push(Return { object, to: Zone::Battlefield, controller, cause: actx.cause });
+                    returns.push(Return { object, to: Zone::Battlefield, controller, counters: counters.clone(), cause: actx.cause });
                 }
                 self.return_objects(&returns, &actx)
             }
@@ -2386,6 +2386,22 @@ impl GameState {
                 };
                 Ok(value.unwrap_or(0).max(0) as u64)
             }
+            // The source's counters as CR 608.2h reads it: as it last existed
+            // once it has left, a dies trigger's own or a sacrifice paid as the
+            // cost; on the battlefield, where the ability expected it, while
+            // it is still that object. Neither is a missed capture.
+            AmountExpr::SourceCounters(kind) => {
+                if let Some(lki) = self.source_lki(_ctx) {
+                    return Ok(u64::from(lki.counters(*kind)));
+                }
+                let source = self.this_object(_ctx).ok_or_else(|| {
+                    format!(
+                        "{:?}: the source of {} has left and no last known information answers for it, which is a missed capture",
+                        expr, _ctx.source
+                    )
+                })?;
+                Ok(self.battlefield.get(&source).map_or(0, |entry| u64::from(entry.counter_count(*kind))))
+            }
             // "This creature's power" is a *replacement effect's* question: CR 614.12
             // asks it of a permanent about to enter, and
             // `replacement::evaluate_enter_template` is the one evaluator that knows
@@ -2512,10 +2528,13 @@ impl GameState {
             Condition::CostAnswer(answer) => walk.last_cost_answer == Some(*answer),
             Condition::All(clauses) => clauses.iter().all(|c| self.resolution_condition_holds(c, ctx, walk)),
             // CR 109.5 — a resolving spell's or ability's "you" is its
-            // controller, whatever has become of its source since.
+            // controller, whatever has become of its source since; and the
+            // source and "it" are read as they last existed once they have
+            // left (CR 113.7a, 608.2h).
             other => {
                 let source = ctx.effect_source();
-                crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller))
+                let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+                crate::engine::layers::condition::settled_holds_with(other, self, source, Some(ctx.controller), objects)
             }
         }
     }

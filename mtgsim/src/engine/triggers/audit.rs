@@ -34,7 +34,7 @@ use crate::state::game_state::GameState;
 use crate::state::layer_memo::LayerMemo;
 use crate::state::trace::TraceHandle;
 use crate::types::effects::Effect;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, ObjectRef};
 use crate::types::zones::Zone;
 
 /// The audit's state on a game that turned it on.
@@ -166,7 +166,7 @@ impl GameState {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
             candidates.push(TriggerCandidate {
-                id,
+                object: ObjectRef { id, zone_change_epoch: object.zone_change_epoch },
                 controller: controller_or_owner(self, id).unwrap_or(object.owner),
                 owner: object.owner,
                 zone: object.zone,
@@ -177,29 +177,31 @@ impl GameState {
         }
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
-                let id = frame.object.id;
-                let candidate = match self.find(frame.object) {
+                let lki = &frame.lki;
+                let id = lki.object().id;
+                let candidate = match self.find(lki.object()) {
                     Some(object) => TriggerCandidate {
-                        id,
+                        object: lki.object(),
                         controller: controller_or_owner(self, id).unwrap_or(object.owner),
                         owner: object.owner,
                         zone: object.zone,
                         host: crate::oracle::board::host_of(self, id),
-                        frame: TriggerCandidateFrame::Before { chars: &frame.chars, snapshot: k },
+                        frame: TriggerCandidateFrame::Before { chars: lki.chars(), snapshot: k },
                         card: Arc::clone(&object.card_data),
                     },
-                    // Moved or gone since the snapshot: its list from then,
-                    // under its controller then (CR 603.3a, 603.10a).
+                    // Moved or gone since the snapshot: as it was then, under
+                    // its controller then (CR 603.3a, 603.10a), the existence
+                    // that triggered.
                     None => TriggerCandidate {
-                        id,
-                        controller: frame.chars.controller,
-                        owner: frame.owner,
+                        object: lki.object(),
+                        controller: lki.chars().controller,
+                        owner: lki.owner(),
                         zone: frame.zone,
-                        host: None,
-                        frame: TriggerCandidateFrame::LastKnown { chars: &frame.chars, snapshot: Some(k) },
+                        host: lki.host(),
+                        frame: TriggerCandidateFrame::LastKnown { lki, snapshot: Some(k) },
                         card: match self.objects.get(&id) {
                             Some(object) => Arc::clone(&object.card_data),
-                            None => CardDataBuilder::new(&frame.chars.name).build(),
+                            None => CardDataBuilder::new(&lki.chars().name).build(),
                         },
                     },
                 };

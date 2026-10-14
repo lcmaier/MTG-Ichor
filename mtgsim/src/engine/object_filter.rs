@@ -131,10 +131,10 @@ impl EarlierTargets<'_> {
 /// table can make.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FilterRefusal {
-    /// The object is gone from the store, and no frame answers the leaf: an
-    /// object's owner or whether it is a token, which last known information
-    /// does not carry until TR-4a (`triggers-architecture.md` §3.11), or any
-    /// leaf asked with no frame at all.
+    /// The object is gone from the store, and nothing the asker holds
+    /// answers the leaf: whether it is a token, which last known information
+    /// does not carry, its owner without that information, or any leaf asked
+    /// with no frame at all.
     ObjectGone(ObjectId),
     /// `NotSource`, or a `PlayerRef::Owner`, asked where nothing names a
     /// source.
@@ -180,6 +180,8 @@ impl std::fmt::Display for FilterRefusal {
 
 /// Does `id` match `filter`, over a frame `frame` supplies on demand (`None`
 /// for an object with none) and the words `referents` gives its text?
+/// `owner` is the owner the asker holds with a last known frame, which
+/// answers once the store has lost the object (CR 108.3).
 ///
 /// A refusal reads as no. A malformed question — a leaf the card wrote where
 /// the asker cannot answer it — is loud in a debug build and `cargo test`,
@@ -190,9 +192,10 @@ pub(crate) fn evaluate<'f>(
     filter: &ObjectFilter,
     id: ObjectId,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
+    owner: Option<PlayerId>,
     referents: &mut impl FilterReferents,
 ) -> bool {
-    match answer_or_refuse(game, filter, id, frame, referents) {
+    match answer_or_refuse(game, filter, id, frame, owner, referents) {
         Ok(matches) => matches,
         Err(refusal) => {
             debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
@@ -210,6 +213,7 @@ fn answer_or_refuse<'f>(
     filter: &ObjectFilter,
     id: ObjectId,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
+    owner: Option<PlayerId>,
     referents: &mut impl FilterReferents,
 ) -> Result<bool, FilterRefusal> {
     let chars = || frame().ok_or(FilterRefusal::ObjectGone(id));
@@ -232,7 +236,10 @@ fn answer_or_refuse<'f>(
         ObjectFilter::Token => Ok(object()?.is_token),
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.
         ObjectFilter::ByOwner(who) => {
-            let owner = object()?.owner;
+            let owner = match owner {
+                Some(owner) => owner,
+                None => object()?.owner,
+            };
             player_ref_names(who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
         ObjectFilter::PowerLE(max_power) => {
@@ -250,22 +257,22 @@ fn answer_or_refuse<'f>(
             Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
         }
         ObjectFilter::And(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, referents);
+            let left = answer_or_refuse(game, a, id, frame, owner, referents);
             if left == Ok(false) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, referents);
+            let right = answer_or_refuse(game, b, id, frame, owner, referents);
             if right == Ok(false) || left.is_ok() { right } else { left }
         }
         ObjectFilter::Or(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, referents);
+            let left = answer_or_refuse(game, a, id, frame, owner, referents);
             if left == Ok(true) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, referents);
+            let right = answer_or_refuse(game, b, id, frame, owner, referents);
             if right == Ok(true) || left.is_ok() { right } else { left }
         }
-        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, referents).map(|matches| !matches),
+        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, owner, referents).map(|matches| !matches),
     }
 }
 

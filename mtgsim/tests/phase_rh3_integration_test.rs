@@ -100,7 +100,7 @@ fn returns_when_it_dies() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToBattlefield(ReturnUnder::Owner), EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::TriggeringObject),
             ),
         ),
     )

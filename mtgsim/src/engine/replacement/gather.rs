@@ -52,6 +52,7 @@ use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::engine::object_filter::TextReferents;
+use crate::engine::targeting::HeldFrame;
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -750,7 +751,7 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)))
+            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)).map(HeldFrame::Chars))
         }
     }
 }

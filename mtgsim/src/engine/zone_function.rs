@@ -247,6 +247,7 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::SourceTapped
         | Condition::SourceHasCounters { .. }
         | Condition::SpellWasKicked
+        | Condition::TriggeringObjectHadCounters { .. }
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_)
         | Condition::ThisTurn(_)

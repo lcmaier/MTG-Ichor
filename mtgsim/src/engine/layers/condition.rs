@@ -21,7 +21,7 @@
 //! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
-use crate::engine::layers::board::Board;
+use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::battlefield::CostChoices;
@@ -31,6 +31,23 @@ use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::triggers::Lki;
+
+/// The objects a triggered ability's or a resolving effect's condition names
+/// beside the board: "this", its source, and "it", the triggering object, each
+/// read off its last known information once it has left the zone the asker
+/// expected it in (CR 113.7a, 608.2h; `triggers-architecture.md` §6.1). A
+/// static ability's condition names neither, and passes the default.
+#[derive(Clone, Copy, Default)]
+pub struct ConditionObjects<'a> {
+    /// The source's last known information once it has left; `None` while
+    /// it is there, where the board answers.
+    pub source_lki: Option<&'a Lki>,
+    /// The triggering object, with its last known information when the
+    /// event was its departure or it has left since. `None` outside a
+    /// trigger, or for an occurrence with no one object.
+    pub triggering: Option<(ObjectId, Option<&'a Lki>)>,
+}
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
 /// it right now?
@@ -46,12 +63,13 @@ pub(super) fn holds(
     source: ObjectId,
     layer_index: usize,
     locked_you: Option<PlayerId>,
+    objects: ConditionObjects<'_>,
 ) -> bool {
     // Every arm below reads the source's frame or its owner, and a condition
-    // on an object that is not in the store has no answer. The existence
-    // check has already found the ability on that frame, so this is a guard
-    // rather than a case.
-    if !game.objects.contains_key(&source) {
+    // on an object that is not in the store has no answer unless its last
+    // known information gives one. The existence check has already found the
+    // ability on that frame, so this is a guard rather than a case.
+    if objects.source_lki.is_none() && !game.objects.contains_key(&source) {
         return false;
     }
 
@@ -79,27 +97,56 @@ pub(super) fn holds(
         // where it is false.
         Condition::All(clauses) => clauses
             .iter()
-            .all(|c| holds(c, game, board, source, layer_index, locked_you)),
+            .all(|c| holds(c, game, board, source, layer_index, locked_you, objects)),
 
         // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
         // Static Orb. A status (CR 110.5), read off the entity — under a
         // look-ahead, the entering one — and never off a frame, since no
         // layer writes it. A source with no entity is not on the battlefield
-        // and so is not untapped either.
-        Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
-        Condition::SourceTapped => board.entity(game, source).is_some_and(|entity| entity.tapped),
-        Condition::SourceHasCounters { counter, at_least } => {
-            board.entity(game, source).is_some_and(|entity| entity.counter_count(*counter) >= *at_least)
+        // and so is not untapped either; one that left reads as it left.
+        Condition::SourceUntapped => match objects.source_lki {
+            Some(lki) => lki.was_tapped() == Some(false),
+            None => board.entity(game, source).is_some_and(|entity| !entity.tapped),
+        },
+        Condition::SourceTapped => match objects.source_lki {
+            Some(lki) => lki.was_tapped() == Some(true),
+            None => board.entity(game, source).is_some_and(|entity| entity.tapped),
+        },
+        Condition::SourceHasCounters { counter, at_least } => match objects.source_lki {
+            Some(lki) => lki.counters(*counter) >= *at_least,
+            None => board.entity(game, source).is_some_and(|entity| entity.counter_count(*counter) >= *at_least),
+        },
+        Condition::TriggeringObjectHadCounters { counter, had } => {
+            let Some((it, lki)) = objects.triggering else {
+                return false;
+            };
+            let n = match lki {
+                Some(lki) => lki.counters(*counter),
+                None => board.entity(game, it).map_or(0, |entity| entity.counter_count(*counter)),
+            };
+            (n > 0) == *had
         }
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `ObjectSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.
+        // A source that left was attached to what its last known information
+        // says, and CR 608.2h reads that host where it was, or as it left
+        // when it is the triggering object.
         Condition::HostMatches(filter) => {
-            let Some(host) = crate::oracle::board::host_of(game, source) else {
+            let host = match objects.source_lki {
+                Some(lki) => lki.host(),
+                None => crate::oracle::board::host_of(game, source),
+            };
+            let Some(host) = host else {
                 return false;
             };
-            let Some(chars) = board.frame_of(game, host, layer_index) else {
+            let chars = match objects.triggering {
+                Some((it, Some(lki))) if it == host => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
+                _ if objects.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
+                _ => board.frame_of(game, host, layer_index),
+            };
+            let Some(chars) = chars else {
                 return false;
             };
             let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
@@ -132,9 +179,14 @@ pub(super) fn holds(
         // CR 702.33d, read off the cost decisions and not off the cast: a copy
         // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
         // the token it becomes; a permanent that was never a spell is not.
-        Condition::SpellWasKicked => cost_choices(game, source).is_some_and(|choices| {
-            choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
-        }),
+        Condition::SpellWasKicked => {
+            let kicked =
+                |choices: &CostChoices| choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)));
+            match objects.source_lki {
+                Some(lki) => kicked(lki.cost_choices()),
+                None => cost_choices(game, source).is_some_and(kicked),
+            }
+        }
 
         // CR 118.12's answer is the resolver's walk's, which answers it before
         // any evaluator is asked; reaching here is a condition the walk never
@@ -180,7 +232,21 @@ pub(super) fn holds(
 /// item 169). `None` reads it live, as a static ability's is: the source's
 /// current controller.
 pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId, locked_you: Option<PlayerId>) -> bool {
-    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you)
+    settled_holds_with(condition, game, source, locked_you, ConditionObjects::default())
+}
+
+/// [`settled_holds`] for a condition whose text names objects beyond the
+/// board: an intervening "if" at either instant (CR 603.4), or a resolving
+/// effect's own "if", reading its source and the triggering object as
+/// `objects` holds them.
+pub fn settled_holds_with(
+    condition: &Condition,
+    game: &GameState,
+    source: ObjectId,
+    locked_you: Option<PlayerId>,
+    objects: ConditionObjects<'_>,
+) -> bool {
+    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you, objects)
 }
 
 /// A history leaf: the counts of the players `count.players` names, each over

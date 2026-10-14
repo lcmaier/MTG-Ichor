@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::condition::ConditionObjects;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
@@ -15,12 +16,16 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{Lki, TriggerBinding};
 
 /// The subject as it was in the zone it left, when the matched event was its
-/// own departure: the record's CR 603.10a frame, naming the existence that
-/// left.
+/// own departure and the arm that matched looks back: the record's CR
+/// 603.10a frame, naming the existence that left. A "from anywhere" arm's
+/// subject is the object after the move (CR 603.6c), read where it went.
 pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
     let subject = binding.subject?;
+    if !binding.event().looks_back() {
+        return None;
+    }
     let (lki, ..) = binding.records.first()?.event.lki()?;
-    (lki.object.id == subject.id).then_some(lki)
+    (lki.object().id == subject.id).then_some(lki)
 }
 
 /// What "them" means in a trigger like Hedge Shredder's "Whenever one or more
@@ -57,7 +62,7 @@ fn carried_lki<'a>(
 ) -> Option<&'a Lki> {
     match subject_lki {
         Some(lki) if subject == Some(object) => Some(lki),
-        _ => kept.iter().find(|frame| frame.object == object),
+        _ => kept.iter().find(|frame| frame.object() == object),
     }
 }
 
@@ -113,13 +118,41 @@ impl GameState {
     /// information the resolving entry kept as it went (§6.1). `None` there is
     /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
+        match self.bound_as_it_was(binding)? {
+            (_, Some(lki)) => Some(Arc::clone(lki.frame())),
+            (id, None) => compute_characteristics(self, id),
+        }
+    }
+
+    /// The bound object as CR 608.2h reads it, `bound_characteristics`'
+    /// order: its id with the record's frame when the event was its
+    /// departure, alone while it is still where the event left it, or with
+    /// the last known information the resolving entry kept as it left later.
+    /// `None` for a binding with no subject, and for a missed capture.
+    fn bound_as_it_was<'a>(&'a self, binding: &'a TriggerBinding) -> Option<(ObjectId, Option<&'a Lki>)> {
         let subject = binding.subject?;
         match subject_lki(binding) {
-            Some(lki) => Some(Arc::clone(&lki.frame)),
+            Some(lki) => Some((subject.id, Some(lki))),
             None => match self.bound_object(binding) {
-                Some(id) => compute_characteristics(self, id),
-                None => self.resolving.as_ref()?.lki_of(subject).map(|lki| Arc::clone(&lki.frame)),
+                Some(id) => Some((id, None)),
+                None => self.resolving.as_ref()?.lki_of(subject).map(|lki| (subject.id, Some(lki))),
             },
+        }
+    }
+
+    /// What a resolving condition reads about the objects its text names
+    /// (CR 113.7a, 608.2h): the source's last known information once
+    /// `source`, the existence that put the ability on the stack, has left,
+    /// and "it", the trigger's subject, as `bound_characteristics` reads it.
+    pub(crate) fn condition_objects<'a>(
+        &'a self,
+        source: Option<ObjectRef>,
+        binding: Option<&'a TriggerBinding>,
+    ) -> ConditionObjects<'a> {
+        let resolving = self.resolving.as_ref();
+        ConditionObjects {
+            source_lki: source.and_then(|source| resolving?.lki_of(source)),
+            triggering: binding.and_then(|binding| self.bound_as_it_was(binding)),
         }
     }
 

@@ -7,6 +7,7 @@
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
+use crate::engine::targeting::HeldFrame;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -162,7 +163,7 @@ fn applies_to(
         // source 2 is `Itself` only (`cost-architecture.md` §4).
         CostSubject::Spells(filter) => {
             source != spell
-                && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(frame))
+                && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(HeldFrame::Chars(frame)))
         }
         // CR 113.6d's "that particular object" — an identity test. Only
         // source 2 can satisfy it, since a permanent on the battlefield is
