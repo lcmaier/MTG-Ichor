@@ -2330,21 +2330,26 @@ impl Effect {
         }
     }
 
+    /// A static body and the CR 604.2 "as long as" clause around it, if
+    /// there is one: the one peel every `as_*` below reads through.
+    fn and_its_condition(&self) -> (Option<&Condition>, &Effect) {
+        match self {
+            Effect::Conditional(condition, inner) => (Some(condition), inner),
+            body => (None, body),
+        }
+    }
+
     /// The cost modification a static body is, with the "as long as" clause
     /// wrapped around it if there is one.
     ///
-    /// One peel, used by every leg of `engine::cost_determination::cost_modifications_for`'s
+    /// Read by every leg of `engine::cost_determination::cost_modifications_for`'s
     /// gate and by the gather itself, so a conditional cost effect is seen
     /// everywhere an unconditional one is.
     pub fn as_cost_modification(
         &self,
     ) -> Option<(Option<&Condition>, &crate::types::cost_modification::CostModificationDef)> {
-        match self {
-            Effect::CostModification(def) => Some((None, def)),
-            Effect::Conditional(condition, inner) => match inner.as_ref() {
-                Effect::CostModification(def) => Some((Some(condition), def)),
-                _ => None,
-            },
+        match self.and_its_condition() {
+            (condition, Effect::CostModification(def)) => Some((condition, def)),
             _ => None,
         }
     }
@@ -2364,12 +2369,8 @@ impl Effect {
     /// So this function never evaluates the condition; it only looks past
     /// it. The same peel as [`Self::as_cost_modification`].
     pub fn replacement_body(&self) -> Option<&crate::types::replacement::ReplacementDef> {
-        match self {
-            Effect::Replacement(def) => Some(def),
-            Effect::Conditional(_, inner) => match inner.as_ref() {
-                Effect::Replacement(def) => Some(def),
-                _ => None,
-            },
+        match self.and_its_condition() {
+            (_, Effect::Replacement(def)) => Some(def),
             _ => None,
         }
     }
@@ -2379,12 +2380,8 @@ impl Effect {
     /// [`Self::as_cost_modification`], asked by the prohibition gate's every
     /// leg and by the sweep, which alone evaluates the condition.
     pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
-        match self {
-            Effect::Restriction(def) => Some((None, def)),
-            Effect::Conditional(condition, inner) => match inner.as_ref() {
-                Effect::Restriction(def) => Some((Some(condition), def)),
-                _ => None,
-            },
+        match self.and_its_condition() {
+            (condition, Effect::Restriction(def)) => Some((condition, def)),
             _ => None,
         }
     }
