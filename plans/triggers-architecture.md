@@ -1115,10 +1115,10 @@ from a known item, so the calibration also bought two findings.
 
 | Kind | 1. Which object | 2. Done, and caused | 3. Replaced | 4. When read | 5. As it left |
 |---|---|---|---|---|---|
-| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j) → A6f | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; **item 261**: a redirect's destination credits the replacement, where judges credit the resolving spell → TR-4d | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
+| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; **item 261**: a redirect's destination credits the replacement, where judges credit the resolving spell → A6r | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
 | `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds (item 15: a graveyard card leaving the game → TR-4c) |
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
-| `CardDrawn` | holds: the card in hand at the dispatch | **item 254**: the draw's place in its turn and in its draw step (CR 504.1; 702.94a's "first card you've drawn" is a count) → TR-4d | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
+| `CardDrawn` | holds: the card in hand at the dispatch | **item 254**: the draw's place in its turn and in its draw step (CR 504.1; 702.94a's "first card you've drawn" is a count) → A6r | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
 | `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5c | holds (`source_lki`, CR 608.2h) |
 | `PhaseBegin`, `StepBegin`, `TurnBegin` | holds: whose (item 10) | holds | holds: a skip leaves no record (CR 614.10) | holds | holds |
@@ -1146,7 +1146,7 @@ from a known item, so the calibration also bought two findings.
 | `StateBasedActionPerformed` | holds: no reader | holds | holds | holds | holds |
 | `TriggerBinding` | **item 255**: each occurrence keeps both of its record's objects; item 250 → TR-5a | holds | holds | holds (§6.3) | holds |
 | `Lki`, the kept LKI | holds (`object`; item 168 → TR-4a) | holds | holds | **item 252**: a survivor's host → TR-4a; **item 259**: a newcomer to a zone asked look-back arms → TR-4c | holds (item 14 → TR-4a, item 15 → TR-4c; the type unified below) |
-| `RememberedObject` | holds: by epoch, with `left_at`; **item 260**: an Aura's new object after its own CR 704.5m move (CR 400.7f) → TR-4c; item 258 → A6f | holds | holds | holds | holds |
+| `RememberedObject` | holds: by epoch, with `left_at`; **item 260**: an Aura's new object after its own CR 704.5m move (CR 400.7f) → TR-4c; item 258 → TR-4d | holds | holds | holds | holds |
 
 All 36 kinds are in the table; kinds whose answers are the same share a row.
 
@@ -1241,7 +1241,7 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   §6.1 says the `IsCountered` arm reads "the same frame", but no record carries
   it. 1 card: `(o:"when " or o:"whenever ") o:"spell" o:"is countered"
   -o:"countered this way"`, Multani's Presence, which TR-4d registers.
-- **Item 254 (TR-4d): a draw's place among its player's draws is read
+- **Item 254 (A6r): a draw's place among its player's draws is read
   through a proxy, and a trigger cannot ask for it.** Cards print two places.
   One is the turn's: Gavi, Nest Warden's "your second card each turn", which
   `place_in_turn` holds and `DrawsCard` cannot ask for. The other is the draw
@@ -1297,7 +1297,7 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   702.40a) at the `SpellCast` record, "authored with the first storm card". 33
   cards: `kw:storm`. A storm card copies spells, so CV-4 is the first phase
   that can register one, and the count goes in it.
-- **Item 258 (A6f): CR 400.7j's and 400.7e's "public zone" is not asked.** `GameState::find` answers in a hand or a library, so a
+- **Item 258 (TR-4d): CR 400.7j's, 400.7e's and 701.17c's "public zone" is not asked.** `GameState::find` answers in a hand or a library, so a
   trigger or an effect that moved a card there could still act on it. No
   printed card does:
   - the triggers that watch a move into a hand or library act on nothing they
@@ -1309,12 +1309,14 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
     that card" or o:"that card is" or o:"return that card" or o:"exile that
     card" or o:"cast that card")`.
 
-  It goes to the information-model design (A6f; the owner, at #246's review).
-  The judges reading CR 701.17c beside item 131's ruling said it "needs to say
-  '...or the card was revealed'". Darksteel Colossus and Wheel of Sun and Moon
-  reveal the card they send to a library, and what a revealed card in a hidden
-  zone lets a reader find is what is known about it. Fateful Tempest's "total
-  mana value of cards milled this way" asks it of a revealed Colossus.
+  The rule turns on the zone. CR 701.17c finds a milled card "in the zone it
+  moved to from the library, as long as that zone is a public zone". So a
+  Darksteel Colossus shuffled back is not found, and Fateful Tempest's "total
+  mana value of cards milled this way" does not count it (the owner's judge
+  Discord, citing CR 701.17c), though it was milled (item 131). In the other
+  direction, a milled card that Leyline of the Void exiled is found in exile,
+  and `put_into_since` reads only the verb's zone. It goes beside item 131 in
+  TR-4d, where the mill's same-zone record first asks the rule.
 
 #### Planned shapes corrected here, with no item
 
@@ -1419,11 +1421,10 @@ Taken here, for the owner's review:
    o:"whenever ") o:"tapped for mana"`), and 180 lands sacrifice themselves for
    mana (`t:land o:"{T}, Sacrifice" o:"Add"`). If a judge reads it as a
    look-back, the record gains a `source_lki` as damage has.
-7. **Item 254 is reachable and wrong today, and TR-4d fixes it**, since it
-   needs the counts on both sides and a new cause arm for CR 103.5's opening
-   hand. The fix is a small one (about 90 lines of code and 160 of tests) and
-   can go before TR-4 instead, with item 261, if the owner wants the known
-   wrong answer gone sooner.
+7. **Item 254 is reachable and wrong today, and A6r fixes it before TR-4**
+   (the owner, 2026-10-13), with item 261 and the swallowed dispatch error of
+   item 262. It needs the counts on both sides and a new cause arm for CR
+   103.5's opening hand: about 90 lines of code and 160 of tests.
 8. **A redirected move's destination is the resolving spell's** (item 261;
    reversed at #246's review, 2026-10-13). #242's review gave Hero of
    Bretagard's exile under Rest in Peace to the replacement. Judges gave it
@@ -3025,7 +3026,7 @@ agreed; instructions per decision +0.17%.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-3c".
 
-### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,110–8,270)
+### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
 **Re-counted and split in four on 2026-10-12 (A6p, §3.12a)**, one read-only
 agent per half of the 2026-09-24 split, card by card against the tree after
@@ -3038,7 +3039,7 @@ the three needs another.
 | **TR-4a — the frame's facts and their readers** (CR 113.7a, 608.2h, 603.10a's first class, 603.6e) | `Lki` widened behind its `Arc`, so `GameEvent` keeps its 72 bytes: `Status` with what was attached to the object, the cost decisions, `cast`, the owner (§3.11); `DelayedTrigger.source_frame` an `Lki`; the reader methods; the five live-source leaves and a delayed trigger's "if" read off the frame (§6.1); `TriggeringObjectHadCounters` with its polarity; item 168, with the kept LKI seeded from the frame; items 251 and 252; `ReturnToBattlefield` with entry counters; an amount for "the counters it had" (CR 122.8, 122.9); the dispatch audit's snapshot keeping the host and the status | Strangleroot Geist, Demonic Vigor, Compost (item 251's boards, with a Clone and with Darkest Hour); Kitchen Finks' seven rulings as undying's; ATOM-603.6e-002, ATOM-122.8-001 and ATOM-122.9-001 | ~635 (950–1,270) | ~1,170 | 2,120–2,440 |
 | **TR-4b — attachment's records** (CR 701.3d, 603.10c, 603.2e; CR 704.5n, 704.5p and 704.5d in CR 704.3's batch) | `Unattached` with its route (four sites: an unattach, a re-attach, the attachment leaving, the host leaving), `former_host` an `ObjectRef`; the arms `BecomesAttached` and `BecomesUnattached`; item 228; item 178; main item 6's detaches and token sweep as batch members | Grafted Wargear; a fixture shaped like Siona's ruling; ATOM-603.10c-001, -002 and -003, and ATOM-603.2e-002 | 365–505 (550–1,010) | 600–840 | 1,150–1,850 |
 | **TR-4c — the other two look-back classes and the zone statement** (CR 603.10a's second and third classes, 113.6b, 113.6k, 603.2f, 400.7f) | the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
-| **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 254, 131 and 261 | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 254 and 131; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 450–690 (675–1,380) | 605–850 | 1,280–2,230 |
+| **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
 
 TR-4b is under the band's floor at its low end; the seam is CR 701.3's, as
 RH-2's was its batch's.
@@ -3153,7 +3154,7 @@ The totals below are code at 1.5–2× plus tests, the band check
 | Half (2026-09-24) | Was | Re-count | Split into |
 |---|---|---|---|
 | TR-4a, the frame | 1,360–1,620 | 3,390–3,860 | **TR-4a**, the frame's facts and their readers, 2,120–2,440; **TR-4c**, the other two look-back classes and the zone statement, 1,560–1,750 |
-| TR-4b, the records | 1,430–1,790 | 2,380–4,060 | **TR-4b**, attachment's records, 1,150–1,850; **TR-4d**, control, countering, loss and the records' missing facts, 1,280–2,230 |
+| TR-4b, the records | 1,430–1,790 | 2,380–4,060 | **TR-4b**, attachment's records, 1,150–1,850; **TR-4d**, control, countering, loss and the records' missing facts, 1,175–2,040 since items 254 and 261 went to A6r |
 | TR-5a, combat, targeting, ability damage, excess damage | 1,200–2,050 | 3,960–4,640 | **TR-5a**, the binding's roles and the attack declaration, 2,040–2,390; **TR-5c**, blocks, targeting, activation and excess damage, 1,920–2,250 |
 | TR-5b, counters, prevention, the multiplier, tokens, scry | 1,870–2,380 | 2,980–3,415 | **TR-5b**, counters, 1,510–1,715; **TR-5d**, prevention, the multiplier, tokens and scry, 1,470–1,700 |
 
@@ -3188,8 +3189,8 @@ new halves take the next codes, in route order.
   library-size condition and a CR 616.1 choice among dredges. So the class is
   a fixture, and the card stays in §15.
 
-**The route** (`roadmap-v2.md` A6d): TR-4a, TR-4b, TR-4c, TR-4d, TR-5a, TR-5b,
-TR-5c, TR-5d, then TR-6 and TR-7. Item 6 is seventeen PRs where the 2026-09-24
+**The route** (`roadmap-v2.md` A6d): A6q's gates and A6r's fixes, then TR-4a,
+TR-4b, TR-4c, TR-4d, TR-5a, TR-5b, TR-5c, TR-5d, then TR-6 and TR-7. Item 6 is seventeen PRs where the 2026-09-24
 count made it twelve.
 
 ---

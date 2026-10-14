@@ -9430,10 +9430,9 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
        excluded;
      - the replacement side reading the step's count instead of `DrawCause`;
      - a cause arm for CR 103.5's opening hand, which draws with none.
-     **Slotted:** TR-4d, the records' missing facts, with Gavi's board and a
-     fixture shaped like Orcish Bowmasters under the registered Thought
-     Reflection; or a small fix before TR-4, if the owner wants the wrong
-     answer gone sooner (`triggers-architecture.md` §3.12a, decision 7).
+     **Slotted:** A6r, the fixes before TR-4 (the owner, 2026-10-13), with
+     Gavi's board and a fixture shaped like Orcish Bowmasters under the
+     registered Thought Reflection.
 
 255. **A record names two objects, and the binding keeps one.** Each combat
      and targeting record names two parties:
@@ -9486,7 +9485,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Slotted:** CV-4, the first phase that can register a storm card, since
      storm copies spells.
 
-258. **CR 400.7j's and 400.7e's "public zone" is not asked.**
+258. **CR 400.7j's, 400.7e's and 701.17c's "public zone" is not asked.**
      `GameState::find` answers in a hand or a library, so a trigger or an
      effect that moved a card there could still find it. No printed card does:
      - the triggers on a move into a hand or library act on nothing they
@@ -9498,20 +9497,28 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
        (o:"when that card" or o:"that card is" or o:"return that card" or
        o:"exile that card" or o:"cast that card")`.
 
-     **Reachability (2026-10-12):** unreachable — no printed or registered
-     reader.
-     **Sized:** ~15 lines of code and ~40 of tests: the binding's, the
-     remembered object's and `put_into_since`'s finds refuse a hidden zone.
-     **Re-slotted at #246's review (the owner, 2026-10-13):** what can be
-     found after a move into a hidden zone is what is known about it. The
-     judges reading CR 701.17c beside Jess Dunks's Zellix ruling (item 131)
-     said it "needs to say '...or the card was revealed'": Darksteel Colossus
-     and Wheel of Sun and Moon reveal the card they send to a library. Whether
-     Fateful Tempest's "total mana value of cards milled this way" counts
-     such a card is the same question.
-     **Slotted:** A6f, the information-model design, which decides what a
-     revealed card in a hidden zone lets a reader find; its build adds the
-     refusal and its test.
+     **Reachability (2026-10-13):** unreachable — no registered reader.
+     Fateful Tempest is the printed one, and it would get a shuffled-back
+     Colossus right by construction, since `put_into_since` reads only the
+     verb's zone.
+     **Sized:** ~30 lines of code and ~80 of tests: the binding's, the
+     remembered object's and `put_into_since`'s finds refuse a hidden zone,
+     and a resolution's own read finds a moved card in any public zone it
+     went to.
+     **The other direction, and the slot (2026-10-13, #246's review).** CR
+     701.17c lets "an effect that refers to a milled card ... find that card in
+     the zone it moved to from the library, as long as that zone is a public
+     zone". So the rule turns on the zone. A Darksteel Colossus milled and
+     shuffled back into its library is not found, and Fateful Tempest's "total
+     mana value of cards milled this way" does not count it: the owner's judge
+     Discord, citing CR 701.17c. It was still milled (item 131). In the other
+     direction, a milled card that Leyline of the Void exiled is found in
+     exile. `put_into_since` reads only the verb's zone, so it misses that card
+     (CR 400.7j's "other parts of that effect"). No registered card reads
+     "milled this way".
+     **Slotted:** TR-4d, beside item 131, whose same-zone record is where CR
+     701.17c's public zone is asked first: the finds refuse a hidden zone, and a
+     resolution's own read finds a moved card in any public zone it went to.
 
 259. **A newcomer to a zone is asked look-back arms of the event that brought
      it.** A Bridge from Below that reaches the graveyard in the same wipe is a
@@ -9565,5 +9572,44 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      - `AppliedReplacement.redirected` stays for the log's "(redirected)";
      - the `phase_rh3_integration_test.rs` boards that pinned the old answer
        flip.
-     **Slotted:** TR-4d, the records' missing facts; or the small fix before
-     TR-4 with item 254 (`triggers-architecture.md` §3.12a, decision 7).
+     **Slotted:** A6r, the fixes before TR-4, with item 254 (the owner,
+     2026-10-13).
+
+### Found by an outside read of the tree (2026-10-13, at #246's review)
+
+The owner commissioned a read of the history, the plans and the trigger code
+for habits that cause rework. Two of its findings in the tree are live
+violations that no item named. Each was checked against the tree before it was
+filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
+
+262. **An unbatched dispatch swallows its error, so triggers can vanish
+     without a word.** `dispatch_unbatched` (`triggers/dispatch.rs`) discards
+     `dispatch`'s `Result` with `let _ =`. It is the path every tier-2
+     `AbilityTriggered` record takes, so a dispatch past
+     `DISPATCH_NESTING_LIMIT`, and any other `Err` raised there, drops its
+     triggers silently. `triggers-architecture.md` §4.8 planned CR 104.4b's
+     draw at the limit for TR-6, and an `Err` until then. The `Err` never
+     reaches anyone.
+     **Reachability (2026-10-13):** unreachable as a wrong answer — the limit
+     needs a tier-2 chain sixteen deep, which no printed ability makes. Any
+     other `Err` swallowed there is an engine bug that the swallow hides from
+     the fuzz runs.
+     **Sized:** ~10 lines of code and ~30 of tests: the `Err` reaches the
+     emitter's caller, as a batched dispatch's does, and a test drives the
+     limit.
+     **Slotted:** A6r, the fixes before TR-4, so that the ten trigger PRs
+     after it see their own errors.
+
+263. **CR 104.4b's draw is written outside the chokepoint.**
+     `perform_sba_and_triggers` (`engine/sba.rs`, the `MANDATORY_LOOP_CHECKS`
+     branch) sets `self.result = Some(GameResult::Draw)` directly. Every other
+     ending of the game is performed by `PlayerLoses`' and `PlayerWins'`
+     performers, or settled after a batch. So no replacement or record sees
+     this one.
+     **Reachability (2026-10-13):** unreachable — the branch needs a
+     replacement that re-proposes a loss at every state-based check, and no
+     registered card does.
+     **Sized:** TR-6's: its loop detector routes CR 104.4b's draw through the
+     settlement (`triggers-architecture.md` §4.9, §12), and this site moves
+     with it.
+     **Slotted:** TR-6, whose loop detector owns CR 104.4b's draw.

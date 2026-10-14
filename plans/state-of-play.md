@@ -32,7 +32,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
    TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 MA-7, MA-2 and MA-3 go before 6's TR-7. **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
-four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
+the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
 information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-4–MA-6; B9; PM's
 later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
@@ -186,14 +186,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 315 |
+| Numbered items | 317 |
 | …closed, still recorded | 152 |
-| …open — unreachable, and says why | 112 |
+| …open — unreachable, and says why | 114 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 161 of 163 |
+| …open, carrying an explicit `**Sized:**` | 163 of 165 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -207,7 +207,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 108 |
+| …slotted to a phase or roadmap row still to come | 110 |
 | …slotted to the first registered card that needs it | 43 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
