@@ -5853,7 +5853,7 @@ ability fills (`triggered_mana_recipient`), the `ManaAdded` arm
 (`mana_added_arm_matches`, asked for the record the production would be), a
 static replacement's existence (`functioning_replacement` and
 `replacement_exists`), a cost list's mana component (`Cost::split_out_mana_costs`), {T}
-and {Q} (`tap_symbol_payable`, which the window's cached re-check asks too),
+and {Q} (`tap_or_untap_payable`, which the window's cached re-check asks too),
 and the walk over a player's mana abilities (`controlled_mana_abilities`), with the
 sacrifice fodder through `sacrifice_candidates`. Only the arm is shared with
 the dispatcher: the trigger's limits, CR 113.6's zones and CR 603.2f's

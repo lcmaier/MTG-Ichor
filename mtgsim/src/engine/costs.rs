@@ -79,16 +79,17 @@ pub enum CannotPay {
     Unchecked,
 }
 
-/// The two symbols that pay a cost with the permanent's own tapped state: {T}
-/// taps it (CR 107.5), {Q} untaps it (CR 107.6).
+/// Which way a cost turns its own permanent: {T} taps it (CR 107.5), {Q}
+/// untaps it (CR 107.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TapSymbol {
+pub(crate) enum TapOrUntap {
     Tap,
     Untap,
 }
 
-/// Whether a permanent can pay `symbol`: {T} only while it is untapped, {Q}
-/// only while it is tapped, and either only if it is not summoning-sick
+/// Whether a permanent can pay a {T} or {Q} cost, `direction` saying which: {T}
+/// only while it is untapped, {Q} only while it is tapped, and either only if
+/// it is not summoning-sick
 /// (CR 302.6, 702.10c). The check, the payment and the mana window's re-check
 /// ask it.
 ///
@@ -96,11 +97,11 @@ pub(crate) enum TapSymbol {
 /// closure: the check's answer walks the permanent's characteristics (haste is
 /// a keyword the layers can grant), and a tapped permanent refuses {T}
 /// without one. The window passes the answer it keeps for the board.
-pub(crate) fn tap_symbol_payable(symbol: TapSymbol, tapped: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
-    match (symbol, tapped) {
-        (TapSymbol::Tap, true) => return Err(CannotPay::AlreadyTapped),
-        (TapSymbol::Untap, false) => return Err(CannotPay::NotTapped),
-        (TapSymbol::Tap, false) | (TapSymbol::Untap, true) => {}
+pub(crate) fn tap_or_untap_payable(direction: TapOrUntap, tapped: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
+    match (direction, tapped) {
+        (TapOrUntap::Tap, true) => return Err(CannotPay::AlreadyTapped),
+        (TapOrUntap::Untap, false) => return Err(CannotPay::NotTapped),
+        (TapOrUntap::Tap, false) | (TapOrUntap::Untap, true) => {}
     }
     if sick() {
         return Err(CannotPay::SummoningSick);
@@ -223,8 +224,8 @@ impl GameState {
         match cost {
             Cost::TapSelf | Cost::UntapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
-                let symbol = if *cost == Cost::TapSelf { TapSymbol::Tap } else { TapSymbol::Untap };
-                tap_symbol_payable(symbol, entry.tapped, || has_summoning_sickness(self, source_id))
+                let direction = if *cost == Cost::TapSelf { TapOrUntap::Tap } else { TapOrUntap::Untap };
+                tap_or_untap_payable(direction, entry.tapped, || has_summoning_sickness(self, source_id))
             }
             Cost::Mana(mana_cost) => {
                 if !self.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(mana_cost)) {
