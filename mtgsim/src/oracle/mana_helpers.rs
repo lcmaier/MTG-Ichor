@@ -177,46 +177,38 @@ pub(crate) fn castable_spells_with(
     player.hand.iter().copied().filter(|&card_id| can_cast_with(game, player_id, card_id, supply).is_ok()).collect()
 }
 
-/// Color-sensitive subtraction of pool mana from a mana cost.
-///
-/// For each colored symbol in the cost, if the pool has that color available
-/// (beyond what earlier symbols already consumed), skip the symbol. For generic
-/// symbols, subtract any excess pool mana. Returns a new ManaCost representing
-/// only the portion that must still be covered by tapping sources, its symbols
-/// in the cost's own order, which is how a payment prompt prints it.
+/// The part of `cost` the unrestricted pool does not pay, which tapping
+/// sources must: the pool pays each type's own pips first and its generic
+/// mana from what is left (`ManaDemand::less`). The symbols it pays are each
+/// type's first, so what is left keeps the cost's own order, which is how a
+/// payment prompt prints it; a symbol that asks a choice is left whole.
 pub(crate) fn remaining_cost_after_pool(
     cost: &ManaCost,
     pool: &crate::types::mana::ManaPool,
 ) -> ManaCost {
-    // Snapshot pool amounts so we can "spend" conceptually without mutating
-    let mut available: std::collections::HashMap<ManaType, u64> = pool.available().clone();
-    let mut covered = vec![false; cost.symbols.len()];
-
-    // First pass: colored/colorless symbols, which only their own mana pays.
-    // Hybrid/Phyrexian/X can't auto-subtract and are kept as-is.
-    for (sym, covered) in cost.symbols.iter().zip(covered.iter_mut()) {
-        let mana_type = match sym {
-            ManaSymbol::Colored(mt) => *mt,
-            ManaSymbol::Colorless => ManaType::Colorless,
-            _ => continue,
-        };
-        let avail = available.entry(mana_type).or_insert(0);
-        if *avail > 0 {
-            *avail -= 1; // pool covers this symbol
-            *covered = true;
+    let demand = cost.demand_without_choices();
+    let owed = demand.less(&pool.unrestricted_by_type());
+    let mut paid_pips: [u64; 6] = std::array::from_fn(|t| demand.pips[t] - owed.pips[t]);
+    let mut paid_generic = demand.generic - owed.generic;
+    let paid = |left: &mut u64| {
+        if *left == 0 {
+            return false;
         }
-    }
-
-    // Second pass: generic symbols can be paid by any remaining pool mana
-    let mut excess: u64 = available.values().sum();
-    for (sym, covered) in cost.symbols.iter().zip(covered.iter_mut()) {
-        if *sym == ManaSymbol::Generic && excess > 0 {
-            excess -= 1; // pool covers this generic
-            *covered = true;
-        }
-    }
-
-    ManaCost::from_symbols(cost.symbols.iter().zip(covered).filter(|(_, covered)| !covered).map(|(sym, _)| *sym).collect())
+        *left -= 1;
+        true
+    };
+    let left_owed = cost.symbols.iter().copied().filter(|symbol| match symbol {
+        ManaSymbol::Colored(mana_type) => !paid(&mut paid_pips[*mana_type as usize]),
+        ManaSymbol::Colorless => !paid(&mut paid_pips[ManaType::Colorless as usize]),
+        ManaSymbol::Generic => !paid(&mut paid_generic),
+        ManaSymbol::Hybrid(..)
+        | ManaSymbol::MonoHybrid(_)
+        | ManaSymbol::Phyrexian(_)
+        | ManaSymbol::HybridPhyrexian(..)
+        | ManaSymbol::Snow
+        | ManaSymbol::X => true,
+    });
+    ManaCost::from_symbols(left_owed.collect())
 }
 
 /// Why an ability is not offered to activate at a priority question.
@@ -594,7 +586,7 @@ mod tests {
 
         let remaining = remaining_cost_after_pool(&cost, &pool);
         assert_eq!(remaining.generic_count(), 1);
-        assert_eq!(remaining.colored_count(ManaType::Green), 1);
+        assert_eq!(remaining.demand().unwrap().pips_of(ManaType::Green), 1);
     }
 
     #[test]
@@ -613,7 +605,7 @@ mod tests {
         pool.add(ManaType::Green, 1);
 
         let remaining = remaining_cost_after_pool(&cost, &pool);
-        assert_eq!(remaining.colored_count(ManaType::Red), 0);
+        assert_eq!(remaining.demand().unwrap().pips_of(ManaType::Red), 0);
         assert_eq!(remaining.generic_count(), 1);
     }
 

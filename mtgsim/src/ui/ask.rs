@@ -39,7 +39,7 @@ use crate::engine::trace_records;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaCost, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
@@ -811,23 +811,6 @@ pub fn ask_order_triggers(
     order
 }
 
-/// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.
-///
-/// `ManaCost::build` writes `{C}` as `ManaSymbol::Colorless`, but
-/// `from_symbols` admits `Colored(ManaType::Colorless)` for the same pip, so
-/// both spellings count.
-fn pips_owed(mana_cost: &ManaCost, mana_type: ManaType) -> u64 {
-    mana_cost
-        .symbols
-        .iter()
-        .filter(|s| match s {
-            ManaSymbol::Colored(t) => *t == mana_type,
-            ManaSymbol::Colorless => mana_type == ManaType::Colorless,
-            _ => false,
-        })
-        .count() as u64
-}
-
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
 ///
@@ -864,10 +847,8 @@ pub fn ask_choose_generic_mana_allocation(
         mana_cost: mana_cost.clone(),
     });
     let mins = vec![0u64; buckets.len()];
-    let maxs: Vec<u64> = available_types
-        .iter()
-        .map(|(mt, amt)| amt.saturating_sub(pips_owed(mana_cost, *mt)))
-        .collect();
+    let pips = mana_cost.demand_without_choices();
+    let maxs: Vec<u64> = available_types.iter().map(|(mt, amt)| amt.saturating_sub(pips.pips_of(*mt))).collect();
     // `can_pay` has passed by the time this is asked, and it checked both
     // halves of the same inequality: every type covers its own pips, and what
     // is left over covers the generic count. So the clamped maxima always sum

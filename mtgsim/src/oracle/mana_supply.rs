@@ -52,18 +52,12 @@ use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaBag, ManaCost, ManaDemand, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::triggers::{TriggerEvent, TriggerSubject};
 use crate::types::zones::Zone;
 
-/// Mana by type, in [`ManaType`]'s order: W, U, B, R, G, C (CR 106.1b).
-type ManaBag = [u64; 6];
-
 const NO_MANA: ManaBag = [0; 6];
-
-const ALL_MANA_TYPES: [ManaType; 6] =
-    [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless];
 
 fn slot(mana_type: ManaType) -> usize {
     mana_type as usize
@@ -236,10 +230,7 @@ impl ManaSupply {
             plain_split: OnceCell::new(),
         };
         if let Some(state) = game.players.get(player) {
-            let mut pool = NO_MANA;
-            for (&mana_type, &n) in state.mana_pool.available() {
-                pool[slot(mana_type)] += n;
-            }
+            let pool = state.mana_pool.unrestricted_by_type();
             if pool.iter().any(|&n| n > 0) {
                 let way = EntryWay { makes: pool, taps: false, sacrifices: false };
                 supply.entries.push(SupplyEntry { permanent: None, ways: vec![way] });
@@ -282,7 +273,7 @@ impl ManaSupply {
                         supply.sacrifice_outlets.push(SacrificeOutlet { permanent: id, definition, needs, fodder, ways });
                     }
                     ManaAbilityCost::MultipliesThePool { input } => {
-                        let Some(input) = ManaDemand::of(input) else { continue };
+                        let Some(input) = input.demand() else { continue };
                         if game.can_pay_costs(&[Cost::TapSelf], player, id).is_err() {
                             continue;
                         }
@@ -326,7 +317,7 @@ impl ManaSupply {
     /// path pays yet is refused, as `ManaPool::pay` refuses it (§3.2): the
     /// offer must agree with the payment (`cost-architecture.md` §3.6).
     pub fn covers(&self, game: &GameState, cost: &ManaCost, non_mana: &NonManaCosts<'_>) -> bool {
-        let Some(demand) = ManaDemand::of(cost) else { return false };
+        let Some(demand) = cost.demand() else { return false };
         let reserved = ReservedByCosts::of(game, self.player, non_mana, !self.sacrifice_outlets.is_empty());
         demand.total() == 0 || self.pays(&demand, &reserved)
     }
@@ -485,7 +476,7 @@ fn mana_types_made(
         }
     };
     let types = made.iter().fold(ManaTypes::default(), |set, m| set.union(ManaTypes::of(m)));
-    ALL_MANA_TYPES.into_iter().filter(|&t| types.has(slot(t))).collect()
+    ManaType::ALL.into_iter().filter(|&t| types.has(slot(t))).collect()
 }
 
 /// The mana abilities CR 601.2g's window offers a player, read once a window
@@ -690,8 +681,8 @@ fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
 fn multiplies_the_pool(effect: &Effect) -> bool {
     let Effect::Atom(Primitive::ProduceMana(output), _) = effect else { return false };
     output.special.is_empty()
-        && output.mana.len() == ALL_MANA_TYPES.len()
-        && ALL_MANA_TYPES
+        && output.mana.len() == ManaType::ALL.len()
+        && ManaType::ALL
             .iter()
             .all(|t| output.mana.iter().any(|(made, amount)| made == t && *amount == AmountExpr::UnspentMana(*t)))
 }
@@ -1096,54 +1087,10 @@ fn undominated_mana_bags(bags: Vec<ManaBag>) -> Vec<ManaBag> {
     kept
 }
 
-/// A cost's pips, by type, and its generic mana.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct ManaDemand {
-    pips: ManaBag,
-    generic: u64,
-}
-
+/// The inventory's reading of a cost's demand (`ManaCost::demand`).
 impl ManaDemand {
-    /// `None` for a symbol no payment path pays yet: hybrid and its kin are
-    /// CP-1's, {S} item 33's, {X} MA-2's.
-    fn of(cost: &ManaCost) -> Option<ManaDemand> {
-        let mut demand = ManaDemand::default();
-        for symbol in &cost.symbols {
-            match symbol {
-                ManaSymbol::Colored(mana_type) => demand.pips[slot(*mana_type)] += 1,
-                ManaSymbol::Colorless => demand.pips[slot(ManaType::Colorless)] += 1,
-                ManaSymbol::Generic => demand.generic += 1,
-                ManaSymbol::Hybrid(..)
-                | ManaSymbol::MonoHybrid(_)
-                | ManaSymbol::Phyrexian(_)
-                | ManaSymbol::HybridPhyrexian(..)
-                | ManaSymbol::Snow
-                | ManaSymbol::X => return None,
-            }
-        }
-        Some(demand)
-    }
-
-    fn total(&self) -> u64 {
-        self.pips.iter().sum::<u64>() + self.generic
-    }
-
     fn kinds(&self) -> ManaTypes {
         ManaTypes::of(&self.pips)
-    }
-
-    /// The demand left once `made` has paid what it can: a mana pays a pip
-    /// of its own type first, since generic takes any.
-    fn less(&self, made: &ManaBag) -> ManaDemand {
-        let mut left = *self;
-        let mut spare = 0;
-        for t in 0..6 {
-            let paid = made[t].min(left.pips[t]);
-            left.pips[t] -= paid;
-            spare += made[t] - paid;
-        }
-        left.generic = left.generic.saturating_sub(spare);
-        left
     }
 
     /// What must be made before a pool multiplier for this demand to be met
@@ -1313,6 +1260,7 @@ mod tests {
     use rand::{Rng, SeedableRng};
 
     use super::*;
+    use crate::types::mana::ManaSymbol;
     use crate::cards::artifacts::{darksteel_myr, sol_ring};
     use crate::cards::creatures::grizzly_bears;
     use crate::cards::basic_lands::{forest, island, plains};

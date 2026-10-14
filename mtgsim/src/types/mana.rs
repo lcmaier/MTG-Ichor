@@ -17,6 +17,10 @@ pub enum ManaType {
 }
 
 impl ManaType {
+    /// Every type, in order: W, U, B, R, G, C (CR 106.1b).
+    pub const ALL: [ManaType; 6] =
+        [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless];
+
     /// Convert a Color to its corresponding ManaType
     pub fn from_color(color: Color) -> Self {
         match color {
@@ -157,9 +161,38 @@ impl ManaCost {
         self.symbols.iter().map(|s| s.mana_value()).sum()
     }
 
-    /// Count how many symbols of a specific colored type appear.
-    pub fn colored_count(&self, mana_type: ManaType) -> u8 {
-        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Colored(t) if *t == mana_type)).count() as u8
+    /// What the cost asks of mana, or `None` for a symbol no payment path
+    /// pays yet: hybrid and its kin are CP-1's, {S} item 33's, {X} MA-2's.
+    pub fn demand(&self) -> Option<ManaDemand> {
+        let (demand, every_symbol) = self.tally();
+        every_symbol.then_some(demand)
+    }
+
+    /// [`Self::demand`] of the symbols a pool pays as they are, leaving out
+    /// the ones that ask a choice first: what a payment prompt still owes.
+    pub fn demand_without_choices(&self) -> ManaDemand {
+        self.tally().0
+    }
+
+    fn tally(&self) -> (ManaDemand, bool) {
+        let mut demand = ManaDemand::default();
+        let mut every_symbol = true;
+        for symbol in &self.symbols {
+            match symbol {
+                // `build` writes {C} as `Colorless`, and `from_symbols` admits
+                // `Colored(Colorless)` for the same pip.
+                ManaSymbol::Colored(mana_type) => demand.pips[*mana_type as usize] += 1,
+                ManaSymbol::Colorless => demand.pips[ManaType::Colorless as usize] += 1,
+                ManaSymbol::Generic => demand.generic += 1,
+                ManaSymbol::Hybrid(..)
+                | ManaSymbol::MonoHybrid(_)
+                | ManaSymbol::Phyrexian(_)
+                | ManaSymbol::HybridPhyrexian(..)
+                | ManaSymbol::Snow
+                | ManaSymbol::X => every_symbol = false,
+            }
+        }
+        (demand, every_symbol)
     }
 
     /// Count how many generic symbols appear.
@@ -182,6 +215,41 @@ impl ManaCost {
             | ManaSymbol::HybridPhyrexian(_, _)
             | ManaSymbol::X
         ))
+    }
+}
+
+/// Mana by type, in [`ManaType`]'s order: W, U, B, R, G, C (CR 106.1b).
+pub type ManaBag = [u64; 6];
+
+/// What a cost asks of mana: its pips, by the one type that pays each, and
+/// its generic mana, which any type pays (CR 107.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ManaDemand {
+    pub pips: ManaBag,
+    pub generic: u64,
+}
+
+impl ManaDemand {
+    pub fn pips_of(&self, mana_type: ManaType) -> u64 {
+        self.pips[mana_type as usize]
+    }
+
+    pub fn total(&self) -> u64 {
+        self.pips.iter().sum::<u64>() + self.generic
+    }
+
+    /// The demand left once `made` has paid what it can: a mana pays a pip
+    /// of its own type first, since generic takes any.
+    pub fn less(&self, made: &ManaBag) -> ManaDemand {
+        let mut left = *self;
+        let mut spare = 0;
+        for t in 0..6 {
+            let paid = made[t].min(left.pips[t]);
+            left.pips[t] -= paid;
+            spare += made[t] - paid;
+        }
+        left.generic = left.generic.saturating_sub(spare);
+        left
     }
 }
 
@@ -697,28 +765,10 @@ impl ManaPool {
     /// Counts eligible special atoms alongside simple pool mana. An atom
     /// is eligible if `atom.allows_spend(ctx)` passes.
     pub fn can_pay_with_context(&self, cost: &ManaCost, ctx: &SpendContext) -> bool {
-        let mut need: HashMap<ManaType, u64> = HashMap::new();
-        let mut generic_count: u64 = 0;
-
-        for sym in &cost.symbols {
-            match sym {
-                ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
-                ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
-                ManaSymbol::Generic => generic_count += 1,
-                _ => return false,
-            }
-        }
-
-        for (&mana_type, &required) in &need {
-            if self.amount_for(mana_type, ctx) < required {
-                return false;
-            }
-        }
-
-        let specific_total: u64 = need.values().sum();
-        let total_available = self.total_for(ctx);
-        let remaining = total_available.saturating_sub(specific_total);
-        remaining >= generic_count
+        cost.demand().is_some_and(|demand| {
+            ManaType::ALL.iter().all(|&t| self.amount_for(t, ctx) >= demand.pips_of(t))
+                && self.total_for(ctx).saturating_sub(demand.pips.iter().sum()) >= demand.generic
+        })
     }
 
     /// Pay a ManaCost using a ManaPaymentPlan that specifies exactly which
@@ -791,28 +841,24 @@ impl ManaPool {
     /// Hybrid/Phyrexian/X/Snow payment requires `DecisionProvider` choices
     /// and will be handled via the full `pay()` path in a future phase.
     pub fn can_pay(&self, cost: &ManaCost) -> bool {
-        let mut need: HashMap<ManaType, u64> = HashMap::new();
-        let mut generic_count: u64 = 0;
+        cost.demand().is_some_and(|demand| self.meets(&demand))
+    }
 
-        for sym in &cost.symbols {
-            match sym {
-                ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
-                ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
-                ManaSymbol::Generic => generic_count += 1,
-                // Hybrid and Phyrexian symbols need a choice — `codebase-state.md`'s CR 107 row.
-                _ => return false,
-            }
+    /// Whether the unrestricted pool meets `demand`: each type its own pips,
+    /// and what is left its generic mana.
+    fn meets(&self, demand: &ManaDemand) -> bool {
+        ManaType::ALL.iter().all(|&t| self.has(t, demand.pips_of(t)))
+            && self.total().saturating_sub(demand.pips.iter().sum()) >= demand.generic
+    }
+
+    /// The unrestricted mana by type: the simple pool, which item 33's
+    /// restricted units are not part of.
+    pub fn unrestricted_by_type(&self) -> ManaBag {
+        let mut bag = [0; 6];
+        for (&mana_type, &n) in &self.pool {
+            bag[mana_type as usize] += n;
         }
-
-        for (&mana_type, &required) in &need {
-            if !self.has(mana_type, required) {
-                return false;
-            }
-        }
-
-        let specific_total: u64 = need.values().sum();
-        let remaining = self.total().saturating_sub(specific_total);
-        remaining >= generic_count
+        bag
     }
 
     /// Pay a ManaCost from this pool.
@@ -831,32 +877,20 @@ impl ManaPool {
         cost: &ManaCost,
         generic_allocation: &HashMap<ManaType, u64>,
     ) -> Result<ManaSpent, String> {
-        if !self.can_pay(cost) {
+        let Some(demand) = cost.demand().filter(|demand| self.meets(demand)) else {
             return Err("Insufficient mana to pay cost".to_string());
-        }
-
-        let mut need: HashMap<ManaType, u64> = HashMap::new();
-        let mut generic_need: u64 = 0;
-
-        for sym in &cost.symbols {
-            match sym {
-                ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
-                ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
-                ManaSymbol::Generic => generic_need += 1,
-                _ => return Err(format!("Cannot pay symbol {:?} yet", sym)),
-            }
-        }
+        };
 
         let alloc_total: u64 = generic_allocation.values().sum();
-        if alloc_total != generic_need {
+        if alloc_total != demand.generic {
             return Err(format!(
                 "Generic allocation sums to {} but generic cost is {}",
-                alloc_total, generic_need
+                alloc_total, demand.generic
             ));
         }
 
         for (&mana_type, &alloc_amount) in generic_allocation {
-            let specific_need = need.get(&mana_type).copied().unwrap_or(0);
+            let specific_need = demand.pips_of(mana_type);
             let available = self.amount(mana_type);
             if specific_need + alloc_amount > available {
                 return Err(format!(
@@ -867,9 +901,12 @@ impl ManaPool {
         }
 
         let mut spent = ManaSpent::NONE;
-        for (&mana_type, &required) in &need {
-            self.remove(mana_type, required)?;
-            spent.add(mana_type, required);
+        for mana_type in ManaType::ALL {
+            let required = demand.pips_of(mana_type);
+            if required > 0 {
+                self.remove(mana_type, required)?;
+                spent.add(mana_type, required);
+            }
         }
 
         for (&mana_type, &alloc_amount) in generic_allocation {
@@ -928,8 +965,8 @@ mod tests {
         let cost = ManaCost::build(&[ManaType::Blue, ManaType::Black], 2);
         assert_eq!(cost.mana_value(), 4);
         assert_eq!(cost.generic_count(), 2);
-        assert_eq!(cost.colored_count(ManaType::Blue), 1);
-        assert_eq!(cost.colored_count(ManaType::Black), 1);
+        let demand = cost.demand().unwrap();
+        assert_eq!((demand.pips_of(ManaType::Blue), demand.pips_of(ManaType::Black)), (1, 1));
         assert_eq!(format!("{}", cost), "{2}{U}{B}");
     }
 
