@@ -918,6 +918,7 @@ pub fn place_on_battlefield<'g>(
     mods: &crate::types::replacement::EnterMods,
 ) -> &'g mut PermanentState {
     game.perform_entry(id, controller, mods, crate::events::cause::EventCause::Harness)
+        .unwrap_or_else(|err| panic!("the entry's dispatch failed: {err}"))
 }
 
 /// Put a permanent onto the battlefield with ETB hooks, entering **this** turn — so it

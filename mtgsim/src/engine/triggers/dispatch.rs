@@ -392,10 +392,11 @@ impl GameState {
     /// the dispatch may have to ask (`emit_event_with_provider`); a mana
     /// trigger's event (`ManaAdded`) is performed inside a batch, so the one
     /// path that resolves at dispatch never runs here.
-    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) {
+    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) -> Result<(), String> {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
-        let _ = self.dispatch(&[seq], ctx, &[], audit.as_deref());
+        let result = self.dispatch(&[seq], ctx, &[], audit.as_deref());
         self.flush_window_unless_nested();
+        result
     }
 
     /// Flush the window when nothing can still read it: the dispatch that just
@@ -615,7 +616,7 @@ impl GameState {
             self.emit_event_unbatched(
                 GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
                 EventCause::GameRule(GameRule::AbilityTriggers),
-            );
+            )?;
         }
         Ok(())
     }

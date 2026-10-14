@@ -122,9 +122,9 @@ impl GameState {
         under: ReturnUnder,
         controller: PlayerId,
         cause: EventCause,
-    ) {
+    ) -> Result<(), String> {
         if returns.is_empty() {
-            return;
+            return Ok(());
         }
         let id = UntilReturnId(self.next_until_return_id);
         self.next_until_return_id += 1;
@@ -134,7 +134,7 @@ impl GameState {
             controller,
             returns: returns.iter().map(|(object, _)| object.id).collect(),
         };
-        self.emit_event(made, cause);
+        self.emit_event(made, cause)?;
         let created_at = self.events.next_seq();
         let owner = self.owner_now_or(source.id, controller);
         self.until_returns.push(UntilReturn {
@@ -149,6 +149,7 @@ impl GameState {
             created_at,
             cause,
         });
+        Ok(())
     }
 
     /// CR 610.3a, 610.3b — whether `until` has already happened since the
@@ -235,7 +236,7 @@ mod tests {
         let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
         let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
         let (source, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
-        game.wait_to_return(gains, source, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 0, EventCause::Harness);
+        game.wait_to_return(gains, source, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 0, EventCause::Harness).unwrap();
 
         game.execute_action(GameAction::GainLife { player: 1, amount: 1, source: source.id }, &test_ctx()).unwrap();
         assert_eq!(game.get_object(exiled).unwrap().zone, Zone::Exile, "another player's gain is not \"you\"");
@@ -255,7 +256,7 @@ mod tests {
         let exiled = put_in_exile(&mut game, grizzly_bears(), 1);
         let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::Owner), multiplicity: Multiplicity::PerOccurrence };
         let (source_ref, card) = (game.object_ref(source).unwrap(), game.object_ref(exiled).unwrap());
-        game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1, EventCause::Harness);
+        game.wait_to_return(gains, source_ref, &[], vec![(card, Zone::Battlefield)], ReturnUnder::Owner, 1, EventCause::Harness).unwrap();
         game.remove_from_game(source).unwrap();
 
         game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: exiled }, &test_ctx()).unwrap();

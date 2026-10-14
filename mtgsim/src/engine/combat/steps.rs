@@ -88,7 +88,7 @@ impl GameState {
         let attacker_ids: Vec<ObjectId> = proposed.iter().map(|(id, _)| *id).collect();
         // With the step's provider: the one unbatched record that can carry
         // two occurrences of one arm, which CR 603.7b's choice asks between.
-        self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers: attacker_ids }, &actx);
+        self.emit_event_with_provider(GameEvent::AttackersDeclared { attackers: attacker_ids }, &actx)?;
 
         Ok(true)
     }
@@ -172,7 +172,7 @@ impl GameState {
             self.emit_event(
                 GameEvent::BlockersDeclared { blockers: blocker_pairs },
                 EventCause::TurnBasedAction(TurnBasedAction::DeclareBlockers),
-            );
+            )?;
         }
 
         self.blockers_declared = true;

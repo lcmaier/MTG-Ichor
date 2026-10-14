@@ -1363,7 +1363,7 @@ impl GameState {
                     target,
                     amount,
                     is_combat,
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 // CR 120.3a — **a contained proposal, not a subtraction**, in this
                 // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
@@ -1427,7 +1427,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     source: Some(source),
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 Ok(())
             }
@@ -1450,7 +1450,7 @@ impl GameState {
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
                     source: damage_source,
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 Ok(())
             }
@@ -1484,7 +1484,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
-                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause);
+                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1503,7 +1503,7 @@ impl GameState {
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1518,7 +1518,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
-                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause);
+                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1546,7 +1546,7 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause);
+                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1578,7 +1578,7 @@ impl GameState {
                     subject,
                     counter,
                     added: -(removed as i32),
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1628,7 +1628,7 @@ impl GameState {
                         ));
                     }
                 }
-                self.perform_entry(object, controller, &mods, ctx.cause);
+                self.perform_entry(object, controller, &mods, ctx.cause)?;
                 Ok(())
             }
 
@@ -1659,7 +1659,7 @@ impl GameState {
                 self.begin_turn(turn, player);
                 self.extra_turn = extra_turn;
                 self.priority_player = player;
-                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn }, ctx.cause);
+                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1668,7 +1668,7 @@ impl GameState {
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.emit_event(GameEvent::PhaseBegin { phase, player }, ctx.cause);
+                self.emit_event(GameEvent::PhaseBegin { phase, player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1677,7 +1677,7 @@ impl GameState {
                 if step == StepType::Draw {
                     self.get_player_mut(player)?.draws.draw_step_began();
                 }
-                self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause);
+                self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1714,7 +1714,7 @@ impl GameState {
                     player_id: player,
                     n,
                     looked_at: k as u64,
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1724,7 +1724,7 @@ impl GameState {
             GameAction::ShuffleLibrary { player } => {
                 self.get_player(player)?;
                 self.shuffle_library(player);
-                self.emit_event(GameEvent::LibraryShuffled { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::LibraryShuffled { player_id: player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1742,7 +1742,7 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause)?;
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of
@@ -1761,7 +1761,7 @@ impl GameState {
                 if self.result.is_none() {
                     self.result = Some(GameResult::Winner(player));
                 }
-                self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1799,7 +1799,7 @@ impl GameState {
                     source_id: source,
                     mana: announced,
                     tapped_for_mana,
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
         }
@@ -1860,7 +1860,7 @@ impl GameState {
     ) -> Result<(), String> {
         let moved = self.get_object(object)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause)?;
         Ok(())
     }
 
@@ -1876,7 +1876,7 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause);
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause)?;
         Ok(())
     }
 

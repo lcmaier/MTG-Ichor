@@ -843,9 +843,9 @@ impl GameState {
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
-    pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) {
+    pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(cause);
-        self.emit_record(event, stamp, None);
+        self.emit_record(event, stamp, None)
     }
 
     /// The same door for a record emitted outside any batch whose dispatch
@@ -853,19 +853,22 @@ impl GameState {
     /// record that can carry two occurrences of one arm, which CR 603.7b's
     /// choice for a delayed trigger asks between. The turn-based action that
     /// emits it holds the provider, and its context names the cause.
-    pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) {
+    pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(ctx.cause);
-        self.emit_record(event, stamp, Some(ctx));
+        self.emit_record(event, stamp, Some(ctx))
     }
 
     /// The same door for a record that joins no batch whatever is open —
     /// `GameEvent::AbilityTriggered`, a consequence of an event rather than
     /// part of it (`triggers-architecture.md` §4.8).
-    pub(crate) fn emit_event_unbatched(&mut self, event: GameEvent, cause: EventCause) {
-        self.emit_record(event, EventStamp { batch: None, cause }, None);
+    pub(crate) fn emit_event_unbatched(&mut self, event: GameEvent, cause: EventCause) -> Result<(), String> {
+        self.emit_record(event, EventStamp { batch: None, cause }, None)
     }
 
-    fn emit_record(&mut self, event: GameEvent, stamp: EventStamp, ctx: Option<&ActionContext>) {
+    /// `Err` is an unbatched record's dispatch failing, which its emitter
+    /// passes on as a batch's caller does (a batched record's dispatch is the
+    /// batch's, at its close).
+    fn emit_record(&mut self, event: GameEvent, stamp: EventStamp, ctx: Option<&ActionContext>) -> Result<(), String> {
         let names = self.names_as_announced(&event);
         self.trace(|| {
             let mut r = Record::new(RecordKind::Event);
@@ -881,8 +884,9 @@ impl GameState {
         // matcher runs before this returns (§4.1). A batched record waits for
         // its batch's close in `execute_actions`.
         if stamp.batch.is_none() {
-            self.dispatch_unbatched(seq, ctx);
+            return self.dispatch_unbatched(seq, ctx);
         }
+        Ok(())
     }
 
     /// The names `event`'s objects are announced under, where one is not its

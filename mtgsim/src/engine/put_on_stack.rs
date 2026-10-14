@@ -294,8 +294,8 @@ impl GameState {
         }
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
-        self.announce_targeted_records(card_id, casting);
-        self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting);
+        self.announce_targeted_records(card_id, casting)?;
+        self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting)?;
 
         Ok(())
     }
@@ -367,8 +367,8 @@ impl GameState {
     /// The one emitter of the record; its callers own the moment, outside every
     /// batch, and name what caused it: a cast, an activation, or a triggered
     /// ability put on the stack.
-    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause) {
-        let Some(entry) = self.stack_entries.get(&by) else { return };
+    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause) -> Result<(), String> {
+        let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
         for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
             match targeted.iter_mut().find(|(seen, _)| seen == target) {
@@ -379,8 +379,9 @@ impl GameState {
         let ability_source = entry.ability_identity.map(|identity| identity.source.id);
         let controller = entry.controller;
         for (target, instances) in targeted {
-            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause);
+            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause)?;
         }
+        Ok(())
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
@@ -506,8 +507,8 @@ impl GameState {
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
-        self.announce_targeted_records(ability_obj_id, activating);
-        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating);
+        self.announce_targeted_records(ability_obj_id, activating)?;
+        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating)?;
 
         Ok(())
     }

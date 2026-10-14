@@ -780,7 +780,7 @@ impl GameState {
                 }
                 self.execute_actions(batch, &actx)?;
                 let returns = self.exiled_since(ctx.stamp(), mark);
-                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller, ctx.cause());
+                self.wait_to_return(until.as_ref().clone(), source, &referred, returns, *under, ctx.controller, ctx.cause())?;
                 Ok(())
             }
 
@@ -903,7 +903,7 @@ impl GameState {
                                 controller,
                                 countered_by: ctx.source,
                             };
-                            self.emit_event(countered, actx.cause);
+                            self.emit_event(countered, actx.cause)?;
                         }
                     }
                 }
@@ -930,7 +930,7 @@ impl GameState {
                                 controller: entry.controller,
                                 countered_by: ctx.source,
                             };
-                            self.emit_event(countered, actx.cause);
+                            self.emit_event(countered, actx.cause)?;
                         }
                     }
                 }
