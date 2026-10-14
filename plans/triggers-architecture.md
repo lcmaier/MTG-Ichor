@@ -826,7 +826,8 @@ says it is checked once.
 ```rust
 /// One player's turn, materialized: every "this turn" quantity the CR or a
 /// registered card reads, one count each, one meaning each — never a scan
-/// of the log. Advanced at dispatch, record by record (§4.1). As built in
+/// of the log. Advanced record by record as each event ends (§4.1; amended
+/// below, A6r). As built in
 /// TR-2a and its review: the fact is the key, and each `TurnFact` variant's
 /// name says whose row it is counted on.
 pub struct TurnSummary {
@@ -912,10 +913,23 @@ before it. So a leaf that reads the live summary at resolution counts too
 many.
 
 The count is every player's casts this turn, taken at the storm spell's
-`SpellCast` record. The dispatcher advances the summaries record by record,
+`SpellCast` record. The summaries are advanced record by record,
 so the count is known there, and it has to travel with the trigger. The
 smallest form is `SpellCast` carrying the turn's ordinal. It is authored with
 the first storm card, like any other field in the summary.
+
+**Amended 2026-10-14 (A6r, at #248's review): a record is counted as its
+event ends.** That is its window's dispatch, as before, for every record but
+one kind: a card of a draw instruction is counted as that card's draw ends.
+CR 121.2 draws an instruction's cards one at a time and 614.11a decides each
+after the last, all inside one window, so a replacement asking "is this the
+draw step's first card" of the second card must see the first counted. A
+simultaneous batch is still counted once, at its end, and triggers are still
+matched once per window. Each record is counted once (`EventRecord::counted`).
+The draw step's count is a field beside the rows, reset by a draw step's
+`StepBegin`, because no turn row can hold it: a turn can have two draw steps
+(CR 500.8, Sphinx of the Second Sun). A draw's record carries its place in
+the draw step beside its place in turn (`codebase-state.md` item 254).
 
 ### 3.11 `Lki` — the last known information, widened (items 14, 15)
 
@@ -1119,7 +1133,7 @@ from a known item, so the calibration also bought two findings.
 | `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; a redirect's destination is the resolving spell's too (item 261, closed by A6r) | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
 | `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds (item 15: a graveyard card leaving the game → TR-4c) |
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
-| `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as it is drawn (`ordinals`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
+| `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as the card's draw ends (`place_in_turn`, `place_in_draw_step`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
 | `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5c | holds (`source_lki`, CR 608.2h) |
 | `PhaseBegin`, `StepBegin`, `TurnBegin` | holds: whose (item 10) | holds | holds: a skip leaves no record (CR 614.10) | holds | holds |
@@ -1242,14 +1256,16 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   §6.1 says the `IsCountered` arm reads "the same frame", but no record carries
   it. 1 card: `(o:"when " or o:"whenever ") o:"spell" o:"is countered"
   -o:"countered this way"`, Multani's Presence, which TR-4d registers.
-- **Item 254 (A6r), closed: a draw's place among its player's draws.** Each
-  player keeps `DrawCounts`, the turn's draws and the draw step's, written as
-  each card is drawn and reset when the draw step begins (CR 504). Not the
-  history's count, which advances as a window is dispatched: a doubled draw's
-  second card is proposed inside the window that holds its first. `CardDrawn`
-  carries the draw's `ordinals`, and one `DrawFilter` (the turn's Nth, the draw
-  step's first, or not the step's first) is asked by `EventPattern::DrawCard`
-  of the proposed draw and by `TriggerEvent::DrawsCard` of the record. When a
+- **Item 254 (A6r), closed: a draw's place among its player's draws.** The
+  history counts each card of a draw instruction as that card's draw ends,
+  not at the window's dispatch (§3.10's amendment), and keeps the draws of the
+  draw step in progress, reset when a draw step begins (CR 504). A doubled
+  draw's second card is proposed inside the window that holds its first, so a
+  count taken at dispatch would make it the step's first. The record carries
+  its place in turn and in the draw step, and one `DrawFilter` (the turn's
+  Nth, the draw step's first, or not the step's first) is asked by
+  `EventPattern::DrawCard` of the proposed draw, off the history, and by
+  `TriggerEvent::DrawsCard` of the record. When a
   replacement takes the step's own draw, the next card drawn in that step is
   its first, as miracle counts (CR 702.94a): Words of Worship then Opt under
   Teferi's Ageless Insight draws one card. `DrawCause` went. 78 triggers

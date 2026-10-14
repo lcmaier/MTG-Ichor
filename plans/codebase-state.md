@@ -9404,10 +9404,10 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
 
 254. **~~A draw's place among its player's draws is read through a proxy, and
      a trigger cannot ask for it.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
-     Done: each player keeps `DrawCounts`, written as each card is drawn
-     and reset when the draw step begins; `CardDrawn` carries the draw's
-     `ordinals`, and one `DrawFilter` is asked by `EventPattern::DrawCard` and
-     `TriggerEvent::DrawsCard`. `DrawCause` went.
+     Done: the history counts each card of a draw instruction as its draw
+     ends, and the draw step's draws beside the turn rows; one `DrawFilter`
+     is asked by `EventPattern::DrawCard` and `TriggerEvent::DrawsCard`.
+     `DrawCause` went.
      **Reachability (2026-10-13):** closed — PR #248.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 254".
 

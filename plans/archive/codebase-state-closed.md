@@ -5579,17 +5579,19 @@ over a record that is not a zone change is refused, item 250.
 
 ### Item 254 — closed 2026-10-13 by PR #248 (A6r)
 
-Closed by A6r. Each player keeps `DrawCounts` (`state/player.rs`): the turn's
-draws and the draw step's, written by `draw_card` as each card is drawn and
-reset by the `BeginStep` performer when a draw step begins (CR 504). It is not
-the history's count, which advances as a window is dispatched: a doubled draw's
-second card is proposed inside the window that holds its first, so a count
-taken there would make Thought Reflection's second card the step's first.
-`CardDrawn` carries the draw's `ordinals`, and one `DrawFilter` (the turn's Nth,
-the draw step's first, or not the step's first) is asked by
-`EventPattern::DrawCard` of the proposed draw (`next_draw_ordinals`) and by
-`TriggerEvent::DrawsCard` of the record. A draw's `place_in_turn` is the
-record's own count, so the once-per-turn limit reads the same number.
+Closed by A6r. The history counts each card of a draw instruction as that
+card's draw ends (`execute_actions_decomposing`), not at the window's dispatch,
+since CR 121.2 draws the cards one at a time and 614.11a decides each after the
+last, all inside one window: counted at dispatch, Thought Reflection's second
+card would be the draw step's first. Every other record is still counted at its
+window's dispatch, once (`EventRecord::counted`). The history also keeps the
+draws of the draw step in progress, reset by a draw step's `StepBegin` (CR 504),
+which no turn row can hold. The record carries its place in turn and in the
+draw step, and one `DrawFilter` (the turn's Nth, the draw step's first, or not
+the step's first) is asked by `EventPattern::DrawCard` of the proposed draw
+(`next_draw_ordinals`, off the history) and by `TriggerEvent::DrawsCard` of the
+record. As first built it was a second count, `DrawCounts`, which #248's review
+folded into the history.
 
 Two departures from the sizing. **No CR 103.5 cause arm:** with the count read
 on both sides nothing read `DrawCause`, and the stamp's `EventCause` already
@@ -5597,7 +5599,9 @@ says what caused a draw (`TurnBasedAction::Draw`, `GameRule::OpeningHand`), so
 `DrawCause` went; a draw before any turn has no place in one, as the history
 has it. **A scenario word:** a board saved in the draw step keeps its count
 ("cards drawn this draw step N"), or it would load with the step's first card
-still to come; the dev GUI's two matches on `PlayerWord` take it.
+still to come; the dev GUI's two matches on `PlayerWord` take it. Tamiyo,
+Inquisitive Student's third card, with Brainstorm cast after the draw step's
+card, is a board too (#248's review).
 
 Words of Worship then Opt under Teferi's Ageless Insight drew two before the
 fix and draws one; under an opponent's Notion Thief the Thief took Opt's card

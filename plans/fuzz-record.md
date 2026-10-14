@@ -62,6 +62,14 @@ points.
 
 Every prediction held.
 
+**The review arm** `aeb4001` (2026-10-14, #248's review): `DrawCounts` folded
+into the history, which counts each card of a draw instruction as that card's
+draw ends. Predicted `IDENTICAL` on every gameplay row against both `main` and
+the engine arm, every dispatch agreed, within ±0.3 points. Against **main**:
+**IDENTICAL** on every gameplay row, both pools, at two seats and four; the
+same dispatch counts agreed; instructions per decision 0.6439 M → 0.6441 M,
+**+0.04%**. Every prediction held.
+
 **Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
 `engineering-practices.md` §11). No card joins the registry or the pool (188
 registered, 106 pooled), and no pool moved: the record is the budget's, and
