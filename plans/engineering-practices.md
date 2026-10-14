@@ -2328,6 +2328,13 @@ trace to that first. The first sweep found five such sites and ordered them.
 One was reached: the first-strike sweep, whose trace for stress game 32 at
 seed 12345 differed under two hasher seeds on `main` and agrees on the fix.
 
+**On a hot path, the order is paid for only while tracing.** The replacement
+gather runs on every proposal, and ordering its off-battlefield sources cost
+0.38 points of instructions per decision for an order only the trace reads.
+So it sorts under `trace_on()` alone, in one block deleting which restores
+`main`'s code (the owner, at #247's review: the AI use case's floors come
+first). The tag on its untraced loop says why that is order-free.
+
 ### 11.2 Performers and known violations
 
 `PERFORMERS`, in the script, says where each event-bearing field is written,

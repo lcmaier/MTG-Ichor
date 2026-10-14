@@ -69,6 +69,13 @@ for a trace that cannot differ by process; inside the 2.5-point budget.
 The other four orderings are on paths a decision rarely crosses (a
 first-strike step, an X bound, a player's loss, the scenario writer).
 
+**The review arm** `3371336`, where the gather sorts only while the trace is
+on (the owner, at review: the floors are worth more than an order no
+untraced game reads), against **main**: **IDENTICAL** on every gameplay
+row, both pools, at two seats and four; the same dispatch counts agreed;
+instructions per decision 0.6440 M → 0.6438 M, **−0.02%**. Traced, 60
+stress games still agree under `MTGSIM_HASH_SEED` 1 and 2.
+
 **The event streams, outside the close-out:** both pools' 200-game
 `--dump-events` at seed 12345 are byte-identical to `main`'s (193,185 and
 198,206 lines). The trace of 60 stress games under `MTGSIM_HASH_SEED` 1 and
