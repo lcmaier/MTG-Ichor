@@ -1768,12 +1768,7 @@ impl GameState {
             // restriction ability generates no continuous effect either; what it
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
-            let is_restriction = match &ability.effect {
-                Effect::Restriction(_) => true,
-                Effect::Conditional(_, inner) => matches!(**inner, Effect::Restriction(_)),
-                _ => false,
-            };
-            if is_restriction && zone == Zone::Battlefield {
+            if zone == Zone::Battlefield && ability.effect.as_restriction().is_some() {
                 self.restriction_ability_sources.insert(id);
             }
 

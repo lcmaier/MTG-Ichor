@@ -2335,9 +2335,7 @@ impl Effect {
     ///
     /// One peel, used by every leg of `engine::cost_determination::cost_modifications_for`'s
     /// gate and by the gather itself, so a conditional cost effect is seen
-    /// everywhere an unconditional one is. The replacement and restriction
-    /// gates match the body without peeling `Conditional` and so miss a
-    /// conditional one — `cost-architecture.md` §8 item 1.
+    /// everywhere an unconditional one is.
     pub fn as_cost_modification(
         &self,
     ) -> Option<(Option<&Condition>, &crate::types::cost_modification::CostModificationDef)> {
@@ -2370,6 +2368,21 @@ impl Effect {
             Effect::Replacement(def) => Some(def),
             Effect::Conditional(_, inner) => match inner.as_ref() {
                 Effect::Replacement(def) => Some(def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The restriction a static body is (CR 101.2), with the "as long as"
+    /// clause wrapped around it if there is one: the same peel as
+    /// [`Self::as_cost_modification`], asked by the prohibition gate's every
+    /// leg and by the sweep, which alone evaluates the condition.
+    pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
+        match self {
+            Effect::Restriction(def) => Some((None, def)),
+            Effect::Conditional(condition, inner) => match inner.as_ref() {
+                Effect::Restriction(def) => Some((Some(condition), def)),
                 _ => None,
             },
             _ => None,

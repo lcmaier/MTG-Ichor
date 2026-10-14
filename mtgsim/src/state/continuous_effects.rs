@@ -251,7 +251,6 @@ impl RegistryScopeSummary {
     /// answer the same way for both, so one function computes both.
     pub fn of<'a>(effects: impl IntoIterator<Item = &'a ContinuousEffect>) -> Self {
         use crate::engine::layers::types::{EffectGroup, EffectModification};
-        use crate::types::effects::Effect;
 
         let mut seen: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
         let mut summary = RegistryScopeSummary::default();
@@ -305,7 +304,7 @@ impl RegistryScopeSummary {
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
-                    if matches!(def.effect, Effect::Restriction(_)) {
+                    if def.effect.as_restriction().is_some() {
                         summary.any_granted_restriction = true;
                     }
                     if def.effect.as_cost_modification().is_some() {
@@ -317,7 +316,7 @@ impl RegistryScopeSummary {
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
                     for ability in values.abilities.iter() {
-                        if matches!(ability.effect, Effect::Restriction(_)) {
+                        if ability.effect.as_restriction().is_some() {
                             summary.any_copied_restriction = true;
                         }
                         if ability.effect.as_cost_modification().is_some() {

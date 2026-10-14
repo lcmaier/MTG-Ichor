@@ -2,7 +2,7 @@ use crate::engine::actions::{
     ActionContext, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, ResolutionStamp};
@@ -1020,57 +1020,29 @@ impl GameState {
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.affected_permanents(recipient, targets, ctx);
-                if target_ids.is_empty() {
-                    return Ok(());
-                }
-                let timestamp = self.allocate_timestamp();
-                let effect = crate::engine::layers::ContinuousEffect {
-                    id: 0,
-                    source: ctx.effect_source(),
-                    origin: crate::engine::layers::EffectOrigin::Resolution,
-                    layer: crate::engine::layers::Layer::Layer7cModifyPT,
-                    duration: *duration,
-                    controller: ctx.controller,
-                    created_on_turn: self.turn_number,
-                    timestamp,
-                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
-                    // CR 608.2h — a resolving spell locks its value in as it
-                    // resolves, so this is `Fixed` even though the card text
-                    // said "X". Static abilities are the ones that stay live.
-                    modification: crate::engine::layers::EffectModification::ModifyPowerToughness {
-                        power: crate::engine::layers::types::PtValue::Fixed(power),
-                        toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
-                    },
-                };
-                self.continuous_effects.add(effect);
+                // CR 608.2h — a resolving spell locks its value in as it
+                // resolves, so this is `Fixed` even though the card text
+                // said "X". Static abilities are the ones that stay live.
+                self.add_resolution_effect(
+                    ctx,
+                    Layer::Layer7cModifyPT,
+                    *duration,
+                    self.affected_permanents(recipient, targets, ctx),
+                    EffectModification::ModifyPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
+                );
                 Ok(())
             }
 
             Primitive::SetPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.collect_battlefield_targets(targets);
-                if target_ids.is_empty() {
-                    return Ok(());
-                }
-                let timestamp = self.allocate_timestamp();
-                let effect = crate::engine::layers::ContinuousEffect {
-                    id: 0,
-                    source: ctx.effect_source(),
-                    origin: crate::engine::layers::EffectOrigin::Resolution,
-                    layer: crate::engine::layers::Layer::Layer7bSetPT,
-                    duration: *duration,
-                    controller: ctx.controller,
-                    created_on_turn: self.turn_number,
-                    timestamp,
-                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
-                    modification: crate::engine::layers::EffectModification::SetPowerToughness {
-                        power: crate::engine::layers::types::PtValue::Fixed(power),
-                        toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
-                    },
-                };
-                self.continuous_effects.add(effect);
+                self.add_resolution_effect(
+                    ctx,
+                    Layer::Layer7bSetPT,
+                    *duration,
+                    self.affected_permanents(recipient, targets, ctx),
+                    EffectModification::SetPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
+                );
                 Ok(())
             }
 
@@ -1080,24 +1052,13 @@ impl GameState {
             }
 
             Primitive::SwitchPowerToughness(duration) => {
-                let target_ids = self.collect_battlefield_targets(targets);
-                if target_ids.is_empty() {
-                    return Ok(());
-                }
-                let timestamp = self.allocate_timestamp();
-                let effect = crate::engine::layers::ContinuousEffect {
-                    id: 0,
-                    source: ctx.effect_source(),
-                    origin: crate::engine::layers::EffectOrigin::Resolution,
-                    layer: crate::engine::layers::Layer::Layer7dSwitchPT,
-                    duration: *duration,
-                    controller: ctx.controller,
-                    created_on_turn: self.turn_number,
-                    timestamp,
-                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
-                    modification: crate::engine::layers::EffectModification::SwitchPowerToughness,
-                };
-                self.continuous_effects.add(effect);
+                self.add_resolution_effect(
+                    ctx,
+                    Layer::Layer7dSwitchPT,
+                    *duration,
+                    self.affected_permanents(recipient, targets, ctx),
+                    EffectModification::SwitchPowerToughness,
+                );
                 Ok(())
             }
 
@@ -1105,64 +1066,35 @@ impl GameState {
 
             Primitive::ChangeColor(color_change, duration) => {
                 use crate::types::effects::ColorChange;
-                let target_ids = self.collect_battlefield_targets(targets);
-                if target_ids.is_empty() {
-                    return Ok(());
-                }
                 let modification = match color_change {
-                    ColorChange::Add(c) => crate::engine::layers::EffectModification::AddColor(*c),
-                    ColorChange::Set(colors) => crate::engine::layers::EffectModification::SetColors(colors.clone()),
-                    ColorChange::RemoveAll => crate::engine::layers::EffectModification::RemoveAllColors,
+                    ColorChange::Add(c) => EffectModification::AddColor(*c),
+                    ColorChange::Set(colors) => EffectModification::SetColors(colors.clone()),
+                    ColorChange::RemoveAll => EffectModification::RemoveAllColors,
                 };
-                let timestamp = self.allocate_timestamp();
-                let effect = crate::engine::layers::ContinuousEffect {
-                    id: 0,
-                    source: ctx.effect_source(),
-                    origin: crate::engine::layers::EffectOrigin::Resolution,
-                    layer: crate::engine::layers::Layer::Layer5Color,
-                    duration: *duration,
-                    controller: ctx.controller,
-                    created_on_turn: self.turn_number,
-                    timestamp,
-                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
+                self.add_resolution_effect(
+                    ctx,
+                    Layer::Layer5Color,
+                    *duration,
+                    self.affected_permanents(recipient, targets, ctx),
                     modification,
-                };
-                self.continuous_effects.add(effect);
+                );
                 Ok(())
             }
 
             // === Layer 4: type-changing effects ===
 
             Primitive::ChangeType(type_change, duration) => {
-                let target_ids = self.collect_battlefield_targets(targets);
-                if target_ids.is_empty() {
+                let affected = self.affected_permanents(recipient, targets, ctx);
+                if affected.is_empty() {
                     return Ok(());
                 }
-
-                // A TypeChange may produce several Layer 4 entries: CR 613.6 makes them
+                // A TypeChange may produce several Layer 4 rows: CR 613.6 makes them
                 // siblings ("the parts of the effect each apply in their appropriate
                 // layers") and CR 613.7b makes them share a timestamp — one resolution,
                 // one moment of creation.
                 let timestamp = self.allocate_timestamp();
-                let modifications = type_change.modifications();
-
-                // Register one ContinuousEffect per modification: siblings of
-                // one CR 613.6 effect, sharing the source and the CR 613.7b
-                // creation timestamp.
-                for modification in modifications {
-                    let effect = crate::engine::layers::ContinuousEffect {
-                        id: 0,
-                        source: ctx.effect_source(),
-                        origin: crate::engine::layers::EffectOrigin::Resolution,
-                        layer: crate::engine::layers::Layer::Layer4Type,
-                        duration: *duration,
-                        controller: ctx.controller,
-                        created_on_turn: self.turn_number,
-                        timestamp,
-                        affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids.clone()),
-                        modification,
-                    };
-                    self.continuous_effects.add(effect);
+                for modification in type_change.modifications() {
+                    self.add_resolution_row(ctx, Layer::Layer4Type, *duration, timestamp, affected.clone(), modification);
                 }
                 Ok(())
             }
@@ -1170,58 +1102,59 @@ impl GameState {
             // === Layer 6 — ability adding and removing (CR 613.1f) ===
             //
             // The resolution half: "target creature gains/loses ..." spells, whose
-            // affected set is locked to the targets at resolution (CR 613.7b).
+            // affected set is fixed as the effect begins (CR 611.2c).
 
             Primitive::GrantKeywordFlag(keyword, duration) => {
-                let affected: Vec<ResolvedTarget> = self
-                    .affected_permanents(recipient, targets, ctx)
-                    .into_iter()
-                    .map(ResolvedTarget::Object)
-                    .collect();
-                self.register_resolution_ability_effect(
+                self.add_resolution_effect(
                     ctx,
-                    &affected,
+                    Layer::Layer6Ability,
                     *duration,
+                    self.affected_permanents(recipient, targets, ctx),
                     EffectModification::GrantKeywordFlag(*keyword),
                 );
                 Ok(())
             }
 
             Primitive::RemoveKeywordFlag(keyword, duration) => {
-                self.register_resolution_ability_effect(
+                self.add_resolution_effect(
                     ctx,
-                    targets,
+                    Layer::Layer6Ability,
                     *duration,
+                    self.affected_permanents(recipient, targets, ctx),
                     EffectModification::RemoveKeywordFlag(*keyword),
                 );
                 Ok(())
             }
 
             Primitive::LoseAbility(ability_id, duration) => {
-                self.register_resolution_ability_effect(
+                self.add_resolution_effect(
                     ctx,
-                    targets,
+                    Layer::Layer6Ability,
                     *duration,
+                    self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAbility(*ability_id),
                 );
                 Ok(())
             }
 
             Primitive::LoseAllAbilities(duration) => {
-                self.register_resolution_ability_effect(
+                self.add_resolution_effect(
                     ctx,
-                    targets,
+                    Layer::Layer6Ability,
                     *duration,
+                    self.affected_permanents(recipient, targets, ctx),
                     EffectModification::LoseAllAbilities,
                 );
                 Ok(())
             }
 
             Primitive::GrantAbility(def, duration) => {
-                let granted = self.register_resolution_ability_effect(
+                let grantees = self.affected_permanents(recipient, targets, ctx);
+                let granted = self.add_resolution_effect(
                     ctx,
-                    targets,
+                    Layer::Layer6Ability,
                     *duration,
+                    grantees.clone(),
                     EffectModification::GrantAbility(def.clone()),
                 );
 
@@ -1230,11 +1163,7 @@ impl GameState {
                 // that entered after the grant was created keeps its own.
                 // `static_effect_timestamp` takes the max; this supplies the second candidate.
                 if let Some((granted_at, row)) = granted {
-                    // Re-derived rather than handed back from the call above, so
-                    // that the row can own its target `Vec` instead of cloning
-                    // it. Safe because registering an effect moves nothing
-                    // between zones, so battlefield membership is unchanged.
-                    for grantee in self.collect_battlefield_targets(targets) {
+                    for grantee in grantees {
                         self.register_granted_static_effects(
                             def, row, grantee, granted_at, *duration, ctx.controller,
                         );
@@ -1271,7 +1200,7 @@ impl GameState {
             // `Prevent` "instead", and the `then` rider its sentence.
             Primitive::Regenerate => {
                 let recorded = self.target_refs(targets);
-                for object in self.collect_battlefield_targets(targets) {
+                for object in self.affected_permanents(recipient, targets, ctx) {
                     let controller = get_effective_controller(self, object)
                         .unwrap_or(ctx.controller);
                     let def = ReplacementDef::new(
@@ -1458,14 +1387,28 @@ impl GameState {
                 // Anything else is complete as authored (Skullcrack's `Everyone`).
                 let mut rows: Vec<RestrictionDef> = Vec::new();
                 let (objects, players) = restriction_scope(def);
+                let fill = |set: ObjectSet| {
+                    let mut filled = def.clone();
+                    *restriction_object_set_mut(&mut filled) = set;
+                    filled
+                };
                 if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
                     && matches!(players, PlayerSet::Nobody)
                 {
-                    for object in self.collect_battlefield_targets(targets) {
-                        let mut filled = def.clone();
-                        *restriction_object_set_mut(&mut filled) =
-                            ObjectSet::Fixed(vec![object]);
-                        rows.push(filled);
+                    match recipient {
+                        // CR 611.2c's second sentence: a "can't" modifies no
+                        // characteristic, so its set is not fixed, and a creature
+                        // arriving later is in it (Magmatic Chasm's ruling). One
+                        // row whose set is the filter, asked of each query with
+                        // this row's controller and source.
+                        EffectRecipient::FilteredPermanents(filter) => {
+                            rows.push(fill(ObjectSet::battlefield_filter(filter.clone())));
+                        }
+                        _ => {
+                            for object in self.affected_permanents(recipient, targets, ctx) {
+                                rows.push(fill(ObjectSet::Fixed(vec![object])));
+                            }
+                        }
                     }
                 } else {
                     rows.push(def.clone());
@@ -1528,7 +1471,7 @@ impl GameState {
             // consulted by each (`cant-effects-architecture.md`) and not a
             // replaceable event here → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
-                for object in self.collect_battlefield_targets(targets) {
+                for object in self.affected_permanents(recipient, targets, ctx) {
                     self.remove_from_combat(object);
                 }
                 Ok(())
@@ -1540,7 +1483,7 @@ impl GameState {
             // seven cards restrict and which owes an enforcement point
             // (`codebase-state.md`, Before Replacement item 20).
             Primitive::RemoveAllDamage => {
-                for object in self.collect_battlefield_targets(targets) {
+                for object in self.affected_permanents(recipient, targets, ctx) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {
                         entry.damage_marked = 0;
                         entry.damaged_by_deathtouch = false;
@@ -1593,27 +1536,23 @@ impl GameState {
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
             Primitive::GainControl(duration) => {
-                let target_ids = self.collect_permanent_or_spell_targets(targets);
-                if target_ids.is_empty() {
-                    return Ok(());
-                }
-                let timestamp = self.allocate_timestamp();
-                self.continuous_effects.add(ContinuousEffect {
-                    id: 0,
-                    source: ctx.effect_source(),
-                    origin: EffectOrigin::Resolution,
-                    layer: Layer::Layer2Control,
-                    duration: *duration,
-                    controller: ctx.controller,
-                    created_on_turn: self.turn_number,
-                    timestamp,
-                    affected_objects: ObjectSet::Fixed(target_ids),
-                    // `You` rather than `ctx.controller`, though they name the
-                    // same player: on a `Resolution` row, `FilterPlayers::you()`
-                    // reads `ContinuousEffect.controller`, which CR 611.2c
-                    // locked at resolution.
-                    modification: EffectModification::SetController(PlayerRef::You),
-                });
+                // A filter names permanents (Mob Rule); a target may also be a
+                // spell, which has a controller too (CR 108.4).
+                let affected = match recipient {
+                    EffectRecipient::FilteredPermanents(_) => self.affected_permanents(recipient, targets, ctx),
+                    _ => self.collect_permanent_or_spell_targets(targets),
+                };
+                // `You` rather than `ctx.controller`, though they name the
+                // same player: on a `Resolution` row, `FilterPlayers::you()`
+                // reads `ContinuousEffect.controller`, which CR 611.2c
+                // locked at resolution.
+                self.add_resolution_effect(
+                    ctx,
+                    Layer::Layer2Control,
+                    *duration,
+                    affected,
+                    EffectModification::SetController(PlayerRef::You),
+                );
                 Ok(())
             }
 
@@ -1731,53 +1670,60 @@ impl GameState {
         }
     }
 
-    // --- Helpers: Layer 6 (CR 613.1f) ---
+    // --- Helpers: a resolution's continuous effect (CR 611.2c) ---
 
-    /// Record the Layer 6 continuous effect that a resolving spell or ability
-    /// creates (CR 613.7b) — the resolution-time counterpart of
-    /// `GameState::register_static_effects`, which does the same job at ETB for
-    /// printed static abilities.
+    /// Record a one-row continuous effect a resolving spell or ability
+    /// creates over `affected`, its set fixed as the effect begins
+    /// (CR 611.2c) — the resolution-time counterpart of
+    /// `GameState::register_static_effects`.
     ///
-    /// **This grants nothing.** It appends one row to the registry; the
+    /// **This changes no object.** It appends one row to the registry; the
     /// characteristics it implies are recomputed from that row on every
-    /// `compute_characteristics` call, and the affected objects' `CardData` is
-    /// never touched. Duration expiry removes the row, and there is nothing to
-    /// undo because nothing was ever written.
+    /// `compute_characteristics` call. Duration expiry removes the row, and
+    /// there is nothing to undo because nothing was ever written.
     ///
-    /// The affected set is frozen to the targets that are still on the
-    /// battlefield (CR 613.7b): a creature that died in response is dropped, and
-    /// the survivors stay affected even if they later stop matching whatever the
-    /// card described.
-    ///
-    /// Returns the timestamp allocated for the row and the row's id, so a caller
-    /// that must register further rows against the same moment, or name the
-    /// instance a grant made, can. `None` means no target survived, in which case
-    /// no row is written and no timestamp is burned.
-    fn register_resolution_ability_effect(
+    /// Returns the row's timestamp and id, so a caller that must register
+    /// further rows against the same moment, or name the instance a grant
+    /// made, can. `None` means `affected` is empty, in which case no row is
+    /// written and no timestamp is burned.
+    fn add_resolution_effect(
         &mut self,
         ctx: &ResolutionContext,
-        targets: &[ResolvedTarget],
+        layer: Layer,
         duration: Duration,
+        affected: Vec<ObjectId>,
         modification: EffectModification,
     ) -> Option<(Timestamp, EffectId)> {
-        let targets = self.collect_battlefield_targets(targets);
-        if targets.is_empty() {
+        if affected.is_empty() {
             return None;
         }
         let timestamp = self.allocate_timestamp();
-        let row = self.continuous_effects.add(ContinuousEffect {
+        Some((timestamp, self.add_resolution_row(ctx, layer, duration, timestamp, affected, modification)))
+    }
+
+    /// One row of a resolution's continuous effect at `timestamp`, which the
+    /// caller allocates: a type change's sibling rows share one (CR 613.7b).
+    fn add_resolution_row(
+        &mut self,
+        ctx: &ResolutionContext,
+        layer: Layer,
+        duration: Duration,
+        timestamp: Timestamp,
+        affected: Vec<ObjectId>,
+        modification: EffectModification,
+    ) -> EffectId {
+        self.continuous_effects.add(ContinuousEffect {
             id: 0,
             source: ctx.effect_source(),
             origin: EffectOrigin::Resolution,
-            layer: Layer::Layer6Ability,
+            layer,
             duration,
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected_objects: ObjectSet::Fixed(targets),
+            affected_objects: ObjectSet::Fixed(affected),
             modification,
-        });
-        Some((timestamp, row))
+        })
     }
 
     /// CR 613.7a clause 2 — register the continuous effects generated by a
@@ -1800,8 +1746,8 @@ impl GameState {
     /// derived effect retires with it. Nothing extra to maintain.
     ///
     /// **Only reachable when the grantee set is known at grant time**, which is
-    /// every resolution-time grant (the affected set is locked to the targets by
-    /// CR 613.7b). A *static* ability that grants a static ability over a filter
+    /// every resolution-time grant (CR 611.2c fixes the affected set as the
+    /// effect begins). A *static* ability that grants a static ability over a filter
     /// has a set that changes with the board, so it derives nothing — that is
     /// the remaining half of Deferred Migrations item 7.
     fn register_granted_static_effects(
@@ -1912,10 +1858,6 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        use crate::engine::layers::types::{
-            ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
-        };
-
         // --- 1. The two roles -------------------------------------------
         let (donor, affected): (ObjectId, Vec<ObjectId>) = match roles {
             CopyRoles::RecipientsCopyChosen(filter) => {
@@ -2025,18 +1967,14 @@ impl GameState {
             // one `EffectGroup`, and CR 613.6 would hold every row to the
             // first one's object.
             let timestamp = self.allocate_timestamp();
-            self.continuous_effects.add(ContinuousEffect {
-                id: 0,
-                source: ctx.effect_source(),
-                origin: EffectOrigin::Resolution,
-                layer: Layer::Layer1Copy,
+            self.add_resolution_row(
+                ctx,
+                Layer::Layer1Copy,
                 duration,
-                controller: ctx.controller,
-                created_on_turn: self.turn_number,
                 timestamp,
-                affected_objects: ObjectSet::Fixed(affected.clone()),
-                modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
-            });
+                affected.clone(),
+                EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
+            );
 
             // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes
             // the copy *have* the ability; it does not make the ability *do*
