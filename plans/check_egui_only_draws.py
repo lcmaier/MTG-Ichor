@@ -39,6 +39,8 @@ import re
 import sys
 from pathlib import Path
 
+from rust_source import code_only
+
 ROOT = Path(__file__).resolve().parent.parent
 DEVGUI = ROOT / "devgui"
 
@@ -48,54 +50,6 @@ DRAWING = {"src/app.rs", "src/main.rs", "tests/screenshots.rs"}
 #: The window's crates, named as a path's first segment or in a `use`.
 WINDOW_CRATE = re.compile(r"\b(egui(?:_\w+)?|eframe|epaint|winit|wgpu|accesskit)\b")
 ENGINE = re.compile(r"\bmtgsim\b")
-
-RAW_STRING = re.compile(r'b?r(#*)"')
-CHAR_LITERAL = re.compile(r"'(?:\\u\{[0-9a-fA-F]+\}|\\.|[^'\\\n])'")
-
-
-def code_only(text: str) -> str:
-    """`text` with every comment and string literal blanked to spaces, newlines
-    kept, so a match's line number is the source's."""
-    out = []
-    i, n = 0, len(text)
-    blank = lambda s: "".join("\n" if c == "\n" else " " for c in s)
-    while i < n:
-        if text.startswith("//", i):
-            end = text.find("\n", i)
-            end = n if end < 0 else end
-            out.append(blank(text[i:end]))
-            i = end
-        elif text.startswith("/*", i):
-            depth, j = 1, i + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            out.append(blank(text[i:j]))
-            i = j
-        elif (raw := RAW_STRING.match(text, i)) and (i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")):
-            close = '"' + raw.group(1)
-            end = text.find(close, raw.end())
-            end = n if end < 0 else end + len(close)
-            out.append(blank(text[i:end]))
-            i = end
-        elif text[i] == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            out.append(blank(text[i : j + 1]))
-            i = j + 1
-        elif text[i] == "'" and (char := CHAR_LITERAL.match(text, i)):
-            out.append(blank(char.group(0)))
-            i = char.end()
-        else:
-            out.append(text[i])
-            i += 1
-    return "".join(out)
-
 
 def crossings(path: Path, drawing: bool):
     """(line, name) for each name `path` may not use."""

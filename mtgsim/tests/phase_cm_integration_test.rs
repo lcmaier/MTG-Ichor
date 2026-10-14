@@ -412,7 +412,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
 #[test]
 fn test_a_cost_effect_source_that_leaves_stops_applying() {
     let mut game = thalia_board(0);
-    let thalia = game.battlefield.keys().copied().next().unwrap();
+    let thalia = game.battlefield_ids_ordered()[0];
     game.change_zone(thalia, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(game.cost_modification_ability_sources.is_empty());
     let cast = cast_from_pool(&mut game, 0, bolt(), &[(ManaType::Red, 1)], &RecordingDecisionProvider::picking(0));
@@ -699,7 +699,7 @@ fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
 
     // ...and the Familiar is what paid for it.
     let mut game = familiar_board();
-    let familiar = *game.battlefield.keys().next().unwrap();
+    let familiar = game.battlefield_ids_ordered()[0];
     let dp = RecordingDecisionProvider::picking(0);
     let reap = cast_from_pool(
         &mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp,
@@ -748,7 +748,7 @@ fn test_a_mandatory_additional_cost_is_not_offered() {
 #[test]
 fn test_sacrificing_for_a_cost_is_the_payers_choice() {
     let mut game = familiar_board();
-    let familiar = *game.battlefield.keys().next().unwrap();
+    let familiar = game.battlefield_ids_ordered()[0];
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
     let dp = ScriptedDecisionProvider::new();

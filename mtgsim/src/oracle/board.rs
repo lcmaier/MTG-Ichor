@@ -15,6 +15,7 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
     if game.continuous_effects.summary().any_control_changing {
         return game.battlefield_ids_ordered().into_iter().filter(|&id| controls(game, id, player_id)).collect();
     }
+    // ORDER-FREE: sorted by timestamp next.
     let mut mine: Vec<(Timestamp, ObjectId)> = game
         .battlefield
         .iter()

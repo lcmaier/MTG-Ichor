@@ -310,10 +310,27 @@ pub(crate) fn gather(
     // battlefield's key. The entering object is source 1a's alone: read here off
     // its source zone, its filter-scoped rows would reach its own entry, which
     // 614.12's parenthesis forbids.
+    let could_apply = |id: ObjectId, printed: &[ReplacementDef]| printed.iter().any(|def| printed_could_apply(game, id, def, &proposal));
     let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
-    for (&id, printed) in game.zone_replacement_ability_sources.iter() {
-        if printed.iter().any(|def| printed_could_apply(game, id, def, &proposal)) {
-            elsewhere.push((game.object_timestamp(id), id));
+    if game.trace_on() {
+        // Asking walks the layers, and a walk writes a trace record, so a
+        // traced game asks in timestamp order. Untraced, the sort would cost
+        // every gather for an order nothing reads.
+        // ORDER-FREE: sorted by timestamp next.
+        let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
+            .zone_replacement_ability_sources
+            .iter()
+            .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
+            .collect();
+        sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
+        elsewhere.extend(sources.into_iter().filter(|&(_, id, printed)| could_apply(id, printed)).map(|(timestamp, id, _)| (timestamp, id)));
+    } else {
+        // ORDER-FREE: the matches are sorted below, and untraced no walk
+        // records the order it was asked in.
+        for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+            if could_apply(id, printed) {
+                elsewhere.push((game.object_timestamp(id), id));
+            }
         }
     }
     let zone_sweep = unattributed_zones.beyond_battlefield();
@@ -941,6 +958,7 @@ const REPLACEMENT_COUNTERS: [CounterType; 3] =
 /// reads as a card that silently does nothing. The scan skips immediately on
 /// the empty-counters case, which is almost every permanent.
 fn any_replacement_counter(game: &GameState) -> bool {
+    // ORDER-FREE: whether any has one.
     game.battlefield.values().any(|entry| {
         !entry.counters.is_empty()
             && REPLACEMENT_COUNTERS.iter().any(|c| entry.counters.contains_key(c))

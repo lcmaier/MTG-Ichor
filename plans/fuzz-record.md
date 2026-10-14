@@ -37,6 +37,57 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
+`engineering-practices.md` §11). No card joins the registry or the pool (188
+registered, 106 pooled), and no pool moved: the record is the budget's, and
+the first reading of the checked sitting. `close_out.py` against **main**
+`62361c6` (#246's merge), with two arms and an attribution arm:
+- **engine** `55e72ca`: the five sweeps put in a fixed order, the tags, the
+  gate, `clippy.toml`, the `release-checked` profile. The docs commits after
+  it change no `fuzz_games`;
+- **probe** `6c9c0c1`, never pushed: engine with `replacement/gather.rs`'s
+  order fix reverted, run once the engine arm read past its prediction.
+
+**Predictions, made before any arm ran:** `IDENTICAL` on every row, gameplay
+and cost, both pools, at two seats and four; instructions per decision
+within ±0.3 points; every dispatch agreed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, probe vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6438 M → 0.6459 M, **+0.33%** |
+| instructions / decision, probe vs `main`, the same board | | 0.6438 M → 0.6435 M, **−0.05%** |
+
+**One prediction broke, by a little: +0.33 against ±0.3, and it is one
+change.** The replacement gather now orders its off-battlefield sources
+before it asks any of them, so every gather where such a source exists
+reads each one's timestamp, allocates and sorts, where it asked in the
+map's order before. About 0.38 points per decision, on the Commander board,
+for a trace that cannot differ by process; inside the 2.5-point budget.
+The other four orderings are on paths a decision rarely crosses (a
+first-strike step, an X bound, a player's loss, the scenario writer).
+
+**The review arm** `3371336`, where the gather sorts only while the trace is
+on (the owner, at review: the floors are worth more than an order no
+untraced game reads), against **main**: **IDENTICAL** on every gameplay
+row, both pools, at two seats and four; the same dispatch counts agreed;
+instructions per decision 0.6440 M → 0.6438 M, **−0.02%**. Traced, 60
+stress games still agree under `MTGSIM_HASH_SEED` 1 and 2.
+
+**The event streams, outside the close-out:** both pools' 200-game
+`--dump-events` at seed 12345 are byte-identical to `main`'s (193,185 and
+198,206 lines). The trace of 60 stress games under `MTGSIM_HASH_SEED` 1 and
+2 differs on `main`, in game 32, where the first-strike sweep walks Elvish
+Archers and Elvish Warmaster in either order, and agrees on the engine arm.
+
+**The checked sitting, first reading** (16 threads, an idle machine): 200
+stress games in 25.2 s under `release-checked` against 0.21 s in release;
+CPU per game 1,211 ms, p99 13.2 s, the slowest 14.7 s (seed 12531). 200
+performance games in 14.9 s. CI's sitting, 50 stress games at four threads:
+14.3 s. Every sitting: 0 errors, 0 panics, 0 turn-limit hits.
+
 **Re-recorded 2026-10-12 for RH-3** (#245: the record's new object, its
 applied replacements and its moment, `replacement-architecture.md`
 §2b.4–§2b.8). No card joins the registry or the pool (188 registered, 106

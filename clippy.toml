@@ -1,0 +1,24 @@
+# Read by clippy for both crates, `mtgsim/` and `devgui/`: clippy looks for this
+# file in the crate's directory and then in each directory above it.
+#
+# Randomness is owned, never ambient (`CLAUDE.md`, "Determinism at the decision
+# boundary"): nothing reachable from a game may draw from the thread's RNG or
+# the OS, or a seeded game stops replaying. Every way rand 0.9 offers to do
+# either is listed. The deliberate opt-outs, for interactive play and an
+# unseeded fuzz run, carry `#[expect(clippy::disallowed_methods, reason = ...)]`.
+disallowed-methods = [
+    { path = "rand::rng", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::thread_rng", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::random", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::random_iter", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::random_range", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::random_bool", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::random_ratio", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::fill", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::SeedableRng::from_os_rng", reason = "seed from a number, so the game replays" },
+    { path = "rand::SeedableRng::try_from_os_rng", reason = "seed from a number, so the game replays" },
+]
+disallowed-types = [
+    { path = "rand::rngs::ThreadRng", reason = "draw from `GameState.rng` or the provider's own seeded `StdRng`" },
+    { path = "rand::rngs::OsRng", reason = "seed from a number, so the game replays" },
+]

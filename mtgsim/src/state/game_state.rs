@@ -1140,6 +1140,7 @@ impl GameState {
 
     /// Point the game's randomness at the OS — for interactive play, where a
     /// fresh shuffle each time is the point.
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: interactive play wants a fresh shuffle")]
     pub fn reseed_from_entropy(&mut self) {
         self.rng = StdRng::from_os_rng();
     }
@@ -1211,6 +1212,7 @@ impl GameState {
     /// may still iterate the map directly; they touch disjoint entries and emit
     /// nothing.
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
+        // ORDER-FREE: sorted by timestamp next.
         let mut entries: Vec<(ObjectId, &PermanentState)> =
             self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
         entries.sort_by_key(|(_, e)| e.timestamp);
@@ -1225,6 +1227,7 @@ impl GameState {
         // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
         // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
         // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
+        // ORDER-FREE: sorted by timestamp next.
         let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
             .map(|(&id, e)| (e.timestamp, id))
@@ -1693,6 +1696,8 @@ impl GameState {
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
+        // PRE-LAYER ZONE: the abilities it arrived with, printed or a copy's. The
+        // registry this builds is the layer walk's input, so the walk cannot answer.
         // An `Arc` bump rather than a `Vec<AbilityDef>` clone: `move_object` calls
         // this on every zone change, so a deep clone would land on every draw, mill
         // and discard. The clone exists only because the loop mutates `self`.
@@ -2302,8 +2307,8 @@ mod tests {
     // `fuzz_games`.
     //
     // `debug_assert!` panics under `cargo test` (debug_assertions on) and
-    // compiles out in release, so `#[should_panic]` is the right shape and
-    // release builds keep the old skip-and-carry-on behavior.
+    // compiles out in release, so each test is `#[should_panic]` and compiled
+    // only where the assertion is. Release keeps the old skip-and-carry-on.
     // -----------------------------------------------------------------------
 
     mod static_lowering {
@@ -2389,6 +2394,7 @@ mod tests {
         /// The declining arms are declining *through* the wrapper too: a
         /// conditional body the lowering cannot express is as inert as an
         /// unconditional one, and says so at the same volume.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
@@ -2401,6 +2407,7 @@ mod tests {
 
         /// `Modal`, `Optional`, `ForEach` and `Repeat` are resolution-time
         /// shapes; a static ability never resolves.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_modal_static_body_is_loud() {
@@ -2414,6 +2421,7 @@ mod tests {
         /// The nastiest of the set, because it is *partial*: the atomic
         /// siblings register normally and only this entry vanishes, so the card
         /// half-works.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "non-atomic entry")]
         fn test_non_atom_inside_a_sequence_is_loud() {
@@ -2424,6 +2432,7 @@ mod tests {
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_targeting_recipient_on_a_static_is_loud() {
@@ -2433,6 +2442,7 @@ mod tests {
             );
         }
 
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_controller_recipient_on_a_static_is_loud() {
@@ -2442,6 +2452,7 @@ mod tests {
         /// A primitive with no arm in `static_primitive_rows`. This one is
         /// checked in `register_static_effects` rather than in a helper, so it
         /// needs the real ETB path.
+        #[cfg(debug_assertions)]
         #[test]
         #[should_panic(expected = "lowers to no layer rows")]
         fn test_primitive_with_no_lowering_arm_is_loud() {

@@ -69,3 +69,12 @@ needless_range_loop = "allow"
 # `cargo test` and `cargo build --all-targets` enable the feature; a plain
 # `cargo build` does not build dev-dependencies at all, so the module is excluded.
 mtgsim = { path = ".", features = ["test-support"] }
+
+# CI's checked fuzz sitting: release's optimization with the debug build's
+# checks. A release build compiles out every `debug_assert!`, and with them the
+# layer walk's and the memo's audits, the mana watcher's and the pipeline's, so
+# the release sittings play their games past every guard written that way.
+[profile.release-checked]
+inherits = "release"
+debug-assertions = true
+overflow-checks = true

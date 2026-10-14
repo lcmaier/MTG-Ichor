@@ -83,6 +83,7 @@ fn moved_since(
     game: &GameState,
     since: ZoneChangeEpoch,
 ) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
+    // ORDER-FREE: sorted by epoch next, a total order (asserted).
     let mut moved: Vec<(ObjectId, &crate::objects::object::GameObject)> = game
         .objects
         .iter()
@@ -133,6 +134,8 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
+        // NOT AN EVENT: deathtouch's memory of damage already announced.
+        // ORDER-FREE: each entry's flag is read and cleared alone, into a set.
         let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
             .battlefield
             .iter_mut()
@@ -470,6 +473,7 @@ impl GameState {
         // Ordered by its last move's epoch (`move_object`'s, monotone; a token made
         // off the battlefield carries one too), since `objects` is a `HashMap` and
         // this sweep announces.
+        // ORDER-FREE: sorted by epoch next.
         let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
             .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))

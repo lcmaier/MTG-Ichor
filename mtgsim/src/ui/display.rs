@@ -1332,6 +1332,7 @@ mod tests {
         put_in_hand(&mut game, crate::cards::phase_rc_cards::dryad_arbor(), 1);
         put_in_graveyard(&mut game, crate::cards::phase_rg_cards::archelos_lagoon_mystic(), 1);
         let lines = TypeLines::new(&game);
+        // ORDER-FREE: each object is asked alone.
         for id in game.objects.keys() {
             let now = compute_characteristics(&game, *id).unwrap();
             assert_eq!(lines.of(&game, *id, &now), type_line_now(&game, *id), "{}", named(&game, *id));

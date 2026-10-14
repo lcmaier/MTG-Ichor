@@ -228,14 +228,16 @@ impl GameState {
         self.apply_combat_damage(assignments, &actx)?;
 
         if first_strike_only {
-            // Collect IDs first to avoid borrow conflict
-            let fs_ids: Vec<ObjectId> = self.battlefield.values()
-                .filter(|e| {
+            // Ordered although they go into a set: `has_keyword` walks the
+            // layers, and a walk writes a trace record. Collected first to
+            // avoid a borrow conflict.
+            let fs_ids: Vec<ObjectId> = self.battlefield_ordered().into_iter()
+                .filter(|(id, e)| {
                     (e.attacking.is_some() || e.blocking.is_some())
-                    && (has_keyword(self, e.object_id, KeywordFlag::FirstStrike)
-                        || has_keyword(self, e.object_id, KeywordFlag::DoubleStrike))
+                    && (has_keyword(self, *id, KeywordFlag::FirstStrike)
+                        || has_keyword(self, *id, KeywordFlag::DoubleStrike))
                 })
-                .map(|e| e.object_id)
+                .map(|(id, _)| id)
                 .collect();
             for id in fs_ids {
                 self.dealt_first_strike_damage.insert(id);

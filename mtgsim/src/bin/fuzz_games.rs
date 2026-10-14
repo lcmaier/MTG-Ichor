@@ -523,8 +523,8 @@ fn extract_stats<'a>(
                 stats.combat_phases_with_attackers += 1;
             }
             GameEvent::PermanentEnteredBattlefield { object_id, .. } => {
-                // Printed colors, deliberately, for the reason `named` reads
-                // the printed name: the question is which *cards* the required
+                // AS PRINTED: the colors, for the reason `named` reads the
+                // printed name: the question is which *cards* the required
                 // one met, and a copy's effective color is its donor's.
                 if !watch.is_empty() && !stats.met_another_color {
                     let printed = game.objects.get(object_id).map(|o| &o.card_data.colors);
@@ -578,8 +578,7 @@ fn extract_stats<'a>(
             _ => {}
         }
     }
-    // A count over a `HashMap`, which is order-independent, so this line is
-    // not a determinism leak; it is read once, at the end.
+    // ORDER-FREE: a count, read once, at the end.
     stats.departed_owned_permanents = game
         .battlefield
         .keys()
@@ -1140,6 +1139,7 @@ fn run_games(
 fn main() {
     let mut args = parse_args();
 
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: a run with no --seed draws one, and prints it")]
     let master_seed = args.seed.unwrap_or_else(|| {
         rand::rng().random::<u64>()
     });

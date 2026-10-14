@@ -186,6 +186,7 @@ impl RandomDecisionProvider {
     ///
     /// For anything that wants to be replayable (the fuzz harness, a test
     /// reproducing a reported panic), use [`RandomDecisionProvider::seeded`].
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: a provider for interactive play")]
     pub fn new() -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
@@ -336,14 +337,16 @@ impl DecisionProvider for RandomDecisionProvider {
                 .map(|p| p.mana_pool.total())
                 .unwrap_or(0);
             // Count untapped lands as potential mana sources
-            let untapped_lands: u64 = game.battlefield.iter()
+            // Ordered although a count: `has_type` walks the layers, and a walk
+            // writes a trace record.
+            let untapped_lands: u64 = game.battlefield_ordered().into_iter()
                 .filter(|(id, e)| {
                     !e.tapped
-                        && crate::oracle::characteristics::controls(game, **id, player)
+                        && crate::oracle::characteristics::controls(game, *id, player)
                 })
                 .filter(|(id, _)| {
                     crate::oracle::characteristics::has_type(
-                        game, **id, crate::types::card_types::CardType::Land)
+                        game, *id, crate::types::card_types::CardType::Land)
                 })
                 .count() as u64;
             let reasonable_max = pool_total + untapped_lands;

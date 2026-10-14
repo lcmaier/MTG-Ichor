@@ -627,6 +627,7 @@ impl GameState {
     /// which the `OrderTriggers` prompt offers — is the whole-battlefield
     /// walk's.
     fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+        // ORDER-FREE: sorted by timestamp next.
         let mut readers: Vec<(Timestamp, ObjectId)> = self
             .trigger_sources
             .iter()
@@ -761,7 +762,10 @@ impl GameState {
             let named = [Some(pending.origin.source_ref()), pending.binding.subject];
             each(named, KeptLkiSlot::List(&mut pending.kept_lki));
         }
-        for entry in self.stack_entries.values_mut() {
+        // In stack order, never the map's: a capture is a layer walk, which
+        // writes a trace record.
+        for id in &self.stack {
+            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
             let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
             each(named, KeptLkiSlot::List(&mut entry.kept_lki));
         }
@@ -914,6 +918,7 @@ impl GameState {
             on_battlefield.dedup_by_key(|&mut (_, id)| id);
             on_battlefield.into_iter().map(|(_, id)| id).collect()
         };
+        // ORDER-FREE: sorted by timestamp below.
         let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
             .zone_trigger_sources
             .keys()

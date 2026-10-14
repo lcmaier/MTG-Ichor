@@ -34,6 +34,7 @@ fn built(text: &str) -> GameState {
 
 /// The one object with this name, in any zone.
 fn find(game: &GameState, name: &str) -> ObjectId {
+    // ORDER-FREE: one, asserted.
     let mut ids: Vec<ObjectId> = game.objects.iter().filter(|(_, o)| o.card_data.name == name).map(|(id, _)| *id).collect();
     assert_eq!(ids.len(), 1, "one {name}");
     ids.remove(0)
