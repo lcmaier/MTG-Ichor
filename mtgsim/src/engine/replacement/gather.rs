@@ -310,20 +310,29 @@ pub(crate) fn gather(
     // battlefield's key. The entering object is source 1a's alone: read here off
     // its source zone, its filter-scoped rows would reach its own entry, which
     // 614.12's parenthesis forbids.
-    // Sorted before any is asked, since asking walks the layers and a walk
-    // writes a trace record.
-    // ORDER-FREE: sorted by timestamp next.
-    let mut printed_sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
-        .zone_replacement_ability_sources
-        .iter()
-        .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
-        .collect();
-    printed_sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
-    let mut elsewhere: Vec<(Timestamp, ObjectId)> = printed_sources
-        .into_iter()
-        .filter(|(_, id, printed)| printed.iter().any(|def| printed_could_apply(game, *id, def, &proposal)))
-        .map(|(timestamp, id, _)| (timestamp, id))
-        .collect();
+    let could_apply = |id: ObjectId, printed: &[ReplacementDef]| printed.iter().any(|def| printed_could_apply(game, id, def, &proposal));
+    let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
+    if game.trace_on() {
+        // Asking walks the layers, and a walk writes a trace record, so a
+        // traced game asks in timestamp order. Untraced, the sort would cost
+        // every gather for an order nothing reads.
+        // ORDER-FREE: sorted by timestamp next.
+        let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
+            .zone_replacement_ability_sources
+            .iter()
+            .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
+            .collect();
+        sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
+        elsewhere.extend(sources.into_iter().filter(|&(_, id, printed)| could_apply(id, printed)).map(|(timestamp, id, _)| (timestamp, id)));
+    } else {
+        // ORDER-FREE: the matches are sorted below, and untraced no walk
+        // records the order it was asked in.
+        for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+            if could_apply(id, printed) {
+                elsewhere.push((game.object_timestamp(id), id));
+            }
+        }
+    }
     let zone_sweep = unattributed_zones.beyond_battlefield();
     if any_named_unattributed || !zone_sweep.is_empty() {
         let mut named: Vec<ObjectId> = Vec::new();
