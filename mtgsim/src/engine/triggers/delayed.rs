@@ -24,10 +24,10 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{IfAsker, TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
-use crate::engine::layers::condition::{settled_holds_with, ConditionObjects};
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::{EventRecord, EventSeq, GameEvent};
@@ -82,7 +82,7 @@ impl GameState {
         // is known only by what its resolution kept (CR 113.7a).
         let source_lki = match self.find(provenance.source) {
             Some(_) => None,
-            None => self.kept_lki_of(provenance.source).cloned(),
+            None => self.lki_kept_by_resolving(provenance.source).cloned(),
         };
         let owner = self.owner_of_source(provenance.source)?;
         let created = GameEvent::DelayedTriggerCreated {
@@ -158,8 +158,8 @@ impl GameState {
             return None;
         }
         if let Some(condition) = &reflexive.def.intervening_if {
-            let objects = ConditionObjects { source_lki: reflexive.source_lki.as_ref(), triggering: None };
-            if !settled_holds_with(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
+            let objects = ConditionReferents { source_lki: reflexive.source_lki.as_ref(), triggering_object: None };
+            if !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
                 return None;
             }
         }
@@ -188,7 +188,7 @@ impl GameState {
         if let Some(object) = self.objects.get(&source.id) {
             return Ok(object.owner);
         }
-        self.kept_lki_of(source).map(Lki::owner).ok_or_else(|| {
+        self.lki_kept_by_resolving(source).map(Lki::owner).ok_or_else(|| {
             format!("{} is gone, and the resolution kept no last known information to say who owned it", source.id)
         })
     }
@@ -401,9 +401,9 @@ impl GameState {
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
         // source as it last existed once it has left (CR 113.7a, 400.7).
         let (event, subjects) = matched;
-        let asker = IfAsker { source: delayed.source.id, you: delayed.controller, source_lki: delayed.source_lki.as_ref() };
+        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: delayed.source_lki.as_ref() };
         let arm = &delayed.def.condition.events()[event.0];
-        let subjects = self.occurrences_whose_if_holds(&delayed.def, arm, record, subjects, asker)?;
+        let subjects = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, subjects, source)?;
         Ok((event, subjects))
     }
 

@@ -5974,8 +5974,8 @@ keeps its 72 bytes and a hand-over clones a pointer: the existence that
 left, its frame, its owner (CR 108.3), its cost decisions (CR 707.10) and,
 as a permanent, its tapped status, its counters by kind and its
 attachments both ways. The capture builds it before the batch performs.
-Persist and undying read its counters through
-`Condition::TriggeringObjectHadCounters`, at the trigger and at the CR
+Persist and undying read its counters through `Condition::CounterCount` of
+the triggering object, at the trigger and at the CR
 603.4 recheck; an Aura's "when enchanted creature dies" reads what was
 attached to the creature (item 252); the five live-source leaves read
 the rest. `damage_marked` and `controller_since_turn` were left out, with

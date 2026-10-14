@@ -145,7 +145,7 @@ impl ExceptionConditions<'_> {
             filter,
             self.chosen.controller,
             self.chosen.source,
-            Some(HeldFrame::Chars(chars)),
+            Some(HeldFrame::Characteristics(chars)),
         ))
     }
 

@@ -16,11 +16,11 @@ use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
 use crate::ui::decision::DecisionProvider;
 
-/// One object going back: where to, under whose control and with what
-/// counters if that is the battlefield (CR 122.6), and what caused it — the
-/// effect returning it.
+/// One object an effect is putting back: where to, under whose control and
+/// with what counters if that is the battlefield (CR 122.6), and what caused
+/// it — the effect returning it.
 #[derive(Debug, Clone)]
-pub(crate) struct Return {
+pub(crate) struct ReturningObject {
     pub object: ObjectId,
     pub to: Zone,
     pub controller: PlayerId,
@@ -44,10 +44,10 @@ impl GameState {
     /// with none stays where it is (CR 303.4g). An object already where it
     /// is going, or on the stack, is not moved. Each return is caused by its
     /// own effect, and the event is `ctx`'s.
-    pub(crate) fn return_objects(&mut self, returns: &[Return], ctx: &ActionContext) -> Result<(), String> {
+    pub(crate) fn return_objects(&mut self, returns: &[ReturningObject], ctx: &ActionContext) -> Result<(), String> {
         let mut batch = Vec::new();
         let mut hosts = Vec::new();
-        for Return { object, to, controller, counters, cause } in returns {
+        for ReturningObject { object, to, controller, counters, cause } in returns {
             let (object, to, controller, cause) = (*object, *to, *controller, *cause);
             let from = self.get_object(object)?.zone;
             if from == to || from == Zone::Stack {
@@ -227,7 +227,7 @@ impl GameState {
             for (object, to) in until.returns {
                 let Some(object) = RememberedObject::now(object).found(self) else { continue };
                 let controller = self.return_controller(object, until.under, until.controller)?;
-                returns.push(Return { object, to, controller, counters: Vec::new(), cause: until.cause });
+                returns.push(ReturningObject { object, to, controller, counters: Vec::new(), cause: until.cause });
             }
         }
         let Some(first) = returns.first().map(|r| r.cause) else { return Ok(()) };

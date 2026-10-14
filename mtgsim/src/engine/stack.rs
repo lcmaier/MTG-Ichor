@@ -113,7 +113,7 @@ impl GameState {
         {
             let source = entry.this_object();
             let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
-            if !crate::engine::layers::condition::settled_holds_with(condition, self, source, Some(entry.controller), objects) {
+            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects) {
                 self.ability_leaves_the_stack(object_id);
                 return Ok(());
             }

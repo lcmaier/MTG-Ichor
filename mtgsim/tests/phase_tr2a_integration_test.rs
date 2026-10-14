@@ -26,7 +26,7 @@ use mtgsim::cards::phase_tr2a_cards::{
     elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
 };
 use mtgsim::engine::actions::GameAction;
-use mtgsim::engine::layers::condition::settled_holds;
+use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
@@ -196,11 +196,11 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
-    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs, None));
-    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs, None));
-    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs, None));
+    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs, None, ConditionReferents::NONE));
+    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs, None, ConditionReferents::NONE));
+    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs, None, ConditionReferents::NONE));
     let untouched = this_turn(PlayerSet::You, TurnFact::DamageTaken, CountIs::AtMost(0));
-    assert!(settled_holds(&untouched, &game, theirs, None));
+    assert!(settled_holds(&untouched, &game, theirs, None, ConditionReferents::NONE));
 }
 
 /// A creature stolen and then destroyed died under its thief's control, so

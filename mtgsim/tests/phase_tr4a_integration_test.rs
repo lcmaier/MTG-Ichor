@@ -38,7 +38,9 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::{AdditionalCost, Cost};
+use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
+    ConditionObject,
     AmountExpr, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, ReturnUnder, SelectionFilter, TargetCount, TypeChange,
 };
@@ -376,7 +378,7 @@ fn an_aura_returns_the_card_its_creature_became_under_its_owners_control() {
 /// the battlefield, and the entry keeps that object's last known information
 /// from the start, since no later move of it will hand any over.
 #[test]
-fn a_dies_trigger_names_the_existence_that_left() {
+fn blood_artists_own_death_triggers_as_the_creature_that_left_not_the_card_it_became() {
     let mut game = setup_two_player_game();
     let artist = put_on_battlefield(&mut game, blood_artist(), 0);
     let before = game.object_ref(artist).unwrap();
@@ -397,7 +399,7 @@ fn a_dies_trigger_names_the_existence_that_left() {
 /// that stopped being a creature still returns. A fixture static ability
 /// makes artifact creatures noncreature artifacts.
 #[test]
-fn a_permanent_that_stopped_being_a_creature_still_returns() {
+fn persist_and_undying_still_return_a_permanent_that_stopped_being_a_creature() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let artifact = CardDataBuilder::new("Artifact Returner")
@@ -430,7 +432,7 @@ fn a_permanent_that_stopped_being_a_creature_still_returns() {
 /// it last existed on the battlefield, at the trigger.
 // COVERS-PARTIAL: ATOM-603.4-002
 #[test]
-fn the_keyword_reads_the_counters_it_had_as_it_left() {
+fn persist_and_undying_skip_a_creature_that_died_with_their_counter_on_it() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let had = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -454,7 +456,7 @@ fn the_keyword_reads_the_counters_it_had_as_it_left() {
 /// information: the card is in the graveyard by then, with no counters, and
 /// its frame still says it had none.
 #[test]
-fn the_recheck_at_resolution_reads_the_counters_it_had() {
+fn persist_and_undying_recheck_on_resolution_reads_the_creature_not_the_graveyard_card() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let returner = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -469,7 +471,7 @@ fn the_recheck_at_resolution_reads_the_counters_it_had() {
 /// Kitchen Finks' third ruling: two instances trigger separately, and the
 /// second finds nothing to return.
 #[test]
-fn two_instances_trigger_and_return_it_once() {
+fn two_instances_of_persist_or_undying_both_trigger_and_return_it_once() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let returner = put_on_battlefield(&mut game, returner(keyword, 2), 0);
@@ -484,7 +486,7 @@ fn two_instances_trigger_and_return_it_once() {
 /// Kitchen Finks' fourth ruling: a token with the keyword triggers, and
 /// cannot return.
 #[test]
-fn a_token_triggers_and_does_not_return() {
+fn persist_and_undying_trigger_for_a_token_that_cannot_return() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let token = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -500,7 +502,7 @@ fn a_token_triggers_and_does_not_return() {
 /// of its previous existence — untapped, undamaged, unenchanted, newly
 /// arrived, and carrying only the counter it returned with.
 #[test]
-fn what_returns_is_a_new_object() {
+fn persist_and_undying_return_a_new_object_carrying_only_its_counter() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let returner = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -525,7 +527,7 @@ fn what_returns_is_a_new_object() {
 /// first, so the nonactive player's resolve first and their creature returns
 /// first (CR 603.3b, 405.3).
 #[test]
-fn the_nonactive_players_creature_returns_first() {
+fn simultaneous_persist_or_undying_return_the_nonactive_players_creature_first() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let actives = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -546,7 +548,7 @@ fn the_nonactive_players_creature_returns_first() {
 /// its +1/+1 counters kill it had both kinds as it left, since CR 704.5q's
 /// annihilation is part of the same check, so neither keyword returns it.
 #[test]
-fn a_creature_that_died_with_both_kinds_does_not_return() {
+fn persist_and_undying_skip_a_creature_that_died_with_both_counter_kinds() {
     for keyword in BOTH {
         let mut game = setup_two_player_game();
         let returner = put_on_battlefield(&mut game, returner(keyword, 1), 0);
@@ -576,12 +578,21 @@ fn strangleroot_geist_returns_once() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. The source's leaves read as it left (CR 113.7a, 608.2h)
+// 5. An intervening "if" about the creature itself, asked after it died
+//
+// Every test here uses one fixture: a creature with "When this creature dies,
+// if [condition], you gain 1 life." The test sets the creature up — taps it,
+// puts counters on it, marks it kicked — then destroys it and resolves the
+// trigger. By then the creature is a card in the graveyard, untapped and with
+// no counters, at both of the "if"'s checks: when it dies, and when the
+// trigger resolves (CR 603.4). So the answer has to come from how the
+// creature was on the battlefield (CR 113.7a). Its controller ending at 21
+// life means both checks passed.
 // ---------------------------------------------------------------------------
 
-/// "When this creature dies, if [condition], you gain 1 life."
-fn dies_if(condition: Condition) -> Arc<CardData> {
-    let text = "When this creature dies, if it [condition], you gain 1 life.";
+/// A 2/2 creature: "When this creature dies, if [condition], you gain 1 life."
+fn creature_with_a_dies_trigger_if(condition: Condition) -> Arc<CardData> {
+    let text = "When this creature dies, if [condition], you gain 1 life.";
     let def = TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
         intervening_if: Some(condition),
@@ -597,58 +608,67 @@ fn dies_if(condition: Condition) -> Arc<CardData> {
         .build()
 }
 
-/// Whether a dies trigger with `condition` triggered and resolved, after
-/// `prepare` set its source up.
-fn gains_on_death(condition: Condition, prepare: impl Fn(&mut GameState, ObjectId)) -> bool {
+/// Put [`creature_with_a_dies_trigger_if`] `condition` onto P0's
+/// battlefield, call `set_up` on it, destroy it, and resolve everything.
+/// True when P0 gained the life: the "if" held when the creature died and
+/// again when its trigger resolved.
+fn dies_trigger_gains_life(condition: Condition, set_up: impl Fn(&mut GameState, ObjectId)) -> bool {
     let mut game = setup_two_player_game();
-    let dier = put_on_battlefield(&mut game, dies_if(condition), 0);
-    prepare(&mut game, dier);
-    destroy(&mut game, dier);
+    let creature = put_on_battlefield(&mut game, creature_with_a_dies_trigger_if(condition), 0);
+    set_up(&mut game, creature);
+    destroy(&mut game, creature);
     resolve_all(&mut game, &test_dp());
     game.players[0].life_total == 21
 }
 
-/// SourceTapped and SourceUntapped read its status as it left, at both
-/// instants (CR 603.4, 113.7a).
-#[test]
-fn a_dies_trigger_reads_whether_its_source_was_tapped() {
-    let tap = |game: &mut GameState, id: ObjectId| {
-        game.execute_action(GameAction::Tap { object: id }, &test_ctx()).unwrap();
-    };
-    let leave = |_: &mut GameState, _: ObjectId| {};
-    assert!(gains_on_death(Condition::SourceTapped, tap), "it was tapped");
-    assert!(!gains_on_death(Condition::SourceTapped, leave));
-    assert!(gains_on_death(Condition::SourceUntapped, leave), "it was untapped");
-    assert!(!gains_on_death(Condition::SourceUntapped, tap));
+fn tap_it(game: &mut GameState, creature: ObjectId) {
+    game.execute_action(GameAction::Tap { object: creature }, &test_ctx()).unwrap();
 }
 
-/// SourceHasCounters reads the counters it had.
+fn leave_it(_: &mut GameState, _: ObjectId) {}
+
+/// "If it was tapped" is true of a creature that died tapped and false of
+/// one that died untapped, and "if it was untapped" the reverse, though the
+/// card in the graveyard is untapped either way.
 #[test]
-fn a_dies_trigger_reads_its_sources_counters_as_it_left() {
-    let two = Condition::SourceHasCounters { counter: CounterType::Charge, at_least: 2 };
-    let put = |n: u32| move |game: &mut GameState, id: ObjectId| add_counters(game, id, CounterType::Charge, n);
-    assert!(gains_on_death(two.clone(), put(2)));
-    assert!(!gains_on_death(two, put(1)));
+fn dies_trigger_if_tapped_sees_whether_the_creature_died_tapped() {
+    assert!(dies_trigger_gains_life(Condition::SourceTapped, tap_it), "it died tapped");
+    assert!(!dies_trigger_gains_life(Condition::SourceTapped, leave_it), "it died untapped");
+    assert!(dies_trigger_gains_life(Condition::SourceUntapped, leave_it), "it died untapped");
+    assert!(!dies_trigger_gains_life(Condition::SourceUntapped, tap_it), "it died tapped");
 }
 
-/// SpellWasKicked reads the cost decisions the permanent kept (CR 707.10),
-/// as it left.
+/// "If it had two or more charge counters" counts the counters the creature
+/// died with; the card in the graveyard has none.
 #[test]
-fn a_dies_trigger_reads_whether_its_source_was_kicked() {
-    let kicked = |game: &mut GameState, id: ObjectId| {
-        game.battlefield.get_mut(&id).unwrap().cost_choices =
+fn dies_trigger_if_it_had_counters_counts_the_counters_it_died_with() {
+    let two_or_more =
+        Condition::CounterCount { object: ConditionObject::ThisObject, counter: CounterType::Charge, is: CountIs::AtLeast(2) };
+    let with_two = |game: &mut GameState, creature: ObjectId| add_counters(game, creature, CounterType::Charge, 2);
+    let with_one = |game: &mut GameState, creature: ObjectId| add_counters(game, creature, CounterType::Charge, 1);
+    assert!(dies_trigger_gains_life(two_or_more.clone(), with_two), "it died with two");
+    assert!(!dies_trigger_gains_life(two_or_more, with_one), "it died with one");
+}
+
+/// "If it was kicked" reads the cost decisions the permanent kept from its
+/// spell (CR 707.10) after it died.
+#[test]
+fn dies_trigger_if_kicked_sees_that_the_creature_was_kicked_after_it_died() {
+    let kicked = |game: &mut GameState, creature: ObjectId| {
+        game.battlefield.get_mut(&creature).unwrap().cost_choices =
             CostChoices { additional: vec![AdditionalCost::Kicker(Vec::new())], alternative: None };
     };
-    assert!(gains_on_death(Condition::SpellWasKicked, kicked));
-    assert!(!gains_on_death(Condition::SpellWasKicked, |_, _| {}));
+    assert!(dies_trigger_gains_life(Condition::SpellWasKicked, kicked), "it was kicked");
+    assert!(!dies_trigger_gains_life(Condition::SpellWasKicked, leave_it), "it was not");
 }
 
-/// HostMatches reads what the source was attached to as it left: an Aura's
-/// own leaves trigger, "if enchanted permanent was a creature". The host is
-/// still on the battlefield, read where it is.
+/// An Aura's "When this Aura leaves the battlefield, if it enchanted a
+/// creature, you gain 1 life": the Aura in the graveyard is attached to
+/// nothing, so "what it enchanted" is read off how it last existed. Its host
+/// is still on the battlefield, and is read there.
 #[test]
-fn an_auras_leaves_trigger_reads_what_it_enchanted() {
-    for (host_card, expected) in [(grizzly_bears(), true), (mtgsim::test_support::forest(), false)] {
+fn aura_leaves_trigger_if_it_enchanted_a_creature_reads_its_last_host() {
+    for (host_card, enchanted_a_creature) in [(grizzly_bears(), true), (mtgsim::test_support::forest(), false)] {
         let mut game = setup_two_player_game();
         let text = "When this Aura leaves the battlefield, if it enchanted a creature, you gain 1 life.";
         let def = TriggerDef {
@@ -668,18 +688,20 @@ fn an_auras_leaves_trigger_reads_what_it_enchanted() {
         assert!(game.attach(aura, host));
         destroy(&mut game, aura);
         resolve_all(&mut game, &test_dp());
-        assert_eq!(game.players[0].life_total == 21, expected);
+        assert_eq!(game.players[0].life_total == 21, enchanted_a_creature);
     }
 }
 
-/// A delayed trigger's "if" reads its source as it left (CR 400.7, 113.7a):
-/// a source that left tapped and came back untapped is a new object, and
-/// the trigger reads the one it was made by.
+/// A delayed trigger, "When you next gain life, if this creature was tapped,
+/// you lose 5 life", made by a tapped creature. The creature is exiled and
+/// returned untapped: that is a new object (CR 400.7), so the "if" must read
+/// the tapped creature that made the trigger, as it last existed, and not
+/// the untapped one now on the battlefield.
 #[test]
-fn a_delayed_triggers_if_reads_its_source_as_it_left() {
+fn delayed_trigger_if_its_source_was_tapped_reads_the_creature_that_made_it() {
     let mut game = setup_two_player_game();
     let source = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    game.execute_action(GameAction::Tap { object: source }, &test_ctx()).unwrap();
+    tap_it(&mut game, source);
     let def = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::GainsLife {
             player: Some(PlayerRef::You),
@@ -711,7 +733,7 @@ fn a_delayed_triggers_if_reads_its_source_as_it_left() {
     assert!(!game.battlefield[&source].tapped, "the new object is untapped");
 
     game.execute_action(GameAction::GainLife { player: 0, amount: 1, source }, &test_ctx()).unwrap();
-    assert_eq!(game.pending_triggers.len(), 1, "it read the tapped object it was made by");
+    assert_eq!(game.pending_triggers.len(), 1, "it read the tapped creature that made it");
 }
 
 // ---------------------------------------------------------------------------
@@ -868,7 +890,7 @@ fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
 /// resolution: two attackers declared together are two triggers, each with
 /// its own "it", and only the one without a counter triggers.
 #[test]
-fn an_intervening_if_about_it_is_asked_of_each_attacker() {
+fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     let mut game = setup_two_player_game();
     let text = "Whenever a creature you control attacks, if it had no +1/+1 counters on it, you gain 1 life.";
     let def = TriggerDef {
@@ -876,7 +898,11 @@ fn an_intervening_if_about_it_is_asked_of_each_attacker() {
             attacker: TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You)),
             multiplicity: Multiplicity::PerOccurrence,
         }),
-        intervening_if: Some(Condition::TriggeringObjectHadCounters { counter: CounterType::PlusOnePlusOne, had: false }),
+        intervening_if: Some(Condition::CounterCount {
+            object: ConditionObject::TriggeringObject,
+            counter: CounterType::PlusOnePlusOne,
+            is: CountIs::AtMost(0),
+        }),
         limit: None,
         effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
     };
@@ -898,7 +924,7 @@ fn an_intervening_if_about_it_is_asked_of_each_attacker() {
 /// (CR 707.10, 113.7a): its entry was taken as it resolved, and the
 /// resolving object holds its cost decisions until it is put away.
 #[test]
-fn a_kicked_spells_delayed_trigger_reads_it_kicked_after_it_resolved() {
+fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
     let mut game = setup_two_player_game();
     let def = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::GainsLife {
@@ -932,7 +958,7 @@ fn a_kicked_spells_delayed_trigger_reads_it_kicked_after_it_resolved() {
 /// removed the token, asks whether its host is controlled by the Aura's
 /// owner. The store has lost the Aura; its owner has not changed.
 #[test]
-fn a_gone_sources_condition_reads_its_owner_off_its_last_known_information() {
+fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_token_is_gone() {
     let mut game = setup_two_player_game();
     let text = "When this Aura leaves the battlefield, if enchanted creature is controlled by this Aura's owner, you gain 1 life.";
     let def = TriggerDef {

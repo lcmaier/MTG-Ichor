@@ -1305,10 +1305,11 @@ PR #251, two code commits ahead of the docs.
   before the batch performs; the hand-over clones the pointer. The audit's
   `ObjectSnapshot` holds one, and `DelayedTrigger.source_lki` replaced
   `source_frame`, seeded at creation when the source has already gone.
-- **The readers.** `ConditionObjects { source_lki, triggering }` through
-  `settled_holds_with`, built by the dispatch (`triggering_at_dispatch`), the
-  recheck and an effect's own "if" (`condition_objects`) and the delayed
-  registry. `Condition::TriggeringObjectHadCounters { counter, had }`;
+- **The readers.** `ConditionReferents { source_lki, triggering_object }`
+  through `settled_holds`, built by the dispatch
+  (`triggers_whose_intervening_if_holds`), the recheck and an effect's own
+  "if" (`condition_objects`) and the delayed registry. `Condition::CounterCount
+  { object, counter, is }`, which took `SourceHasCounters`' place;
   `AmountExpr::SourceCounters`; `Primitive::ReturnToBattlefield { under,
   counters }`. `owner_of_source` replaced `owner_now_or`, refusing a source
   with no owner anywhere. `HeldFrame::LastKnown` hands the filter table an
@@ -1334,7 +1335,7 @@ wrote or exposed already disagreed, and each is fixed with a fixture shown
 failing on `5699bc9`:
 - **"It" at the trigger was per record, and at resolution per occurrence**,
   so two attackers declared together read no "it" at all.
-  `occurrences_whose_if_holds` asks each occurrence, for both matchers.
+  `triggers_whose_intervening_if_holds` asks each one, for both matchers.
 - **A resolving spell's cost decisions were missed by the capture**, so a
   kicked spell's delayed trigger read it unkicked. `GameState::cost_choices_of`
   reads a permanent, a spell on the stack or the resolving spell.
@@ -1343,6 +1344,30 @@ failing on `5699bc9`:
   `for_source` takes the owner off the `Lki`.
 
 Two merges in its own code rode with them: `CurrentOrLastKnown` is the one
-type for "it", and `kept_lki_of` the one lookup. The rest are the
+type for "it", and `lki_kept_by_resolving` the one lookup. The rest are the
 duplicate inventory's §3.6, beside A6e (item 247). Against `shipped`, every
 row outside timing played identically on both pools at two seats and four.
+
+### Review round (2026-10-14)
+
+The owner's comments were about names, and about two shapes:
+- **One counter leaf.** `SourceHasCounters { counter, at_least }` and the
+  new `TriggeringObjectHadCounters { counter, had }` became
+  `CounterCount { object: ThisObject | TriggeringObject, counter, is:
+  CountIs }`: which object and how many, with persist's "had no" as
+  `AtMost(0)` and no polarity flag.
+- **One condition entry.** `settled_holds_with` wrapped `settled_holds`,
+  which wraps `holds`; `settled_holds` takes the referents, and every static
+  asker passes `ConditionReferents::NONE` by name.
+- **Names.** `ConditionObjects` became `ConditionReferents`, with an
+  explicit `NONE` in place of `Default`; `HeldFrame::Chars`,
+  `Characteristics`; `Return`, `ReturningObject`; `bound_as_it_was`,
+  `triggering_object`; `kept_lki_of`, `lki_kept_by_resolving`;
+  `SubjectRead`'s `LookingBack` and `LastKnown`, `ImmediatelyBefore` and
+  `LeftEarlier`, since both read last known information and differ in when
+  it was taken; `IfAsker`, `TriggerSource`;
+  `occurrences_whose_if_holds`, `triggers_whose_intervening_if_holds`; and
+  `last_known_with` folded into `last_known_information`, which takes the
+  frame its caller may read.
+- **The tests.** The intervening-if tests are named for their board and
+  their answer, and the five leaves' helper says what it builds and checks.

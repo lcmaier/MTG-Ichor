@@ -30,7 +30,7 @@
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
 use crate::events::cause::{EventCause, GeneratedBy};
@@ -578,7 +578,7 @@ pub(crate) fn functioning_replacement<'a>(
 /// condition holds, and CR 614.4 asks that *before the event*, so against the
 /// settled board, with the evaluator the layer pass and CR 613.11 use.
 pub(crate) fn replacement_exists(condition: Option<&Condition>, game: &GameState, source: ObjectId) -> bool {
-    condition.is_none_or(|condition| settled_holds(condition, game, source, None))
+    condition.is_none_or(|condition| settled_holds(condition, game, source, None, ConditionReferents::NONE))
 }
 
 /// The replacement effect a static ability's body generates, and the "as
@@ -751,7 +751,7 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)).map(HeldFrame::Chars))
+            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)).map(HeldFrame::Characteristics))
         }
     }
 }

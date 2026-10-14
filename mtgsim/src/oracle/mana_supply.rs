@@ -38,7 +38,7 @@ use std::cell::OnceCell;
 use std::sync::Arc;
 
 use crate::engine::layers::compute_characteristics;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::replacement::{applies_to_mana_production, functioning_replacement, replacement_exists, replacement_of};
 use crate::engine::resolve::ResolutionContext;
@@ -887,7 +887,7 @@ fn mana_trigger_adds(
     let fires = def.condition.events().iter().any(|arm| {
         game.mana_added_arm_would_match(arm, at.permanent, controller, producer, tapped, added)
     });
-    if !fires || def.intervening_if.as_ref().is_some_and(|c| !settled_holds(c, game, at.permanent, Some(controller))) {
+    if !fires || def.intervening_if.as_ref().is_some_and(|c| !settled_holds(c, game, at.permanent, Some(controller), ConditionReferents::NONE)) {
         return Vec::new();
     }
     let mut adds = NO_MANA;

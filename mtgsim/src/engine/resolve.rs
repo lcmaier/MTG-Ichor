@@ -21,7 +21,7 @@ use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-use crate::engine::returns::Return;
+use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
@@ -1600,7 +1600,7 @@ impl GameState {
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
                     let controller = self.return_controller(object, *under, ctx.controller)?;
-                    returns.push(Return { object, to: Zone::Battlefield, controller, counters: counters.clone(), cause: actx.cause });
+                    returns.push(ReturningObject { object, to: Zone::Battlefield, controller, counters: counters.clone(), cause: actx.cause });
                 }
                 self.return_objects(&returns, &actx)
             }
@@ -2534,7 +2534,7 @@ impl GameState {
             other => {
                 let source = ctx.effect_source();
                 let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-                crate::engine::layers::condition::settled_holds_with(other, self, source, Some(ctx.controller), objects)
+                crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller), objects)
             }
         }
     }
@@ -2546,7 +2546,7 @@ impl GameState {
     /// spell, which resolves where it was cast. A source no frame was kept
     /// for reads where it is now.
     fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
-        self.kept_lki_of(ctx.ability_source?).cloned()
+        self.lki_kept_by_resolving(ctx.ability_source?).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

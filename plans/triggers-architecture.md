@@ -971,9 +971,9 @@ Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
 | `object()` | a frame candidate's identity (item 168), `carried_lki`, `CurrentOrLastKnown::existence` | 400.7 |
 | `chars()`, `frame()` | leg 2's candidates, `subject_matches`, `bound_characteristics`, a damage source's reads | 603.10a, 608.2h |
 | `owner()` | the filter table's `ByOwner` through `HeldFrame::LastKnown`; `owner_of_source` | 108.3 |
-| `cost_choices()` | `SpellWasKicked`, for a source that left | 702.33d, 707.10 |
+| `cost_choices()` | `SpellWasKicked`, for a source that left. CR 118's cost decisions only: kicked, bargained, evoked. A mode (CR 700.2) is the spell's entry's, TR-4d's `entry`, and a choice made as the permanent enters (Citadel Siege's "choose Khans or Dragons", CR 614.12) is a fact nothing records yet | 702.33d, 707.10 |
 | `was_tapped()` | `SourceTapped`, `SourceUntapped` | 110.5 |
-| `counters(kind)` | `SourceHasCounters`; `TriggeringObjectHadCounters` (persist, undying); `AmountExpr::SourceCounters` | 122.8, 122.9, 702.79a, 702.93a |
+| `counters(kind)` | `CounterCount` of `ThisObject` or `TriggeringObject` (persist, undying); `AmountExpr::SourceCounters` | 122.8, 122.9, 702.79a, 702.93a |
 | `host()` | `HostMatches`, for a source that left; a frame candidate's own host, the dispatcher's and the audit's | 303.4 |
 | `had_attached(id)` | a look-back `TriggerSubject::Host` (item 252) | 603.6e, 603.10a |
 
@@ -1032,7 +1032,7 @@ shared fact, so it has nothing to look back at and stays `None`. **The
 reader methods live on the type** (the table above), and `TriggerBinding`'s
 readers answer live when the object is still where the event left it and
 from the frame otherwise (CR 608.2h, 113.7a); there is no second view type.
-`bound_as_it_was` is the one order, which `bound_characteristics` and a
+`triggering_object` is the one order, which `bound_characteristics` and a
 condition's "it" both read: the record's frame when the matched event was
 the subject's departure **and the arm looks back** (item 251's resolution
 half: a "from anywhere" subject is read where it went), the live object
@@ -2288,24 +2288,28 @@ moves its own source adds one there.
   bounded-state PR removed. Also rejected: writing at the window's close,
   since only a battlefield departure's record carries a frame.
 
-**The frame's readers (built in TR-4a).** A condition reads the objects its
-text names through `ConditionObjects`, the evaluator's one context beside the
-board, and a static ability passes the default:
+**The frame's readers (built in TR-4a).** A condition is answered off the
+board, but a triggered ability's "if" is often asked after "this" or "it" has
+left it: persist asks of a creature that has just died. So the caller passes
+what the condition's words refer to, `ConditionReferents`, and a static
+ability passes `ConditionReferents::NONE`:
 - `source_lki`, "this" as it last existed once it has left. The five leaves
-  that read their source — `SourceUntapped`, `SourceTapped`,
-  `SourceHasCounters`, `SpellWasKicked` and `HostMatches` — read it when it is
+  that read their source — `SourceUntapped`, `SourceTapped`, `CounterCount`
+  of `ThisObject`, `SpellWasKicked` and `HostMatches` — read it when it is
   given and the live board otherwise. They had answered false once the source
   left (TR-2b's review, 2026-09-27, named three; RG added the other two), and
   a delayed trigger's "if" had read its source by id, so a source that left
   and came back answered as the new object (CR 400.7).
-- `triggering`, "it": the triggering object with its `Lki` when the event was
-  its departure or it has left since, in `bound_characteristics`' order.
-  `Condition::TriggeringObjectHadCounters { counter, had }` is persist's and
-  undying's "if it had no ... counters on it", with its polarity.
+- `triggering_object`, "it": the triggering object with its `Lki` when the
+  event was its departure or it has left since, in `bound_characteristics`'
+  order. `Condition::CounterCount { object: TriggeringObject, counter, is:
+  AtMost(0) }` is persist's and undying's "if it had no ... counters on it";
+  the leaf's two axes, which object and how many, replaced a leaf per object
+  at the review.
 
 Four askers build it, one per instant. The dispatch takes the candidate's
 frame and the record, and asks each occurrence apart with its own "it", as
-resolution will (`occurrences_whose_if_holds`, for an object's ability and a
+resolution will (`triggers_whose_intervening_if_holds`, for an object's ability and a
 delayed trigger alike): two attackers declared together are two triggers,
 and a "one or more" arm's one occurrence has no "it", as its binding has
 none. The CR 603.4 recheck and a resolving effect's own "if" take the
@@ -3085,10 +3089,10 @@ agreed; instructions per decision +0.17%.
 **What shipped.** `Lki` as one body behind one `Arc`: the existence, its
 frame, its owner, its cost decisions and, as a permanent, its tapped status,
 counters and attachments both ways, with the readers on the type (§3.11).
-`ConditionObjects` carries "this" and "it" as they last existed into the
+`ConditionReferents` carries "this" and "it" as they last existed into the
 evaluator at the trigger, the CR 603.4 recheck, an effect's own "if" and a
 delayed trigger's, so the five live-source leaves read the frame (§6.1);
-`TriggeringObjectHadCounters`, `AmountExpr::SourceCounters` (CR 122.8,
+`CounterCount` over "this" or "it", `AmountExpr::SourceCounters` (CR 122.8,
 122.9), `ReturnToBattlefield` with counters, and `persist()` and `undying()`
 as authoring words. `DelayedTrigger.source_lki`; `owner_now_or` retired;
 the filter table's owner off a held `Lki`. Items 14, 168, 251 and 252

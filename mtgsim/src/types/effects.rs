@@ -593,20 +593,18 @@ pub enum Condition {
     /// a leaf of its own because a `Not` is the one wrapper
     /// `zone_function::stated_zones` would have to refuse.
     SourceTapped,
-    /// "As long as Kaito has one or more loyalty counters on him", and CR
-    /// 711.2a's leveler, "at least N1 level counters": the source's own
-    /// counters of a kind, read off the entity, which under a look-ahead is
-    /// the one the entry would build. No layer writes a counter, so it is
-    /// never a CR 613.8 dependency; a counter write bumps the layer epoch.
-    SourceHasCounters { counter: CounterType, at_least: u32 },
-    /// "If it had no -1/-1 counters on it" (persist, CR 702.79a), "if it had
-    /// no +1/+1 counters on it" (undying, CR 702.93a), and `had: true` for
-    /// "if it had one or more": the triggering object's counters as it was
-    /// immediately before the event, which for a departure is its last known
-    /// information (CR 603.10a, 113.7a), read at the trigger and again at
-    /// resolution (CR 603.4). A trigger's question; a static ability has no
-    /// triggering object, and no answer.
-    TriggeringObjectHadCounters { counter: CounterType, had: bool },
+    /// How many counters of one kind an object has, or had: "as long as Kaito
+    /// has one or more loyalty counters on him" (`ThisObject`, `AtLeast(1)`),
+    /// CR 711.2a's leveler, "level N1 or more" (`AtLeast(N1)`), and persist's
+    /// "if it had no -1/-1 counters on it" (`TriggeringObject`, `AtMost(0)`,
+    /// CR 702.79a), undying's on +1/+1 counters (CR 702.93a).
+    ///
+    /// Read off the entity, which under a look-ahead is the one the entry
+    /// would build, or off the object's last known information once it has
+    /// left (CR 113.7a), which is how persist reads a creature that died. No
+    /// layer writes a counter, so it is never a CR 613.8 dependency; a
+    /// counter write bumps the layer epoch.
+    CounterCount { object: ConditionObject, counter: CounterType, is: crate::types::history::CountIs },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -634,6 +632,16 @@ pub enum Condition {
     CostAnswer(CostAnswer),
 }
 
+/// Which object a condition's leaf asks about, in the words of its text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionObject {
+    /// "This": the object whose ability it is (CR 113.7a).
+    ThisObject,
+    /// "It": the object the trigger's event was about, a triggered ability's
+    /// alone. A static ability has none, and the leaf answers no.
+    TriggeringObject,
+}
+
 impl Condition {
     /// Does this read its source's own status or counters, which an entry
     /// sets as the permanent arrives?
@@ -644,14 +652,14 @@ impl Condition {
     /// characteristic. Matched in full, so a new leaf says which it is.
     pub fn reads_entry_state(&self) -> bool {
         match self {
-            Condition::SourceUntapped | Condition::SourceTapped | Condition::SourceHasCounters { .. } => true,
+            Condition::SourceUntapped | Condition::SourceTapped => true,
+            Condition::CounterCount { object, .. } => *object == ConditionObject::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read
             // players, histories, the host, a trigger, or a resolution.
             Condition::Player { .. }
             | Condition::SpellWasKicked
-            | Condition::TriggeringObjectHadCounters { .. }
             | Condition::ModeChosen(_)
             | Condition::SourceInZone(_)
             | Condition::HostMatches(_)

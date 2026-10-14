@@ -12,7 +12,10 @@
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
-use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder};
+use crate::types::effects::{
+    Condition, ConditionObject, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder,
+};
+use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::triggers::{
@@ -209,7 +212,7 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     };
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
-        intervening_if: Some(Condition::TriggeringObjectHadCounters { counter, had: false }),
+        intervening_if: Some(Condition::CounterCount { object: ConditionObject::TriggeringObject, counter, is: CountIs::AtMost(0) }),
         limit: None,
         effect: Effect::Atom(returns, EffectRecipient::TriggeringObject),
     })

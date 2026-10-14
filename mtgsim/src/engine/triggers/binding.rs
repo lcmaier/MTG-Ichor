@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use crate::engine::layers::condition::ConditionObjects;
+use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::oracle::characteristics::CurrentOrLastKnown;
@@ -118,27 +118,37 @@ impl GameState {
     /// information the resolving entry kept as it went (§6.1). `None` there is
     /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
-        self.bound_as_it_was(binding)?.characteristics(self)
+        self.triggering_object(binding)?.characteristics(self)
     }
 
-    /// The bound object as CR 608.2h reads it, `bound_characteristics`'
-    /// order: the record's frame when the event was its departure, the
-    /// object while it is still where the event left it, or the last known
-    /// information the resolving entry kept as it left later. `None` for a
-    /// binding with no subject, and for a missed capture.
-    fn bound_as_it_was<'a>(&'a self, binding: &'a TriggerBinding) -> Option<CurrentOrLastKnown<'a>> {
+    /// "It", the object a resolving trigger's event was about, in the form
+    /// CR 608.2h reads it: the object itself while it is still where the
+    /// event left it, and otherwise how it last existed.
+    ///
+    /// "How it last existed" comes from one of two places. When the event
+    /// was the object's own departure — a dies trigger's creature — the
+    /// event's record framed it just before it left. When it left later,
+    /// say sacrificed in response, the resolving trigger kept its frame as it
+    /// went ([`Self::lki_kept_by_resolving`]). `None` when the trigger has
+    /// no single object, or when the object left and nothing was kept, which
+    /// is a missed capture.
+    fn triggering_object<'a>(&'a self, binding: &'a TriggerBinding) -> Option<CurrentOrLastKnown<'a>> {
         let subject = binding.subject?;
         let lki = match subject_lki(binding) {
             Some(lki) => Some(lki),
             None if self.bound_object(binding).is_some() => None,
-            None => Some(self.kept_lki_of(subject)?),
+            None => Some(self.lki_kept_by_resolving(subject)?),
         };
         Some(CurrentOrLastKnown { id: subject.id, lki })
     }
 
-    /// What the resolving object kept of `object` once it had left (CR
-    /// 113.7a): its trigger's subject's departure frame, or a later one.
-    pub(crate) fn kept_lki_of(&self, object: ObjectRef) -> Option<&Lki> {
+    /// How `object` last existed, as the spell or ability now resolving
+    /// remembers it — for an object its text names that has left the zone
+    /// it expected (CR 113.7a, 608.2h): a dies trigger's own creature, or a
+    /// creature sacrificed to pay the ability's cost. A stack object keeps
+    /// these as they leave because the board can no longer say what they
+    /// were. `None` while `object` is still there.
+    pub(crate) fn lki_kept_by_resolving(&self, object: ObjectRef) -> Option<&Lki> {
         self.resolving.as_ref()?.lki_of(object)
     }
 
@@ -150,10 +160,10 @@ impl GameState {
         &'a self,
         source: Option<ObjectRef>,
         binding: Option<&'a TriggerBinding>,
-    ) -> ConditionObjects<'a> {
-        ConditionObjects {
-            source_lki: source.and_then(|source| self.kept_lki_of(source)),
-            triggering: binding.and_then(|binding| self.bound_as_it_was(binding)),
+    ) -> ConditionReferents<'a> {
+        ConditionReferents {
+            source_lki: source.and_then(|source| self.lki_kept_by_resolving(source)),
+            triggering_object: binding.and_then(|binding| self.triggering_object(binding)),
         }
     }
 

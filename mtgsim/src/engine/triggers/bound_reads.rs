@@ -12,7 +12,7 @@
 use std::ops::BitOr;
 
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
+    AmountExpr, Condition, ConditionObject, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
 use crate::types::triggers::{TriggerDef, TriggerLimit};
@@ -176,10 +176,10 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
-        | Condition::SourceHasCounters { .. } => BoundReads::SOURCE,
+        | Condition::CounterCount { object: ConditionObject::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         // "It had": the subject, as the record it left with framed it.
-        Condition::TriggeringObjectHadCounters { .. } => BoundReads::CHARACTERISTICS,
+        Condition::CounterCount { object: ConditionObject::TriggeringObject, .. } => BoundReads::CHARACTERISTICS,
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,
         // A mode makes the def modal, which reads everything; a history and

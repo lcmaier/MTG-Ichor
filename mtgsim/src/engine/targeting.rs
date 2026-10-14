@@ -202,7 +202,7 @@ pub(crate) enum HeldFrame<'a> {
     /// (`engine::replacement::EntryFrame`), where the finished board would
     /// answer for the card and not the permanent it is about to become, or a
     /// spell's frame its asker already walked.
-    Chars(&'a EffectiveCharacteristics),
+    Characteristics(&'a EffectiveCharacteristics),
     /// Its last known information (CR 608.2h), which also says who owned it
     /// once the store has lost it (CR 704.5d, 800.4a).
     LastKnown(&'a Lki),
@@ -670,7 +670,7 @@ impl GameState {
         held: Option<HeldFrame<'_>>,
     ) -> bool {
         match held {
-            Some(HeldFrame::Chars(chars)) => {
+            Some(HeldFrame::Characteristics(chars)) => {
                 return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
             }
             Some(HeldFrame::LastKnown(lki)) => {

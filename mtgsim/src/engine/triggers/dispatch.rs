@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
-use crate::engine::layers::condition::{settled_holds_with, ConditionObjects};
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
@@ -344,16 +344,23 @@ enum Asks {
 }
 
 /// How an arm reads its subject off a record.
+///
+/// Both of the last two read last known information; they differ in *when*
+/// it was taken, and so in what it can say about the subject at this event.
 #[derive(Clone, Copy)]
 enum SubjectRead<'a> {
     /// On the board now.
     Now,
-    /// As its departure framed it, for an arm that looks back (CR 603.10a):
-    /// its characteristics, its owner, and what was attached to it.
-    LookingBack(&'a Lki),
-    /// Off the last known information of an object that had left before the
-    /// event: a source dealing damage as it last existed (CR 608.2h).
-    LastKnown(&'a Lki),
+    /// As it was immediately before this event (CR 603.10a's words), because
+    /// this event is its departure and the arm looks back: a dies trigger.
+    /// Everything about it holds at this event, what was attached to it
+    /// included, which "when enchanted creature dies" asks.
+    ImmediatelyBefore(&'a Lki),
+    /// As it was when it left, at an earlier event: a creature dealing damage
+    /// through an ability that resolved after it died (CR 608.2h). Its
+    /// characteristics answer, but its attachments do not: nothing was
+    /// attached to it at this event, the one the arm asks about.
+    LeftEarlier(&'a Lki),
 }
 
 impl<'a> SubjectRead<'a> {
@@ -362,19 +369,21 @@ impl<'a> SubjectRead<'a> {
     /// 603.10).
     fn of_departure(arm: &TriggerEvent, lki: &'a Option<Lki>) -> SubjectRead<'a> {
         match lki {
-            Some(lki) if arm.looks_back() => SubjectRead::LookingBack(lki),
+            Some(lki) if arm.looks_back() => SubjectRead::ImmediatelyBefore(lki),
             _ => SubjectRead::Now,
         }
     }
 }
 
-/// Who asks an intervening "if" at the trigger: the source, "you" (CR
-/// 109.5), and the source's last known information once it has left.
+/// The object a triggered ability belongs to, as its intervening "if" reads
+/// it at the trigger: the object, its controller (the "if"'s "you", CR
+/// 109.5), and how it last existed once it has left — persist's creature,
+/// which has just died.
 #[derive(Clone, Copy)]
-pub(super) struct IfAsker<'a> {
-    pub(super) source: ObjectId,
-    pub(super) you: PlayerId,
-    pub(super) source_lki: Option<&'a Lki>,
+pub(super) struct TriggerSource<'a> {
+    pub(super) object: ObjectId,
+    pub(super) controller: PlayerId,
+    pub(super) lki: Option<&'a Lki>,
 }
 
 /// "It", one occurrence's subject, as a condition at the trigger reads it:
@@ -867,20 +876,19 @@ impl GameState {
         if self.capture_of(object).is_some() {
             return;
         }
-        if let Some(lki) = self.last_known_information(id) {
+        let frame = compute_characteristics(self, id);
+        if let Some(lki) = frame.and_then(|frame| self.last_known_information(id, frame)) {
             self.lki_captures.push(LkiCapture { object, lki: Some(lki) });
         }
     }
 
-    /// `id`'s last known information as it is now, before it leaves (CR
-    /// 113.7a): its frame, a memo hit, with the facts no layer computes.
-    pub(crate) fn last_known_information(&self, id: ObjectId) -> Option<Lki> {
-        let frame = compute_characteristics(self, id)?;
-        self.last_known_with(id, frame)
-    }
-
-    /// [`Self::last_known_information`] over a frame the caller walked.
-    fn last_known_with(&self, id: ObjectId, frame: Arc<EffectiveCharacteristics>) -> Option<Lki> {
+    /// `id`'s last known information, taken now, before it leaves (CR
+    /// 113.7a): `frame`, its characteristics, with the facts about it no layer
+    /// computes. There is one answer; the caller passes the frame only
+    /// because where it may be read from depends on when. A batch frames its
+    /// movers off the layer memo before it performs, and the fallback in
+    /// `take_captured_lki`, reached while one performs, may not read the memo.
+    pub(crate) fn last_known_information(&self, id: ObjectId, frame: Arc<EffectiveCharacteristics>) -> Option<Lki> {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
@@ -951,7 +959,7 @@ impl GameState {
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
-            self.last_known_with(id, Arc::new(frame))
+            self.last_known_information(id, Arc::new(frame))
         })
     }
 
@@ -978,7 +986,8 @@ impl GameState {
 
     /// `id` as it is now, and where it is.
     pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
-        Some(ObjectSnapshot { zone: self.objects.get(&id)?.zone, lki: self.last_known_information(id)? })
+        let lki = self.last_known_information(id, compute_characteristics(self, id)?)?;
+        Some(ObjectSnapshot { zone: self.objects.get(&id)?.zone, lki })
     }
 
     /// The objects a dispatch asks with their ability lists as they are now,
@@ -1312,36 +1321,35 @@ impl GameState {
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
-        let asker = IfAsker { source: candidate.object.id, you: candidate.controller, source_lki: candidate.frame.lki() };
+        let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
         let arm = &def.condition.events()[event_index.0];
-        let subjects = self.occurrences_whose_if_holds(def, arm, record, subjects, asker)?;
+        let subjects = self.triggers_whose_intervening_if_holds(def, arm, record, subjects, source)?;
         Ok((event_index, subjects))
     }
 
-    /// CR 603.4 at the trigger, asked of each occurrence as its trigger will
-    /// be at resolution: "it" is the occurrence's own subject, read as the
-    /// record framed it when the record is its departure and the arm looks
-    /// back, and a "one or more" arm's single occurrence has none, as its
-    /// binding has none. The occurrences whose "if" holds, or the refusal when
-    /// none does.
-    pub(super) fn occurrences_whose_if_holds(
+    /// CR 603.4's first check, when the event happens: of the triggers one
+    /// event makes — one per subject, as two attackers make two — the ones
+    /// whose intervening "if" holds, each asked about its own "it" exactly as
+    /// it will be again at resolution. A "one or more" trigger is one trigger
+    /// with no single "it". Refused when none holds.
+    pub(super) fn triggers_whose_intervening_if_holds(
         &self,
         def: &TriggerDef,
         arm: &TriggerEvent,
         record: &EventRecord,
         subjects: Vec<Option<ObjectId>>,
-        asker: IfAsker<'_>,
+        source: TriggerSource<'_>,
     ) -> Result<Vec<Option<ObjectId>>, Refusal> {
         let Some(condition) = &def.intervening_if else { return Ok(subjects) };
         let holding: Vec<Option<ObjectId>> = subjects
             .into_iter()
             .filter(|subject| {
-                let triggering = match arm.multiplicity() {
+                let triggering_object = match arm.multiplicity() {
                     Multiplicity::PerOccurrence => subject.map(|it| triggering_as_it_was(arm, record, it)),
                     Multiplicity::OncePerEvent => None,
                 };
-                let objects = ConditionObjects { source_lki: asker.source_lki, triggering };
-                settled_holds_with(condition, self, asker.source, Some(asker.you), objects)
+                let referents = ConditionReferents { source_lki: source.lki, triggering_object };
+                settled_holds(condition, self, source.object, Some(source.controller), referents)
             })
             .collect();
         if holding.is_empty() { Err(Refusal::InterveningIf) } else { Ok(holding) }
@@ -1461,7 +1469,7 @@ impl GameState {
                 };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::LastKnown);
+                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::LeftEarlier);
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
@@ -1642,13 +1650,13 @@ impl GameState {
             // it left, which its departure framed; the Aura or Equipment that
             // stays has been unattached since.
             (TriggerSubject::Host, Some(id)) => match read {
-                SubjectRead::LookingBack(lki) => lki.had_attached(referents.this.id()),
-                SubjectRead::Now | SubjectRead::LastKnown(_) => referents.host == Some(id),
+                SubjectRead::ImmediatelyBefore(lki) => lki.had_attached(referents.this.id()),
+                SubjectRead::Now | SubjectRead::LeftEarlier(_) => referents.host == Some(id),
             },
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
             (TriggerSubject::Filter(filter), Some(id)) => {
                 let lki = match read {
-                    SubjectRead::LookingBack(lki) | SubjectRead::LastKnown(lki) => Some(lki),
+                    SubjectRead::ImmediatelyBefore(lki) | SubjectRead::LeftEarlier(lki) => Some(lki),
                     SubjectRead::Now => None,
                 };
                 self.object_matches_filter(id, filter, &mut { *referents }, lki.map(HeldFrame::LastKnown))

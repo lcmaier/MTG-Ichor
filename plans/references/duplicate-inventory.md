@@ -405,7 +405,7 @@ re-found T1, T2, T3, T4, T6, T8 and the `in_game` key (§6, same composition
 46), and these, new here:
 
 - **T10, T11, T12** (§3.5's rows). #251 made "it" one reading per occurrence
-  (`occurrences_whose_if_holds`, both matchers), the cost decisions one
+  (`triggers_whose_intervening_if_holds`, both matchers), the cost decisions one
   (`GameState::cost_choices_of`, with `StackEntry::cost_choices`), and gave
   a condition's filter its gone source's owner off the `Lki`. T12's other
   sites — `TextReferents::source_owner`, `FilterPlayers::owner`'s controller
@@ -413,9 +413,10 @@ re-found T1, T2, T3, T4, T6, T8 and the `in_game` key (§6, same composition
   `resolve_player_ref`'s and `ShuffleLibrary`'s `get_object` — are one fact
   with `delayed::owner_of_source`, for item 247.
 - **T13. The pair "the object now, or as it last existed."** #251 made
-  `CurrentOrLastKnown` the one type for it (`ConditionObjects.triggering`,
-  `bound_as_it_was`, the dispatch's "it") and `bound_characteristics` its
-  reader, and `kept_lki_of` the one lookup of what a resolution kept.
+  `CurrentOrLastKnown` the one type for it
+  (`ConditionReferents.triggering_object`, `triggering_object`, the
+  dispatch's "it") and `bound_characteristics` its reader, and
+  `lki_kept_by_resolving` the one lookup of what a resolution kept.
 - **T14. The objects a waiting entry names.** `for_each_naming_entry`
   (`dispatch.rs`, source and subject) and `referred_damage_sources`
   (`legality.rs`, with targets, referred objects and kept LKI, and a
