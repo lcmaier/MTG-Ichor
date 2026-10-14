@@ -1307,7 +1307,7 @@ impl GameState {
             }
             (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, ordinals, .. }) => one(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
-                    && place.is_none_or(|place| place.holds(*ordinals)),
+                    && place.is_none_or(|place| place.matches(*ordinals)),
             ),
             (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))

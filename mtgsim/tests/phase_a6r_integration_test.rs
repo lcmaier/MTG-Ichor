@@ -23,7 +23,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::{DrawPlace, Zone, ZoneChangeAct};
+use mtgsim::types::zones::{DrawFilter, Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -107,7 +107,7 @@ fn gain_one() -> Effect {
 
 /// A creature whose one ability triggers "whenever `who` draws" the card at
 /// `place`.
-fn draw_watcher(name: &str, who: PlayerRef, place: DrawPlace) -> Arc<CardData> {
+fn draw_watcher(name: &str, who: PlayerRef, place: DrawFilter) -> Arc<CardData> {
     let mut ability = triggered_ability(
         "",
         whenever(
@@ -178,7 +178,7 @@ fn notion_thief_leaves_opts_card_after_words_of_worship_took_the_draw_steps() {
 fn the_turns_second_card_triggers_once_whenever_the_watcher_arrived() {
     let mut game = stocked();
     draw(&mut game, 0, 1);
-    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawPlace::NthThisTurn(2)), 0);
+    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawFilter::NthThisTurn(2)), 0);
 
     draw(&mut game, 0, 1);
     assert_eq!(triggered(&game, gavi), 1, "the turn's second card");
@@ -193,7 +193,7 @@ fn the_turns_second_card_triggers_once_whenever_the_watcher_arrived() {
 fn a_doubled_draws_second_card_is_the_turns_second() {
     let mut game = stocked();
     put_on_battlefield(&mut game, thought_reflection(), 0);
-    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawPlace::NthThisTurn(2)), 0);
+    let gavi = put_on_battlefield(&mut game, draw_watcher("Fixture: Gavi", PlayerRef::You, DrawFilter::NthThisTurn(2)), 0);
 
     draw(&mut game, 0, 1);
 
@@ -208,7 +208,7 @@ fn a_doubled_draws_second_card_is_the_turns_second() {
 fn a_doubled_draw_steps_second_card_is_not_its_first() {
     let mut game = stocked();
     put_on_battlefield(&mut game, thought_reflection(), 0);
-    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawPlace::NotFirstInDrawStep), 1);
+    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawFilter::NotFirstInDrawStep), 1);
     at_upkeep(&mut game, 0);
 
     take_the_draw_step(&mut game);
@@ -225,8 +225,8 @@ fn a_doubled_draw_steps_second_card_is_not_its_first() {
 fn the_draw_steps_first_card_is_the_first_drawn_in_it() {
     let mut game = stocked();
     let words = put_on_battlefield(&mut game, words_of_worship(), 0);
-    let wiretapping = put_on_battlefield(&mut game, draw_watcher("Fixture: Wiretapping", PlayerRef::You, DrawPlace::FirstInDrawStep), 0);
-    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawPlace::NotFirstInDrawStep), 1);
+    let wiretapping = put_on_battlefield(&mut game, draw_watcher("Fixture: Wiretapping", PlayerRef::You, DrawFilter::FirstInDrawStep), 0);
+    let bowmasters = put_on_battlefield(&mut game, draw_watcher("Fixture: Bowmasters", PlayerRef::Opponent, DrawFilter::NotFirstInDrawStep), 1);
     at_upkeep(&mut game, 0);
     activate_words(&mut game, words, 0);
 
@@ -236,6 +236,29 @@ fn the_draw_steps_first_card_is_the_first_drawn_in_it() {
     draw(&mut game, 0, 1);
 
     assert_eq!((triggered(&game, wiretapping), triggered(&game, bowmasters)), (1, 1));
+}
+
+/// Tamiyo, Inquisitive Student's "when you draw your third card in a turn",
+/// on a fixture, with Brainstorm's "draw three cards" after the draw step's
+/// card: the instruction draws the turn's second, third and fourth, and the
+/// trigger is the third's. It is queued at the instruction's close and goes on
+/// the stack the next time a player would receive priority, after the spell
+/// has finished resolving (CR 603.3).
+#[test]
+fn a_draw_of_three_after_the_draw_steps_card_holds_the_turns_third() {
+    let mut game = stocked();
+    let tamiyo = put_on_battlefield(&mut game, draw_watcher("Fixture: Tamiyo", PlayerRef::You, DrawFilter::NthThisTurn(3)), 0);
+    at_upkeep(&mut game, 0);
+    take_the_draw_step(&mut game);
+
+    draw(&mut game, 0, 3);
+
+    assert_eq!(triggered(&game, tamiyo), 1, "the third card, not the second or fourth");
+    let binding = &game.pending_triggers.last().expect("queued, not yet on the stack").binding;
+    assert!(matches!(
+        binding.records[..],
+        [ref record] if matches!(record.event, GameEvent::CardDrawn { ordinals, .. } if ordinals.in_turn == Some(3))
+    ));
 }
 
 // ---------------------------------------------------------------------------

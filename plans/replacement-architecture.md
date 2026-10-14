@@ -541,7 +541,7 @@ has no ruling; it goes to CP-1, which builds CR 118.12a's "unless"
 "Except the first one you draw in each of your draw steps" is a count, not a
 cause: when a replacement takes the step's own draw, the next card drawn in
 that step is the first one drawn (CR 702.94a counts the same way). Each player
-keeps `DrawCounts`, written as each card is drawn, and one `DrawPlace` is asked
+keeps `DrawCounts`, written as each card is drawn, and one `DrawFilter` is asked
 of the proposed draw and of its record.
 
 ### 2b.4 Which replacements applied: `applied`
@@ -3417,7 +3417,7 @@ Teferi's Ageless Insight, Alms Collector, Notion Thief.
 **Amended by A6r (2026-10-13, item 254):** the stamping rule was a proxy, and
 wrong when a replacement takes the step's own draw (Words of Worship, then Opt
 in the same step, drew two under Teferi's Ageless Insight). `DrawCause` went;
-the place is counted as each card is drawn (`DrawCounts`, `DrawPlace`, §2b.3).
+the place is counted as each card is drawn (`DrawCounts`, `DrawFilter`, §2b.3).
 
 **Three things the sizing did not have.** Alms Collector is not the `then` case
 §3.2d filed it as, and its own ruling says so — as `Prevent` plus riders the

@@ -1247,7 +1247,7 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   each card is drawn and reset when the draw step begins (CR 504). Not the
   history's count, which advances as a window is dispatched: a doubled draw's
   second card is proposed inside the window that holds its first. `CardDrawn`
-  carries the draw's `ordinals`, and one `DrawPlace` (the turn's Nth, the draw
+  carries the draw's `ordinals`, and one `DrawFilter` (the turn's Nth, the draw
   step's first, or not the step's first) is asked by `EventPattern::DrawCard`
   of the proposed draw and by `TriggerEvent::DrawsCard` of the record. When a
   replacement takes the step's own draw, the next card drawn in that step is

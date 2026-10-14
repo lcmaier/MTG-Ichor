@@ -201,7 +201,7 @@ pub enum GameAction {
 
     /// A single card draw (CR 121.1) — **the inner event**, and
     /// [`Self::DrawCards`]'s performer is its only producer. Which of its
-    /// player's draws it is, is counted, not carried (`DrawPlace`).
+    /// player's draws it is, is counted, not carried (`DrawFilter`).
     DrawCard {
         player: PlayerId,
     },

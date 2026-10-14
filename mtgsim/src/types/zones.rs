@@ -288,7 +288,7 @@ impl ZoneChangePattern {
 /// type for both sides, so a trigger and a replacement reading the same words
 /// read the same count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DrawPlace {
+pub enum DrawFilter {
     /// The turn's `n`th: "whenever you draw your second card each turn" (Gavi,
     /// Nest Warden).
     NthThisTurn(u64),
@@ -299,13 +299,13 @@ pub enum DrawPlace {
     NotFirstInDrawStep,
 }
 
-impl DrawPlace {
-    /// Whether a draw at `ordinals` is the one this asks for.
-    pub fn holds(self, ordinals: DrawOrdinals) -> bool {
+impl DrawFilter {
+    /// Whether a draw at `ordinals` is one this lets through.
+    pub fn matches(self, ordinals: DrawOrdinals) -> bool {
         match self {
-            DrawPlace::NthThisTurn(n) => ordinals.in_turn == Some(n),
-            DrawPlace::FirstInDrawStep => ordinals.in_draw_step == Some(1),
-            DrawPlace::NotFirstInDrawStep => ordinals.in_draw_step != Some(1),
+            DrawFilter::NthThisTurn(n) => ordinals.in_turn == Some(n),
+            DrawFilter::FirstInDrawStep => ordinals.in_draw_step == Some(1),
+            DrawFilter::NotFirstInDrawStep => ordinals.in_draw_step != Some(1),
         }
     }
 }

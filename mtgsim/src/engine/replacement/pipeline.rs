@@ -23,7 +23,7 @@ use crate::types::replacement::{
     EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
-use crate::types::zones::{DrawPlace, Zone};
+use crate::types::zones::{DrawFilter, Zone};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
@@ -1391,7 +1391,7 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
     };
     matches!(event, GameAction::DrawCard { .. })
         && *n >= 1
-        && place.is_none_or(|place| place == DrawPlace::NotFirstInDrawStep)
+        && place.is_none_or(|place| place == DrawFilter::NotFirstInDrawStep)
 }
 
 

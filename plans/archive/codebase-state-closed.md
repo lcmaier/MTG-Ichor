@@ -5585,7 +5585,7 @@ reset by the `BeginStep` performer when a draw step begins (CR 504). It is not
 the history's count, which advances as a window is dispatched: a doubled draw's
 second card is proposed inside the window that holds its first, so a count
 taken there would make Thought Reflection's second card the step's first.
-`CardDrawn` carries the draw's `ordinals`, and one `DrawPlace` (the turn's Nth,
+`CardDrawn` carries the draw's `ordinals`, and one `DrawFilter` (the turn's Nth,
 the draw step's first, or not the step's first) is asked by
 `EventPattern::DrawCard` of the proposed draw (`next_draw_ordinals`) and by
 `TriggerEvent::DrawsCard` of the record. A draw's `place_in_turn` is the

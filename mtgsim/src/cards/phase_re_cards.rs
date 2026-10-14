@@ -330,7 +330,7 @@ use crate::types::replacement::{
     Rewrite, Rounding, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
-use crate::types::zones::{DrawPlace, Zone};
+use crate::types::zones::{DrawFilter, Zone};
 
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
@@ -632,12 +632,12 @@ pub fn moment_of_silence() -> Arc<CardData> {
 
 /// "If you would draw a card, draw two cards instead" — the shape Thought
 /// Reflection and Teferi's Ageless Insight share, differing only in the
-/// [`DrawPlace`] they ask for.
+/// [`DrawFilter`] they ask for.
 ///
 /// [`GameActionTemplate::DrawCards`]'s `player` is `None` on both: the draw
 /// stays with the player who would have drawn it. Notion Thief is the arm's
 /// other customer and the one that moves it.
-fn draw_two_instead(place: Option<DrawPlace>) -> ReplacementDef {
+fn draw_two_instead(place: Option<DrawFilter>) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DrawCard { place },
         ObjectSet::NO_OBJECTS,
@@ -703,7 +703,7 @@ pub fn thought_reflection() -> Arc<CardData> {
 /// > If you would draw a card except the first one you draw in each of your
 /// > draw steps, draw two cards instead.
 ///
-/// `Some(DrawPlace::NotFirstInDrawStep)` watches every draw but the first one
+/// `Some(DrawFilter::NotFirstInDrawStep)` watches every draw but the first one
 /// drawn in its controller's draw step, counted as each is drawn. So beside a
 /// Thought Reflection this draws **three** in the draw step: the Reflection
 /// doubles the step's one draw, the doubled instruction's first card is the
@@ -738,7 +738,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
         .rules_text(
             "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
         )
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawPlace::NotFirstInDrawStep))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .build()
 }
 
@@ -873,7 +873,7 @@ pub fn notion_thief() -> Arc<CardData> {
         )
         .ability(static_replacement("If an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
             ReplacementDef::new(
-                EventPattern::DrawCard { place: Some(DrawPlace::NotFirstInDrawStep) },
+                EventPattern::DrawCard { place: Some(DrawFilter::NotFirstInDrawStep) },
                 ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::DrawCards {
                     n: TemplateAmount::Fixed(1),
@@ -1160,7 +1160,7 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You),
         ))
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawPlace::NotFirstInDrawStep))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .build()
 }
 
@@ -1949,7 +1949,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
              of your draw steps, draw two cards instead.\nIf one or more tokens would be \
              created under your control, twice that many of those tokens are created instead.",
         )
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawPlace::NotFirstInDrawStep))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .ability(static_replacement("If one or more tokens would be created under your control, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },

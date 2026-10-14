@@ -289,7 +289,7 @@ spell or ability an opponent controls causes"), a cost (CR 118), a cast or an
 activation, a special action (CR 116), a turn-based or state-based action (CR
 703, 704), or a rule. One value on every proposal (`ActionContext::cause`) and
 every record (`EventStamp::cause`), which its emitter names.
-Which of its player's draws a draw is, is a count, not a cause (`DrawPlace`).
+Which of its player's draws a draw is, is a count, not a cause (`DrawFilter`).
 → `EventCause`, `replacement-architecture.md` §2b.3. Not the **performer**,
 which is the function that performs an action, and not the **act**.
 

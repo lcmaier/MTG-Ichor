@@ -24,7 +24,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
-use crate::types::zones::{DrawPlace, Zone, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangePattern};
 
 /// CR 603.1 — "[When/Whenever/At] [trigger condition or event], [effect]".
 #[derive(Debug, Clone, PartialEq)]
@@ -329,7 +329,7 @@ pub enum TriggerEvent {
     /// the word "draw" is not drawn (CR 121.5); it is a `ZoneChange`, and never
     /// this. `place` is which of the player's draws it watches ("your second
     /// card each turn"), read off the record, which took it as it was drawn.
-    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity, place: Option<DrawPlace> },
+    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity, place: Option<DrawFilter> },
     /// CR 106.12a's "tapped for mana" reads `tapped_for_mana`.
     ManaAdded {
         source: TriggerSubject,

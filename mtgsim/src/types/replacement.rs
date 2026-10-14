@@ -40,7 +40,7 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::events::cause::{EventCause, StateBasedAction};
-use crate::types::zones::{DrawPlace, Zone, ZoneChangeAct, ZoneChangePattern};
+use crate::types::zones::{DrawFilter, Zone, ZoneChangeAct, ZoneChangePattern};
 
 /// One replacement or prevention effect.
 ///
@@ -293,7 +293,7 @@ pub enum EventPattern {
     /// leaves a first card that is the step's first and a second that is not,
     /// which is how the exception survives being doubled.
     DrawCard {
-        place: Option<DrawPlace>,
+        place: Option<DrawFilter>,
     },
 
     /// CR 119.3 / 119.10 — "if you would gain life". The event's subject is

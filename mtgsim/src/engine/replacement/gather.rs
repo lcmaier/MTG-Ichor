@@ -822,7 +822,7 @@ pub(crate) fn pattern_watches(
 
         // CR 121.1's individual draw, at the place its player's counts give it.
         (EventPattern::DrawCard { place }, GameAction::DrawCard { player }) => {
-            place.is_none_or(|place| place.holds(game.next_draw_ordinals(*player)))
+            place.is_none_or(|place| place.matches(game.next_draw_ordinals(*player)))
         }
 
         // CR 119.3 / 119.10's gain and CR 120.3a's loss. Which *player* each is
