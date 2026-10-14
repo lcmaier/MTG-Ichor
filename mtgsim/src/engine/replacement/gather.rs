@@ -50,7 +50,7 @@ use crate::types::replacement::{
 use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
-use crate::engine::targeting::matched;
+use crate::engine::object_filter::{matched, TextReferents};
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -657,8 +657,8 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, controller))
-        && pattern_watches(game, &def.pattern, p.action, &p.cause, controller)
+    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, &mut TextReferents::of_effect(game, controller, source)))
+        && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
         && set_affects(
             game,
             &def.affected_objects,
@@ -758,6 +758,7 @@ pub(crate) fn pattern_watches(
     pattern: &EventPattern,
     action: &GameAction,
     cause: &EventCause,
+    source: ObjectId,
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
@@ -768,16 +769,16 @@ pub(crate) fn pattern_watches(
         // A source that left is matched as it last existed (CR 608.2h), and a
         // chosen one by the existence that deals the damage (CR 609.7a).
         (
-            EventPattern::DealDamage { source, combat },
+            EventPattern::DealDamage { source: damage_source, combat },
             GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
             let dealing = CurrentOrLastKnown { id: *dealt_by, lki: source_lki.as_ref() };
             combat.map(|c| c == *is_combat).unwrap_or(true)
-                && source
+                && damage_source
                     .as_ref()
                     .map(|p| {
                         p.object.is_none_or(|chosen| Some(chosen) == dealing.existence(game))
-                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you))).unwrap_or(true)
+                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you, source))).unwrap_or(true)
                     })
                     .unwrap_or(true)
         }
@@ -789,7 +790,7 @@ pub(crate) fn pattern_watches(
             change.matches(Some(*from), *to, Some(*act))
                 && object
                     .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
+                    .map(|f| matched(game.object_matches_filter_of_source(*moving, f, you, source, None)))
                     .unwrap_or(true)
         }
 
@@ -805,7 +806,7 @@ pub(crate) fn pattern_watches(
             change.matches(*from, Zone::Battlefield, *act)
                 && object
                     .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
+                    .map(|f| matched(game.object_matches_filter_of_source(*moving, f, you, source, None)))
                     .unwrap_or(true)
         }
 
@@ -908,9 +909,8 @@ pub(crate) fn pattern_watches(
         // CR 106.12b's two constraints. The event knows both facts; the pattern's
         // `Option`s let an effect decline to ask, and `None` is satisfied by every
         // production (Mana Reflection asks `Some(true)` of tapping and nothing of the
-        // permanent; Deep Water asks both). `matched` reads
-        // `object_matches_filter`'s authoring-error `Err`s as no, as `DealDamage`'s
-        // arm does (`codebase-state.md` item 103).
+        // permanent; Deep Water asks both). `matched` reads a refusal as no, as
+        // `DealDamage`'s arm does (`codebase-state.md` item 103).
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
             GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
@@ -918,7 +918,7 @@ pub(crate) fn pattern_watches(
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
                 && filter
                     .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*producer, f, you)))
+                    .map(|f| matched(game.object_matches_filter_of_source(*producer, f, you, source, None)))
                     .unwrap_or(true)
         }
 

@@ -386,7 +386,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
             0,
             mtgsim::engine::targeting::FilterIdentity {
                 source: None,
-                earlier_targets: mtgsim::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
+                earlier_targets: mtgsim::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
             },
         )
             .is_ok(),

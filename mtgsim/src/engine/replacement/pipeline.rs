@@ -3286,7 +3286,13 @@ pub(crate) fn not_auxiliary(
     if game.entry_selection.chosen.contains(&id) {
         return Some(NotAuxiliary::AlreadyChosen);
     }
-    if !crate::engine::targeting::matched(game.object_matches_filter(id, &aux.filter, you)) {
+    // The move is the effect's own (CR 614.13), so its "another" is other than
+    // the effect's source.
+    let answer = match cause.resolution() {
+        Some(stamp) => game.object_matches_filter_of_source(id, &aux.filter, you, stamp.source, None),
+        None => game.object_matches_filter_for_instance(id, &aux.filter, you, crate::engine::targeting::FilterIdentity::NONE),
+    };
+    if !crate::engine::object_filter::matched(answer) {
         return Some(NotAuxiliary::NotMatched);
     }
     // CR 101.2 on the move this choice would produce — the resolution-time choice's

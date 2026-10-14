@@ -40,7 +40,7 @@
 //!   and governs **`ContinuousEffect`** — the layer registry. That is the gate
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
-//! - `gather::set_affects` → `GameState::object_matches_filter` governs
+//! - `gather::set_affects` → `GameState::object_matches_filter_of_source` governs
 //!   **`ReplacementDef.affected_objects`**, and it has **no gate at all**.
 //!
 //! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
@@ -318,7 +318,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 /// entry until RC-3 opened the gate, on the grounds that no `ObjectSet::Filter`
 /// effect could match an entering permanent. That was never true of the
 /// *replacement* pipeline: `gather::set_affects` matches a `ReplacementDef`'s
-/// filter through `GameState::object_matches_filter`, which has no
+/// filter through `GameState::object_matches_filter_of_source`, which has no
 /// battlefield gate and never had one. The branch has been reachable since RB
 /// merged, one registered card away, and RB left the identical gap with Kalitas
 /// — a Legendary whose two copies each apply only to the other player's

@@ -1,5 +1,6 @@
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::object_filter::{self, matched, EarlierTargets, FilterReferents, FilterRefusal, TextReferents};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
@@ -220,48 +221,6 @@ pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
     }
 }
 
-/// What the announced instances look like to `ObjectFilter::OtherThanInstance`,
-/// without copying them.
-///
-/// Two shapes answer the same question. Inside CR 601.2c's loop the earlier
-/// choices are a [`ChosenTargets`] being built; inside CR 608.2b's re-check
-/// they are the `&[TargetInstance]` already sitting on the `StackEntry`, and
-/// collecting *that* into a `ChosenTargets` was a whole copy of the
-/// announcement per resolution to serve one by-index read.
-///
-/// An enum rather than a trait object because both arms are known here, it
-/// stays `Copy`, and `NONE` needs no promoted static.
-#[derive(Clone, Copy)]
-pub enum EarlierTargets<'a> {
-    /// Outside both, where the leaf is refused rather than answered.
-    None,
-    /// CR 601.2c's loop: the instances announced so far.
-    Chosen(&'a ChosenTargets),
-    /// CR 608.2b's re-check: the announcement on the entry, borrowed.
-    Announced(&'a [TargetInstance]),
-}
-
-impl EarlierTargets<'_> {
-    fn len(&self) -> usize {
-        match self {
-            EarlierTargets::None => 0,
-            EarlierTargets::Chosen(c) => c.len(),
-            EarlierTargets::Announced(i) => i.len(),
-        }
-    }
-
-    /// Was `target` chosen for instance `ix`? By id: "another target" asks
-    /// whether the announcement named this object, and an announcement names
-    /// objects as they were at one moment.
-    fn instance_names(&self, ix: usize, target: ResolvedTarget) -> bool {
-        match self {
-            EarlierTargets::None => false,
-            EarlierTargets::Chosen(c) => c.instance(ix).contains(&target),
-            EarlierTargets::Announced(i) => i.get(ix).is_some_and(|inst| inst.as_resolved_targets().any(|t| t == target)),
-        }
-    }
-}
-
 /// The two facts a filter leaf may need that are **not characteristics**, so
 /// that no layer can change them and no frame answers them.
 ///
@@ -302,76 +261,6 @@ impl<'a> FilterIdentity<'a> {
     /// "target" it has announced so far.
     pub fn for_text_of(this_object: ObjectId, earlier_targets: EarlierTargets<'a>) -> Self {
         FilterIdentity { source: Some(this_object), earlier_targets }
-    }
-}
-
-/// Why a filter could not say whether an object matches it: every refusal the
-/// leaf table can make, so a caller reading one knows what it is reading.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterRefusal {
-    /// The object is gone from the store, and no frame answers the leaf: an
-    /// object's owner or whether it is a token, which last known information
-    /// does not carry until TR-4a (`triggers-architecture.md` §3.11), or any
-    /// leaf asked with no frame at all.
-    ObjectGone(ObjectId),
-    /// `NotSource` asked where nothing names a source to be other than.
-    NoSource(ObjectId),
-    /// `OtherThanInstance` naming an instance of "target" not yet announced.
-    InstanceNotAnnounced { object: ObjectId, instance: usize },
-    /// `PowerLE` asked of an object with no power.
-    NoPower(ObjectId),
-}
-
-impl FilterRefusal {
-    /// A question the filter should never have been asked: a leaf the card
-    /// wrote where the asking site cannot answer it, or a site that did not
-    /// pass what it knows. Every refusal but a gone object, which is the
-    /// rules' "no" until last known information answers it.
-    pub fn is_malformed_question(self) -> bool {
-        match self {
-            FilterRefusal::ObjectGone(_) => false,
-            FilterRefusal::NoSource(_)
-            | FilterRefusal::InstanceNotAnnounced { .. }
-            | FilterRefusal::NoPower(_) => true,
-        }
-    }
-}
-
-impl std::fmt::Display for FilterRefusal {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FilterRefusal::ObjectGone(id) => write!(f, "Object {id} not found"),
-            FilterRefusal::NoSource(id) => {
-                write!(f, "ObjectFilter::NotSource on {id} has no source to be other than: nothing is being announced")
-            }
-            FilterRefusal::InstanceNotAnnounced { object, instance } => write!(
-                f,
-                "ObjectFilter::OtherThanInstance({instance}) on {object} names an instance of \
-                 \"target\" that has not been announced (CR 601.2c). Only the \
-                 announcement loop and the CR 608.2b re-check hold the earlier_targets \
-                 instances; a filter asked anywhere else cannot carry this leaf."
-            ),
-            FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
-        }
-    }
-}
-
-impl From<FilterRefusal> for String {
-    fn from(refusal: FilterRefusal) -> String {
-        refusal.to_string()
-    }
-}
-
-/// A filter's answer, a refusal read as no match. A malformed question is
-/// loud in a debug build and `cargo test`, since its card would otherwise
-/// silently do nothing (`codebase-state.md` item 103); a gone object is no.
-pub(crate) fn matched(answer: Result<bool, FilterRefusal>) -> bool {
-    match answer {
-        Ok(matches) => matches,
-        Err(refusal) => {
-            debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
-            false
-        }
     }
 }
 
@@ -749,38 +638,48 @@ impl GameState {
         Ok(())
     }
 
-    /// Check whether a permanent matches an `ObjectFilter`.
+    /// `filter` asked of `id` where the text's words mean `referents` — the
+    /// one table every asker reaches (`engine::object_filter`).
     ///
-    /// Same question as `compute::object_matches_filter`, asked from outside
-    /// the layer walk: this one queries each characteristic by id (so every
-    /// read is still post-layers), while that one is handed a partially-applied
-    /// frame it must not re-enter. Both must agree — "Enchant creature you
-    /// control" has to mean the same thing to SBA 704.5n that it would mean to
-    /// a static ability.
-    ///
-    /// A third caller: `ObjectSet::Filter` on a `ReplacementDef`
-    /// asks it too, which is what makes Kalitas's "a nontoken creature an
-    /// opponent controls" the same predicate a targeting restriction would
-    /// use.
-    ///
-    /// `you` resolves `PlayerRef::You`; `Owner` is the *selected* permanent's
-    /// owner, since a selection filter describes the selection rather than the
-    /// source.
-    pub(crate) fn object_matches_filter(
+    /// `chars` is the frame when the caller holds one: CR 614.12's look-ahead
+    /// for an entering permanent (`engine::replacement::EntryFrame`), where the
+    /// finished board would answer for the card and not for the permanent it
+    /// is about to become, or a source's last known information (CR 608.2h),
+    /// which answers for a token the store no longer holds. Otherwise the
+    /// object must exist, and its frame is walked once, only if a leaf reads a
+    /// characteristic: `All`, `Token` and `ByOwner` never do, so Rest in Peace's
+    /// "cards" stays free on every graveyard-bound zone change.
+    pub(crate) fn object_matches_filter_for(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
-        you: PlayerId,
+        referents: &mut impl FilterReferents,
+        chars: Option<&EffectiveCharacteristics>,
     ) -> Result<bool, FilterRefusal> {
-        self.object_matches_filter_for_instance(id, filter, you, FilterIdentity::NONE)
+        if let Some(chars) = chars {
+            return object_filter::answer(self, filter, id, &|| Ok(chars), referents);
+        }
+        if !self.objects.contains_key(&id) {
+            return Err(FilterRefusal::ObjectGone(id));
+        }
+        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
+            std::cell::OnceCell::new();
+        let frame = || {
+            frame
+                .get_or_init(|| compute_characteristics(self, id))
+                .as_deref()
+                .ok_or(FilterRefusal::ObjectGone(id))
+        };
+        object_filter::answer(self, filter, id, &frame, referents)
     }
 
-    /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where the
-    /// instances announced so far are known — so
+    /// [`Self::object_matches_filter_for`] asked inside CR 601.2c's loop, where
+    /// the instances announced so far are known — so
     /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
     /// and the object whose text is announced, which
-    /// [`ObjectFilter::NotSource`] is other than. A resolution asks it with
-    /// its effect's source and no instances (`codebase-state.md` item 229).
+    /// [`ObjectFilter::NotSource`] is other than and whose owner `Owner` names.
+    /// A resolution asks it with its effect's source and no instances
+    /// (`codebase-state.md` item 229).
     ///
     /// The selection-side twin of [`Self::object_matches_filter_of_source`],
     /// and the two identity facts are deliberately separate: "another target
@@ -794,18 +693,7 @@ impl GameState {
         you: PlayerId,
         identity: FilterIdentity<'_>,
     ) -> Result<bool, FilterRefusal> {
-        self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id))?;
-        // One layer walk for the whole filter, and only if a leaf reads a
-        // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
-        // Peace's "cards" stays free on every graveyard-bound zone change.
-        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
-            std::cell::OnceCell::new();
-        self.object_matches_filter_with(id, filter, you, identity, &|| {
-            frame
-                .get_or_init(|| compute_characteristics(self, id))
-                .as_deref()
-                .ok_or(FilterRefusal::ObjectGone(id))
-        })
+        self.object_matches_filter_for(id, filter, &mut TextReferents { game: self, you, identity }, None)
     }
 
     /// `filter` asked of `id` for the text of `this` (CR 113.7a's "this"):
@@ -828,20 +716,14 @@ impl GameState {
         matched(self.object_matches_filter_for_instance(id, filter, you, identity))
     }
 
-    /// [`Self::object_matches_filter`] asked on behalf of an **effect**, which
-    /// has a source — so [`ObjectFilter::NotSource`] has one to exclude.
+    /// [`Self::object_matches_filter_for`] asked on behalf of an **effect**,
+    /// which has a source — so [`ObjectFilter::NotSource`] has one to exclude
+    /// and `Owner` one to name: a replacement's or restriction's affected set
+    /// and its pattern's filters, an auxiliary move's, a cost modification's.
+    /// Palisade Giant's "other permanents you control" is the printed customer.
     ///
-    /// The one caller is `replacement::gather::set_affects`, which is the one
-    /// place a filter is asked "is this object inside this effect's affected
-    /// set" rather than "is this object a legal selection". Palisade Giant's
-    /// "other permanents you control" is the printed customer, and
-    /// `compute::object_matches_filter` has answered the same leaf off
-    /// `FilterPlayers::source` since the layer system.
-    ///
-    /// `chars` is CR 614.12's look-ahead frame when the caller holds one, and
-    /// `None` when the object is a plain permanent — the two spellings of one
-    /// question, kept as one function because `set_affects` chooses between
-    /// them per call.
+    /// `chars` is the frame when the caller holds one, as
+    /// [`Self::object_matches_filter_for`] takes it.
     pub(crate) fn object_matches_filter_of_source(
         &self,
         id: ObjectId,
@@ -850,142 +732,7 @@ impl GameState {
         source: ObjectId,
         chars: Option<&EffectiveCharacteristics>,
     ) -> Result<bool, FilterRefusal> {
-        if chars.is_none() {
-            self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id))?;
-        }
-        let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
-            std::cell::OnceCell::new();
-        let identity = FilterIdentity { source: Some(source), earlier_targets: EarlierTargets::None };
-        self.object_matches_filter_with(id, filter, you, identity, &|| match chars {
-            Some(chars) => Ok(chars),
-            None => frame
-                .get_or_init(|| compute_characteristics(self, id))
-                .as_deref()
-                .ok_or(FilterRefusal::ObjectGone(id)),
-        })
-    }
-
-    /// [`Self::object_matches_filter`] against a frame the caller already
-    /// holds — CR 614.12's look-ahead for an entering permanent
-    /// (`engine::replacement::EntryFrame`), where the finished board would
-    /// answer for the card and not for the permanent it is about to become —
-    /// or a damage source's last known information (CR 608.2h), which answers
-    /// for a token the store no longer holds.
-    pub(crate) fn object_matches_filter_in_frame(
-        &self,
-        id: ObjectId,
-        filter: &ObjectFilter,
-        you: PlayerId,
-        chars: &EffectiveCharacteristics,
-    ) -> Result<bool, FilterRefusal> {
-        self.object_matches_filter_with(id, filter, you, FilterIdentity::NONE, &|| Ok(chars))
-    }
-
-    /// The leaf table, over a frame supplied on demand.
-    ///
-    /// The second of the two `object_matches_filter`s in the engine
-    /// (`codebase-state.md` item 14): `compute::object_matches_filter` asks
-    /// whether a continuous effect applies mid-layer-walk and resolves
-    /// `PlayerRef` through the effect's source; this one asks whether an
-    /// object is a legal selection, or inside a replacement's or restriction's
-    /// `ObjectSet`, and resolves it against `you`.
-    ///
-    /// `other_than` is the source [`ObjectFilter::NotSource`] excludes — `None`
-    /// in a selection context, where there is no such object and the leaf is
-    /// refused rather than answered.
-    fn object_matches_filter_with<'f>(
-        &self,
-        id: ObjectId,
-        filter: &ObjectFilter,
-        you: PlayerId,
-        identity: FilterIdentity<'_>,
-        frame: &dyn Fn() -> Result<&'f EffectiveCharacteristics, FilterRefusal>,
-    ) -> Result<bool, FilterRefusal> {
-        // Read only by the leaves no frame answers: a frame may stand for an
-        // object the store has lost (CR 608.2h).
-        let obj = || self.get_object(id).map_err(|_| FilterRefusal::ObjectGone(id));
-        match filter {
-            ObjectFilter::All => Ok(true),
-            ObjectFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
-            ObjectFilter::BySubtype(subtype) => Ok(frame()?.subtypes.contains(subtype)),
-            ObjectFilter::BySupertype(supertype) => {
-                Ok(frame()?.supertypes.contains(supertype))
-            }
-            ObjectFilter::ByColor(color) => Ok(frame()?.colors.contains(color)),
-            ObjectFilter::ByController(player_ref) => {
-                use crate::types::effects::PlayerRef;
-                let controller = frame()?.controller;
-                Ok(match player_ref {
-                    PlayerRef::You => controller == you,
-                    PlayerRef::Opponent => controller != you,
-                    PlayerRef::Player(pid) => controller == *pid,
-                    PlayerRef::Owner => controller == obj()?.owner,
-                })
-            }
-            // CR 111.1 / 707.2 — being a token is a property of the *object*,
-            // not of its characteristics, so it is read off `GameObject` rather
-            // than off the layer frame. A copy effect does not make a nontoken
-            // permanent a token (CR 707.2: copiable values do not include it).
-            ObjectFilter::Token => Ok(obj()?.is_token),
-            // CR 108.3 / 400.3 — ownership, not control. See the variant's doc:
-            // the two diverge the moment control moves, and a card always goes
-            // to its *owner's* graveyard.
-            ObjectFilter::ByOwner(player_ref) => {
-                use crate::types::effects::PlayerRef;
-                let owner = obj()?.owner;
-                Ok(match player_ref {
-                    PlayerRef::You => owner == you,
-                    PlayerRef::Opponent => owner != you,
-                    // Tautological here, and forced by the signature: this function takes
-                    // `you` and no source id, so `Owner` can only mean the tested object's own
-                    // owner, which the `ByController` arm above already reads it as.
-                    // `compute.rs` resolves the same `PlayerRef::Owner` against the *source's*
-                    // owner, because a `FilterPlayers` has the source; the disagreement is
-                    // recorded in `codebase-state.md`, since no card reads either spelling yet.
-                    PlayerRef::Owner => true,
-                    PlayerRef::Player(pid) => owner == *pid,
-                })
-            }
-            // "Each other" is relative to an effect's source: an affected set has
-            // one (Palisade Giant), a selection does not, so it is refused there
-            // rather than read as `true`. Off the ids, as in `compute`: no layer
-            // makes an object other than itself.
-            ObjectFilter::NotSource => match identity.source {
-                Some(source) => Ok(id != source),
-                None => Err(FilterRefusal::NoSource(id)),
-            },
-            // CR 601.2c's "another target", off the ids as `NotSource` is. An
-            // instance that announced nothing (an "up to" taken at zero, CR 115.6)
-            // excludes nothing; one the walk never reached is refused below.
-            ObjectFilter::OtherThanInstance(ix) => {
-                if *ix >= identity.earlier_targets.len() {
-                    return Err(FilterRefusal::InstanceNotAnnounced { object: id, instance: *ix });
-                }
-                Ok(!identity.earlier_targets.instance_names(*ix, ResolvedTarget::Object(id)))
-            }
-            ObjectFilter::PowerLE(max_power) => {
-                frame()?.power.map(|p| p <= *max_power).ok_or(FilterRefusal::NoPower(id))
-            }
-            // Both short-circuit: an arm that has decided makes the other's
-            // answer irrelevant, and asking it anyway can only turn an answer
-            // into a refusal, "a creature with power 2 or less" asked of a land.
-            ObjectFilter::And(a, b) => {
-                if !self.object_matches_filter_with(id, a, you, identity, frame)? {
-                    return Ok(false);
-                }
-                self.object_matches_filter_with(id, b, you, identity, frame)
-            }
-            ObjectFilter::Or(a, b) => {
-                if self.object_matches_filter_with(id, a, you, identity, frame)? {
-                    return Ok(true);
-                }
-                self.object_matches_filter_with(id, b, you, identity, frame)
-            }
-            ObjectFilter::Not(inner) => {
-                let matches = self.object_matches_filter_with(id, inner, you, identity, frame)?;
-                Ok(!matches)
-            }
-        }
+        self.object_matches_filter_for(id, filter, &mut TextReferents::of_effect(self, you, source), chars)
     }
 
     /// CR 608.2b, asked of every instance at once as the spell or ability

@@ -219,22 +219,25 @@ The printed legs are written by `register_static_effects`
 registry on every change. → `copy-effects-architecture.md` §4.7,
 `triggers-architecture.md` §4.2.
 
-### 2.4 The two `object_matches_filter`s, and the accessor pair
+### 2.4 The one `ObjectFilter` table, and the accessor pair
 
-- **Inside the walk**: `object_matches_filter` `engine/layers/compute.rs:671`
-  asks whether a continuous effect applies to a member, off a partly applied
-  frame, with "you" resolved through the effect's source (`FilterPlayers`
-  `engine/layers/compute.rs:456`).
-- **Outside it**: `GameState::object_matches_filter` `engine/targeting.rs:633`
-  asks whether an object is a legal selection, or inside a replacement's or a
-  restriction's `ObjectSet`, with "you" passed in. Its variants
-  `object_matches_filter_for_instance` `engine/targeting.rs:661` (CR 601.2c's
-  "another target"), `object_matches_filter_of_source`
-  `engine/targeting.rs:694` (`NotSource`; `set_affects`' door) and
-  `object_matches_filter_in_frame` `engine/targeting.rs:718` (a CR 614.12
-  frame) share one leaf table, `object_matches_filter_with`
-  `engine/targeting.rs:740`. The two must agree: "enchant creature you control"
-  means one thing to CR 704.5n and to a static ability.
+- **One table**: `answer` `engine/object_filter.rs:186` answers each leaf for
+  one object, over a frame its asker supplies and the asker's
+  `FilterReferents` `engine/object_filter.rs:25`: what "you", "this", "its
+  owner" and the targets announced so far mean where the filter is asked.
+  Whether a `PlayerRef` names a player is `player_ref_names`
+  `engine/object_filter.rs:257`, for the table's leaves, a trigger's "whose"
+  and a `SourceFilter`. → `layers-architecture.md` §3.4.
+- **Inside the walk**: `object_matches_filter` `engine/layers/compute.rs:791`
+  asks it of a member, off a partly applied frame, with "you" resolved on
+  first use through the effect's source (`FilterPlayers`
+  `engine/layers/compute.rs:565`).
+- **Outside it**: `GameState::object_matches_filter_for`
+  `engine/targeting.rs:652` asks it for a legal selection, a replacement's or a
+  restriction's `ObjectSet` and pattern, a trigger's subject or a cost, with
+  "you" passed in. Its variants `object_matches_filter_for_instance` (CR
+  601.2c's "another target") and `object_matches_filter_of_source` (an
+  effect's `NotSource` and "its owner"; `set_affects`' door) supply the words.
 - **The accessor pair**: every concrete-state read the walk makes goes through
   `Board::entity` `engine/layers/board.rs:342` (the entity: controller, CR
   302.6's clock, counters) or `rows_in_layer` `engine/layers/board.rs:904`

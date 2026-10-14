@@ -24,6 +24,7 @@ use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::object_filter::{matched, player_ref_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
@@ -199,6 +200,26 @@ pub(super) struct TriggerReferents<'a> {
     /// CR 603.7c's "that token": the objects a delayed trigger refers to;
     /// none for an object's own ability.
     pub(super) referred: &'a [RememberedObject],
+}
+
+/// A trigger's text names no instance of "target" for "another target" to
+/// be other than.
+impl FilterReferents for TriggerReferents<'_> {
+    fn you(&mut self) -> PlayerId {
+        self.controller
+    }
+
+    fn source(&self) -> Option<ObjectId> {
+        Some(self.this.id())
+    }
+
+    fn source_owner(&mut self) -> Option<PlayerId> {
+        Some(self.owner)
+    }
+
+    fn earlier_targets(&self) -> EarlierTargets<'_> {
+        EarlierTargets::None
+    }
 }
 
 /// What "this object" is to an arm.
@@ -1284,7 +1305,7 @@ impl GameState {
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, referents.controller))
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
@@ -1472,9 +1493,9 @@ impl GameState {
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
-            (TriggerSubject::Filter(filter), Some(id)) => crate::engine::targeting::matched(
-                self.object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame),
-            ),
+            (TriggerSubject::Filter(filter), Some(id)) => {
+                matched(self.object_matches_filter_for(id, filter, &mut { *referents }, frame))
+            }
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
                 None,
@@ -1485,12 +1506,7 @@ impl GameState {
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
     fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
-        match who {
-            PlayerRef::You => player == referents.controller,
-            PlayerRef::Opponent => player != referents.controller,
-            PlayerRef::Owner => player == referents.owner,
-            PlayerRef::Player(pid) => player == *pid,
-        }
+        player_ref_names(who, player, &mut { *referents }) == Some(true)
     }
 
     /// The zone the permanent at `id` entered from, off its own zone change

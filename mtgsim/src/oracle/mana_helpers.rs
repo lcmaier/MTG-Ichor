@@ -449,7 +449,7 @@ fn every_instance_has_a_choice(
             let n = *n as usize;
             let view = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
-                crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
+                crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
             );
             // **One pass, not two**: when a later clause reads this one, a bounded
             // enumeration answers the check and the feed-forward together. Any `n`

@@ -22,6 +22,7 @@ use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResu
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
+use crate::engine::object_filter::{self, matched, EarlierTargets, FilterReferents};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
 #[cfg(debug_assertions)]
@@ -671,6 +672,26 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
     }
 }
 
+/// A continuous effect's affected set is no announcement, so there are no
+/// earlier targets for "another target" to be other than.
+impl FilterReferents for FilterPlayers<'_, '_> {
+    fn you(&mut self) -> PlayerId {
+        FilterPlayers::you(self)
+    }
+
+    fn source(&self) -> Option<ObjectId> {
+        Some(self.source)
+    }
+
+    fn source_owner(&mut self) -> Option<PlayerId> {
+        Some(self.owner())
+    }
+
+    fn earlier_targets(&self) -> EarlierTargets<'_> {
+        EarlierTargets::None
+    }
+}
+
 /// Resolve a Layer 2 `SetController`'s `PlayerRef` to the player who ends up
 /// controlling `object_id` (CR 613.1b).
 ///
@@ -759,11 +780,9 @@ fn resolve_set_controller(
     }
 }
 
-/// Check if a permanent's current characteristics match a filter.
-///
-/// `players` resolves the `PlayerRef` in a `ByController` node. Controller is
-/// matched here rather than beside the filter, so the two halves of one
-/// question live in one place and both are re-asked during the walk.
+/// Check if a permanent's current characteristics match a filter: the one
+/// table (`engine::object_filter`), over the frame the walk holds and the
+/// players `players` resolves on first use.
 ///
 /// `id` is the object `chars` describes. Almost every leaf answers from the
 /// frame alone — that is what "post-layers" means — but CR 707.2 excludes
@@ -775,66 +794,8 @@ pub(super) fn object_matches_filter(
     chars: &EffectiveCharacteristics,
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
-    use crate::types::effects::{ObjectFilter, PlayerRef};
-    match filter {
-        ObjectFilter::All => true,
-        ObjectFilter::ByType(t) => chars.types.contains(t),
-        ObjectFilter::BySubtype(s) => chars.subtypes.contains(s),
-        ObjectFilter::BySupertype(s) => chars.supertypes.contains(s),
-        ObjectFilter::ByColor(c) => chars.colors.contains(c),
-        // `chars.controller` is the effective controller, as of Layer 2. Every
-        // variant resolves; `Opponent` is a predicate, not an id, since CR 102.3
-        // makes "your opponents" a set above two players (CR 102.2).
-        ObjectFilter::ByController(player_ref) => match player_ref {
-            PlayerRef::You => chars.controller == players.you(),
-            PlayerRef::Opponent => chars.controller != players.you(),
-            PlayerRef::Owner => chars.controller == players.owner(),
-            PlayerRef::Player(pid) => chars.controller == *pid,
-        },
-        // Read off the object, not the frame: CR 707.2 excludes tokenness from
-        // copiable values, so no layer can change the answer and there is
-        // nothing on `chars` to consult. `players.game` is the same board the
-        // frame was computed against.
-        ObjectFilter::Token => {
-            players.game.objects.get(&id).map(|obj| obj.is_token).unwrap_or(false)
-        }
-        // Off the object for the same reason as `Token`: CR 108.3 ownership is
-        // fixed when the game starts and no layer touches it. An object with no
-        // entry cannot match anybody's ownership question.
-        ObjectFilter::ByOwner(player_ref) => {
-            let Some(owner) = players.game.objects.get(&id).map(|obj| obj.owner) else {
-                return false;
-            };
-            match player_ref {
-                PlayerRef::You => owner == players.you(),
-                PlayerRef::Opponent => owner != players.you(),
-                PlayerRef::Owner => owner == players.owner(),
-                PlayerRef::Player(pid) => owner == *pid,
-            }
-        }
-        ObjectFilter::PowerLE(n) => {
-            chars.power.map(|p| p <= *n).unwrap_or(false)
-        }
-        // Identity, off the ids: Opalescence does not animate itself, and no
-        // layer can make an object something other than itself.
-        ObjectFilter::NotSource => id != players.source,
-        // CR 601.2c's "another target" is a question about a *spell's
-        // announcement*, and a continuous effect's affected set is not one:
-        // there is no instance list on this side to be other than. Refused
-        // rather than answered `true`, which would silently widen a row —
-        // `targeting::object_matches_filter_for_instance` is the asker that
-        // holds the instances.
-        ObjectFilter::OtherThanInstance(_) => false,
-        ObjectFilter::And(a, b) => {
-            object_matches_filter(a, id, chars, players)
-                && object_matches_filter(b, id, chars, players)
-        }
-        ObjectFilter::Or(a, b) => {
-            object_matches_filter(a, id, chars, players)
-                || object_matches_filter(b, id, chars, players)
-        }
-        ObjectFilter::Not(inner) => !object_matches_filter(inner, id, chars, players),
-    }
+    let game = players.game;
+    matched(object_filter::answer(game, filter, id, &|| Ok(chars), players))
 }
 
 /// Resolve one side of a P/T modification against the frame so far.

@@ -42,7 +42,7 @@ use crate::engine::layers::condition::settled_holds;
 use crate::engine::replacement::{applies_to_mana_production, replacement_of};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
-use crate::engine::targeting::matched;
+use crate::engine::object_filter::matched;
 use crate::engine::triggers::is_mana_ability;
 use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::{AbilityDef, AbilityType};
