@@ -7,6 +7,10 @@
 //! [`FilterReferents`] what its text's words for itself mean where it is asked.
 //! What the askers differ in is what they hold, never how a leaf is answered
 //! (`layers-architecture.md` §3.4, "One leaf table for both askers").
+//!
+//! A leaf may have no answer for an object — it is gone, or has no power —
+//! and that refusal stays inside this module: `Not` and the connectives need
+//! it, and every asker outside wants a yes or a no.
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
@@ -123,10 +127,10 @@ impl EarlierTargets<'_> {
     }
 }
 
-/// Why a filter could not say whether an object matches it: every refusal the
-/// leaf table can make, so a caller reading one knows what it is reading.
+/// Why a leaf could not say whether an object matches it: every refusal the
+/// table can make.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterRefusal {
+enum FilterRefusal {
     /// The object is gone from the store, and no frame answers the leaf: an
     /// object's owner or whether it is a token, which last known information
     /// does not carry until TR-4a (`triggers-architecture.md` §3.11), or any
@@ -147,7 +151,7 @@ impl FilterRefusal {
     /// pass what it knows. Not a gone object, which is the rules' "no" until
     /// last known information answers it, nor an object with no power, of
     /// which CR 208.3 makes "power N or less" and its negation both false.
-    pub fn is_malformed_question(self) -> bool {
+    fn is_malformed_question(self) -> bool {
         match self {
             FilterRefusal::ObjectGone(_) | FilterRefusal::NoPower(_) => false,
             FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } => true,
@@ -174,17 +178,21 @@ impl std::fmt::Display for FilterRefusal {
     }
 }
 
-impl From<FilterRefusal> for String {
-    fn from(refusal: FilterRefusal) -> String {
-        refusal.to_string()
-    }
-}
-
-/// A filter's answer, a refusal read as no match. A malformed question is
-/// loud in a debug build and `cargo test`, since its card would otherwise
-/// silently do nothing (`codebase-state.md` item 103).
-pub(crate) fn matched(answer: Result<bool, FilterRefusal>) -> bool {
-    match answer {
+/// Does `id` match `filter`, over a frame `frame` supplies on demand (`None`
+/// for an object with none) and the words `referents` gives its text?
+///
+/// A refusal reads as no. A malformed question — a leaf the card wrote where
+/// the asker cannot answer it — is loud in a debug build and `cargo test`,
+/// since its card would otherwise silently do nothing (`codebase-state.md`
+/// item 103).
+pub(crate) fn evaluate<'f>(
+    game: &GameState,
+    filter: &ObjectFilter,
+    id: ObjectId,
+    frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
+    referents: &mut impl FilterReferents,
+) -> bool {
+    match answer_or_refuse(game, filter, id, frame, referents) {
         Ok(matches) => matches,
         Err(refusal) => {
             debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
@@ -193,30 +201,29 @@ pub(crate) fn matched(answer: Result<bool, FilterRefusal>) -> bool {
     }
 }
 
-/// Does `id` match `filter`, over a frame `frame` supplies on demand and the
-/// words `referents` gives its text?
-///
-/// A refusal is a leaf with no truth value. `Not` keeps it, and `And` and `Or`
-/// are Kleene's: an arm that decides decides on either side, so a filter's
-/// answer does not depend on the order its arms were written in.
-pub(crate) fn evaluate<'f>(
+/// [`evaluate`]'s three values: yes, no, or no answer. A refusal is a leaf with
+/// no truth value. `Not` keeps it, and `And` and `Or` are Kleene's: an arm
+/// that decides decides on either side, so a filter's answer does not depend
+/// on the order its arms were written in.
+fn answer_or_refuse<'f>(
     game: &GameState,
     filter: &ObjectFilter,
     id: ObjectId,
-    frame: &impl Fn() -> Result<&'f EffectiveCharacteristics, FilterRefusal>,
+    frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
     referents: &mut impl FilterReferents,
 ) -> Result<bool, FilterRefusal> {
+    let chars = || frame().ok_or(FilterRefusal::ObjectGone(id));
     // Read only by the leaves no frame answers: a frame may stand for an
     // object the store has lost (CR 608.2h).
     let object = || game.objects.get(&id).ok_or(FilterRefusal::ObjectGone(id));
     match filter {
         ObjectFilter::All => Ok(true),
-        ObjectFilter::ByType(card_type) => Ok(frame()?.types.contains(card_type)),
-        ObjectFilter::BySubtype(subtype) => Ok(frame()?.subtypes.contains(subtype)),
-        ObjectFilter::BySupertype(supertype) => Ok(frame()?.supertypes.contains(supertype)),
-        ObjectFilter::ByColor(color) => Ok(frame()?.colors.contains(color)),
+        ObjectFilter::ByType(card_type) => Ok(chars()?.types.contains(card_type)),
+        ObjectFilter::BySubtype(subtype) => Ok(chars()?.subtypes.contains(subtype)),
+        ObjectFilter::BySupertype(supertype) => Ok(chars()?.supertypes.contains(supertype)),
+        ObjectFilter::ByColor(color) => Ok(chars()?.colors.contains(color)),
         ObjectFilter::ByController(who) => {
-            let controller = frame()?.controller;
+            let controller = chars()?.controller;
             player_ref_names(who, controller, referents).ok_or(FilterRefusal::NoSource(id))
         }
         // CR 111.1 / 707.2 — being a token is a property of the object, not of
@@ -229,7 +236,7 @@ pub(crate) fn evaluate<'f>(
             player_ref_names(who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
         ObjectFilter::PowerLE(max_power) => {
-            frame()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
+            chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),
@@ -243,22 +250,22 @@ pub(crate) fn evaluate<'f>(
             Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
         }
         ObjectFilter::And(a, b) => {
-            let left = evaluate(game, a, id, frame, referents);
+            let left = answer_or_refuse(game, a, id, frame, referents);
             if left == Ok(false) {
                 return left;
             }
-            let right = evaluate(game, b, id, frame, referents);
+            let right = answer_or_refuse(game, b, id, frame, referents);
             if right == Ok(false) || left.is_ok() { right } else { left }
         }
         ObjectFilter::Or(a, b) => {
-            let left = evaluate(game, a, id, frame, referents);
+            let left = answer_or_refuse(game, a, id, frame, referents);
             if left == Ok(true) {
                 return left;
             }
-            let right = evaluate(game, b, id, frame, referents);
+            let right = answer_or_refuse(game, b, id, frame, referents);
             if right == Ok(true) || left.is_ok() { right } else { left }
         }
-        ObjectFilter::Not(inner) => evaluate(game, inner, id, frame, referents).map(|matches| !matches),
+        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, referents).map(|matches| !matches),
     }
 }
 

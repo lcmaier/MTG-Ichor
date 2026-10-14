@@ -9204,11 +9204,12 @@ ones on the last-known-information and zone-change surface are items 176 and
 245. **~~Two `ObjectFilter` leaf tables answer differently where one refuses a
      leaf.~~ — ✅ CLOSED 2026-10-14 (PR #250).** — archived.
      Done: one table over each asker's `FilterReferents`
-     (`layers-architecture.md` §3.4) and one `PlayerRef` predicate. Five
-     answers moved, on boards no registered card reaches: a powerless object
-     under `Not` (CR 208.3), `PowerLE` of one as the rules' no, Kleene's
-     `Or`, `Owner` as the source's owner, and `NotSource` where an asker now
-     passes its source.
+     (`layers-architecture.md` §3.4) and one `PlayerRef` predicate, every
+     entry answering yes or no. Six answers moved, on boards no registered
+     card reaches: a powerless object under `Not` (CR 208.3), `PowerLE` of
+     one as the rules' no, Kleene's `Or`, `Owner` as the source's owner,
+     `NotSource` where an asker now passes its source, and an entry copy's
+     condition with no answer.
      **Reachability (2026-10-14):** closed — PR #250.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 245".
 

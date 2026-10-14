@@ -221,19 +221,19 @@ registry on every change. → `copy-effects-architecture.md` §4.7,
 
 ### 2.4 The one `ObjectFilter` table, and the accessor pair
 
-- **One table**: `evaluate` `engine/object_filter.rs:202` answers each leaf for
+- **One table**: `evaluate` `engine/object_filter.rs:188` answers each leaf for
   one object, over a frame its asker supplies and the asker's
-  `FilterReferents` `engine/object_filter.rs:25`: what "you", "this", "its
+  `FilterReferents` `engine/object_filter.rs:29`: what "you", "this", "its
   owner" and the targets announced so far mean where the filter is asked.
   Whether a `PlayerRef` names a player is `player_ref_names`
-  `engine/object_filter.rs:273`, for the table's leaves, a trigger's "whose"
+  `engine/object_filter.rs:280`, for the table's leaves, a trigger's "whose"
   and a `SourceFilter`. → `layers-architecture.md` §3.4.
 - **Inside the walk**: `object_matches_filter` `engine/layers/compute.rs:791`
   asks it of a member, off a partly applied frame, with "you" resolved on
   first use through the effect's source (`FilterPlayers`
   `engine/layers/compute.rs:565`).
 - **Outside it**: `GameState::object_matches_filter`
-  `engine/targeting.rs:652` asks it for a legal selection, a replacement's or a
+  `engine/targeting.rs:653` asks it for a legal selection, a replacement's or a
   restriction's `ObjectSet` and pattern, a trigger's subject or a cost, with
   "you" passed in. Its variants `object_matches_filter_for_instance` (CR
   601.2c's "another target") and `object_matches_filter_of_source` (an

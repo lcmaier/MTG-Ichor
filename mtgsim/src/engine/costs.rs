@@ -271,7 +271,10 @@ impl GameState {
     ) -> Vec<ObjectId> {
         crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
-            .filter(|&id| self.matches_filter(id, filter, player_id, source))
+            .filter(|&id| match source {
+                Some(source) => self.object_matches_filter_of_source(id, filter, player_id, source, None),
+                None => self.object_matches_filter_for_instance(id, filter, player_id, crate::engine::targeting::FilterIdentity::NONE),
+            })
             .collect()
     }
 

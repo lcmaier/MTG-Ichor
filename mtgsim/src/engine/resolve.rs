@@ -2263,7 +2263,7 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        self.matches_filter(id, filter, ctx.controller, Some(ctx.effect_source()))
+        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved

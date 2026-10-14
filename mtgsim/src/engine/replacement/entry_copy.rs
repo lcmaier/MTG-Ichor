@@ -139,14 +139,13 @@ impl ExceptionConditions<'_> {
         let Some(chars) = frame.frame_of(self.object) else {
             return Ok(false);
         };
-        self.game.object_matches_filter_of_source(
+        Ok(self.game.object_matches_filter_of_source(
             self.object,
             filter,
             self.chosen.controller,
             self.chosen.source,
             Some(chars),
-        )
-        .map_err(String::from)
+        ))
     }
 
     /// The copy's values, and what its 707.9e exceptions add to the entry,

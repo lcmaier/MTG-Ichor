@@ -22,7 +22,7 @@ use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResu
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
-use crate::engine::object_filter::{self, matched, EarlierTargets, FilterReferents};
+use crate::engine::object_filter::{self, EarlierTargets, FilterReferents};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
 #[cfg(debug_assertions)]
@@ -795,7 +795,7 @@ pub(super) fn object_matches_filter(
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
     let game = players.game;
-    matched(object_filter::evaluate(game, filter, id, &|| Ok(chars), players))
+    object_filter::evaluate(game, filter, id, &|| Some(chars), players)
 }
 
 /// Resolve one side of a P/T modification against the frame so far.

@@ -5892,10 +5892,14 @@ Closed by A6m's second PR, its design paragraph reviewed first
 for a selection and an effect's set; `TriggerReferents` for a trigger.
 `player_ref_names` is the one `PlayerRef` predicate, asked by both
 `ByController` and `ByOwner`, by `player_ref_is` and by `SourceFilter::matches`.
-`FilterRefusal`, `EarlierTargets` and `matched` moved with the table, and the
-two selection wrappers left without a caller went.
+`FilterRefusal` and `EarlierTargets` moved with the table, the refusal private
+to it: at its edge a refusal reads as no, a malformed one loud in a debug
+build, and every `GameState` entry answers yes or no (at #250's review, since
+no caller outside wanted a refusal). The bool wrapper `matches_for_text_of`
+folded into `object_matches_filter_of_source`, and the two selection wrappers
+left without a caller went.
 
-Five answers moved, each on a board no registered card reaches, and each board
+Six answers moved, each on a board no registered card reaches, and each board
 failed on the tree before its fix (`phase_a6m_integration_test.rs`):
 - CR 208.3: a land has no power, so `Not(PowerLE(3))` no longer puts one in a
   static effect's set; the walk had answered `PowerLE` false and negated it.
@@ -5909,6 +5913,8 @@ failed on the tree before its fix (`phase_a6m_integration_test.rs`):
 - The askers that held a source and passed none — a replacement pattern's
   object and damage-source filters, an auxiliary move's, a cost
   modification's — pass it, so their `NotSource` answers.
+- An entry copy's condition a copy has no answer to is no: an exception
+  reading power, on a copy of an artifact, had failed the whole entry.
 
 *Original entry:*
 

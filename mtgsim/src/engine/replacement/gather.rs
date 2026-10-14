@@ -51,7 +51,7 @@ use crate::types::card_types::CardTypes;
 use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
-use crate::engine::object_filter::{matched, TextReferents};
+use crate::engine::object_filter::TextReferents;
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -750,13 +750,7 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            matched(game.object_matches_filter_of_source(
-                id,
-                filter,
-                controller,
-                source,
-                frame.and_then(|f| f.frame_of(id)),
-            ))
+            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)))
         }
     }
 }
@@ -799,7 +793,7 @@ pub(crate) fn pattern_watches(
                     .as_ref()
                     .map(|p| {
                         p.object.is_none_or(|chosen| Some(chosen) == dealing.existence(game))
-                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you, source))).unwrap_or(true)
+                            && p.filter.as_ref().map(|f| dealing.matches(game, f, you, source)).unwrap_or(true)
                     })
                     .unwrap_or(true)
         }
@@ -809,10 +803,7 @@ pub(crate) fn pattern_watches(
             GameAction::ZoneChange { object: moving, from, to, act },
         ) => {
             change.matches(Some(*from), *to, Some(*act))
-                && object
-                    .as_ref()
-                    .map(|f| matched(game.object_matches_filter_of_source(*moving, f, you, source, None)))
-                    .unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
         }
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
@@ -825,10 +816,7 @@ pub(crate) fn pattern_watches(
             GameAction::EnterBattlefield { object: moving, from, act, .. },
         ) => {
             change.matches(*from, Zone::Battlefield, *act)
-                && object
-                    .as_ref()
-                    .map(|f| matched(game.object_matches_filter_of_source(*moving, f, you, source, None)))
-                    .unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
         }
 
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
@@ -939,7 +927,7 @@ pub(crate) fn pattern_watches(
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
                 && filter
                     .as_ref()
-                    .map(|f| matched(game.object_matches_filter_of_source(*producer, f, you, source, None)))
+                    .map(|f| game.object_matches_filter_of_source(*producer, f, you, source, None))
                     .unwrap_or(true)
         }
 

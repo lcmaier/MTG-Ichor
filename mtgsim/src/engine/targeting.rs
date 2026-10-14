@@ -1,6 +1,6 @@
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
-use crate::engine::object_filter::{self, matched, EarlierTargets, FilterReferents, FilterRefusal, TextReferents};
+use crate::engine::object_filter::{self, EarlierTargets, FilterReferents, TextReferents};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
@@ -591,7 +591,7 @@ impl GameState {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                if !self.object_matches_filter_for_instance(*id, filter, you, identity)? {
+                if !self.object_matches_filter_for_instance(*id, filter, you, identity) {
                     return Err(format!(
                         "Target {} does not match permanent filter {:?}", id, filter
                     ));
@@ -648,28 +648,24 @@ impl GameState {
     /// which answers for a token the store no longer holds. Otherwise the
     /// object must exist, and its frame is walked once, only if a leaf reads a
     /// characteristic: `All`, `Token` and `ByOwner` never do, so Rest in Peace's
-    /// "cards" stays free on every graveyard-bound zone change.
+    /// "cards" stays free on every graveyard-bound zone change. A gone object
+    /// matches nothing, until last known information answers for it.
     pub(crate) fn object_matches_filter(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
         referents: &mut impl FilterReferents,
         chars: Option<&EffectiveCharacteristics>,
-    ) -> Result<bool, FilterRefusal> {
+    ) -> bool {
         if let Some(chars) = chars {
-            return object_filter::evaluate(self, filter, id, &|| Ok(chars), referents);
+            return object_filter::evaluate(self, filter, id, &|| Some(chars), referents);
         }
         if !self.objects.contains_key(&id) {
-            return Err(FilterRefusal::ObjectGone(id));
+            return false;
         }
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        let frame = || {
-            frame
-                .get_or_init(|| compute_characteristics(self, id))
-                .as_deref()
-                .ok_or(FilterRefusal::ObjectGone(id))
-        };
+        let frame = || frame.get_or_init(|| compute_characteristics(self, id)).as_deref();
         object_filter::evaluate(self, filter, id, &frame, referents)
     }
 
@@ -692,35 +688,18 @@ impl GameState {
         filter: &ObjectFilter,
         you: PlayerId,
         identity: FilterIdentity<'_>,
-    ) -> Result<bool, FilterRefusal> {
+    ) -> bool {
         self.object_matches_filter(id, filter, &mut TextReferents { game: self, you, identity }, None)
     }
 
-    /// `filter` asked of `id` for the text of `this` (CR 113.7a's "this"):
-    /// the spell, or the object whose ability or cost it is, which "another"
-    /// is other than (`ObjectFilter::NotSource`). No instance of "target" is
-    /// announced, and a refusal reads as no (`matched`). A resolution's effect
-    /// asks it (`codebase-state.md` item 229), and so does a cost: "Sacrifice
-    /// another creature:" prints on 162 cards (Scryfall, 2026-10-10).
-    pub(crate) fn matches_filter(
-        &self,
-        id: ObjectId,
-        filter: &ObjectFilter,
-        you: PlayerId,
-        this: Option<ObjectId>,
-    ) -> bool {
-        let identity = match this {
-            Some(this) => FilterIdentity::for_text_of(this, EarlierTargets::None),
-            None => FilterIdentity::NONE,
-        };
-        matched(self.object_matches_filter_for_instance(id, filter, you, identity))
-    }
-
-    /// [`Self::object_matches_filter`] asked on behalf of an **effect**,
-    /// which has a source — so [`ObjectFilter::NotSource`] has one to exclude
-    /// and `Owner` one to name: a replacement's or restriction's affected set
-    /// and its pattern's filters, an auxiliary move's, a cost modification's.
-    /// Palisade Giant's "other permanents you control" is the printed customer.
+    /// [`Self::object_matches_filter`] asked for the text of `source` (CR
+    /// 113.7a's "this"), with no instance of "target" announced — so
+    /// [`ObjectFilter::NotSource`] has one to exclude and `Owner` one to name:
+    /// a replacement's or restriction's affected set and its pattern's filters,
+    /// an auxiliary move's, a cost modification's, a resolving effect's
+    /// (`codebase-state.md` item 229), and a cost's own: "Sacrifice another
+    /// creature:" prints on 162 cards (Scryfall, 2026-10-10). Palisade Giant's
+    /// "other permanents you control" is the printed customer for an effect.
     ///
     /// `chars` is the frame when the caller holds one, as
     /// [`Self::object_matches_filter`] takes it.
@@ -731,7 +710,7 @@ impl GameState {
         you: PlayerId,
         source: ObjectId,
         chars: Option<&EffectiveCharacteristics>,
-    ) -> Result<bool, FilterRefusal> {
+    ) -> bool {
         self.object_matches_filter(id, filter, &mut TextReferents::for_effect(self, you, source), chars)
     }
 

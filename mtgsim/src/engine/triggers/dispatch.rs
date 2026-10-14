@@ -25,7 +25,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::mana::triggered_mana_recipient;
-use crate::engine::object_filter::{matched, player_ref_names, EarlierTargets, FilterReferents};
+use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
@@ -1547,7 +1547,7 @@ impl GameState {
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
             (TriggerSubject::Filter(filter), Some(id)) => {
-                matched(self.object_matches_filter(id, filter, &mut { *referents }, frame))
+                self.object_matches_filter(id, filter, &mut { *referents }, frame)
             }
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,

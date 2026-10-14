@@ -11,25 +11,28 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{
-    get_effective_abilities, get_effective_colors, get_effective_controller, get_effective_power,
+    get_effective_abilities, get_effective_colors, get_effective_controller, get_effective_name, get_effective_power,
     get_effective_toughness, has_keyword, has_type,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, creature_with_ability, forest, place_bare, put_on_battlefield, put_on_battlefield_under,
-    set_attacking, setup_two_player_game, static_ability, vanilla_creature,
+    card_of_type, creature_with_ability, forest, place_bare, put_in_graveyard, put_on_battlefield,
+    put_on_battlefield_under, set_attacking, setup_two_player_game, static_ability, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -538,4 +541,49 @@ fn test_a_pattern_filter_knows_its_effects_source() {
 
     assert_eq!(sacrifice(&mut game, bear), Zone::Exile);
     assert_eq!(sacrifice(&mut game, watcher), Zone::Graveyard, "not another creature");
+}
+
+/// **Fixture.** "You may have this enter as a copy of an artifact you
+/// control, except it enters with an additional +1/+1 counter on it if it has
+/// power 2 or less": Spark Double's shape (CR 707.9f) with a condition no
+/// printed copier has, which a noncreature copy has no power to answer (CR
+/// 208.3).
+fn small_artifact_copier() -> Arc<CardData> {
+    let artifact_you_control = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    );
+    let counter = CopyException::Additionally(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1));
+    let copy = Rewrite::EnterAsCopy(EntryCopyTemplate {
+        donor: CopyDonor::Chosen(SelectionFilter::Permanent(artifact_you_control)),
+        except: vec![CopyException::If(ObjectFilter::PowerLE(2), vec![counter])],
+    });
+    let def = ReplacementDef {
+        optional: true,
+        ..ReplacementDef::new(EventPattern::EnterBattlefield { cast: None }, ObjectSet::SourceOnly, copy)
+    };
+    CardDataBuilder::new("A6m Small Copier")
+        .card_type(CardType::Artifact)
+        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .build()
+}
+
+/// A copy exception's condition is the rules' question about the copy as it
+/// enters, so one it has no answer to is no, not an error: copying an
+/// artifact, the exception's "power 2 or less" has no power to read, and the
+/// entry failed.
+// COVERS-PARTIAL: ATOM-208.3-001
+#[test]
+fn test_an_entry_copy_condition_a_noncreature_cannot_answer_is_no() {
+    let mut game = setup_two_player_game();
+    let relic = put_on_battlefield(&mut game, card_of_type("A6m Relic", CardType::Artifact), 0);
+    let copier = put_in_graveyard(&mut game, small_artifact_copier(), 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseCopySource { source: copier }, vec![ChoiceOption::Object(relic)]);
+
+    game.change_zone(copier, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty());
+    assert_eq!(get_effective_name(&game, copier), "A6m Relic");
+    assert_eq!(game.battlefield[&copier].counter_count(CounterType::PlusOnePlusOne), 0);
 }
