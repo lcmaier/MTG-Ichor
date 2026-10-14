@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::mem::discriminant;
 
-use crate::oracle::characteristics::get_effective_toughness;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
@@ -70,111 +69,6 @@ pub enum PriorityAction {
     ActivateAbility(ObjectId, AbilityId),
     /// Play a land from a zone it could be played from
     PlayLand(ObjectId),
-}
-
-
-
-
-/// Convenience: default damage assignment for an attacker blocked by multiple creatures.
-///
-/// Assigns lethal damage to each blocker in listed order, then puts all excess
-/// on the last living blocker. This is a common *strategic* choice, not a rules
-/// requirement — under 2025 rules (510.1c), the player may divide freely.
-/// Concrete `DecisionProvider` implementations call this explicitly — the trait
-/// itself has no default.
-pub fn default_damage_assignment(
-    game: &GameState,
-    blockers: &[ObjectId],
-    power: u64,
-) -> Vec<(ObjectId, u64)> {
-    let mut result = Vec::new();
-    let mut remaining = power;
-
-    let alive: Vec<ObjectId> = blockers.iter()
-        .copied()
-        .filter(|id| game.battlefield.contains_key(id))
-        .collect();
-
-    for (i, blocker_id) in alive.iter().enumerate() {
-        if remaining == 0 {
-            break;
-        }
-        let toughness = get_effective_toughness(game, *blocker_id).unwrap_or(0);
-        let damage_marked = game.battlefield.get(blocker_id)
-            .map(|e| e.damage_marked)
-            .unwrap_or(0);
-        let lethal = if toughness > damage_marked as i32 {
-            (toughness - damage_marked as i32) as u64
-        } else {
-            0
-        };
-
-        let is_last = i == alive.len() - 1;
-        let assign = if is_last {
-            // Last blocker gets all remaining damage
-            remaining
-        } else {
-            remaining.min(lethal)
-        };
-
-        if assign > 0 {
-            result.push((*blocker_id, assign));
-            remaining -= assign;
-        }
-    }
-
-    result
-}
-
-/// Default trample damage assignment: assign lethal to each blocker in order,
-/// then overflow to the defending player.
-///
-/// If `has_deathtouch` is true, lethal damage is 1 (rule 702.2c).
-/// Otherwise, lethal = toughness − damage_marked.
-pub fn default_trample_assignment(
-    game: &GameState,
-    blockers: &[ObjectId],
-    power: u64,
-    has_deathtouch: bool,
-) -> (Vec<(ObjectId, u64)>, u64) {
-    let mut result = Vec::new();
-    let mut remaining = power;
-
-    let alive: Vec<ObjectId> = blockers.iter()
-        .copied()
-        .filter(|id| game.battlefield.contains_key(id))
-        .collect();
-
-    for blocker_id in &alive {
-        if remaining == 0 {
-            break;
-        }
-        let lethal = if has_deathtouch {
-            let damage_marked = game.battlefield.get(blocker_id)
-                .map(|e| e.damage_marked)
-                .unwrap_or(0);
-            if damage_marked > 0 { 0 } else { 1 }
-        } else {
-            let toughness = get_effective_toughness(game, *blocker_id).unwrap_or(0);
-            let damage_marked = game.battlefield.get(blocker_id)
-                .map(|e| e.damage_marked)
-                .unwrap_or(0);
-            if toughness > damage_marked as i32 {
-                (toughness - damage_marked as i32) as u64
-            } else {
-                0
-            }
-        };
-
-        let assign = remaining.min(lethal);
-        if assign > 0 {
-            result.push((*blocker_id, assign));
-            remaining -= assign;
-        }
-    }
-
-    // Remaining damage tramples through to the defending player
-    (result, remaining)
 }
 
 // ===========================================================================

@@ -80,7 +80,7 @@ pub fn assign_combat_damage(
             } else if has_trample {
                 let mut trample = assign_trample_damage(
                     game, decisions, active_player, id,
-                    &attacking_info.blocked_by, &attacking_info.target, damage,
+                    &attacking_info.blocked_by, &attacking_info.target, damage, &assignments,
                 );
                 assignments.append(&mut trample);
             } else if attacking_info.blocked_by.len() == 1 {
@@ -618,6 +618,64 @@ mod tests {
         assert_eq!(to_blocker[0].amount, 1);
         assert_eq!(to_player.len(), 1);
         assert_eq!(to_player[0].amount, 3);
+    }
+
+    /// The damage `assignments` gives `target`, summed.
+    fn assigned_to(assignments: &[CombatDamageAssignment], target: DamageTarget) -> u64 {
+        assignments.iter().filter(|a| a.target == target).map(|a| a.amount).sum()
+    }
+
+    #[test]
+    fn test_a_deathtouch_trampler_owes_nothing_to_a_blocker_already_dealt_lethal_damage() {
+        // CR 702.19b counts the damage already marked, and CR 702.2c makes 1
+        // lethal from deathtouch, not owed: an indestructible blocker with
+        // lethal damage marked needs none, so all 4 may trample over.
+        let mut game = GameState::new(2, 20);
+        let trampler = place_creature_with_keywords(
+            &mut game, 0, 4, 4,
+            &[KeywordFlag::Trample, KeywordFlag::Deathtouch],
+        );
+        let blocker = place_creature_with_keywords(&mut game, 1, 2, 2, &[KeywordFlag::Indestructible]);
+        game.battlefield.get_mut(&blocker).unwrap().damage_marked = 2;
+        set_attacking(&mut game, trampler, 1);
+        set_blocked_by(&mut game, trampler, vec![blocker]);
+        set_blocking(&mut game, blocker, vec![trampler]);
+
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage { attacker_id: trampler, defending_target: DamageTarget::Player(1) },
+            vec![0, 4],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
+
+        assert_eq!(assigned_to(&assignments, DamageTarget::Player(1)), 4);
+        assert_eq!(assigned_to(&assignments, DamageTarget::Object(blocker)), 0);
+    }
+
+    #[test]
+    fn test_a_trampler_counts_the_damage_another_attacker_assigns_its_blocker_this_step() {
+        // CR 702.19b: "damage from other creatures that's being assigned during
+        // the same combat damage step". One blocker on two tramplers: the first
+        // owes it all 3, so the second owes it nothing.
+        let mut game = GameState::new(2, 20);
+        let first = place_creature_with_keywords(&mut game, 0, 3, 3, &[KeywordFlag::Trample]);
+        let second = place_creature_with_keywords(&mut game, 0, 3, 3, &[KeywordFlag::Trample]);
+        let blocker = place_creature_with_pt(&mut game, 1, 0, 3);
+        for attacker in [first, second] {
+            set_attacking(&mut game, attacker, 1);
+            set_blocked_by(&mut game, attacker, vec![blocker]);
+        }
+        set_blocking(&mut game, blocker, vec![first, second]);
+
+        let scripted = ScriptedDecisionProvider::new();
+        scripted.expect_allocation(
+            ChoiceKind::AssignTrampleDamage { attacker_id: second, defending_target: DamageTarget::Player(1) },
+            vec![0, 3],
+        );
+        let assignments = assign_combat_damage(&game, &scripted, 0, false);
+
+        assert_eq!(assigned_to(&assignments, DamageTarget::Object(blocker)), 3, "the first owes it lethal");
+        assert_eq!(assigned_to(&assignments, DamageTarget::Player(1)), 3, "the second tramples over");
     }
 
     #[test]
