@@ -14,7 +14,7 @@ use std::collections::HashSet;
 
 use crate::engine::combat::validation::{can_block, CombatError};
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
-use crate::engine::layers::{compute_characteristics, explain, AppliedBy, LayerStep, StepResult};
+use crate::engine::layers::{explain, AppliedBy, LayerStep, StepResult};
 use crate::engine::replacement::{auxiliary_zone, not_auxiliary, NotAuxiliary};
 use crate::state::game_state::NotAnOpponent;
 use crate::events::cause::{EventCause, GeneratedBy};
@@ -816,12 +816,11 @@ fn step_words(game: &GameState, step: &LayerStep) -> Option<&'static str> {
 /// took away still made the effect it had begun (CR 613.6), as Humility's own
 /// does by layer 7b.
 fn static_ability_words(game: &GameState, source: ObjectId, ability: AbilityId) -> Option<&'static str> {
-    let now = compute_characteristics(game, source)
-        .and_then(|frame| frame.abilities.iter().find(|a| a.id == ability).map(|a| a.rules_text.words));
+    let now = crate::oracle::characteristics::effective_ability(game, source, ability).map(|a| a.rules_text.words);
     // AS PRINTED: the ability's printed words, for a line no rule reads.
     now.or_else(|| {
         let card = &game.objects.get(&source)?.card_data;
-        card.abilities.iter().find(|a| a.id.definition() == ability.definition()).map(|a| a.rules_text.words)
+        crate::objects::card_data::printed_place(&card.abilities, ability).map(|place| card.abilities[place].rules_text.words)
     })
 }
 

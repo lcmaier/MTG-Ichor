@@ -445,10 +445,7 @@ impl ContinuousEffectRegistry {
     /// does not accumulate dead rows.
     pub fn remove_static_by_source(&mut self, source: ObjectId) -> Vec<Arc<ContinuousEffect>> {
         self.mutating(|rows| {
-            rows.retain(|row| {
-                !(row.source == source
-                    && matches!(row.origin, EffectOrigin::StaticAbility { .. }))
-            })
+            rows.retain(|row| !row.generated_by_a_static_ability_of(source))
         })
     }
 
@@ -460,10 +457,7 @@ impl ContinuousEffectRegistry {
     pub fn retime_static_rows(&mut self, source: ObjectId, timestamp: Timestamp) -> usize {
         self.mutating(|rows| {
             rows.update_rows(
-                |row| {
-                    let is_static = matches!(row.origin, EffectOrigin::StaticAbility { .. });
-                    row.source == source && is_static && row.timestamp != timestamp
-                },
+                |row| row.generated_by_a_static_ability_of(source) && row.timestamp != timestamp,
                 |row| row.timestamp = timestamp,
             )
         })

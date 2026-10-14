@@ -162,8 +162,7 @@ impl GameState {
         let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, dp) {
             Ok(targets) => targets,
             Err(_) => {
-                self.stack.retain(|&x| x != id);
-                self.remove_object(id);
+                self.ability_leaves_the_stack(id);
                 self.trace(|| trace_records::pending(self, &pending, None, Some("no_legal_choices"), &[]));
                 return Ok(false);
             }

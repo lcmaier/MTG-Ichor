@@ -713,9 +713,7 @@ pub fn cannot_pay(game: &GameState, player: PlayerId, source: ObjectId, reason: 
 /// The text of the ability with this id on the object's effective list, which
 /// is where the activation's options came from.
 fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
-    get_effective_abilities(game, id)
-        .iter()
-        .find(|def| def.id == ability)
+    crate::oracle::characteristics::effective_ability(game, id, ability)
         .map_or("an ability it no longer has", |def| def.rules_text.words)
 }
 

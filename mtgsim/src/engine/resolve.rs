@@ -13,7 +13,7 @@ use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    ReturnUnder, SelectionFilter, TargetCount,
+    SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -538,16 +538,7 @@ impl GameState {
                 // **One instruction per player, whatever `count` is** (CR 121.2a;
                 // Alms Collector's ruling counts the word "draw"), its performer
                 // doing the draws. Players draw in `players_in`'s APNAP order (CR 121.2c).
-                let players: Vec<PlayerId> = match recipient {
-                    EffectRecipient::EachOf(_) => targets
-                        .iter()
-                        .filter_map(|t| match t {
-                            ResolvedTarget::Player(pid) => Some(*pid),
-                            ResolvedTarget::Object(_) => None,
-                        })
-                        .collect(),
-                    _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
-                };
+                let players = self.each_player_acted_on(recipient, targets, ctx);
                 for player in players {
                     self.execute_action(
                         GameAction::DrawCards { player, n: count },
@@ -564,12 +555,10 @@ impl GameState {
             Primitive::Mill(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
-                let library = &self.get_player(player_id)?.library;
-                let batch: Vec<GameAction> = library
-                    .iter()
-                    .rev()
-                    .take(count)
-                    .map(|&object| GameAction::ZoneChange {
+                let batch: Vec<GameAction> = self
+                    .get_player(player_id)?
+                    .top_of_library(count)
+                    .map(|object| GameAction::ZoneChange {
                         object,
                         from: Zone::Library,
                         to: Zone::Graveyard,
@@ -590,12 +579,10 @@ impl GameState {
             Primitive::PutTopCardsIntoHand(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
-                let library = &self.get_player(player_id)?.library;
-                let batch: Vec<GameAction> = library
-                    .iter()
-                    .rev()
-                    .take(count)
-                    .map(|&object| GameAction::ZoneChange {
+                let batch: Vec<GameAction> = self
+                    .get_player(player_id)?
+                    .top_of_library(count)
+                    .map(|object| GameAction::ZoneChange {
                         object,
                         from: Zone::Library,
                         to: Zone::Hand,
@@ -664,16 +651,7 @@ impl GameState {
             // APNAP order `players_in` gave them.
             Primitive::LoseLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let players: Vec<PlayerId> = match recipient {
-                    EffectRecipient::EachOf(_) => targets
-                        .iter()
-                        .filter_map(|t| match t {
-                            ResolvedTarget::Player(pid) => Some(*pid),
-                            ResolvedTarget::Object(_) => None,
-                        })
-                        .collect(),
-                    _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
-                };
+                let players = self.each_player_acted_on(recipient, targets, ctx);
                 let batch = players
                     .into_iter()
                     .map(|player| GameAction::LoseLife { player, amount, damage_source: None })
@@ -800,7 +778,7 @@ impl GameState {
             // object, which CR 608.2n removes. X is CR 107.3n's. A reflexive one
             // (CR 603.12) asks about "that action", the walk's last.
             Primitive::CreateDelayedTrigger(template) => {
-                let resolving = self.resolving.as_ref().filter(|r| r.id == ctx.source);
+                let resolving = self.resolving_for(ctx);
                 let resolution =
                     resolving.map(|_| CreatingResolution { stamp: ctx.stamp(), that_action: walk.last_action });
                 let source = match ctx.ability_source {
@@ -916,22 +894,16 @@ impl GameState {
                 // removed from the stack. It does NOT go to any zone.
                 for target in targets {
                     if let ResolvedTarget::Object(id) = target
-                        && let Some(pos) = self.stack.iter().position(|s| s == id) {
-                        let removed_id = self.stack.remove(pos);
-                        let entry = self.take_stack_entry(removed_id);
-                        // Remove the object entirely — abilities on the
-                        // stack are not cards and have no destination zone.
-                        self.remove_object(removed_id);
-                        if let Some(entry) = entry
-                            && let Some(identity) = entry.ability_identity
-                        {
-                            let countered = crate::events::event::GameEvent::AbilityCountered {
-                                identity,
-                                controller: entry.controller,
-                                countered_by: ctx.source,
-                            };
-                            self.emit_event(countered, actx.cause)?;
-                        }
+                        && self.stack.contains(id)
+                        && let Some(entry) = self.ability_leaves_the_stack(*id)
+                        && let Some(identity) = entry.ability_identity
+                    {
+                        let countered = crate::events::event::GameEvent::AbilityCountered {
+                            identity,
+                            controller: entry.controller,
+                            countered_by: ctx.source,
+                        };
+                        self.emit_event(countered, actx.cause)?;
                     }
                 }
                 Ok(())
@@ -1623,10 +1595,7 @@ impl GameState {
                 let mut returns = Vec::new();
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
-                    let controller = match under {
-                        ReturnUnder::Owner => self.get_object(object)?.owner,
-                        ReturnUnder::You => ctx.controller,
-                    };
+                    let controller = self.return_controller(object, *under, ctx.controller)?;
                     returns.push(Return { object, to: Zone::Battlefield, controller, cause: actx.cause });
                 }
                 self.return_objects(&returns, &actx)
@@ -1775,28 +1744,12 @@ impl GameState {
         // *ordinary* static ability and treating it as one is the only right
         // answer (`CLAUDE.md`).
 
-        // Same two helpers `register_static_effects` uses, for the reason
+        // The lowering `register_static_effects` uses, for the reason
         // `static_primitive_rows`' doc gives: a granted "creatures you control
         // get +1/+1" must produce the row a printed one does. Assertions included —
         // a grant that lowers to nothing is exactly as inert and as invisible.
         let context = format!("granted ability {:?}", granted.id);
-        let atoms = GameState::static_ability_atoms(granted, &context);
-
-        for (primitive, recipient) in atoms {
-            let Some(affected) = GameState::static_object_set(recipient, &context) else {
-                continue;
-            };
-
-            let rows = GameState::static_primitive_rows(primitive);
-            if rows.is_empty() {
-                debug_assert!(
-                    false,
-                    "{} lowers to no layer rows; `static_primitive_rows` has no \
-                     arm for {:?}, so the grant registers nothing.",
-                    context, primitive
-                );
-                continue;
-            }
+        for (affected, rows) in GameState::static_ability_rows(granted, &context) {
             let timestamp =
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 
@@ -2005,9 +1958,8 @@ impl GameState {
             .and_then(|resolving| resolving.identity)
             .ok_or("\"except it has this ability\" on a resolution that is not an ability's")?;
         let source = identity.source.id;
-        let current = crate::oracle::characteristics::get_effective_abilities(self, source);
-        let this = match current.iter().find(|a| a.id == identity.ability) {
-            Some(def) => def.clone(),
+        let this = match crate::oracle::characteristics::effective_ability(self, source, identity.ability) {
+            Some(def) => (*def).clone(),
             None => {
                 let trigger = ctx.trigger.as_ref().ok_or_else(|| {
                     format!("{source}'s ability {} is gone and only a trigger carries its own def", identity.ability)
@@ -2016,7 +1968,8 @@ impl GameState {
                 // PRE-LAYER ZONE: the printed text, which a rebuilt def carries
                 // for the window and no rule reads.
                 let printed = self.objects.get(&source).and_then(|obj| {
-                    obj.card_data.abilities.iter().find(|a| a.id.definition() == identity.ability.definition()).map(|a| a.rules_text)
+                    crate::objects::card_data::printed_place(&obj.card_data.abilities, identity.ability)
+                        .map(|place| obj.card_data.abilities[place].rules_text)
                 });
                 crate::objects::card_data::AbilityDef {
                     id: identity.ability,
@@ -2386,9 +2339,7 @@ impl GameState {
             // its creator's (107.3n). A rider resolves no stack object, and has
             // none.
             AmountExpr::X => self
-                .resolving
-                .as_ref()
-                .filter(|resolving| resolving.id == _ctx.source)
+                .resolving_for(_ctx)
                 .and_then(|resolving| resolving.x_value)
                 .ok_or_else(|| format!("{} resolves with no X chosen for AmountExpr::X to read", _ctx.source)),
             AmountExpr::CountOf(_selector) => {
@@ -2647,6 +2598,11 @@ impl GameState {
         put
     }
 
+    /// The stack object resolving for `ctx`; a CR 615.5 rider resolves none.
+    fn resolving_for(&self, ctx: &ResolutionContext) -> Option<&crate::state::game_state::ResolvingObject> {
+        self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)
+    }
+
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,
     /// found by identity (CR 400.7), else the spell or replacement source itself
     /// while it is still where the effect found it. `None` is the object
@@ -2658,9 +2614,25 @@ impl GameState {
                 let id = ctx.source;
                 let here = self.battlefield.contains_key(&id)
                     || self.stack_entries.contains_key(&id)
-                    || self.resolving.as_ref().is_some_and(|r| r.id == id);
+                    || self.resolving_for(ctx).is_some();
                 here.then_some(id)
             }
+        }
+    }
+
+    /// The players a player verb acts on: each of an `EachOf` group, which
+    /// `players_in` put in the targets in APNAP order, or else the one the
+    /// recipient names.
+    fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ResolvedTarget], ctx: &ResolutionContext) -> Vec<PlayerId> {
+        match recipient {
+            EffectRecipient::EachOf(_) => targets
+                .iter()
+                .filter_map(|t| match t {
+                    ResolvedTarget::Player(pid) => Some(*pid),
+                    ResolvedTarget::Object(_) => None,
+                })
+                .collect(),
+            _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
         }
     }
 

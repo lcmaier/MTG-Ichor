@@ -824,8 +824,7 @@ impl IterationTrace {
     }
 
     fn record(self, game: &GameState, members: &[BatchMember]) -> Record {
-        let mut r = Record::new(RecordKind::ReplacementPipeline);
-        r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
+        let mut r = crate::engine::trace_records::in_the_open_batch(RecordKind::ReplacementPipeline, game);
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
         r.field_str("event", &self.event);
@@ -2297,7 +2296,7 @@ fn apply_rewrite(
                     // without it, and nothing applies to nothing.
                     if matched
                         && let Some(share) = mods.copy.as_mut().and_then(|copy| {
-                            copy.added.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by)
+                            copy.added.counters.iter_mut().find(|c| c.same_kind_and_putter(&row))
                         })
                     {
                         let without = row.n.saturating_sub(share.n);

@@ -557,7 +557,7 @@ impl<'g> Writer<'g> {
             let obj = state.find(source)?;
             // AS PRINTED: a count names its ability by its place on the
             // printed card, which is where the loader finds it again.
-            let place = obj.card_data.abilities.iter().position(|a| a.id.definition() == ability.definition());
+            let place = crate::objects::card_data::printed_place(&obj.card_data.abilities, ability);
             if place.is_none() || obj.zone != Zone::Battlefield {
                 writer.report("a \"this turn\" count of an ability not printed on a permanent on the battlefield");
             }

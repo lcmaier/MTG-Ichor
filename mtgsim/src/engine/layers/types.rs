@@ -305,6 +305,10 @@ impl ContinuousEffect {
     /// 611.2b). Any other resolution's row lasts as long as it stated (CR
     /// 611.2a), whatever becomes of the object that made it. One predicate,
     /// so the battlefield sweep and the look-back gate cannot disagree.
+    pub fn generated_by_a_static_ability_of(&self, source: ObjectId) -> bool {
+        self.source == source && matches!(self.origin, EffectOrigin::StaticAbility { .. })
+    }
+
     pub fn ends_with_its_source(&self) -> bool {
         matches!(self.origin, EffectOrigin::StaticAbility { .. }) || self.duration.ends_with_its_source()
     }

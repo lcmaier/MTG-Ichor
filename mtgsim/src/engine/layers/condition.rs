@@ -232,7 +232,7 @@ fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
 /// controller. `None` only when none is there — a static ability's source that
 /// no longer exists anywhere — where no "you" can be read and a leaf answers
 /// false.
-fn you_for(
+pub(super) fn you_for(
     game: &GameState,
     board: &Board<'_>,
     source: ObjectId,

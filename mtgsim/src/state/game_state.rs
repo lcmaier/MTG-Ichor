@@ -144,6 +144,14 @@ pub struct StackEntry {
     pub kept_lki: Vec<crate::types::triggers::Lki>,
 }
 
+impl StackEntry {
+    /// The object this entry's text calls "this" (CR 113.7a): an ability's
+    /// source, or the spell itself.
+    pub fn this_object(&self) -> ObjectId {
+        self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
+}
+
 /// The stack object currently resolving, and the things about it that do not
 /// survive resolution on their own. See [`GameState::resolving`].
 #[derive(Debug, Clone, PartialEq)]
@@ -1833,30 +1841,7 @@ impl GameState {
                 continue;
             }
 
-            let atoms = Self::static_ability_atoms(ability, card_name);
-
-            for (primitive, recipient) in atoms {
-                let Some(affected) = Self::static_object_set(recipient, card_name) else {
-                    continue;
-                };
-
-                // Map primitive → the layer rows it generates. A type-
-                // changing primitive produces several siblings; everything else
-                // produces one or none.
-                let rows = Self::static_primitive_rows(primitive);
-                if rows.is_empty() {
-                    debug_assert!(
-                        false,
-                        "static ability on {} lowers to no layer rows. \
-                         `static_primitive_rows` has no arm for {:?}, so this \
-                         ability is registered nowhere and the card does \
-                         nothing. Either the primitive belongs on a non-static \
-                         ability, or the lowering table needs an arm.",
-                        card_name, primitive
-                    );
-                    continue;
-                }
-
+            for (affected, rows) in Self::static_ability_rows(ability, card_name) {
                 // One timestamp for every row this atom generates: CR 613.6 makes them
                 // parts of one effect, and CR 613.7a fixes the value. `None` because a
                 // printed ability has no "effect that created" it; the clause-2 caller is
@@ -1946,23 +1931,7 @@ impl GameState {
 
             for ability in values.registrable_static_abilities() {
                 let context = format!("copied ability {:?} on {}", ability.id, values.name);
-                let atoms = Self::static_ability_atoms(ability, &context);
-
-                for (primitive, recipient) in atoms {
-                    let Some(affected_set) = Self::static_object_set(recipient, &context) else {
-                        continue;
-                    };
-                    let rows = Self::static_primitive_rows(primitive);
-                    if rows.is_empty() {
-                        debug_assert!(
-                            false,
-                            "{} lowers to no layer rows; `static_primitive_rows` has no \
-                             arm for {:?}, so the copied ability does nothing.",
-                            context, primitive
-                        );
-                        continue;
-                    }
-
+                for (affected_set, rows) in Self::static_ability_rows(ability, &context) {
                     // CR 613.7a clause 2 — the copy effect is "the effect that created the
                     // ability", so its timestamp is the second candidate
                     // (`static_effect_timestamp`).
@@ -1986,6 +1955,45 @@ impl GameState {
                 }
             }
         }
+    }
+
+    /// A static ability lowered to the rows it generates: for each atom, the
+    /// objects it affects and the `(layer, modification)` siblings CR 613.6
+    /// makes parts of one effect, which share a timestamp. The one lowering
+    /// every route registers through — printed, granted, copied, and the
+    /// entering look-ahead — so each asserts alike.
+    ///
+    /// An atom whose primitive has no arm in `static_primitive_rows` is loud
+    /// here, for the reason [`Self::static_ability_atoms`] gives: the ability
+    /// would be registered nowhere and the card would do nothing.
+    pub(crate) fn static_ability_rows(
+        ability: &crate::objects::card_data::AbilityDef,
+        context: &str,
+    ) -> Vec<(
+        crate::engine::layers::types::ObjectSet,
+        Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>,
+    )> {
+        let mut lowered = Vec::new();
+        for (primitive, recipient) in Self::static_ability_atoms(ability, context) {
+            let Some(affected) = Self::static_object_set(recipient, context) else {
+                continue;
+            };
+            let rows = Self::static_primitive_rows(primitive);
+            if rows.is_empty() {
+                debug_assert!(
+                    false,
+                    "static ability on {} lowers to no layer rows. \
+                     `static_primitive_rows` has no arm for {:?}, so this \
+                     ability is registered nowhere and does nothing. Either \
+                     the primitive belongs on a non-static ability, or the \
+                     lowering table needs an arm.",
+                    context, primitive
+                );
+                continue;
+            }
+            lowered.push((affected, rows));
+        }
+        lowered
     }
 
     /// Lower a static ability's body into the `(primitive, recipient)` atoms

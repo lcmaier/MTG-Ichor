@@ -607,12 +607,7 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         locked_you: Option<PlayerId>,
     ) -> Self {
         let owner = game.objects.get(&source).map(|obj| obj.owner);
-        let you = locked_you.or_else(|| {
-            board
-                .frame_of(game, source, layer_index)
-                .map(|frame| frame.controller)
-                .or(owner)
-        });
+        let you = super::condition::you_for(game, board, source, layer_index, locked_you);
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }
 

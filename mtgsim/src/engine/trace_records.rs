@@ -25,11 +25,17 @@ use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
 use crate::ui::decision::PriorityAction;
 
+/// A record of `kind`, its `batch` field naming the batch open now.
+pub(crate) fn in_the_open_batch(kind: RecordKind, game: &GameState) -> Record {
+    let mut r = Record::new(kind);
+    r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
+    r
+}
+
 /// `batch` — the proposals as they entered `execute_batch_inner`, and the
 /// subject groups CR 616.1 decides them in, in APNAP order.
 pub(crate) fn batch(game: &GameState, groups: &[SubjectGroup], inherited: usize) -> Record {
-    let mut r = Record::new(RecordKind::Batch);
-    r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
+    let mut r = in_the_open_batch(RecordKind::Batch, game);
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.field_u64("inherited", inherited as u64);
     let mut proposals: Vec<&BatchMember> = groups.iter().flat_map(|g| &g.members).collect();
@@ -58,8 +64,7 @@ pub(crate) fn batch(game: &GameState, groups: &[SubjectGroup], inherited: usize)
 /// its event as decided, or `null` for one CR 614.6 dropped. `decided` is
 /// rendered ahead of the perform loop, which consumes the decisions.
 pub(crate) fn batch_end(game: &GameState, decided: &[Option<String>], riders: usize) -> Record {
-    let mut r = Record::new(RecordKind::BatchEnd);
-    r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
+    let mut r = in_the_open_batch(RecordKind::BatchEnd, game);
     r.field_u64("depth", game.nesting.batch_depth as u64);
     r.key("members").begin_array();
     for (i, action) in decided.iter().enumerate() {

@@ -180,7 +180,6 @@ impl GameState {
     /// first turn (CR 903.6) — is this door's next production caller.
     pub(crate) fn create_in_zone(&mut self, obj: GameObject) -> Result<ObjectId, String> {
         let zone = obj.zone;
-        let owner = obj.owner;
         if zone == Zone::Battlefield {
             return Err(format!(
                 "creating {} on the battlefield is an entry, not an appearance",
@@ -189,10 +188,21 @@ impl GameState {
         }
         let id = self.add_object(obj);
         self.add_to_zone_collection(id, zone)?;
-        // CR 108.4 — a card off the battlefield has no controller, so "you" is
-        // its owner, as `arrive_in_zone` reads it.
-        self.register_static_effects(id, owner, zone, self.turn_number);
+        self.register_off_the_battlefield(id, zone)?;
         Ok(id)
+    }
+
+    /// CR 113.6 — a static ability that *functions* in the zone `id` has just
+    /// appeared in registers its rows now (`layers-architecture.md` §13d
+    /// decision 3); Wonder arriving in a graveyard is the card. Off the
+    /// battlefield, whose entry registers through its own performer: CR 108.4
+    /// gives a card there no controller, so its owner is who "you" means.
+    fn register_off_the_battlefield(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+        if zone != Zone::Battlefield {
+            let owner = self.get_object(id)?.owner;
+            self.register_static_effects(id, owner, zone, self.turn_number);
+        }
+        Ok(())
     }
 
     /// The battlefield's construction door: `obj` becomes a permanent under
@@ -247,17 +257,8 @@ impl GameState {
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
         obj.zone_change_epoch = epoch;
-        let owner = obj.owner;
         self.set_object_timestamp(id, timestamp);
-
-        // CR 113.6 — a static ability that *functions* in the zone this object
-        // just entered registers its rows now (`layers-architecture.md` §13d
-        // decision 3). Wonder arriving in a graveyard is the card. The battlefield
-        // is skipped for the reason above; CR 108.4 answers for every other zone,
-        // where a card has no controller and its owner is who "you" means.
-        if zone != Zone::Battlefield {
-            self.register_static_effects(id, owner, zone, self.turn_number);
-        }
+        self.register_off_the_battlefield(id, zone)?;
 
         // Every collection touched by the caller and the zone written here are
         // layer-walk inputs; one bump after the last of them. The
@@ -287,20 +288,12 @@ impl GameState {
         player_id: PlayerId,
         ctx: &ActionContext,
     ) -> Result<Option<ObjectId>, String> {
-        let player = self.get_player(player_id)?;
-
-        if player.library.is_empty() {
+        let Some(card_id) = self.get_player(player_id)?.top_of_library(1).next() else {
             // Rule 704.5b: flag that this player attempted to draw from empty library.
             // The actual game loss happens when SBAs are next checked.
             let player_mut = self.get_player_mut(player_id)?;
             player_mut.has_drawn_from_empty_library = true;
             return Ok(None);
-        }
-
-        // Top of library = last element in the Vec
-        let card_id = {
-            let player = self.get_player(player_id)?;
-            *player.library.last().unwrap()
         };
 
         self.change_zone(card_id, Zone::Hand, ZoneChangeAct::Drawn, ctx)?;
