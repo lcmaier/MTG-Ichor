@@ -166,9 +166,9 @@ pub fn validate_attackers(
 
         // The attack target must be valid
         match target {
+            // CR 506.2 — an opponent still in the game, and a seat there is.
             AttackTarget::Player(pid) => {
-                // Must be an opponent (not self, and within player range)
-                if *pid == player_id || *pid >= num_players {
+                if *pid >= num_players || game.not_an_opponent(player_id, *pid).is_some() {
                     return Err(CombatError::InvalidAttackTarget(*creature_id));
                 }
             }
@@ -486,6 +486,22 @@ mod tests {
             &AttackConstraints::none(),
         );
         assert_eq!(result, Err(CombatError::NotControlledByPlayer(creature_id, 0)));
+    }
+
+    #[test]
+    fn test_attack_a_player_who_has_left_the_game() {
+        // CR 506.2: the defending players are opponents, and CR 800.4a makes a
+        // player who has left nobody's.
+        let mut game = GameState::new(4, 20);
+        let creature_id = place_creature(&mut game, 0);
+        game.player_lost[3] = true;
+
+        let result = validate_attackers(
+            &game, 0,
+            &[(creature_id, AttackTarget::Player(3))],
+            &AttackConstraints::none(),
+        );
+        assert_eq!(result, Err(CombatError::InvalidAttackTarget(creature_id)));
     }
 
     #[test]
