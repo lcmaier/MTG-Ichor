@@ -27,6 +27,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
+use crate::ui::choice_types::ChoiceKind;
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -416,7 +417,8 @@ impl GameState {
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
                 let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
-                if !crate::ui::ask::ask_apply_optional_effect(dp, self, chooser, ctx.source) {
+                let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
+                if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
                     // after it are read past them.
                     walk.instance_cursor += inner.instances().len();

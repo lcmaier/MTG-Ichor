@@ -8,14 +8,14 @@ use std::sync::Arc;
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupVerb, Targeted};
 use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
-use super::text::{in_combat_from, position_word};
+use super::text::{draw_step_skipped, in_combat_from, position_word};
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
 use crate::objects::card_data::{AbilityType, CardData};
 use crate::objects::object::GameObject;
 use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller, get_effective_types};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo, PermanentState};
-use crate::state::game::{starting_player_skips_first_draw, Game, RandomStreams};
+use crate::state::game::{Game, RandomStreams};
 use crate::state::game_config::GameConfig;
 use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::PlayerHistory;
@@ -98,7 +98,7 @@ impl<'s> Loader<'s> {
             )));
         }
         let mut state = GameState::new(scenario.players, scenario.starting_life);
-        if scenario.turn == 1 && scenario.step.step == Some(StepType::Draw) && starting_player_skips_first_draw(&state) {
+        if scenario.step.step == Some(StepType::Draw) && draw_step_skipped(&state, scenario.turn) {
             return Err(whole(
                 "the starting player of a two-player game skips their first draw step (CR 103.8a), so turn 1 has none \
                  (CR 500.11); set `step upkeep` or a later step"
@@ -143,7 +143,7 @@ impl<'s> Loader<'s> {
     /// [`Self::object_named`], with the refusal for a name that matches none.
     fn one_named(&self, card: &NamedCard, line: usize, what: &str, none: String, among: impl Fn(&CreatedObject) -> bool) -> Result<ObjectId, ScenarioError> {
         let matches: Vec<&CreatedObject> =
-            self.created.iter().filter(|c| among(c) && c.card.name == card.name && (card.tag.is_none() || c.card.tag == card.tag)).collect();
+            self.created.iter().filter(|c| among(c) && card.names(&c.card)).collect();
         match matches.as_slice() {
             [one] => Ok(one.id),
             [] => Err(ScenarioError::at(ScenarioErrorKind::Reference, line, none)),
@@ -443,7 +443,7 @@ impl<'s> Loader<'s> {
         self.state.set_turn_position(self.scenario.step);
         // CR 103.8: only a turn-1 board before its draw step has the skip to
         // come, and `begin_step` refuses every draw step while it is set.
-        self.state.skip_first_draw = turn == 1 && self.scenario.step.step == Some(StepType::Upkeep) && starting_player_skips_first_draw(&self.state);
+        self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
             || self.state.players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
