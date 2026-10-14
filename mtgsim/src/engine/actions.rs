@@ -1506,9 +1506,15 @@ impl GameState {
                     return Err(format!("Cannot attach to {}: not on the battlefield", host));
                 }
                 let former_host = self.battlefield[&attachment].attached_to;
+                let unattached_from = former_host.and_then(|former| self.object_ref(former));
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
+                    // CR 701.3d: leaving the first host is becoming unattached
+                    // from it, in the same event and ahead of the attach.
+                    if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, ctx.cause)?;
+                    }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
                 Ok(())
@@ -1834,8 +1840,44 @@ impl GameState {
         }
 
         let lki = self.hand_over_before_leaving(object, from);
+        let unattached = self.unattached_by_leaving(object);
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, act, lki, applied, cause)
+        self.announce_zone_change(object, from, to, act, lki, applied, cause)?;
+        self.announce_unattached_by_leaving(unattached, cause)
+    }
+
+    /// CR 701.3d — what a permanent's leaving the battlefield unattaches,
+    /// read before it moves, since the move drops every link it is in
+    /// (`cleanup_zone_state`): itself from its host, then whatever is attached
+    /// to it, in the order they were attached. Each end is the existence it is
+    /// before the move. Empty for anything not on the battlefield.
+    pub(crate) fn unattached_by_leaving(&self, id: ObjectId) -> Vec<(ObjectRef, ObjectRef, UnattachRoute)> {
+        let (Some(entry), Some(leaving)) = (self.battlefield.get(&id), self.object_ref(id)) else {
+            return Vec::new();
+        };
+        let from_host = entry
+            .attached_to
+            .and_then(|host| self.object_ref(host))
+            .map(|host| (leaving, host, UnattachRoute::AttachmentLeft));
+        let from_it = entry
+            .attached_by
+            .iter()
+            .filter_map(|&attachment| self.object_ref(attachment))
+            .map(|attachment| (attachment, leaving, UnattachRoute::HostLeft));
+        from_host.into_iter().chain(from_it).collect()
+    }
+
+    /// A leaving's unattaches (`unattached_by_leaving`), announced after its
+    /// own record by the performer that moved it, under the move's cause.
+    pub(crate) fn announce_unattached_by_leaving(
+        &mut self,
+        unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        for (attachment, former_host, route) in unattached {
+            self.announce_unattached(attachment, former_host, route, cause)?;
+        }
+        Ok(())
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of

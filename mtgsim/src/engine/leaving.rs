@@ -110,8 +110,10 @@ impl GameState {
             // triggers "when a phased-in permanent leaves the game because its
             // owner leaves the game".
             let lki = self.hand_over_before_leaving(id, from);
+            let unattached = self.unattached_by_leaving(id);
             self.remove_from_game(id)?;
             self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause)?;
+            self.announce_unattached_by_leaving(unattached, cause)?;
         }
         Ok(())
     }
