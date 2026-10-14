@@ -549,10 +549,19 @@ fn push_static_ability_replacements(
     }
 }
 
-/// The replacement effect `ability` generates where it is, with the "as long
-/// as" it exists under: [`replacement_of`] for a static ability that
-/// functions in `zone` (CR 113.6), and `None` for any other. The sweep and
-/// `oracle::mana_supply`'s scan of what changes a production both ask it.
+/// The replacement effect `ability` generates, if it generates one where
+/// its object is, together with the "as long as" it exists under.
+///
+/// A printed "If … would …, … instead" is a static ability whose body is a
+/// replacement effect (CR 614.1). It exists only if three things hold: the
+/// ability is static, it functions in `zone` for an object of `types` (CR
+/// 113.6: most only on the battlefield), and its "as long as", if any, holds
+/// (CR 604.2). This answers the first two and hands back the third for the
+/// caller to ask with [`replacement_exists`], since the callers ask it against
+/// different boards. The gather asks both of every object an event could be
+/// replaced by; `oracle::mana_supply` asks this when it scans the battlefield
+/// for what changes a mana production (Mana Reflection), caching the scan, and
+/// asks the condition each time it uses the cache.
 pub(crate) fn functioning_replacement<'a>(
     ability: &'a AbilityDef,
     types: &CardTypes,
@@ -669,7 +678,7 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, &mut TextReferents::of_effect(game, controller, source)))
+    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, &mut TextReferents::for_effect(game, controller, source)))
         && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
         && set_affects(
             game,

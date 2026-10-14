@@ -175,7 +175,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// An earlier draft shipped this `from: Battlefield`, arguing that
 /// `ObjectSet::Filter` carries an `ObjectFilter` and a card on the stack is
 /// not a permanent. **That was wrong about this card.** The filter here is
-/// `All`, which reads nothing at all; `object_matches_filter_for` resolves
+/// `All`, which reads nothing at all; `object_matches_filter` resolves
 /// it from `game.objects` in any zone. So `from: None` costs nothing, and the
 /// narrowing shipped a card that did not do what it says — a resolving
 /// Lightning Bolt went to the graveyard.

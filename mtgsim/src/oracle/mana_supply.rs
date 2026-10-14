@@ -37,7 +37,7 @@
 use std::cell::OnceCell;
 use std::sync::Arc;
 
-use crate::engine::costs::tap_symbol_payable;
+use crate::engine::costs::{tap_symbol_payable, TapSymbol};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::mana::triggered_mana_recipient;
@@ -234,7 +234,7 @@ impl ManaSupply {
                 supply.entries.push(SupplyEntry { permanent: None, ways: vec![way] });
             }
         }
-        for (id, abilities) in mana_abilities_of(game, player) {
+        for (id, abilities) in controlled_mana_abilities(game, player) {
             let mut ways: Vec<EntryWay> = Vec::new();
             // Sacrificing it for mana leaves its {T} free to use first.
             let mut alone: Vec<EntryWay> = Vec::new();
@@ -433,7 +433,7 @@ pub struct ManaSource {
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
     let watchers = mana_production_watchers(game);
     let mut sources = Vec::new();
-    for (id, abilities) in mana_abilities_of(game, player_id) {
+    for (id, abilities) in controlled_mana_abilities(game, player_id) {
         for ability in abilities.iter() {
             if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
@@ -503,7 +503,7 @@ impl ManaAbilityWindowOffer {
     pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
         let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
         let mut abilities = Vec::new();
-        for (permanent, its_mana_abilities) in mana_abilities_of(game, player) {
+        for (permanent, its_mana_abilities) in controlled_mana_abilities(game, player) {
             for ability in its_mana_abilities.iter() {
                 if !offered_in_the_window(game, ability, permanent, player) {
                     continue;
@@ -536,7 +536,7 @@ impl ManaAbilityWindowOffer {
                 CostRecheck::WhileUntapped { sick } => game
                     .battlefield
                     .get(&offered.permanent)
-                    .is_some_and(|entry| tap_symbol_payable(entry.tapped, false, || *sick).is_ok()),
+                    .is_some_and(|entry| tap_symbol_payable(TapSymbol::Tap, entry.tapped, || *sick).is_ok()),
                 CostRecheck::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
             })
             .map(|offered| (offered.permanent, offered.ability))
@@ -669,10 +669,10 @@ fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
 }
 
 /// Each permanent `player` controls, in timestamp order, with its effective
-/// mana abilities (CR 605.1a): the one walk the inventory, the agent's view
-/// and the window's offer make, each asking its own question of every
-/// ability.
-fn mana_abilities_of(game: &GameState, player: PlayerId) -> impl Iterator<Item = (ObjectId, ManaAbilities)> + '_ {
+/// mana abilities (CR 605.1a), payable or not: the one walk the inventory,
+/// the agent's view and the window's offer make, each asking its own cost
+/// question of every ability. `available_mana_sources` is the payable ones.
+fn controlled_mana_abilities(game: &GameState, player: PlayerId) -> impl Iterator<Item = (ObjectId, ManaAbilities)> + '_ {
     permanents_controlled_by(game, player).into_iter().map(move |id| (id, ManaAbilities(get_effective_abilities(game, id))))
 }
 
@@ -698,7 +698,7 @@ fn multiplies_the_pool(effect: &Effect) -> bool {
 /// What a mana ability's effect adds for `player`, before any replacement
 /// effect: `None` when it adds nothing a payment can spend now.
 fn mana_production_of(game: &GameState, effect: &Effect, source: ObjectId, player: PlayerId) -> Option<ManaBag> {
-    let resolution = ResolutionContext::of_mana_ability(game, source, player, GeneratedBy::ActivatedAbility);
+    let resolution = ResolutionContext::for_mana_ability(game, source, player, GeneratedBy::ActivatedAbility);
     let mut made = NO_MANA;
     add_mana_produced(game, effect, &resolution, &mut made)?;
     made.iter().any(|&n| n > 0).then_some(made)
@@ -887,7 +887,7 @@ fn mana_trigger_adds(
     let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
     let added = |m: ManaType| made[slot(m)] > 0;
     let fires = def.condition.events().iter().any(|arm| {
-        game.predicted_production_matches_arm(arm, at.permanent, controller, producer, tapped, added)
+        game.mana_added_arm_would_match(arm, at.permanent, controller, producer, tapped, added)
     });
     if !fires || def.intervening_if.as_ref().is_some_and(|c| !settled_holds(c, game, at.permanent, Some(controller))) {
         return Vec::new();
@@ -919,7 +919,7 @@ fn trigger_mana(
             if receives != player {
                 return true;
             }
-            let resolution = ResolutionContext::of_mana_ability(game, source, receives, GeneratedBy::TriggeredAbility);
+            let resolution = ResolutionContext::for_mana_ability(game, source, receives, GeneratedBy::TriggeredAbility);
             for (mana_type, amount) in &output.mana {
                 match game.evaluate_amount(amount, &resolution) {
                     Ok(n) => adds[slot(*mana_type)] += n,

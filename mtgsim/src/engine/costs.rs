@@ -79,14 +79,28 @@ pub enum CannotPay {
     Unchecked,
 }
 
-/// The engine's own words, for an error a caller returns as text.
-/// Whether a permanent can pay {T}, or {Q} where `untap`, from whether it is
-/// `tapped` and then whether it is summoning-sick (CR 302.6, 702.10c), which
-/// is false for a noncreature permanent and asked only once the tapped state
-/// passes. The check, the payment and the mana window's cached re-check ask it.
-pub(crate) fn tap_symbol_payable(tapped: bool, untap: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
-    if tapped != untap {
-        return Err(if untap { CannotPay::NotTapped } else { CannotPay::AlreadyTapped });
+/// The two symbols that pay a cost with the permanent's own tapped state: {T}
+/// taps it (CR 107.5), {Q} untaps it (CR 107.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TapSymbol {
+    Tap,
+    Untap,
+}
+
+/// Whether a permanent can pay `symbol`: {T} only while it is untapped, {Q}
+/// only while it is tapped, and either only if it is not summoning-sick
+/// (CR 302.6, 702.10c). The check, the payment and the mana window's re-check
+/// ask it.
+///
+/// `sick` is asked only once the tapped state has passed, which is why it is a
+/// closure: the check's answer walks the permanent's characteristics (haste is
+/// a keyword the layers can grant), and a tapped permanent refuses {T}
+/// without one. The window passes the answer it keeps for the board.
+pub(crate) fn tap_symbol_payable(symbol: TapSymbol, tapped: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
+    match (symbol, tapped) {
+        (TapSymbol::Tap, true) => return Err(CannotPay::AlreadyTapped),
+        (TapSymbol::Untap, false) => return Err(CannotPay::NotTapped),
+        (TapSymbol::Tap, false) | (TapSymbol::Untap, true) => {}
     }
     if sick() {
         return Err(CannotPay::SummoningSick);
@@ -94,6 +108,7 @@ pub(crate) fn tap_symbol_payable(tapped: bool, untap: bool, sick: impl FnOnce() 
     Ok(())
 }
 
+/// The engine's own words, for an error a caller returns as text.
 impl std::fmt::Display for CannotPay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -208,7 +223,8 @@ impl GameState {
         match cost {
             Cost::TapSelf | Cost::UntapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
-                tap_symbol_payable(entry.tapped, matches!(cost, Cost::UntapSelf), || has_summoning_sickness(self, source_id))
+                let symbol = if *cost == Cost::TapSelf { TapSymbol::Tap } else { TapSymbol::Untap };
+                tap_symbol_payable(symbol, entry.tapped, || has_summoning_sickness(self, source_id))
             }
             Cost::Mana(mana_cost) => {
                 if !self.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(mana_cost)) {
@@ -264,7 +280,7 @@ impl GameState {
     ) -> Vec<ObjectId> {
         crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
-            .filter(|&id| self.matches_for_text_of(id, filter, player_id, source))
+            .filter(|&id| self.matches_filter(id, filter, player_id, source))
             .collect()
     }
 

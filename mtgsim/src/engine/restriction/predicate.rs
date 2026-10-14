@@ -249,7 +249,7 @@ fn matches(
                     subject_of(action),
                     frame,
                 )
-                && cause_matches(by.as_ref(), cause, &mut TextReferents::of_effect(game, controller, source))
+                && cause_matches(by.as_ref(), cause, &mut TextReferents::for_effect(game, controller, source))
         }
 
         (

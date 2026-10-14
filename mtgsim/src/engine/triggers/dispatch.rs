@@ -1342,7 +1342,7 @@ impl GameState {
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                one(self.production_matches_arm(arm, *source_id, *tapped, added, referents, seq))
+                one(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
@@ -1476,10 +1476,12 @@ impl GameState {
         }
     }
 
-    /// CR 106.12a's "is tapped for mana" and "adds mana": whether `arm`, a
-    /// `ManaAdded` arm, reads a production by `producer`, tapped for mana or
-    /// not, that added the types `added` admits, for `referents`' ability.
-    fn production_matches_arm(
+    /// Whether `arm`, one event of a trigger condition, is a `ManaAdded` arm —
+    /// "whenever [something] is tapped for mana" or "adds mana" (CR 106.12a) —
+    /// that the mana `producer` just made sets off: tapped for mana or not,
+    /// with the types `added` admits, and made by the object the arm names
+    /// for `referents`' ability (Wild Growth's enchanted land).
+    fn mana_added_arm_matches(
         &self,
         arm: &TriggerEvent,
         producer: ObjectId,
@@ -1494,12 +1496,18 @@ impl GameState {
             && self.subject_matches(source, Some(producer), referents, seq, None)
     }
 
-    /// [`Self::production_matches_arm`] for a production the mana inventory
-    /// predicts, by `permanent`'s own triggered mana ability: the record it
+    /// [`Self::mana_added_arm_matches`], asked before the mana is made.
+    ///
+    /// `oracle::mana_supply` (MA-1) decides whether a player could pay a cost
+    /// before the engine offers the spell or ability at priority. For
+    /// that it works out what tapping each source would add, Wild Growth's
+    /// extra {G} included, so it asks this of a production that has not
+    /// happened: would `permanent`'s own triggered mana ability trigger if
+    /// `producer` made this mana? With no event yet, the record the production
     /// would be is the window's next. The trigger's limits, CR 113.6's zones
     /// and CR 603.2f's visibility stay the dispatcher's; the inventory does
     /// not ask them.
-    pub(crate) fn predicted_production_matches_arm(
+    pub(crate) fn mana_added_arm_would_match(
         &self,
         arm: &TriggerEvent,
         permanent: ObjectId,
@@ -1517,7 +1525,7 @@ impl GameState {
             this_ability: None,
             referred: &[],
         };
-        self.production_matches_arm(arm, producer, tapped, added, &referents, self.events.next_seq())
+        self.mana_added_arm_matches(arm, producer, tapped, added, &referents, self.events.next_seq())
     }
 
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
@@ -1539,7 +1547,7 @@ impl GameState {
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
             (TriggerSubject::Filter(filter), Some(id)) => {
-                matched(self.object_matches_filter_for(id, filter, &mut { *referents }, frame))
+                matched(self.object_matches_filter(id, filter, &mut { *referents }, frame))
             }
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
@@ -1617,7 +1625,7 @@ impl GameState {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), recipient) => {
                 let player = triggered_mana_recipient(self, recipient, source, pending.controller);
-                let mut resolution = ResolutionContext::of_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
+                let mut resolution = ResolutionContext::for_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
                 resolution.trigger = Some(pending.binding.clone());
                 self.produce_mana(output, player, source, false, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
             }

@@ -2751,7 +2751,7 @@ reaches nothing once Humility has removed it. No `ObjectFilter` leaf can say
 |---|---|
 | **Rules** | CR 613.8a(b), the dependency a grant's own set creates; 604.2, a condition that reads another permanent's abilities (Escaped Shapeshifter) |
 | **Verdict** | `ObjectFilter` reads types, subtypes, supertypes, colors, power, controller, owner and identity, and no ability or keyword. The feeds table already records the gap from the entry side: a keyword counter "unmatches none, since no leaf reads keywords" (`replacement-architecture.md` §3.5) |
-| **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_filter::answer`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
+| **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_filter::evaluate`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
 | **Blocks** | the census's `ability-filter` class, 7 cards in Commander; the 7c anthems that name a keyword ("creatures you control with flying get +1/+1") need the same leaf, and close no loop, since they read the layer before theirs |
 | **Atoms** | none filed |
 | **Owner** | — ; `layers-architecture.md` when taken |

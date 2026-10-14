@@ -649,7 +649,7 @@ impl GameState {
     /// object must exist, and its frame is walked once, only if a leaf reads a
     /// characteristic: `All`, `Token` and `ByOwner` never do, so Rest in Peace's
     /// "cards" stays free on every graveyard-bound zone change.
-    pub(crate) fn object_matches_filter_for(
+    pub(crate) fn object_matches_filter(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
@@ -657,7 +657,7 @@ impl GameState {
         chars: Option<&EffectiveCharacteristics>,
     ) -> Result<bool, FilterRefusal> {
         if let Some(chars) = chars {
-            return object_filter::answer(self, filter, id, &|| Ok(chars), referents);
+            return object_filter::evaluate(self, filter, id, &|| Ok(chars), referents);
         }
         if !self.objects.contains_key(&id) {
             return Err(FilterRefusal::ObjectGone(id));
@@ -670,10 +670,10 @@ impl GameState {
                 .as_deref()
                 .ok_or(FilterRefusal::ObjectGone(id))
         };
-        object_filter::answer(self, filter, id, &frame, referents)
+        object_filter::evaluate(self, filter, id, &frame, referents)
     }
 
-    /// [`Self::object_matches_filter_for`] asked inside CR 601.2c's loop, where
+    /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where
     /// the instances announced so far are known — so
     /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
     /// and the object whose text is announced, which
@@ -693,7 +693,7 @@ impl GameState {
         you: PlayerId,
         identity: FilterIdentity<'_>,
     ) -> Result<bool, FilterRefusal> {
-        self.object_matches_filter_for(id, filter, &mut TextReferents { game: self, you, identity }, None)
+        self.object_matches_filter(id, filter, &mut TextReferents { game: self, you, identity }, None)
     }
 
     /// `filter` asked of `id` for the text of `this` (CR 113.7a's "this"):
@@ -702,7 +702,7 @@ impl GameState {
     /// announced, and a refusal reads as no (`matched`). A resolution's effect
     /// asks it (`codebase-state.md` item 229), and so does a cost: "Sacrifice
     /// another creature:" prints on 162 cards (Scryfall, 2026-10-10).
-    pub(crate) fn matches_for_text_of(
+    pub(crate) fn matches_filter(
         &self,
         id: ObjectId,
         filter: &ObjectFilter,
@@ -716,14 +716,14 @@ impl GameState {
         matched(self.object_matches_filter_for_instance(id, filter, you, identity))
     }
 
-    /// [`Self::object_matches_filter_for`] asked on behalf of an **effect**,
+    /// [`Self::object_matches_filter`] asked on behalf of an **effect**,
     /// which has a source — so [`ObjectFilter::NotSource`] has one to exclude
     /// and `Owner` one to name: a replacement's or restriction's affected set
     /// and its pattern's filters, an auxiliary move's, a cost modification's.
     /// Palisade Giant's "other permanents you control" is the printed customer.
     ///
     /// `chars` is the frame when the caller holds one, as
-    /// [`Self::object_matches_filter_for`] takes it.
+    /// [`Self::object_matches_filter`] takes it.
     pub(crate) fn object_matches_filter_of_source(
         &self,
         id: ObjectId,
@@ -732,7 +732,7 @@ impl GameState {
         source: ObjectId,
         chars: Option<&EffectiveCharacteristics>,
     ) -> Result<bool, FilterRefusal> {
-        self.object_matches_filter_for(id, filter, &mut TextReferents::of_effect(self, you, source), chars)
+        self.object_matches_filter(id, filter, &mut TextReferents::for_effect(self, you, source), chars)
     }
 
     /// CR 608.2b, asked of every instance at once as the spell or ability

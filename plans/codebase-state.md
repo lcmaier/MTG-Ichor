@@ -8810,7 +8810,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        one production, which leans yes by design (`mana-architecture.md`
        §3.3).
      **Widened by A6m's second PR (2026-10-14):** the inventory asks the
-     dispatcher's `ManaAdded` test (`production_matches_arm`) and not what the
+     dispatcher's `ManaAdded` test (`mana_added_arm_matches`) and not what the
      dispatcher asks around it, so two more shapes are read loosely, beside the
      limits above: a trigger condition that does not function where its source
      is (CR 113.6), and a source no player can see (CR 603.2f). The watchers

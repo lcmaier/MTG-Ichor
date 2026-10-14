@@ -31,8 +31,17 @@ pub(crate) trait FilterReferents {
     fn earlier_targets(&self) -> EarlierTargets<'_>;
 }
 
-/// The referents of an asker outside the layer walk: "you" given, and "this"
-/// and the targets announced so far from its [`FilterIdentity`].
+/// The referents of an asker outside the layer walk, given as plain values:
+/// "you" as a player, and "this" and the targets announced so far as a
+/// [`FilterIdentity`]. Its one lookup is "its owner", the owner of "this" in
+/// the store.
+///
+/// The layer walk resolves "you" lazily off a registry row (`FilterPlayers`)
+/// and a trigger takes its words from its candidate (`TriggerReferents`);
+/// every other asker already holds the values, and this is what lets them
+/// reach the table: a target's legality, a cost's "another creature", a
+/// resolving effect's filter, and through [`Self::for_effect`] a replacement's
+/// or restriction's set, pattern and "caused by".
 pub(crate) struct TextReferents<'g, 'a> {
     pub game: &'g GameState,
     pub you: PlayerId,
@@ -42,7 +51,7 @@ pub(crate) struct TextReferents<'g, 'a> {
 impl<'g> TextReferents<'g, 'static> {
     /// The words of an effect's text: "you" its controller, "this" its
     /// source, and no announcement.
-    pub(crate) fn of_effect(game: &'g GameState, controller: PlayerId, source: ObjectId) -> Self {
+    pub(crate) fn for_effect(game: &'g GameState, controller: PlayerId, source: ObjectId) -> Self {
         TextReferents { game, you: controller, identity: FilterIdentity::for_text_of(source, EarlierTargets::None) }
     }
 }
@@ -67,6 +76,13 @@ impl FilterReferents for TextReferents<'_, '_> {
 
 /// What the announced instances look like to `ObjectFilter::OtherThanInstance`,
 /// without copying them.
+///
+/// Read only by a spell or ability with more than one "target" whose later
+/// one says "another": Incremental Growth's "target creature, another target
+/// creature, and a third target creature" (CR 115.3 lets one object be chosen
+/// once per instance, so "another" is what forbids the repeat). The second
+/// instance's filter carries `OtherThanInstance(0)`, which asks what the
+/// first instance chose.
 ///
 /// Two shapes answer the same question. Inside CR 601.2c's loop the earlier
 /// choices are a [`ChosenTargets`] being built; inside CR 608.2b's re-check
@@ -183,7 +199,7 @@ pub(crate) fn matched(answer: Result<bool, FilterRefusal>) -> bool {
 /// A refusal is a leaf with no truth value. `Not` keeps it, and `And` and `Or`
 /// are Kleene's: an arm that decides decides on either side, so a filter's
 /// answer does not depend on the order its arms were written in.
-pub(crate) fn answer<'f>(
+pub(crate) fn evaluate<'f>(
     game: &GameState,
     filter: &ObjectFilter,
     id: ObjectId,
@@ -227,22 +243,22 @@ pub(crate) fn answer<'f>(
             Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
         }
         ObjectFilter::And(a, b) => {
-            let left = answer(game, a, id, frame, referents);
+            let left = evaluate(game, a, id, frame, referents);
             if left == Ok(false) {
                 return left;
             }
-            let right = answer(game, b, id, frame, referents);
+            let right = evaluate(game, b, id, frame, referents);
             if right == Ok(false) || left.is_ok() { right } else { left }
         }
         ObjectFilter::Or(a, b) => {
-            let left = answer(game, a, id, frame, referents);
+            let left = evaluate(game, a, id, frame, referents);
             if left == Ok(true) {
                 return left;
             }
-            let right = answer(game, b, id, frame, referents);
+            let right = evaluate(game, b, id, frame, referents);
             if right == Ok(true) || left.is_ok() { right } else { left }
         }
-        ObjectFilter::Not(inner) => answer(game, inner, id, frame, referents).map(|matches| !matches),
+        ObjectFilter::Not(inner) => evaluate(game, inner, id, frame, referents).map(|matches| !matches),
     }
 }
 

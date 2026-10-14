@@ -262,12 +262,12 @@ Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-c
 
 They part at four leaves, at `Owner`, and under `Not`.
 
-*The shape.* One table, `engine::object_filter::answer(game, filter, id, frame, referents) -> Result<bool, FilterRefusal>`, generic and monomorphized over two parameters:
+*The shape.* One table, `engine::object_filter::evaluate(game, filter, id, frame, referents) -> Result<bool, FilterRefusal>`, generic and monomorphized over two parameters:
 
 - `frame: impl Fn() -> Result<&EffectiveCharacteristics, FilterRefusal>`. The walk passes the frame it holds; a selection computes one on demand, once per filter (today's `OnceCell`), or passes CR 614.12's look-ahead or a source's last known information.
 - `referents: &mut impl FilterReferents`: what the text's words for itself mean where it is asked — `you()` (CR 109.5), `source()` (CR 113.7a's "this"), `source_owner()` (CR 108.3) and `earlier_targets()` (CR 601.2c, 115.3). `you` and `source_owner` take `&mut self` so `FilterPlayers` keeps its cache: resolution stays lazy, and the eager cost measured above stays unpaid.
 
-Three implementors: `FilterPlayers` (a source always, earlier targets never); `TextReferents`, built from a `you` and a `FilterIdentity`, for a selection and, through `of_effect`, for a restriction's or replacement instance's source and controller; and `TriggerReferents`. One predicate, `player_ref_names(who, player, referents)`, answers "does this `PlayerRef` name `player`" for both tables' `ByController` and `ByOwner` arms, for `player_ref_is` and for `SourceFilter::matches`. The table's vocabulary (`FilterRefusal`, `EarlierTargets`, `matched`) moves with it; `FilterIdentity` stays the selection side's.
+Three implementors: `FilterPlayers` (a source always, earlier targets never); `TextReferents`, built from a `you` and a `FilterIdentity`, for a selection and, through `for_effect`, for a restriction's or replacement instance's source and controller; and `TriggerReferents`. One predicate, `player_ref_names(who, player, referents)`, answers "does this `PlayerRef` name `player`" for both tables' `ByController` and `ByOwner` arms, for `player_ref_is` and for `SourceFilter::matches`. The table's vocabulary (`FilterRefusal`, `EarlierTargets`, `matched`) moves with it; `FilterIdentity` stays the selection side's.
 
 *No refusal policy on the trait.* Every missing fact refuses, and each asker reads a refusal through `matched`, as the selection side does today. The walk never lacks a source, so `NotSource` and `Owner` never refuse there. The one fact it lacks, earlier targets, is a question a continuous effect's affected set cannot be asked (`compute`'s own comment on the arm says so), so refusing it keeps the walk's no in release and makes it loud in a debug build.
 

@@ -5846,15 +5846,15 @@ read it. There were seven tallies, not five: the inventory's own
 which missed the `Colorless` spelling, is gone.
 
 The inventory asks the engine's predicates, one each: a mana ability's
-resolution context (`ResolutionContext::of_mana_ability`, which gives
+resolution context (`ResolutionContext::for_mana_ability`, which gives
 `trigger_mana` the ability source it lacked), the `ProduceMana` proposal
 (`produce_mana`, for its three performers), whose pool a triggered mana
 ability fills (`triggered_mana_recipient`), the `ManaAdded` arm
-(`production_matches_arm`, asked for the record the production would be), a
+(`mana_added_arm_matches`, asked for the record the production would be), a
 static replacement's existence (`functioning_replacement` and
-`replacement_exists`), a cost list's mana component (`Cost::split_mana`), {T}
+`replacement_exists`), a cost list's mana component (`Cost::split_out_mana_costs`), {T}
 and {Q} (`tap_symbol_payable`, which the window's cached re-check asks too),
-and the walk over a player's mana abilities (`mana_abilities_of`), with the
+and the walk over a player's mana abilities (`controlled_mana_abilities`), with the
 sacrifice fodder through `sacrifice_candidates`. Only the arm is shared with
 the dispatcher: the trigger's limits, CR 113.6's zones and CR 603.2f's
 visibility stay its own, and item 213 records the last two beside the first.
@@ -5886,7 +5886,7 @@ No answer moved.
 
 Closed by A6m's second PR, its design paragraph reviewed first
 (`layers-architecture.md` §3.4, "One leaf table for both askers"). The table is
-`engine::object_filter::answer`, generic over a frame and a `FilterReferents`:
+`engine::object_filter::evaluate`, generic over a frame and a `FilterReferents`:
 `FilterPlayers` for the layer walk, which keeps its lazy "you"; `TextReferents`
 for a selection and an effect's set; `TriggerReferents` for a trigger.
 `player_ref_names` is the one `PlayerRef` predicate, asked by both

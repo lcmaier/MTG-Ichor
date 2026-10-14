@@ -101,7 +101,7 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let resolution = ResolutionContext::of_mana_ability(self, source, player_id, GeneratedBy::ActivatedAbility);
+                let resolution = ResolutionContext::for_mana_ability(self, source, player_id, GeneratedBy::ActivatedAbility);
                 let actx = ActionContext::resolving(dp, &resolution);
                 self.produce_mana(output, player_id, source, tapped_for_mana, &resolution, &actx)
             }

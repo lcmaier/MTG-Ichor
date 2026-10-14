@@ -106,7 +106,7 @@ impl ResolutionContext {
     /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
     /// with no stack object, the permanent is both `source` and CR 113.7a's
     /// ability source, and it has no targets (CR 605.1a).
-    pub(crate) fn of_mana_ability(
+    pub(crate) fn for_mana_ability(
         game: &GameState,
         source: ObjectId,
         controller: PlayerId,
@@ -2263,7 +2263,7 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        self.matches_for_text_of(id, filter, ctx.controller, Some(ctx.effect_source()))
+        self.matches_filter(id, filter, ctx.controller, Some(ctx.effect_source()))
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved

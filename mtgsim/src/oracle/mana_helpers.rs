@@ -323,7 +323,7 @@ fn can_activate_as_its_controller(
 ) -> Result<(), CannotActivate> {
     can_begin_to_activate(game, player_id, ability)?;
 
-    let (symbols, other_costs) = Cost::split_mana(ability.costs.iter().cloned());
+    let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs.iter().cloned());
     for cost in &other_costs {
         game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
     }

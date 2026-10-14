@@ -795,7 +795,7 @@ pub(super) fn object_matches_filter(
     players: &mut FilterPlayers<'_, '_>,
 ) -> bool {
     let game = players.game;
-    matched(object_filter::answer(game, filter, id, &|| Ok(chars), players))
+    matched(object_filter::evaluate(game, filter, id, &|| Ok(chars), players))
 }
 
 /// Resolve one side of a P/T modification against the frame so far.

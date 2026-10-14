@@ -164,7 +164,7 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
 /// in their order; the flag says whether there was any mana cost at all (an
 /// alternative cost of "pay 2 life" has none).
 fn split_mana_component(costs: Vec<Cost>) -> (ManaCost, Vec<Cost>, bool) {
-    let (mana, others) = Cost::split_mana(costs);
+    let (mana, others) = Cost::split_out_mana_costs(costs);
     let had_mana = mana.is_some();
     (canonical(mana.unwrap_or_default()), others, had_mana)
 }

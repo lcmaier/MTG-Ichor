@@ -37,7 +37,7 @@ impl Cost {
     /// in order, and its other costs in theirs. The mana is `None` where the
     /// list has no mana cost at all, as an alternative cost of "pay 2 life"
     /// has none, which is not a mana cost of {0}.
-    pub fn split_mana(costs: impl IntoIterator<Item = Cost>) -> (Option<Vec<ManaSymbol>>, Vec<Cost>) {
+    pub fn split_out_mana_costs(costs: impl IntoIterator<Item = Cost>) -> (Option<Vec<ManaSymbol>>, Vec<Cost>) {
         let mut mana: Option<Vec<ManaSymbol>> = None;
         let mut others = Vec::new();
         for cost in costs {
