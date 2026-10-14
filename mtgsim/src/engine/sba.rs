@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::events::cause::{EventCause, GameRule, StateBasedAction};
-use crate::events::event::GameEvent;
+use crate::events::event::{GameEvent, UnattachRoute};
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
@@ -402,11 +402,10 @@ impl GameState {
             .collect();
 
         for (equip_id, host_id) in equip_bad_host {
+            let (Some(attachment), Some(former_host)) = (self.object_ref(equip_id), self.object_ref(host_id)) else { continue };
             self.detach(equip_id);
-            self.emit_event(
-                GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id },
-                EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally),
-            )?;
+            let cause = EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally);
+            self.announce_unattached(attachment, former_host, UnattachRoute::Unattach, cause)?;
             any_performed = true;
         }
 
@@ -434,11 +433,10 @@ impl GameState {
             .collect();
 
         for (att_id, host_id) in detachments {
+            let (Some(attachment), Some(former_host)) = (self.object_ref(att_id), self.object_ref(host_id)) else { continue };
             self.detach(att_id);
-            self.emit_event(
-                GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id },
-                EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached),
-            )?;
+            let cause = EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached);
+            self.announce_unattached(attachment, former_host, UnattachRoute::Unattach, cause)?;
             any_performed = true;
         }
 
@@ -1360,10 +1358,10 @@ mod tests {
         // Land should no longer have equipment in attached_by
         assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
 
-        // Verify EquipmentDetached event
+        // CR 704.5n's unattach, announced with its route.
         let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::EquipmentDetached { equipment_id, former_host }
-                if *equipment_id == equip_id && *former_host == land_id)
+            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::Unattach }
+                if attachment.id == equip_id && former_host.id == land_id)
         });
         assert!(has_event);
     }

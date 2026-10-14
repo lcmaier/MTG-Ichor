@@ -339,10 +339,12 @@ pub enum GameEvent {
     /// announces nothing.
     Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
 
-    // --- Attachment SBAs ---
-    /// An Equipment or Fortification was detached by SBA 704.5n
-    /// (attached to an illegal permanent). It stays on the battlefield.
-    EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
+    /// An Aura, Equipment or Fortification stopped being attached to
+    /// `former_host` (CR 701.3d), by `route`. Each is the existence it was at
+    /// the event (CR 400.7): a host that left is gone by the time a trigger's
+    /// "that permanent" is read (Grafted Wargear's first ruling). What caused
+    /// it is the stamp's, not the route's.
+    Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute },
 
     // --- Multiplayer (CR 800.4a) ---
     /// An object owned by a player who has just left the game left it too.
@@ -474,8 +476,8 @@ impl GameEvent {
             UntilReturnMade { source, returns, .. } => ([Some(*source), None, None], returns, &[]),
             LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b, .. }
-            | EquipmentDetached { equipment_id: a, former_host: b } => ([Some(*a), Some(*b), None], &[], &[]),
+            | SpellCountered { spell_id: a, countered_by: b, .. } => ([Some(*a), Some(*b), None], &[], &[]),
+            Unattached { attachment, former_host, .. } => ([Some(attachment.id), Some(former_host.id), None], &[], &[]),
             Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
             AttackersDeclared { attackers } => ([None; 3], attackers, &[]),
             BlockersDeclared { blockers } => ([None; 3], &[], blockers),
@@ -493,6 +495,20 @@ impl GameEvent {
         };
         named.into_iter().flatten().chain(listed.iter().copied()).chain(paired.iter().flat_map(|&(a, b)| [a, b]))
     }
+}
+
+/// Which of CR 701.3d's ways an attachment stopped being attached.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnattachRoute {
+    /// Unattached and left on the battlefield: an instruction to unattach,
+    /// or CR 704.5n's or 704.5p's state-based action.
+    Unattach,
+    /// Attached to a different object (CR 701.3c).
+    AttachedElsewhere,
+    /// The attachment left the battlefield.
+    AttachmentLeft,
+    /// The object it was attached to left the battlefield.
+    HostLeft,
 }
 
 /// What damage is being dealt to.

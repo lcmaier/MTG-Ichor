@@ -221,7 +221,6 @@ impl EventKind {
             | GameEvent::CountersAnnihilated { .. }
             | GameEvent::CountersChanged { .. }
             | GameEvent::DelayedTriggerCreated { .. }
-            | GameEvent::EquipmentDetached { .. }
             | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::Scried { .. }
@@ -231,6 +230,7 @@ impl EventKind {
             | GameEvent::Targeted { .. }
             | GameEvent::TokenCeasedToExist { .. }
             | GameEvent::TokenCreated { .. }
+            | GameEvent::Unattached { .. }
             | GameEvent::UntilReturnMade { .. } => return None,
         })
     }

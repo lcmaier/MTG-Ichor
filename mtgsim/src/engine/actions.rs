@@ -4,11 +4,11 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
-use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
 use crate::types::triggers::Lki;
@@ -1859,6 +1859,19 @@ impl GameState {
         let moved = self.get_object(object)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause)?;
+        Ok(())
+    }
+
+    /// **The only emitter of `GameEvent::Unattached`**, whose callers each
+    /// performed the unattach they announce (CR 701.3d).
+    pub(crate) fn announce_unattached(
+        &mut self,
+        attachment: ObjectRef,
+        former_host: ObjectRef,
+        route: UnattachRoute,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route }, cause)?;
         Ok(())
     }
 
