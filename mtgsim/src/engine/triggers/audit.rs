@@ -141,7 +141,7 @@ impl GameState {
         let printed_trigger =
             |id: &ObjectId| self.objects.get(id).is_some_and(|o| o.card_data.abilities.iter().any(|a| matches!(a.effect, Effect::Triggered(_))));
         let mut ids = self.battlefield_ids_ordered();
-        ids.extend(self.stack.iter().copied().filter(|id| self.stack_entries.get(id).is_none_or(|e| e.is_spell)));
+        ids.extend(self.stack.iter().copied().filter(|&id| self.is_spell_on_stack(id)));
         for zone in [Zone::Exile, Zone::Command, Zone::Graveyard, Zone::Hand, Zone::Library] {
             ids.extend(self.zone_ids_ordered(zone).into_iter().filter(|id| !no_row_reaches(self, *id) || printed_trigger(id)));
         }
@@ -170,7 +170,7 @@ impl GameState {
                 controller: controller_or_owner(self, id).unwrap_or(object.owner),
                 owner: object.owner,
                 zone: object.zone,
-                host: self.battlefield.get(&id).and_then(|e| e.attached_to),
+                host: crate::oracle::board::host_of(self, id),
                 frame: TriggerCandidateFrame::Live { chars, snapshots: every_snapshot.clone() },
                 card: Arc::clone(&object.card_data),
             });
@@ -184,7 +184,7 @@ impl GameState {
                         controller: controller_or_owner(self, id).unwrap_or(object.owner),
                         owner: object.owner,
                         zone: object.zone,
-                        host: self.battlefield.get(&id).and_then(|e| e.attached_to),
+                        host: crate::oracle::board::host_of(self, id),
                         frame: TriggerCandidateFrame::Before { chars: &frame.chars, snapshot: k },
                         card: Arc::clone(&object.card_data),
                     },

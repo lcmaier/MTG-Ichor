@@ -38,6 +38,15 @@ pub enum GameResult {
     Draw,
 }
 
+/// Why a player is not an opponent another may choose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotAnOpponent {
+    /// CR 102.2: an opponent is another player.
+    Yourself,
+    /// CR 800.4a: a player who has left the game is in it no longer.
+    LeftTheGame,
+}
+
 /// Metadata for a spell or ability on the stack.
 ///
 /// This is the sidecar state for stack objects, analogous to how
@@ -1035,6 +1044,43 @@ impl GameState {
         !self.player_lost[player]
     }
 
+    /// The players still in the game, in seat order. `num_players` is the
+    /// seat count the game began with, departures included.
+    pub fn players_in_game(&self) -> impl Iterator<Item = PlayerId> + '_ {
+        (0..self.players.len()).filter(|&p| self.in_game(p))
+    }
+
+    /// The players still in the game in APNAP order (CR 101.4): the active
+    /// player first, then the rest in turn order.
+    pub fn players_in_game_apnap(&self) -> Vec<PlayerId> {
+        let mut players: Vec<PlayerId> = self.players_in_game().collect();
+        players.sort_by_key(|&p| self.apnap_index(p));
+        players
+    }
+
+    /// Has `player` left a multiplayer game, the case every rule of CR 800.4
+    /// is about? A two-player game ends when a player leaves (CR 104.2a).
+    pub fn left_a_multiplayer_game(&self, player: PlayerId) -> bool {
+        self.is_multiplayer() && !self.in_game(player)
+    }
+
+    /// Every player still in the game who is not `you`, in seat order —
+    /// CR 102.1's "opponent", with CR 102.3's teams not modeled.
+    pub fn opponents_of(&self, you: PlayerId) -> Vec<PlayerId> {
+        (0..self.players.len()).filter(|&p| self.not_an_opponent(you, p).is_none()).collect()
+    }
+
+    /// Why `player` is not an opponent of `you`, if they are not.
+    pub fn not_an_opponent(&self, you: PlayerId, player: PlayerId) -> Option<NotAnOpponent> {
+        if player == you {
+            Some(NotAnOpponent::Yourself)
+        } else if !self.in_game(player) {
+            Some(NotAnOpponent::LeftTheGame)
+        } else {
+            None
+        }
+    }
+
     /// CR 800.1 — "a multiplayer game is a game that begins with more than two
     /// players", which is the scope of every rule in CR 800.
     ///
@@ -1072,8 +1118,7 @@ impl GameState {
         if self.result.is_some() {
             return;
         }
-        let survivors: Vec<PlayerId> =
-            (0..self.players.len()).filter(|&p| self.in_game(p)).collect();
+        let survivors: Vec<PlayerId> = self.players_in_game().collect();
         self.result = match survivors.as_slice() {
             // 104.4a — "all the players remaining in a game lose
             // simultaneously".
@@ -2235,21 +2280,20 @@ impl GameState {
     }
 
     /// CR 112.1 — is `id` a **spell** on the stack, as opposed to an activated
-    /// ability's ephemeral object?
-    ///
-    /// One predicate rather than a copy per arm, because two `SelectionFilter`s
-    /// ask it — `Spell` and CR 609.7a's `DamageSource` — at three sites each:
-    /// the validator, the count, and the enumeration.
+    /// or triggered ability's object?
     ///
     /// **The entry, not the stack, is what answers.** An ability on the stack
     /// is a `GameObject` like any other (CR 113.7a) and nothing about the
     /// object says which it is; the `StackEntry` does, and it is the same field
-    /// the resolution and the fizzle already branch on. The one object this
-    /// declines is the spell **currently resolving**, whose entry
-    /// `resolve_top_of_stack` has already taken — no rule reaches it, since
-    /// CR 601.2c and CR 603.3d both choose before a resolution starts.
+    /// the resolution and the fizzle already branch on. The spell **resolving
+    /// now** is still on the stack until it finishes (CR 608.2n), though
+    /// `resolve_top_of_stack` has taken its entry, so the resolving object
+    /// answers for it.
     pub fn is_spell_on_stack(&self, id: ObjectId) -> bool {
-        self.stack_entries.get(&id).is_some_and(|e| e.is_spell)
+        match self.stack_entries.get(&id) {
+            Some(entry) => entry.is_spell,
+            None => self.resolving.as_ref().is_some_and(|r| r.id == id && r.identity.is_none()),
+        }
     }
 
     /// Get an immutable reference to a game object

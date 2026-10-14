@@ -96,7 +96,7 @@ pub(super) fn holds(
         // every layer, exactly as `ObjectSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.
         Condition::HostMatches(filter) => {
-            let Some(host) = game.battlefield.get(&source).and_then(|e| e.attached_to) else {
+            let Some(host) = crate::oracle::board::host_of(game, source) else {
                 return false;
             };
             let Some(chars) = board.frame_of(game, host, layer_index) else {

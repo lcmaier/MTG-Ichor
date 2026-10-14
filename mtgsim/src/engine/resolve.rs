@@ -1183,7 +1183,7 @@ impl GameState {
                 // CR 800.4d's first sentence at the same line, since CR 111.2 makes the
                 // two rules name one player here. A rule checked ahead of the proposal,
                 // like CR 508.8's: there is no event here for a replacement to see.
-                if self.is_multiplayer() && !self.in_game(controller) {
+                if self.left_a_multiplayer_game(controller) {
                     return Ok(());
                 }
                 let defs = vec![token_def.clone(); count as usize];
@@ -2179,9 +2179,8 @@ impl GameState {
                 let mut candidates = Vec::new();
                 match choice.among {
                     ChoiceScope::ChoosersPermanents => {
-                        for id in self.battlefield_ids_ordered() {
-                            if controls(self, id, player)
-                                && self.matches_for_effect(id, &pick.filter, ctx)
+                        for id in crate::oracle::board::permanents_controlled_by(self, player) {
+                            if self.matches_for_effect(id, &pick.filter, ctx)
                                 && self.admits(primitive, id, &[], ctx)?
                             {
                                 candidates.push(ResolvedTarget::Object(id));
@@ -2512,9 +2511,7 @@ impl GameState {
                 match targeted {
                     Some(pid) => pid,
                     None => {
-                        let opponents: Vec<PlayerId> = (0..self.num_players())
-                            .filter(|&p| p != ctx.controller && !self.player_lost[p])
-                            .collect();
+                        let opponents = self.opponents_of(ctx.controller);
                         match opponents.as_slice() {
                             [only] => *only,
                             others => {
@@ -2545,10 +2542,7 @@ impl GameState {
             }),
         };
         let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
-        let mut players: Vec<PlayerId> =
-            (0..self.num_players()).filter(|&p| self.in_game(p) && in_group(p)).collect();
-        players.sort_by_key(|&p| self.apnap_index(p));
-        players
+        self.players_in_game_apnap().into_iter().filter(|&p| in_group(p)).collect()
     }
 
     /// A resolving effect's own "if" (CR 608.2c). CR 118.12's answer is the

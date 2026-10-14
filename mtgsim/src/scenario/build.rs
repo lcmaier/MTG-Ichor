@@ -406,7 +406,7 @@ impl<'s> Loader<'s> {
             format!("player {player} has left, and owns or controls {} on line {} (CR 800.4a)", card.card, card.line)
         } else if player == self.scenario.active {
             format!("player {player} has left, and is the active player: a turn begins only for a player in the game (CR 800.4k)")
-        } else if self.state.player_lost.iter().filter(|&&lost| !lost).count() <= 2 {
+        } else if self.state.players_in_game().count() <= 2 {
             "a game with fewer than two players left in it is over (CR 104.2a)".to_string()
         } else {
             self.state.player_lost[player] = true;
@@ -420,7 +420,7 @@ impl<'s> Loader<'s> {
     /// writers; then the position, and each history row on its turn.
     fn begin_turns(&mut self) -> Result<(), ScenarioError> {
         let (turn, active) = (self.scenario.turn, self.scenario.active);
-        let in_game: Vec<PlayerId> = (0..self.scenario.players).filter(|&p| self.state.in_game(p)).collect();
+        let in_game: Vec<PlayerId> = self.state.players_in_game().collect();
         let place = in_game.iter().position(|&p| p == active).unwrap_or_default();
         let rows = self.history_counts_by_turn()?;
         // The turns before the last rotation leave nothing a board reads: the
@@ -606,7 +606,7 @@ impl<'s> Loader<'s> {
                 SetupVerb::Casts => {
                     let what = format!("card in player {seat}'s hand");
                     let none = format!("{} is not in player {seat}'s hand, which a setup action casts from", written.card);
-                    let in_hand = |c: &CreatedObject| c.zone == Zone::Hand && self.state.objects[&c.id].owner == seat;
+                    let in_hand = |c: &CreatedObject| crate::oracle::board::card_in_hand(&self.state, seat, c.id).is_some();
                     let card = self.one_named(&written.card, line, &what, none, in_hand)?;
                     if let Some((_, earlier)) = cast.iter().find(|(id, _)| *id == card) {
                         return refused(ScenarioErrorKind::Reference, format!("{} is cast by line {earlier} already", written.card));

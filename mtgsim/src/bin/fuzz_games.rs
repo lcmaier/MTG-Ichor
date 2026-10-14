@@ -582,7 +582,7 @@ fn extract_stats<'a>(
     stats.departed_owned_permanents = game
         .battlefield
         .keys()
-        .filter(|id| game.objects.get(id).is_some_and(|o| game.player_lost[o.owner]))
+        .filter(|id| game.objects.get(id).is_some_and(|o| !game.in_game(o.owner)))
         .count() as u32;
     stats
 }

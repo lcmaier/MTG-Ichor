@@ -557,6 +557,7 @@ pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring)
     match error {
         CombatError::NotOnBattlefield(id) => (format!("{} is not on the battlefield", n(id)), None),
         CombatError::NotACreature(id) => (format!("{} is not a creature", n(id)), None),
+        CombatError::IsABattle(id) => (format!("{} is also a battle", n(id)), Some(declaration_rule)),
         CombatError::NotControlledByPlayer(id, player) => {
             (format!("{} is not controlled by {}", n(id), player_name(*player)), None)
         }

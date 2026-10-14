@@ -51,7 +51,7 @@ impl GameState {
         // still in has passed in succession, and a departed active player's
         // priority goes to the next in turn order. Counted once per round: a loss
         // is a state-based action, so a player leaves only between rounds.
-        let players_in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
+        let players_in_game = self.players_in_game().count();
         let mut consecutive_passes = 0;
         let Some(mut current_priority) = (if self.in_game(self.active_player) {
             Some(self.active_player)

@@ -166,12 +166,10 @@ pub fn assign_combat_damage(
     // where the assignments are, not at the four arms that can name a player;
     // a trampler still assigns to its blockers. The defender can leave after
     // attacks are declared (CR 506.2 notwithstanding), first strike making it routine.
-    if game.is_multiplayer() {
-        assignments.retain(|a| match a.target {
-            DamageTarget::Player(pid) => game.in_game(pid),
-            DamageTarget::Object(_) => true,
-        });
-    }
+    assignments.retain(|a| match a.target {
+        DamageTarget::Player(pid) => !game.left_a_multiplayer_game(pid),
+        DamageTarget::Object(_) => true,
+    });
 
     assignments
 }

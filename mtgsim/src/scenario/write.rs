@@ -99,7 +99,7 @@ impl<'g> Writer<'g> {
             dealt_first_strike_damage: _, // on each permanent's line
             next_timestamp: _,      // the counters ids and stamps come from
             next_object_id: _,
-            player_lost,
+            player_lost: _, // each player's line, and the rotation below
             result,
             starting_life,
             skip_first_draw,
@@ -168,7 +168,7 @@ impl<'g> Writer<'g> {
         }
         // The loader begins the natural rotation's turns over the players in
         // the game, ending with the active player's (`build.rs`).
-        let in_game: Vec<PlayerId> = (0..players.len()).filter(|&p| !player_lost[p]).collect();
+        let in_game: Vec<PlayerId> = self.state.players_in_game().collect();
         let mut natural = vec![0; players.len()];
         if let Some(place) = in_game.iter().position(|&p| p == active) {
             for back in 0..(turn as usize).min(in_game.len()) {
@@ -235,7 +235,7 @@ impl<'g> Writer<'g> {
             if state.in_own_draw_step(p) && history.this_draw_step() > 0 {
                 facts.push(PlayerWord::DrawnThisDrawStep { player: p, count: history.this_draw_step() });
             }
-            if state.player_lost[p] {
+            if !state.in_game(p) {
                 facts.push(PlayerWord::LeftTheGame { player: p });
             }
             let mut damage: Vec<(&ObjectId, &u32)> = commander_damage_taken.iter().collect();
@@ -281,7 +281,7 @@ impl<'g> Writer<'g> {
     fn since_your_last_turn_differs(&self, player: PlayerId) -> bool {
         let state = self.state;
         let turn = state.turn_number;
-        let in_game = state.players.len() - state.player_lost.iter().filter(|&&l| l).count();
+        let in_game = state.players_in_game().count();
         let ended = match state.last_turn_began[player] {
             began if player == state.active_player => (began as usize).saturating_sub(in_game) as u32,
             began => began,

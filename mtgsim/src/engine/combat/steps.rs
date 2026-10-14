@@ -40,9 +40,7 @@ impl GameState {
         // CR 506.2 — the defending players are the active player's
         // *opponents*, and a player who has left the game (CR 104.5, 800.4a)
         // is nobody's opponent.
-        let defenders: Vec<_> = (0..self.num_players())
-            .filter(|&pid| pid != active && self.in_game(pid))
-            .collect();
+        let defenders = self.opponents_of(active);
         let legal_pairs: Vec<(ObjectId, AttackTarget)> = attacker_ids
             .into_iter()
             .flat_map(|id| defenders.iter().map(move |&pid| (id, AttackTarget::Player(pid))))

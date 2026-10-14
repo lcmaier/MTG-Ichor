@@ -8,14 +8,14 @@
 
 use std::cell::OnceCell;
 
-use crate::oracle::characteristics::{controls, has_keyword, has_summoning_sickness, is_creature};
+use crate::oracle::board::permanents_controlled_by;
+use crate::oracle::characteristics::{controls, get_effective_types, has_keyword, has_summoning_sickness};
 use crate::oracle::mana_helpers::{activatable_abilities_with, castable_spells_with};
 use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::zones::Zone;
 use crate::types::keywords::KeywordFlag;
 use crate::ui::decision::PriorityAction;
 
@@ -35,9 +35,7 @@ pub fn can_attack(game: &GameState, player_id: PlayerId, id: ObjectId) -> Result
     if !controls(game, id, player_id) {
         return Err(CombatError::NotControlledByPlayer(id, player_id));
     }
-    if !is_creature(game, id) {
-        return Err(CombatError::NotACreature(id));
-    }
+    a_creature_and_not_a_battle(game, id)?;
     if entry.tapped {
         return Err(CombatError::CreatureIsTapped(id));
     }
@@ -47,6 +45,35 @@ pub fn can_attack(game: &GameState, player_id: PlayerId, id: ObjectId) -> Result
     }
     if has_keyword(game, id, KeywordFlag::Defender) {
         return Err(CombatError::HasDefender(id));
+    }
+    Ok(())
+}
+
+/// Can `defender` declare `blocker` as a blocker at all — CR 509.1a's half
+/// about the blocker alone: a creature they control, untapped, and not also
+/// a battle. `can_block` asks it ahead of the rules about the pair, and
+/// `legal_blockers` offers what it allows.
+pub fn can_be_a_blocker(game: &GameState, defender: PlayerId, blocker: ObjectId) -> Result<(), CombatError> {
+    let entry = game.battlefield.get(&blocker).ok_or(CombatError::NotOnBattlefield(blocker))?;
+    if !controls(game, blocker, defender) {
+        return Err(CombatError::NotControlledByPlayer(blocker, defender));
+    }
+    a_creature_and_not_a_battle(game, blocker)?;
+    if entry.tapped {
+        return Err(CombatError::CreatureIsTapped(blocker));
+    }
+    Ok(())
+}
+
+/// CR 508.1a and 509.1a: only a creature is declared, and one that is also a
+/// battle is not. One read of its types answers both.
+fn a_creature_and_not_a_battle(game: &GameState, id: ObjectId) -> Result<(), CombatError> {
+    let types = get_effective_types(game, id);
+    if !types.contains(&CardType::Creature) {
+        return Err(CombatError::NotACreature(id));
+    }
+    if types.contains(&CardType::Battle) {
+        return Err(CombatError::IsABattle(id));
     }
     Ok(())
 }
@@ -81,13 +108,9 @@ impl std::fmt::Display for CannotPlayLand {
 /// May `player_id` play `card_id` as a land now (CR 305.1, 305.2a)? One check
 /// for the enumeration and for `GameState::play_land`.
 pub fn can_play_land(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotPlayLand> {
-    let Some(obj) = game.objects.get(&card_id) else {
+    let Some(obj) = crate::oracle::board::card_in_hand(game, player_id, card_id) else {
         return Err(CannotPlayLand::NotInHand);
     };
-    // A hand holds only its owner's cards (CR 400.3).
-    if obj.zone != Zone::Hand || obj.owner != player_id {
-        return Err(CannotPlayLand::NotInHand);
-    }
     // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
     // play-from-hand legality, which happens before the object is a permanent,
     // so the layer system has nothing to contribute. Same exemption as
@@ -123,31 +146,19 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// the order this returns in is part of the decision, not a presentation
 /// detail.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered()
+    permanents_controlled_by(game, player_id)
         .into_iter()
-        .filter_map(|(id, _)| can_attack(game, player_id, id).is_ok().then_some(id))
+        .filter(|&id| can_attack(game, player_id, id).is_ok())
         .collect()
 }
 
-/// Get all creatures controlled by a player that can legally block.
-///
-/// A creature can block if it's on the battlefield, is a creature, untapped,
-/// and controlled by the defending player. Specific attacker legality
-/// (flying/reach checks) is handled during actual block declarations.
+/// Every permanent a player controls that [`can_be_a_blocker`] allows, in
+/// timestamp order. Which attacker each may block is the pair's question,
+/// asked at the declaration.
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered().into_iter()
-        .filter_map(|(id, entry)| {
-            if !controls(game, id, player_id) {
-                return None;
-            }
-            if !is_creature(game, id) {
-                return None;
-            }
-            if entry.tapped {
-                return None;
-            }
-            Some(id)
-        })
+    permanents_controlled_by(game, player_id)
+        .into_iter()
+        .filter(|&id| can_be_a_blocker(game, player_id, id).is_ok())
         .collect()
 }
 
@@ -238,13 +249,8 @@ pub fn enumerate_legal_selections_upto(
     // **Each arm is an iterator and the cap is `take`**: arms yield in their
     // documented order, so `take` keeps the *first* `limit`, process-independent,
     // and laziness stops the layer walks there. CR 800.4a: a departed player is
-    // no candidate, and `num_players()` is the seat count the game began with,
-    // so `Player` and `Any` read this set rather than the range.
-    let players = || {
-        (0..game.num_players())
-            .filter(move |&p| game.in_game(p))
-            .map(RT::Player)
-    };
+    // no candidate.
+    let players = || game.players_in_game().map(RT::Player);
     let battlefield = || {
         game.battlefield_ids_ordered()
             .into_iter()
@@ -306,12 +312,10 @@ pub fn enumerate_legal_selections_upto(
 /// object in the command zone, waits for that zone (`codebase-state.md` item
 /// 99). `exclude_id` is CR 115.5's object.
 pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<ObjectRef> {
-    // A spell's resolution takes its entry, and it stays on the stack.
-    let resolving_spell = game.resolving.as_ref().filter(|r| r.identity.is_none()).map(|r| r.id);
     let present = game
         .battlefield_ids_ordered()
         .into_iter()
-        .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id) || Some(id) == resolving_spell))
+        .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id)))
         .filter_map(|id| game.object_ref(id));
     let mut sources: Vec<ObjectRef> = Vec::new();
     for source in present.chain(referred_damage_sources(game)) {
@@ -654,7 +658,7 @@ mod tests {
         assert!(game
             .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, FilterIdentity::NONE)
             .is_err());
-        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, FilterIdentity::NONE));
+        assert_eq!(enumerate_legal_selections_upto(&game, &SelectionFilter::DamageSource, None, 0, FilterIdentity::NONE, 1).len(), 1);
     }
 
     // The board with nothing on it: no permanent, no spell, so CR 101.3's
@@ -667,7 +671,7 @@ mod tests {
         let game = setup_two_player_game();
         assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
             .is_empty());
-        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, FilterIdentity::NONE));
+        assert!(enumerate_legal_selections_upto(&game, &SelectionFilter::DamageSource, None, 0, FilterIdentity::NONE, 1).is_empty());
     }
 
     // CR 800.4a — a player who has left the game is not a player, so not a
@@ -695,7 +699,6 @@ mod tests {
         // offered nothing at all.
         for filter in [SelectionFilter::Player, SelectionFilter::Any] {
             assert_eq!(seats(&game, filter.clone()).len(), 4, "{:?}: four seats", filter);
-            assert!(game.has_legal_choices(&filter, None, 0, 4, FilterIdentity::NONE));
         }
 
         game.player_lost[3] = true;
@@ -709,16 +712,6 @@ mod tests {
             // The battlefield is empty, so `Any` offers the seats and nothing
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);
-            assert!(
-                game.has_legal_choices(&filter, None, 0, 3, FilterIdentity::NONE),
-                "{:?}: three seats are still three choices",
-                filter,
-            );
-            assert!(
-                !game.has_legal_choices(&filter, None, 0, 4, FilterIdentity::NONE),
-                "{:?}: and the fourth is not a choice to count",
-                filter,
-            );
             // Enumeration and enforcement agree — the rule RS-2 fixed in both
             // directions, asked here of the seat that left.
             assert!(game

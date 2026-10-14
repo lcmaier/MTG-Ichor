@@ -1737,7 +1737,7 @@ impl GameState {
             // second loss is a caller's bug. CR 704.5b's flag is the check's to clear,
             // and CR 104.2a and 104.4a are the batch's, settled after it performs.
             GameAction::PlayerLoses { player } => {
-                if self.player_lost[player] {
+                if !self.in_game(player) {
                     return Err(format!("player {} has already left the game", player));
                 }
                 self.player_lost[player] = true;
@@ -1758,7 +1758,7 @@ impl GameState {
             // CR 104.3f — win and lose at once → lose — has no producer and is
             // recorded, not built.
             GameAction::PlayerWins { player } => {
-                if self.player_lost[player] {
+                if !self.in_game(player) {
                     return Err(format!("player {} has left the game and cannot win it", player));
                 }
                 if self.result.is_none() {
@@ -1902,7 +1902,7 @@ impl GameState {
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
     ) -> Option<GameAction> {
-        if self.is_multiplayer() && !self.in_game(controller) {
+        if self.left_a_multiplayer_game(controller) {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })

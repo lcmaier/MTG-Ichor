@@ -888,7 +888,7 @@ fn mana_trigger_adds(
         return Vec::new();
     };
     let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
-    let host = game.battlefield.get(&at.permanent).and_then(|entry| entry.attached_to);
+    let host = crate::oracle::board::host_of(game, at.permanent);
     let fires = def.condition.events().iter().any(|arm| match arm {
         TriggerEvent::ManaAdded { source, tapped_for_mana, mana } => {
             tapped_for_mana.is_none_or(|t| t == tapped)

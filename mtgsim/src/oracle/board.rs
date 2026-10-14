@@ -1,8 +1,10 @@
 // Read-only board state queries.
 
+use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controls;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId, Timestamp};
+use crate::types::zones::Zone;
 
 /// The permanents `player_id` controls, oldest first (CR 613.7's timestamps,
 /// which never tie), sorting only those (`mana-architecture.md` §3.5).
@@ -27,6 +29,19 @@ pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<Ob
         .collect();
     mine.sort_unstable_by_key(|&(timestamp, _)| timestamp);
     mine.into_iter().map(|(_, id)| id).collect()
+}
+
+/// `card`, if it is in `player`'s hand. A hand holds only its owner's cards
+/// (CR 400.3), so this is the owner's.
+pub fn card_in_hand(game: &GameState, player: PlayerId, card: ObjectId) -> Option<&GameObject> {
+    game.objects.get(&card).filter(|obj| obj.zone == Zone::Hand && obj.owner == player)
+}
+
+/// The permanent `attachment` is attached to — an Aura's, Equipment's or
+/// Fortification's host (CR 301.5a, 303.4a) — or `None` when it is attached
+/// to nothing or is not on the battlefield.
+pub fn host_of(game: &GameState, attachment: ObjectId) -> Option<ObjectId> {
+    game.battlefield.get(&attachment).and_then(|entry| entry.attached_to)
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use crate::engine::triggers::binding::triggering_objects;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::ObjectId;
 use crate::types::triggers::{PendingTrigger, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
@@ -50,11 +50,7 @@ impl GameState {
         }
 
         let mut placed = 0usize;
-        let seats: Vec<PlayerId> = {
-            let mut seats: Vec<PlayerId> = (0..self.num_players()).filter(|&p| self.in_game(p)).collect();
-            seats.sort_by_key(|&p| self.apnap_index(p));
-            seats
-        };
+        let seats = self.players_in_game_apnap();
         for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
                 let mine: Vec<TriggerSeq> = self
