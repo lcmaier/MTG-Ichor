@@ -37,7 +37,7 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
-**Re-recorded 2026-10-13 for A6q** (the invariants as checks,
+**Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
 `engineering-practices.md` §11). No card joins the registry or the pool (188
 registered, 106 pooled), and no pool moved: the record is the budget's, and
 the first reading of the checked sitting. `close_out.py` against **main**
