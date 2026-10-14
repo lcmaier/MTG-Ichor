@@ -661,6 +661,36 @@ mod tests {
         assert_eq!(enumerate_legal_selections_upto(&game, &SelectionFilter::DamageSource, None, 0, FilterIdentity::NONE, 1).len(), 1);
     }
 
+    // CR 608.2n: a spell is on the stack until its resolution ends. Kari Zev's
+    // Expertise's ruling: a spell cast while it resolves "can target the
+    // Expertise spell on the stack", whose entry was taken as it began.
+    #[test]
+    fn the_spell_resolving_now_is_a_spell_on_the_stack() {
+        use crate::engine::resolve::ResolvedTarget;
+        use crate::test_support::{card_of_type, put_spell_on_stack, setup_two_player_game};
+        use crate::types::effects::SelectionFilter;
+
+        let mut game = setup_two_player_game();
+        let expertise = put_spell_on_stack(&mut game, card_of_type("A Sorcery", CardType::Sorcery), 0);
+        game.take_stack_entry(expertise).expect("cast with an entry");
+        game.resolving = Some(crate::state::game_state::ResolvingObject {
+            id: expertise,
+            default_controller: 0,
+            cast: None,
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
+            x_value: None,
+            identity: None,
+            subject: None,
+            subject_lki: None,
+            kept_lki: Vec::new(),
+        });
+
+        assert_eq!(
+            enumerate_legal_selections(&game, &SelectionFilter::Spell, None, 1),
+            vec![ResolvedTarget::Object(expertise)],
+        );
+    }
+
     // The board with nothing on it: no permanent, no spell, so CR 101.3's
     // impossible instruction and the caller's no-op path.
     #[test]
