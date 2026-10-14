@@ -232,6 +232,9 @@ impl<'g> Writer<'g> {
             if *lands_played_this_turn > 0 {
                 facts.push(PlayerWord::LandsPlayed { player: p, count: *lands_played_this_turn });
             }
+            if state.in_own_draw_step(p) && history.this_draw_step() > 0 {
+                facts.push(PlayerWord::DrawnThisDrawStep { player: p, count: history.this_draw_step() });
+            }
             if state.player_lost[p] {
                 facts.push(PlayerWord::LeftTheGame { player: p });
             }

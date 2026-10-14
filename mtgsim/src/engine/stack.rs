@@ -260,7 +260,7 @@ impl GameState {
             self.emit_event(
                 GameEvent::AbilityResolved { identity, controller: entry.controller },
                 EventCause::GameRule(GameRule::AbilityResolves),
-            );
+            )?;
         }
 
         Ok(())
@@ -301,7 +301,7 @@ impl GameState {
             Some(identity) => GameEvent::AbilityFizzled { identity, controller },
             None => GameEvent::SpellFizzled { spell_id: object_id, controller },
         };
-        self.emit_event(fizzled, EventCause::GameRule(GameRule::TargetsIllegal));
+        self.emit_event(fizzled, EventCause::GameRule(GameRule::TargetsIllegal))?;
 
         Ok(())
     }

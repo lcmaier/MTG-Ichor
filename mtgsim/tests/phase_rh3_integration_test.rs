@@ -370,16 +370,16 @@ fn exiles_seen(rest_in_peace: Option<PlayerId>, exiler: PlayerId) -> usize {
     game.pending_triggers.len()
 }
 
-/// Who exiled a creature Rest in Peace sent to exile is Rest in Peace's
-/// controller (CR 614.6: the modified event is the replacement's), not the
-/// destroyer's; a direct exile is its spell's. The owner's ruling at #242's
-/// review, after Hero of Bretagard's.
+/// Who exiled a creature Rest in Peace sent to exile is the resolving spell's
+/// controller, whoever controls the Rest in Peace: the spell "is causing
+/// everything to happen, even if some of it gets replaced" (judges, 2026-10-13,
+/// reversing #242's review; `replacement-architecture.md` §2b.4).
 #[test]
-fn who_exiled_a_redirected_move_is_the_replacements_controller() {
+fn who_exiled_a_redirected_move_is_the_resolving_spells_controller() {
     assert_eq!(exiles_seen(None, 0), 1, "your own exile");
     assert_eq!(exiles_seen(None, 1), 0, "an opponent's exile");
-    assert_eq!(exiles_seen(Some(1), 0), 0, "your destroy, which an opponent's Rest in Peace exiled");
-    assert_eq!(exiles_seen(Some(0), 1), 1, "an opponent's destroy, which your Rest in Peace exiled");
+    assert_eq!(exiles_seen(Some(1), 0), 1, "your destroy, which an opponent's Rest in Peace exiled");
+    assert_eq!(exiles_seen(Some(0), 1), 0, "an opponent's destroy, which your Rest in Peace exiled");
 }
 
 /// The record grew by what it holds and not by a byte (§2b.10's pricing).

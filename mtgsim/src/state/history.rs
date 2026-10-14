@@ -4,8 +4,10 @@
 //! Four views, each sized by the table and never by the turn count: this
 //! turn's row and last turn's, the game's running total, and, for "since your
 //! last turn", every player's total as it stood when this player's last turn
-//! ended. The dispatcher is the one writer (`engine::triggers::history`);
-//! nothing derives these from the event stream.
+//! ended. Beside them, the draws in the player's draw step in progress, which
+//! no turn row can hold: a turn can have two draw steps (CR 500.8). One writer,
+//! `engine::triggers::history`, as each event ends; nothing derives these from
+//! the event stream.
 
 use crate::types::history::TurnFact;
 use crate::types::ids::PlayerId;
@@ -65,6 +67,9 @@ pub struct PlayerHistory {
     /// turn" reads the other players' counts. Empty until this player's first
     /// turn has ended, which reads as zeros.
     at_your_last_turn: Vec<TurnSummary>,
+    /// The cards drawn since this player's draw step in progress began (CR
+    /// 504), read only while it is in progress.
+    this_draw_step: u64,
 }
 
 impl PlayerHistory {
@@ -77,6 +82,7 @@ impl PlayerHistory {
             this_game: TurnSummary::ZERO,
             own_turn: None,
             at_your_last_turn: Vec::new(),
+            this_draw_step: 0,
         }
     }
 
@@ -143,6 +149,23 @@ impl PlayerHistory {
     pub(crate) fn record_own_turn(&mut self, turn: u32) {
         self.own_turn = Some(turn);
     }
+
+    /// The cards drawn in this player's draw step in progress.
+    pub fn this_draw_step(&self) -> u64 {
+        self.this_draw_step
+    }
+
+    /// This player's draw step has begun (CR 504), or a scenario states how
+    /// many cards were drawn in it so far.
+    pub(crate) fn draw_step_drawn(&mut self, n: u64) {
+        self.this_draw_step = n;
+    }
+
+    /// Count a card drawn in this player's draw step, and return its place.
+    pub(crate) fn drew_in_draw_step(&mut self) -> u64 {
+        self.this_draw_step = self.this_draw_step.saturating_add(1);
+        self.this_draw_step
+    }
 }
 
 #[cfg(test)]
@@ -196,5 +219,15 @@ mod tests {
         game.players[0].history.add(2, DRAWN, 1);
         let mine = &game.players[0].history;
         assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);
+    }
+
+    /// The draw step's count is not a turn row: it starts over when a draw
+    /// step begins, and a turn can have two (CR 500.8).
+    #[test]
+    fn the_draw_steps_count_starts_over_with_each_draw_step() {
+        let mut history = PlayerHistory::before_any_turn();
+        assert_eq!((history.drew_in_draw_step(), history.drew_in_draw_step()), (1, 2));
+        history.draw_step_drawn(0);
+        assert_eq!(history.drew_in_draw_step(), 1, "a second draw step in the same turn");
     }
 }

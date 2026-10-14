@@ -3890,7 +3890,7 @@ named RE PR.
 ### Found by RE-2 — draw (2026-09-11)
 
 **Shipped:** `GameAction::{DrawCards, DrawCard}` as CR 121.2a's instruction and
-CR 121.1's draw, with `DrawCause`, the two `EventPattern` arms,
+CR 121.1's draw, with `DrawCause` (gone since A6r, item 254), the two `EventPattern` arms,
 `GameActionTemplate::DrawCards { n, player }` in both its legs, and the outer
 performer's decomposition handing each inner the applied set its own CR 616.1
 loop accumulated — `execute_actions_inheriting` beside `execute_actions`, and
@@ -9402,40 +9402,14 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      `GameEvent::lki`.
      **Slotted:** TR-4d, with the `IsCountered` arm and Multani's Presence.
 
-254. **A draw's place among its player's draws is read through a proxy, and
-     a trigger cannot ask for it.** Cards print two places:
-     - the turn's: "whenever you draw your second card each turn" (Gavi, Nest
-       Warden);
-     - the draw step's: "except the first one you draw in each of your draw
-       steps".
-
-     Records carry the first already (`EventRecord::place_in_turn`, which
-     TR-2a's "for the first time each turn" reads as 1), but `DrawsCard` has
-     no field asking for 2. The draw step's place is counted nowhere. Both
-     sides read `DrawCause::TurnBased`, which marks the step's own draw. When
-     a replacement takes that draw and a later draw comes in the same step,
-     the later card is the first one drawn, as miracle counts "the first card
-     you've drawn this turn" (CR 702.94a). 78 trigger cards: `(o:"when " or
-     o:"whenever ") o:draw (o:"second card" or o:"third card" or o:"first
-     card")`; 7 replacements: `o:"would draw" (o:"second card" or o:"first
-     card" or o:"except the first")`.
-     **Reachability (2026-10-12):** reachable — wrong today, by the reading
-     above (no ruling decides it), with registered cards. Words of Worship
-     turns the draw step's draw into 5 life, and Opt then draws in the same
-     step. Under Teferi's Ageless Insight, Opt's card becomes two
-     (`pipeline.rs`'s `DrawCause::Effect` test), where the count makes it one.
-     Notion Thief and Alhammarret's Archive read the same proxy.
-     **Sized:** ~90 lines of code and ~160 of tests (widened at #246's review,
-     after the owner named Gavi):
-     - the count of a player's draws in the current draw step, beside the
-       turn's on the history;
-     - a place on `DrawsCard`: the turn's Nth, or the draw step's first
-       excluded;
-     - the replacement side reading the step's count instead of `DrawCause`;
-     - a cause arm for CR 103.5's opening hand, which draws with none.
-     **Slotted:** A6r, the fixes before TR-4 (the owner, 2026-10-13), with
-     Gavi's board and a fixture shaped like Orcish Bowmasters under the
-     registered Thought Reflection.
+254. **~~A draw's place among its player's draws is read through a proxy, and
+     a trigger cannot ask for it.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
+     Done: the history counts each card of a draw instruction as its draw
+     ends, and the draw step's draws beside the turn rows; one `DrawFilter`
+     is asked by `EventPattern::DrawCard` and `TriggerEvent::DrawsCard`.
+     `DrawCause` went.
+     **Reachability (2026-10-13):** closed — PR #248.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 254".
 
 255. **A record names two objects, and the binding keeps one.** Each combat
      and targeting record names two parties:
@@ -9556,27 +9530,12 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      departure, and Angelic Destiny registered.
      **Slotted:** TR-4c, with Angelic Destiny.
 
-261. **A redirected move's destination credits the replacement, and judges
-     credit the resolving spell.** `cause_asked_by` (`triggers/dispatch.rs`)
-     answers a destination word ("a spell or ability you control exiles") with
-     the last redirect's cause (`GameEvent::redirected_by`). That is what
-     #242's review decided. On 2026-10-13 judges answered the board the other
-     way: the resolving Doom Blade causes "everything ..., even if some of it
-     gets replaced" (`replacement-architecture.md` §2b.4). So Hero of
-     Bretagard's controller's own Doom Blade under an opponent's Rest in Peace
-     should trigger it, and the engine would not. 2 cards: `o:"spell or
-     ability you control exiles" game:paper -is:funny` (Ranar the
-     Ever-Watchful, Hero of Bretagard).
-     **Reachability (2026-10-13):** unreachable — no registered trigger names
-     a destination with a `by` filter.
-     **Sized:** ~10 lines of code fewer and ~40 of tests changed:
-     - `cause_asked_by` returns the stamp's cause;
-     - `redirected_by` goes;
-     - `AppliedReplacement.redirected` stays for the log's "(redirected)";
-     - the `phase_rh3_integration_test.rs` boards that pinned the old answer
-       flip.
-     **Slotted:** A6r, the fixes before TR-4, with item 254 (the owner,
-     2026-10-13).
+261. **~~A redirected move's destination credits the replacement, and judges
+     credit the resolving spell.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
+     Done: a `by` filter reads the record's stamp for the destination as for
+     the act; `cause_asked_by` and `GameEvent::redirected_by` went.
+     **Reachability (2026-10-13):** closed — PR #248.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 261".
 
 ### Found by an outside read of the tree (2026-10-13, at #246's review)
 
@@ -9585,23 +9544,12 @@ for habits that cause rework. Two of its findings in the tree are live
 violations that no item named. Each was checked against the tree before it was
 filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
-262. **An unbatched dispatch swallows its error, so triggers can vanish
-     without a word.** `dispatch_unbatched` (`triggers/dispatch.rs`) discards
-     `dispatch`'s `Result` with `let _ =`. It is the path every tier-2
-     `AbilityTriggered` record takes, so a dispatch past
-     `DISPATCH_NESTING_LIMIT`, and any other `Err` raised there, drops its
-     triggers silently. `triggers-architecture.md` §4.8 planned CR 104.4b's
-     draw at the limit for TR-6, and an `Err` until then. The `Err` never
-     reaches anyone.
-     **Reachability (2026-10-13):** unreachable as a wrong answer — the limit
-     needs a tier-2 chain sixteen deep, which no printed ability makes. Any
-     other `Err` swallowed there is an engine bug that the swallow hides from
-     the fuzz runs.
-     **Sized:** ~10 lines of code and ~30 of tests: the `Err` reaches the
-     emitter's caller, as a batched dispatch's does, and a test drives the
-     limit.
-     **Slotted:** A6r, the fixes before TR-4, so that the ten trigger PRs
-     after it see their own errors.
+262. **~~An unbatched dispatch swallows its error, so triggers can vanish
+     without a word.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
+     Done: the three emit doors return `Result`, and their 45 callers pass
+     it on; a chain driven to the nesting limit fails the move that began it.
+     **Reachability (2026-10-13):** closed — PR #248.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 262".
 
 263. **CR 104.4b's draw is written outside the chokepoint.**
      `perform_sba_and_triggers` (`engine/sba.rs`, the `MANDATORY_LOOP_CHECKS`

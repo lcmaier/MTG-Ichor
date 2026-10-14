@@ -321,6 +321,7 @@ fn parse_player_line(scenario: &mut Scenario, player: usize, rest: &str, line: u
                 match name {
                     "life" => PlayerWord::Life { player, life: parse_number(n, name, line)? },
                     "lands played" => PlayerWord::LandsPlayed { player, count: parse_number(n, name, line)? },
+                    "cards drawn this draw step" => PlayerWord::DrawnThisDrawStep { player, count: parse_number(n, name, line)? },
                     kind => PlayerWord::Counter {
                         player,
                         kind: CounterType::named(kind).ok_or_else(unknown)?,
@@ -462,6 +463,9 @@ fn player_word_text(fact: &PlayerWord) -> (String, String, bool) {
         PlayerWord::Counter { player, kind, count } => (format!("player {player}"), format!("{} {count}", kind.name()), false),
         PlayerWord::LandsPlayed { player, count } => (format!("player {player}"), format!("lands played {count}"), false),
         PlayerWord::LeftTheGame { player } => (format!("player {player}"), "left the game".to_string(), false),
+        PlayerWord::DrawnThisDrawStep { player, count } => {
+            (format!("player {player}"), format!("cards drawn this draw step {count}"), false)
+        }
         PlayerWord::CommanderDamage { player, damage, from } => {
             (format!("player {player}"), format!("commander damage {damage} from {from}"), true)
         }
@@ -696,6 +700,7 @@ mod tests {
             PlayerWord::Life { player: 0, life: -3 },
             PlayerWord::Counter { player: 0, kind: CounterType::Poison, count: 2 },
             PlayerWord::LandsPlayed { player: 0, count: 1 },
+            PlayerWord::DrawnThisDrawStep { player: 0, count: 2 },
             PlayerWord::LeftTheGame { player: 1 },
             PlayerWord::CommanderDamage { player: 0, damage: 7, from: card.clone() },
             PlayerWord::History { player: 2, span: HistorySpan::ThisTurn, fact: TurnFact::SpellsCastOfType(CardType::Instant), count: 1 },

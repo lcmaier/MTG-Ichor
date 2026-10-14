@@ -333,13 +333,21 @@ review has already had to make:
 8. **Name the players.** A condition about a player names which ones:
    `Condition::Player { players, .. }` and `HistoryCount { players, .. }`,
    never a leaf that assumes "you".
+9. **A constructor says what it builds.** `IdMap::default()`, not
+   `Default::default()`, which hid that the map carries the hasher's seed
+   (#158). An empty value that is a claim is a named constant:
+   `ObjectSet::NO_OBJECTS`, `DecisionLogHandle::NONE` (#211),
+   `RecordPlaces::NOT_COUNTED` (#248).
 
 **One spelling per concept.** When a second type needs a name the first already
 has, it takes the same one: `TriggerSubject::ThisObject` and
 `EffectRecipient::ThisObject` are the same object.
 
-**No gate.** A script could flag a bare pronoun and nothing else on this list,
-so this is a review checklist, applied to every name a PR adds. **Retrofit
+**One gate.** Item 9's first half is clippy's `default_trait_access`, refused in
+both crates' `[lints.clippy]` tables, so CI's clippy step fails it (#248). It
+passes a struct update's `..Default::default()`, whose type is the literal's,
+and a primitive's. A script could flag a bare pronoun and nothing else on this
+list, so the rest is a review checklist, applied to every name a PR adds. **Retrofit
 where a PR reaches**: a phase that extends an enum reads that enum's existing
 names against the list and renames the failures in a mechanical commit of their
 own, counted before it runs. The live docs follow the rename; `plans/archive/`
@@ -2362,8 +2370,8 @@ takes its entry off in the same diff.
   process. CI's determinism step runs three processes, so a leak there that
   reaches the fuzz output fails it.
 - `devgui/`, which reaches the engine through its snapshot, by id.
-- A swallowed `Result` (item 262), and registry membership. Neither is a
-  shape.
+- A swallowed `Result` (item 262 was one, fixed in A6r), and registry
+  membership. Neither is a shape.
 
 **The row's first instrument, privacy, is not built.** A6q's row asked for
 the fields that change game state to be private to the module that performs

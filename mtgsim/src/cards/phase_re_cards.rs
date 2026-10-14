@@ -330,7 +330,7 @@ use crate::types::replacement::{
     Rewrite, Rounding, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
-use crate::types::zones::{DrawCause, Zone};
+use crate::types::zones::{DrawFilter, Zone};
 
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
@@ -632,14 +632,14 @@ pub fn moment_of_silence() -> Arc<CardData> {
 
 /// "If you would draw a card, draw two cards instead" — the shape Thought
 /// Reflection and Teferi's Ageless Insight share, differing only in the
-/// [`DrawCause`] they except.
+/// [`DrawFilter`] they ask for.
 ///
 /// [`GameActionTemplate::DrawCards`]'s `player` is `None` on both: the draw
 /// stays with the player who would have drawn it. Notion Thief is the arm's
 /// other customer and the one that moves it.
-fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
+fn draw_two_instead(place: Option<DrawFilter>) -> ReplacementDef {
     ReplacementDef::new(
-        EventPattern::DrawCard { cause },
+        EventPattern::DrawCard { place },
         ObjectSet::NO_OBJECTS,
         Rewrite::Instead(GameActionTemplate::DrawCards {
             n: TemplateAmount::Fixed(2),
@@ -703,15 +703,13 @@ pub fn thought_reflection() -> Arc<CardData> {
 /// > If you would draw a card except the first one you draw in each of your
 /// > draw steps, draw two cards instead.
 ///
-/// **The card [`DrawCause`] exists for**, and the one that shows the stamping
-/// rule doing work: `Some(DrawCause::Effect)` watches every draw but the first
-/// of a draw step, and "the first" is not a count kept anywhere — it is the
-/// first inner of the draw step's instruction, with every later inner stamped
-/// `Effect` at every level of decomposition. So beside a Thought Reflection
-/// this draws **three** in the draw step: the Reflection doubles the
-/// instruction's one draw, the doubled instruction keeps its `TurnBased` cause
-/// (CR 614.6), its first inner is the card this excepts, and its second is the
-/// card this doubles.
+/// `Some(DrawFilter::NotFirstInDrawStep)` watches every draw but the first one
+/// drawn in its controller's draw step, counted as each is drawn. So beside a
+/// Thought Reflection this draws **three** in the draw step: the Reflection
+/// doubles the step's one draw, the doubled instruction's first card is the
+/// step's first, which this excepts, and its second is the card this doubles.
+/// And when Words of Worship takes the step's draw, the next card drawn in that
+/// step is its first (CR 702.94a counts the same way), so this excepts it.
 ///
 /// Legendary, so the two-copy board is Thought Reflection's.
 /// # The rulings, and where each is tested
@@ -740,7 +738,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
         .rules_text(
             "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
         )
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .build()
 }
 
@@ -841,8 +839,8 @@ pub fn alms_collector() -> Arc<CardData> {
 /// the draw keeps its lineage: each Thief applies once, and the draw comes home.
 ///
 /// `n: 1` rather than a `DrawCard`, because the substitute for a draw is always
-/// the instruction (CR 121.2a) — which also means the Thief's own draw is
-/// `DrawCause::Effect` and a second Thief can take it.
+/// the instruction (CR 121.2a) — which also means the Thief's own draw is a
+/// draw proposed like any other, and a second Thief can take it.
 /// # The rulings, and where each is tested
 ///
 /// - *"If an opponent is instructed to draw a card then discard a card, and
@@ -875,7 +873,7 @@ pub fn notion_thief() -> Arc<CardData> {
         )
         .ability(static_replacement("If an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
             ReplacementDef::new(
-                EventPattern::DrawCard { cause: Some(DrawCause::Effect) },
+                EventPattern::DrawCard { place: Some(DrawFilter::NotFirstInDrawStep) },
                 ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::DrawCards {
                     n: TemplateAmount::Fixed(1),
@@ -1034,7 +1032,7 @@ pub fn words_of_worship() -> Arc<CardData> {
                 Primitive::CreateReplacement(
                     Box::new(
                         ReplacementDef::new(
-                            EventPattern::DrawCard { cause: None },
+                            EventPattern::DrawCard { place: None },
                             ObjectSet::NO_OBJECTS,
                             Rewrite::Instead(GameActionTemplate::GainLife {
                                 amount: TemplateAmount::Fixed(5),
@@ -1162,7 +1160,7 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You),
         ))
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .build()
 }
 
@@ -1318,7 +1316,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             // (`DrawCards`) is not what this watches — CR 121.2 performs the
             // draws one at a time and the library empties between them.
             ReplacementDef::new(
-                EventPattern::DrawCard { cause: None },
+                EventPattern::DrawCard { place: None },
                 ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::PlayerWins),
             )
@@ -1951,7 +1949,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
              of your draw steps, draw two cards instead.\nIf one or more tokens would be \
              created under your control, twice that many of those tokens are created instead.",
         )
-        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
         .ability(static_replacement("If one or more tokens would be created under your control, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },

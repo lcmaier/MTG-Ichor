@@ -1,13 +1,15 @@
 //! The histories' one writer (`triggers-architecture.md` §3.10, §4.1).
 //!
-//! Every record of every window advances the histories, in window order,
-//! **before the gate** asks whether anything could trigger: a card that
-//! arrives later in the turn reads what happened before it arrived (Vengeful
-//! Warchief's fourth ruling, Paladin of Atonement's first).
+//! Every record advances the histories once, in window order, **before the
+//! gate** asks whether anything could trigger: a card that arrives later in
+//! the turn reads what happened before it arrived (Vengeful Warchief's fourth
+//! ruling, Paladin of Atonement's first). A record is counted as its event
+//! ends: at its window's dispatch, or, for one card of a draw instruction, as
+//! that card's draw ends, since the next card is decided after it (CR 121.2).
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::TurnSummary;
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
@@ -21,6 +23,7 @@ enum HistoryUpdate {
     AbilityResolved { identity: AbilityIdentity },
     SpellCast { caster: PlayerId, types: Vec<CardType> },
     CardDrawn { player: PlayerId },
+    DrawStepBegan { player: PlayerId },
     LifeGained { player: PlayerId, amount: u64 },
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
@@ -36,6 +39,7 @@ impl HistoryUpdate {
             HistoryUpdate::TurnBegan { player, .. }
             | HistoryUpdate::SpellCast { caster: player, .. }
             | HistoryUpdate::CardDrawn { player }
+            | HistoryUpdate::DrawStepBegan { player }
             | HistoryUpdate::LifeGained { player, .. }
             | HistoryUpdate::LifeLost { player, .. }
             | HistoryUpdate::DamageTaken { player, .. }
@@ -46,63 +50,79 @@ impl HistoryUpdate {
 }
 
 impl GameState {
-    /// Advance the summaries of the turn in progress by `window`'s records,
-    /// and write on each record the summaries count where it falls in its
-    /// turn (`EventRecord::place_in_turn`).
+    /// Count `window`'s records the summaries have not counted yet, and write
+    /// on each where it falls in its turn and, for a draw, in its player's
+    /// draw step (`EventRecord::place_in_turn`, `place_in_draw_step`).
     pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
-        let updates: Vec<(EventSeq, HistoryUpdate)> =
-            window.iter().filter_map(|&seq| self.history_update(seq).map(|u| (seq, u))).collect();
-        let turn = self.turn_number;
+        let updates: Vec<(EventSeq, Option<HistoryUpdate>)> = window
+            .iter()
+            .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
+            .map(|&seq| (seq, self.history_update(seq)))
+            .collect();
         for (seq, update) in updates {
-            if let HistoryUpdate::AbilityResolved { identity } = update {
+            let (in_turn, in_draw_step) = update.map_or((None, None), |update| self.count(update));
+            self.events.note_counted(seq, in_turn, in_draw_step);
+        }
+    }
+
+    /// Count one record's update, and return its place in its turn and in its
+    /// player's draw step.
+    fn count(&mut self, update: HistoryUpdate) -> (Option<u64>, Option<u64>) {
+        let turn = self.turn_number;
+        match update {
+            HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
                 *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
-                continue;
+                return (None, None);
             }
-            if let HistoryUpdate::TurnBegan { player, turn: began } = update {
+            HistoryUpdate::TurnBegan { player, turn: began } => {
                 self.begin_turn_history(began, player);
-                continue;
+                return (None, None);
             }
-            // CR 103: the opening hands are drawn before any turn, on no row.
-            if turn == 0 {
-                continue;
+            _ => {}
+        }
+        // CR 103: the opening hands are drawn before any turn, on no row.
+        if turn == 0 {
+            return (None, None);
+        }
+        let in_draw_step = matches!(update, HistoryUpdate::CardDrawn { player } if self.in_own_draw_step(player));
+        let Some(history) = update.whose_row().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history) else {
+            return (None, None);
+        };
+        match update {
+            HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => (None, None),
+            HistoryUpdate::SpellCast { types, .. } => {
+                for card_type in types {
+                    history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
+                }
+                (Some(history.add(turn, TurnFact::SpellsCast, 1)), None)
             }
-            let Some(history) = update.whose_row().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history)
-            else {
-                continue;
-            };
-            let place = match update {
-                HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => None,
-                HistoryUpdate::SpellCast { types, .. } => {
-                    for card_type in types {
-                        history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
-                    }
-                    Some(history.add(turn, TurnFact::SpellsCast, 1))
-                }
-                HistoryUpdate::CardDrawn { .. } => Some(history.add(turn, TurnFact::CardsDrawn, 1)),
-                HistoryUpdate::LifeGained { amount, .. } => {
-                    history.add(turn, TurnFact::LifeGained, amount);
-                    Some(history.add(turn, TurnFact::LifeGainEvents, 1))
-                }
-                HistoryUpdate::LifeLost { amount, .. } => {
-                    history.add(turn, TurnFact::LifeLost, amount);
-                    Some(history.add(turn, TurnFact::LifeLossEvents, 1))
-                }
-                HistoryUpdate::DamageTaken { amount, .. } => {
-                    history.add(turn, TurnFact::DamageTaken, amount);
-                    None
-                }
-                HistoryUpdate::CreatureDied { .. } => {
-                    history.add(turn, TurnFact::ControlledCreaturesDied, 1);
-                    None
-                }
-                HistoryUpdate::AttackersDeclared { count, .. } => {
-                    history.add(turn, TurnFact::AttackersDeclared, count);
-                    None
-                }
-            };
-            if let Some(n) = place {
-                self.events.note_place_in_turn(seq, n);
+            HistoryUpdate::CardDrawn { .. } => {
+                (Some(history.add(turn, TurnFact::CardsDrawn, 1)), in_draw_step.then(|| history.drew_in_draw_step()))
+            }
+            HistoryUpdate::DrawStepBegan { .. } => {
+                history.draw_step_drawn(0);
+                (None, None)
+            }
+            HistoryUpdate::LifeGained { amount, .. } => {
+                history.add(turn, TurnFact::LifeGained, amount);
+                (Some(history.add(turn, TurnFact::LifeGainEvents, 1)), None)
+            }
+            HistoryUpdate::LifeLost { amount, .. } => {
+                history.add(turn, TurnFact::LifeLost, amount);
+                (Some(history.add(turn, TurnFact::LifeLossEvents, 1)), None)
+            }
+            HistoryUpdate::DamageTaken { amount, .. } => {
+                history.add(turn, TurnFact::DamageTaken, amount);
+                (None, None)
+            }
+            HistoryUpdate::CreatureDied { .. } => {
+                history.add(turn, TurnFact::ControlledCreaturesDied, 1);
+                (None, None)
+            }
+            HistoryUpdate::AttackersDeclared { count, .. } => {
+                history.add(turn, TurnFact::AttackersDeclared, count);
+                (None, None)
             }
         }
     }
@@ -142,6 +162,8 @@ impl GameState {
                 HistoryUpdate::SpellCast { caster: *caster, types }
             }
             GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },
+            // CR 504: the draw step's count starts over.
+            GameEvent::StepBegin { step: StepType::Draw, player } => HistoryUpdate::DrawStepBegan { player: *player },
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
                 HistoryUpdate::LifeGained { player: *player_id, amount: (new - old) as u64 }
             }

@@ -407,7 +407,7 @@ impl GameState {
             self.emit_event(
                 GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id },
                 EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally),
-            );
+            )?;
             any_performed = true;
         }
 
@@ -439,7 +439,7 @@ impl GameState {
             self.emit_event(
                 GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id },
                 EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached),
-            );
+            )?;
             any_performed = true;
         }
 
@@ -465,7 +465,7 @@ impl GameState {
             self.emit_event(
                 GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs },
                 EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate),
-            );
+            )?;
             any_performed = true;
         }
 
@@ -486,13 +486,13 @@ impl GameState {
             self.emit_event(
                 GameEvent::TokenCeasedToExist { object_id: id },
                 EventCause::StateBasedAction(StateBasedAction::TokenOutsideTheBattlefield),
-            );
+            )?;
             any_performed = true;
         }
 
         // CR 704.3 — one check, one event.
         if any_performed {
-            self.emit_event(GameEvent::StateBasedActionPerformed, EventCause::GameRule(GameRule::StateBasedCheck));
+            self.emit_event(GameEvent::StateBasedActionPerformed, EventCause::GameRule(GameRule::StateBasedCheck))?;
         }
 
         Ok(any_performed)

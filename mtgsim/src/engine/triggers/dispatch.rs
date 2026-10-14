@@ -41,7 +41,7 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
+use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
 /// dispatched from the dispatch that queued it, and so on. The recursion is
@@ -392,10 +392,11 @@ impl GameState {
     /// the dispatch may have to ask (`emit_event_with_provider`); a mana
     /// trigger's event (`ManaAdded`) is performed inside a batch, so the one
     /// path that resolves at dispatch never runs here.
-    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) {
+    pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) -> Result<(), String> {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
-        let _ = self.dispatch(&[seq], ctx, &[], audit.as_deref());
+        let result = self.dispatch(&[seq], ctx, &[], audit.as_deref());
         self.flush_window_unless_nested();
+        result
     }
 
     /// Flush the window when nothing can still read it: the dispatch that just
@@ -615,7 +616,7 @@ impl GameState {
             self.emit_event_unbatched(
                 GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
                 EventCause::GameRule(GameRule::AbilityTriggers),
-            );
+            )?;
         }
         Ok(())
     }
@@ -1220,7 +1221,7 @@ impl GameState {
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn) {
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
@@ -1281,7 +1282,9 @@ impl GameState {
                 GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
             ) => one(
                 change.matches(Some(*from), *to, Some(*act))
-                    && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
+                    // The resolving spell or ability caused the move, also where a
+                    // replacement redirected it (`replacement-architecture.md` §2b.4).
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, referents.controller))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
@@ -1302,8 +1305,13 @@ impl GameState {
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 one(self.subject_matches(subject, Some(*object_id), referents, seq, None))
             }
-            (TriggerEvent::DrawsCard { player: who, .. }, GameEvent::CardDrawn { player_id, .. })
-            | (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => one(
+                who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
+                    && place.is_none_or(|place| {
+                        place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
+                    }),
+            ),
+            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
@@ -1587,19 +1595,6 @@ impl GameState {
 
 fn is_triggered(def: &AbilityDef) -> bool {
     matches!(def.effect, Effect::Triggered(_))
-}
-
-/// The cause a zone-change arm's `by` asks of `record`
-/// (`replacement-architecture.md` §2b.7): the act's when the arm names an act
-/// ("causes you to discard"), the destination's when it names only where the
-/// move went ("causes a land to be put into your graveyard"). A redirect
-/// keeps the act (CR 614.6) and makes the destination its replacement's
-/// (§2b.4).
-fn cause_asked_by(change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
-    match change.act {
-        Some(_) => record.stamp.cause,
-        None => record.event.redirected_by().unwrap_or(record.stamp.cause),
-    }
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name

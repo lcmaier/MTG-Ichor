@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use super::cause::EventCause;
@@ -86,6 +87,7 @@ pub enum GameEvent {
     ///
     /// Not emitted when the library was empty: nothing was drawn, and CR 704.5b
     /// handles the attempt as a state-based action instead.
+    ///
     CardDrawn { player_id: PlayerId, card_id: ObjectId },
 
     // --- Mana ---
@@ -425,18 +427,6 @@ impl GameEvent {
         }
     }
 
-    /// What caused the move to go where it went, when a replacement changed
-    /// that: the last one that did (CR 614.6). `None` for a move that went
-    /// where it was proposed to, and for any other record.
-    pub fn redirected_by(&self) -> Option<EventCause> {
-        match self {
-            GameEvent::ZoneChange { applied: Some(applied), .. } => {
-                applied.iter().rev().find(|a| a.redirected).map(|a| a.by)
-            }
-            _ => None,
-        }
-    }
-
     /// The last known information this record carries (CR 603.10a), with the
     /// zone its object left and its owner: a zone change's or a leaving's, and
     /// `None` for every other record and for a move no look-back reads.
@@ -616,13 +606,29 @@ pub struct EventRecord {
     pub stamp: EventStamp,
     /// See [`NamesAsAnnounced`].
     pub names: NamesAsAnnounced,
-    /// Its place among its player's records of the same kind this turn, 1
-    /// for the first: what "the first time each turn" reads
-    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
-    /// have one — a cast, a draw, a gain, a loss — written as the record is
-    /// dispatched, when the summaries count it, and read by any trigger that
-    /// matches the record then or later in the resolution (CR 603.12).
-    pub place_in_turn: Option<u64>,
+    /// Where the turn summaries placed it, once they have counted it.
+    pub(crate) places: RecordPlaces,
+}
+
+/// A record's places, written when the turn summaries count it: as its window
+/// is dispatched, or, for a card of a draw instruction, as that card's draw
+/// ends. Four bytes a place, so the record keeps its size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RecordPlaces {
+    in_turn: Option<NonZeroU32>,
+    in_draw_step: Option<NonZeroU32>,
+    counted: bool,
+}
+
+impl RecordPlaces {
+    /// A record the summaries have not counted yet, which is every record as
+    /// it is pushed.
+    pub(crate) const NOT_COUNTED: RecordPlaces = RecordPlaces { in_turn: None, in_draw_step: None, counted: false };
+
+    fn counted(in_turn: Option<u64>, in_draw_step: Option<u64>) -> Self {
+        let place = |n: u64| NonZeroU32::new(u32::try_from(n).unwrap_or(u32::MAX));
+        RecordPlaces { in_turn: in_turn.and_then(place), in_draw_step: in_draw_step.and_then(place), counted: true }
+    }
 }
 
 /// The names an event's objects were announced under, where one was not its
@@ -643,6 +649,27 @@ impl EventRecord {
     /// The resolution whose effect caused this event, if one did.
     pub fn resolution(&self) -> Option<ResolutionStamp> {
         self.stamp.cause.resolution()
+    }
+
+    /// Its place among its player's records of the same kind this turn, 1
+    /// for the first: what "the first time each turn" reads
+    /// (`triggers-architecture.md` §3.5). Only the kinds a turn summary counts
+    /// have one — a cast, a draw, a gain, a loss — and read by any trigger that
+    /// matches the record then or later in the resolution (CR 603.12).
+    pub fn place_in_turn(&self) -> Option<u64> {
+        self.places.in_turn.map(|n| u64::from(n.get()))
+    }
+
+    /// A draw's place among its player's draws in their own draw step in
+    /// progress (CR 504): what "the first one you draw in each of your draw
+    /// steps" reads. `None` for any other record.
+    pub fn place_in_draw_step(&self) -> Option<u64> {
+        self.places.in_draw_step.map(|n| u64::from(n.get()))
+    }
+
+    /// Whether the turn summaries have counted it.
+    pub(crate) fn counted(&self) -> bool {
+        self.places.counted
     }
 }
 
@@ -698,15 +725,21 @@ impl EventWindow {
 
     /// Record `event` under `stamp`.
     pub(crate) fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names, place_in_turn: None });
+        self.records.push(EventRecord {
+            seq: EventSeq(self.next_seq),
+            event,
+            stamp,
+            names,
+            places: RecordPlaces::NOT_COUNTED,
+        });
         self.next_seq += 1;
     }
 
-    /// Write record `seq`'s place in its turn, as the summaries count it.
-    pub(crate) fn note_place_in_turn(&mut self, seq: EventSeq, place: u64) {
+    /// Mark record `seq` counted by the summaries, with its places.
+    pub(crate) fn note_counted(&mut self, seq: EventSeq, in_turn: Option<u64>, in_draw_step: Option<u64>) {
         let Some(first) = self.records.first().map(|r| r.seq) else { return };
         if let Some(record) = seq.0.checked_sub(first.0).and_then(|i| self.records.get_mut(i)) {
-            record.place_in_turn = Some(place);
+            record.places = RecordPlaces::counted(in_turn, in_draw_step);
         }
     }
 

@@ -111,7 +111,7 @@ impl GameState {
             // owner leaves the game".
             let lki = self.hand_over_before_leaving(id, from);
             self.remove_from_game(id)?;
-            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause);
+            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause)?;
         }
         Ok(())
     }

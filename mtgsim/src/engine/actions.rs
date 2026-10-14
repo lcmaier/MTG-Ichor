@@ -4,7 +4,7 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -23,7 +23,7 @@ use crate::ui::decision::DecisionProvider;
 /// a replacement effect watching "would be put into a graveyard from the
 /// battlefield" has to name the act, `EventPattern` lives in `types`, and
 /// `src/types/` has no `crate::engine` edge to spend.
-pub use crate::types::zones::{DrawCause, ZoneChangeAct};
+pub use crate::types::zones::ZoneChangeAct;
 
 /// How many batches may nest before the engine calls it a loop of its own
 /// making — see `NestingGuards::batch_depth`.
@@ -197,19 +197,13 @@ pub enum GameAction {
     DrawCards {
         player: PlayerId,
         n: u64,
-        cause: DrawCause,
     },
 
     /// A single card draw (CR 121.1) — **the inner event**, and
-    /// [`Self::DrawCards`]'s performer is its only producer.
-    ///
-    /// `cause` is *this draw's*, not its instruction's: an instruction's first
-    /// individual draw carries the instruction's cause and every later one is
-    /// [`DrawCause::Effect`]. See [`DrawCause`] for why that is the whole of
-    /// "except the first one you draw in each of your draw steps".
+    /// [`Self::DrawCards`]'s performer is its only producer. Which of its
+    /// player's draws it is, is counted, not carried (`DrawFilter`).
     DrawCard {
         player: PlayerId,
-        cause: DrawCause,
     },
 
     /// A player gains life.
@@ -833,6 +827,12 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
         self.nesting.decomposition_depth -= 1;
+        // CR 121.2: this card's draw has ended, and the next is decided after
+        // it, so the summaries count it now rather than at the window's close.
+        if result.is_ok() {
+            let drawn: Vec<EventSeq> = self.events.records_since(mark).iter().map(|r| r.seq).collect();
+            self.advance_history(&drawn);
+        }
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
@@ -1369,7 +1369,7 @@ impl GameState {
                     target,
                     amount,
                     is_combat,
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 // CR 120.3a — **a contained proposal, not a subtraction**, in this
                 // damage's batch (CR 120.4c/d) with a fresh applied set (§3.2d): Bloodletter
@@ -1404,25 +1404,14 @@ impl GameState {
             // before the next (CR 121.6b). `lineage` starts each inner's CR 614.5
             // applied set from the instruction's (§3.2d): two Teferi's Ageless Insights
             // draw four rather than hang. `n == 0` loops zero times.
-            GameAction::DrawCards { player, n, cause } => {
-                for i in 0..n {
-                    self.execute_actions_decomposing(
-                        vec![GameAction::DrawCard {
-                            player,
-                            // CR 121.1's turn-based action is one card; every draw after an
-                            // instruction's first belongs to the effect that produced it, which
-                            // is what "except the first one you draw in each of your draw steps"
-                            // means once a doubler has applied to the draw step's draw.
-                            cause: if i == 0 { cause } else { DrawCause::Effect },
-                        }],
-                        ctx,
-                        lineage,
-                    )?;
+            GameAction::DrawCards { player, n } => {
+                for _ in 0..n {
+                    self.execute_actions_decomposing(vec![GameAction::DrawCard { player }], ctx, lineage)?;
                 }
                 Ok(())
             }
 
-            GameAction::DrawCard { player, cause: _ } => {
+            GameAction::DrawCard { player } => {
                 // Delegate to `draw_card`, which handles empty-library flagging
                 // (CR 121.6a) and proposes the library→hand move through
                 // `change_zone` — so the move is a nested batch member, not a
@@ -1444,7 +1433,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     source: Some(source),
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 Ok(())
             }
@@ -1467,7 +1456,7 @@ impl GameState {
                     new: new_life,
                     // CR 120.3a's loss names the damage's source.
                     source: damage_source,
-                }, ctx.cause);
+                }, ctx.cause)?;
 
                 Ok(())
             }
@@ -1501,7 +1490,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
-                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause);
+                self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1520,7 +1509,7 @@ impl GameState {
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
-                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause);
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
                 Ok(())
             }
@@ -1535,7 +1524,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
-                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause);
+                self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1563,7 +1552,7 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause);
+                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1595,7 +1584,7 @@ impl GameState {
                     subject,
                     counter,
                     added: -(removed as i32),
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1645,7 +1634,7 @@ impl GameState {
                         ));
                     }
                 }
-                self.perform_entry(object, controller, &mods, ctx.cause);
+                self.perform_entry(object, controller, &mods, ctx.cause)?;
                 Ok(())
             }
 
@@ -1676,7 +1665,7 @@ impl GameState {
                 self.begin_turn(turn, player);
                 self.extra_turn = extra_turn;
                 self.priority_player = player;
-                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn }, ctx.cause);
+                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1685,13 +1674,13 @@ impl GameState {
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.emit_event(GameEvent::PhaseBegin { phase, player }, ctx.cause);
+                self.emit_event(GameEvent::PhaseBegin { phase, player }, ctx.cause)?;
                 Ok(())
             }
 
             GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
-                self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause);
+                self.emit_event(GameEvent::StepBegin { step, player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1728,7 +1717,7 @@ impl GameState {
                     player_id: player,
                     n,
                     looked_at: k as u64,
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1738,7 +1727,7 @@ impl GameState {
             GameAction::ShuffleLibrary { player } => {
                 self.get_player(player)?;
                 self.shuffle_library(player);
-                self.emit_event(GameEvent::LibraryShuffled { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::LibraryShuffled { player_id: player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1756,7 +1745,7 @@ impl GameState {
                 // may move nothing that bumps: nothing at two seats, and nothing of a
                 // player who owns nothing at more.
                 self.bump_layer_epoch();
-                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::PlayerLost { player_id: player }, ctx.cause)?;
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of
@@ -1775,7 +1764,7 @@ impl GameState {
                 if self.result.is_none() {
                     self.result = Some(GameResult::Winner(player));
                 }
-                self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause);
+                self.emit_event(GameEvent::PlayerWon { player_id: player }, ctx.cause)?;
                 Ok(())
             }
 
@@ -1813,7 +1802,7 @@ impl GameState {
                     source_id: source,
                     mana: announced,
                     tapped_for_mana,
-                }, ctx.cause);
+                }, ctx.cause)?;
                 Ok(())
             }
         }
@@ -1874,7 +1863,7 @@ impl GameState {
     ) -> Result<(), String> {
         let moved = self.get_object(object)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
-        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause);
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause)?;
         Ok(())
     }
 
@@ -1890,7 +1879,7 @@ impl GameState {
         cause: EventCause,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause);
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone }, cause)?;
         Ok(())
     }
 

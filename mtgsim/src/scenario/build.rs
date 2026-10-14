@@ -50,6 +50,7 @@ impl Scenario {
         loader.load_player_words()?;
         loader.load_combat()?;
         loader.begin_turns()?;
+        loader.load_draw_step_counts()?;
         loader.load_this_turn_counts()?;
         let setup = loader.resolve_setup_actions()?;
         let game = Game { state: loader.state, config: GameConfig { starting_life: self.starting_life, ..GameConfig::unrestricted() } };
@@ -377,7 +378,8 @@ impl<'s> Loader<'s> {
             | PlayerWord::LandsPlayed { player, .. }
             | PlayerWord::LeftTheGame { player }
             | PlayerWord::CommanderDamage { player, .. }
-            | PlayerWord::History { player, .. }) = located.value;
+            | PlayerWord::History { player, .. }
+            | PlayerWord::DrawnThisDrawStep { player, .. }) = located.value;
             let player = self.checked_player(player, line)?;
             match &located.value {
                 PlayerWord::Life { life, .. } => self.state.players[player].life_total = *life,
@@ -388,7 +390,7 @@ impl<'s> Loader<'s> {
                     let commander = self.object_named(from, line, "commander", |c| c.commander)?;
                     self.state.players[player].commander_damage_taken.insert(commander, *damage);
                 }
-                PlayerWord::History { .. } => {}
+                PlayerWord::History { .. } | PlayerWord::DrawnThisDrawStep { .. } => {}
             }
         }
         Ok(())
@@ -466,6 +468,27 @@ impl<'s> Loader<'s> {
             if shuffled == Some(true) {
                 self.state.shuffle_library(player);
             }
+        }
+        Ok(())
+    }
+
+    /// The cards drawn in the draw step in progress, which the history's
+    /// turn rows cannot say. After `begin_turns`, which sets the position.
+    fn load_draw_step_counts(&mut self) -> Result<(), ScenarioError> {
+        let turn = self.scenario.turn;
+        for located in &self.scenario.player_words {
+            let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
+            let player = self.checked_player(player, located.line)?;
+            let history = &self.state.players[player].history;
+            let message = if !self.state.in_own_draw_step(player) {
+                "a player draws in a draw step only during their own (CR 504)"
+            } else if count > history.this_turn(turn).count(TurnFact::CardsDrawn) {
+                "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
+            } else {
+                self.state.players[player].history.draw_step_drawn(count);
+                continue;
+            };
+            return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, message));
         }
         Ok(())
     }

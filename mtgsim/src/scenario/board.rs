@@ -59,6 +59,10 @@ pub enum PlayerWord {
     LeftTheGame { player: PlayerId },
     CommanderDamage { player: PlayerId, damage: u32, from: NamedCard },
     History { player: PlayerId, span: HistorySpan, fact: TurnFact, count: u64 },
+    /// How many of this turn's cards the active player drew in their draw
+    /// step in progress (CR 504), which "the first one you draw in each of
+    /// your draw steps" counts.
+    DrawnThisDrawStep { player: PlayerId, count: u64 },
 }
 
 /// One card line: a card created in a zone, or more said about one.

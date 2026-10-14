@@ -44,8 +44,9 @@ pub struct PlayerState {
 
     /// This player's history (`triggers-architecture.md` §3.10): what "this
     /// turn", "last turn", "since your last turn" and "this game" read, bounded
-    /// by the table. Advanced by the dispatcher, record by record, and by
-    /// nothing else.
+    /// by the table, and the cards drawn in their draw step in progress.
+    /// Advanced record by record as each event ends, by
+    /// `engine::triggers::history` and nothing else.
     pub history: PlayerHistory,
 }
 
@@ -171,4 +172,5 @@ mod tests {
         player.reset_lands_played();
         assert!(player.can_play_land());
     }
+
 }

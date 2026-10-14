@@ -895,7 +895,7 @@ impl GameState {
             stack_entries: FitOnClone::default(),
             resolving: None,
             battlefield: FitOnClone::default(),
-            diagnostics: Default::default(),
+            diagnostics: Diagnostics::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
             exile: Vec::new(),
@@ -1395,7 +1395,7 @@ impl GameState {
         controller: PlayerId,
         mods: &EnterMods,
         cause: EventCause,
-    ) -> &mut PermanentState {
+    ) -> Result<&mut PermanentState, String> {
         self.make_permanent(id, controller, mods, self.turn_number);
 
         // The controller the *game* sees, not the CR 110.2b default it entered
@@ -1407,9 +1407,9 @@ impl GameState {
         self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
-        );
+        )?;
 
-        self.battlefield.get_mut(&id).unwrap()
+        self.battlefield.get_mut(&id).ok_or_else(|| format!("{id:?} entered the battlefield and is not on it"))
     }
 
     /// The state half of an entry: `id` becomes a permanent under

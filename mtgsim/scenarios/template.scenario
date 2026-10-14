@@ -25,6 +25,7 @@ step declare blockers   # upkeep, draw, precombat main, begin combat, declare at
                         # end combat, postcombat main, end; default precombat main
 
 player 0: life 20, lands played 1             # also: energy N, poison N
+                                              # and, the active player in the draw step: cards drawn this draw step N
 player 1: life 17, poison 1                   # also: left the game (owning nothing, in a game of three or more)
 player 1: commander damage 2 from Isamaru, Hound of Konda
 player 0 this turn: spells cast 1, creature spells cast 1, attackers declared 1

@@ -385,7 +385,8 @@ way:
 - "triggered abilities you control can't cause" (The Master, Multiplied).
 
 The tree already uses "cause" in this sense: `LifeLossCause`'s `Effect` and
-`Cost`, `DrawCause`, `EventProposal::cause` and `ReplacementDef::caused_by`.
+`Cost`, `DrawCause` (gone since A6r), `EventProposal::cause` and
+`ReplacementDef::caused_by`.
 So the fact is `EventCause`. The act takes `ZoneChangeCause`'s slot under a
 name of its own, `ZoneChangeAct`, so "cause" means one thing.
 
@@ -536,10 +537,12 @@ has no ruling; it goes to CP-1, which builds CR 118.12a's "unless"
   in RH-1); `LifeLossCausePattern` asks it and the cause.
 - `EventProposal::cause: Option<PlayerId>` is the cause's controller.
 
-`DrawCause` stays. It says which draw of an instruction this is (CR 121.2), so
-that "except the first one you draw in each of your draw steps" finds the
-first. A doubled draw step's second card is the replacement's own draw inside
-the step's batch, and one context cause cannot tell the two cards apart.
+`DrawCause` stayed here, and went in A6r (`codebase-state.md` item 254).
+"Except the first one you draw in each of your draw steps" is a count, not a
+cause: when a replacement takes the step's own draw, the next card drawn in
+that step is the first one drawn (CR 702.94a counts the same way). The history
+counts each card as its draw ends (`triggers-architecture.md` §3.10), and one
+`DrawFilter` is asked of the proposed draw and of its record.
 
 ### 2b.4 Which replacements applied: `applied`
 
@@ -587,7 +590,8 @@ So the record answers "who" once: its cause, for the act and the destination
 alike. `applied` still says which replacements applied, for madness's "this
 way", and each entry keeps its controller as it applied. Undoing the read that
 took the last redirect's cause (`GameEvent::redirected_by`, and
-`cause_asked_by` in `triggers/dispatch.rs`) is `codebase-state.md` item 261.
+`cause_asked_by` in `triggers/dispatch.rs`) was `codebase-state.md` item 261,
+done in A6r: both went, and a `by` filter reads the stamp's cause.
 
 The same reading keeps a replaced event's cause through the replacement.
 Take Unpredictable Cyclone and Plagiarize together:
@@ -922,7 +926,7 @@ option A of three for 7. The other two
 options were every test naming a real cause, or `test_ctx()` quietly naming one
 fixed cause. The same review decided who exiled a redirected move: the
 replacement's ability. Judges reversed that on 2026-10-13: the resolving
-spell or ability did (§2b.4, `codebase-state.md` item 261).
+spell or ability did (§2b.4, `codebase-state.md` item 261, built in A6r).
 1. `Resolved` and `Fizzled` are rules' moves (CR 608.2n, 608.3a, 608.3e,
    608.2b): act `Put`, cause `GameRule`. The entry's "was it cast" reads CR
    400.7d's fact, which is also right for a copy (CR 707.10).
@@ -3410,6 +3414,10 @@ the first one you draw in each of your draw steps" and needs no count of cards
 drawn this step. Both producers rewritten; `Game::setup` still calls the
 performer (CR 103.4) and its comment now says so. Thought Reflection (pooled),
 Teferi's Ageless Insight, Alms Collector, Notion Thief.
+**Amended by A6r (2026-10-13, item 254):** the stamping rule was a proxy, and
+wrong when a replacement takes the step's own draw (Words of Worship, then Opt
+in the same step, drew two under Teferi's Ageless Insight). `DrawCause` went;
+the place is counted as each card's draw ends (`DrawFilter`, §2b.3).
 
 **Three things the sizing did not have.** Alms Collector is not the `then` case
 §3.2d filed it as, and its own ruling says so — as `Prevent` plus riders the
@@ -3754,7 +3762,7 @@ customers before a leaf"):
   customer of either.
 - **No prompt for CR 613.7m on a token batch** — decision 3: one outcome.
 - **No `DrawCause::Cost`.** Nothing prints "draw a card" as a cost; the enum
-  has the two causes the ten cards distinguish.
+  has the two causes the ten cards distinguish. (The enum itself went in A6r.)
 - **`ProduceMana` carries no "could produce" (CR 106.7)** — that is a query
   about abilities that have not resolved, not an event, and it is
   `backlog.md`'s the day a card asks.

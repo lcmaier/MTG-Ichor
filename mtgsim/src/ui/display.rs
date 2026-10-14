@@ -971,7 +971,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
         Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
-        CardDrawn { player_id, card_id } => {
+        CardDrawn { player_id, card_id, .. } => {
             format!("CardDrawn: P{} drew {}", player_id, obj_name(game, *card_id))
         }
         ManaAdded { player_id, source_id, mana, tapped_for_mana } => {

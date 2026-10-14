@@ -86,7 +86,7 @@ impl GameState {
             rules_text: template.rules_text,
             duration: template.duration,
         };
-        self.emit_event(created, provenance.cause);
+        self.emit_event(created, provenance.cause)?;
         let delayed = DelayedTrigger {
             id,
             def: Arc::clone(&template.def),
@@ -107,7 +107,7 @@ impl GameState {
             referred,
         };
         match reflexive {
-            Some((form, resolution)) => self.trigger_reflexive(&delayed, form, resolution),
+            Some((form, resolution)) => self.trigger_reflexive(&delayed, form, resolution)?,
             None => self.delayed_triggers.push(delayed),
         }
         Ok(id)
@@ -120,7 +120,7 @@ impl GameState {
     /// them all where its event is "one or more", or for "when you don't" one
     /// if none does. Queued and announced as a dispatch queues a delayed
     /// trigger.
-    fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, resolution: CreatingResolution) {
+    fn trigger_reflexive(&mut self, reflexive: &DelayedTrigger, form: ReflexiveForm, resolution: CreatingResolution) -> Result<(), String> {
         let that_action: Vec<EventSeq> = match resolution.that_action {
             Some((from, to)) => {
                 self.events.resolution_records(resolution.stamp, from).filter(|r| r.seq < to).map(|r| r.seq).collect()
@@ -140,8 +140,9 @@ impl GameState {
             self.emit_event_unbatched(
                 GameEvent::AbilityTriggered { seq, origin, controller, caused_by },
                 EventCause::GameRule(GameRule::AbilityTriggers),
-            );
+            )?;
         }
+        Ok(())
     }
 
     /// "When you don't": the one trigger, bound to no record, when the action
@@ -382,7 +383,7 @@ impl GameState {
                 (!subjects.is_empty()).then_some((EventIndex(index), subjects))
             })
             .ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn) {
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5).

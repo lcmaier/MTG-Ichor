@@ -180,7 +180,7 @@ mod tests {
             event: GameEvent::StateBasedActionPerformed,
             stamp: EventStamp { batch: None, cause: crate::events::cause::EventCause::Harness },
             names: None,
-            place_in_turn: None,
+            places: crate::events::event::RecordPlaces::NOT_COUNTED,
         }
     }
 
