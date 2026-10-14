@@ -1116,10 +1116,10 @@ from a known item, so the calibration also bought two findings.
 
 | Kind | 1. Which object | 2. Done, and caused | 3. Replaced | 4. When read | 5. As it left |
 |---|---|---|---|---|---|
-| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; **item 261**: a redirect's destination credits the replacement, where judges credit the resolving spell → A6r | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
+| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; a redirect's destination is the resolving spell's too (item 261, closed by A6r) | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
 | `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds (item 15: a graveyard card leaving the game → TR-4c) |
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
-| `CardDrawn` | holds: the card in hand at the dispatch | **item 254**: the draw's place in its turn and in its draw step (CR 504.1; 702.94a's "first card you've drawn" is a count) → A6r | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
+| `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as it is drawn (`ordinals`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
 | `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5c | holds (`source_lki`, CR 608.2h) |
 | `PhaseBegin`, `StepBegin`, `TurnBegin` | holds: whose (item 10) | holds | holds: a skip leaves no record (CR 614.10) | holds | holds |
@@ -1242,25 +1242,21 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
   §6.1 says the `IsCountered` arm reads "the same frame", but no record carries
   it. 1 card: `(o:"when " or o:"whenever ") o:"spell" o:"is countered"
   -o:"countered this way"`, Multani's Presence, which TR-4d registers.
-- **Item 254 (A6r): a draw's place among its player's draws is read
-  through a proxy, and a trigger cannot ask for it.** Cards print two places.
-  One is the turn's: Gavi, Nest Warden's "your second card each turn", which
-  `place_in_turn` holds and `DrawsCard` cannot ask for. The other is the draw
-  step's: "except the first one you draw in each of your draw steps", which
-  is counted nowhere. Both sides read `DrawCause::TurnBased` for it, the step's
-  own draw. When a replacement takes that draw and a later draw comes in the
-  same step, the later card is the first one drawn, as miracle's "the first
-  card you've drawn this turn" (CR 702.94a) counts. Registered cards get it
-  wrong today:
-  - Words of Worship turns the draw step's draw into 5 life;
-  - Opt then draws in the same step;
-  - Teferi's Ageless Insight makes Opt's card two cards, where the count makes
-    it one.
-
-  Notion Thief and Alhammarret's Archive read the same proxy. 78 triggers
+- **Item 254 (A6r), closed: a draw's place among its player's draws.** Each
+  player keeps `DrawCounts`, the turn's draws and the draw step's, written as
+  each card is drawn and reset when the draw step begins (CR 504). Not the
+  history's count, which advances as a window is dispatched: a doubled draw's
+  second card is proposed inside the window that holds its first. `CardDrawn`
+  carries the draw's `ordinals`, and one `DrawPlace` (the turn's Nth, the draw
+  step's first, or not the step's first) is asked by `EventPattern::DrawCard`
+  of the proposed draw and by `TriggerEvent::DrawsCard` of the record. When a
+  replacement takes the step's own draw, the next card drawn in that step is
+  its first, as miracle counts (CR 702.94a): Words of Worship then Opt under
+  Teferi's Ageless Insight draws one card. `DrawCause` went. 78 triggers
   (`(o:"when " or o:"whenever ") o:draw (o:"second card" or o:"third card" or
-  o:"first card")`) and 7 replacements (`o:"would draw" (o:"second card" or
-  o:"first card" or o:"except the first")`) read a draw's place.
+  o:"first card")`), 3 more with "except the first" (Orcish Bowmasters, Leela,
+  Xyris) and 7 replacements (`o:"would draw" (o:"second card" or o:"first
+  card" or o:"except the first")`) read a draw's place.
 - **Item 131, re-slotted to TR-4d: a same-zone substitute leaves no record.**
   RH did not close it, and its slot named RH. TR-4d gives a performed same-zone
   substitute a record of its own kind, which keeps the act, the applied set and
@@ -1422,12 +1418,14 @@ Taken here, for the owner's review:
    o:"whenever ") o:"tapped for mana"`), and 180 lands sacrifice themselves for
    mana (`t:land o:"{T}, Sacrifice" o:"Add"`). If a judge reads it as a
    look-back, the record gains a `source_lki` as damage has.
-7. **Item 254 is reachable and wrong today, and A6r fixes it before TR-4**
-   (the owner, 2026-10-13), with item 261 and the swallowed dispatch error of
-   item 262. It needs the counts on both sides and a new cause arm for CR
-   103.5's opening hand: about 90 lines of code and 160 of tests.
+7. **Item 254 was reachable and wrong, and A6r fixed it before TR-4** (the
+   owner, 2026-10-13), with item 261 and the swallowed dispatch error of item
+   262. The count is taken as each card is drawn, on both sides; the CR 103.5
+   cause arm it was sized with was not needed, since the stamp's
+   `GameRule::OpeningHand` already says it and a draw before any turn has no
+   place in one.
 8. **A redirected move's destination is the resolving spell's** (item 261;
-   reversed at #246's review, 2026-10-13). #242's review gave Hero of
+   reversed at #246's review, 2026-10-13, and built in A6r). #242's review gave Hero of
    Bretagard's exile under Rest in Peace to the replacement. Judges gave it
    to the resolving Doom Blade, which causes "everything ... even if some of it
    gets replaced" (`replacement-architecture.md` §2b.4). A replaced event keeps
@@ -1933,8 +1931,9 @@ cannot see it, so the nesting bound is the only guard for that loop.
 **Amended 2026-09-22 by the owner (the TR-1 review, theme D): at the bound
 the answer is CR 104.4b's draw, not an `Err`.** TR-6 settles
 `GameResult::Draw` through the same settlement §4.9's detector uses, and
-`DISPATCH_NESTING_LIMIT` (16 today, `dispatch.rs:44`, an `Err` until then)
-becomes that detector's threshold knob rather than a second number.
+`DISPATCH_NESTING_LIMIT` (16 today, an `Err` until then, which since A6r
+reaches the record's emitter: item 262) becomes that detector's threshold knob
+rather than a second number.
 `BATCH_NESTING_LIMIT` (32, `actions.rs:38`) is the same pattern but a
 genuine engine invariant — CR 614.5 bounds every replacement chain — so it
 stays an `Err`.

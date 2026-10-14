@@ -5576,3 +5576,136 @@ over a record that is not a zone change is refused, item 250.
      **Re-slotted (2026-10-12):** RH-2 was split in two (decision 12), and the
      record's new object went to the second.
      **Slotted:** RH-3, the record's identity, its applied set and its moment.
+
+### Item 254 — closed 2026-10-13 by PR #248 (A6r)
+
+Closed by A6r. Each player keeps `DrawCounts` (`state/player.rs`): the turn's
+draws and the draw step's, written by `draw_card` as each card is drawn and
+reset by the `BeginStep` performer when a draw step begins (CR 504). It is not
+the history's count, which advances as a window is dispatched: a doubled draw's
+second card is proposed inside the window that holds its first, so a count
+taken there would make Thought Reflection's second card the step's first.
+`CardDrawn` carries the draw's `ordinals`, and one `DrawPlace` (the turn's Nth,
+the draw step's first, or not the step's first) is asked by
+`EventPattern::DrawCard` of the proposed draw (`next_draw_ordinals`) and by
+`TriggerEvent::DrawsCard` of the record. A draw's `place_in_turn` is the
+record's own count, so the once-per-turn limit reads the same number.
+
+Two departures from the sizing. **No CR 103.5 cause arm:** with the count read
+on both sides nothing read `DrawCause`, and the stamp's `EventCause` already
+says what caused a draw (`TurnBasedAction::Draw`, `GameRule::OpeningHand`), so
+`DrawCause` went; a draw before any turn has no place in one, as the history
+has it. **A scenario word:** a board saved in the draw step keeps its count
+("cards drawn this draw step N"), or it would load with the step's first card
+still to come; the dev GUI's two matches on `PlayerWord` take it.
+
+Words of Worship then Opt under Teferi's Ageless Insight drew two before the
+fix and draws one; under an opponent's Notion Thief the Thief took Opt's card
+and now leaves it. Both boards failed on the tree before the fix. Gavi, Nest
+Warden's ruling (2020-04-17), a Bowmasters-shaped fixture under Thought
+Reflection and a Wiretapping-shaped one are boards in
+`phase_a6r_integration_test.rs`; Gavi and Bowmasters stay unregistered (an
+alternative activation cost; amass).
+
+*Original entry:*
+
+254. **A draw's place among its player's draws is read through a proxy, and
+     a trigger cannot ask for it.** Cards print two places:
+     - the turn's: "whenever you draw your second card each turn" (Gavi, Nest
+       Warden);
+     - the draw step's: "except the first one you draw in each of your draw
+       steps".
+
+     Records carry the first already (`EventRecord::place_in_turn`, which
+     TR-2a's "for the first time each turn" reads as 1), but `DrawsCard` has
+     no field asking for 2. The draw step's place is counted nowhere. Both
+     sides read `DrawCause::TurnBased`, which marks the step's own draw. When
+     a replacement takes that draw and a later draw comes in the same step,
+     the later card is the first one drawn, as miracle counts "the first card
+     you've drawn this turn" (CR 702.94a). 78 trigger cards: `(o:"when " or
+     o:"whenever ") o:draw (o:"second card" or o:"third card" or o:"first
+     card")`; 7 replacements: `o:"would draw" (o:"second card" or o:"first
+     card" or o:"except the first")`.
+     **Reachability (2026-10-12):** reachable — wrong today, by the reading
+     above (no ruling decides it), with registered cards. Words of Worship
+     turns the draw step's draw into 5 life, and Opt then draws in the same
+     step. Under Teferi's Ageless Insight, Opt's card becomes two
+     (`pipeline.rs`'s `DrawCause::Effect` test), where the count makes it one.
+     Notion Thief and Alhammarret's Archive read the same proxy.
+     **Sized:** ~90 lines of code and ~160 of tests (widened at #246's review,
+     after the owner named Gavi):
+     - the count of a player's draws in the current draw step, beside the
+       turn's on the history;
+     - a place on `DrawsCard`: the turn's Nth, or the draw step's first
+       excluded;
+     - the replacement side reading the step's count instead of `DrawCause`;
+     - a cause arm for CR 103.5's opening hand, which draws with none.
+     **Slotted:** A6r, the fixes before TR-4 (the owner, 2026-10-13), with
+     Gavi's board and a fixture shaped like Orcish Bowmasters under the
+     registered Thought Reflection.
+
+### Item 261 — closed 2026-10-13 by PR #248 (A6r)
+
+Closed by A6r. A zone-change arm's `by` filter reads the record's stamp,
+the resolving spell's or ability's cause, for the destination as for the act
+(`replacement-architecture.md` §2b.4, judges 2026-10-13). `cause_asked_by` and
+`GameEvent::redirected_by`, its only reader, went; `AppliedReplacement.redirected`
+stays for the log's "(redirected)". The RH-3 board flipped
+(`who_exiled_a_redirected_move_is_the_resolving_spells_controller`) and failed
+on the tree before the fix.
+
+*Original entry:*
+
+261. **A redirected move's destination credits the replacement, and judges
+     credit the resolving spell.** `cause_asked_by` (`triggers/dispatch.rs`)
+     answers a destination word ("a spell or ability you control exiles") with
+     the last redirect's cause (`GameEvent::redirected_by`). That is what
+     #242's review decided. On 2026-10-13 judges answered the board the other
+     way: the resolving Doom Blade causes "everything ..., even if some of it
+     gets replaced" (`replacement-architecture.md` §2b.4). So Hero of
+     Bretagard's controller's own Doom Blade under an opponent's Rest in Peace
+     should trigger it, and the engine would not. 2 cards: `o:"spell or
+     ability you control exiles" game:paper -is:funny` (Ranar the
+     Ever-Watchful, Hero of Bretagard).
+     **Reachability (2026-10-13):** unreachable — no registered trigger names
+     a destination with a `by` filter.
+     **Sized:** ~10 lines of code fewer and ~40 of tests changed:
+     - `cause_asked_by` returns the stamp's cause;
+     - `redirected_by` goes;
+     - `AppliedReplacement.redirected` stays for the log's "(redirected)";
+     - the `phase_rh3_integration_test.rs` boards that pinned the old answer
+       flip.
+     **Slotted:** A6r, the fixes before TR-4, with item 254 (the owner,
+     2026-10-13).
+
+### Item 262 — closed 2026-10-13 by PR #248 (A6r)
+
+Closed by A6r. `dispatch_unbatched` returns `dispatch`'s `Result`, and so do
+`emit_record` and its three doors (`emit_event`, `emit_event_with_provider`,
+`emit_event_unbatched`). Whether a record dispatches is decided at run time, so
+every caller passes the `Result` on: 39 door calls and 6 calls of four helpers
+that returned `()` (the targeting announcement, the until-return, the reflexive
+trigger, the entry). A batched emit is always `Ok`; its dispatch is the batch's.
+`a_dispatch_past_the_nesting_limit_fails_the_move_that_started_it` drives a
+chain to `DISPATCH_NESTING_LIMIT`; the move returned `Ok` before the fix. CR
+104.4b's draw at the limit stays TR-6's.
+
+*Original entry:*
+
+262. **An unbatched dispatch swallows its error, so triggers can vanish
+     without a word.** `dispatch_unbatched` (`triggers/dispatch.rs`) discards
+     `dispatch`'s `Result` with `let _ =`. It is the path every tier-2
+     `AbilityTriggered` record takes, so a dispatch past
+     `DISPATCH_NESTING_LIMIT`, and any other `Err` raised there, drops its
+     triggers silently. `triggers-architecture.md` §4.8 planned CR 104.4b's
+     draw at the limit for TR-6, and an `Err` until then. The `Err` never
+     reaches anyone.
+     **Reachability (2026-10-13):** unreachable as a wrong answer — the limit
+     needs a tier-2 chain sixteen deep, which no printed ability makes. Any
+     other `Err` swallowed there is an engine bug that the swallow hides from
+     the fuzz runs.
+     **Sized:** ~10 lines of code and ~30 of tests: the `Err` reaches the
+     emitter's caller, as a batched dispatch's does, and a test drives the
+     limit.
+     **Slotted:** A6r, the fixes before TR-4, so that the ten trigger PRs
+     after it see their own errors.

@@ -2362,8 +2362,8 @@ takes its entry off in the same diff.
   process. CI's determinism step runs three processes, so a leak there that
   reaches the fuzz output fails it.
 - `devgui/`, which reaches the engine through its snapshot, by id.
-- A swallowed `Result` (item 262), and registry membership. Neither is a
-  shape.
+- A swallowed `Result` (item 262 was one, fixed in A6r), and registry
+  membership. Neither is a shape.
 
 **The row's first instrument, privacy, is not built.** A6q's row asked for
 the fields that change game state to be private to the module that performs

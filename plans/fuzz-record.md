@@ -37,6 +37,31 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-13 for A6r** (#248: a draw's place counted as it is
+drawn, a redirect's destination the resolving spell's, an unbatched
+dispatch's error passed on; `codebase-state.md` items 254, 261, 262). No card
+joins the registry or the pool (188 registered, 106 pooled). `close_out.py`
+against **main** `a60d54c` (#247's merge), one arm:
+- **engine** `2a2e5e2`: the three fixes. The commit after it touches only the
+  scenario writer and loader, which `fuzz_games` does not run.
+
+**Predictions, made before any arm ran:** `IDENTICAL` on every row of the
+performance pool, which holds no card whose answer moved; `IDENTICAL` on
+every gameplay row of the stress pool, where item 254 moves an answer only
+when the active player's draw step draw is replaced and that player draws
+again in the same step under Teferi's Ageless Insight, the Archive, Bard or an
+opponent's Notion Thief, a board expected in no game of 200; `Errors`
+unchanged; every dispatch agreed; instructions per decision within ±0.3
+points.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6440 M → 0.6444 M, **+0.06%** |
+
+Every prediction held.
+
 **Re-recorded 2026-10-13 for A6q** (#247: the invariants as checks,
 `engineering-practices.md` §11). No card joins the registry or the pool (188
 registered, 106 pooled), and no pool moved: the record is the budget's, and
