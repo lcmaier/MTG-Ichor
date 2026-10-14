@@ -16,6 +16,10 @@ winit = "0.30"
 # `mtgsim::cards::random_deck` takes the engine's `StdRng`, so the same major.
 rand = "0.9"
 
+[lints.clippy]
+# As in mtgsim's table: a constructor says what it builds.
+default_trait_access = "warn"
+
 [dev-dependencies]
 # The engine's own board builders (`mtgsim::test_support`), for tests only.
 mtgsim = { path = "../mtgsim", features = ["test-support"] }

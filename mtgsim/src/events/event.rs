@@ -613,7 +613,7 @@ pub struct EventRecord {
 /// A record's places, written when the turn summaries count it: as its window
 /// is dispatched, or, for a card of a draw instruction, as that card's draw
 /// ends. Four bytes a place, so the record keeps its size.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RecordPlaces {
     in_turn: Option<NonZeroU32>,
     in_draw_step: Option<NonZeroU32>,
@@ -621,6 +621,10 @@ pub(crate) struct RecordPlaces {
 }
 
 impl RecordPlaces {
+    /// A record the summaries have not counted yet, which is every record as
+    /// it is pushed.
+    pub(crate) const NOT_COUNTED: RecordPlaces = RecordPlaces { in_turn: None, in_draw_step: None, counted: false };
+
     fn counted(in_turn: Option<u64>, in_draw_step: Option<u64>) -> Self {
         let place = |n: u64| NonZeroU32::new(u32::try_from(n).unwrap_or(u32::MAX));
         RecordPlaces { in_turn: in_turn.and_then(place), in_draw_step: in_draw_step.and_then(place), counted: true }
@@ -726,7 +730,7 @@ impl EventWindow {
             event,
             stamp,
             names,
-            places: RecordPlaces::default(),
+            places: RecordPlaces::NOT_COUNTED,
         });
         self.next_seq += 1;
     }

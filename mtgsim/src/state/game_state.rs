@@ -895,7 +895,7 @@ impl GameState {
             stack_entries: FitOnClone::default(),
             resolving: None,
             battlefield: FitOnClone::default(),
-            diagnostics: Default::default(),
+            diagnostics: Diagnostics::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
             exile: Vec::new(),
