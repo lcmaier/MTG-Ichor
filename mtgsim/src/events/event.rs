@@ -428,18 +428,6 @@ impl GameEvent {
         }
     }
 
-    /// What caused the move to go where it went, when a replacement changed
-    /// that: the last one that did (CR 614.6). `None` for a move that went
-    /// where it was proposed to, and for any other record.
-    pub fn redirected_by(&self) -> Option<EventCause> {
-        match self {
-            GameEvent::ZoneChange { applied: Some(applied), .. } => {
-                applied.iter().rev().find(|a| a.redirected).map(|a| a.by)
-            }
-            _ => None,
-        }
-    }
-
     /// The last known information this record carries (CR 603.10a), with the
     /// zone its object left and its owner: a zone change's or a leaving's, and
     /// `None` for every other record and for a move no look-back reads.

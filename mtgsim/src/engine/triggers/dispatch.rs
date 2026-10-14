@@ -41,7 +41,7 @@ use crate::types::triggers::{
     TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
-use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
+use crate::types::zones::{Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
 /// dispatched from the dispatch that queued it, and so on. The recursion is
@@ -1281,7 +1281,9 @@ impl GameState {
                 GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
             ) => one(
                 change.matches(Some(*from), *to, Some(*act))
-                    && by.as_ref().is_none_or(|by| by.matches(&cause_asked_by(change, record), referents.controller))
+                    // The resolving spell or ability caused the move, also where a
+                    // replacement redirected it (`replacement-architecture.md` §2b.4).
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, referents.controller))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
@@ -1590,19 +1592,6 @@ impl GameState {
 
 fn is_triggered(def: &AbilityDef) -> bool {
     matches!(def.effect, Effect::Triggered(_))
-}
-
-/// The cause a zone-change arm's `by` asks of `record`
-/// (`replacement-architecture.md` §2b.7): the act's when the arm names an act
-/// ("causes you to discard"), the destination's when it names only where the
-/// move went ("causes a land to be put into your graveyard"). A redirect
-/// keeps the act (CR 614.6) and makes the destination its replacement's
-/// (§2b.4).
-fn cause_asked_by(change: &ZoneChangePattern, record: &EventRecord) -> EventCause {
-    match change.act {
-        Some(_) => record.stamp.cause,
-        None => record.event.redirected_by().unwrap_or(record.stamp.cause),
-    }
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name
