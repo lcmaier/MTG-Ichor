@@ -13,7 +13,7 @@ use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::engine::targeting::FilterRefusal;
 use crate::types::effects::ObjectFilter;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::keywords::KeywordFlag;
 
@@ -297,6 +297,40 @@ pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Arc<Vec<Abilit
     compute_characteristics(game, id)
         .map(|chars| Arc::clone(&chars.abilities))
         .unwrap_or_default()
+}
+
+/// One ability of an object's effective list, found by its id, which tells
+/// its instances apart (CR 113.10b), and read through `Deref`.
+///
+/// The ability lives inside the memoized frame's list, which
+/// [`get_effective_abilities`] hands out as a shared `Arc`. A reference into
+/// that `Arc` cannot outlive the call that fetched it, and a clone would copy
+/// the ability's effect tree on every mana activation; so this keeps the
+/// list it was found in, a refcount bump, and where in it the ability is.
+pub struct EffectiveAbility {
+    list: Arc<Vec<AbilityDef>>,
+    index: usize,
+}
+
+impl EffectiveAbility {
+    /// Its place on the effective list, which `activate_ability` takes.
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+
+impl std::ops::Deref for EffectiveAbility {
+    type Target = AbilityDef;
+    fn deref(&self) -> &AbilityDef {
+        &self.list[self.index]
+    }
+}
+
+/// The ability with id `ability` on `id`'s effective list, if it has it.
+pub fn effective_ability(game: &GameState, id: ObjectId, ability: AbilityId) -> Option<EffectiveAbility> {
+    let list = get_effective_abilities(game, id);
+    let index = list.iter().position(|def| def.id == ability)?;
+    Some(EffectiveAbility { list, index })
 }
 
 /// Get effective power. Routes through the layer system — accounts for P/T

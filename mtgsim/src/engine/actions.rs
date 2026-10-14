@@ -1688,13 +1688,8 @@ impl GameState {
             // places in one zone (CR 400.1). `looked_at` is what is there, a short
             // library still a scry (701.22d); `n = 0` never arrives (701.22b).
             GameAction::Scry { player, n } => {
-                let library = &self.get_player(player)?.library;
-                let k = (n as usize).min(library.len());
-                // The library's last element is its top (`Primitive::Mill`
-                // reads the same end), so the cards looked at, top-most
-                // first, are its tail reversed.
-                let looked_at: Vec<ObjectId> =
-                    library.iter().rev().take(k).copied().collect();
+                let looked_at: Vec<ObjectId> = self.get_player(player)?.top_of_library(n as usize).collect();
+                let k = looked_at.len();
                 let source = ctx.cause.resolution().map(|r| r.source);
                 let (top, bottom) = ask_scry(ctx.dp, self, player, &looked_at, n, source);
 
@@ -1737,7 +1732,7 @@ impl GameState {
             // second loss is a caller's bug. CR 704.5b's flag is the check's to clear,
             // and CR 104.2a and 104.4a are the batch's, settled after it performs.
             GameAction::PlayerLoses { player } => {
-                if self.player_lost[player] {
+                if !self.in_game(player) {
                     return Err(format!("player {} has already left the game", player));
                 }
                 self.player_lost[player] = true;
@@ -1758,7 +1753,7 @@ impl GameState {
             // CR 104.3f — win and lose at once → lose — has no producer and is
             // recorded, not built.
             GameAction::PlayerWins { player } => {
-                if self.player_lost[player] {
+                if !self.in_game(player) {
                     return Err(format!("player {} has left the game and cannot win it", player));
                 }
                 if self.result.is_none() {
@@ -1902,7 +1897,7 @@ impl GameState {
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
     ) -> Option<GameAction> {
-        if self.is_multiplayer() && !self.in_game(controller) {
+        if self.left_a_multiplayer_game(controller) {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })

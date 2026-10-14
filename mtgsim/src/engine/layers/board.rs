@@ -1169,10 +1169,7 @@ fn affected_members(
         // at every layer. `attached_to` only ever names a permanent
         // (`cleanup_zone_state` clears it when the host leaves), so no zone
         // gate is needed; an unattached source matches nothing.
-        ObjectSet::Host => game
-            .battlefield
-            .get(&effect.source)
-            .and_then(|e| e.attached_to)
+        ObjectSet::Host => crate::oracle::board::host_of(game, effect.source)
             .filter(|host| board.has_frame(*host))
             .into_iter()
             .collect(),
@@ -1424,7 +1421,7 @@ fn could_name(game: &GameState, board: &Board<'_>, app: &Application<'_>, id: Ob
             match &row.affected_objects {
                 ObjectSet::SourceOnly => row.source == id,
                 ObjectSet::Fixed(ids) => ids.contains(&id),
-                ObjectSet::Host => game.battlefield.get(&row.source).and_then(|e| e.attached_to) == Some(id),
+                ObjectSet::Host => crate::oracle::board::host_of(game, row.source) == Some(id),
                 ObjectSet::Filter { zones, .. } => board.in_zones_or_entering(game, id, *zones),
             }
         }

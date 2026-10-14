@@ -433,6 +433,13 @@ impl CardDataBuilder {
 }
 
 /// The effect a spell resolves with: its spell abilities in printed order.
+/// Where among a card's printed `abilities` the ability `instance` is an
+/// instance of is printed: a granted, copied or printed instance names its
+/// definition, whichever it is.
+pub fn printed_place(abilities: &[AbilityDef], instance: crate::types::ids::AbilityId) -> Option<usize> {
+    abilities.iter().position(|a| a.id.definition() == instance.definition())
+}
+
 /// Each paragraph of an instant's or sorcery's text is a spell ability of its
 /// own (CR 113.2c), and the spell follows them in the order written (CR
 /// 608.2c), so several are one `Sequence`, whose instances of "target" are

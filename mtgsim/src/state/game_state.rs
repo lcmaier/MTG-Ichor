@@ -38,6 +38,15 @@ pub enum GameResult {
     Draw,
 }
 
+/// Why a player is not an opponent another may choose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotAnOpponent {
+    /// CR 102.2: an opponent is another player.
+    Yourself,
+    /// CR 800.4a: a player who has left the game is in it no longer.
+    LeftTheGame,
+}
+
 /// Metadata for a spell or ability on the stack.
 ///
 /// This is the sidecar state for stack objects, analogous to how
@@ -133,6 +142,14 @@ pub struct StackEntry {
     /// trigger's subject — that have left since it was put on the stack (CR 113.7a;
     /// `triggers-architecture.md` §6.1). An activated ability's too.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
+}
+
+impl StackEntry {
+    /// The object this entry's text calls "this" (CR 113.7a): an ability's
+    /// source, or the spell itself.
+    pub fn this_object(&self) -> ObjectId {
+        self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
 }
 
 /// The stack object currently resolving, and the things about it that do not
@@ -1035,6 +1052,43 @@ impl GameState {
         !self.player_lost[player]
     }
 
+    /// The players still in the game, in seat order. `num_players` is the
+    /// seat count the game began with, departures included.
+    pub fn players_in_game(&self) -> impl Iterator<Item = PlayerId> + '_ {
+        (0..self.players.len()).filter(|&p| self.in_game(p))
+    }
+
+    /// The players still in the game in APNAP order (CR 101.4): the active
+    /// player first, then the rest in turn order.
+    pub fn players_in_game_apnap(&self) -> Vec<PlayerId> {
+        let mut players: Vec<PlayerId> = self.players_in_game().collect();
+        players.sort_by_key(|&p| self.apnap_index(p));
+        players
+    }
+
+    /// Has `player` left a multiplayer game, the case every rule of CR 800.4
+    /// is about? A two-player game ends when a player leaves (CR 104.2a).
+    pub fn left_a_multiplayer_game(&self, player: PlayerId) -> bool {
+        self.is_multiplayer() && !self.in_game(player)
+    }
+
+    /// Every player still in the game who is not `you`, in seat order —
+    /// CR 102.1's "opponent", with CR 102.3's teams not modeled.
+    pub fn opponents_of(&self, you: PlayerId) -> Vec<PlayerId> {
+        (0..self.players.len()).filter(|&p| self.not_an_opponent(you, p).is_none()).collect()
+    }
+
+    /// Why `player` is not an opponent of `you`, if they are not.
+    pub fn not_an_opponent(&self, you: PlayerId, player: PlayerId) -> Option<NotAnOpponent> {
+        if player == you {
+            Some(NotAnOpponent::Yourself)
+        } else if !self.in_game(player) {
+            Some(NotAnOpponent::LeftTheGame)
+        } else {
+            None
+        }
+    }
+
     /// CR 800.1 — "a multiplayer game is a game that begins with more than two
     /// players", which is the scope of every rule in CR 800.
     ///
@@ -1072,8 +1126,7 @@ impl GameState {
         if self.result.is_some() {
             return;
         }
-        let survivors: Vec<PlayerId> =
-            (0..self.players.len()).filter(|&p| self.in_game(p)).collect();
+        let survivors: Vec<PlayerId> = self.players_in_game().collect();
         self.result = match survivors.as_slice() {
             // 104.4a — "all the players remaining in a game lose
             // simultaneously".
@@ -1768,12 +1821,7 @@ impl GameState {
             // restriction ability generates no continuous effect either; what it
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
-            let is_restriction = match &ability.effect {
-                Effect::Restriction(_) => true,
-                Effect::Conditional(_, inner) => matches!(**inner, Effect::Restriction(_)),
-                _ => false,
-            };
-            if is_restriction && zone == Zone::Battlefield {
+            if zone == Zone::Battlefield && ability.effect.as_restriction().is_some() {
                 self.restriction_ability_sources.insert(id);
             }
 
@@ -1793,30 +1841,7 @@ impl GameState {
                 continue;
             }
 
-            let atoms = Self::static_ability_atoms(ability, card_name);
-
-            for (primitive, recipient) in atoms {
-                let Some(affected) = Self::static_object_set(recipient, card_name) else {
-                    continue;
-                };
-
-                // Map primitive → the layer rows it generates. A type-
-                // changing primitive produces several siblings; everything else
-                // produces one or none.
-                let rows = Self::static_primitive_rows(primitive);
-                if rows.is_empty() {
-                    debug_assert!(
-                        false,
-                        "static ability on {} lowers to no layer rows. \
-                         `static_primitive_rows` has no arm for {:?}, so this \
-                         ability is registered nowhere and the card does \
-                         nothing. Either the primitive belongs on a non-static \
-                         ability, or the lowering table needs an arm.",
-                        card_name, primitive
-                    );
-                    continue;
-                }
-
+            for (affected, rows) in Self::static_ability_rows(ability, card_name) {
                 // One timestamp for every row this atom generates: CR 613.6 makes them
                 // parts of one effect, and CR 613.7a fixes the value. `None` because a
                 // printed ability has no "effect that created" it; the clause-2 caller is
@@ -1905,24 +1930,8 @@ impl GameState {
             };
 
             for ability in values.registrable_static_abilities() {
-                let context = format!("copied ability {:?} on {}", ability.id, values.name);
-                let atoms = Self::static_ability_atoms(ability, &context);
-
-                for (primitive, recipient) in atoms {
-                    let Some(affected_set) = Self::static_object_set(recipient, &context) else {
-                        continue;
-                    };
-                    let rows = Self::static_primitive_rows(primitive);
-                    if rows.is_empty() {
-                        debug_assert!(
-                            false,
-                            "{} lowers to no layer rows; `static_primitive_rows` has no \
-                             arm for {:?}, so the copied ability does nothing.",
-                            context, primitive
-                        );
-                        continue;
-                    }
-
+                let label = format!("copied ability {:?} on {}", ability.id, values.name);
+                for (affected_set, rows) in Self::static_ability_rows(ability, &label) {
                     // CR 613.7a clause 2 — the copy effect is "the effect that created the
                     // ability", so its timestamp is the second candidate
                     // (`static_effect_timestamp`).
@@ -1948,6 +1957,48 @@ impl GameState {
         }
     }
 
+    /// A static ability lowered to the rows it generates: for each atom, the
+    /// objects it affects and the `(layer, modification)` siblings CR 613.6
+    /// makes parts of one effect, which share a timestamp. The one lowering
+    /// every route registers through — printed, granted, copied, and the
+    /// entering look-ahead — so each asserts alike.
+    ///
+    /// An atom whose primitive has no arm in `static_primitive_rows` is loud
+    /// here, for the reason [`Self::static_ability_atoms`] gives: the ability
+    /// would be registered nowhere and the card would do nothing.
+    ///
+    /// `label` is what those messages call the ability's source — a card's
+    /// name, or "granted ability …" — and nothing branches on it.
+    pub(crate) fn static_ability_rows(
+        ability: &crate::objects::card_data::AbilityDef,
+        label: &str,
+    ) -> Vec<(
+        crate::engine::layers::types::ObjectSet,
+        Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>,
+    )> {
+        let mut lowered = Vec::new();
+        for (primitive, recipient) in Self::static_ability_atoms(ability, label) {
+            let Some(affected) = Self::static_object_set(recipient, label) else {
+                continue;
+            };
+            let rows = Self::static_primitive_rows(primitive);
+            if rows.is_empty() {
+                debug_assert!(
+                    false,
+                    "static ability on {} lowers to no layer rows. \
+                     `static_primitive_rows` has no arm for {:?}, so this \
+                     ability is registered nowhere and does nothing. Either \
+                     the primitive belongs on a non-static ability, or the \
+                     lowering table needs an arm.",
+                    label, primitive
+                );
+                continue;
+            }
+            lowered.push((affected, rows));
+        }
+        lowered
+    }
+
     /// Lower a static ability's body into the `(primitive, recipient)` atoms
     /// that become registry rows.
     ///
@@ -1971,9 +2022,9 @@ impl GameState {
     /// carry on rather than panicking mid-game.
     pub(crate) fn static_ability_atoms<'a>(
         ability: &'a crate::objects::card_data::AbilityDef,
-        card_name: &str,
+        label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        Self::atoms_of_static_body(&ability.effect, card_name)
+        Self::atoms_of_static_body(&ability.effect, label)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -1986,7 +2037,7 @@ impl GameState {
     /// `&ability.effect` into every call site to save one line here.
     fn atoms_of_static_body<'a>(
         body: &'a crate::types::effects::Effect,
-        card_name: &str,
+        label: &str,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
         use crate::types::effects::Effect;
 
@@ -2026,7 +2077,7 @@ impl GameState {
                              nothing while its siblings register normally — a \
                              half-working card, which is worse than one that \
                              does nothing at all.",
-                            card_name
+                            label
                         ),
                     }
                 }
@@ -2039,7 +2090,7 @@ impl GameState {
             // decision 5). A card whose condition is false as it enters still registers
             // its rows, the only reading that survives a condition changing with no zone
             // change to notice.
-            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, card_name),
+            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label),
 
             _ => {
                 debug_assert!(
@@ -2051,7 +2102,7 @@ impl GameState {
                      at which a mode is chosen or a loop runs. If the card \
                      really reads this way, it wants a triggered or activated \
                      ability instead.",
-                    card_name
+                    label
                 );
                 Vec::new()
             }
@@ -2064,7 +2115,7 @@ impl GameState {
     /// that is loud rather than a quiet `continue`.
     pub(crate) fn static_object_set(
         recipient: &crate::types::effects::EffectRecipient,
-        card_name: &str,
+        label: &str,
     ) -> Option<crate::engine::layers::types::ObjectSet> {
         use crate::engine::layers::types::ObjectSet;
         use crate::types::effects::EffectRecipient;
@@ -2098,7 +2149,7 @@ impl GameState {
                      resolves; `Controller` names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
                      control\", or `ThisObject` for \"this permanent\".",
-                    card_name, recipient
+                    label, recipient
                 );
                 None
             }
@@ -2240,21 +2291,20 @@ impl GameState {
     }
 
     /// CR 112.1 — is `id` a **spell** on the stack, as opposed to an activated
-    /// ability's ephemeral object?
-    ///
-    /// One predicate rather than a copy per arm, because two `SelectionFilter`s
-    /// ask it — `Spell` and CR 609.7a's `DamageSource` — at three sites each:
-    /// the validator, the count, and the enumeration.
+    /// or triggered ability's object?
     ///
     /// **The entry, not the stack, is what answers.** An ability on the stack
     /// is a `GameObject` like any other (CR 113.7a) and nothing about the
     /// object says which it is; the `StackEntry` does, and it is the same field
-    /// the resolution and the fizzle already branch on. The one object this
-    /// declines is the spell **currently resolving**, whose entry
-    /// `resolve_top_of_stack` has already taken — no rule reaches it, since
-    /// CR 601.2c and CR 603.3d both choose before a resolution starts.
+    /// the resolution and the fizzle already branch on. The spell **resolving
+    /// now** is still on the stack until it finishes (CR 608.2n), though
+    /// `resolve_top_of_stack` has taken its entry, so the resolving object
+    /// answers for it.
     pub fn is_spell_on_stack(&self, id: ObjectId) -> bool {
-        self.stack_entries.get(&id).is_some_and(|e| e.is_spell)
+        match self.stack_entries.get(&id) {
+            Some(entry) => entry.is_spell,
+            None => self.resolving.as_ref().is_some_and(|r| r.id == id && r.identity.is_none()),
+        }
     }
 
     /// Get an immutable reference to a game object

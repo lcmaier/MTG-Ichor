@@ -54,32 +54,29 @@ pub fn should_deal_damage_this_step(
     }
 }
 
-/// Compute the lethal damage threshold for a creature, accounting for
-/// deathtouch on the source.
-///
-/// If the source has deathtouch, 1 damage is considered lethal (rule 702.2b).
-/// Otherwise, lethal = effective_toughness - damage_already_marked.
-///
-/// Returns 0 if the creature can't be found or has 0 effective toughness.
-pub fn lethal_damage_for(
+/// CR 702.19b's lethal damage still owed to `blocker` by a creature assigning
+/// its combat damage now: what its toughness leaves after the damage marked on
+/// it and the damage `assigned` gives it from other creatures this step. Any
+/// nonzero deathtouch damage is lethal (CR 702.2c), so a deathtouch source owes
+/// at most 1, and a blocker one already assigned to owes nothing more. A
+/// blocker already dealt lethal damage is owed nothing.
+pub fn lethal_damage_owed(
     game: &GameState,
-    target_id: ObjectId,
+    blocker: ObjectId,
+    assigned: &[CombatDamageAssignment],
     source_has_deathtouch: bool,
 ) -> u64 {
-    if source_has_deathtouch {
-        return 1;
+    let mut assigned_amount = 0u64;
+    for assignment in assigned.iter().filter(|a| a.target == DamageTarget::Object(blocker) && a.amount > 0) {
+        if has_keyword(game, assignment.source, KeywordFlag::Deathtouch) {
+            return 0;
+        }
+        assigned_amount += assignment.amount;
     }
-    let toughness = get_effective_toughness(game, target_id).unwrap_or(0);
-    if toughness <= 0 {
-        return 0;
-    }
-    let damage_marked = game
-        .battlefield
-        .get(&target_id)
-        .map(|e| e.damage_marked)
-        .unwrap_or(0);
-    let remaining = (toughness as u64).saturating_sub(damage_marked as u64);
-    remaining.max(1) // at least 1 to assign
+    let toughness = get_effective_toughness(game, blocker).unwrap_or(0).max(0) as u64;
+    let marked = game.battlefield.get(&blocker).map_or(0, |entry| entry.damage_marked as u64);
+    let owed = toughness.saturating_sub(marked).saturating_sub(assigned_amount);
+    if source_has_deathtouch { owed.min(1) } else { owed }
 }
 
 /// Assign trample damage for a blocked attacker with trample.
@@ -88,7 +85,8 @@ pub fn lethal_damage_for(
 /// returns the resulting `CombatDamageAssignment` entries.
 ///
 /// Rule 702.19b: must assign at least lethal to each blocker, excess
-/// may be assigned to the defending player/planeswalker.
+/// may be assigned to the defending player/planeswalker. `assigned` is what
+/// the creatures before this one assign this step, which lethal counts.
 pub fn assign_trample_damage(
     game: &GameState,
     decisions: &dyn DecisionProvider,
@@ -97,6 +95,7 @@ pub fn assign_trample_damage(
     blocked_by: &[ObjectId],
     attack_target: &AttackTarget,
     damage: u64,
+    assigned: &[CombatDamageAssignment],
 ) -> Vec<CombatDamageAssignment> {
     let mut assignments = Vec::new();
     let has_deathtouch = has_keyword(game, attacker_id, KeywordFlag::Deathtouch);
@@ -110,15 +109,7 @@ pub fn assign_trample_damage(
 
     let per_blocker_mins: Vec<u64> = alive_blockers
         .iter()
-        .map(|&bid| {
-            if has_deathtouch {
-                1
-            } else {
-                let toughness = get_effective_toughness(game, bid).unwrap_or(0) as u64;
-                let marked = game.battlefield.get(&bid).map(|e| e.damage_marked as u64).unwrap_or(0);
-                toughness.saturating_sub(marked)
-            }
-        })
+        .map(|&bid| lethal_damage_owed(game, bid, assigned, has_deathtouch))
         .collect();
 
     // CR 702.19b: lethal to each blocker before any tramples over. Below the
@@ -227,13 +218,13 @@ mod tests {
         assert!(should_deal_damage_this_step(&game, normal, false));
     }
 
-    // --- lethal_damage_for tests ---
+    // --- lethal_damage_owed tests ---
 
     #[test]
     fn test_lethal_damage_normal() {
         let mut game = GameState::new(2, 20);
         let c = place_creature(&mut game, 0, 2, 4);
-        assert_eq!(lethal_damage_for(&game, c, false), 4);
+        assert_eq!(lethal_damage_owed(&game, c, &[], false), 4);
     }
 
     #[test]
@@ -241,14 +232,27 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let c = place_creature(&mut game, 0, 2, 4);
         game.battlefield.get_mut(&c).unwrap().damage_marked = 2;
-        assert_eq!(lethal_damage_for(&game, c, false), 2);
+        assert_eq!(lethal_damage_owed(&game, c, &[], false), 2);
     }
 
     #[test]
     fn test_lethal_damage_deathtouch_is_one() {
         let mut game = GameState::new(2, 20);
         let c = place_creature(&mut game, 0, 2, 8);
-        assert_eq!(lethal_damage_for(&game, c, true), 1);
+        assert_eq!(lethal_damage_owed(&game, c, &[], true), 1);
+    }
+
+    #[test]
+    fn test_lethal_damage_counts_what_others_assign_this_step() {
+        // CR 702.19b, and CR 702.2c for an earlier deathtouch source.
+        let mut game = GameState::new(2, 20);
+        let blocker = place_creature(&mut game, 1, 0, 5);
+        let plain = place_creature(&mut game, 0, 2, 2);
+        let deathtouch = place_creature_with_keywords(&mut game, 0, 1, 1, &[KeywordFlag::Deathtouch]);
+        let to_blocker = |source, amount| CombatDamageAssignment { source, target: DamageTarget::Object(blocker), amount };
+        assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(plain, 2)], false), 3);
+        assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(deathtouch, 1)], false), 0);
+        assert_eq!(lethal_damage_owed(&game, blocker, &[to_blocker(plain, 5)], true), 0);
     }
 
     // --- attack_target_to_damage_target tests ---
@@ -283,7 +287,7 @@ mod tests {
         );
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],
-            &AttackTarget::Player(1), 4,
+            &AttackTarget::Player(1), 4, &[],
         );
 
         let to_blocker: Vec<_> = assignments.iter()
@@ -321,7 +325,7 @@ mod tests {
         );
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],
-            &AttackTarget::Player(1), 4,
+            &AttackTarget::Player(1), 4, &[],
         );
 
         // Deathtouch: 1 is lethal → 1 to blocker, 3 tramples
@@ -353,7 +357,7 @@ mod tests {
         let scripted = ScriptedDecisionProvider::new();
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],
-            &AttackTarget::Player(1), 2,
+            &AttackTarget::Player(1), 2, &[],
         );
 
         // 2 power vs 3 toughness: all 2 to blocker, no overflow

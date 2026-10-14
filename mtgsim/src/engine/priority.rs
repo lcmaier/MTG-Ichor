@@ -51,7 +51,7 @@ impl GameState {
         // still in has passed in succession, and a departed active player's
         // priority goes to the next in turn order. Counted once per round: a loss
         // is a state-based action, so a player leaves only between rounds.
-        let players_in_game = (0..self.num_players()).filter(|&p| self.in_game(p)).count();
+        let players_in_game = self.players_in_game().count();
         let mut consecutive_passes = 0;
         let Some(mut current_priority) = (if self.in_game(self.active_player) {
             Some(self.active_player)
@@ -138,24 +138,18 @@ impl GameState {
                         // (CR 305.6) are absent from CardData, and the index
                         // handed to `activate_ability` must match the list
                         // `activatable_abilities` enumerated.
-                        let abilities =
-                            crate::oracle::characteristics::get_effective_abilities(
-                                self, *permanent_id,
-                            );
-                        let is_mana = abilities.iter()
-                            .find(|a| a.id == *ability_id)
-                            .map(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana)
-                            .unwrap_or(false);
+                        let found = crate::oracle::characteristics::effective_ability(self, *permanent_id, *ability_id);
+                        let is_mana = found
+                            .as_ref()
+                            .is_some_and(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana);
                         let result = if is_mana {
                             self.activate_mana_ability(
                                 current_priority, *permanent_id, *ability_id, decisions,
                             )
                         } else {
-                            let idx = abilities.iter()
-                                .position(|a| a.id == *ability_id);
-                            match idx {
-                                Some(i) => self.activate_ability(
-                                    current_priority, *permanent_id, i, decisions,
+                            match found {
+                                Some(ability) => self.activate_ability(
+                                    current_priority, *permanent_id, ability.index(), decisions,
                                 ),
                                 None => Err(format!(
                                     "Ability {} not found on permanent {}",

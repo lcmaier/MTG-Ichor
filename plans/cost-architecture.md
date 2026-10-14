@@ -1161,7 +1161,9 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
    `register_static_effects` matches the body without peeling
    `Effect::Conditional`, and neither gather does either. No registered card
    has one; the fix is the same `as_…` peel this phase wrote for cost effects.
-   `codebase-state.md` "Before card breadth", new item.
+   `codebase-state.md` "Before card breadth", new item. The prohibition gate's
+   granted and copied legs were the last to read the bare body; A6m's first PR
+   (#249) gave them `as_restriction`.
 2. **Two `Cost::Mana` entries in one total were paid against one allocation**
    (§2). Fixed by the merge; a kicked spell with a generic kicker had never
    been cast in a fuzz game (no registered card kicks).

@@ -83,10 +83,9 @@ impl Lookahead {
 /// against this object's own frame — which is how Humility or Blood Moon strip
 /// an entering permanent's static ability before it can apply to itself.
 ///
-/// The loud arms of the lowering are left to the performer, which runs the
-/// real registration a moment later on the same card and asserts there. A
-/// card that lowers to nothing contributes nothing here, which is also what it
-/// will contribute once it has entered. Each row carries the id that
+/// The lowering is registration's own, loud arms included. A card that
+/// lowers to nothing contributes nothing here, which is also what it will
+/// contribute once it has entered. Each row carries the id that
 /// registration will give it, read off the registry as the timestamp is read
 /// off its counter, because a grant mints its instance's id from its row.
 fn would_be_rows(
@@ -119,11 +118,8 @@ fn would_be_rows(
         // `Effect::Replacement`, `Effect::Restriction` and
         // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
-        for (primitive, recipient) in GameState::static_ability_atoms(ability, name) {
-            let Some(affected) = GameState::static_object_set(recipient, name) else {
-                continue;
-            };
-            for (layer, modification) in GameState::static_primitive_rows(primitive) {
+        for (affected, lowered) in GameState::static_ability_rows(ability, name) {
+            for (layer, modification) in lowered {
                 rows.push(ContinuousEffect {
                     id: first_id + rows.len() as u64,
                     source: object,

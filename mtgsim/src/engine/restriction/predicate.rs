@@ -14,7 +14,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{ObjectSet, Effect, PlayerSet};
+use crate::types::effects::{ObjectSet, PlayerSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
@@ -141,17 +141,10 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
                 // proposal against the settled board — the same leg, with the
                 // same evaluator, that `replacement::gather` gives a
                 // conditional replacement.
-                let def = match &ability.effect {
-                    Effect::Restriction(def) => def,
-                    Effect::Conditional(condition, inner) => {
-                        let Effect::Restriction(def) = inner.as_ref() else { continue };
-                        if !settled_holds(condition, game, id, None) {
-                            continue;
-                        }
-                        def
-                    }
-                    _ => continue,
-                };
+                let Some((condition, def)) = ability.effect.as_restriction() else { continue };
+                if condition.is_some_and(|condition| !settled_holds(condition, game, id, None)) {
+                    continue;
+                }
                 if matches(game, def, id, controller, query, frame) {
                     return Some(Prohibition { source: id, by: ProhibitedBy::StaticAbility(ability.rules_text.words) });
                 }

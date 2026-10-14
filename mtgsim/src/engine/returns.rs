@@ -26,6 +26,15 @@ pub(crate) struct Return {
 }
 
 impl GameState {
+    /// Whose control `object` returns under (CR 610.3c's default is its
+    /// owner's), where "you" is `you`.
+    pub(crate) fn return_controller(&self, object: ObjectId, under: ReturnUnder, you: PlayerId) -> Result<PlayerId, String> {
+        Ok(match under {
+            ReturnUnder::Owner => self.get_object(object)?.owner,
+            ReturnUnder::You => you,
+        })
+    }
+
     /// Move each object back as one event. An Aura's host is chosen first,
     /// against the board before any of them entered, so it cannot be a
     /// permanent entering beside it (Calix, Destiny's Hand's ruling); an Aura
@@ -204,10 +213,7 @@ impl GameState {
         for until in due {
             for (object, to) in until.returns {
                 let Some(object) = RememberedObject::now(object).found(self) else { continue };
-                let controller = match until.under {
-                    ReturnUnder::Owner => self.get_object(object)?.owner,
-                    ReturnUnder::You => until.controller,
-                };
+                let controller = self.return_controller(object, until.under, until.controller)?;
                 returns.push(Return { object, to, controller, cause: until.cause });
             }
         }

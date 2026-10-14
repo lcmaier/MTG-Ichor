@@ -13,7 +13,6 @@ use crate::types::costs::Cost;
 use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::types::zones::Zone;
 use crate::engine::costs::CannotPay;
 use crate::engine::put_on_stack::SorceryTiming;
 
@@ -79,14 +78,9 @@ impl std::fmt::Display for CannotCast {
 /// CR 601.3: may `player_id` begin to cast `card_id`? The enumeration asks it,
 /// and the cast asks it again before it moves the card, so the two agree.
 pub fn can_begin_to_cast(game: &GameState, player_id: PlayerId, card_id: ObjectId) -> Result<(), CannotCast> {
-    let Some(obj) = game.objects.get(&card_id) else {
+    let Some(obj) = crate::oracle::board::card_in_hand(game, player_id, card_id) else {
         return Err(CannotCast::NotInHand);
     };
-    // A hand holds only its owner's cards (CR 400.3), so this is "in the
-    // caster's hand".
-    if obj.zone != Zone::Hand || obj.owner != player_id {
-        return Err(CannotCast::NotInHand);
-    }
     // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
     // play-from-hand legality, which happens before the object is a permanent,
     // so the layer system has nothing to contribute. Same exemption as
@@ -477,7 +471,9 @@ fn every_instance_has_a_choice(
                 // a `false` returns below.
                 let already_answered =
                     ix >= reusable_from && instances[reusable_from..ix].contains(recipient);
-                if !already_answered && !game.has_legal_choices(f, None, player_id, n, view) {
+                if !already_answered
+                    && crate::oracle::legality::enumerate_legal_selections_upto(game, f, None, player_id, view, n).len() < n
+                {
                     return false;
                 }
             }

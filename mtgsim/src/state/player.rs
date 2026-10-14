@@ -51,6 +51,12 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
+    /// The top `n` cards of this library, top-most first, or as many as it
+    /// holds. The vector's last element is its top.
+    pub fn top_of_library(&self, n: usize) -> impl Iterator<Item = ObjectId> + '_ {
+        self.library.iter().rev().take(n).copied()
+    }
+
     pub fn new(id: PlayerId, starting_life: i64) -> Self {
         PlayerState {
             id,

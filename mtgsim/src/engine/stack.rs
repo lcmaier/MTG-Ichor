@@ -4,8 +4,9 @@ use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
 use crate::state::battlefield::{CastFacts, CostChoices};
-use crate::state::game_state::{GameState, ResolvingObject};
+use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::card_types::{EnchantmentType, Subtype};
+use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
 
@@ -112,10 +113,9 @@ impl GameState {
         if let Some(binding) = &entry.trigger
             && let Some(condition) = &binding.def.intervening_if
         {
-            let source = entry.ability_identity.map(|i| i.source.id).unwrap_or(object_id);
+            let source = entry.this_object();
             if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller)) {
-                self.stack.retain(|&x| x != object_id);
-                self.remove_object(object_id);
+                self.ability_leaves_the_stack(object_id);
                 return Ok(());
             }
         }
@@ -126,7 +126,7 @@ impl GameState {
         // Plague Spores destroying the creature does not make the land illegal
         // after. `None` is "doesn't resolve". "Another target" is other than the
         // text's "this": the spell, or the permanent with the ability (CR 113.7a).
-        let this_object = entry.ability_identity.map_or(object_id, |identity| identity.source.id);
+        let this_object = entry.this_object();
         let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object) else {
             // Every target of every instance is illegal — the spell or ability
             // doesn't resolve (CR 608.2b).
@@ -242,12 +242,10 @@ impl GameState {
                 self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::SpellResolves))?;
             }
         } else {
-            // Ability: ceases to exist (CR 608.2n) — removed from objects
-            // entirely, with no destination zone. That is also why the stack
-            // removal is explicit here: every other exit from this function is a
-            // zone change, and `move_object` does it for them.
-            self.stack.retain(|&x| x != object_id);
-            self.remove_object(object_id);
+            // Ability: removed from the stack (CR 608.2n), with no
+            // destination zone; every other exit from this function is a zone
+            // change, and `move_object` does it for them.
+            self.ability_leaves_the_stack(object_id);
         }
 
         // --- Emit event ---
@@ -264,6 +262,17 @@ impl GameState {
         }
 
         Ok(())
+    }
+
+    /// An ability leaving the stack, which takes it out of the game: an
+    /// ability is no card and has no zone to go to (CR 113.7a, 608.2n). Off
+    /// the stack, its entry taken if it still has one, and out of the store.
+    /// Returns the entry, which a countering announces.
+    pub(crate) fn ability_leaves_the_stack(&mut self, ability: ObjectId) -> Option<StackEntry> {
+        self.stack.retain(|&id| id != ability);
+        let entry = self.take_stack_entry(ability);
+        self.remove_object(ability);
+        entry
     }
 
     /// Handle a spell/ability that fizzles (all targets now illegal).
@@ -289,10 +298,9 @@ impl GameState {
                 &ActionContext::game_rule(dp, GameRule::TargetsIllegal),
             )?;
         } else {
-            // Ability: no destination zone, so the stack removal is explicit —
-            // same reason as the completed-ability arm in `resolve_taken`.
-            self.stack.retain(|&x| x != object_id);
-            self.remove_object(object_id);
+            // Ability: no destination zone — the completed-ability arm's way
+            // out of `resolve_taken`.
+            self.ability_leaves_the_stack(object_id);
         }
 
         // An ability by its identity, as `resolve_taken` announces one: the

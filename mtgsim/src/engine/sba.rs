@@ -153,10 +153,7 @@ impl GameState {
         // Each member with the subrule that performs it, its cause (CR 704.5, 704.6).
         let mut batch: Vec<(GameAction, StateBasedAction)> = Vec::new();
         let mut player_losses: Vec<(GameAction, StateBasedAction)> = Vec::new();
-        for i in 0..self.players.len() {
-            if !self.in_game(i) {
-                continue;
-            }
+        for i in self.players_in_game() {
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
                 player_losses.push(sba_player_loses(i, StateBasedAction::ZeroLife));
@@ -347,10 +344,8 @@ impl GameState {
         // course of the game. After the 704.5 losses because it is 704.6, and
         // a player already losing to a 704.5 reason is collapsed onto that one
         // by the dedupe below.
-        for i in 0..self.players.len() {
-            if self.in_game(i)
-                && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
-            {
+        for i in self.players_in_game() {
+            if self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21) {
                 player_losses.push(sba_player_loses(i, StateBasedAction::CommanderDamage));
             }
         }

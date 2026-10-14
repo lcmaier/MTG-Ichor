@@ -240,14 +240,14 @@ impl GameState {
         &mut self,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        if !self.is_multiplayer() || self.player_lost.iter().all(|&lost| !lost) {
+        if !self.is_multiplayer() || self.players_in_game().count() == self.num_players() {
             return Ok(());
         }
         let orphaned: Vec<GameAction> = self
             .battlefield_ids_ordered()
             .into_iter()
             .chain(self.stack.iter().copied())
-            .filter(|&id| get_effective_controller(self, id).is_some_and(|p| !self.in_game(p)))
+            .filter(|&id| get_effective_controller(self, id).is_some_and(|p| self.left_a_multiplayer_game(p)))
             .filter_map(|object| {
                 let from = self.objects.get(&object)?.zone;
                 Some(GameAction::ZoneChange { object, from, to: Zone::Exile, act: ZoneChangeAct::Put })

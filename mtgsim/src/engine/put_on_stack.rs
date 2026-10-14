@@ -655,9 +655,7 @@ impl GameState {
     /// `activate_ability` call. Used to keep state clean when target
     /// validation or cost payment fails mid-activation (see D26 / SPECIAL-2).
     fn rollback_ability_activation(&mut self, ability_obj_id: ObjectId) {
-        self.stack.retain(|&id| id != ability_obj_id);
-        self.take_stack_entry(ability_obj_id);
-        self.remove_object(ability_obj_id);
+        self.ability_leaves_the_stack(ability_obj_id);
     }
 
     /// CR 307.1's timing, as a rule other things borrow: the active player,

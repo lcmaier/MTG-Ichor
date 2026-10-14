@@ -595,13 +595,9 @@ impl GameState {
     /// choice". A creature with no power, a land, an enchantment already used
     /// this turn — all legal.
     ///
-    /// The stack half asks `is_spell`, because CR 609.7a lists a *spell* and
-    /// an activated ability on the stack is not one; its source is the
-    /// permanent, which the battlefield half already offers. The one object
-    /// this loses is the spell or ability **currently resolving**, whose
-    /// `StackEntry` `resolve_top_of_stack` has already taken — an effect
-    /// choosing its own resolving spell as the source of future damage, which
-    /// nothing printed does.
+    /// The stack half asks `is_spell_on_stack`, because CR 609.7a lists a
+    /// *spell* and an activated ability on the stack is not one; its source is
+    /// the permanent, which the battlefield half already offers.
     fn validate_damage_source(&self, target: &ResolvedTarget) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
@@ -1055,117 +1051,6 @@ impl GameState {
             return None;
         }
         Some(survivors)
-    }
-
-    /// Whether the battlefield (or the player list, or the stack) holds `n`
-    /// legal choices for one instance of "target".
-    ///
-    /// **`exclude_id` is CR 115.5** — "a spell or ability on the stack is an
-    /// illegal target for itself" — and every caller inside CR 601.2c's loop
-    /// passes the object being cast or activated. It bites on the stack-reading
-    /// filters, `Spell` and `DamageSource`: an Aura spell is on the stack as it
-    /// targets, and an enchant filter matches only permanents.
-    ///
-    /// For player filters, all players are considered (player hexproof and
-    /// shroud are `backlog.md` §2.15's).
-    ///
-    /// **The battlefield scans are ordered, and the reason is cost rather than
-    /// answer.** Every candidate it tests is a `validate_selection`, which is a
-    /// layer walk, and a short circuit over a `HashMap` stops after a different
-    /// number of them in every process; `state/diagnostics.rs` records layer
-    /// walks as a fixture, so the count is observable and the order has to be
-    /// too. The sort is on a hot path — `mana_helpers` asks this per castable
-    /// spell per priority check — and measured (2026-09-01) below the noise
-    /// floor against the walks it bounds.
-    /// `n` is how many **distinct** choices one instance needs — Jagged
-    /// Lightning's "each of two target creatures" is not castable into a board
-    /// with one creature, because 601.2c's first sentence forbids choosing it
-    /// twice. `earlier_targets` is the instances already announced, which is what makes
-    /// Incremental Growth's third clause need a third creature rather than the
-    /// same one again.
-    ///
-    /// **Greedy is exact for the shapes that print.** An "another target" chain
-    /// reuses one filter, so counting candidates that pass it and subtracting
-    /// the ones already taken is the same answer a matching would give. A card
-    /// whose instances carry *different* filters and also exclude each other
-    /// would need the matching, and none prints — `codebase-state.md` carries
-    /// the item with that reachability line.
-    pub(crate) fn has_legal_choices(
-        &self,
-        filter: &SelectionFilter,
-        exclude_id: Option<ObjectId>,
-        you: PlayerId,
-        n: usize,
-        identity: FilterIdentity<'_>,
-    ) -> bool {
-        if n == 0 {
-            return true;
-        }
-        // CR 800.4a — the seats that are still players. `players.len()` is the
-        // seat count the game *began* with, which the rule never shrinks, so a
-        // departed seat would otherwise be counted toward `n` by both arms that
-        // read it. A closure rather than a `let`, so the battlefield filters
-        // below do not pay for it on `mana_helpers`' hot path.
-        let seats_in_game = || (0..self.players.len()).filter(|&p| self.in_game(p)).count();
-        match filter {
-            SelectionFilter::Player => {
-                // Player hexproof and shroud (Leyline of Sanctity's class) are
-                // `backlog.md` §2.15's; until then every player still in the
-                // game is a legal choice.
-                seats_in_game() >= n
-            }
-            SelectionFilter::Any => {
-                // "Any target" = creature or planeswalker on battlefield, OR player
-                let mut found = seats_in_game();
-                if found >= n {
-                    return true;
-                }
-                for id in self.battlefield_ids_ordered() {
-                    if Some(id) == exclude_id {
-                        continue;
-                    }
-                    let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, identity).is_ok() {
-                        found += 1;
-                        if found >= n {
-                            return true;
-                        }
-                    }
-                }
-                false
-            }
-            SelectionFilter::Spell => {
-                // Spells live on the stack, not the battlefield — and not
-                // every object there is one (CR 112.1), which is what
-                // `is_spell_on_stack` asks. The sibling arm below asks it too.
-                self.stack
-                    .iter()
-                    .filter(|&&id| Some(id) != exclude_id && self.is_spell_on_stack(id))
-                    .count()
-                    >= n
-            }
-            // CR 609.7a's enumeration, as an id names each: a source of
-            // damage needs no `validate_selection` walk at all.
-            SelectionFilter::DamageSource => {
-                crate::oracle::legality::enumerate_legal_selections(self, filter, exclude_id, you).len() >= n
-            }
-            _ => {
-                let mut found = 0usize;
-                for id in self.battlefield_ids_ordered() {
-                    if Some(id) == exclude_id {
-                        continue;
-                    }
-                    let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, identity).is_ok() {
-                        found += 1;
-                        if found >= n {
-                            return true;
-                        }
-                    }
-                }
-                false
-            }
-        }
     }
 
     /// Check if a single target is still legal for the given spec.

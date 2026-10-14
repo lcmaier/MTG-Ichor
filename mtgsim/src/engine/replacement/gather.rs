@@ -713,7 +713,7 @@ pub(crate) fn set_affects(
         // CR 303.4m, by id like the two above: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
         ObjectSet::Host => {
-            game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
+            crate::oracle::board::host_of(game, source) == Some(id)
         }
         // On behalf of the effect, not a selection: `ObjectFilter::NotSource` is
         // "other than the effect's `source`", which a selection has no source for —

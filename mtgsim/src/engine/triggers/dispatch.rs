@@ -669,7 +669,7 @@ impl GameState {
                 ObjectSet::SourceOnly => named.push(row.source),
                 ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
                 // A host is a permanent (CR 301.5, 303.4).
-                ObjectSet::Host => named.extend(self.battlefield.get(&row.source).and_then(|e| e.attached_to)),
+                ObjectSet::Host => named.extend(crate::oracle::board::host_of(self, row.source)),
                 ObjectSet::Filter { .. } => {}
             }
         }
@@ -998,7 +998,7 @@ impl GameState {
             let Some(chars) = compute_characteristics(self, id) else { continue };
             let earlier = before.remove(&id).unwrap_or_default();
             let controller = controller_or_owner(self, id).unwrap_or(object.owner);
-            let host = self.battlefield.get(&id).and_then(|e| e.attached_to);
+            let host = crate::oracle::board::host_of(self, id);
             let snapshots = earlier.iter().map(|&(k, _)| k).collect();
             // The lists from before sit right behind the list now, so an
             // object's triggers keep the order a single candidate gave them.
@@ -1556,10 +1556,7 @@ impl GameState {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), recipient) => {
                 let player = match recipient {
-                    EffectRecipient::Host => self
-                        .battlefield
-                        .get(&source)
-                        .and_then(|e| e.attached_to)
+                    EffectRecipient::Host => crate::oracle::board::host_of(self, source)
                         .and_then(|host| controller_or_owner(self, host))
                         .unwrap_or(pending.controller),
                     _ => pending.controller,

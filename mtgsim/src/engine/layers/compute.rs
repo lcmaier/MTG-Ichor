@@ -607,12 +607,7 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         locked_you: Option<PlayerId>,
     ) -> Self {
         let owner = game.objects.get(&source).map(|obj| obj.owner);
-        let you = locked_you.or_else(|| {
-            board
-                .frame_of(game, source, layer_index)
-                .map(|frame| frame.controller)
-                .or(owner)
-        });
+        let you = super::condition::you_for(game, board, source, layer_index, locked_you);
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }
 
@@ -710,8 +705,8 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
 /// function; they need the *lowering* to make the choice, which is the piece
 /// that does not exist yet (`codebase-state.md` item 13).
 ///
-/// `Opponent` therefore resolves here only in a two-player game, where CR 102.2
-/// leaves nothing to choose. Above two players it means the resolution step
+/// `Opponent` therefore resolves here only while one opponent is left, where
+/// CR 102.2 leaves nothing to choose. With more it means the resolution step
 /// skipped a choice it owed, so it asserts rather than inventing one.
 fn resolve_set_controller(
     player_ref: &crate::types::effects::PlayerRef,
@@ -731,7 +726,7 @@ fn resolve_set_controller(
     // only the ones in the *departed* player's favor, and this is the same
     // sentence read from the object's side), and what the rule denies is the
     // change. `None` is how this function says a modification does not apply.
-    let still_playing = |pid: PlayerId| !game.is_multiplayer() || game.in_game(pid);
+    let still_playing = |pid: PlayerId| !game.left_a_multiplayer_game(pid);
 
     match player_ref {
         PlayerRef::You => Some(players.you()).filter(|&p| still_playing(p)),
@@ -742,11 +737,9 @@ fn resolve_set_controller(
             .map(|obj| obj.owner)
             .filter(|&p| still_playing(p)),
         PlayerRef::Opponent => {
-            let you = players.you();
-            let mut opponents = (0..game.num_players()).filter(|&pid| pid != you);
-            match (opponents.next(), opponents.next()) {
+            match game.opponents_of(players.you()).as_slice() {
                 // CR 102.2 — exactly one opponent, so nothing was ever chosen.
-                (Some(only), None) => Some(only),
+                [only] => Some(*only),
                 _ => {
                     debug_assert!(
                         false,

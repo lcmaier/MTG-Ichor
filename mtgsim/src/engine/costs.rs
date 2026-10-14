@@ -261,9 +261,8 @@ impl GameState {
     /// "Sacrifice an artifact" is the filter matching normally, and
     /// "Sacrifice another creature" is the filter asked for the source's text.
     fn sacrifice_candidates(&self, filter: &ObjectFilter, player_id: PlayerId, source_id: ObjectId) -> Vec<ObjectId> {
-        self.battlefield_ids_ordered()
+        crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
-            .filter(|&id| crate::oracle::characteristics::controls(self, id, player_id))
             .filter(|&id| self.matches_for_text_of(id, filter, player_id, Some(source_id)))
             .collect()
     }

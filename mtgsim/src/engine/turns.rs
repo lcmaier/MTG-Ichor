@@ -3,7 +3,7 @@ use crate::events::cause::{GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
-use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
+use crate::types::ids::{ExtraTurnId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::ui::decision::DecisionProvider;
 
@@ -215,7 +215,7 @@ impl GameState {
     /// turn would have carried, since nothing has advanced it yet.
     fn next_turn_taker(&mut self) -> Option<(PlayerId, Option<ExtraTurnId>)> {
         while let Some(ExtraTurn { id, player }) = self.turn_queue.pop() {
-            if !self.player_lost[player] {
+            if self.in_game(player) {
                 return Some((player, Some(id)));
             }
             // A queued extra turn is a turn of theirs too, and CR 500.7 puts
@@ -225,7 +225,7 @@ impl GameState {
         let n = self.num_players();
         for _ in 0..n {
             self.turn_rotation = (self.turn_rotation + 1) % n;
-            if !self.player_lost[self.turn_rotation] {
+            if self.in_game(self.turn_rotation) {
                 return Some((self.turn_rotation, None));
             }
             self.expire_until_your_next_turn(self.turn_rotation, self.turn_number + 1);
@@ -476,11 +476,7 @@ impl GameState {
         // CR 502.1 — what the active player *effectively* controls, in two passes
         // (a layer query, then the writes). **Ordered**: two effects wanting one
         // untap (stun counters, CR 122.1d) make a CR 616.1 prompt.
-        let to_untap: Vec<ObjectId> = self
-            .battlefield_ids_ordered()
-            .into_iter()
-            .filter(|&id| crate::oracle::characteristics::controls(self, id, active))
-            .collect();
+        let to_untap = crate::oracle::board::permanents_controlled_by(self, active);
         // One batch: CR 502.1 says the permanents untap *simultaneously*, and
         // CR 603.2c's "whenever one or more permanents untap" reads the batch,
         // not its members.

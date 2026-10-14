@@ -251,7 +251,6 @@ impl RegistryScopeSummary {
     /// answer the same way for both, so one function computes both.
     pub fn of<'a>(effects: impl IntoIterator<Item = &'a ContinuousEffect>) -> Self {
         use crate::engine::layers::types::{EffectGroup, EffectModification};
-        use crate::types::effects::Effect;
 
         let mut seen: std::collections::HashSet<EffectGroup> = std::collections::HashSet::new();
         let mut summary = RegistryScopeSummary::default();
@@ -305,7 +304,7 @@ impl RegistryScopeSummary {
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
-                    if matches!(def.effect, Effect::Restriction(_)) {
+                    if def.effect.as_restriction().is_some() {
                         summary.any_granted_restriction = true;
                     }
                     if def.effect.as_cost_modification().is_some() {
@@ -317,7 +316,7 @@ impl RegistryScopeSummary {
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
                     for ability in values.abilities.iter() {
-                        if matches!(ability.effect, Effect::Restriction(_)) {
+                        if ability.effect.as_restriction().is_some() {
                             summary.any_copied_restriction = true;
                         }
                         if ability.effect.as_cost_modification().is_some() {
@@ -446,10 +445,7 @@ impl ContinuousEffectRegistry {
     /// does not accumulate dead rows.
     pub fn remove_static_by_source(&mut self, source: ObjectId) -> Vec<Arc<ContinuousEffect>> {
         self.mutating(|rows| {
-            rows.retain(|row| {
-                !(row.source == source
-                    && matches!(row.origin, EffectOrigin::StaticAbility { .. }))
-            })
+            rows.retain(|row| !row.generated_by_a_static_ability_of(source))
         })
     }
 
@@ -461,10 +457,7 @@ impl ContinuousEffectRegistry {
     pub fn retime_static_rows(&mut self, source: ObjectId, timestamp: Timestamp) -> usize {
         self.mutating(|rows| {
             rows.update_rows(
-                |row| {
-                    let is_static = matches!(row.origin, EffectOrigin::StaticAbility { .. });
-                    row.source == source && is_static && row.timestamp != timestamp
-                },
+                |row| row.generated_by_a_static_ability_of(source) && row.timestamp != timestamp,
                 |row| row.timestamp = timestamp,
             )
         })

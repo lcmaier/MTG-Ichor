@@ -1534,6 +1534,11 @@ pub struct EntryCounters {
 }
 
 impl EntryCounters {
+    /// The same kind of counter, put on by the same player: one row.
+    pub fn same_kind_and_putter(&self, other: &EntryCounters) -> bool {
+        self.counter == other.counter && self.by == other.by
+    }
+
     /// Who puts this row on a permanent entering under `controller`.
     pub fn putter(&self, controller: PlayerId) -> PlayerId {
         self.by.unwrap_or(controller)
@@ -1594,7 +1599,7 @@ impl EnterMods {
             });
         }
         for row in &other.counters {
-            match self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
+            match self.counters.iter_mut().find(|c| c.same_kind_and_putter(row)) {
                 // Plain addition, matching `PermanentState::add_counters` where this number
                 // ends up: a saturating add here would be the engine's only different
                 // overflow story, and `u32::MAX` is not a rules answer.
@@ -1614,7 +1619,7 @@ impl EnterMods {
     /// through its write (CR 616.2), scaled the share with the row.
     pub fn take_back(&mut self, added: &CopyAdditions) {
         for row in &added.counters {
-            if let Some(have) = self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
+            if let Some(have) = self.counters.iter_mut().find(|c| c.same_kind_and_putter(row)) {
                 have.n = have.n.saturating_sub(row.n);
             }
         }

@@ -824,8 +824,7 @@ impl IterationTrace {
     }
 
     fn record(self, game: &GameState, members: &[BatchMember]) -> Record {
-        let mut r = Record::new(RecordKind::ReplacementPipeline);
-        r.field_opt_u64("batch", game.events.current_batch().map(|b| b.0));
+        let mut r = crate::engine::trace_records::in_the_open_batch(RecordKind::ReplacementPipeline, game);
         r.field_u64("iteration", self.iteration);
         r.field_str("subject", &self.subject);
         r.field_str("event", &self.event);
@@ -2297,7 +2296,7 @@ fn apply_rewrite(
                     // without it, and nothing applies to nothing.
                     if matched
                         && let Some(share) = mods.copy.as_mut().and_then(|copy| {
-                            copy.added.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by)
+                            copy.added.counters.iter_mut().find(|c| c.same_kind_and_putter(&row))
                         })
                     {
                         let without = row.n.saturating_sub(share.n);
@@ -2854,10 +2853,7 @@ fn retarget_destination(
         // CR 303.4m, read now rather than captured — the same `attached_to`
         // read `ObjectSet::Host` makes, because an Aura registered its effect
         // before it was attached to anything.
-        RetargetSpec::ToHost => game
-            .battlefield
-            .get(&chosen.source)
-            .and_then(|e| e.attached_to)
+        RetargetSpec::ToHost => crate::oracle::board::host_of(game, chosen.source)
             .map(DamageTarget::Object),
         // CR 109.5 asked of the *damage's* source, wherever it is: a spell on
         // the stack has no battlefield entry, so this falls through to its
@@ -2888,11 +2884,8 @@ fn retarget_destination(
 /// redirect is not targeting (CR 115.1), so a hexproof creature is a perfectly
 /// good destination.
 fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) -> bool {
-    let player_in_game = |pid: PlayerId| {
-        game.player_lost.get(pid).map(|lost| !lost).unwrap_or(false)
-    };
     let destination_ok = match to {
-        DamageTarget::Player(pid) => player_in_game(pid),
+        DamageTarget::Player(pid) => game.in_game(pid),
         DamageTarget::Object(id) => {
             game.battlefield.contains_key(&id) && {
                 let types = get_effective_types(game, id);
@@ -2903,7 +2896,7 @@ fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) 
         }
     };
     let origin_ok = match from {
-        DamageTarget::Player(pid) => player_in_game(pid),
+        DamageTarget::Player(pid) => game.in_game(pid),
         DamageTarget::Object(_) => true,
     };
     destination_ok && origin_ok
@@ -2934,7 +2927,7 @@ fn entering_controller(
             .map(|obj| obj.owner)
             .ok_or_else(|| format!("entering object {} is not in the object store", object))?,
         PlayerRef::Opponent => {
-            let opponents = opponents_of(game, you);
+            let opponents = game.opponents_of(you);
             match opponents.as_slice() {
                 [] => {
                     return Err(format!(
@@ -2970,7 +2963,7 @@ fn entry_copy_donor(
 ) -> Option<ObjectId> {
     match donor {
         CopyDonor::ThisObject => Some(chosen.source),
-        CopyDonor::Host => game.battlefield.get(&chosen.source).and_then(|entry| entry.attached_to),
+        CopyDonor::Host => crate::oracle::board::host_of(game, chosen.source),
         CopyDonor::Chosen(selection) => {
             let candidates: Vec<ObjectId> =
                 crate::oracle::legality::enumerate_legal_selections(game, selection, None, controller)
@@ -3140,7 +3133,7 @@ fn putter_of(
             .get(&entering)
             .map(|obj| obj.owner)
             .ok_or_else(|| format!("entering object {} is not in the object store", entering))?,
-        PlayerRef::Opponent => match opponents_of(game, you).as_slice() {
+        PlayerRef::Opponent => match game.opponents_of(you).as_slice() {
             [only] => *only,
             others => {
                 return Err(format!(
@@ -3152,31 +3145,6 @@ fn putter_of(
             }
         },
     })
-}
-
-/// Every player still in the game who is not `you` — CR 102.1's "opponent",
-/// with CR 102.3's teams not modeled.
-fn opponents_of(game: &GameState, you: PlayerId) -> Vec<PlayerId> {
-    (0..game.num_players()).filter(|&p| not_an_opponent(game, you, p).is_none()).collect()
-}
-
-/// Why `player` is not an opponent `you` may choose, if they are not.
-pub(crate) fn not_an_opponent(game: &GameState, you: PlayerId, player: PlayerId) -> Option<NotAnOpponent> {
-    if player == you {
-        Some(NotAnOpponent::Yourself)
-    } else if !game.in_game(player) {
-        Some(NotAnOpponent::LeftTheGame)
-    } else {
-        None
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NotAnOpponent {
-    /// CR 102.2: an opponent is another player.
-    Yourself,
-    /// CR 800.4a: a player who has left the game is in it no longer.
-    LeftTheGame,
 }
 
 /// CR 614.13's application: choose a number of objects, move them, and report

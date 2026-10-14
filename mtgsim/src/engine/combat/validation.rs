@@ -1,8 +1,8 @@
 // Combat validation — attacker and blocker legality checks.
 // See rules 508.1 (attackers) and 509.1 (blockers).
 
-use crate::oracle::characteristics::{controls, has_keyword, is_creature};
-use crate::oracle::legality::can_attack;
+use crate::oracle::characteristics::has_keyword;
+use crate::oracle::legality::{can_attack, can_be_a_blocker};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{IdMap, ObjectId, PlayerId};
@@ -17,6 +17,8 @@ use crate::types::keywords::KeywordFlag;
 pub enum CombatError {
     NotOnBattlefield(ObjectId),
     NotACreature(ObjectId),
+    /// CR 508.1a, 509.1a: a creature that is also a battle is not declared.
+    IsABattle(ObjectId),
     NotControlledByPlayer(ObjectId, PlayerId),
     CreatureIsTapped(ObjectId),
     CreatureHasSummoningSickness(ObjectId),
@@ -33,6 +35,7 @@ impl std::fmt::Display for CombatError {
         match self {
             CombatError::NotOnBattlefield(id) => write!(f, "Object {} is not on the battlefield", id),
             CombatError::NotACreature(id) => write!(f, "Object {} is not a creature", id),
+            CombatError::IsABattle(id) => write!(f, "Creature {} is also a battle", id),
             CombatError::NotControlledByPlayer(id, pid) => write!(f, "Object {} is not controlled by player {}", id, pid),
             CombatError::CreatureIsTapped(id) => write!(f, "Creature {} is tapped", id),
             CombatError::CreatureHasSummoningSickness(id) => write!(f, "Creature {} has summoning sickness", id),
@@ -163,9 +166,9 @@ pub fn validate_attackers(
 
         // The attack target must be valid
         match target {
+            // CR 506.2 — an opponent still in the game, and a seat there is.
             AttackTarget::Player(pid) => {
-                // Must be an opponent (not self, and within player range)
-                if *pid == player_id || *pid >= num_players {
+                if *pid >= num_players || game.not_an_opponent(player_id, *pid).is_some() {
                     return Err(CombatError::InvalidAttackTarget(*creature_id));
                 }
             }
@@ -258,17 +261,7 @@ pub fn can_block(
     blocker_id: ObjectId,
     attacker_id: ObjectId,
 ) -> Result<(), CombatError> {
-    let entry = game.battlefield.get(&blocker_id)
-        .ok_or(CombatError::NotOnBattlefield(blocker_id))?;
-    if !is_creature(game, blocker_id) {
-        return Err(CombatError::NotACreature(blocker_id));
-    }
-    if !controls(game, blocker_id, defender) {
-        return Err(CombatError::NotControlledByPlayer(blocker_id, defender));
-    }
-    if entry.tapped {
-        return Err(CombatError::CreatureIsTapped(blocker_id));
-    }
+    can_be_a_blocker(game, defender, blocker_id)?;
 
     // Attacker must be on the battlefield and attacking this defender.
     let att_entry = game.battlefield.get(&attacker_id)
@@ -406,6 +399,34 @@ mod tests {
     }
 
     /// Place a creature that still has summoning sickness.
+    #[test]
+    fn test_a_creature_that_is_also_a_battle_neither_attacks_nor_blocks() {
+        // CR 508.1a and 509.1a: the chosen creatures "can't also be battles".
+        use crate::oracle::legality::{legal_attackers, legal_blockers};
+        let mut game = GameState::new(2, 20);
+        let battle_creature = || {
+            CardDataBuilder::new("A Creature Battle")
+                .card_type(CardType::Creature)
+                .card_type(CardType::Battle)
+                .power_toughness(2, 2)
+                .build()
+        };
+        let mut place = |owner: PlayerId| {
+            let id = game.add_object(GameObject::new(battle_creature(), owner, Zone::Battlefield));
+            game.insert_battlefield_entity(id, PermanentState::new(id, owner, 0));
+            id
+        };
+        let would_attack = place(0);
+        let would_block = place(1);
+        let attacker = place_creature(&mut game, 0);
+        set_attacking(&mut game, attacker, 1);
+
+        assert_eq!(can_attack(&game, 0, would_attack), Err(CombatError::IsABattle(would_attack)));
+        assert!(!legal_attackers(&game, 0).contains(&would_attack));
+        assert_eq!(can_block(&game, 1, would_block, attacker), Err(CombatError::IsABattle(would_block)));
+        assert!(!legal_blockers(&game, 1).contains(&would_block));
+    }
+
     fn place_creature_sick(game: &mut GameState, owner: PlayerId) -> ObjectId {
         let id = game.add_object(GameObject::new(make_bears(), owner, Zone::Battlefield));
         place_on_battlefield(game, id, owner, &EnterMods::NONE); // entered this turn = summoning sick
@@ -465,6 +486,22 @@ mod tests {
             &AttackConstraints::none(),
         );
         assert_eq!(result, Err(CombatError::NotControlledByPlayer(creature_id, 0)));
+    }
+
+    #[test]
+    fn test_attack_a_player_who_has_left_the_game() {
+        // CR 506.2: the defending players are opponents, and CR 800.4a makes a
+        // player who has left nobody's.
+        let mut game = GameState::new(4, 20);
+        let creature_id = place_creature(&mut game, 0);
+        game.player_lost[3] = true;
+
+        let result = validate_attackers(
+            &game, 0,
+            &[(creature_id, AttackTarget::Player(3))],
+            &AttackConstraints::none(),
+        );
+        assert_eq!(result, Err(CombatError::InvalidAttackTarget(creature_id)));
     }
 
     #[test]

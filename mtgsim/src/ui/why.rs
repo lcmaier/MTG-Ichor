@@ -14,12 +14,13 @@ use std::collections::HashSet;
 
 use crate::engine::combat::validation::{can_block, CombatError};
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
-use crate::engine::layers::{compute_characteristics, explain, AppliedBy, LayerStep, StepResult};
-use crate::engine::replacement::{auxiliary_zone, not_an_opponent, not_auxiliary, NotAnOpponent, NotAuxiliary};
+use crate::engine::layers::{explain, AppliedBy, LayerStep, StepResult};
+use crate::engine::replacement::{auxiliary_zone, not_auxiliary, NotAuxiliary};
+use crate::state::game_state::NotAnOpponent;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{EventSeq, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controls, get_effective_abilities, is_creature};
+use crate::oracle::characteristics::{get_effective_abilities, is_creature};
 use crate::oracle::legality::{can_attack, can_play_land};
 use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast};
 use crate::state::battlefield::AttackTarget;
@@ -287,7 +288,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
         (ChoiceKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
         (ChoiceKind::ChooseEnteringController { .. }, WhyAbout::Player(player)) => {
-            let reason = not_an_opponent(game, question.player, player).map(|reason| match reason {
+            let reason = game.not_an_opponent(question.player, player).map(|reason| match reason {
                 NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
                 NotAnOpponent::LeftTheGame => (format!("{} has left the game", player_name(player)), Some("800.4a")),
             });
@@ -625,10 +626,9 @@ fn block_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Ve
         .filter(|a| game.battlefield.get(a).is_some_and(|entry| entry.attacking.is_some()))
         .collect();
     if attackers.contains(&id) {
-        return game
-            .battlefield_ids_ordered()
+        return crate::oracle::board::permanents_controlled_by(game, defender)
             .into_iter()
-            .filter(|&blocker| controls(game, blocker, defender) && is_creature(game, blocker) && !offered(blocker, id))
+            .filter(|&blocker| is_creature(game, blocker) && !offered(blocker, id))
             .filter_map(|blocker| {
                 let error = can_block(game, defender, blocker, id).err()?;
                 let line = refusal(format!("To be blocked by {}", named(game, blocker)), combat_refusal(game, &error, Declaring::Blockers));
@@ -661,6 +661,7 @@ fn about_the_blocker_alone(error: &CombatError, blocker: ObjectId) -> bool {
     match error {
         CombatError::NotOnBattlefield(id)
         | CombatError::NotACreature(id)
+        | CombatError::IsABattle(id)
         | CombatError::NotControlledByPlayer(id, _)
         | CombatError::CreatureIsTapped(id) => *id == blocker,
         CombatError::CreatureHasSummoningSickness(_)
@@ -815,12 +816,11 @@ fn step_words(game: &GameState, step: &LayerStep) -> Option<&'static str> {
 /// took away still made the effect it had begun (CR 613.6), as Humility's own
 /// does by layer 7b.
 fn static_ability_words(game: &GameState, source: ObjectId, ability: AbilityId) -> Option<&'static str> {
-    let now = compute_characteristics(game, source)
-        .and_then(|frame| frame.abilities.iter().find(|a| a.id == ability).map(|a| a.rules_text.words));
+    let now = crate::oracle::characteristics::effective_ability(game, source, ability).map(|a| a.rules_text.words);
     // AS PRINTED: the ability's printed words, for a line no rule reads.
     now.or_else(|| {
         let card = &game.objects.get(&source)?.card_data;
-        card.abilities.iter().find(|a| a.id.definition() == ability.definition()).map(|a| a.rules_text.words)
+        crate::objects::card_data::printed_place(&card.abilities, ability).map(|place| card.abilities[place].rules_text.words)
     })
 }
 

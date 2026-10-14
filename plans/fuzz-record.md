@@ -37,6 +37,31 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-14 for A6m's first PR** (#249: the board's queries and
+the set a resolution affects, `codebase-state.md` items 242 and 244). No card
+joins the registry or the pool (188 registered, 106 pooled). `close_out.py`
+against **main** `63e9f47` (#248's merge), in two sittings:
+- **engine** `5cda2d0`: the merges, the answers that moved on boards no card
+  reaches, and the declaration lists kept to one pass over the battlefield;
+- **engine** `ffe634c`, the final code: two commits more, a refusal no engine
+  provider reaches (an attack on a departed player) and one shared peel. The
+  docs commits after it change no `fuzz_games`.
+
+**Predictions, made before any arm ran (#249's body):** `IDENTICAL` on every
+row, gameplay and cost, both pools, at two seats and four; every dispatch
+agreed, at `main`'s counts; instructions per decision within ±0.3 points.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, both arms vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, both arms, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| instructions / decision vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | `5cda2d0` 0.6442 M → 0.6444 M, **+0.04%**; `ffe634c` 0.6441 M → 0.6449 M, **+0.12%** |
+
+Every prediction held, and no cost row moved. The predictions were written
+after `5cda2d0`: as first built, the two declaration lists asked who controls
+each candidate twice, which is a frame read once a control-changing row
+exists. The audit's candidates lost only a resolving ability's object.
+
 **Re-recorded 2026-10-13 for A6r** (#248: a draw's place counted as it is
 drawn, a redirect's destination the resolving spell's, an unbatched
 dispatch's error passed on; `codebase-state.md` items 254, 261, 262). No card
