@@ -93,7 +93,8 @@ unchanged. What it changes here:
   §3.11), and the inventory follows it.
 - **MA-3's draw inside a mana ability is a frozen-text facility.** The Eggs,
   Chromatic Sphere and Selvala draw, and under the new text those abilities
-  use the stack. TR-7 tests the frozen loop and needs it. A painland's
+  use the stack. B13's Ironworks loop (TR-7's until 2026-10-13) tests the
+  frozen loop and needs it. A painland's
   damage moves no card, so it stays a rider under both texts, and so does
   the window inside a Signet's activation.
 - **Millikin's and Deranged Assistant's "Mill a card"** is CP-2's single-arm
@@ -554,8 +555,8 @@ point.
   instructions an activation**, the measured cost of a production's own
   proposal (`resolve_mana_effect`, 4,417 calls).
 - **A mana ability's own mana cost opens a window** (605.3a: "activating an
-  ability that requires a mana payment"). TR-7 needs it for Chromatic
-  Sphere's `{1}` (`triggers-architecture.md` §12), and Signets need it too.
+  ability that requires a mana payment"). B13's Ironworks loop needs it for
+  Chromatic Sphere's `{1}` (`roadmap-v2.md` B13), and Signets need it too.
 - **The as-enters record's mana half** (`backlog.md` §2.2). A color chosen as the
   permanent enters (CR 614.12a) travels in `EnterMods`, so the look-ahead
   frame reads it. It is kept on the permanent, never in `CopiableValues`
@@ -716,7 +717,7 @@ card-by-card hunt runs in each PR's brief.
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
 | **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
 | **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one) | ~350 engine, ~450 tests, a card: 800–950 | Blaze | `cast-census.md` §8's X row |
-| **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; TR-7's three facilities | `backlog.md` §2.19 |
+| **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` B13) | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
 | **MA-6, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in `cli_play` and the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md` §10's review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
@@ -730,9 +731,9 @@ card-by-card hunt runs in each PR's brief.
   choice search never passed 6 leaves in about 150,000 checks over the four
   fuzz boards (2026-10-06). It is the guarantee for v1's Commander boards,
   where Nyxbloom Ancient and many lands do meet.
-- **MA-2 to MA-6** go in `roadmap-v2.md` B, before C. **MA-3 before TR-7**,
-  whose loop needs any-color mana, a draw inside a mana ability, and a window
-  inside a mana ability's activation.
+- **MA-2 to MA-6** go in `roadmap-v2.md` B, before C. **MA-3 before B13**,
+  the Ironworks loop (TR-7's until 2026-10-13), which needs any-color mana, a
+  draw inside a mana ability, and a window inside a mana ability's activation.
 - **CP-1 after MA-1**: its gate half is §3.2's arms.
 - **Item 33's design pass after MA-1**: its seam is §3.6.
 
@@ -769,7 +770,7 @@ seven were taken as recommended at #224's review** (the owner,
    X is a set that other rules cut, so `ChooseXValue` gains a set form for
    Tamiyo's −X and Detonate.
 7. **The route.** MA-1 before SU-8; the rest in B before C, MA-3 before
-   TR-7 (§6).
+   B13, the Ironworks loop (§6).
 
 ---
 

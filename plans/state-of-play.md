@@ -31,9 +31,9 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
    TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
-MA-7, MA-2 and MA-3 go before 6's TR-7. **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
-four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
-information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-4–MA-6; B9; PM's
+**After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
+the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
+information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-2–MA-6; B9; B13, the Ironworks loop; PM's
 later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
@@ -146,10 +146,18 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The look-back list, the frame, unattach, control | `TR-4` | `triggers-architecture.md` |
-| Combat's shapes, targeting, counters, prevention, the multiplier | `TR-5` | `triggers-architecture.md` |
+| The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
+| The frame's facts and their readers | `TR-4a` | `triggers-architecture.md` |
+| Attachment's records | `TR-4b` | `triggers-architecture.md` |
+| The other two look-back classes and the zone statement | `TR-4c` | `triggers-architecture.md` |
+| Control, countering, loss, and the records' missing facts | `TR-4d` | `triggers-architecture.md` |
+| The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
+| The binding's roles and the attack declaration | `TR-5a` | `triggers-architecture.md` |
+| Counters | `TR-5b` | `triggers-architecture.md` |
+| Blocks, targeting, activation and excess damage | `TR-5c` | `triggers-architecture.md` |
+| Prevention, the multiplier, tokens and scry | `TR-5d` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
-| The Krark-Clan Ironworks loop, the track's showcase | `TR-7` | `triggers-architecture.md` |
+| The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 
 ## Counts
 
@@ -178,14 +186,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 304 |
+| Numbered items | 317 |
 | …closed, still recorded | 152 |
-| …open — unreachable, and says why | 102 |
-| **…open — reachable, wrong today** | **4** |
+| …open — unreachable, and says why | 114 |
+| **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 150 of 152 |
+| …open, carrying an explicit `**Sized:**` | 163 of 165 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -199,7 +207,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 97 |
+| …slotted to a phase or roadmap row still to come | 110 |
 | …slotted to the first registered card that needs it | 43 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |

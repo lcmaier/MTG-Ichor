@@ -147,9 +147,9 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
    TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
-MA-7, MA-2 and MA-3 go before 6's TR-7. **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
-four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
-information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-4–MA-6; B9; PM's
+**After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
+the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
+information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-2–MA-6; B9; B13, the Ironworks loop; PM's
 later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
