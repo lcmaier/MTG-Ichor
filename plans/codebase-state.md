@@ -1183,7 +1183,7 @@ registered card returns an object.
     **Sized:** none here.
     **Slotted:** none — a record of the random agent's tap preference and the
     `--require` copies-per-deck lesson; the CR 732.1 prompt it leaves is item
-    163's, at TR-7.
+    163's, at B13.
 
 16e. **96% of layer walks repeat an object nothing has touched, so item 7's
     memoization half is split out as 7a and moved ahead of triggers
@@ -2692,9 +2692,9 @@ games; with Humility forced beside her, both are on the board in 52%.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
-    **Slotted:** TR-7, whose Krark-Clan Ironworks loop is the Mind Stone
-    puzzle's board: CR 732.1's reverse-all offer, `backlog.md` §2.22 row 9,
-    with item 163.
+    **Slotted:** B13, the Krark-Clan Ironworks loop (moved off TR-7 on
+    2026-10-13), whose board is the Mind Stone puzzle's: CR 732.1's
+    reverse-all offer, `backlog.md` §2.22 row 9, with item 163.
 
 73. **~~A conditional replacement or restriction static is inert.~~ — ✅
     closed 2026-09-12 (RE-6).** `register_static_effects` records a source
@@ -7673,9 +7673,11 @@ the file.
      **Sized:** the ordering decorator ~40; the reversal prompt ~40 in the engine
      (the clone, the restore, the truncation) and its decorator arm ~15; §2.22
      rows 8 and 9.
-     **Slotted:** TR-7, critical-path item 6's last phase, which takes
-     `backlog.md` §2.22 rows 8 and 9: the ordering decorator, and CR 732.1's
-     reversal prompt with its policy.
+     **Slotted:** split on 2026-10-13, when the Ironworks loop moved off the
+     triggers path. The ordering decorator (`backlog.md` §2.22 row 8) goes to
+     TR-7, whose persist loop asks an order at every death. CR 732.1's
+     reversal prompt with its policy (row 9) goes to B13, the Ironworks loop,
+     since it lives inside item 162's solver decorator, which lands beside B9.
 
 164. **~~The `[Pass]`-only priority prompt is still asked of the provider.~~
      — ✅ CLOSED 2026-09-30 (A6j).** — archived. `run_priority_round` takes
@@ -8941,7 +8943,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      unregistered.
      **Sized:** ~20 lines, the activated def carried on the stack entry.
      **Slotted:** the first registered activated "this ability" copy, Dimir
-     Doppelganger, which waits on TR-7's graveyard targets.
+     Doppelganger, which waits on B13's graveyard targets (the Ironworks
+     loop, moved off TR-7 on 2026-10-13).
 
 222. **~~A copy row that carries a triggered ability opens the dispatcher's
      gate for the whole battlefield.~~ — ✅ CLOSED 2026-10-07 (PR #232).** —

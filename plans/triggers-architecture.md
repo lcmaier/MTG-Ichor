@@ -19,8 +19,9 @@
 > post-replacement truth); `layers-architecture.md` §13b decision 5 is the
 > `Condition` this reuses; `state-tracking-architecture.md`'s resolution
 > postscript is the owner's decision on the substrate, which this document
-> builds on and does not reopen; `cost-architecture.md` §3.11 is the
-> integration test (TR-7).
+> builds on and does not reopen; TR-7's persist loop is the integration
+> test (§12), and `cost-architecture.md` §3.11's Ironworks loop moved to
+> `roadmap-v2.md` B13 on 2026-10-13.
 
 ---
 
@@ -2758,7 +2759,8 @@ at least one registered consumer of what it builds, and each closes against
 - TR-4 widens the frame TR-5's combat shapes never read. TR-5a needs only
   TR-2b, so it may move up to just after it.
 - TR-6's loop detector counts the decisions every earlier phase adds.
-- TR-7 is last because the Ironworks loop reads all of them.
+- TR-7 is last because its capstone loop reads TR-4's frame, TR-5's
+  counters and TR-6's loop handling.
 
 **Between TR-3b and TR-4a, `codebase-state.md` item 176's zone-change
 record design** (the owner, 2026-09-24): what was done, who did it, which replacement redirected
@@ -3072,21 +3074,50 @@ left the row.
 | tests, 9: §13's 2 TR-6 atoms; Emperor Crocodile's two rulings; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the draw at the nesting bound (§4.8). The ratchet's reading at the phase's close (§9 of the practices) is a reading, not a test | ~300 |
 | docs, the close-out, §16's deferrals re-read, ledger, record | ~400 |
 
-### TR-7 — the Krark-Clan Ironworks loop, the track's showcase (1,020–1,420)
+### TR-7 — the persist loop, the track's capstone
 
-`cost-architecture.md` §3.11's judged loop, walked step by step as item 6's
-integration test. It moved here from TR-2 on 2026-09-24: the loop's triggers
-are the easy part. The re-count found five facilities that no earlier row
-lists:
-- graveyard targets, for Scrap Trawler's and Myr Retriever's returns (with
-  §17's `ManaValueLessThanSource`);
-- any-color mana, for Mox Opal and Chromatic Sphere (`backlog.md` §2.19;
-  `mana-architecture.md` MA-3);
-- metalcraft, an activation restriction with a count condition (§2.8);
-- a draw inside a mana ability's effect (step 5; MA-3's riders);
-- a mana window inside a mana ability's activation (step 3; MA-3).
+**Re-scoped 2026-10-13 (the owner, at #246's review).** The track ends with a
+loop built only from what TR-4 to TR-6 build. The Krark-Clan Ironworks loop it
+replaces moved to `roadmap-v2.md` B13, a capstone across triggers, mana and
+permission. Its graveyard targets, metalcraft's activation restriction and CR
+732.1's reverse-all belong to later rows, and it exercised little of TR-4 to
+TR-6: no control change, combat, counters or state trigger.
 
-Not split yet. Its brief re-counts it against the tree TR-6 leaves.
+**The loop.** Four cards, each playable whole by then:
+- Grumgully, the Generous: "Each other non-Human creature you control enters
+  with an additional +1/+1 counter on it";
+- Wingrattle Scarecrow: "This creature has persist as long as you control a
+  black creature";
+- Viscera Seer: "Sacrifice a creature: Scry 1", black;
+- Blood Artist, registered: "Whenever this creature or another creature dies,
+  target player loses 1 life and you gain 1 life", black.
+
+Sacrifice the Scarecrow. Persist returns it with a -1/-1 counter, and
+Grumgully's +1/+1 counter enters with it. CR 704.5q annihilates the pair, so
+the new object has no counters and persists again. Blood Artist drains on
+every death.
+
+What one loop exercises:
+- **Persist's intervening "if"** read off the frame at both instants (TR-4a;
+  CR 603.4, 603.10a; the Scarecrow's second ruling).
+- **A conditionally granted triggered ability**, asked of a departed object's
+  frame: persist exists as long as a black creature does (§4.2's leg 2).
+- **Each return is a new object** (CR 400.7; its fifth ruling).
+- **An entry with two counter rows**, announced (item 17), and their
+  annihilation as two removals in the state-based batch (TR-5b). That includes
+  the seventh ruling's board, where the counters arrive and the creature dies in
+  one check.
+- **The ordering** of persist and Blood Artist's trigger at each death (CR
+  603.3b), with item 163's ordering decorator.
+- **An optional loop** its player must be able to stop, and a fuzz agent that
+  does (TR-6, CR 731.1b, §4.9).
+
+Persist itself is undying's mirror, built beside it in TR-4a (Kitchen Finks'
+rulings are its tests). Mikaeus, the Unhallowed's undying lord was the first
+pick. It was set aside because its intimidate is a flag nothing reads until
+RS-3a (`cant-effects-architecture.md`), and a registered card may not carry a
+dead ability (`engineering-practices.md` §3). Not sized: its brief re-counts it
+against the tree TR-6 leaves.
 
 ### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
 
@@ -3131,7 +3162,8 @@ where it first appears:
   §4.4).
 - TR-6's loop detector counts decisions as item 138 defines them, never
   prompts (§4.9).
-- The Ironworks loop is TR-7's test, not TR-2's (§17).
+- The Ironworks loop is TR-7's test, not TR-2's (§17). Since 2026-10-13 it
+  is `roadmap-v2.md` B13's, and TR-7 is the persist loop.
 
 ### Re-counted 2026-10-12 (A6p) — TR-4 and TR-5, each in four
 
@@ -3437,11 +3469,13 @@ Recorded here at authoring; a finding that becomes a code item moves to
   cited above and get their pointer when their phase lands.
 - `copy-effects-architecture.md` owes nothing new; §6.5 is the sentence
   CV-4's §4.4 asked this document for.
-- `cost-architecture.md` §3.11's Ironworks loop is TR-7's integration test
-  — every step but the triggers exists, and step 6's "with lesser mana
-  value" is the one selection leaf this document adds when Scrap Trawler
-  registers (a graveyard target compared against the trigger's source:
-  `ObjectFilter::ManaValueLessThanSource`, three edits).
+- `cost-architecture.md` §3.11's Ironworks loop was TR-7's integration test,
+  and since 2026-10-13 it is `roadmap-v2.md` B13's. Every step but the
+  triggers exists. Step 6's "with lesser mana value" compares the target with
+  the artifact that triggered Scrap Trawler, as it last existed on the
+  battlefield (its second ruling), not with the trigger's source. So the leaf
+  reads the binding's subject's last known information, where this line once
+  planned `ObjectFilter::ManaValueLessThanSource`.
 - `plans/glossary.md` gained *dispatch*, *window*, *binding*, *tier* and
   *probe* with TR-1 (2026-09-19), and `check_glossary.py --suggest` at each
   close is the gate on the rest.
