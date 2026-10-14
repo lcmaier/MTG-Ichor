@@ -16,7 +16,8 @@ use crate::events::cause::EventCause;
 use crate::events::event::{DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
-    controller_or_owner, get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
+    controller_or_owner, get_effective_abilities, get_effective_name, get_effective_power, get_effective_toughness,
+    is_creature,
 };
 use crate::oracle::legality::CannotPlayLand;
 use crate::oracle::mana_helpers::{CannotActivate, CannotCast};
@@ -32,12 +33,14 @@ use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 
-/// The name the object has now, through the layers: a Clone copying Grizzly
-/// Bears is Grizzly Bears (CR 707.2).
+/// The name the object has now, through the layers (`get_effective_name`): a
+/// Clone copying Grizzly Bears is Grizzly Bears (CR 707.2). One the store no
+/// longer holds is "<unknown>".
 pub fn card_name(game: &GameState, id: ObjectId) -> String {
-    compute_characteristics(game, id)
-        .map(|chars| chars.name.clone())
-        .unwrap_or_else(|| "<unknown>".to_string())
+    if !game.objects.contains_key(&id) {
+        return "<unknown>".to_string();
+    }
+    get_effective_name(game, id)
 }
 
 /// The name printed on the card, for a record an observer writes. A read
@@ -105,10 +108,13 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     lines.join("\n")
 }
 
-/// A permanent's keywords in `KeywordFlag`'s order, since the effective set is
-/// a hash set.
 fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    let Some(chars) = compute_characteristics(game, id) else { return Vec::new() };
+    compute_characteristics(game, id).map_or_else(Vec::new, |chars| keyword_words(&chars))
+}
+
+/// A frame's keywords as words, in `KeywordFlag`'s order, since the effective
+/// set is a hash set: the board's text and the window's both print them so.
+pub fn keyword_words(chars: &EffectiveCharacteristics) -> Vec<&'static str> {
     let mut flags: Vec<KeywordFlag> = chars.keyword_flags.iter().copied().collect();
     flags.sort();
     flags.into_iter().map(keyword_name).collect()

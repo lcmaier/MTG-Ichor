@@ -14,6 +14,7 @@ use std::io::{self, BufRead, Write};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
+use crate::ui::ask::allocation_fits;
 use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
@@ -253,31 +254,9 @@ impl DecisionProvider for CliDecisionProvider {
                 .filter_map(|s| s.parse::<u64>().ok())
                 .collect();
 
-            if values.len() != buckets.len() {
-                println!("Need exactly {} values, got {}.", buckets.len(), values.len());
-                continue;
-            }
-            let sum: u64 = values.iter().sum();
-            if sum != total {
-                println!("Sum is {} but must equal {}.", sum, total);
-                continue;
-            }
-            let mut valid = true;
-            for (i, &val) in values.iter().enumerate() {
-                if val < per_bucket_mins[i] {
-                    println!("Bucket {} needs at least {}, got {}.", i, per_bucket_mins[i], val);
-                    valid = false;
-                    break;
-                }
-                if let Some(maxs) = per_bucket_maxs
-                    && val > maxs[i] {
-                    println!("Bucket {} allows at most {}, got {}.", i, maxs[i], val);
-                    valid = false;
-                    break;
-                }
-            }
-            if valid {
-                return values;
+            match allocation_fits(&values, total, per_bucket_mins, per_bucket_maxs) {
+                Ok(()) => return values,
+                Err(why) => println!("Not an answer: {why}."),
             }
         }
     }

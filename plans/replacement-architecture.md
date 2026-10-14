@@ -194,7 +194,7 @@ GameState::execute_action / execute_actions            engine/actions.rs
   │         ├─ must_choose_among() → CR 616.1a–e's first non-empty step
   │         ├─ 0 candidates → done.  1 → apply it, no CR 616.1 prompt.
   │         │  2+ → DecisionProvider::choose (CR 616.1's ordering prompt)
-  │         ├─ if `optional`: ask_apply_optional_replacement (CR 614.1a) —
+  │         ├─ if `optional`: ask_take_or_leave (CR 614.1a) —
   │         │  a second, independent prompt, and one candidate is enough
   │         ├─ apply_rewrite() → a new GameAction, or None (CR 614.6)
   │         ├─ push `then` onto riders (615.5 / 614.1a) — unconditional (615.12)

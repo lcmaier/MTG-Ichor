@@ -27,6 +27,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
+use crate::ui::choice_types::ChoiceKind;
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -100,6 +101,20 @@ impl ResolutionContext {
             damage_prevented: None,
             trigger: None,
         }
+    }
+
+    /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
+    /// with no stack object, the permanent is both `source` and CR 113.7a's
+    /// ability source, and it has no targets (CR 605.1a).
+    pub(crate) fn for_mana_ability(
+        game: &GameState,
+        source: ObjectId,
+        controller: PlayerId,
+        generated_by: GeneratedBy,
+    ) -> Self {
+        let mut resolution = ResolutionContext::untargeted(source, controller, generated_by);
+        resolution.ability_source = game.object_ref(source);
+        resolution
     }
 
     /// The object this resolution's effects are attributed to: the spell, or
@@ -402,7 +417,8 @@ impl GameState {
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
                 let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
-                if !crate::ui::ask::ask_apply_optional_effect(dp, self, chooser, ctx.source) {
+                let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
+                if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
                     // after it are read past them.
                     walk.instance_cursor += inner.instances().len();
@@ -848,19 +864,7 @@ impl GameState {
             // never be a mana ability"), which is why Mana Reflection leaves
             // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                let mana: Vec<_> = output.mana.iter()
-                    .map(|(mt, expr)| Ok((*mt, self.evaluate_amount(expr, ctx)?)))
-                    .collect::<Result<_, String>>()?;
-                self.execute_action(
-                    GameAction::ProduceMana {
-                        player: ctx.controller,
-                        source: ctx.effect_source(),
-                        mana,
-                        special: output.special.clone(),
-                        tapped_for_mana: false,
-                    },
-                    &actx,
-                )
+                self.produce_mana(output, ctx.controller, ctx.effect_source(), false, ctx, &actx)
             }
 
             Primitive::CounterSpell => {
@@ -2259,7 +2263,7 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        self.matches_for_text_of(id, filter, ctx.controller, Some(ctx.effect_source()))
+        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved

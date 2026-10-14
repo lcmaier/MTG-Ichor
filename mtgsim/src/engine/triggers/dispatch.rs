@@ -24,6 +24,8 @@ use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::mana::triggered_mana_recipient;
+use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
@@ -35,6 +37,7 @@ use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::mana::ManaType;
 use crate::types::triggers::{
     DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger,
     Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
@@ -199,6 +202,26 @@ pub(super) struct TriggerReferents<'a> {
     /// CR 603.7c's "that token": the objects a delayed trigger refers to;
     /// none for an object's own ability.
     pub(super) referred: &'a [RememberedObject],
+}
+
+/// A trigger's text names no instance of "target" for "another target" to
+/// be other than.
+impl FilterReferents for TriggerReferents<'_> {
+    fn you(&mut self) -> PlayerId {
+        self.controller
+    }
+
+    fn source(&self) -> Option<ObjectId> {
+        Some(self.this.id())
+    }
+
+    fn source_owner(&mut self) -> Option<PlayerId> {
+        Some(self.owner)
+    }
+
+    fn earlier_targets(&self) -> EarlierTargets<'_> {
+        EarlierTargets::None
+    }
 }
 
 /// What "this object" is to an arm.
@@ -1284,7 +1307,7 @@ impl GameState {
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, referents.controller))
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, lki.as_ref().map(Lki::chars)),
             ),
@@ -1315,13 +1338,12 @@ impl GameState {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
-                TriggerEvent::ManaAdded { source, tapped_for_mana, mana },
+                TriggerEvent::ManaAdded { .. },
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
-            ) => one(
-                tapped_for_mana.is_none_or(|t| t == *tapped)
-                    && mana.is_none_or(|m| added.iter().any(|(t, n)| *t == m && *n > 0))
-                    && self.subject_matches(source, Some(*source_id), referents, seq, None),
-            ),
+            ) => {
+                let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
+                one(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
+            }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
                 GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
@@ -1454,6 +1476,58 @@ impl GameState {
         }
     }
 
+    /// Whether `arm`, one event of a trigger condition, is a `ManaAdded` arm —
+    /// "whenever [something] is tapped for mana" or "adds mana" (CR 106.12a) —
+    /// that the mana `producer` just made sets off: tapped for mana or not,
+    /// with the types `added` admits, and made by the object the arm names
+    /// for `referents`' ability (Wild Growth's enchanted land).
+    fn mana_added_arm_matches(
+        &self,
+        arm: &TriggerEvent,
+        producer: ObjectId,
+        tapped: bool,
+        added: impl Fn(ManaType) -> bool,
+        referents: &TriggerReferents<'_>,
+        seq: EventSeq,
+    ) -> bool {
+        let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
+        tapped_for_mana.is_none_or(|t| t == tapped)
+            && mana.is_none_or(added)
+            && self.subject_matches(source, Some(producer), referents, seq, None)
+    }
+
+    /// [`Self::mana_added_arm_matches`], asked before the mana is made.
+    ///
+    /// `oracle::mana_supply` (MA-1) decides whether a player could pay a cost
+    /// before the engine offers the spell or ability at priority. For
+    /// that it works out what tapping each source would add, Wild Growth's
+    /// extra {G} included, so it asks this of a production that has not
+    /// happened: would `permanent`'s own triggered mana ability trigger if
+    /// `producer` made this mana? With no event yet, the record the production
+    /// would be is the window's next. The trigger's limits, CR 113.6's zones
+    /// and CR 603.2f's visibility stay the dispatcher's; the inventory does
+    /// not ask them.
+    pub(crate) fn mana_added_arm_would_match(
+        &self,
+        arm: &TriggerEvent,
+        permanent: ObjectId,
+        controller: PlayerId,
+        producer: ObjectId,
+        tapped: bool,
+        added: impl Fn(ManaType) -> bool,
+    ) -> bool {
+        let Some(object) = self.objects.get(&permanent) else { return false };
+        let referents = TriggerReferents {
+            this: ThisObject::Candidate(permanent),
+            controller,
+            owner: object.owner,
+            host: crate::oracle::board::host_of(self, permanent),
+            this_ability: None,
+            referred: &[],
+        };
+        self.mana_added_arm_matches(arm, producer, tapped, added, &referents, self.events.next_seq())
+    }
+
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — off the record's
     /// frame for a look-back arm, since the object has left the zone the
@@ -1472,9 +1546,9 @@ impl GameState {
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
             (TriggerSubject::Host, Some(id)) => referents.host == Some(id),
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
-            (TriggerSubject::Filter(filter), Some(id)) => crate::engine::targeting::matched(
-                self.object_matches_filter_of_source(id, filter, referents.controller, referents.this.id(), frame),
-            ),
+            (TriggerSubject::Filter(filter), Some(id)) => {
+                self.object_matches_filter(id, filter, &mut { *referents }, frame)
+            }
             (
                 TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_) | TriggerSubject::Referred,
                 None,
@@ -1485,12 +1559,7 @@ impl GameState {
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
     fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
-        match who {
-            PlayerRef::You => player == referents.controller,
-            PlayerRef::Opponent => player != referents.controller,
-            PlayerRef::Owner => player == referents.owner,
-            PlayerRef::Player(pid) => player == *pid,
-        }
+        player_ref_names(who, player, &mut { *referents }) == Some(true)
     }
 
     /// The zone the permanent at `id` entered from, off its own zone change
@@ -1555,29 +1624,10 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), recipient) => {
-                let player = match recipient {
-                    EffectRecipient::Host => crate::oracle::board::host_of(self, source)
-                        .and_then(|host| controller_or_owner(self, host))
-                        .unwrap_or(pending.controller),
-                    _ => pending.controller,
-                };
-                let mut resolution = ResolutionContext::untargeted(source, player, GeneratedBy::TriggeredAbility);
-                resolution.ability_source = self.object_ref(source);
+                let player = triggered_mana_recipient(self, recipient, source, pending.controller);
+                let mut resolution = ResolutionContext::for_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
                 resolution.trigger = Some(pending.binding.clone());
-                let mut mana = Vec::with_capacity(output.mana.len());
-                for (mana_type, amount) in &output.mana {
-                    mana.push((*mana_type, self.evaluate_amount(amount, &resolution)?));
-                }
-                self.execute_action(
-                    GameAction::ProduceMana {
-                        player,
-                        source,
-                        mana,
-                        special: output.special.clone(),
-                        tapped_for_mana: false,
-                    },
-                    &ActionContext::resolving(ctx.dp, &resolution),
-                )
+                self.produce_mana(output, player, source, false, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
             }
             Effect::Sequence(effects) => {
                 for sub in effects {

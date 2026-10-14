@@ -275,7 +275,9 @@ Item 6's close audit (`roadmap-v2.md` A6e) takes these with its hygiene pass,
 ### 3.3 Outside the trigger code — `roadmap-v2.md` A6m, two PRs
 
 M1 with M3, then M2 with M4 (M4's design paragraph first); M5 rides in the
-dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
+dev GUI notes PR between them (the owner, 2026-10-10, at #240's review). **M5
+folded into the second PR (the owner, 2026-10-14)**: with no dev GUI notes,
+there was no dev GUI PR between them. Both PRs landed, #249 and #250.
 
 - **M1. The board's queries** (item 242). **Landed in #249 (2026-10-14)**,
   but for whether a `PlayerRef` names a player, which went to M4 (item 245).
@@ -300,11 +302,13 @@ dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
   three times; lethal damage (CR 702.19b, 702.2c), inline in
   `assign_trample_damage`, again in `lethal_damage_for`, which only tests call,
   and in `ui/decision.rs`'s two defaults, which nothing calls.
-- **M2. Mana** (item 243). A cost's demand, the pips of each type and the
-  generic count, five times: `ManaPool::can_pay`, `can_pay_with_context`
-  (only tests call it), `ManaPool::pay`, `remaining_cost_after_pool` and
-  `ui/ask.rs`'s `pips_owed`, with `ManaCost::colored_count` a sixth that only
-  tests call and that misses the `Colorless` spelling. And
+- **M2. Mana** (item 243). **Landed in #250 (2026-10-14).** A cost's demand,
+  the pips of each type and the generic count, seven times, not the five
+  first counted: `ManaPool::can_pay`, `can_pay_with_context` (only tests call
+  it), `ManaPool::pay`, `remaining_cost_after_pool` and `ui/ask.rs`'s
+  `pips_owed`, with `ManaCost::colored_count` a sixth that only tests call and
+  that misses the `Colorless` spelling, and the inventory's own
+  `ManaDemand::of` the seventh, which this list missed. And
   `oracle/mana_supply.rs` (MA-1) restating the paths it predicts: a mana
   ability's resolution context (`resolve_mana_effect`,
   `resolve_mana_trigger_effect`, `mana_production_of`; `trigger_mana` builds
@@ -315,8 +319,10 @@ dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
   ability that exists here, which `scan_mana_production_watchers` asks beside
   `push_static_ability_replacements`; a cost list's mana component, in
   `split_mana_component` and `can_activate_as_its_controller`; whether {T} or
-  {Q} can be paid, in `check_cost_resource` and `pay_single_cost`; and the
-  payable mana abilities, in `available_mana_sources` and `ManaSupply::read`.
+  {Q} can be paid, in `check_cost_resource` and `pay_single_cost` (and a
+  third, the window's cached re-check); and the payable mana abilities, in
+  `available_mana_sources` and `ManaSupply::read` (and a third walk, the
+  window's offer), whose sacrifice fodder restated `sacrifice_candidates`.
 - **M3. Resolution and the engine's records** (item 244). **Landed in #249
   (2026-10-14).** The permanents a
   resolution's effect applies to (CR 611.2c): `affected_permanents`, inlined
@@ -340,7 +346,8 @@ dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
   resolving object for a context (two), CR 109.5's "you" in
   `FilterPlayers::for_source` and `you_for`, and a trace record's batch
   field (four builders).
-- **M4. The two `ObjectFilter` leaf tables** (item 245):
+- **M4. The two `ObjectFilter` leaf tables** (item 245). **Landed in #250
+  (2026-10-14)**: one table, `layers-architecture.md` §3.4.
   `compute::object_matches_filter`, inside the layer walk, and
   `targeting::object_matches_filter_with`, for a selection or an
   `ObjectSet`. They differ where one refuses a leaf the other answers:
@@ -349,8 +356,8 @@ dev GUI notes PR between them (the owner, 2026-10-10, at #240's review).
   is the merge's design question, which is why it is its own PR.
   `targeting.rs`'s doc cites `codebase-state.md` item 14 for the pair, an
   archived item about something else.
-- **M5. The dev GUI and the scenario format** (item 246), the dev GUI's turn
-  in the engine-then-window cadence. "The first draw still to skip" in the
+- **M5. The dev GUI and the scenario format** (item 246). **Landed in #250
+  (2026-10-14)**, folded into M2 and M4's PR. "The first draw still to skip" in the
   loader and the writer; a card reference's match in the loader and the
   editor; a permanent's seat words in the writer and the editor; whether an
   allocation answers, in `ui/ask.rs` and the CLI; a permanent's keywords as
@@ -382,8 +389,8 @@ Each fixed one says so in its owner cell.
 | a restriction through "as long as" (M3) | `Summary::of`'s granted and copied legs miss a conditional "can't", so `is_prohibited`'s gate skips a board whose only restriction is one; the gate's own comment says a route without a leg is dead | no registered ability is a conditional restriction | item 244, fixed in #249 |
 | lethal damage (M1) | `lethal_damage_for` clamps to at least 1, and `default_trample_assignment` gives a damaged deathtouch blocker 0; the engine's one path, inline in `assign_trample_damage`, gives the remainder | the first is called only by tests, the other two by nothing | item 242, fixed in #249 |
 | a spell on the stack (M1) | `is_spell_on_stack` leaves out the resolving spell; `damage_sources` adds it; the audit's `objects_that_may_trigger` admits a resolving ability, which its doc excludes | the Spell filter's one registered user is Counterspell's target, which cannot be the resolving spell (CR 115.5) | item 242, fixed in #249 |
-| a cost's pips of one type (M2) | `colored_count` misses `ManaSymbol::Colorless` | only tests call it | item 243 |
-| the `ManaAdded` arm (M2) | `mana_trigger_adds` matches "this" by id, skips the trigger's limits and asks no CR 113.6 zone | item 213 already records the limits as over-offered; the producer is on the battlefield when asked, so its id is its identity | item 243 |
+| a cost's pips of one type (M2) | `colored_count` misses `ManaSymbol::Colorless` | only tests call it | item 243, removed in #250 |
+| the `ManaAdded` arm (M2) | `mana_trigger_adds` matches "this" by id, skips the trigger's limits and asks no CR 113.6 zone | item 213 already records the limits as over-offered; the producer is on the battlefield when asked, so its id is its identity | item 243, the arm shared in #250; the limits, CR 113.6's zones and CR 603.2f's visibility are item 213's |
 | CR 603.7a's "existed before" (T4) | `is_due` reads records of the batch its return was made in | `wait_to_return` makes a return after its exile batch closes, and no rider makes one | item 247 |
 | an extra turn still coming (T8) | the waiting panel also asks that the turn's player is in the game | only the panel reads its copy | item 247 |
 | the departed candidate's card (T6) | the audit's has no abilities | `describe` compares no card | item 247 |
@@ -499,7 +506,7 @@ One table per section, in the report's order; **where** names §3's group.
 | 21 | `GameState, PlayerId -> Vec<ObjectId>` | `oracle/board::permanents_controlled_by`, `oracle/legality::legal_attackers`, `oracle/legality::legal_blockers` | merge | M1 | `legal_blockers` restates `can_block`'s blocker half |
 | 22 | `GameState, PlayerId, u32` | `engine/triggers/history::begin_turn_history`, `engine/turns::expire_until_your_next_turn`, `state/game_state::begin_turn` | keep |  | the history needs a lagging copy of the turn, which `begin_turn` overwrites |
 | 23 | `GameState, [EventSeq]` | `engine/triggers/audit::describe_window`, `engine/triggers/delayed::take_returns_due`, `engine/triggers/history::advance_history` | false positive |  | three readers of one window |
-| 24 | `ManaCost, ManaPool` | `oracle/mana_helpers::remaining_cost_after_pool`, `types/mana::can_pay`, `types/mana::pay_specific_only` | merge | M2 | the cost-demand tally of 8 and 16 |
+| 24 | `ManaCost, ManaPool` | `oracle/mana_helpers::remaining_cost_after_pool`, `types/mana::can_pay`, `types/mana::pay_specific_only` | merge | M2 | the cost-demand tally of 8 and 16; `pay_specific_only` is no tally, it hands off to `pay` (corrected at #250) |
 | 25 | `DecisionProvider, GameState, ObjectId, PlayerId` | `engine/put_on_stack::cast_spell`, `engine/returns::choose_what_it_enchants`, `ui/ask::ask_commander_to_command_zone`, `ui/ask::ask_apply_optional_effect` | merge | M5 | the two `ask_*` share 1's body; `cast_spell` and `choose_what_it_enchants` are unrelated |
 | 26 | `EnterMods, GameState, ObjectId, PlayerId` | `engine/layers/lookahead::new`, `engine/layers/lookahead::compute_as_entering`, `engine/replacement/lookahead::for_entering`, `state/game_state::place_on_battlefield` | keep |  | one chain modeling the performer, both through `PermanentState::entering` |
 | 27 | `FieldValue, str` | `state/trace::get`, `ui/what_happened::text`, `ui/what_happened::number`, `ui/what_happened::id` | false positive |  | typed accessors over one `get` |
@@ -546,9 +553,9 @@ One table per section, in the report's order; **where** names §3's group.
 | 31 | `split_once() + strip_prefix()` | `scenario/text::parse_card_words`, `scenario/text::parse_setup_action`, `scenario/text::parse_card_word`, `scenario/text::parse_player_line`, `state/decision_log/text::read`, `save::read` | false positive |  | each its own line grammar |
 | 32 | `field_str() + field_u64()` | `engine/replacement/pipeline::record`, `engine/trace_records::batch`, `engine/trace_records::layer_walk`, `engine/trace_records::decision`, `engine/trace_records::priority_rejected`, `state/trace::trace_game`, `state/trace::trace_objects` | false positive |  | each record kind's own fields |
 | 33 | `stack + take_stack_entry()` | `engine/put_on_stack::rollback_ability_activation`, `engine/resolve::resolve_primitive`, `engine/stack::resolve_top_of_stack` | merge | M3 | as 9 |
-| 34 | `ability_type + functions_in()` | `engine/replacement/gather::push_static_ability_replacements`, `oracle/mana_supply::scan_mana_production_watchers`, `state/game_state::register_static_effects` | keep |  | CR 113.6 is already one helper; the kind filter is each reader's |
+| 34 | `ability_type + functions_in()` | `engine/replacement/gather::push_static_ability_replacements`, `oracle/mana_supply::scan_mana_production_watchers`, `state/game_state::register_static_effects` | merge | M2 | corrected at #250, where M2 already said merge: the gather and the scan ask one `functioning_replacement` and one `replacement_exists`; `register_static_effects` lowers every static ability, not one kind |
 | 35 | `subtypes + word()` | `types/effects::effective_name`, `ui/display::type_line_against`, `app::type_line` | false positive |  | a token's name (CR 111.4) is another rule |
-| 36 | `functions_in() + types` | `engine/replacement/gather::push_static_ability_replacements`, `engine/triggers/dispatch::match_candidates`, `oracle/mana_supply::scan_mana_production_watchers` | keep |  | as 34 |
+| 36 | `functions_in() + types` | `engine/replacement/gather::push_static_ability_replacements`, `engine/triggers/dispatch::match_candidates`, `oracle/mana_supply::scan_mana_production_watchers` | merge | M2 | as 34; `match_candidates` reads triggered abilities, another kind |
 | 37 | `event + events.record()` | `engine/triggers/delayed::occurrences_among`, `engine/triggers/dispatch::dispatch_inner`, `engine/triggers/dispatch::find_matches`, `engine/triggers/dispatch::occurrences_matching_arm`, `engine/triggers/history::history_update` | false positive |  | the record accessor; the arm match is already one helper |
 | 38 | `controls() + tapped` | `engine/combat/validation::can_block`, `oracle/legality::can_attack`, `oracle/legality::legal_blockers`, `ui/random::pick_number` | merge | M1 | as same inputs 21 |
 | 39 | `effect + effect.as_cost_modification()` | `engine/zone_function::functioning_zones`, `state/continuous_effects::of`, `state/game_state::register_static_effects` | merge | M3 | "is this body a restriction", seen through "as long as" in two places and not in two |

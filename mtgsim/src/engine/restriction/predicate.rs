@@ -9,6 +9,7 @@
 
 use crate::engine::actions::GameAction;
 use crate::engine::layers::condition::settled_holds;
+use crate::engine::object_filter::TextReferents;
 use crate::events::cause::EventCause;
 use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
 use crate::objects::card_data::AbilityType;
@@ -232,7 +233,7 @@ fn matches(
             Restriction::Event { pattern, affected_objects, affected_players, by },
             Query::Event { action, cause, .. },
         ) => {
-            pattern_watches(game, pattern, action, cause, controller)
+            pattern_watches(game, pattern, action, cause, source, controller)
                 // The union `ReplacementDef` already makes, and it is a union rather than
                 // a replacement because the two sets answer about different kinds of
                 // subject: `set_affects` asks one or the other by what the event is
@@ -248,7 +249,7 @@ fn matches(
                     subject_of(action),
                     frame,
                 )
-                && cause_matches(by.as_ref(), cause, controller)
+                && cause_matches(by.as_ref(), cause, &mut TextReferents::for_effect(game, controller, source))
         }
 
         (
@@ -269,12 +270,8 @@ fn matches(
 ///
 /// `None` means "however caused" and matches everything, including the events
 /// no [`SourceFilter`] matches (a cost, a turn-based or state-based action).
-fn cause_matches(
-    by: Option<&SourceFilter>,
-    cause: &EventCause,
-    controller: PlayerId,
-) -> bool {
-    by.is_none_or(|by| by.matches(cause, controller))
+fn cause_matches(by: Option<&SourceFilter>, cause: &EventCause, referents: &mut TextReferents<'_, '_>) -> bool {
+    by.is_none_or(|by| by.matches(cause, referents))
 }
 
 /// Source 3 — the restrictions an object's *keywords* create.

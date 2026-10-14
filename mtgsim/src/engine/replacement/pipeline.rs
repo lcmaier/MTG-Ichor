@@ -26,7 +26,8 @@ use crate::types::replacement::{
 use crate::types::zones::{DrawFilter, Zone};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
-use crate::ui::ask::ask_apply_optional_replacement;
+use crate::ui::ask::ask_take_or_leave;
+use crate::ui::choice_types::ChoiceKind;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_entering_controller;
@@ -561,13 +562,9 @@ pub(crate) fn apply_replacements(
             let chooser = chooser.ok_or_else(|| {
                 format!("optional replacement on {:?} has no player to ask", subject)
             })?;
-            if !ask_apply_optional_replacement(
-                ctx.dp,
-                game,
-                chooser,
-                subject_object(subject),
-                &chosen,
-            ) {
+            game.diagnostics.record_replacement_prompt();
+            let kind = ChoiceKind::ApplyOptionalReplacement { affected_object: subject_object(subject), source: chosen.source };
+            if !ask_take_or_leave(ctx.dp, game, chooser, chosen.source, kind, "apply_optional_replacement") {
                 // Marking it applied is CR 614.5's "one opportunity" — being
                 // offered and refusing *is* the opportunity.
                 applied.decline(chosen.id);
@@ -3286,7 +3283,13 @@ pub(crate) fn not_auxiliary(
     if game.entry_selection.chosen.contains(&id) {
         return Some(NotAuxiliary::AlreadyChosen);
     }
-    if !crate::engine::targeting::matched(game.object_matches_filter(id, &aux.filter, you)) {
+    // The move is the effect's own (CR 614.13), so its "another" is other than
+    // the effect's source.
+    let chooses_it = match cause.resolution() {
+        Some(stamp) => game.object_matches_filter_of_source(id, &aux.filter, you, stamp.source, None),
+        None => game.object_matches_filter_for_instance(id, &aux.filter, you, crate::engine::targeting::FilterIdentity::NONE),
+    };
+    if !chooses_it {
         return Some(NotAuxiliary::NotMatched);
     }
     // CR 101.2 on the move this choice would produce — the resolution-time choice's

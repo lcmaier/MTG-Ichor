@@ -19,7 +19,8 @@ use crate::engine::replacement::{subject_of, EventSubject};
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
 use crate::types::zones::Zone;
-use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
+use crate::ui::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
+use crate::ui::choice_types::ChoiceKind;
 use crate::ui::decision::DecisionProvider;
 
 /// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
@@ -192,7 +193,10 @@ impl GameState {
             to_offer.sort_by_key(|(_, owner, _)| self.apnap_index(*owner));
             let mut accepted: Vec<(GameAction, StateBasedAction)> = Vec::new();
             for (id, owner, from) in to_offer {
-                if ask_commander_to_command_zone(decisions, self, owner, id) {
+                // A state-based action, not a replacement effect: only CR
+                // 903.9b's hand or library move is one.
+                let kind = ChoiceKind::CommanderToCommandZoneSba { commander: id };
+                if ask_take_or_leave(decisions, self, owner, id, kind, "commander_to_command_zone") {
                     let to_command = GameAction::ZoneChange {
                         object: id,
                         from,

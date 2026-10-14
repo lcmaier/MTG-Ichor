@@ -1,28 +1,38 @@
-//! A6m, the first of its two PRs (`roadmap-v2.md` A6m): the set a resolution
-//! affects (`codebase-state.md` item 244) and the board's queries (item 242).
+//! A6m (`roadmap-v2.md` A6m). Its first PR: the set a resolution affects
+//! (`codebase-state.md` item 244) and the board's queries (item 242). Its
+//! second: one `ObjectFilter` leaf table (item 245).
 
+use std::sync::Arc;
+
+use mtgsim::engine::actions::ActionContext;
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{
-    get_effective_abilities, get_effective_colors, get_effective_controller, get_effective_power,
+    get_effective_abilities, get_effective_colors, get_effective_controller, get_effective_name, get_effective_power,
     get_effective_toughness, has_keyword, has_type,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, creature_with_ability, place_bare, put_on_battlefield, set_attacking, setup_two_player_game,
-    static_ability, vanilla_creature,
+    card_of_type, creature_with_ability, forest, place_bare, put_in_graveyard, put_on_battlefield,
+    put_on_battlefield_under, set_attacking, setup_two_player_game, static_ability, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    AmountExpr, ColorChange, Condition, CopyException, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::replacement::EventPattern;
-use mtgsim::types::restriction::{Restriction, RestrictionDef};
+use mtgsim::types::replacement::{
+    CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
+};
+use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -378,4 +388,202 @@ fn test_a_granted_conditional_restriction_is_the_boards_only_restriction_and_app
     assert!(game.battlefield.contains_key(&untapped), "the granted \"can't\" holds while its condition does");
     destroy(&mut game, tapped);
     assert!(!game.battlefield.contains_key(&tapped), "and not once it fails");
+}
+
+// ---------------------------------------------------------------------------
+// One `ObjectFilter` leaf table (`layers-architecture.md` §3.4)
+// ---------------------------------------------------------------------------
+
+/// "If a permanent `affected` names would be put into a graveyard from the
+/// battlefield, exile it instead", with the pattern's own object clause and a
+/// cause clause when given.
+fn exiler(affected: ObjectFilter, object: Option<ObjectFilter>, by: Option<SourceFilter>) -> Arc<CardData> {
+    let mut def = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+            object,
+        },
+        ObjectSet::battlefield_filter(affected),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    );
+    if let Some(by) = by {
+        def = def.caused_by(by);
+    }
+    CardDataBuilder::new("A6m Exiler")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .build()
+}
+
+/// Sacrifice `id` as a rule would, and say where it went.
+fn sacrifice(game: &mut GameState, id: ObjectId) -> Zone {
+    let dp = ScriptedDecisionProvider::new();
+    game.change_zone(id, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ActionContext::new(&dp)).unwrap();
+    game.get_object(id).unwrap().zone
+}
+
+fn creature_and(filter: ObjectFilter) -> ObjectFilter {
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(filter))
+}
+
+/// CR 208.3: a land has no power, so it is not "power 4 or greater" either.
+/// The layer walk answered `PowerLE` of a land with `false`, and so its
+/// negation with `true`.
+// COVERS-PARTIAL: ATOM-208.3-001
+#[test]
+fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
+    let mut game = setup_two_player_game();
+    let land = put_on_battlefield(&mut game, forest(), 0);
+    let big = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 0);
+    let small = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let timestamp = game.allocate_timestamp();
+    game.continuous_effects.add(ContinuousEffect {
+        id: 0,
+        source: big,
+        origin: EffectOrigin::Resolution,
+        layer: Layer::Layer5Color,
+        duration: Duration::UntilEndOfTurn,
+        controller: 0,
+        created_on_turn: 1,
+        timestamp,
+        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(3)))),
+        modification: EffectModification::AddColor(Color::Red),
+    });
+
+    assert!(get_effective_colors(&game, big).contains(&Color::Red));
+    assert!(!get_effective_colors(&game, small).contains(&Color::Red));
+    assert!(!get_effective_colors(&game, land).contains(&Color::Red), "a land has no power to compare");
+}
+
+/// The selection side refused `PowerLE` of a land as a malformed question, so
+/// a `matched` asker panicked in a debug build: a filter meeting a board, not
+/// a card asking what its site cannot answer.
+// COVERS-PARTIAL: ATOM-208.3-001
+#[test]
+fn test_a_land_is_not_power_two_or_less_and_asking_is_not_malformed() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, exiler(ObjectFilter::PowerLE(2), None, None), 0);
+    let land = put_on_battlefield(&mut game, forest(), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    assert_eq!(sacrifice(&mut game, land), Zone::Graveyard);
+    assert_eq!(sacrifice(&mut game, bear), Zone::Exile);
+}
+
+/// An arm that decides decides on either side (Kleene's "or"): a refusal on
+/// the left no longer hides a token on the right.
+#[test]
+fn test_an_or_with_a_powerless_arm_beside_a_true_one_is_true() {
+    let mut game = setup_two_player_game();
+    let either = ObjectFilter::Or(Box::new(ObjectFilter::PowerLE(2)), Box::new(ObjectFilter::Token));
+    put_on_battlefield(&mut game, exiler(either, None, None), 0);
+    let treasure = put_on_battlefield(&mut game, card_of_type("A6m Treasure", CardType::Artifact), 0);
+    game.objects.get_mut(&treasure).unwrap().is_token = true;
+
+    assert_eq!(sacrifice(&mut game, treasure), Zone::Exile);
+}
+
+/// Xantcha's "planeswalkers its owner controls": in a filter, `Owner` is the
+/// source's owner (`PlayerRef::Owner`'s own doc). The selection side read it
+/// as the tested object's owner, and `ByOwner(Owner)` as always true.
+#[test]
+fn test_owner_in_an_affected_set_is_the_sources_owner() {
+    // Player 0 owns each effect's source; player 1 controls it.
+    let controlled_by_its_owner = creature_and(ObjectFilter::ByController(PlayerRef::Owner));
+    let mut game = setup_two_player_game();
+    put_on_battlefield_under(&mut game, exiler(controlled_by_its_owner, None, None), 0, 1);
+    let stolen = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 1, 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    assert_eq!(sacrifice(&mut game, stolen), Zone::Exile, "player 0 controls it");
+    assert_eq!(sacrifice(&mut game, theirs), Zone::Graveyard, "its own owner controls it, and that is not player 0");
+
+    let owned_by_its_owner = creature_and(ObjectFilter::ByOwner(PlayerRef::Owner));
+    let mut game = setup_two_player_game();
+    put_on_battlefield_under(&mut game, exiler(owned_by_its_owner, None, None), 0, 1);
+    let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    assert_eq!(sacrifice(&mut game, mine), Zone::Exile);
+    assert_eq!(sacrifice(&mut game, theirs), Zone::Graveyard, "player 1 owns it");
+}
+
+/// "Caused by a spell its owner controls" names the source's owner, not its
+/// controller, whom `SourceFilter` read it as.
+#[test]
+fn test_a_cause_its_owner_controls_is_the_sources_owner() {
+    let mut game = setup_two_player_game();
+    let by_its_owner = Some(SourceFilter::ControlledBy(PlayerRef::Owner));
+    put_on_battlefield_under(&mut game, exiler(creature_and(ObjectFilter::All), None, by_its_owner), 0, 1);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    destroy(&mut game, bear);
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile, "player 0's spell destroyed it");
+}
+
+/// A replacement's pattern names "another creature" against the effect's own
+/// source, which the pattern's filter was not given: `NotSource` was refused,
+/// and a debug build panicked.
+#[test]
+fn test_a_pattern_filter_knows_its_effects_source() {
+    let mut game = setup_two_player_game();
+    let another = ReplacementDef::new(
+        EventPattern::ZoneChange {
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+            object: Some(creature_and(ObjectFilter::NotSource)),
+        },
+        ObjectSet::battlefield_filter(ObjectFilter::All),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+    );
+    let ability = static_ability(Effect::Replacement(Box::new(another)));
+    let watcher = put_on_battlefield(&mut game, creature_with_ability("A6m Watcher", 2, 2, ability), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    assert_eq!(sacrifice(&mut game, bear), Zone::Exile);
+    assert_eq!(sacrifice(&mut game, watcher), Zone::Graveyard, "not another creature");
+}
+
+/// **Fixture.** "You may have this enter as a copy of an artifact you
+/// control, except it enters with an additional +1/+1 counter on it if it has
+/// power 2 or less": Spark Double's shape (CR 707.9f) with a condition no
+/// printed copier has, which a noncreature copy has no power to answer (CR
+/// 208.3).
+fn small_artifact_copier() -> Arc<CardData> {
+    let artifact_you_control = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    );
+    let counter = CopyException::Additionally(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1));
+    let copy = Rewrite::EnterAsCopy(EntryCopyTemplate {
+        donor: CopyDonor::Chosen(SelectionFilter::Permanent(artifact_you_control)),
+        except: vec![CopyException::If(ObjectFilter::PowerLE(2), vec![counter])],
+    });
+    let def = ReplacementDef {
+        optional: true,
+        ..ReplacementDef::new(EventPattern::EnterBattlefield { cast: None }, ObjectSet::SourceOnly, copy)
+    };
+    CardDataBuilder::new("A6m Small Copier")
+        .card_type(CardType::Artifact)
+        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .build()
+}
+
+/// A copy exception's condition is the rules' question about the copy as it
+/// enters, so one it has no answer to is no, not an error: copying an
+/// artifact, the exception's "power 2 or less" has no power to read, and the
+/// entry failed.
+// COVERS-PARTIAL: ATOM-208.3-001
+#[test]
+fn test_an_entry_copy_condition_a_noncreature_cannot_answer_is_no() {
+    let mut game = setup_two_player_game();
+    let relic = put_on_battlefield(&mut game, card_of_type("A6m Relic", CardType::Artifact), 0);
+    let copier = put_in_graveyard(&mut game, small_artifact_copier(), 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::ChooseCopySource { source: copier }, vec![ChoiceOption::Object(relic)]);
+
+    game.change_zone(copier, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+
+    assert!(dp.is_empty());
+    assert_eq!(get_effective_name(&game, copier), "A6m Relic");
+    assert_eq!(game.battlefield[&copier].counter_count(CounterType::PlusOnePlusOne), 0);
 }

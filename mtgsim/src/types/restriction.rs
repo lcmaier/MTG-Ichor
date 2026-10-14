@@ -31,9 +31,9 @@
 //! that silently does nothing, and a normal diff fails to compile at every
 //! reader instead.
 
+use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::events::cause::EventCause;
 use crate::types::effects::{ObjectSet, PlayerRef, PlayerSet};
-use crate::types::ids::PlayerId;
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -183,15 +183,16 @@ impl SourceFilter {
     /// Was the event caused by a source this admits?
     ///
     /// `cause` is the proposal's (`ActionContext::cause`) or the record's
-    /// (`EventStamp::cause`); `controller` is CR 109.5's "you" for the effect
-    /// doing the asking — the restriction's controller, the replacement
-    /// instance's, or the triggered ability's.
+    /// (`EventStamp::cause`); `referents` are the words of the effect doing the
+    /// asking — the restriction's, the replacement instance's, or the triggered
+    /// ability's — whose "you" is its controller (CR 109.5) and whose "its
+    /// owner" is its source's.
     ///
     /// On the type rather than in either enforcement point, because both ask
     /// it: `engine::restriction`'s `cause_matches` for a "can't" and
     /// `replacement::gather`'s `applies_to` for a replacement effect. A copy
     /// in each would be two answers to CR 101.2's one question.
-    pub fn matches(&self, cause: &EventCause, controller: PlayerId) -> bool {
+    pub(crate) fn matches(&self, cause: &EventCause, referents: &mut impl FilterReferents) -> bool {
         // Only an effect a spell or ability generated has a controller to
         // match. The right answer rather than an omission: Sigarda does not
         // stop CR 704.5's sacrifices, Nephalia Academy does not redirect a
@@ -201,14 +202,10 @@ impl SourceFilter {
             return false;
         };
         match self {
-            // Relative to the *asking* effect's controller, which is CR 109.5's
-            // "you" for a static ability: Sigarda's "your opponents" is an
-            // opponent of whoever currently controls Sigarda.
-            SourceFilter::ControlledBy(player_ref) => match player_ref {
-                PlayerRef::You | PlayerRef::Owner => cause == controller,
-                PlayerRef::Opponent => cause != controller,
-                PlayerRef::Player(pid) => cause == *pid,
-            },
+            // Relative to the *asking* effect, whose "you" is CR 109.5's for a
+            // static ability: Sigarda's "your opponents" is an opponent of
+            // whoever currently controls Sigarda.
+            SourceFilter::ControlledBy(player_ref) => player_ref_names(player_ref, cause, referents) == Some(true),
         }
     }
 }

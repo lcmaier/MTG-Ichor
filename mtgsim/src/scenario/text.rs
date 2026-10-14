@@ -6,7 +6,8 @@ use super::board::{
     Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupAction, SetupVerb, Targeted,
 };
 use super::error::{ScenarioError, ScenarioErrorKind};
-use crate::state::game_state::{initial_step, next_step, Phase, PhaseType, StepType, TurnPlan};
+use crate::state::game::starting_player_skips_first_draw;
+use crate::state::game_state::{initial_step, next_step, GameState, Phase, PhaseType, StepType, TurnPlan};
 use crate::types::card_types::CardType;
 use crate::types::effects::CounterType;
 use crate::types::history::{HistorySpan, TurnFact};
@@ -90,6 +91,14 @@ pub fn turn_positions() -> impl Iterator<Item = Phase> {
 pub(super) fn in_combat_from(position: Phase, from: StepType) -> bool {
     let index = |p: Phase| turn_positions().position(|q| q == p);
     position.phase_type == PhaseType::Combat && index(position) >= index(Phase { phase_type: PhaseType::Combat, step: Some(from) })
+}
+
+/// Whether turn `turn`'s draw step is the one CR 103.8a skips: turn 1's, in a
+/// game whose starting player skips their first draw. The loader refuses a
+/// board at that step, and a board at upkeep before it still has the skip to
+/// come, which the writer reads back the same way.
+pub(super) fn draw_step_skipped(state: &GameState, turn: u32) -> bool {
+    turn == 1 && starting_player_skips_first_draw(state)
 }
 
 /// A position as `step` spells it: `format_phase`'s name, lower case.

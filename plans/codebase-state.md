@@ -1933,22 +1933,20 @@ section never asked.
     re-derived: **Layer 2's second card is owed by Auras or triggers, not by
     card-writing effort.**
 
-    **Reachability (2026-09-03):** unreachable (three residuals; the branch
+    **Reachability (2026-09-03):** unreachable (three residuals, (b) closed
+    2026-10-14 by PR #250; the branch
     itself closed 2026-08-31, PR #77, ac6e071) — (a) color derivation: 0 of 76
     registered cards disagree, guarded in CI by
-    `test_every_registered_cards_color_matches_its_mana_cost`; (b)
-    `PlayerRef::Owner` still resolves to the source's owner in `compute.rs:810`
-    and to the tested object's in `targeting.rs:308`, and no registered filter
-    spells `PlayerRef::Owner` (0 sites in `src/cards`); (c) Layer 2's second
+    `test_every_registered_cards_color_matches_its_mana_cost`; (b) closed:
+    a predicate's `PlayerRef::Owner` is the source's owner in the one filter
+    table (`layers-architecture.md` §3.4); (c) Layer 2's second
     card is owed by Auras or triggers.
 
     **Sized:** (a) one small PR computing `colors` inside `build()`
-    with a color-indicator override, before Phase 8; (b) pick one reading and
-    thread `source` through `targeting::object_matches_filter`, ~20 lines,
-    with the first card that reads `Owner`; (c) none — a card.
-    **Slotted:** B7, whose `backlog.md` §2.10 derives colors in `build()`; the
-    other two halves with the first registered card that reads
-    `PlayerRef::Owner` or gains control by an Aura.
+    with a color-indicator override, before Phase 8; (b) done; (c) none — a
+    card.
+    **Slotted:** B7, whose `backlog.md` §2.10 derives colors in `build()`; (c)
+    with the first registered card that gains control by an Aura.
 
 ### Found by the RS-1 spine (2026-08-31)
 
@@ -8811,6 +8809,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        turn, applied to every tap; a check past 4,096 leaves or six effects on
        one production, which leans yes by design (`mana-architecture.md`
        §3.3).
+     **Widened by A6m's second PR (2026-10-14):** the inventory asks the
+     dispatcher's `ManaAdded` test (`mana_added_arm_matches`) and not what the
+     dispatcher asks around it, so two more shapes are read loosely, beside the
+     limits above: a trigger condition that does not function where its source
+     is (CR 113.6), and a source no player can see (CR 603.2f). The watchers
+     are battlefield abilities, and no registered mana trigger has either
+     shape. Asking them in the prediction would change what the random agent
+     is offered, so they ride with the limits, to MA-7.
      **Reachability (2026-10-05):** unreachable — no registered card has one
      of these shapes; the two MA-1 pools, Ironworks and the Cube, are read
      exactly, together and apart.
@@ -9177,25 +9183,13 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Reachability (2026-10-14):** closed — PR #249.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 242".
 
-243. **The mana code restates a cost's demand five times, and
-     `oracle/mana_supply.rs` restates the paths it predicts.** A cost's pips
-     per type and its generic count (`ManaPool::can_pay`,
-     `can_pay_with_context`, `ManaPool::pay`, `remaining_cost_after_pool`,
-     `pips_owed`, and `ManaCost::colored_count`, which misses the `Colorless`
-     spelling); and MA-1's inventory building a mana ability's resolution
-     context, the `ProduceMana` proposal, the host's mana, the `ManaAdded`
-     arm, a static replacement's existence, a cost list's mana component and
-     {T}/{Q} payability itself, beside the engine's own. The inventory §3.3,
-     M2.
-     **Reachability (2026-10-10):** unreachable — `colored_count` and
-     `can_pay_with_context` are called only by tests, and the `ManaAdded`
-     arm's one difference that a card could reach, the trigger's limits, is
-     item 213's.
-     **Sized:** ~300–500 lines: one demand method on `ManaCost`, and the
-     inventory asking the engine's predicates, which keeps its answers.
-     Before MA-7, which reads every cost per `Cost` arm and would widen the
-     copies.
-     **Slotted:** A6m's second PR, with item 245, before TR-4a and MA-7.
+243. **~~The mana code restates a cost's demand five times, and
+     `oracle/mana_supply.rs` restates the paths it predicts.~~ — ✅ CLOSED 2026-10-14 (PR #250).** — archived.
+     Done: one `ManaCost::demand` for the seven tallies (the entry counted
+     five), and the inventory asking the engine's predicates, one each. No
+     answer moved; `colored_count` is gone.
+     **Reachability (2026-10-14):** closed — PR #250.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 243".
 
 244. **~~A resolution's affected set is skipped by seven primitives, and a
      restriction behind "as long as" has no leg at the prohibition gate's
@@ -9207,36 +9201,25 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Reachability (2026-10-14):** closed — PR #249.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 244".
 
-245. **Two `ObjectFilter` leaf tables answer differently where one refuses a
-     leaf.** `compute::object_matches_filter`, in the layer walk, and
-     `targeting::object_matches_filter_with`, for a selection or an
-     `ObjectSet`: `NotSource` with no source, `PowerLE` with no power,
-     `OtherThanInstance` outside an announcement and `PlayerRef::Owner`. The
-     second's doc cites this file's item 14 for the pair, an archived item
-     about something else. The inventory §3.3, M4.
-     **Reachability (2026-10-10):** unreachable — each table is asked only in
-     its own context, where its answer is the one that context needs; whether
-     one table can serve both is the design question.
-     **Widened by A6m's first PR (2026-10-14):** whether a `PlayerRef` names
-     a player, which item 242 listed: `player_ref_is` in the dispatcher, both
-     tables' `ByController` and `ByOwner` arms, and `SourceFilter::matches`.
-     They part exactly where this item's tables do, at `Owner` (the tested
-     object's owner, the source's, or "you") and in how lazily each reads
-     "you", so the predicate is this design's to choose.
-     **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
-     generic over how it resolves a player and an identity.
-     **Slotted:** A6m's second PR, with item 243, before TR-4a, its design paragraph reviewed first.
+245. **~~Two `ObjectFilter` leaf tables answer differently where one refuses a
+     leaf.~~ — ✅ CLOSED 2026-10-14 (PR #250).** — archived.
+     Done: one table over each asker's `FilterReferents`
+     (`layers-architecture.md` §3.4) and one `PlayerRef` predicate, every
+     entry answering yes or no. Six answers moved, on boards no registered
+     card reaches: a powerless object under `Not` (CR 208.3), `PowerLE` of
+     one as the rules' no, Kleene's `Or`, `Owner` as the source's owner,
+     `NotSource` where an asker now passes its source, and an entry copy's
+     condition with no answer.
+     **Reachability (2026-10-14):** closed — PR #250.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 245".
 
-246. **The scenario format and the dev GUI compute seven facts twice.** "The
-     first draw still to skip", a card reference's match and a permanent's
-     seat words (each in the loader or writer and the editor), whether an
-     allocation answers (`ui/ask.rs` and the CLI), a permanent's keywords as
-     words, `card_name` beside `get_effective_name`, and the
-     take-it-or-leave-it prompt three times. The inventory §3.3, M5.
-     **Reachability (2026-10-10):** reachable — not wrong: each pair answers
-     alike today, and the window is where a drift would show.
-     **Sized:** ~150–250 lines, reviewed by `engineering-practices.md` §10.
-     **Slotted:** A6m, in the dev GUI notes PR after its first PR, before TR-4a.
+246. **~~The scenario format and the dev GUI compute seven facts twice.~~ — ✅
+     CLOSED 2026-10-14 (PR #250).** — archived.
+     Done: one helper each, in `mtgsim::scenario` and `ui`, which the editor
+     and the snapshot call. Folded into A6m's second PR (the owner,
+     2026-10-14): with no dev GUI notes there was no dev GUI PR to ride in.
+     **Reachability (2026-10-14):** closed — PR #250.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 246".
 
 247. **The trigger code applies a trigger's tail, queues it and folds its
      records in two places each.** The inventory §3.2's T1–T9 by name: the

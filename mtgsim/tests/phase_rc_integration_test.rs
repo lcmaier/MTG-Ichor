@@ -711,7 +711,7 @@ fn test_rc2_cards_read_as_printed() {
 /// Root Maze is on the battlefield, so it is not a look-ahead question: it is
 /// one of CR 614.12 clause (3)'s effects that "already exist". `set_affects`
 /// matches its `ObjectSet::Filter` through
-/// `GameState::object_matches_filter`, which has no battlefield gate — the
+/// `GameState::object_matches_filter_of_source`, which has no battlefield gate — the
 /// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
 /// reason this test passes against the pre-RC-3 tree too.
 // COVERS: BOUNDARY-DEF-614.1d-001

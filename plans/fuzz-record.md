@@ -37,6 +37,36 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-14 for A6m's second PR** (#250: mana's copies, one
+`ObjectFilter` leaf table, and the scenario format's and the dev GUI's copies;
+`codebase-state.md` items 243, 245 and 246). No card joins the registry or the
+pool (188 registered, 106 pooled). `close_out.py` against **main** `09dfcb1`
+(#249's merge), one arm:
+- **engine** `2bffe98`, the final code. The docs commits after it change no
+  `fuzz_games`.
+
+**Predictions, made before any arm ran (#250's body):** `IDENTICAL` on every
+gameplay row, both pools, at two seats and four, no registered card reaching an
+answer that moved; cost rows free to move a little, `sacrifice_candidates`
+re-reading the controller's permanents once per sacrifice outlet; instructions
+per decision within ±0.3 points.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → engine, performance / stress | 54,555 → 54,555 / 65,372 → 65,372 | 170,153 → 170,155 / 194,913 → 194,913 |
+| audit, engine, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| instructions / decision vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6448 M → 0.6461 M, **+0.20%** |
+
+Every prediction held. `Memo hits` moved by two at four seats on the
+performance pool, the one cost row that moved and inside what the predictions
+allowed; not traced further, a cost row being a reading. The PR touches the
+dispatcher (the `ManaAdded` arm, a trigger subject's referents,
+`SourceFilter`), so the audited smoke ran on the engine arm: `fuzz_games
+--audit --games 1000 --seed 777`, both pools at two seats and four, with no
+error, panic or disagreement (832,267 / 1,666,583 dispatches answered twice on
+performance, 876,892 / 1,754,487 on stress).
+
 **Re-recorded 2026-10-14 for A6m's first PR** (#249: the board's queries and
 the set a resolution affects, `codebase-state.md` items 242 and 244). No card
 joins the registry or the pool (188 registered, 106 pooled). `close_out.py`

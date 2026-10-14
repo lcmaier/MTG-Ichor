@@ -39,7 +39,7 @@ use crate::engine::trace_records;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaCost, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
@@ -811,23 +811,6 @@ pub fn ask_order_triggers(
     order
 }
 
-/// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.
-///
-/// `ManaCost::build` writes `{C}` as `ManaSymbol::Colorless`, but
-/// `from_symbols` admits `Colored(ManaType::Colorless)` for the same pip, so
-/// both spellings count.
-fn pips_owed(mana_cost: &ManaCost, mana_type: ManaType) -> u64 {
-    mana_cost
-        .symbols
-        .iter()
-        .filter(|s| match s {
-            ManaSymbol::Colored(t) => *t == mana_type,
-            ManaSymbol::Colorless => mana_type == ManaType::Colorless,
-            _ => false,
-        })
-        .count() as u64
-}
-
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
 ///
@@ -864,10 +847,8 @@ pub fn ask_choose_generic_mana_allocation(
         mana_cost: mana_cost.clone(),
     });
     let mins = vec![0u64; buckets.len()];
-    let maxs: Vec<u64> = available_types
-        .iter()
-        .map(|(mt, amt)| amt.saturating_sub(pips_owed(mana_cost, *mt)))
-        .collect();
+    let pips = mana_cost.demand_without_choices();
+    let maxs: Vec<u64> = available_types.iter().map(|(mt, amt)| amt.saturating_sub(pips.pips_of(*mt))).collect();
     // `can_pay` has passed by the time this is asked, and it checked both
     // halves of the same inequality: every type covers its own pips, and what
     // is left over covers the generic count. So the clamped maxima always sum
@@ -910,21 +891,22 @@ pub fn ask_choose_generic_mana_allocation(
 // State-Based & Cleanup
 // ===========================================================================
 
-/// CR 704.6d / 903.9a — may this commander go to the command zone?
-///
-/// A **state-based action**, not a replacement effect: current Oracle splits
-/// CR 903.9, and only 903.9b (hand or library) is a replacement, so the
-/// graveyard half never needed the replacement pipeline at all.
-pub fn ask_commander_to_command_zone(
+/// Take `object` or leave it, asked as `kind`: a resolving effect's "you
+/// may" (CR 603.5), an optional replacement (CR 614.1a) or a commander's move
+/// to the command zone (CR 704.6d / 903.9a). One option picked or none, which
+/// is two answers and so a decision; `asking` names the question in a refusal.
+pub fn ask_take_or_leave(
     dp: &dyn DecisionProvider,
     game: &GameState,
-    owner: PlayerId,
-    commander: ObjectId,
+    chooser: PlayerId,
+    object: ObjectId,
+    kind: ChoiceKind,
+    asking: &str,
 ) -> bool {
-    let options = vec![ChoiceOption::Object(commander)];
-    let ctx = ChoiceContext::new(ChoiceKind::CommanderToCommandZoneSba { commander });
-    let picked = dp.pick_n(game, owner, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, &options, (0, 1), "commander_to_command_zone", game, owner, &ctx);
+    let options = vec![ChoiceOption::Object(object)];
+    let ctx = ChoiceContext::new(kind);
+    let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
+    validate_pick_n(&picked, &options, (0, 1), asking, game, chooser, &ctx);
     !picked.is_empty()
 }
 
@@ -1117,47 +1099,6 @@ pub fn ask_allocate_next_damage(
         validate_allocation(&alloc, &options, total, &mins, Some(&maxs), "allocate_next_damage", game, chooser, &ctx);
         alloc
     })
-}
-
-/// Ask whether to apply a "you **may** ... instead" replacement effect
-/// (CR 614.1a).
-///
-/// Declining is not free: CR 614.5 gives the effect one opportunity per event,
-/// and being offered it *is* the opportunity. The caller marks it applied
-/// either way and consumes a use only on acceptance.
-pub fn ask_apply_optional_replacement(
-    dp: &dyn DecisionProvider,
-    game: &GameState,
-    chooser: PlayerId,
-    affected_object: Option<ObjectId>,
-    candidate: &crate::engine::replacement::ReplacementInstance,
-) -> bool {
-    game.diagnostics.record_replacement_prompt();
-    let options = vec![ChoiceOption::Object(candidate.source)];
-    let ctx = ChoiceContext::new(ChoiceKind::ApplyOptionalReplacement {
-        affected_object,
-        source: candidate.source,
-    });
-    let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, &options, (0, 1), "apply_optional_replacement", game, chooser, &ctx);
-    !picked.is_empty()
-}
-
-/// Ask whether to take a resolving effect's "you may" (CR 603.5). The
-/// ability went on the stack regardless, and this is the choice, made now.
-/// One option taken or left, as [`ask_apply_optional_replacement`] asks: two
-/// answers, so it is a decision.
-pub fn ask_apply_optional_effect(
-    dp: &dyn DecisionProvider,
-    game: &GameState,
-    chooser: PlayerId,
-    source: ObjectId,
-) -> bool {
-    let options = vec![ChoiceOption::Object(source)];
-    let ctx = ChoiceContext::new(ChoiceKind::ApplyOptionalEffect { source });
-    let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, &options, (0, 1), "apply_optional_effect", game, chooser, &ctx);
-    !picked.is_empty()
 }
 
 /// Choose which of several opponents a permanent enters under (CR 616.1b's

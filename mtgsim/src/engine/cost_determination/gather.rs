@@ -162,12 +162,7 @@ fn applies_to(
         // source 2 is `Itself` only (`cost-architecture.md` §4).
         CostSubject::Spells(filter) => {
             source != spell
-                && crate::engine::targeting::matched(game.object_matches_filter_in_frame(
-                    spell,
-                    filter,
-                    source_controller,
-                    frame,
-                ))
+                && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(frame))
         }
         // CR 113.6d's "that particular object" — an identity test. Only
         // source 2 can satisfy it, since a permanent on the battlefield is

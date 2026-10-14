@@ -47,10 +47,11 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
+use crate::types::card_types::CardTypes;
 use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
-use crate::engine::targeting::matched;
+use crate::engine::object_filter::TextReferents;
 use crate::types::restriction::ReplacementKindFilter;
 
 use super::{EntryFrame, ReplacementInstance, ReplacementInstanceId};
@@ -524,19 +525,10 @@ fn push_static_ability_replacements(
 ) {
     let CheckedForReplacements { id, controller, chars, zone, scope } = *asked;
     for ability in chars.abilities.iter() {
-        if ability.ability_type != AbilityType::Static {
-            continue;
-        }
-        if !functions_in(ability, &chars.types, zone) {
-            continue;
-        }
-        // CR 604.2 through the "as long as" wrapper: the effect exists while its
-        // condition holds, and CR 614.4 asks that *before the event* — so the
-        // condition is asked here against the settled board, with the evaluator
-        // the layer pass and CR 613.11 use. Laboratory Maniac is a candidate exactly
-        // when the draw would fail, never a prompt beside Thought Reflection.
-        let Some((def, condition)) = replacement_of(ability) else { continue };
-        if condition.is_some_and(|condition| !settled_holds(condition, game, id, None)) {
+        let Some((def, condition)) = functioning_replacement(ability, &chars.types, zone) else { continue };
+        // Laboratory Maniac is a candidate exactly when the draw would fail,
+        // never a prompt beside Thought Reflection.
+        if !replacement_exists(condition, game, id) {
             continue;
         }
         if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
@@ -557,10 +549,39 @@ fn push_static_ability_replacements(
     }
 }
 
+/// The replacement effect `ability` generates, if it generates one where
+/// its object is, together with the "as long as" it exists under.
+///
+/// A printed "If … would …, … instead" is a static ability whose body is a
+/// replacement effect (CR 614.1). It exists only if three things hold: the
+/// ability is static, it functions in `zone` for an object of `types` (CR
+/// 113.6: most only on the battlefield), and its "as long as", if any, holds
+/// (CR 604.2). This answers the first two and hands back the third for the
+/// caller to ask with [`replacement_exists`], since the callers ask it against
+/// different boards. The gather asks both of every object an event could be
+/// replaced by; `oracle::mana_supply` asks this when it scans the battlefield
+/// for what changes a mana production (Mana Reflection), caching the scan, and
+/// asks the condition each time it uses the cache.
+pub(crate) fn functioning_replacement<'a>(
+    ability: &'a AbilityDef,
+    types: &CardTypes,
+    zone: Zone,
+) -> Option<(&'a ReplacementDef, Option<&'a Condition>)> {
+    if ability.ability_type != AbilityType::Static || !functions_in(ability, types, zone) {
+        return None;
+    }
+    replacement_of(ability)
+}
+
+/// CR 604.2 through the "as long as" wrapper: the effect exists while its
+/// condition holds, and CR 614.4 asks that *before the event*, so against the
+/// settled board, with the evaluator the layer pass and CR 613.11 use.
+pub(crate) fn replacement_exists(condition: Option<&Condition>, game: &GameState, source: ObjectId) -> bool {
+    condition.is_none_or(|condition| settled_holds(condition, game, source, None))
+}
+
 /// The replacement effect a static ability's body generates, and the "as
-/// long as" it exists under (CR 604.2): the one reading of that body, for
-/// the sweep and for `oracle::mana_supply`'s scan of what changes a
-/// production.
+/// long as" it exists under (CR 604.2): the one reading of that body.
 pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, Option<&Condition>)> {
     match &ability.effect {
         Effect::Replacement(def) => Some((def, None)),
@@ -657,8 +678,8 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, controller))
-        && pattern_watches(game, &def.pattern, p.action, &p.cause, controller)
+    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, &mut TextReferents::for_effect(game, controller, source)))
+        && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
         && set_affects(
             game,
             &def.affected_objects,
@@ -729,13 +750,7 @@ pub(crate) fn set_affects(
             if !in_zone {
                 return false;
             }
-            matched(game.object_matches_filter_of_source(
-                id,
-                filter,
-                controller,
-                source,
-                frame.and_then(|f| f.frame_of(id)),
-            ))
+            game.object_matches_filter_of_source(id, filter, controller, source, frame.and_then(|f| f.frame_of(id)))
         }
     }
 }
@@ -758,6 +773,7 @@ pub(crate) fn pattern_watches(
     pattern: &EventPattern,
     action: &GameAction,
     cause: &EventCause,
+    source: ObjectId,
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
@@ -768,16 +784,16 @@ pub(crate) fn pattern_watches(
         // A source that left is matched as it last existed (CR 608.2h), and a
         // chosen one by the existence that deals the damage (CR 609.7a).
         (
-            EventPattern::DealDamage { source, combat },
+            EventPattern::DealDamage { source: damage_source, combat },
             GameAction::DealDamage { source: dealt_by, source_lki, is_combat, .. },
         ) => {
             let dealing = CurrentOrLastKnown { id: *dealt_by, lki: source_lki.as_ref() };
             combat.map(|c| c == *is_combat).unwrap_or(true)
-                && source
+                && damage_source
                     .as_ref()
                     .map(|p| {
                         p.object.is_none_or(|chosen| Some(chosen) == dealing.existence(game))
-                            && p.filter.as_ref().map(|f| matched(dealing.matches(game, f, you))).unwrap_or(true)
+                            && p.filter.as_ref().map(|f| dealing.matches(game, f, you, source)).unwrap_or(true)
                     })
                     .unwrap_or(true)
         }
@@ -787,10 +803,7 @@ pub(crate) fn pattern_watches(
             GameAction::ZoneChange { object: moving, from, to, act },
         ) => {
             change.matches(Some(*from), *to, Some(*act))
-                && object
-                    .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
-                    .unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
         }
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
@@ -803,10 +816,7 @@ pub(crate) fn pattern_watches(
             GameAction::EnterBattlefield { object: moving, from, act, .. },
         ) => {
             change.matches(*from, Zone::Battlefield, *act)
-                && object
-                    .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*moving, f, you)))
-                    .unwrap_or(true)
+                && object.as_ref().map(|f| game.object_matches_filter_of_source(*moving, f, you, source, None)).unwrap_or(true)
         }
 
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
@@ -908,9 +918,8 @@ pub(crate) fn pattern_watches(
         // CR 106.12b's two constraints. The event knows both facts; the pattern's
         // `Option`s let an effect decline to ask, and `None` is satisfied by every
         // production (Mana Reflection asks `Some(true)` of tapping and nothing of the
-        // permanent; Deep Water asks both). `matched` reads
-        // `object_matches_filter`'s authoring-error `Err`s as no, as `DealDamage`'s
-        // arm does (`codebase-state.md` item 103).
+        // permanent; Deep Water asks both). `matched` reads a refusal as no, as
+        // `DealDamage`'s arm does (`codebase-state.md` item 103).
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
             GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
@@ -918,7 +927,7 @@ pub(crate) fn pattern_watches(
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
                 && filter
                     .as_ref()
-                    .map(|f| matched(game.object_matches_filter(*producer, f, you)))
+                    .map(|f| game.object_matches_filter_of_source(*producer, f, you, source, None))
                     .unwrap_or(true)
         }
 

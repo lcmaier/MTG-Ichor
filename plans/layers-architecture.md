@@ -251,6 +251,48 @@ Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-c
 
 **Updated by the Layer 2 phase (2026-08-23).** That phase put 20 more call sites behind the same gate, so it is no longer a trim: forcing it off now costs 83.7 → 107.2 ms/game, **+28%**. The phase itself cost +4%, under the +7% this section predicted. The per-object "sharper gate" the prediction offered as a fallback was built, measured and discarded — it is not faster, because `ObjectId` is a UUID and the set probe costs a SipHash on every board to save on the rare one. Numbers and the discard argument are on `RegistryScopeSummary::any_control_changing`; the remaining lever is §12's cross-call memoization.
 
+**One leaf table for both askers (A6m, `codebase-state.md` item 245) — designed 2026-10-14, reviewed before any build, built in #250.** Two functions answer each `ObjectFilter` case for one object, and two more answer "does this `PlayerRef` name player p":
+
+| asker | function | answers | "you" | the source | earlier targets |
+|---|---|---|---|---|---|
+| the layer walk (6 callers) | `compute::object_matches_filter` | `bool` | lazy, through `FilterPlayers` | always | never |
+| a selection, a replacement's or restriction's `ObjectSet`, a trigger's subject, a cost (5 wrappers) | `targeting::object_matches_filter_with` | `Result<bool, FilterRefusal>` | eager | `FilterIdentity::source`, often none | `FilterIdentity::earlier_targets` |
+| a trigger's "whose" | `dispatch::player_ref_is` | `bool` | `TriggerReferents` | always | — |
+| a "can't"'s or a replacement's "caused by" | `SourceFilter::matches` | `bool` | the asking effect's controller | not passed | — |
+
+They part at four leaves, at `Owner`, and under `Not`.
+
+*The shape.* One table, `engine::object_filter::evaluate(game, filter, id, frame, referents) -> bool`, over a three-valued walk (`answer_or_refuse`, `Result<bool, FilterRefusal>`) private to the module, generic and monomorphized over two parameters:
+
+- `frame: impl Fn() -> Option<&EffectiveCharacteristics>`, `None` for an object with none. The walk passes the frame it holds; a selection computes one on demand, once per filter (today's `OnceCell`), or passes CR 614.12's look-ahead or a source's last known information.
+- `referents: &mut impl FilterReferents`: what the text's words for itself mean where it is asked — `you()` (CR 109.5), `source()` (CR 113.7a's "this"), `source_owner()` (CR 108.3) and `earlier_targets()` (CR 601.2c, 115.3). `you` and `source_owner` take `&mut self` so `FilterPlayers` keeps its cache: resolution stays lazy, and the eager cost measured above stays unpaid.
+
+Three implementors: `FilterPlayers` (a source always, earlier targets never); `TextReferents`, built from a `you` and a `FilterIdentity`, for a selection and, through `for_effect`, for a restriction's or replacement instance's source and controller; and `TriggerReferents`. One predicate, `player_ref_names(who, player, referents)`, answers "does this `PlayerRef` name `player`" for both tables' `ByController` and `ByOwner` arms, for `player_ref_is` and for `SourceFilter::matches`. The table's vocabulary (`FilterRefusal`, `EarlierTargets`) moves with it; `FilterIdentity` stays the selection side's.
+
+*No refusal policy on the trait.* Every missing fact refuses, and the table reads every refusal as no at its edge, a malformed one loud in a debug build. **As built (#250's review): no asker sees a refusal.** Every caller outside the table wanted yes or no; the two that kept a refusal misused it — target validation turned it into an error string nothing read, skipping the debug check, and an entry copy's condition into a failed entry — so `GameState`'s entries return `bool`. The walk never lacks a source, so `NotSource` and `Owner` never refuse there. The one fact it lacks, earlier targets, is a question a continuous effect's affected set cannot be asked (`compute`'s own comment on the arm says so), so refusing it keeps the walk's no in release and makes it loud in a debug build.
+
+*Every asker passes the referents it holds.* Some hold a source and pass none today: a replacement pattern's object and damage-source filters (`replacement/gather.rs`), an auxiliary move's filter (`pipeline.rs`'s `not_auxiliary`) and a cost modification's spell filter (`cost_determination/gather.rs`). Their `NotSource` and `Owner` would refuse; they pass the source instead, which also makes `cost-architecture.md` §3.2's "`NotSource` and `PowerLE` answer for a spell as for any object" true.
+
+*Case by case.*
+
+| leaf | layer walk today | selection today | one table |
+|---|---|---|---|
+| `All`, `ByType`, `BySubtype`, `BySupertype`, `ByColor`; `ByController` and `ByOwner` of `You`, `Opponent`, `Player` | the frame or the object | the frame or the object | unchanged |
+| `ByController(Owner)` | the source's owner | the *tested object's* owner | the source's owner; refused (`NoSource`) with no source |
+| `ByOwner(Owner)` | the source's owner | always true | the source's owner; refused with no source |
+| `Token`, `ByOwner` of a gone object | false | refused (`ObjectGone`) | refused, not malformed; the walk cannot reach it, since it asks only objects it holds frames for |
+| `NotSource` | `id != source` | refused with no source | refused with no source; the walk always has one |
+| `OtherThanInstance` | false | refused outside an announcement | refused, malformed |
+| `PowerLE` with no power | false | refused (`NoPower`), malformed | refused, **not** malformed |
+| `And`, `Or` | short-circuit | a refusal in the left arm ends the walk | Kleene's: an arm that decides (`false` for `And`, `true` for `Or`) decides whichever side it is on; otherwise the left arm's refusal |
+| `Not` | `!` | the refusal passes through | the refusal passes through |
+
+*Why `PowerLE` refuses and is not malformed.* CR 208.3: "A noncreature permanent has no power or toughness". A land is neither "power 2 or less" nor, through `Not(PowerLE(3))`, "power 4 or greater", so neither `false` nor its negation is the answer: a refusal, passing through `Not`, read as no. The walk's `false` gets the negation wrong, the one place the two tables disagree on an answer rather than on a refusal. Asking it of a land is a filter meeting a board, not a card asking what its site cannot answer, so it joins `ObjectGone` as the rules' no and stops panicking. The Kleene connectives follow from that: once a refusal is an ordinary missing truth value, `Or(PowerLE(2), Token)` asked of a noncreature token is still true, where today's left-to-right `?` answers no.
+
+*`Owner` gets one meaning in a predicate.* Predicates read it three ways today: the tested object's owner (the selection table, so every trigger subject filter and replacement `ObjectSet`), the source's owner (the walk and `player_ref_is`), and "you" (`SourceFilter`). They become one, the source's owner, which is `PlayerRef::Owner`'s own doc and the printed reading: `o:"its owner controls"` finds 2 cards (Scryfall, 2026-10-14), and Xantcha, Sleeper Agent's "can't attack its owner or planeswalkers its owner controls" names its own owner (the other, Become the Pilot, names its host's owner, which no `PlayerRef` spells). The tested object's own owner has no printed customer and is not a player the text names; if one comes, it is a relation leaf, as `NotSource` is. An *action*'s `Owner` keeps its own meaning, the owner of the object acted on (§3.5's `resolve_set_controller`, the pipeline's `entering_controller` and `putter_of`): `o:"under its owner's control"` finds 223.
+
+*Answers that move.* None is reachable by a registered card: none writes `PowerLE`, `Owner` in a filter or a `SourceFilter`, or `OtherThanInstance` outside an announcement. Each is a fixture shown failing on the old tree first: `Not(PowerLE(3))` in a static ability's set no longer reaches a land; `PowerLE` asked of a land by a `matched` asker stops panicking in a debug build; an `Or` with a refusing arm beside a true one is true; `ByController(Owner)` and `ByOwner(Owner)` read the source's owner on the selection side; `SourceFilter::ControlledBy(Owner)` reads the source's owner, not its controller; and `NotSource` answers in the filters that now pass their source. The close-out predicts every row IDENTICAL.
+
 ### 3.5 `EffectModification` + `CharacteristicCategory`
 
 ```rust

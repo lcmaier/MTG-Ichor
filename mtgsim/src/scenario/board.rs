@@ -98,6 +98,14 @@ pub struct NamedCard {
     pub tag: Option<String>,
 }
 
+impl NamedCard {
+    /// Does this reference name `card`? An untagged reference names every
+    /// card of its name; the loader and the editor both match this way.
+    pub fn names(&self, card: &NamedCard) -> bool {
+        self.name == card.name && (self.tag.is_none() || self.tag == card.tag)
+    }
+}
+
 /// When a permanent arrived: `arrived this turn`, or `arrived turn N` for
 /// an earlier turn, which a non-active player's clock can still be reading
 /// (CR 302.6 measures from its controller's most recent turn).
@@ -139,6 +147,16 @@ pub enum CardWord {
 }
 
 impl CardWord {
+    /// A permanent's seat words: its controller, then its owner where the two
+    /// differ. The writer and the editor both write them so.
+    pub fn seats(controller: PlayerId, owner: PlayerId) -> Vec<CardWord> {
+        let mut words = vec![CardWord::Controller(controller)];
+        if owner != controller {
+            words.push(CardWord::Owner(owner));
+        }
+        words
+    }
+
     /// Does this word name another card? Such a word takes the rest of its
     /// line, since a name may hold a comma, so it is written last.
     pub fn names_a_card(&self) -> bool {

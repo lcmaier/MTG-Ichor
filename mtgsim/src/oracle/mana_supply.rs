@@ -39,31 +39,23 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::replacement::{applies_to_mana_production, replacement_of};
+use crate::engine::mana::triggered_mana_recipient;
+use crate::engine::replacement::{applies_to_mana_production, functioning_replacement, replacement_exists, replacement_of};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
-use crate::engine::targeting::matched;
 use crate::engine::triggers::is_mana_ability;
-use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::board::permanents_controlled_by;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities, has_summoning_sickness};
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, Primitive};
+use crate::types::effects::{AmountExpr, Effect, ObjectFilter, Primitive};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaBag, ManaCost, ManaDemand, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
-use crate::types::triggers::{TriggerEvent, TriggerSubject};
 use crate::types::zones::Zone;
 
-/// Mana by type, in [`ManaType`]'s order: W, U, B, R, G, C (CR 106.1b).
-type ManaBag = [u64; 6];
-
 const NO_MANA: ManaBag = [0; 6];
-
-const ALL_MANA_TYPES: [ManaType; 6] =
-    [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless];
 
 fn slot(mana_type: ManaType) -> usize {
     mana_type as usize
@@ -227,7 +219,6 @@ impl ManaSupply {
         let quiet = watchers.replacements.is_empty()
             && watchers.triggers.is_empty()
             && !game.replacement_effects.iter().any(|row| matches!(row.def.pattern, EventPattern::ProduceMana { .. }));
-        let mine = permanents_controlled_by(game, player);
         let mut supply = ManaSupply {
             player,
             entries: Vec::new(),
@@ -236,20 +227,17 @@ impl ManaSupply {
             plain_split: OnceCell::new(),
         };
         if let Some(state) = game.players.get(player) {
-            let mut pool = NO_MANA;
-            for (&mana_type, &n) in state.mana_pool.available() {
-                pool[slot(mana_type)] += n;
-            }
+            let pool = state.mana_pool.unrestricted_by_type();
             if pool.iter().any(|&n| n > 0) {
                 let way = EntryWay { makes: pool, taps: false, sacrifices: false };
                 supply.entries.push(SupplyEntry { permanent: None, ways: vec![way] });
             }
         }
-        for &id in &mine {
+        for (id, abilities) in controlled_mana_abilities(game, player) {
             let mut ways: Vec<EntryWay> = Vec::new();
             // Sacrificing it for mana leaves its {T} free to use first.
             let mut alone: Vec<EntryWay> = Vec::new();
-            for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
+            for ability in abilities.iter() {
                 match mana_ability_cost_of(ability) {
                     ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices } => {
                         if game.can_pay_costs(&ability.costs, player, id).is_err() {
@@ -268,11 +256,7 @@ impl ManaSupply {
                         }
                     }
                     ManaAbilityCost::SacrificesOthers { filter, needs } => {
-                        let fodder: Vec<ObjectId> = mine
-                            .iter()
-                            .copied()
-                            .filter(|&f| game.matches_for_text_of(f, filter, player, Some(id)))
-                            .collect();
+                        let fodder = game.sacrifice_candidates(filter, player, Some(id));
                         if fodder.len() < needs as usize {
                             continue;
                         }
@@ -282,7 +266,7 @@ impl ManaSupply {
                         supply.sacrifice_outlets.push(SacrificeOutlet { permanent: id, definition, needs, fodder, ways });
                     }
                     ManaAbilityCost::MultipliesThePool { input } => {
-                        let Some(input) = ManaDemand::of(input) else { continue };
+                        let Some(input) = input.demand() else { continue };
                         if game.can_pay_costs(&[Cost::TapSelf], player, id).is_err() {
                             continue;
                         }
@@ -326,7 +310,7 @@ impl ManaSupply {
     /// path pays yet is refused, as `ManaPool::pay` refuses it (§3.2): the
     /// offer must agree with the payment (`cost-architecture.md` §3.6).
     pub fn covers(&self, game: &GameState, cost: &ManaCost, non_mana: &NonManaCosts<'_>) -> bool {
-        let Some(demand) = ManaDemand::of(cost) else { return false };
+        let Some(demand) = cost.demand() else { return false };
         let reserved = ReservedByCosts::of(game, self.player, non_mana, !self.sacrifice_outlets.is_empty());
         demand.total() == 0 || self.pays(&demand, &reserved)
     }
@@ -448,9 +432,9 @@ pub struct ManaSource {
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
     let watchers = mana_production_watchers(game);
     let mut sources = Vec::new();
-    for id in permanents_controlled_by(game, player_id) {
-        for ability in get_effective_abilities(game, id).iter() {
-            if ability.ability_type != AbilityType::Mana || game.can_pay_costs(&ability.costs, player_id, id).is_err() {
+    for (id, abilities) in controlled_mana_abilities(game, player_id) {
+        for ability in abilities.iter() {
+            if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
             }
             for produces in mana_types_made(game, &watchers, ability, id, player_id) {
@@ -485,7 +469,7 @@ fn mana_types_made(
         }
     };
     let types = made.iter().fold(ManaTypes::default(), |set, m| set.union(ManaTypes::of(m)));
-    ALL_MANA_TYPES.into_iter().filter(|&t| types.has(slot(t))).collect()
+    ManaType::ALL.into_iter().filter(|&t| types.has(slot(t))).collect()
 }
 
 /// The mana abilities CR 601.2g's window offers a player, read once a window
@@ -518,9 +502,9 @@ impl ManaAbilityWindowOffer {
     pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
         let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
         let mut abilities = Vec::new();
-        for permanent in permanents_controlled_by(game, player) {
-            for ability in get_effective_abilities(game, permanent).iter() {
-                if ability.ability_type != AbilityType::Mana || !offered_in_the_window(game, ability, permanent, player) {
+        for (permanent, its_mana_abilities) in controlled_mana_abilities(game, player) {
+            for ability in its_mana_abilities.iter() {
+                if !offered_in_the_window(game, ability, permanent, player) {
                     continue;
                 }
                 if !seen.insert((permanent, ability.id.definition())) {
@@ -595,11 +579,7 @@ impl ReservedByCosts {
                 Cost::TapSelf => reserved.tapped = non_mana.source,
                 Cost::SacrificeSelf => reserved.sacrificed = non_mana.source,
                 Cost::Sacrifice(filter, needs) if fodder_read => {
-                    let candidates = permanents_controlled_by(game, player)
-                        .into_iter()
-                        .filter(|&id| game.matches_for_text_of(id, filter, player, non_mana.source))
-                        .collect();
-                    reserved.sacrifices.push((candidates, *needs));
+                    reserved.sacrifices.push((game.sacrifice_candidates(filter, player, non_mana.source), *needs));
                 }
                 // The mana is the cost being checked, and the rest take nothing
                 // a mana ability the inventory reads makes mana from.
@@ -686,12 +666,29 @@ fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
     }
 }
 
+/// Each permanent `player` controls, in timestamp order, with its effective
+/// mana abilities (CR 605.1a), payable or not: the one walk the inventory,
+/// the agent's view and the window's offer make, each asking its own cost
+/// question of every ability. `available_mana_sources` is the payable ones.
+fn controlled_mana_abilities(game: &GameState, player: PlayerId) -> impl Iterator<Item = (ObjectId, ManaAbilities)> + '_ {
+    permanents_controlled_by(game, player).into_iter().map(move |id| (id, ManaAbilities(get_effective_abilities(game, id))))
+}
+
+/// A permanent's effective ability list, read for its mana abilities.
+struct ManaAbilities(Arc<Vec<AbilityDef>>);
+
+impl ManaAbilities {
+    fn iter(&self) -> impl Iterator<Item = &AbilityDef> {
+        self.0.iter().filter(|ability| ability.ability_type == AbilityType::Mana)
+    }
+}
+
 /// Doubling Cube's effect: each type's unspent mana, added again.
 fn multiplies_the_pool(effect: &Effect) -> bool {
     let Effect::Atom(Primitive::ProduceMana(output), _) = effect else { return false };
     output.special.is_empty()
-        && output.mana.len() == ALL_MANA_TYPES.len()
-        && ALL_MANA_TYPES
+        && output.mana.len() == ManaType::ALL.len()
+        && ManaType::ALL
             .iter()
             .all(|t| output.mana.iter().any(|(made, amount)| made == t && *amount == AmountExpr::UnspentMana(*t)))
 }
@@ -699,8 +696,7 @@ fn multiplies_the_pool(effect: &Effect) -> bool {
 /// What a mana ability's effect adds for `player`, before any replacement
 /// effect: `None` when it adds nothing a payment can spend now.
 fn mana_production_of(game: &GameState, effect: &Effect, source: ObjectId, player: PlayerId) -> Option<ManaBag> {
-    let mut resolution = ResolutionContext::untargeted(source, player, GeneratedBy::ActivatedAbility);
-    resolution.ability_source = game.object_ref(source);
+    let resolution = ResolutionContext::for_mana_ability(game, source, player, GeneratedBy::ActivatedAbility);
     let mut made = NO_MANA;
     add_mana_produced(game, effect, &resolution, &mut made)?;
     made.iter().any(|&n| n > 0).then_some(made)
@@ -778,9 +774,8 @@ fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
                 if is_mana_ability(def) {
                     found.triggers.push(at);
                 }
-            } else if ability.ability_type == AbilityType::Static
-                && functions_in(ability, &chars.types, Zone::Battlefield)
-                && replacement_of(ability).is_some_and(|(def, _)| matches!(def.pattern, EventPattern::ProduceMana { .. }))
+            } else if functioning_replacement(ability, &chars.types, Zone::Battlefield)
+                .is_some_and(|(def, _)| matches!(def.pattern, EventPattern::ProduceMana { .. }))
             {
                 found.replacements.push(at);
             }
@@ -851,7 +846,7 @@ fn mana_after_replacements(
     for &at in &watchers.replacements {
         let abilities = get_effective_abilities(game, at.permanent);
         let Some((def, condition)) = abilities.get(at.index).and_then(replacement_of) else { continue };
-        if condition.is_some_and(|condition| !settled_holds(condition, game, at.permanent, None)) {
+        if !replacement_exists(condition, game, at.permanent) {
             continue;
         }
         let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
@@ -888,31 +883,15 @@ fn mana_trigger_adds(
         return Vec::new();
     };
     let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
-    let host = crate::oracle::board::host_of(game, at.permanent);
-    let fires = def.condition.events().iter().any(|arm| match arm {
-        TriggerEvent::ManaAdded { source, tapped_for_mana, mana } => {
-            tapped_for_mana.is_none_or(|t| t == tapped)
-                && mana.is_none_or(|m| made[slot(m)] > 0)
-                && match source {
-                    TriggerSubject::Any => true,
-                    TriggerSubject::ThisObject => producer == at.permanent,
-                    TriggerSubject::Host => host == Some(producer),
-                    TriggerSubject::Filter(filter) => {
-                        matched(game.object_matches_filter_of_source(producer, filter, controller, at.permanent, None))
-                    }
-                    // CR 603.7c's "that token" is a delayed trigger's; an
-                    // object's own ability refers to nothing.
-                    TriggerSubject::Referred => false,
-                }
-        }
-        // `is_mana_ability` admitted only `ManaAdded` arms.
-        _ => false,
+    let added = |m: ManaType| made[slot(m)] > 0;
+    let fires = def.condition.events().iter().any(|arm| {
+        game.mana_added_arm_would_match(arm, at.permanent, controller, producer, tapped, added)
     });
     if !fires || def.intervening_if.as_ref().is_some_and(|c| !settled_holds(c, game, at.permanent, Some(controller))) {
         return Vec::new();
     }
     let mut adds = NO_MANA;
-    if !trigger_mana(game, &def.effect, at.permanent, controller, host, player, &mut adds) || adds == NO_MANA {
+    if !trigger_mana(game, &def.effect, at.permanent, controller, player, &mut adds) || adds == NO_MANA {
         return Vec::new();
     }
     // CR 106.12: the trigger's source was not tapped, so a "tapped for mana"
@@ -929,20 +908,16 @@ fn trigger_mana(
     effect: &Effect,
     source: ObjectId,
     controller: PlayerId,
-    host: Option<ObjectId>,
     player: PlayerId,
     adds: &mut ManaBag,
 ) -> bool {
     match effect {
         Effect::Atom(Primitive::ProduceMana(output), recipient) => {
-            let receives = match recipient {
-                EffectRecipient::Host => host.and_then(|h| controller_or_owner(game, h)).unwrap_or(controller),
-                _ => controller,
-            };
+            let receives = triggered_mana_recipient(game, recipient, source, controller);
             if receives != player {
                 return true;
             }
-            let resolution = ResolutionContext::untargeted(source, receives, GeneratedBy::TriggeredAbility);
+            let resolution = ResolutionContext::for_mana_ability(game, source, receives, GeneratedBy::TriggeredAbility);
             for (mana_type, amount) in &output.mana {
                 match game.evaluate_amount(amount, &resolution) {
                     Ok(n) => adds[slot(*mana_type)] += n,
@@ -952,7 +927,7 @@ fn trigger_mana(
             true
         }
         Effect::Sequence(effects) => {
-            effects.iter().all(|effect| trigger_mana(game, effect, source, controller, host, player, adds))
+            effects.iter().all(|effect| trigger_mana(game, effect, source, controller, player, adds))
         }
         _ => false,
     }
@@ -1096,54 +1071,10 @@ fn undominated_mana_bags(bags: Vec<ManaBag>) -> Vec<ManaBag> {
     kept
 }
 
-/// A cost's pips, by type, and its generic mana.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct ManaDemand {
-    pips: ManaBag,
-    generic: u64,
-}
-
+/// The inventory's reading of a cost's demand (`ManaCost::demand`).
 impl ManaDemand {
-    /// `None` for a symbol no payment path pays yet: hybrid and its kin are
-    /// CP-1's, {S} item 33's, {X} MA-2's.
-    fn of(cost: &ManaCost) -> Option<ManaDemand> {
-        let mut demand = ManaDemand::default();
-        for symbol in &cost.symbols {
-            match symbol {
-                ManaSymbol::Colored(mana_type) => demand.pips[slot(*mana_type)] += 1,
-                ManaSymbol::Colorless => demand.pips[slot(ManaType::Colorless)] += 1,
-                ManaSymbol::Generic => demand.generic += 1,
-                ManaSymbol::Hybrid(..)
-                | ManaSymbol::MonoHybrid(_)
-                | ManaSymbol::Phyrexian(_)
-                | ManaSymbol::HybridPhyrexian(..)
-                | ManaSymbol::Snow
-                | ManaSymbol::X => return None,
-            }
-        }
-        Some(demand)
-    }
-
-    fn total(&self) -> u64 {
-        self.pips.iter().sum::<u64>() + self.generic
-    }
-
     fn kinds(&self) -> ManaTypes {
         ManaTypes::of(&self.pips)
-    }
-
-    /// The demand left once `made` has paid what it can: a mana pays a pip
-    /// of its own type first, since generic takes any.
-    fn less(&self, made: &ManaBag) -> ManaDemand {
-        let mut left = *self;
-        let mut spare = 0;
-        for t in 0..6 {
-            let paid = made[t].min(left.pips[t]);
-            left.pips[t] -= paid;
-            spare += made[t] - paid;
-        }
-        left.generic = left.generic.saturating_sub(spare);
-        left
     }
 
     /// What must be made before a pool multiplier for this demand to be met
@@ -1313,6 +1244,8 @@ mod tests {
     use rand::{Rng, SeedableRng};
 
     use super::*;
+    use crate::types::effects::EffectRecipient;
+    use crate::types::mana::ManaSymbol;
     use crate::cards::artifacts::{darksteel_myr, sol_ring};
     use crate::cards::creatures::grizzly_bears;
     use crate::cards::basic_lands::{forest, island, plains};

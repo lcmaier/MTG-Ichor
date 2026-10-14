@@ -7,12 +7,11 @@
 //! engine's own, with the reason beside it.
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
-use super::text::{every_turn_fact, in_combat_from};
+use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
-use crate::state::game::starting_player_skips_first_draw;
 use crate::state::game_state::{GameState, StepType, TurnPlan};
 use crate::state::player::PlayerState;
 use crate::types::history::{HistorySpan, TurnFact};
@@ -189,7 +188,7 @@ impl<'g> Writer<'g> {
         if !blocker_damage_divisions.is_empty() {
             self.report("a blocker's division of combat damage (CR 510.1d)");
         }
-        let first_draw = turn == 1 && phase.step == Some(StepType::Upkeep) && starting_player_skips_first_draw(self.state);
+        let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);
         if *skip_first_draw != first_draw {
             self.report("a first draw step skipped by override, not by CR 103.8");
         }
@@ -465,10 +464,7 @@ impl<'g> Writer<'g> {
         } = entry;
         let obj = &state.objects[&id];
         let card = line.card.to_string();
-        let mut words = vec![CardWord::Controller(*controller)];
-        if obj.owner != *controller {
-            words.push(CardWord::Owner(obj.owner));
-        }
+        let mut words = CardWord::seats(*controller, obj.owner);
         words.append(&mut line.words);
         if *tapped {
             words.push(CardWord::Tapped);

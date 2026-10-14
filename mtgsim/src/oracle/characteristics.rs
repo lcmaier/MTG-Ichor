@@ -11,7 +11,6 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
-use crate::engine::targeting::FilterRefusal;
 use crate::types::effects::ObjectFilter;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
@@ -64,12 +63,10 @@ impl CurrentOrLastKnown<'_> {
         }
     }
 
-    /// `filter` asked of it, "you" being `you` (CR 109.5).
-    pub fn matches(&self, game: &GameState, filter: &ObjectFilter, you: PlayerId) -> Result<bool, FilterRefusal> {
-        match self.lki {
-            Some(lki) => game.object_matches_filter_in_frame(self.id, filter, you, lki.chars()),
-            None => game.object_matches_filter(self.id, filter, you),
-        }
+    /// `filter` asked of it for the effect whose source is `source`, "you"
+    /// being `you` (CR 109.5).
+    pub fn matches(&self, game: &GameState, filter: &ObjectFilter, you: PlayerId, source: ObjectId) -> bool {
+        game.object_matches_filter_of_source(self.id, filter, you, source, self.lki.map(Lki::chars))
     }
 }
 

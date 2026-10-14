@@ -558,6 +558,18 @@ a turn is **ten** of them, because CR 508.8 refuses three combat steps. →
 
 ## Words that are not about one subsystem
 
+**referents** — what a text's words for itself mean where it is read: "you"
+(CR 109.5), "this" (CR 113.7a) and its owner, and the instances of "target"
+announced so far. The one `ObjectFilter` table reads them through
+`FilterReferents`, which each asker implements: `FilterPlayers` in the layer
+walk, `TextReferents` for a selection or an effect, `TriggerReferents` for a
+trigger. → `layers-architecture.md` §3.4.
+
+**demand** — what a cost asks of mana: its pips, by the one type that pays
+each, and its generic mana (`ManaDemand`, from `ManaCost::demand`). A pool or
+the inventory meets it; `ManaDemand::less` is what is left once some mana has
+paid. → `types/mana.rs`.
+
 **spelled** — how a fact is *written* in the tree, as opposed to what it means.
 "CR 113.6 was spelled as which function calls it" says the rule was real and
 enforced and had no name: `register_static_effects` ran only from
