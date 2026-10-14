@@ -8,7 +8,6 @@
 
 use std::cell::OnceCell;
 
-use crate::oracle::board::permanents_controlled_by;
 use crate::oracle::characteristics::{controls, get_effective_types, has_keyword, has_summoning_sickness};
 use crate::oracle::mana_helpers::{activatable_abilities_with, castable_spells_with};
 use crate::engine::combat::validation::CombatError;
@@ -146,17 +145,17 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// the order this returns in is part of the decision, not a presentation
 /// detail.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    permanents_controlled_by(game, player_id)
+    game.battlefield_ids_ordered()
         .into_iter()
         .filter(|&id| can_attack(game, player_id, id).is_ok())
         .collect()
 }
 
-/// Every permanent a player controls that [`can_be_a_blocker`] allows, in
-/// timestamp order. Which attacker each may block is the pair's question,
-/// asked at the declaration.
+/// Every permanent [`can_be_a_blocker`] allows, in timestamp order. Which
+/// attacker each may block is the pair's question, asked at the declaration.
+/// One pass over the battlefield, since the check asks who controls each.
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    permanents_controlled_by(game, player_id)
+    game.battlefield_ids_ordered()
         .into_iter()
         .filter(|&id| can_be_a_blocker(game, player_id, id).is_ok())
         .collect()
