@@ -741,8 +741,9 @@ departures from the sketch, each forced by a board:
   which existence of it moved, so the movers note the record that ended a
   delayed trigger's source. "When this creature leaves the battlefield"
   matches that record and no later object's.
-- **`source_frame`**, added at the review: CR 113.7a's last known
-  information, the frame the source left with. `hand_over_lki`,
+- **`source_frame`**, added at the review, and `source_lki`, an `Lki`, since
+  TR-4a (§3.11): CR 113.7a's last known information, the frame the source
+  left with. `hand_over_lki`,
   the one writer of kept LKI, gives it to the entry as it gives it to
   every entry naming the mover, and `objects_entries_name` names the
   registry's sources, so a spell is framed as it leaves the stack. The
@@ -931,7 +932,7 @@ The draw step's count is a field beside the rows, reset by a draw step's
 (CR 500.8, Sphinx of the Second Sun). A draw's record carries its place in
 the draw step beside its place in turn (`codebase-state.md` item 254).
 
-### 3.11 `Lki` — the last known information, widened (items 14, 15)
+### 3.11 `Lki` — the last known information, widened (items 14, 15) — built in TR-4a
 
 CR 603.10 says "the appearance of objects immediately prior to the
 event"; CR 113.7a and 608.2h call the same fact "last known information",
@@ -939,91 +940,102 @@ and the tree has called the field `lki` since RA — so the type takes the
 rules' name for the fact rather than for the look. Persist, undying, an
 Aura's 603.6e trigger and the four "becomes unattached" Equipment each
 read a **status**, which `EffectiveCharacteristics` deliberately does not
-carry (it is the layer walk's output). So the type carries both:
+carry (it is the layer walk's output). So the type carries both.
+
+**As built (TR-4a, 2026-10-14): one type, one body behind one `Arc`**
+(`types/triggers.rs`). A hand-over clones one pointer, the record and every
+entry that keeps it share one copy, and `GameEvent` keeps its 72 bytes. The
+body is private, and the readers on the type are its whole surface:
 
 ```rust
-pub struct Lki {
-    /// The existence that left (CR 400.7) and its characteristics as it
-    /// last existed: the two fields TR-2b built.
-    pub object: ObjectRef,
-    pub frame: Arc<EffectiveCharacteristics>,
-    /// `None` for an object that was not a permanent. CR 110.5's four
-    /// statuses plus the two facts the four printed families read.
-    pub status: Option<Status>,
-    /// CR 400.7d's facts the permanent kept about the spell it was
-    /// (`PermanentState.cast`, main item 9). Amended 2026-09-23 (the
-    /// rulings pass, G1): an intervening "if" about them is rechecked after
-    /// the permanent may have left (CR 603.4), and CR 113.7a answers from
-    /// last known information — Vibrance evoked, its sacrifice ordered
-    /// first, still deals 3 damage if {R}{R} was spent to cast it.
-    pub cast: Option<CastFacts>,
-    /// The spell's cost decisions: kicked, bargained, evoked
-    /// (`PermanentState.cost_choices`). Amended 2026-09-24
-    /// (`cr-coverage-audit.md` §4a, pass 2). PR #181 moved them out of
-    /// `cast` a day after the field above was written, because CR 707.10
-    /// copies them to a copy that was never cast. Without this field, an "if
-    /// it was kicked" rechecked after the permanent left reads not kicked, and
-    /// so does the token a copy of a kicked spell became, whose `cast` is
-    /// `None`.
-    pub cost_choices: CostChoices,
-    /// For a stack object, its entry as it left the stack: what CR 707.10
-    /// copies (targets, modes, X, the costs) and who controlled it, for CR
-    /// 603.10e's look-back. `None` for anything else. Amended 2026-09-24
-    /// (`cr-coverage-audit.md` §4a, pass 4): a copy trigger still copies a
-    /// spell countered before it resolves (Double Vision's ruling), and
-    /// CV-4's `copy_of` clones a live entry, of which there is none by then.
-    pub entry: Option<Box<StackEntry>>,
+pub struct Lki(Arc<LkiBody>);
+struct LkiBody {
+    object: ObjectRef,                     // the existence that left (CR 400.7)
+    frame: Arc<EffectiveCharacteristics>,  // as it last existed, shared with the memo
+    owner: PlayerId,                       // CR 108.3
+    cost_choices: CostChoices,             // CR 707.10's decisions
+    permanent: Option<PermanentFacts>,     // `None` off any other zone
 }
-pub struct Status {
-    pub tapped: bool,
-    pub counters: HashMap<CounterType, u32>,
-    pub attached_to: Option<ObjectId>,
-    pub damage_marked: u32,
-    pub controller_since_turn: u32,
+struct PermanentFacts {
+    tapped: bool,                          // CR 110.5
+    counters: Vec<(CounterType, u32)>,     // CR 122, by kind in `CounterType`'s order
+    attached_to: Option<ObjectId>,         // CR 301.5, 303.4
+    attached_by: Vec<ObjectId>,
 }
 ```
+
+Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
+
+| Reader on `Lki` | Who asks it | CR |
+|---|---|---|
+| `object()` | a frame candidate's identity (item 168), `carried_lki`, `CurrentOrLastKnown::existence` | 400.7 |
+| `chars()`, `frame()` | leg 2's candidates, `subject_matches`, `bound_characteristics`, a damage source's reads | 603.10a, 608.2h |
+| `owner()` | the filter table's `ByOwner` through `HeldFrame::LastKnown`; `owner_of_source` | 108.3 |
+| `cost_choices()` | `SpellWasKicked`, for a source that left | 702.33d, 707.10 |
+| `was_tapped()` | `SourceTapped`, `SourceUntapped` | 110.5 |
+| `counters(kind)` | `SourceHasCounters`; `TriggeringObjectHadCounters` (persist, undying); `AmountExpr::SourceCounters` | 122.8, 122.9, 702.79a, 702.93a |
+| `host()` | `HostMatches`, for a source that left; a frame candidate's own host, the dispatcher's and the audit's | 303.4 |
+| `had_attached(id)` | a look-back `TriggerSubject::Host` (item 252) | 603.6e, 603.10a |
+
+**Left out, each until its reader arrives.** `damage_marked` and
+`controller_since_turn`, which this section planned, have no reader in
+TR-4a to TR-4d. `cast`, CR 400.7d's facts (the 2026-09-23 amendment's
+Vibrance, "if {R}{R} was spent to cast it" after it left), has no condition
+leaf that reads mana spent, and the card is unregistered. `entry`, a stack
+object's copy for CR 603.10e and CV-4's `copy_of`, is TR-4d's with item 253.
+
+**The capture.** `last_known_information` builds the whole body before the
+batch performs (`capture_frame`); the frame is the memo hit it always was,
+and the facts are copied off `PermanentState`, or off the `StackEntry` for a
+spell's cost decisions. The dispatch audit's snapshots are `Lki`s too, so a
+candidate the audit finds gone keeps its host and counters as the
+dispatcher's frame candidate does. `DelayedTrigger.source_lki` replaced the
+bare `source_frame`: kept as the source leaves, or seeded as the trigger is
+made when its source has already gone, as a dies trigger's own has.
+
+**The owner** (A6k's amendment, item 235's follow-up): carried and read.
+`owner_now_or`'s fallback to the controller is gone. `owner_of_source`
+reads the store by id, since ownership never changes (CR 108.3), and else
+the resolving entry's kept `Lki`; a source with neither is a missed capture,
+and the creation refuses. The filter table reads `ByOwner` off a held `Lki`,
+so "a creature an opponent owns" answers for an object whose owner left
+the game (CR 800.4a). `Token` still refuses a gone object: no reader asks it.
+
+The two amendments below are the design record this was built from.
 
 **Amended 2026-10-10 (the LKI rename, A6n, #241): one type, not two.** This
 section planned `LastKnownInformation` as the frame inside TR-2b's pair,
 `DepartedFrame { object, frame }`. The rename called the pair `Lki`, the
 tree's spelling of the fact (`lki`, `lki_of`, `source_lki`), and a second
 type spelled the same way would be two names for one concept
-(`engineering-practices.md` §2b). So TR-4a widens `Lki` itself: the fields
-above sit beside `object` and `frame`, and whether they share the frame's
-`Arc` is TR-4a's to decide. Its sizing (§12's TR-4 row) was counted against
-a separate type, so TR-4a re-counts it. `DelayedTrigger.source_frame`, a bare
-frame today, becomes an `Lki` with it, or the widened facts never reach a
-delayed trigger's source (§3.12a).
+(`engineering-practices.md` §2b). So TR-4a widens `Lki` itself, and whether
+the fields share the frame's `Arc` was TR-4a's to decide.
+`DelayedTrigger.source_frame` becomes an `Lki` with it, or the widened facts
+never reach a delayed trigger's source (§3.12a).
 
 **Amended 2026-10-09 (A6k's review, item 235): the owner** (CR 108.3; CR
 111.2 for a token). A delayed trigger or an "until" return stores its
 source's owner as it is made, since "its owner" is fixed. A source already
 gone from the store by then has only its last known information left to say
 who owned it: a token that ceased to exist before its ability resolved (CR
-704.5d), or an object whose owner has left the game (CR 800.4a). Until this
-type carries an `owner` and the resolving entry's kept LKI is read for
-it, `owner_now_or` falls back to the entry's controller, right for a token
-nobody stole and wrong once its owner has left.
+704.5d), or an object whose owner has left the game (CR 800.4a).
 
 `ZoneChange.lki` and `LeftTheGame.lki` carry an `Lki` since TR-2b, and the
 new `ControlChanged.lki` will too, so widening the type reaches every
-record; the capture in
-`perform_zone_change` and `owned_objects_leave` copies the status off
-`PermanentState` beside the uncached walk it already makes (~15 lines, item
-14's size). **The capture condition widens to CR 603.10a's three classes**
+record. **The capture condition widens to CR 603.10a's three classes**
 (item 15, TR-4c): `from == Battlefield` (today), `from == Graveyard`, and `to ∈
 {Hand, Library}` from a zone all players could see — CR 603.10a's own
 words for the third class; a Brainstorm put-back from a hand was never a
 shared fact, so it has nothing to look back at and stays `None`. **The
-reader methods live on the type** — `power()`, `had_counters(kind)`,
-`host()`, `controller()` — and `TriggerBinding`'s readers answer live when
-the object is still where the event left it and from the frame otherwise
-(CR 608.2h, 113.7a); there is no second view type. TR-2a built the first
-such reader, `bound_characteristics`, over today's frame. It answers from the
-record's frame when the matched event was the subject's departure, and from
-the live object otherwise. It answers nothing when neither holds, for example
-an enters trigger whose creature was sacrificed in response; TR-2b's
-kept LKI answers that case (§6.1). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
+reader methods live on the type** (the table above), and `TriggerBinding`'s
+readers answer live when the object is still where the event left it and
+from the frame otherwise (CR 608.2h, 113.7a); there is no second view type.
+`bound_as_it_was` is the one order, which `bound_characteristics` and a
+condition's "it" both read: the record's frame when the matched event was
+the subject's departure **and the arm looks back** (item 251's resolution
+half: a "from anywhere" subject is read where it went), the live object
+while it is still there, and the resolving entry's kept LKI after that
+(§6.1). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
 today (`sba.rs:327`, `:425`, both `?` ahead of a subtype read) and not
 frames; the item closes on the reader existing, not on those lines.
 
@@ -1130,7 +1142,7 @@ from a known item, so the calibration also bought two findings.
 
 | Kind | 1. Which object | 2. Done, and caused | 3. Replaced | 4. When read | 5. As it left |
 |---|---|---|---|---|---|
-| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; a redirect's destination is the resolving spell's too (item 261, closed by A6r) | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); **item 251**: a non-look-back arm reads the frame (CR 603.6c, 603.10) → TR-4a | holds (item 14 → TR-4a; items 15, 249 → TR-4c) |
+| `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; a redirect's destination is the resolving spell's too (item 261, closed by A6r) | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); item 251, a non-look-back arm reading the frame (CR 603.6c, 603.10), closed by TR-4a | holds (item 14, closed by TR-4a; items 15, 249 → TR-4c) |
 | `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds (item 15: a graveyard card leaving the game → TR-4c) |
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
 | `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as the card's draw ends (`place_in_turn`, `place_in_draw_step`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
@@ -1160,7 +1172,7 @@ from a known item, so the calibration also bought two findings.
 | `DelayedTriggerCreated`, `UntilReturnMade` | holds: records for a log | holds | holds | holds | holds |
 | `StateBasedActionPerformed` | holds: no reader | holds | holds | holds | holds |
 | `TriggerBinding` | **item 255**: each occurrence keeps both of its record's objects; item 250 → TR-5a | holds | holds | holds (§6.3) | holds |
-| `Lki`, the kept LKI | holds (`object`; item 168 → TR-4a) | holds | holds | **item 252**: a survivor's host → TR-4a; **item 259**: a newcomer to a zone asked look-back arms → TR-4c | holds (item 14 → TR-4a, item 15 → TR-4c; the type unified below) |
+| `Lki`, the kept LKI | holds (`object`; item 168, closed by TR-4a) | holds | holds | item 252, a survivor's host, closed by TR-4a; **item 259**: a newcomer to a zone asked look-back arms → TR-4c | holds (item 14, closed by TR-4a; item 15 → TR-4c; the type unified below) |
 | `RememberedObject` | holds: by epoch, with `left_at`; **item 260**: an Aura's new object after its own CR 704.5m move (CR 400.7f) → TR-4c; item 258 → TR-4d | holds | holds | holds | holds |
 
 All 36 kinds are in the table; kinds whose answers are the same share a row.
@@ -1374,9 +1386,9 @@ it. Its phase builds the corrected one.
   creation that looks the same as an instructed one. So Ajani, Nacatl
   Avenger's "when you do" needs the record to say which definition made the
   token.
-- **One type for last known information** (§3.11, TR-4a).
-  `DelayedTrigger.source_frame` becomes an `Lki`. Otherwise the widened facts
-  never reach a delayed trigger's source.
+- **One type for last known information** (§3.11, built in TR-4a).
+  `DelayedTrigger.source_frame` became `source_lki`, an `Lki`. Otherwise the
+  widened facts never reach a delayed trigger's source.
 - **S1's exemption is "it was in a public zone"** (§4.2, TR-4c). A frame
   candidate is exempt from CR 603.2f because it was visible. With CR 603.10a's
   second and third classes, that covers a graveyard card or a revealed one,
@@ -2250,7 +2262,7 @@ source's current controller.
 
 **The kept LKI (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
 its records at dispatch, so a departure after the dispatch is in no record the
-entry holds. `Lki { object, frame }` sits in a `kept_lki` list on
+entry holds. An `Lki` (§3.11) sits in a `kept_lki` list on
 `PendingTrigger`, `StackEntry` and `ResolvingObject`. Placement moves the list
 onto the stack entry, resolution moves it onto `resolving`, and an effect that
 moves its own source adds one there.
@@ -2274,21 +2286,36 @@ moves its own source adds one there.
   bounded-state PR removed. Also rejected: writing at the window's close,
   since only a battlefield departure's record carries a frame.
 
-**What waits.** An `Lki` carries only the existence and its frame until
-TR-4a widens it (§3.11). Its `cost_choices` answer "if it was kicked"
-after the permanent leaves, and its `entry` keeps a stack object's targets,
-modes and X for CV-4's copy. A condition about the bound facts, such as
-persist's "if it had no -1/-1 counters on it", reads the record's frame at
-both instants through a `TriggerContext` form of the evaluator, built with
-persist in TR-4. The `IsCountered` look-back (CR 603.10e) reads the same frame
-of the countered spell. Five leaves read the live source instead:
-`SourceUntapped`, `SourceTapped`, `SourceHasCounters`, `SpellWasKicked` and
-`HostMatches` answer false once it has left, where CR 113.7a reads its last
-known information (TR-2b's review, 2026-09-27, named three; RG added the
-other two the next day). A delayed trigger's intervening "if" reads its
-source by id (`match_delayed`), so a source that left and came back answers
-as the new object (CR 400.7). TR-4a points them all at the frame (the
-triggers midpoint audit, 2026-10-08).
+**The frame's readers (built in TR-4a).** A condition reads the objects its
+text names through `ConditionObjects`, the evaluator's one context beside the
+board, and a static ability passes the default:
+- `source_lki`, "this" as it last existed once it has left. The five leaves
+  that read their source — `SourceUntapped`, `SourceTapped`,
+  `SourceHasCounters`, `SpellWasKicked` and `HostMatches` — read it when it is
+  given and the live board otherwise. They had answered false once the source
+  left (TR-2b's review, 2026-09-27, named three; RG added the other two), and
+  a delayed trigger's "if" had read its source by id, so a source that left
+  and came back answered as the new object (CR 400.7).
+- `triggering`, "it": the triggering object with its `Lki` when the event was
+  its departure or it has left since, in `bound_characteristics`' order.
+  `Condition::TriggeringObjectHadCounters { counter, had }` is persist's and
+  undying's "if it had no ... counters on it", with its polarity.
+
+Four askers build it, one per instant. The dispatch takes the candidate's
+frame and the record (`triggering_at_dispatch`). The CR 603.4 recheck and a
+resolving effect's own "if" take the resolving entry's (`condition_objects`).
+A delayed trigger takes its own `source_lki`, at the trigger and, through the
+entry it queues, at resolution. A frame candidate's entry keeps its source's
+`Lki` from the start (item 168), since the existence that triggered has
+already gone and no hand-over reaches it. `HostMatches` reads a gone
+source's host where it is, or as it left when it is the triggering object,
+and a host that left otherwise has no answer, which reads as no.
+`AmountExpr::SourceCounters` is the amount's half: "the number it had" (CR
+122.8, 122.9), the source's counters as it last existed, put anew.
+
+**What waits.** The `IsCountered` look-back (CR 603.10e) reads the countered
+spell's frame, which no record carries until TR-4d's `Lki.entry` (item
+253).
 
 The two amendments below are the design record this was built from.
 
@@ -3043,6 +3070,40 @@ agreed; instructions per decision +0.17%.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-3c".
 
+### TR-4a — the frame's facts and their readers — ✅ landed 2026-10-14
+
+*Body evicted 2026-10-14 to `plans/archive/triggers-architecture-landed.md`,
+"TR-4a", with the plan as sized.*
+
+**What shipped.** `Lki` as one body behind one `Arc`: the existence, its
+frame, its owner, its cost decisions and, as a permanent, its tapped status,
+counters and attachments both ways, with the readers on the type (§3.11).
+`ConditionObjects` carries "this" and "it" as they last existed into the
+evaluator at the trigger, the CR 603.4 recheck, an effect's own "if" and a
+delayed trigger's, so the five live-source leaves read the frame (§6.1);
+`TriggeringObjectHadCounters`, `AmountExpr::SourceCounters` (CR 122.8,
+122.9), `ReturnToBattlefield` with counters, and `persist()` and `undying()`
+as authoring words. `DelayedTrigger.source_lki`; `owner_now_or` retired;
+the filter table's owner off a held `Lki`. Items 14, 168, 251 and 252
+closed. Strangleroot Geist registered and pooled, Demonic Vigor and Compost
+registered (188 → 191, 106 → 107). Twenty-nine tests; ATOM-603.6e-002,
+ATOM-122.8-001 and ATOM-122.9-001 are covered.
+
+**What moved on the way in.** `cast`, `damage_marked` and
+`controller_since_turn` stayed out of the `Lki` with no reader in TR-4a to
+TR-4d, and `entry` is TR-4d's (§3.11). Item 251 has a resolution half:
+`subject_lki` answers only a look-back arm. Kitchen Finks is unregistered
+until hybrid payment (CP-1), so its seven rulings are tested on fixtures,
+each on both keywords. +1,711 in code and tests (code +840, tests +871),
+inside the band and under the 2,120–2,440 sizing.
+
+**Measured** (`fuzz-record.md`, the TR-4a block). The engine arm plays every
+row outside timing as `main` does, cost rows included, on both pools at two
+seats and four, and the audit agrees on every dispatch. Instructions per
+decision +0.17%.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4a".
+
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
 **Re-counted and split in four on 2026-10-12 (A6p, §3.12a)**, one read-only
@@ -3053,7 +3114,7 @@ the three needs another.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
-| **TR-4a — the frame's facts and their readers** (CR 113.7a, 608.2h, 603.10a's first class, 603.6e) | `Lki` widened behind its `Arc`, so `GameEvent` keeps its 72 bytes: `Status` with what was attached to the object, the cost decisions, `cast`, the owner (§3.11); `DelayedTrigger.source_frame` an `Lki`; the reader methods; the five live-source leaves and a delayed trigger's "if" read off the frame (§6.1); `TriggeringObjectHadCounters` with its polarity; item 168, with the kept LKI seeded from the frame; items 251 and 252; `ReturnToBattlefield` with entry counters; an amount for "the counters it had" (CR 122.8, 122.9); the dispatch audit's snapshot keeping the host and the status | Strangleroot Geist, Demonic Vigor, Compost (item 251's boards, with a Clone and with Darkest Hour); Kitchen Finks' seven rulings as undying's; ATOM-603.6e-002, ATOM-122.8-001 and ATOM-122.9-001 | ~635 (950–1,270) | ~1,170 | 2,120–2,440 |
+| **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,711 |
 | **TR-4b — attachment's records** (CR 701.3d, 603.10c, 603.2e; CR 704.5n, 704.5p and 704.5d in CR 704.3's batch) | `Unattached` with its route (four sites: an unattach, a re-attach, the attachment leaving, the host leaving), `former_host` an `ObjectRef`; the arms `BecomesAttached` and `BecomesUnattached`; item 228; item 178; main item 6's detaches and token sweep as batch members | Grafted Wargear; a fixture shaped like Siona's ruling; ATOM-603.10c-001, -002 and -003, and ATOM-603.2e-002 | 365–505 (550–1,010) | 600–840 | 1,150–1,850 |
 | **TR-4c — the other two look-back classes and the zone statement** (CR 603.10a's second and third classes, 113.6b, 113.6k, 603.2f, 400.7f) | the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |

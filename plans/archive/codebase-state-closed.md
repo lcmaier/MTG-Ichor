@@ -5966,3 +5966,155 @@ moved.
      alike today, and the window is where a drift would show.
      **Sized:** ~150–250 lines, reviewed by `engineering-practices.md` §10.
      **Slotted:** A6m, in the dev GUI notes PR after its first PR, before TR-4a.
+
+### 'Before Triggered abilities' item 14 — closed 2026-10-14 by PR #251 (TR-4a)
+
+Closed by TR-4a. `Lki` became one body behind one `Arc`, so `GameEvent`
+keeps its 72 bytes and a hand-over clones a pointer: the existence that
+left, its frame, its owner (CR 108.3), its cost decisions (CR 707.10) and,
+as a permanent, its tapped status, its counters by kind and its
+attachments both ways. The capture builds it before the batch performs.
+Persist and undying read its counters through
+`Condition::TriggeringObjectHadCounters`, at the trigger and at the CR
+603.4 recheck; an Aura's "when enchanted creature dies" reads what was
+attached to the creature (item 252); the five live-source leaves read
+the rest. `damage_marked` and `controller_since_turn` were left out, with
+no reader in TR-4a to TR-4d (§3.11).
+
+*Original entry:*
+
+14. **The LKI frame carries characteristics and no status (the trigger
+    survey, 2026-09-18).** `EffectiveCharacteristics` is the CR 603.10a frame
+    on `ZoneChange` and `LeftTheGame`, and it has no counters, no attachment
+    link and no tapped bit. Persist (CR 702.79a) and undying (702.93a) are
+    dies-triggers with an intervening-if on the counters the permanent
+    *had*; an Aura's CR 603.6e trigger reads what it enchanted; the four
+    "becomes unattached" Equipment (603.10c) read the host they left — 109
+    cards on the survey's query.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** three fields copied from `PermanentState` at the capture in
+    `perform_zone_change` and in `owned_objects_leave`, ~15 lines; whether a
+    frame typed as *characteristics* should carry status is the doc's, and
+    CR 603.10's word is "appearance".
+
+    **Phase (2026-09-18):** TR-4 — the frame becomes `LastKnownInformation { characteristics, status }`, CR 113.7a's phrase and the tree's `lki`; `triggers-architecture.md` §3.11.
+    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** `Status.attached_to` answers an Aura
+    that leaves; an Aura that stays is item 252's, beside it in TR-4a.
+    **Slotted:** TR-4a, which widens `Lki` with the counters, attachment and
+    tapped bit the frame lacks (§3.11).
+
+### Item 168 — closed 2026-10-14 by PR #251 (TR-4a)
+
+Closed by TR-4a. `TriggerCandidate` carries the existence whose list it
+is, `lki.object()` for a frame candidate, so a dies trigger's identity
+names the object that left and not the card it became. Its entry keeps
+that object's `Lki` from the start (`MatchedTrigger::source_lki`), since
+no later hand-over reaches an existence that has already gone. The
+audit's gone candidates read their snapshot's existence the same way, so
+the two answers still agree. `phase_tr4a_integration_test`'s
+`a_dies_trigger_names_the_existence_that_left`, shown failing with the
+store's epoch put back.
+
+*Original entry:*
+
+168. **A frame candidate's identity carries the post-move epoch, or 0 for an
+     object that left the game.** `AbilityIdentity.zone_change_epoch` is read
+     off the store at dispatch; a departed object's *old* existence is what
+     triggered, and the frame does not carry its epoch.
+
+     **Reachability (2026-09-19):** unreachable — nothing reads the identity's
+     epoch yet; CR 603.7h's counter (TR-2) and the gates (TR-2) are its
+     readers, and neither keys a dies-trigger's source.
+
+     **Reachability (2026-09-24, TR-2a):** still unreachable. The gates and
+     CR 603.7h's count key by the identity now, but no registered dies trigger
+     carries a limit or reads its resolution count.
+
+     **Sized:** the frame gains the epoch when it becomes the widened
+     `Lki` (TR-4), ~5 lines at the two captures.
+     **Slotted:** TR-4a, whose `Lki` carries the epoch of the existence
+     that left at its two captures.
+     **Noted at the LKI rename (2026-10-10):** `Lki.object` has carried
+     that epoch since TR-2b, so what is left is the dispatcher reading it
+     instead of the store; TR-4a re-sizes it.
+     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** ~40 lines of code and ~110 of
+     tests: `find_matches` drops `lki.object` where it lists the frames, and
+     an entry naming the old existence has its kept LKI seeded from the frame
+     as it queues.
+
+### Item 251 — closed 2026-10-14 by PR #251 (TR-4a)
+
+Closed by TR-4a. `SubjectRead::of_departure` hands an arm the record's
+frame only when `looks_back()`; any other arm, "from anywhere" among
+them, reads the card where it went (CR 603.6c, 603.10). `subject_lki`
+answers only for a look-back arm, so "its power" on a "from anywhere"
+trigger reads the graveyard card too. Compost is registered; a Clone
+that copied a black creature and a creature Darkest Hour made black each
+die without triggering it, and both tests fail with the frame passed to
+every arm. Gandalf the White's multiplier, which looks back, is TR-5d's
+board.
+
+*Original entry:*
+
+251. **"From anywhere" arms read the battlefield frame.**
+     `occurrences_matching_arm` hands the record's `lki` to `subject_matches`
+     for every `ZoneChange` arm. CR 603.6c's last sentence makes a "from
+     anywhere" ability no leaves-the-battlefield ability, and CR 603.10 reads
+     its object after the move. So "whenever a creature card is put into a
+     graveyard from anywhere" refuses a creature that Song of the Dryads made a
+     land, and matches an animated land. 34 cards: `(o:"when " or o:"whenever
+     ") o:"from anywhere" (o:"creature card is put" or o:"creature cards are
+     put" or o:"land card is put" or o:"land cards are put" or o:"a card is
+     put" or o:"cards are put" or o:"artifact card is put" or o:"permanent
+     card is put" or o:"nontoken creature is put")`.
+     **Reachability (2026-10-12):** unreachable — no registered trigger has a
+     `ZoneChange` arm with `from: None` and a filter (`grep -rn "from: None"
+     src/cards` finds replacement patterns and entries only).
+     **Sized:** ~10 lines of code and ~90 of tests: the frame passed only when
+     `arm.looks_back()`, and a board in each direction. Compost ("Whenever a
+     black card is put into an opponent's graveyard from anywhere") is the
+     card. A registered Clone copying a black creature dies blue, and Darkest
+     Hour's black creatures die their own colors, so neither triggers it (the
+     owner, at #246's review). Gandalf the White's multiplier reads the other
+     side: "a legendary permanent or an artifact ... leaving the battlefield"
+     looks back (its ninth ruling). So one board, an artifact by an effect
+     dying under a "from anywhere" watcher, stresses both reads, in TR-5d's
+     multiplier tests.
+     **Slotted:** TR-4a, which decides which arms read the frame, with Compost
+     registered.
+
+### Item 252 — closed 2026-10-14 by PR #251 (TR-4a)
+
+Closed by TR-4a. A look-back arm's `Host` subject asks the departing
+object's `Lki` whether the candidate was attached to it
+(`Lki::had_attached`), so the Aura that stays, already detached, still
+triggers. An Aura that left beside its creature is a frame candidate whose
+own `Lki` keeps its host. Demonic Vigor is registered with its ruling
+tested, and ATOM-603.6e-002 is covered by an Abduction fixture. Three
+tests fail with the live read put back.
+
+*Original entry:*
+
+252. **A surviving attachment's host is read after the event detached it.**
+     `TriggerSubject::Host` compares the candidate's host, which the dispatch
+     reads live, and `cleanup_zone_state` detached the Aura or Equipment as its
+     host left. So "When enchanted creature dies" and "Whenever equipped
+     creature dies" never trigger. CR 603.10a makes them leaves-the-battlefield
+     abilities, which look back. Item 14's `Status.attached_to` is the
+     departing object's own host, which answers the Aura that leaves and not
+     the one that stays. 81 cards: `(o:"enchanted creature dies" or
+     o:"equipped creature dies" or o:"enchanted creature leaves" or
+     o:"equipped creature leaves" or o:"enchanted permanent leaves" or
+     o:"enchanted land leaves" or o:"enchanted creature is put into" or
+     o:"enchanted permanent is put into" or o:"enchanted artifact is put
+     into")`, the Zendikons among them.
+     **Reachability (2026-10-12):** unreachable — Wild Growth is the one
+     registered `Host` subject, on a mana arm.
+     **Sized:** ~75 lines of code and ~200 of tests: what was attached to the
+     departing host on its frame, a look-back `Host` read off it, and Demonic
+     Vigor registered (not Skullclamp, whose +1/-1 and two cards would distort
+     the stress pool).
+     **Slotted:** TR-4a, the frame's facts and their readers, with Demonic
+     Vigor and ATOM-603.6e-002.
