@@ -53,6 +53,13 @@ pub enum AmountExpr {
     /// evaluator both refuse it rather than guessing at a source they were not
     /// given.
     SourcePower,
+    /// "A number of +1/+1 counters equal to the number of +1/+1 counters this
+    /// had": the source's counters of a kind, where the ability expected it,
+    /// or as it last existed once it has left (CR 113.7a). CR 122.8 and 122.9
+    /// make what it puts new counters, never the old ones moved: a dies
+    /// trigger's source and a source sacrificed to pay the cost both had
+    /// theirs cease to exist as they left (CR 122.2). A resolution's question.
+    SourceCounters(CounterType),
     /// "That many" on a triggered ability — the amount the matched records
     /// carry, summed over them (`triggers-architecture.md` §3.4): the damage
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
@@ -586,12 +593,18 @@ pub enum Condition {
     /// a leaf of its own because a `Not` is the one wrapper
     /// `zone_function::stated_zones` would have to refuse.
     SourceTapped,
-    /// "As long as Kaito has one or more loyalty counters on him", and CR
-    /// 711.2a's leveler, "at least N1 level counters": the source's own
-    /// counters of a kind, read off the entity, which under a look-ahead is
-    /// the one the entry would build. No layer writes a counter, so it is
-    /// never a CR 613.8 dependency; a counter write bumps the layer epoch.
-    SourceHasCounters { counter: CounterType, at_least: u32 },
+    /// How many counters of one kind an object has, or had: "as long as Kaito
+    /// has one or more loyalty counters on him" (`ThisObject`, `AtLeast(1)`),
+    /// CR 711.2a's leveler, "level N1 or more" (`AtLeast(N1)`), and persist's
+    /// "if it had no -1/-1 counters on it" (`TriggeringObject`, `AtMost(0)`,
+    /// CR 702.79a), undying's on +1/+1 counters (CR 702.93a).
+    ///
+    /// Read off the entity, which under a look-ahead is the one the entry
+    /// would build, or off the object's last known information once it has
+    /// left (CR 113.7a), which is how persist reads a creature that died. No
+    /// layer writes a counter, so it is never a CR 613.8 dependency; a
+    /// counter write bumps the layer epoch.
+    CounterCount { object: ConditionObject, counter: CounterType, is: crate::types::history::CountIs },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -619,6 +632,16 @@ pub enum Condition {
     CostAnswer(CostAnswer),
 }
 
+/// Which object a condition's leaf asks about, in the words of its text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionObject {
+    /// "This": the object whose ability it is (CR 113.7a).
+    ThisObject,
+    /// "It": the object the trigger's event was about, a triggered ability's
+    /// alone. A static ability has none, and the leaf answers no.
+    TriggeringObject,
+}
+
 impl Condition {
     /// Does this read its source's own status or counters, which an entry
     /// sets as the permanent arrives?
@@ -629,11 +652,12 @@ impl Condition {
     /// characteristic. Matched in full, so a new leaf says which it is.
     pub fn reads_entry_state(&self) -> bool {
         match self {
-            Condition::SourceUntapped | Condition::SourceTapped | Condition::SourceHasCounters { .. } => true,
+            Condition::SourceUntapped | Condition::SourceTapped => true,
+            Condition::CounterCount { object, .. } => *object == ConditionObject::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read
-            // players, histories, the host, or a resolution.
+            // players, histories, the host, a trigger, or a resolution.
             Condition::Player { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
@@ -1603,9 +1627,11 @@ pub enum Primitive {
     ReturnToHand,
     /// Return to the battlefield from wherever it is, under the control
     /// [`ReturnUnder`] says (CR 610.3c's owner unless the card says
-    /// otherwise). Every object one resolution returns enters as one event,
-    /// and an Aura chooses what it enchants as it enters (CR 303.4f).
-    ReturnToBattlefield(ReturnUnder),
+    /// otherwise), "with a -1/-1 counter on it" as `counters` says (CR
+    /// 122.6, persist's and undying's return). Every object one resolution
+    /// returns enters as one event, and an Aura chooses what it enchants as it
+    /// enters (CR 303.4f).
+    ReturnToBattlefield { under: ReturnUnder, counters: Vec<crate::types::replacement::EntryCounters> },
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library
@@ -1995,7 +2021,7 @@ impl Primitive {
             | Primitive::CounterSpell => Some(Zone::Graveyard),
             Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
-            Primitive::ReturnToBattlefield(_) | Primitive::CreateToken(..) => Some(Zone::Battlefield),
+            Primitive::ReturnToBattlefield { .. } | Primitive::CreateToken(..) => Some(Zone::Battlefield),
             Primitive::PutOnTopOfLibrary | Primitive::PutOnBottomOfLibrary | Primitive::ShuffleIntoLibrary => {
                 Some(Zone::Library)
             }

@@ -1035,7 +1035,7 @@ fn cloudshift_shape() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
                 Effect::Atom(Primitive::Exile, target_your_creature()),
-                Effect::Atom(Primitive::ReturnToBattlefield(ReturnUnder::You), EffectRecipient::SameInstanceAs(0)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new() }, EffectRecipient::SameInstanceAs(0)),
             ]),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,

@@ -12,7 +12,11 @@
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
-use crate::types::effects::{Effect, ObjectFilter, PlayerRef};
+use crate::types::effects::{
+    Condition, ConditionObject, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder,
+};
+use crate::types::history::CountIs;
+use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, ReflexiveForm, TriggerCondition, TriggerDef,
@@ -182,6 +186,35 @@ pub fn is_sacrificed(subject: impl Into<TriggerSubject>) -> CountableEvent {
         by: None,
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
+    })
+}
+
+/// Persist (CR 702.79a): "When this permanent is put into a graveyard from
+/// the battlefield, if it had no -1/-1 counters on it, return it to the
+/// battlefield under its owner's control with a -1/-1 counter on it."
+pub fn persist() -> AbilityDef {
+    returns_unless_it_had("Persist", CounterType::MinusOneMinusOne)
+}
+
+/// Undying (CR 702.93a): persist's mirror, on +1/+1 counters.
+pub fn undying() -> AbilityDef {
+    returns_unless_it_had("Undying", CounterType::PlusOnePlusOne)
+}
+
+/// The shape both keywords expand to. "It had" is read as the permanent left
+/// (CR 603.10a), at the trigger and again at resolution (CR 603.4), and "it"
+/// is the card it became in the graveyard (CR 400.7e), which comes back as a
+/// new object with one counter on it (CR 122.6).
+fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> AbilityDef {
+    let returns = Primitive::ReturnToBattlefield {
+        under: ReturnUnder::Owner,
+        counters: vec![EntryCounters { counter, n: 1, by: None }],
+    };
+    triggered_ability(keyword, TriggerDef {
+        condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
+        intervening_if: Some(Condition::CounterCount { object: ConditionObject::TriggeringObject, counter, is: CountIs::AtMost(0) }),
+        limit: None,
+        effect: Effect::Atom(returns, EffectRecipient::TriggeringObject),
     })
 }
 

@@ -245,7 +245,7 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
-        | Condition::SourceHasCounters { .. }
+        | Condition::CounterCount { .. }
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_)

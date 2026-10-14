@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::targeting::HeldFrame;
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
@@ -43,14 +44,14 @@ impl CurrentOrLastKnown<'_> {
     /// source has left the battlefield.
     pub fn existence(&self, game: &GameState) -> Option<ObjectRef> {
         match self.lki {
-            Some(lki) => Some(lki.object),
+            Some(lki) => Some(lki.object()),
             None => game.object_ref(self.id),
         }
     }
 
     pub fn characteristics(&self, game: &GameState) -> Option<Arc<EffectiveCharacteristics>> {
         match self.lki {
-            Some(lki) => Some(Arc::clone(&lki.frame)),
+            Some(lki) => Some(Arc::clone(lki.frame())),
             None => compute_characteristics(game, self.id),
         }
     }
@@ -66,7 +67,7 @@ impl CurrentOrLastKnown<'_> {
     /// `filter` asked of it for the effect whose source is `source`, "you"
     /// being `you` (CR 109.5).
     pub fn matches(&self, game: &GameState, filter: &ObjectFilter, you: PlayerId, source: ObjectId) -> bool {
-        game.object_matches_filter_of_source(self.id, filter, you, source, self.lki.map(Lki::chars))
+        game.object_matches_filter_of_source(self.id, filter, you, source, self.lki.map(HeldFrame::LastKnown))
     }
 }
 

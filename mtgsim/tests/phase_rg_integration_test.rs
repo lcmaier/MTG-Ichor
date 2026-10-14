@@ -53,7 +53,8 @@ use mtgsim::test_support::{
     setup_two_player_game, static_ability, test_ctx,
 };
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes, Supertype};
-use mtgsim::types::effects::{
+use mtgsim::types::history::CountIs;
+use mtgsim::types::effects::{ConditionObject, 
     AmountExpr, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
 };
@@ -601,7 +602,7 @@ fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
 /// which holds on a board cast in its controller's main phase, and the
 /// hexproof; its ninjutsu and loyalty abilities are not the board.
 fn kaito_shaped() -> Arc<CardData> {
-    let with_counters = Condition::SourceHasCounters { counter: CounterType::Loyalty, at_least: 1 };
+    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, counter: CounterType::Loyalty, is: CountIs::AtLeast(1) };
     let ninja_creature = TypeChange {
         set_types: Some(CardTypes::from([CardType::Creature])),
         add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],

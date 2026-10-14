@@ -16,7 +16,7 @@ use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, wheneve
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
-use mtgsim::engine::layers::condition::settled_holds;
+use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
@@ -362,6 +362,6 @@ fn a_departed_players_actions_this_turn_are_still_found() {
     assert!(!game.in_game(1), "player 1 has left the game");
 
     let cast_this_turn = |players| Condition::ThisTurn(HistoryCount { players, fact: TurnFact::SpellsCast, is: CountIs::AtLeast(1) });
-    assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source, None), "an opponent cast a spell this turn");
-    assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source, None), "a spell was cast this turn");
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source, None, ConditionReferents::NONE), "an opponent cast a spell this turn");
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source, None, ConditionReferents::NONE), "a spell was cast this turn");
 }

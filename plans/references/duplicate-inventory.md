@@ -394,6 +394,46 @@ Each fixed one says so in its owner cell.
 | CR 603.7a's "existed before" (T4) | `is_due` reads records of the batch its return was made in | `wait_to_return` makes a return after its exile batch closes, and no rider makes one | item 247 |
 | an extra turn still coming (T8) | the waiting panel also asks that the turn's player is in the game | only the panel reads its copy | item 247 |
 | the departed candidate's card (T6) | the audit's has no abilities | `describe` compares no card | item 247 |
+| "it" for an intervening "if" (T10) | asked once per record at the trigger and once per occurrence at resolution | no registered trigger reads "it" in its "if" before TR-4a | fixed in #251 |
+| a spell's cost decisions (T11) | the capture missed the resolving spell's, condition's reader the stack's | `SpellWasKicked` has no registered user | fixed in #251 |
+| "its owner" of a gone source (T12) | `FilterPlayers::owner` panics with no row, `TextReferents::source_owner` refuses, two resolution reads error | no registered filter writes `Owner`; TR-4a opened the first site, which #251 closed | the first site fixed in #251; the rest item 247 |
+
+### 3.6 Found by TR-4a's model pass (2026-10-14)
+
+§2a's prompt over the 22 engine files #251 changed, its report unseen. It
+re-found T1, T2, T3, T4, T6, T8 and the `in_game` key (§6, same composition
+46), and these, new here:
+
+- **T10, T11, T12** (§3.5's rows). #251 made "it" one reading per occurrence
+  (`triggers_whose_intervening_if_holds`, both matchers), the cost decisions one
+  (`GameState::cost_choices_of`, with `StackEntry::cost_choices`), and gave
+  a condition's filter its gone source's owner off the `Lki`. T12's other
+  sites — `TextReferents::source_owner`, `FilterPlayers::owner`'s controller
+  fallback for a resolution's row, `compute::evaluate_amount`'s, and
+  `resolve_player_ref`'s and `ShuffleLibrary`'s `get_object` — are one fact
+  with `delayed::owner_of_source`, for item 247.
+- **T13. The pair "the object now, or as it last existed."** #251 made
+  `CurrentOrLastKnown` the one type for it
+  (`ConditionReferents.triggering_object`, `triggering_object`, the
+  dispatch's "it") and `bound_characteristics` its reader, and
+  `lki_kept_by_resolving` the one lookup of what a resolution kept.
+- **T14. The objects a waiting entry names.** `for_each_naming_entry`
+  (`dispatch.rs`, source and subject) and `referred_damage_sources`
+  (`legality.rs`, with targets, referred objects and kept LKI, and a
+  resolving object narrower than a stacked one). Different subsets on
+  purpose; one per-entry list each takes its subset from, item 247.
+- **T15. Which object a non-filter `ObjectSet` names** (`SourceOnly`,
+  `Fixed`, `Host`): `board::could_name`, `board::affected_members`,
+  `gather::set_affects`, `dispatch::named_trigger_carriers`, and
+  `gather`'s own loop, which skips `Host` by design. A method on
+  `ObjectSet`, item 247.
+- **T16. The "as long as" peel** (CR 604.2): `effects::with_its_condition`
+  is private and documented as the one, and `gather::replacement_of`,
+  `board::conditional_reads_of`, `board::static_ability_still_exists` and
+  `zone_function::functioning_zones` each peel `Conditional` by hand. Item 247.
+- **Kept:** the CR 603.4 recheck's "you" is the controller locked at CR
+  603.3a and an effect's own "if"'s is the resolution's (CR 109.5); two
+  readings of two instants, not one fact.
 
 ## 4. The rename: "departed frame" to LKI
 

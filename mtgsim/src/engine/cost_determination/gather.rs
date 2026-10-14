@@ -6,7 +6,8 @@
 //! of resolution-created cost effects is later (`cost-architecture.md` §4).
 
 use crate::engine::layers::compute_characteristics;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
+use crate::engine::targeting::HeldFrame;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
@@ -130,7 +131,7 @@ fn push_if_applies(
     // is the finished frame. A spell on the stack has no entity, so a status
     // clause on one is simply false.
     if let Some(condition) = condition
-        && !settled_holds(condition, game, source, None) {
+        && !settled_holds(condition, game, source, None, ConditionReferents::NONE) {
         return;
     }
     if applies_to(game, def, source, controller, spell, frame) {
@@ -162,7 +163,7 @@ fn applies_to(
         // source 2 is `Itself` only (`cost-architecture.md` §4).
         CostSubject::Spells(filter) => {
             source != spell
-                && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(frame))
+                && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))
         }
         // CR 113.6d's "that particular object" — an identity test. Only
         // source 2 can satisfy it, since a permanent on the battlefield is

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::engine::layers::copy::{copiable_values, CopiableValues};
+use crate::engine::targeting::HeldFrame;
 use crate::state::game_state::GameState;
 use crate::types::effects::{CopyException, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -144,7 +145,7 @@ impl ExceptionConditions<'_> {
             filter,
             self.chosen.controller,
             self.chosen.source,
-            Some(chars),
+            Some(HeldFrame::Characteristics(chars)),
         ))
     }
 

@@ -21,16 +21,48 @@
 //! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
-use crate::engine::layers::board::Board;
+use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
-use crate::types::effects::{Condition, ObjectFilter, PlayerFact, PlayerSet};
+use crate::types::effects::{Condition, ConditionObject, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
+use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::triggers::Lki;
+
+/// What a condition's words "this" and "it" refer to, when the caller knows
+/// more than the board does.
+///
+/// A condition is answered by looking at the game. But a triggered ability's
+/// "if" is often asked after its objects have left the battlefield: persist's
+/// "if it had no -1/-1 counters on it" is asked of a creature that has just
+/// died, and the board now holds only the card in the graveyard. CR 113.7a
+/// and 608.2h answer from how the object last existed, so the caller passes
+/// that here (`triggers-architecture.md` §6.1):
+/// - "this", the ability's source, once it has left: `source_lki`;
+/// - "it", the object the trigger's event was about: `triggering_object`.
+///
+/// A static ability's "as long as" refers to neither, and passes [`Self::NONE`].
+#[derive(Clone, Copy)]
+pub struct ConditionReferents<'a> {
+    /// The source as it last existed, once it has left; `None` while it is
+    /// still there, where the board answers.
+    pub source_lki: Option<&'a Lki>,
+    /// The triggering object: read live while it is where the event left it,
+    /// or as it last existed when the event was its departure or it has left
+    /// since. `None` outside a trigger, and for a "one or more" trigger,
+    /// which has no single object.
+    pub triggering_object: Option<CurrentOrLastKnown<'a>>,
+}
+
+impl ConditionReferents<'_> {
+    /// Nothing beyond the board: every static ability's condition.
+    pub const NONE: ConditionReferents<'static> = ConditionReferents { source_lki: None, triggering_object: None };
+}
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
 /// it right now?
@@ -46,14 +78,17 @@ pub(super) fn holds(
     source: ObjectId,
     layer_index: usize,
     locked_you: Option<PlayerId>,
+    referents: ConditionReferents<'_>,
 ) -> bool {
     // Every arm below reads the source's frame or its owner, and a condition
-    // on an object that is not in the store has no answer. The existence
-    // check has already found the ability on that frame, so this is a guard
-    // rather than a case.
-    if !game.objects.contains_key(&source) {
+    // on an object that is not in the store has no answer unless its last
+    // known information gives one. The existence check has already found the
+    // ability on that frame, so this is a guard rather than a case.
+    if referents.source_lki.is_none() && !game.objects.contains_key(&source) {
         return false;
     }
+    // "Its owner" for a filter, once the store has lost the source (CR 108.3).
+    let owner_if_gone = referents.source_lki.map(Lki::owner);
 
     // **A new leaf lands here and in `board::condition_reads`**, both exhaustive,
     // so the compiler asks for the second arm but cannot check it: one that
@@ -63,7 +98,7 @@ pub(super) fn holds(
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
         Condition::Player { players, fact } => {
-            player_fact_holds(players, fact, game, board, source, layer_index, locked_you)
+            player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
 
         // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
@@ -79,30 +114,66 @@ pub(super) fn holds(
         // where it is false.
         Condition::All(clauses) => clauses
             .iter()
-            .all(|c| holds(c, game, board, source, layer_index, locked_you)),
+            .all(|c| holds(c, game, board, source, layer_index, locked_you, referents)),
 
         // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
         // Static Orb. A status (CR 110.5), read off the entity — under a
         // look-ahead, the entering one — and never off a frame, since no
         // layer writes it. A source with no entity is not on the battlefield
-        // and so is not untapped either.
-        Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
-        Condition::SourceTapped => board.entity(game, source).is_some_and(|entity| entity.tapped),
-        Condition::SourceHasCounters { counter, at_least } => {
-            board.entity(game, source).is_some_and(|entity| entity.counter_count(*counter) >= *at_least)
+        // and so is not untapped either; one that left reads as it left.
+        Condition::SourceUntapped => match referents.source_lki {
+            Some(lki) => lki.was_tapped() == Some(false),
+            None => board.entity(game, source).is_some_and(|entity| !entity.tapped),
+        },
+        Condition::SourceTapped => match referents.source_lki {
+            Some(lki) => lki.was_tapped() == Some(true),
+            None => board.entity(game, source).is_some_and(|entity| entity.tapped),
+        },
+        // "This" or "it", as it last existed once it has left (persist's
+        // creature, which died), and off the entity otherwise.
+        Condition::CounterCount { object, counter, is } => {
+            let asked = match object {
+                ConditionObject::ThisObject => CurrentOrLastKnown { id: source, lki: referents.source_lki },
+                ConditionObject::TriggeringObject => match referents.triggering_object {
+                    Some(it) => it,
+                    None => return false,
+                },
+            };
+            let n = match asked.lki {
+                Some(lki) => lki.counters(*counter),
+                None => match board.entity(game, asked.id) {
+                    Some(entity) => entity.counter_count(*counter),
+                    None => return false,
+                },
+            };
+            is.met_by(u64::from(n))
         }
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `ObjectSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.
+        // A source that left was attached to what its last known information
+        // says, and CR 608.2h reads that host where it was, or as it left
+        // when it is the triggering object.
         Condition::HostMatches(filter) => {
-            let Some(host) = crate::oracle::board::host_of(game, source) else {
+            let host = match referents.source_lki {
+                Some(lki) => lki.host(),
+                None => crate::oracle::board::host_of(game, source),
+            };
+            let Some(host) = host else {
                 return false;
             };
-            let Some(chars) = board.frame_of(game, host, layer_index) else {
+            let chars = match referents.triggering_object {
+                Some(CurrentOrLastKnown { id, lki: Some(lki) }) if id == host => {
+                    Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame())))
+                }
+                _ if referents.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
+                _ => board.frame_of(game, host, layer_index),
+            };
+            let Some(chars) = chars else {
                 return false;
             };
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
@@ -132,9 +203,14 @@ pub(super) fn holds(
         // CR 702.33d, read off the cost decisions and not off the cast: a copy
         // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
         // the token it becomes; a permanent that was never a spell is not.
-        Condition::SpellWasKicked => cost_choices(game, source).is_some_and(|choices| {
-            choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
-        }),
+        Condition::SpellWasKicked => {
+            let kicked =
+                |choices: &CostChoices| choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)));
+            match referents.source_lki {
+                Some(lki) => kicked(lki.cost_choices()),
+                None => game.cost_choices_of(source).is_some_and(|choices| kicked(&choices)),
+            }
+        }
 
         // CR 118.12's answer is the resolver's walk's, which answers it before
         // any evaluator is asked; reaching here is a condition the walk never
@@ -163,24 +239,30 @@ pub(super) fn holds(
     }
 }
 
-/// [`holds`] against the settled board at the full ceiling — the read-side
-/// view a top-level query takes, so every leaf answers as the live pass
-/// would have at its last layer.
+/// Does `condition` hold now, outside the layer walk?
 ///
-/// The reader every *post-layer* consumer of `Condition` uses: CR 613.11's
-/// cost effects (`engine::cost_determination::cost_modifications_for`), the
-/// static replacement and restriction gathers, and the intervening "if" at
-/// both instants. A reader, not a language — the leaves and their evaluators
-/// are [`holds`]'s, unchanged.
+/// [`holds`] is the one evaluator, and it is written for the walk, which asks
+/// at each layer against a board partway built. Every other asker wants the
+/// finished board, and this hides that: `Board::settled()` at the last layer,
+/// where every leaf answers as the walk would have at its end. Its askers: CR
+/// 613.11's cost effects, the static replacement and restriction gathers, and
+/// a triggered ability's intervening "if" at the trigger and at resolution
+/// (CR 603.4) and a resolving effect's own "if".
 ///
 /// `locked_you` is CR 109.5's "you" when the asker has already fixed it: a
 /// triggered ability's controller as it triggered (CR 603.3a), or a
 /// resolution's controller. It stays that player whatever has become of the
-/// source since — stolen, or in its owner's graveyard (`codebase-state.md`
-/// item 169). `None` reads it live, as a static ability's is: the source's
-/// current controller.
-pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId, locked_you: Option<PlayerId>) -> bool {
-    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you)
+/// source since — stolen, or in its owner's graveyard. `None` reads it live,
+/// as a static ability's is: the source's current controller. `referents` is
+/// [`ConditionReferents::NONE`] for a static ability's condition.
+pub fn settled_holds(
+    condition: &Condition,
+    game: &GameState,
+    source: ObjectId,
+    locked_you: Option<PlayerId>,
+    referents: ConditionReferents<'_>,
+) -> bool {
+    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you, referents)
 }
 
 /// A history leaf: the counts of the players `count.players` names, each over
@@ -218,15 +300,6 @@ fn history_holds(
     count.is.met_by(total)
 }
 
-/// CR 707.10's cost decisions for `source`: the resolving spell's, whose
-/// `StackEntry` resolution has taken, or the permanent's it became.
-fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
-    match &game.resolving {
-        Some(r) if r.id == source => Some(&r.cost_choices),
-        _ => game.battlefield.get(&source).map(|e| &e.cost_choices),
-    }
-}
-
 /// CR 109.5's "you": `locked_you` when the asker fixed it, or else the
 /// source's controller off its live frame, or its owner if it has no
 /// controller. `None` only when none is there — a static ability's source that
@@ -259,18 +332,18 @@ fn player_fact_holds(
     source: ObjectId,
     layer_index: usize,
     locked_you: Option<PlayerId>,
+    owner_if_gone: Option<PlayerId>,
 ) -> bool {
     let Some(you) = you_for(game, board, source, layer_index, locked_you) else {
         return false;
     };
+    let filter_players = || FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
     let named = |player: PlayerId| game.in_game(player) && players.contains(you, player);
     let any_named = |meets: &dyn Fn(&PlayerState) -> bool| {
         game.players.iter().enumerate().any(|(player, state)| named(player) && meets(state))
     };
     match fact {
-        PlayerFact::ControlsPermanent(filter) => {
-            controls_matching(filter, game, board, source, layer_index, locked_you, &named)
-        }
+        PlayerFact::ControlsPermanent(filter) => controls_matching(filter, game, board, layer_index, filter_players(), &named),
         // The threshold is resolved against the source's own frame, which is
         // where a static ability's dynamic number is read everywhere else.
         PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => {
@@ -291,7 +364,7 @@ fn player_fact_holds(
         // A graveyard card may be a non-member of the pass, in which case its
         // frame is its own CDA walk at this ceiling (CR 604.3).
         PlayerFact::CardInGraveyard(filter) => {
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
+            let mut players = filter_players();
             game.players.iter().enumerate().any(|(player, state)| {
                 named(player)
                     && state.graveyard.iter().any(|&card| {
@@ -314,12 +387,10 @@ fn controls_matching(
     filter: &ObjectFilter,
     game: &GameState,
     board: &Board<'_>,
-    source: ObjectId,
     layer_index: usize,
-    locked_you: Option<PlayerId>,
+    mut players: FilterPlayers<'_, '_>,
     named: &dyn Fn(PlayerId) -> bool,
 ) -> bool {
-    let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
     board.battlefield_ids(game).into_iter().any(|id| {
         let Some(chars) = board.frame_of(game, id, layer_index) else {
             return false;
@@ -356,11 +427,11 @@ mod tests {
     fn source_untapped_reads_the_entitys_status() {
         let mut game = setup_two_player_game();
         let sphere = put_on_battlefield(&mut game, card_of_type("Sphere", CardType::Artifact), 0);
-        assert!(settled_holds(&Condition::SourceUntapped, &game, sphere, None));
+        assert!(settled_holds(&Condition::SourceUntapped, &game, sphere, None, ConditionReferents::NONE));
         game.battlefield.get_mut(&sphere).unwrap().tapped = true;
-        assert!(!settled_holds(&Condition::SourceUntapped, &game, sphere, None));
+        assert!(!settled_holds(&Condition::SourceUntapped, &game, sphere, None, ConditionReferents::NONE));
         let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::SourceUntapped, &game, dead, None), "no entity, not untapped");
+        assert!(!settled_holds(&Condition::SourceUntapped, &game, dead, None, ConditionReferents::NONE), "no entity, not untapped");
     }
 
     fn yours(fact: PlayerFact) -> Condition {
@@ -378,15 +449,15 @@ mod tests {
         game.players[0].life_total = 20;
         game.players[1].life_total = 3;
 
-        assert!(settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))), &game, bears, None));
-        assert!(!settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(21))), &game, bears, None));
-        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(20))), &game, bears, None));
-        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(19))), &game, bears, None));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))), &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(21))), &game, bears, None, ConditionReferents::NONE));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(20))), &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(19))), &game, bears, None, ConditionReferents::NONE));
 
         // CR 109.5 — the *source's* controller, not either player at large.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, theirs, None));
-        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, bears, None));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, theirs, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, bears, None, ConditionReferents::NONE));
     }
 
     /// A set of players asks each one alone: Bloodghast's "an opponent has 10
@@ -400,14 +471,14 @@ mod tests {
             game.players[seat].life_total = 12;
         }
         let ten_or_less = an_opponents(PlayerFact::LifeAtMost(AmountExpr::Fixed(10)));
-        assert!(!settled_holds(&ten_or_less, &game, ghast, None), "three at 12, and no sum");
+        assert!(!settled_holds(&ten_or_less, &game, ghast, None, ConditionReferents::NONE), "three at 12, and no sum");
 
         game.players[2].life_total = 0;
         game.player_lost[2] = true;
-        assert!(!settled_holds(&ten_or_less, &game, ghast, None), "the one at 0 has left the game");
+        assert!(!settled_holds(&ten_or_less, &game, ghast, None, ConditionReferents::NONE), "the one at 0 has left the game");
 
         game.players[3].life_total = 10;
-        assert!(settled_holds(&ten_or_less, &game, ghast, None), "one opponent at 10 is enough");
+        assert!(settled_holds(&ten_or_less, &game, ghast, None, ConditionReferents::NONE), "one opponent at 10 is enough");
     }
 
     #[test]
@@ -415,18 +486,18 @@ mod tests {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
         let card_in_yours = |filter: ObjectFilter| yours(PlayerFact::CardInGraveyard(filter));
-        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None, ConditionReferents::NONE));
 
         put_in_graveyard(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None));
-        assert!(settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Land)), &game, bears, None));
-        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Creature)), &game, bears, None));
-        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByColor(Color::Red)), &game, bears, None));
+        assert!(settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None, ConditionReferents::NONE));
+        assert!(settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Land)), &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Creature)), &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByColor(Color::Red)), &game, bears, None, ConditionReferents::NONE));
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, theirs, None));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, theirs, None, ConditionReferents::NONE));
     }
 
     #[test]
@@ -439,16 +510,16 @@ mod tests {
         let you_control = yours(PlayerFact::ControlsPermanent(forest.clone()));
         let an_opponent_controls = an_opponents(PlayerFact::ControlsPermanent(forest));
 
-        assert!(!settled_holds(&you_control, &game, bears, None));
-        assert!(!settled_holds(&an_opponent_controls, &game, bears, None));
+        assert!(!settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 1);
-        assert!(!settled_holds(&you_control, &game, bears, None));
-        assert!(settled_holds(&an_opponent_controls, &game, bears, None));
+        assert!(!settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
+        assert!(settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&you_control, &game, bears, None));
-        assert!(settled_holds(&an_opponent_controls, &game, bears, None));
+        assert!(settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
+        assert!(settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
     }
 
     /// CR 113.6b's leaf, both directions: the battlefield spelling answers
@@ -461,16 +532,16 @@ mod tests {
         let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
         let on_bf = Condition::SourceInZone(ZoneSet::BATTLEFIELD);
         let in_gy = Condition::SourceInZone(ZoneSet::GRAVEYARD);
-        assert!(settled_holds(&on_bf, &game, bears, None));
-        assert!(!settled_holds(&on_bf, &game, dead, None));
-        assert!(settled_holds(&in_gy, &game, dead, None));
-        assert!(!settled_holds(&in_gy, &game, bears, None));
+        assert!(settled_holds(&on_bf, &game, bears, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&on_bf, &game, dead, None, ConditionReferents::NONE));
+        assert!(settled_holds(&in_gy, &game, dead, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&in_gy, &game, bears, None, ConditionReferents::NONE));
 
         // A set, so one clause can name several zones — Mycosynth Lattice's
         // shape on the source side.
         let anywhere_else = Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD);
-        assert!(settled_holds(&anywhere_else, &game, dead, None));
-        assert!(!settled_holds(&anywhere_else, &game, bears, None));
+        assert!(settled_holds(&anywhere_else, &game, dead, None, ConditionReferents::NONE));
+        assert!(!settled_holds(&anywhere_else, &game, bears, None, ConditionReferents::NONE));
     }
 
     /// Every clause, and an empty conjunction is vacuously true.
@@ -486,11 +557,11 @@ mod tests {
             Condition::SourceInZone(ZoneSet::GRAVEYARD),
             yours(PlayerFact::ControlsPermanent(island)),
         ]);
-        assert!(!settled_holds(&wonder, &game, dead, None), "in the graveyard, no Island");
+        assert!(!settled_holds(&wonder, &game, dead, None, ConditionReferents::NONE), "in the graveyard, no Island");
         put_on_battlefield(&mut game, basic_lands::island(), 0);
-        assert!(settled_holds(&wonder, &game, dead, None), "in the graveyard, an Island");
+        assert!(settled_holds(&wonder, &game, dead, None, ConditionReferents::NONE), "in the graveyard, an Island");
 
-        assert!(settled_holds(&Condition::All(Vec::new()), &game, dead, None));
+        assert!(settled_holds(&Condition::All(Vec::new()), &game, dead, None, ConditionReferents::NONE));
     }
 
     /// An unattached source is attached to nothing, so nothing matches — the
@@ -501,19 +572,19 @@ mod tests {
         let mut game = setup_two_player_game();
         let aura = put_on_battlefield(&mut game, card_of_type("Loose Aura", CardType::Enchantment), 0);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-        assert!(!settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None));
+        assert!(!settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
 
         assert!(game.attach(aura, bears));
-        assert!(settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None));
+        assert!(settled_holds(&Condition::HostMatches(ObjectFilter::All), &game, aura, None, ConditionReferents::NONE));
         assert!(settled_holds(
             &Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
             &game,
-            aura, None
+            aura, None, ConditionReferents::NONE
         ));
         assert!(!settled_holds(
             &Condition::HostMatches(ObjectFilter::ByType(CardType::Artifact)),
             &game,
-            aura, None
+            aura, None, ConditionReferents::NONE
         ));
     }
 
@@ -523,7 +594,7 @@ mod tests {
     fn a_condition_on_a_missing_source_is_false() {
         let game = setup_two_player_game();
         let anywhere = Condition::SourceInZone(ZoneSet::ALL);
-        assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED, None));
+        assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED, None, ConditionReferents::NONE));
     }
 
     /// "If you put a permanent with a kicker ability onto the battlefield
@@ -533,7 +604,7 @@ mod tests {
     fn a_permanent_that_was_never_a_spell_was_not_kicked() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears, None));
+        assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears, None, ConditionReferents::NONE));
     }
 
     #[cfg(debug_assertions)]
@@ -542,6 +613,6 @@ mod tests {
     fn mode_chosen_on_a_static_is_loud() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let _ = settled_holds(&Condition::ModeChosen(0), &game, bears, None);
+        let _ = settled_holds(&Condition::ModeChosen(0), &game, bears, None, ConditionReferents::NONE);
     }
 }

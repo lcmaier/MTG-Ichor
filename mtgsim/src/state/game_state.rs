@@ -150,6 +150,31 @@ impl StackEntry {
     pub fn this_object(&self) -> ObjectId {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
     }
+
+    /// CR 707.10's decisions about its costs, which a copy and the permanent
+    /// it becomes keep.
+    pub fn cost_choices(&self) -> crate::state::battlefield::CostChoices {
+        crate::state::battlefield::CostChoices {
+            additional: self.additional_costs_paid.clone(),
+            alternative: self.chosen_alternative_cost.clone(),
+        }
+    }
+}
+
+impl GameState {
+    /// CR 707.10's cost decisions of `id`, wherever it is: the permanent's,
+    /// kept from its spell; the spell's on the stack; or the resolving
+    /// spell's, whose entry the resolution has taken. `None` for an object
+    /// that was never a spell, nor on the stack as one.
+    pub fn cost_choices_of(&self, id: ObjectId) -> Option<crate::state::battlefield::CostChoices> {
+        if let Some(entry) = self.battlefield.get(&id) {
+            return Some(entry.cost_choices.clone());
+        }
+        if let Some(spell) = self.stack_entries.get(&id) {
+            return Some(spell.cost_choices());
+        }
+        self.resolving.as_ref().filter(|r| r.id == id).map(|r| r.cost_choices.clone())
+    }
 }
 
 /// The stack object currently resolving, and the things about it that do not

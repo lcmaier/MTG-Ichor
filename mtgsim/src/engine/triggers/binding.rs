@@ -6,21 +6,26 @@
 
 use std::sync::Arc;
 
-use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{Lki, TriggerBinding};
 
 /// The subject as it was in the zone it left, when the matched event was its
-/// own departure: the record's CR 603.10a frame, naming the existence that
-/// left.
+/// own departure and the arm that matched looks back: the record's CR
+/// 603.10a frame, naming the existence that left. A "from anywhere" arm's
+/// subject is the object after the move (CR 603.6c), read where it went.
 pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
     let subject = binding.subject?;
+    if !binding.event().looks_back() {
+        return None;
+    }
     let (lki, ..) = binding.records.first()?.event.lki()?;
-    (lki.object.id == subject.id).then_some(lki)
+    (lki.object().id == subject.id).then_some(lki)
 }
 
 /// What "them" means in a trigger like Hedge Shredder's "Whenever one or more
@@ -57,7 +62,7 @@ fn carried_lki<'a>(
 ) -> Option<&'a Lki> {
     match subject_lki {
         Some(lki) if subject == Some(object) => Some(lki),
-        _ => kept.iter().find(|frame| frame.object == object),
+        _ => kept.iter().find(|frame| frame.object() == object),
     }
 }
 
@@ -113,13 +118,52 @@ impl GameState {
     /// information the resolving entry kept as it went (§6.1). `None` there is
     /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
+        self.triggering_object(binding)?.characteristics(self)
+    }
+
+    /// "It", the object a resolving trigger's event was about, in the form
+    /// CR 608.2h reads it: the object itself while it is still where the
+    /// event left it, and otherwise how it last existed.
+    ///
+    /// "How it last existed" comes from one of two places. When the event
+    /// was the object's own departure — a dies trigger's creature — the
+    /// event's record framed it just before it left. When it left later,
+    /// say sacrificed in response, the resolving trigger kept its frame as it
+    /// went ([`Self::lki_kept_by_resolving`]). `None` when the trigger has
+    /// no single object, or when the object left and nothing was kept, which
+    /// is a missed capture.
+    fn triggering_object<'a>(&'a self, binding: &'a TriggerBinding) -> Option<CurrentOrLastKnown<'a>> {
         let subject = binding.subject?;
-        match subject_lki(binding) {
-            Some(lki) => Some(Arc::clone(&lki.frame)),
-            None => match self.bound_object(binding) {
-                Some(id) => compute_characteristics(self, id),
-                None => self.resolving.as_ref()?.lki_of(subject).map(|lki| Arc::clone(&lki.frame)),
-            },
+        let lki = match subject_lki(binding) {
+            Some(lki) => Some(lki),
+            None if self.bound_object(binding).is_some() => None,
+            None => Some(self.lki_kept_by_resolving(subject)?),
+        };
+        Some(CurrentOrLastKnown { id: subject.id, lki })
+    }
+
+    /// How `object` last existed, as the spell or ability now resolving
+    /// remembers it — for an object its text names that has left the zone
+    /// it expected (CR 113.7a, 608.2h): a dies trigger's own creature, or a
+    /// creature sacrificed to pay the ability's cost. A stack object keeps
+    /// these as they leave because the board can no longer say what they
+    /// were. `None` while `object` is still there.
+    pub(crate) fn lki_kept_by_resolving(&self, object: ObjectRef) -> Option<&Lki> {
+        self.resolving.as_ref()?.lki_of(object)
+    }
+
+    /// What a resolving condition reads about the objects its text names
+    /// (CR 113.7a, 608.2h): the source's last known information once
+    /// `source`, the existence that put the ability on the stack, has left,
+    /// and "it", the trigger's subject, as `bound_characteristics` reads it.
+    pub(crate) fn condition_objects<'a>(
+        &'a self,
+        source: Option<ObjectRef>,
+        binding: Option<&'a TriggerBinding>,
+    ) -> ConditionReferents<'a> {
+        ConditionReferents {
+            source_lki: source.and_then(|source| self.lki_kept_by_resolving(source)),
+            triggering_object: binding.and_then(|binding| self.triggering_object(binding)),
         }
     }
 

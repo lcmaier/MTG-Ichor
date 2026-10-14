@@ -52,7 +52,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{
+use mtgsim::types::history::CountIs;
+use mtgsim::types::effects::{ConditionObject, 
     AmountExpr, CharacteristicEdit, Characteristic, Condition, CopyException, CounterType, Duration, Effect,
     EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, Primitive, SelectionFilter, TokenDef,
     TypeChange,
@@ -326,7 +327,7 @@ fn with_subtypes(subtypes: &[CreatureType]) -> TypeChange {
 /// hexproof: RG's fixture, whose seventh ruling makes him no planeswalker
 /// while he is a creature.
 fn kaito_shaped() -> Arc<CardData> {
-    let with_counters = Condition::SourceHasCounters { counter: CounterType::Loyalty, at_least: 1 };
+    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, counter: CounterType::Loyalty, is: CountIs::AtLeast(1) };
     let ninja_creature = TypeChange {
         set_types: Some(CardTypes::from([CardType::Creature])),
         add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],

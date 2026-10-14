@@ -2432,7 +2432,7 @@ at its word, the ruling would stop +1/+1 counters counting toward power in the
 look-ahead, which RE-5's cell relies on and no ruling questions.
 
 **The switch:** the look-ahead's condition check on the entering object's own
-counters (`Condition::SourceHasCounters`, evaluated against the would-be
+counters (`Condition::CounterCount` of `ThisObject`, evaluated against the would-be
 permanent). A flip to the ruling's reading would evaluate it against the
 counters the object had before its entry. Arixmethes is not registered. When it
 is, its ruling #2 gets a `// RULING-DEVIATION:` test naming this row. Spark

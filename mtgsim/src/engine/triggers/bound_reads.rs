@@ -12,7 +12,7 @@
 use std::ops::BitOr;
 
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
+    AmountExpr, Condition, ConditionObject, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
 use crate::types::triggers::{TriggerDef, TriggerLimit};
@@ -126,7 +126,7 @@ fn amount(a: &AmountExpr) -> BoundReads {
         | AmountExpr::StartingLifeTotal => BoundReads::NOTHING,
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
-        AmountExpr::SourcePower => BoundReads::SOURCE,
+        AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => BoundReads::SOURCE,
         AmountExpr::TriggeringAmount => BoundReads::AMOUNT,
         AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => BoundReads::CHARACTERISTICS,
     }
@@ -176,8 +176,10 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
-        | Condition::SourceHasCounters { .. } => BoundReads::SOURCE,
+        | Condition::CounterCount { object: ConditionObject::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
+        // "It had": the subject, as the record it left with framed it.
+        Condition::CounterCount { object: ConditionObject::TriggeringObject, .. } => BoundReads::CHARACTERISTICS,
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,
         // A mode makes the def modal, which reads everything; a history and
@@ -200,7 +202,7 @@ fn primitive(p: &Primitive) -> BoundReads {
         | Primitive::Exile
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
-        | Primitive::ReturnToBattlefield(_)
+        | Primitive::ReturnToBattlefield { .. }
         | Primitive::PutOnTopOfLibrary
         | Primitive::PutOnBottomOfLibrary
         | Primitive::ShuffleIntoLibrary

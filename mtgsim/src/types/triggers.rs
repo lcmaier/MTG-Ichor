@@ -20,8 +20,9 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
+use crate::state::battlefield::{CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
+use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::zones::{DrawFilter, Zone, ZoneChangePattern};
@@ -868,12 +869,13 @@ pub struct DelayedTrigger {
     /// leaves the battlefield" knows its own departure and no later move of
     /// a new object with the same id.
     pub source_left_at: Option<EventSeq>,
-    /// CR 113.7a, 608.2h — `source` as it last existed in the zone it was in
-    /// when this was created, framed as it left. Its trigger carries the frame
-    /// to the stack, where the source's characteristics are read from it.
-    /// `None` while the source is still there, and after a move nothing
-    /// frames: CR 601.2a's, out of a hidden zone.
-    pub source_frame: Option<Arc<EffectiveCharacteristics>>,
+    /// CR 113.7a, 608.2h — `source`'s last known information once it has
+    /// left the zone it was in when this was created: kept as it left, or
+    /// as this was created if it had already gone. Its trigger carries it to
+    /// the stack, and its intervening "if" reads the source off it. `None`
+    /// while the source is still there, and after a move nothing frames: CR
+    /// 601.2a's, out of a hidden zone.
+    pub source_lki: Option<Lki>,
     /// What its stack object is built from (CR 603.3's "the text of the
     /// ability that created it"), held because the source may be gone by
     /// then.
@@ -980,23 +982,114 @@ impl RememberedObject {
 }
 
 /// An object's last known information (CR 113.7a, 608.2h): the existence
-/// that left (CR 400.7) and its characteristics as it last existed in the zone
-/// it left. A departure record carries one (CR 603.10a), and so does damage a
-/// source deals after it left (item 225). An entry that names an object — its
-/// source, or its trigger's subject — keeps one when the object leaves the
-/// zone the entry expected it in (`triggers-architecture.md` §6.1), since the
-/// departure is a later event than the one that triggered. TR-4a widens it
-/// with the facts a frame does not carry (`triggers-architecture.md` §3.11).
+/// that left (CR 400.7), its characteristics as it last existed in the zone it
+/// left, and the facts about it that no layer computes. A departure record
+/// carries one (CR 603.10a), and so does damage a source deals after it left.
+/// An entry that names an object — its source, or its trigger's subject —
+/// keeps one when the object leaves the zone the entry expected it in
+/// (`triggers-architecture.md` §6.1), since the departure is a later event
+/// than the one that triggered.
+///
+/// One body behind one pointer: the record and every entry that keeps it
+/// share it, and handing it over clones the pointer.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Lki {
-    pub object: ObjectRef,
-    pub frame: Arc<EffectiveCharacteristics>,
+pub struct Lki(Arc<LkiBody>);
+
+#[derive(Debug, PartialEq)]
+struct LkiBody {
+    object: ObjectRef,
+    frame: Arc<EffectiveCharacteristics>,
+    /// CR 108.3. The store loses a token at CR 704.5d and an object whose
+    /// owner leaves at CR 800.4a, and this is then the one place it is kept.
+    owner: PlayerId,
+    /// CR 707.10's decisions about the spell it was.
+    cost_choices: CostChoices,
+    /// `None` for an object that left a zone other than the battlefield.
+    permanent: Option<PermanentFacts>,
+}
+
+/// What a permanent had that its characteristics do not carry: its tapped
+/// status (CR 110.5), its counters (CR 122) and its attachments both ways
+/// (CR 301.5, 303.4).
+#[derive(Debug, PartialEq)]
+struct PermanentFacts {
+    tapped: bool,
+    /// By kind, in `CounterType`'s order.
+    counters: Vec<(CounterType, u32)>,
+    attached_to: Option<ObjectId>,
+    attached_by: Vec<ObjectId>,
 }
 
 impl Lki {
+    /// `object` as it is now, about to leave: `frame` is its characteristics,
+    /// and `permanent` its entry while it is on the battlefield.
+    pub fn new(
+        object: ObjectRef,
+        frame: Arc<EffectiveCharacteristics>,
+        owner: PlayerId,
+        cost_choices: CostChoices,
+        permanent: Option<&PermanentState>,
+    ) -> Lki {
+        let permanent = permanent.map(|entry| {
+            // ORDER-FREE: sorted next.
+            let mut counters: Vec<(CounterType, u32)> =
+                entry.counters.iter().map(|(&kind, stack)| (kind, stack.count)).filter(|&(_, n)| n > 0).collect();
+            counters.sort_unstable_by_key(|&(kind, _)| kind);
+            PermanentFacts {
+                tapped: entry.tapped,
+                counters,
+                attached_to: entry.attached_to,
+                attached_by: entry.attached_by.clone(),
+            }
+        });
+        Lki(Arc::new(LkiBody { object, frame, owner, cost_choices, permanent }))
+    }
+
+    /// The existence that left.
+    pub fn object(&self) -> ObjectRef {
+        self.0.object
+    }
+
     /// The characteristics it last had.
     pub fn chars(&self) -> &EffectiveCharacteristics {
-        &self.frame
+        &self.0.frame
+    }
+
+    /// The same, shared.
+    pub fn frame(&self) -> &Arc<EffectiveCharacteristics> {
+        &self.0.frame
+    }
+
+    pub fn owner(&self) -> PlayerId {
+        self.0.owner
+    }
+
+    pub fn cost_choices(&self) -> &CostChoices {
+        &self.0.cost_choices
+    }
+
+    /// Whether it was tapped; `None` for an object that was not a permanent.
+    pub fn was_tapped(&self) -> Option<bool> {
+        self.0.permanent.as_ref().map(|p| p.tapped)
+    }
+
+    /// How many `kind` counters it had (CR 122.8, 122.9), none for an object
+    /// that was not a permanent.
+    pub fn counters(&self, kind: CounterType) -> u32 {
+        let Some(permanent) = &self.0.permanent else { return 0 };
+        permanent.counters.iter().find(|(k, _)| *k == kind).map_or(0, |&(_, n)| n)
+    }
+
+    /// What it was attached to.
+    pub fn host(&self) -> Option<ObjectId> {
+        self.0.permanent.as_ref().and_then(|p| p.attached_to)
+    }
+
+    /// Whether `attachment` was attached to it: an Aura's "when enchanted
+    /// creature dies" asks its host's departure (CR 603.10a), since the
+    /// Aura that stays was detached by then.
+    pub fn had_attached(&self, attachment: ObjectId) -> bool {
+        self.0.permanent.as_ref().is_some_and(|p| p.attached_by.contains(&attachment))
     }
 }
 

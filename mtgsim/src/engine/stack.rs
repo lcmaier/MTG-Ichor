@@ -3,7 +3,7 @@ use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
-use crate::state::battlefield::{CastFacts, CostChoices};
+use crate::state::battlefield::CastFacts;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::ids::ObjectId;
@@ -70,10 +70,7 @@ impl GameState {
                 from,
                 mana_spent: entry.mana_spent,
             }),
-            cost_choices: CostChoices {
-                additional: entry.additional_costs_paid.clone(),
-                alternative: entry.chosen_alternative_cost.clone(),
-            },
+            cost_choices: entry.cost_choices(),
             x_value: entry.x_value,
             identity: entry.ability_identity,
             subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
@@ -109,12 +106,14 @@ impl GameState {
         // clause is false "is removed from the stack and does nothing" — no
         // fizzle, no resolution, no `AbilityResolved`. "You" is the player who
         // controlled the source as it triggered (CR 109.5, 603.3a), whatever
-        // has become of the source since.
+        // has become of the source since, and the source and "it" are read as
+        // they last existed once they have left (CR 113.7a, 608.2h).
         if let Some(binding) = &entry.trigger
             && let Some(condition) = &binding.def.intervening_if
         {
             let source = entry.this_object();
-            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller)) {
+            let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
+            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects) {
                 self.ability_leaves_the_stack(object_id);
                 return Ok(());
             }

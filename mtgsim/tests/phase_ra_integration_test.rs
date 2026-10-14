@@ -106,7 +106,7 @@ fn lki_for(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristic
         if let GameEvent::ZoneChange { object_id, lki, .. } = e
             && *object_id == id {
             assert!(found.is_none(), "expected exactly one zone change for {}", id);
-            found = Some(lki.as_ref().map(|d| d.frame.clone()));
+            found = Some(lki.as_ref().map(|d| Arc::clone(d.frame())));
         }
     }
     found.expect("no zone change for that object")

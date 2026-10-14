@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-09",
+  "fetched": "2026-10-14",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -215,6 +215,12 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Compost": {
+      "first_seen": "2026-10-14",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "The ability triggers on a black card being discarded, milled, or countered, as well as a black card going to the graveyard from the battlefield."}
+      ]
+    },
     "Containment Priest": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -313,6 +319,12 @@
       "rulings": [
         {"n": 1, "published_at": "2008-08-01", "comment": "The amount of mana produced is unchanged, but it will all be {U}."},
         {"n": 2, "published_at": "2004-10-04", "comment": "Deep Waters affects lands you control when it resolves and any lands you gain control of this turn."}
+      ]
+    },
+    "Demonic Vigor": {
+      "first_seen": "2026-10-14",
+      "rulings": [
+        {"n": 1, "published_at": "2018-04-27", "comment": "Demonic Vigor can enchant a token, but its last ability won’t return the token to your hand."}
       ]
     },
     "Diabolic Edict": {
@@ -1033,6 +1045,10 @@
         {"n": 8, "published_at": "2019-05-03", "comment": "If the copied permanent is affected by a type-changing effect, Spark Double may enter the battlefield with different permanent types than the copied permanent currently has. Use the characteristics of Spark Double as it enters the battlefield, not of the copied permanent, to determine whether it enters with an additional counter on it. Notably, if Spark Double copies a Gideon planeswalker that’s a creature because its loyalty ability caused it to become a planeswalker creature, Spark Double enters as a noncreature planeswalker and doesn’t get a +1/+1 counter. On the other hand, if Spark Double copies Gideon Blackblade during your turn, Spark Double enters as a planeswalker creature and gets both kinds of counters."},
         {"n": 9, "published_at": "2019-05-03", "comment": "If Spark Double somehow enters the battlefield at the same time as another permanent, it can’t become a copy of that permanent. You may choose only a creature or planeswalker that’s already on the battlefield."}
       ]
+    },
+    "Strangleroot Geist": {
+      "first_seen": "2026-10-14",
+      "rulings": []
     },
     "Stunning Reversal": {
       "first_seen": "2026-09-17",

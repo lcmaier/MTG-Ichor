@@ -1278,3 +1278,103 @@ each shown to fail without its change. +575 and −288 in code and tests over
 the PR as
 it stood. Predicted and read `IDENTICAL` against the pre-review binary on
 both pools at two seats and four.
+
+#### TR-4a — the frame's facts and their readers — ✅ landed 2026-10-14
+
+*Evicted 2026-10-14 from `plans/triggers-architecture.md` §12, where the heading and a stub remain, with TR-4's section after it.*
+
+### The plan as sized (TR-4a, as §12 carried it on 2026-10-14)
+
+Split from the 2026-09-24 TR-4a by A6p's re-count (2026-10-12), with TR-4c
+its other half. Code at 1.5–2× its sizing plus tests.
+
+| Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
+|---|---|---|---|---|
+| `Lki` widened behind its `Arc`, so `GameEvent` keeps its 72 bytes: `Status` with what was attached to the object, the cost decisions, `cast`, the owner (§3.11); `DelayedTrigger.source_frame` an `Lki`; the reader methods; the five live-source leaves and a delayed trigger's "if" read off the frame (§6.1); `TriggeringObjectHadCounters` with its polarity; item 168, with the kept LKI seeded from the frame; items 251 and 252; `ReturnToBattlefield` with entry counters; an amount for "the counters it had" (CR 122.8, 122.9); the dispatch audit's snapshot keeping the host and the status | Strangleroot Geist, Demonic Vigor, Compost (item 251's boards, with a Clone and with Darkest Hour); Kitchen Finks' seven rulings as undying's; ATOM-603.6e-002, ATOM-122.8-001 and ATOM-122.9-001 | ~635 (950–1,270) | ~1,170 | 2,120–2,440 |
+
+### As landed (2026-10-14)
+
+PR #251, two code commits ahead of the docs.
+
+- **The type.** `Lki(Arc<LkiBody>)`: the existence, the frame (the memo's
+  `Arc`, shared), the owner, the cost decisions and `Option<PermanentFacts>`
+  with the tapped status, counters by kind and attachments both ways. The
+  body is private; `object()`, `chars()`, `frame()`, `owner()`,
+  `cost_choices()`, `was_tapped()`, `counters(kind)`, `host()` and
+  `had_attached(id)` are the surface. `last_known_information` builds it
+  before the batch performs; the hand-over clones the pointer. The audit's
+  `ObjectSnapshot` holds one, and `DelayedTrigger.source_lki` replaced
+  `source_frame`, seeded at creation when the source has already gone.
+- **The readers.** `ConditionReferents { source_lki, triggering_object }`
+  through `settled_holds`, built by the dispatch
+  (`triggers_whose_intervening_if_holds`), the recheck and an effect's own
+  "if" (`condition_objects`) and the delayed registry. `Condition::CounterCount
+  { object, counter, is }`, which took `SourceHasCounters`' place;
+  `AmountExpr::SourceCounters`; `Primitive::ReturnToBattlefield { under,
+  counters }`. `owner_of_source` replaced `owner_now_or`, refusing a source
+  with no owner anywhere. `HeldFrame::LastKnown` hands the filter table an
+  owner with the frame.
+- **The items.** 251: `SubjectRead::of_departure` gives an arm the frame
+  only when it looks back, and `subject_lki` likewise. 252: a look-back
+  `Host` asks `had_attached`. 168: `TriggerCandidate.object` is the
+  existence whose list it is, and `MatchedTrigger.source_lki` seeds the
+  entry. Each fix was reverted in turn against the TR-4a tests, and each
+  failed its fixtures (2, 3 and 1; the five leaves 12; the two owner reads
+  1 each).
+- **The cards.** Strangleroot Geist pooled; Demonic Vigor and Compost
+  registered. `persist()` and `undying()` are authoring words over one
+  shape. Kitchen Finks waits for CP-1's hybrid payment.
+
+The sitting is `fuzz-record.md`'s TR-4a block.
+
+### The model pass round (2026-10-14)
+
+§9's model pass read the 22 engine files the branch changed, its report
+unseen, and found seventeen facts written twice. Three readings this branch
+wrote or exposed already disagreed, and each is fixed with a fixture shown
+failing on `5699bc9`:
+- **"It" at the trigger was per record, and at resolution per occurrence**,
+  so two attackers declared together read no "it" at all.
+  `triggers_whose_intervening_if_holds` asks each one, for both matchers.
+- **A resolving spell's cost decisions were missed by the capture**, so a
+  kicked spell's delayed trigger read it unkicked. `GameState::cost_choices_of`
+  reads a permanent, a spell on the stack or the resolving spell.
+- **"Its owner" in a gone source's condition panicked**: the `holds` guard
+  now lets a held `Lki` through, and `FilterPlayers::owner` expected a row.
+  `for_source` takes the owner off the `Lki`.
+
+Two merges in its own code rode with them: `CurrentOrLastKnown` is the one
+type for "it", and `lki_kept_by_resolving` the one lookup. The rest are the
+duplicate inventory's §3.6, beside A6e (item 247). Against `shipped`, every
+row outside timing played identically on both pools at two seats and four.
+
+### Review round (2026-10-14)
+
+The owner's comments were about names, and about two shapes:
+- **One counter leaf.** `SourceHasCounters { counter, at_least }` and the
+  new `TriggeringObjectHadCounters { counter, had }` became
+  `CounterCount { object: ThisObject | TriggeringObject, counter, is:
+  CountIs }`: which object and how many, with persist's "had no" as
+  `AtMost(0)` and no polarity flag.
+- **One condition entry.** `settled_holds_with` wrapped `settled_holds`,
+  which wraps `holds`; `settled_holds` takes the referents, and every static
+  asker passes `ConditionReferents::NONE` by name.
+- **Names.** `ConditionObjects` became `ConditionReferents`, with an
+  explicit `NONE` in place of `Default`; `HeldFrame::Chars`,
+  `Characteristics`; `Return`, `ReturningObject`; `bound_as_it_was`,
+  `triggering_object`; `kept_lki_of`, `lki_kept_by_resolving`;
+  `SubjectRead`'s `LookingBack` and `LastKnown`, `LeftInThisEvent` and
+  `GoneBeforeThisEvent`: both read last known information, and what sets
+  them apart is whether the subject was a permanent at the moment the
+  trigger asks about; `IfAsker`, `TriggerSource`;
+  `occurrences_whose_if_holds`, `triggers_whose_intervening_if_holds`; and
+  `last_known_with` folded into `last_known_information`, which takes the
+  frame its caller may read.
+- **The tests.** The intervening-if tests are named for their board and
+  their answer, and the five leaves' helper says what it builds and checks.
+- **A bug the rename exposed.** A damage source that had already left the
+  battlefield was matched to an Aura's "enchanted creature" by id, so after
+  a flicker the Aura on the new object saw damage the old one dealt (CR
+  400.7, 608.2h). An object gone before the event has nothing attached to
+  it, and `Host` now answers no for it; the Spirit Link fixture failed
+  first, at 23 life against 21.

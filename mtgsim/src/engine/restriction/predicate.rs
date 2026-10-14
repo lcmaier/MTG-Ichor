@@ -8,7 +8,7 @@
 //! last one is a property of CR 101.2 rather than a simplification.
 
 use crate::engine::actions::GameAction;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
 use crate::events::cause::EventCause;
 use crate::engine::replacement::{pattern_watches, set_affects, subject_of, EntryFrame, EventSubject};
@@ -143,7 +143,7 @@ pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition
                 // same evaluator, that `replacement::gather` gives a
                 // conditional replacement.
                 let Some((condition, def)) = ability.effect.as_restriction() else { continue };
-                if condition.is_some_and(|condition| !settled_holds(condition, game, id, None)) {
+                if condition.is_some_and(|condition| !settled_holds(condition, game, id, None, ConditionReferents::NONE)) {
                     continue;
                 }
                 if matches(game, def, id, controller, query, frame) {

@@ -37,6 +37,96 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-14 for TR-4a** (#251: the frame's facts and their
+readers, items 14, 168, 251 and 252). Strangleroot Geist joins the pool, and
+it, Demonic Vigor and Compost join the registry (188 → 191 registered, 106 →
+107 pooled), so both §3 columns are new baselines. `close_out.py` against
+**main** `72f93d1` (#250's merge), with **engine** `682fa2c` (every engine
+change, no card registered) and **shipped** `5699bc9`.
+
+**Predictions, before any arm ran:**
+- engine `IDENTICAL` to `main` on gameplay and cost rows, both pools, two
+  seats and four: every changed reader is reached only through an object that
+  has left, and no registered card asks one there.
+- Every dispatch agreed. Instructions per decision within ±0.3%.
+- shipped differing from `main` on both pools by the pool.
+- Reachability: the Geist cast in about half the games at two seats and
+  about 40% at four.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| every row outside timing, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 162,773 / 165,843 | 332,014 / 341,588 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the pool) | differ (the pool) / differ (the pool) |
+| audit, shipped, performance / stress, dispatches agreed | 165,451 / 155,669 | 329,030 / 339,349 |
+| `Candidate visits`, `main` → shipped, performance / stress | 41.0 → 55.5 / 43.9 → 58.3 | 161.1 → 185.0 / 143.5 → 195.2 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6462 M → 0.6473 M, **+0.17%** |
+
+Every prediction held but one count. The Geist was cast in 110 of 200 games
+(55%) at two seats and 100 (50%) at four, above the 40% predicted: the
+prediction came from forced `stress` runs, and the close-out's read is on
+`performance`. `Candidate visits` rise with the pool, by the Geist's own
+trigger and the deaths it adds. The sitting ran in 173 s.
+
+**Before registering**, each card forced into every `stress` deck, 200 games
+at seed 12345 with the audit on: no error, panic or turn-limit game at two
+seats or four. Average turns 25.3 with none required, against 25.3 (Geist),
+25.7 (Vigor) and 26.1 (Compost) at two seats; 53.3 against 52.1, 51.8 and
+54.4 at four. The Geist's event dump holds 113 deaths and 67 undying returns.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors and 0 panics everywhere, and every dispatch agreed
+(811,385 / 867,438 at two seats, 1,664,112 / 1,774,760 at four). One
+four-seat `stress` game hit the turn limit: game 503 (seed 1279), where P1
+casts Nexus of Fate every turn and takes the extra turn, 583 casts by turn
+600 with damage frozen at 90. It is a loop with an optional action, which CR
+104.4b makes no draw and the random agent never stops (§4.9's turn limit
+standing in, TR-6's). None of the three cards was cast in it. The engine arm
+reads `main`'s 0 on the same smoke, to the audit count, so the pool's new
+decks reached it.
+
+**The model pass round** (three readings fixed, two merges; the triggers
+doc's archive, TR-4a). Predicted identical to shipped, since no registered
+card reads "it" in an intervening "if", `SpellWasKicked` or a gone source's
+owner. `fuzz_ab.py` against shipped `5699bc9`, 200 games at seed 12345,
+audited: every row outside timing **IDENTICAL** on both pools at two seats
+and four. The rows below stand.
+
+**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** Both columns
+are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 31 (62.0%) / 19 (38.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.8 | 27.3 |
+| Spells cast | 21.6 | 20.3 |
+| Lands played | 16.8 | 16.2 |
+| Combat w/ atk | 10.3 | 8.5 |
+| Creatures died | 7.6 | 5.0 |
+| Damage events | 22.3 | 18.5 |
+| Total damage | 60.4 | 51.7 |
+| Life changes | 14.4 | 14.5 |
+| **Layer walks** | **328** | **418** |
+| **Board walks** | **203** | **245** |
+| **Memo hits** | **50,853** | **79,344** |
+| **Layer frames** | **3,670** | **5,346** |
+| **Frames/walk** | **11.19** | **12.78** |
+| **Dependency checks** | **10** | **40** |
+| **Replacement gathers** | **985** | **1056** |
+| **Restriction queries** | **987** | **1058** |
+| Mana productions | 63 | 91 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.14 | 0.48 |
+| Max batch depth | 4 | 5 |
+| Decisions | 183 | 269 |
+| Priority decisions | 68 | 111 |
+| Actions reversed | 0.2 | 0.5 |
+| Triggers placed | 2.9 | 2.6 |
+| Windows past gate | 49.4 | 46.8 |
+| Candidate visits | 58.4 | 55.5 |
+| Trigger matches | 4.1 | 3.1 |
+
 **Re-recorded 2026-10-14 for A6m's second PR** (#250: mana's copies, one
 `ObjectFilter` leaf table, and the scenario format's and the dev GUI's copies;
 `codebase-state.md` items 243, 245 and 246). No card joins the registry or the

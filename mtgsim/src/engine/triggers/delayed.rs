@@ -24,10 +24,10 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{TriggerReferents, TriggerSource, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::event::{EventRecord, EventSeq, GameEvent};
@@ -78,7 +78,13 @@ impl GameState {
         };
         let id = DelayedTriggerId(self.next_delayed_trigger_id);
         self.next_delayed_trigger_id += 1;
-        let owner = self.owner_now_or(provenance.source.id, provenance.controller);
+        // A source already gone as this is made, such as a dies trigger's own,
+        // is known only by what its resolution kept (CR 113.7a).
+        let source_lki = match self.find(provenance.source) {
+            Some(_) => None,
+            None => self.lki_kept_by_resolving(provenance.source).cloned(),
+        };
+        let owner = self.owner_of_source(provenance.source)?;
         let created = GameEvent::DelayedTriggerCreated {
             id,
             source: provenance.source.id,
@@ -92,7 +98,7 @@ impl GameState {
             def: Arc::clone(&template.def),
             source: provenance.source,
             source_left_at: None,
-            source_frame: None,
+            source_lki,
             source_card: provenance.source_card,
             controller: provenance.controller,
             owner,
@@ -151,10 +157,11 @@ impl GameState {
         if !not_done {
             return None;
         }
-        if let Some(condition) = &reflexive.def.intervening_if
-            && !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller))
-        {
-            return None;
+        if let Some(condition) = &reflexive.def.intervening_if {
+            let objects = ConditionReferents { source_lki: reflexive.source_lki.as_ref(), triggering_object: None };
+            if !settled_holds(condition, self, reflexive.source.id, Some(reflexive.controller), objects) {
+                return None;
+            }
         }
         let unbound = MatchedTrigger {
             identity: reflexive.identity(),
@@ -166,21 +173,26 @@ impl GameState {
             records: Vec::new(),
             subject: None,
             mana: false,
+            source_lki: None,
         };
         Some(pending_of(unbound, reflexive))
     }
 
     /// The source's owner as an entry naming it is made (CR 108.3), read now
-    /// because the store can lose the source before the entry reads it (item
-    /// 235). `fallback`, the entry's controller, stands in for a source
-    /// already gone: a token that ceased to exist before its ability resolved
-    /// (CR 704.5d), whose controller is its owner unless control changed, or
-    /// an object whose owner has left the game (CR 800.4a). Neither is exact
-    /// until last known information carries the owner
-    /// (`triggers-architecture.md` §3.11, TR-4a).
-    pub(crate) fn owner_now_or(&self, id: ObjectId, fallback: PlayerId) -> PlayerId {
-        self.objects.get(&id).map_or(fallback, |o| o.owner)
+    /// because the store can lose the source before the entry reads it. One
+    /// already gone — a token that ceased to exist before its ability
+    /// resolved (CR 704.5d), or an object whose owner has left the game (CR
+    /// 800.4a) — is known by the last known information its resolution kept.
+    /// No owner anywhere is a missed capture.
+    pub(crate) fn owner_of_source(&self, source: ObjectRef) -> Result<PlayerId, String> {
+        if let Some(object) = self.objects.get(&source.id) {
+            return Ok(object.owner);
+        }
+        self.lki_kept_by_resolving(source).map(Lki::owner).ok_or_else(|| {
+            format!("{} is gone, and the resolution kept no last known information to say who owned it", source.id)
+        })
     }
+
 
     /// CR 400.7: object `id` is about to move, and the next record is that
     /// move. A delayed trigger whose source it is, or that refers to it,
@@ -386,13 +398,13 @@ impl GameState {
         if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
-        // CR 603.4 at the trigger, "you" its controller (CR 109.5).
-        if let Some(condition) = &delayed.def.intervening_if
-            && !settled_holds(condition, self, delayed.source.id, Some(delayed.controller))
-        {
-            return Err(Refusal::InterveningIf);
-        }
-        Ok(matched)
+        // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
+        // source as it last existed once it has left (CR 113.7a, 400.7).
+        let (event, subjects) = matched;
+        let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: delayed.source_lki.as_ref() };
+        let arm = &delayed.def.condition.events()[event.0];
+        let subjects = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, subjects, source)?;
+        Ok((event, subjects))
     }
 
     /// The trace's `trigger` record of an entry's verdict on record `seq`,
@@ -426,6 +438,7 @@ impl GameState {
             records: vec![record.clone()],
             subject: subject.and_then(|id| self.subject_after(&record.event, id)),
             mana: false,
+            source_lki: None,
         };
         match delayed.def.condition.events()[event.0].multiplicity() {
             Multiplicity::PerOccurrence => occurrences.extend(subjects.into_iter().map(occurrence)),
@@ -561,11 +574,7 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             referred: delayed.referred.clone(),
         },
         is_state_trigger: false,
-        kept_lki: delayed
-            .source_frame
-            .iter()
-            .map(|frame| Lki { object: delayed.source, frame: Arc::clone(frame) })
-            .collect(),
+        kept_lki: delayed.source_lki.iter().cloned().collect(),
         x_value: delayed.x_value,
     }
 }

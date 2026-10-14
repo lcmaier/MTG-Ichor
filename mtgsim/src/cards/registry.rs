@@ -26,6 +26,7 @@ use super::phase_tr2b_cards;
 use super::phase_tr3a_cards;
 use super::phase_tr3b_cards;
 use super::phase_tr3c_cards;
+use super::phase_tr4a_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -57,7 +58,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 106] = [
+const PERFORMANCE_POOL: [&str; 107] = [
     "Plains",
     "Island",
     "Swamp",
@@ -491,6 +492,10 @@ const PERFORMANCE_POOL: [&str; 106] = [
     // source's departure is dispatched, with no stack.
     "Flickerwisp",
     "Banishing Light",
+    // TR-4a's: an intervening "if" read off the triggering object's last known
+    // information at the trigger and at resolution, and a return with a
+    // counter. It returns once, so a game gains a creature and not a loop.
+    "Strangleroot Geist",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -862,6 +867,13 @@ impl CardRegistry {
         // TR-3c: the reflexive trigger. Not pooled: no pooled card has a
         // "when you do", so the performance A/B stays IDENTICAL.
         registry.register("Cornered Crook", phase_tr3c_cards::cornered_crook);
+
+        // TR-4a: the frame's facts. Strangleroot Geist is pooled (above);
+        // Demonic Vigor and Compost are the two sides of CR 603.10's look-back,
+        // which the tests carry.
+        registry.register("Strangleroot Geist", phase_tr4a_cards::strangleroot_geist);
+        registry.register("Demonic Vigor", phase_tr4a_cards::demonic_vigor);
+        registry.register("Compost", phase_tr4a_cards::compost);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

@@ -349,7 +349,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     };
     let mut referred: Vec<ObjectRef> = Vec::new();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
-        let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object);
+        let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object());
         let binding = entry.trigger.as_ref();
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
         referred.extend(binding.and_then(|b| b.subject).map(as_it_left));
@@ -359,13 +359,13 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         for instance in &entry.chosen_targets {
             referred.extend(objects_of(&instance.chosen));
         }
-        referred.extend(entry.kept_lki.iter().map(|d| d.object));
+        referred.extend(entry.kept_lki.iter().map(|d| d.object()));
     }
     if let Some(resolving) = &game.resolving {
-        let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object);
+        let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object());
         referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
         referred.extend(resolving.subject.map(as_it_left));
-        referred.extend(resolving.kept_lki.iter().map(|d| d.object));
+        referred.extend(resolving.kept_lki.iter().map(|d| d.object()));
     }
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
