@@ -5963,8 +5963,14 @@ made reachable by this phase.
      substitute, keeping the act and the applied set and read by act words
      only, since a `ZoneChange` with `from == to` would need an exclusion at
      about 19 readers of `from` and `to` (`triggers-architecture.md` §3.12a,
-     decision 3): ~50–80 lines of code and ~60–90 of tests. CR 701.17c counts
-     the shuffled Colossus as milled, so the wrinkle's mill of three reads 3.
+     decision 3): ~50–80 lines of code and ~60–90 of tests. **Settled 2026-10-13:**
+     the cards are still milled. Jess Dunks (WotC rules manager) answered
+     Zellix, Sanity Flayer under Leyline of the Void and under Wheel of Sun and
+     Moon: "The cards are still milled. You will get Horrors in both of your
+     examples" (https://x.com/Dunkatog/status/1532895908328636416, 2022-06-03,
+     brought by the owner's judge Discord). So the wrinkle's mill of three
+     reads 3. Zellix's "creature cards" reads what the card is, so the record
+     carries the card as it was milled; finding it afterward is item 258's.
      26 cards read a mill: `(o:"when " or o:"whenever ") (o:"mills one or
      more" or o:"cards milled" or o:"milled this way") game:paper -is:funny`.
      **Slotted:** TR-4d, the records' missing facts, with a fixture milling
@@ -9346,8 +9352,17 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      `ZoneChange` arm with `from: None` and a filter (`grep -rn "from: None"
      src/cards` finds replacement patterns and entries only).
      **Sized:** ~10 lines of code and ~90 of tests: the frame passed only when
-     `arm.looks_back()`, and a board in each direction.
-     **Slotted:** TR-4a, which decides which arms read the frame.
+     `arm.looks_back()`, and a board in each direction. Compost ("Whenever a
+     black card is put into an opponent's graveyard from anywhere") is the
+     card. A registered Clone copying a black creature dies blue, and Darkest
+     Hour's black creatures die their own colors, so neither triggers it (the
+     owner, at #246's review). Gandalf the White's multiplier reads the other
+     side: "a legendary permanent or an artifact ... leaving the battlefield"
+     looks back (its ninth ruling). So one board, an artifact by an effect
+     dying under a "from anywhere" watcher, stresses both reads, in TR-5d's
+     multiplier tests.
+     **Slotted:** TR-4a, which decides which arms read the frame, with Compost
+     registered.
 
 252. **A surviving attachment's host is read after the event detached it.**
      `TriggerSubject::Host` compares the candidate's host, which the dispatch
@@ -9384,29 +9399,41 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      `GameEvent::lki`.
      **Slotted:** TR-4d, with the `IsCountered` arm and Multani's Presence.
 
-254. **The draw step's first card is a count, and both sides read a proxy for
-     it.** "Except the first one you draw in each of your draw steps" reads
-     `DrawCause::TurnBased`, which marks the draw step's own draw. When a
-     replacement takes that draw and a later draw comes in the same step, the
-     later card is the first one drawn, as miracle's "the first card you've
-     drawn this turn" counts (CR 702.94a). The trigger side has no field at
-     all, since `CardDrawn` drops the cause. 3 trigger cards: `o:"except the
-     first one" (o:"when " or o:"whenever ") o:draw`, Orcish Bowmasters among
-     them.
+254. **A draw's place among its player's draws is read through a proxy, and
+     a trigger cannot ask for it.** Cards print two places:
+     - the turn's: "whenever you draw your second card each turn" (Gavi, Nest
+       Warden);
+     - the draw step's: "except the first one you draw in each of your draw
+       steps".
+
+     Records carry the first already (`EventRecord::place_in_turn`, which
+     TR-2a's "for the first time each turn" reads as 1), but `DrawsCard` has
+     no field asking for 2. The draw step's place is counted nowhere. Both
+     sides read `DrawCause::TurnBased`, which marks the step's own draw. When
+     a replacement takes that draw and a later draw comes in the same step,
+     the later card is the first one drawn, as miracle counts "the first card
+     you've drawn this turn" (CR 702.94a). 78 trigger cards: `(o:"when " or
+     o:"whenever ") o:draw (o:"second card" or o:"third card" or o:"first
+     card")`; 7 replacements: `o:"would draw" (o:"second card" or o:"first
+     card" or o:"except the first")`.
      **Reachability (2026-10-12):** reachable — wrong today, by the reading
      above (no ruling decides it), with registered cards. Words of Worship
      turns the draw step's draw into 5 life, and Opt then draws in the same
-     step. Under Teferi's Ageless Insight, Opt's card becomes two (`pipeline.rs`'s
-     `DrawCause::Effect` test), where the count makes it one. Notion Thief and
-     Alhammarret's Archive read the same proxy.
-     **Sized:** ~60 lines of code and ~120 of tests: a materialized count of
-     the cards a player has drawn this draw step, read by both sides, a
-     `CardDrawn` field for the trigger side, and a cause arm for CR 103.5's
-     opening hand, which draws with none.
-     **Slotted:** TR-4d, the records' missing facts, with a fixture shaped like
-     Orcish Bowmasters under the registered Thought Reflection; or a small fix
-     before TR-4, if the owner wants the wrong answer gone sooner
-     (`triggers-architecture.md` §3.12a, decision 7).
+     step. Under Teferi's Ageless Insight, Opt's card becomes two
+     (`pipeline.rs`'s `DrawCause::Effect` test), where the count makes it one.
+     Notion Thief and Alhammarret's Archive read the same proxy.
+     **Sized:** ~90 lines of code and ~160 of tests (widened at #246's review,
+     after the owner named Gavi):
+     - the count of a player's draws in the current draw step, beside the
+       turn's on the history;
+     - a place on `DrawsCard`: the turn's Nth, or the draw step's first
+       excluded;
+     - the replacement side reading the step's count instead of `DrawCause`;
+     - a cause arm for CR 103.5's opening hand, which draws with none.
+     **Slotted:** TR-4d, the records' missing facts, with Gavi's board and a
+     fixture shaped like Orcish Bowmasters under the registered Thought
+     Reflection; or a small fix before TR-4, if the owner wants the wrong
+     answer gone sooner (`triggers-architecture.md` §3.12a, decision 7).
 
 255. **A record names two objects, and the binding keeps one.** Each combat
      and targeting record names two parties:
@@ -9475,9 +9502,16 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      reader.
      **Sized:** ~15 lines of code and ~40 of tests: the binding's, the
      remembered object's and `put_into_since`'s finds refuse a hidden zone.
-     **Slotted:** with the first registered card that refers to an object it
-     or its trigger moved into a hand or library, which adds the refusal and
-     its test.
+     **Re-slotted at #246's review (the owner, 2026-10-13):** what can be
+     found after a move into a hidden zone is what is known about it. The
+     judges reading CR 701.17c beside Jess Dunks's Zellix ruling (item 131)
+     said it "needs to say '...or the card was revealed'": Darksteel Colossus
+     and Wheel of Sun and Moon reveal the card they send to a library. Whether
+     Fateful Tempest's "total mana value of cards milled this way" counts
+     such a card is the same question.
+     **Slotted:** A6f, the information-model design, which decides what a
+     revealed card in a hidden zone lets a reader find; its build adds the
+     refusal and its test.
 
 259. **A newcomer to a zone is asked look-back arms of the event that brought
      it.** A Bridge from Below that reaches the graveyard in the same wipe is a
@@ -9511,3 +9545,25 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      found when its own move was the CR 704.5m sweep after its host's
      departure, and Angelic Destiny registered.
      **Slotted:** TR-4c, with Angelic Destiny.
+
+261. **A redirected move's destination credits the replacement, and judges
+     credit the resolving spell.** `cause_asked_by` (`triggers/dispatch.rs`)
+     answers a destination word ("a spell or ability you control exiles") with
+     the last redirect's cause (`GameEvent::redirected_by`). That is what
+     #242's review decided. On 2026-10-13 judges answered the board the other
+     way: the resolving Doom Blade causes "everything ..., even if some of it
+     gets replaced" (`replacement-architecture.md` §2b.4). So Hero of
+     Bretagard's controller's own Doom Blade under an opponent's Rest in Peace
+     should trigger it, and the engine would not. 2 cards: `o:"spell or
+     ability you control exiles" game:paper -is:funny` (Ranar the
+     Ever-Watchful, Hero of Bretagard).
+     **Reachability (2026-10-13):** unreachable — no registered trigger names
+     a destination with a `by` filter.
+     **Sized:** ~10 lines of code fewer and ~40 of tests changed:
+     - `cause_asked_by` returns the stamp's cause;
+     - `redirected_by` goes;
+     - `AppliedReplacement.redirected` stays for the log's "(redirected)";
+     - the `phase_rh3_integration_test.rs` boards that pinned the old answer
+       flip.
+     **Slotted:** TR-4d, the records' missing facts; or the small fix before
+     TR-4 with item 254 (`triggers-architecture.md` §3.12a, decision 7).

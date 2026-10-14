@@ -569,24 +569,37 @@ trigger when "a spell or ability you control exiles one or more permanents"
 which player is exiling cards and permanents" (their rulings, 2021-06-18), so a
 card exiled from your hand counts "for any reason". The battlefield half still
 asks whose spell or ability did it: a permanent exiled from the battlefield
-counts "if you controlled the spell or ability that exiled them". When a
-replacement redirected the move into exile, the ability that exiled it is the
-replacement's (Kalitas, Rest in Peace), since CR 614.6's modified event is the
-one the replacement wrote. So the record answers "who" twice:
-- for the act, its cause ("causes you to discard");
-- for the destination, the last applied replacement that changed where the
-  move goes, else the cause ("exiles", "is put into your graveyard").
+counts "if you controlled the spell or ability that exiled them".
 
-**Decided (the owner, 2026-10-11, at #242's review): the replacement's.**
-Without Rest in Peace no exiling happens. So take Bretagard's controller's own
-Doom Blade under an opponent's Rest in Peace: it does not trigger Bretagard.
-Their Swords to Plowshares, which exiles directly, does. So does anyone's Doom
-Blade under a Rest in Peace that Bretagard's controller controls.
+**The resolving spell or ability exiled them, also when a replacement
+redirected the move into exile.** This reverses the owner's call of
+2026-10-11 (#242's review), which gave the redirected move to the replacement
+(Rest in Peace). Judges answered the board on 2026-10-13, in the owner's judge
+Discord: Doom Blade "is the thing that's resolving right now, so it's causing
+everything to happen, even if some of it gets replaced". The one exception
+they named is a resolving spell that lets a player activate mana abilities or
+cast another spell: what that player does then is caused by those abilities or
+that spell. So Bretagard's controller's own Doom Blade under an opponent's Rest
+in Peace triggers Bretagard, and an opponent's Doom Blade under a Rest in
+Peace that Bretagard's controller controls does not.
 
-Item 176 said each act of a redirected move has its own performer, and this
-is the second one, read off `applied` rather than stored twice. Each entry
-keeps its controller as it applied, because its source may have left or
-changed hands by the time a trigger asks.
+So the record answers "who" once: its cause, for the act and the destination
+alike. `applied` still says which replacements applied, for madness's "this
+way", and each entry keeps its controller as it applied. Undoing the read that
+took the last redirect's cause (`GameEvent::redirected_by`, and
+`cause_asked_by` in `triggers/dispatch.rs`) is `codebase-state.md` item 261.
+
+The same reading keeps a replaced event's cause through the replacement.
+Take Unpredictable Cyclone and Plagiarize together:
+- an opponent cycles a card while your Plagiarize is in effect;
+- you draw instead of them;
+- your Unpredictable Cyclone replaces "a cycling ability of another nonland
+  card would cause you to draw".
+
+The cycling ability still causes that draw, and a `Rewrite::Instead` keeps
+the proposal's cause, as Notion Thief's draw does. A rider's records take the
+replacement's cause (`pipeline::caused_by_replacement`). Whether an "instead
+... and" rider is the resolving spell's too is §2b.11's open question.
 
 **Cost.** `Option<Arc<[AppliedReplacement]>>` is 16 bytes, `None` for a move
 nothing replaced, and it allocates only for a replaced move. The applied
@@ -716,7 +729,7 @@ players' Kalitases dying together.
 | **act words**: sacrifices, discards, mills, is countered, is destroyed, casts, draws (the move), plays a land | `act` | `ZoneChangePattern::act` |
 | **destination words**: is exiled, is returned, dies (CR 700.4), enters, is put into a hand, a library or a graveyard, leaves | `from`, `to` | `ZoneChangePattern`'s `from` and `to` |
 | **cause words on an act**: "a spell or ability an opponent controls causes you to discard", "an effect causes", "as a cost", "triggered abilities you control can't cause" | `cause` | `ReplacementDef::by` and `Restriction::Event`'s `by` (the proposal); `TriggerEvent::ZoneChange`'s new `by` (the record) |
-| **cause words on a destination**: "a spell or ability you control exiles" (Ranar), "causes a land to be put into your graveyard" (Sacred Ground) | the destination's cause: the last redirect in `applied`, else `cause` (§2b.4) | the same `by`, when the arm names no act |
+| **cause words on a destination**: "a spell or ability you control exiles" (Ranar), "causes a land to be put into your graveyard" (Sacred Ground) | `cause`, the resolving spell's or ability's, a redirect included (§2b.4, reversed 2026-10-13) | the same `by`, when the arm names no act |
 | **"this way"** of a replacement (CR 702.35a) | `applied` | the binding's records |
 | **"it", "that card", "them"** after the move | `new_object()` | the binding's records |
 | the object **as it left** | `lki` | the frame (`triggers-architecture.md` §4.3) |
@@ -908,7 +921,8 @@ review: 1–6, 8 and 9 as written (9 with its performance priced in §2b.10), an
 option A of three for 7. The other two
 options were every test naming a real cause, or `test_ctx()` quietly naming one
 fixed cause. The same review decided who exiled a redirected move: the
-replacement's ability (§2b.4).
+replacement's ability. Judges reversed that on 2026-10-13: the resolving
+spell or ability did (§2b.4, `codebase-state.md` item 261).
 1. `Resolved` and `Fizzled` are rules' moves (CR 608.2n, 608.3a, 608.3e,
    608.2b): act `Put`, cause `GameRule`. The entry's "was it cast" reads CR
    400.7d's fact, which is also right for a copy (CR 707.10).
@@ -995,7 +1009,12 @@ Open:
   replacement's riders with the event and only a prevention's after it. RH-3's
   A/B shows where the reading is played: a CR 610.3 return the event made due
   now comes before Kalitas's Zombie (two four-seat `stress` games of 200,
-  `fuzz-record.md`).
+  `fuzz-record.md`). The judges' reading of 2026-10-13 (§2b.4), that the
+  resolving spell causes "everything ... even if some of it gets replaced",
+  bears on the rider's cause too. If a rider's records are the resolving
+  spell's, `caused_by_replacement` names the wrong cause for an "instead ...
+  and" rider: Kalitas's Zombie would be the destroying spell's, not
+  Kalitas's. No printed trigger found yet reads which, so it stays open.
 - ~~**Item 248's other outer events**~~ — **answered in RH-2 (2026-10-12).**
   The destruction is the one outer event whose inner is a move. A player's
   leaving looked like a second: `engine/leaving.rs` proposed CR 800.4a's exiles
