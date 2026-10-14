@@ -226,6 +226,18 @@ jobs:
         working-directory: .
         run: python3 plans/check_egui_only_draws.py
 
+      # Three of CLAUDE.md's invariants, read off the source
+      # (`engineering-practices.md` §11): a printed characteristic read outside
+      # `oracle/`, an iteration over a hash field of `GameState`, and a write of
+      # a field whose change is an event outside the file that performs it.
+      # Each fails unless a tag in the source says why the rule does not apply
+      # there; the known violations are listed in the script by item. Review
+      # held these alone, and each was broken again within weeks of being
+      # written. Reads files only.
+      - name: Invariants
+        working-directory: .
+        run: python3 plans/check_invariants.py
+
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
   # and target. A job of its own, so it runs beside `check` and is never the
   # long pole: its cold build measured 49 s at four jobs in WSL (2026-09-30),
