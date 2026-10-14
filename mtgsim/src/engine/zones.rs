@@ -322,7 +322,7 @@ impl GameState {
 
     /// Whether `player`'s own draw step is in progress (CR 504): a draw step is
     /// its active player's.
-    fn in_own_draw_step(&self, player: PlayerId) -> bool {
+    pub(crate) fn in_own_draw_step(&self, player: PlayerId) -> bool {
         self.phase.step == Some(StepType::Draw) && self.active_player == player
     }
 

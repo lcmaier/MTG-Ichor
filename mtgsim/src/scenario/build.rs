@@ -476,7 +476,7 @@ impl<'s> Loader<'s> {
     /// Each player's draws as a draw's performer counts them: this turn's are
     /// the history's, and those in the draw step in progress are stated.
     fn load_draw_counts(&mut self) -> Result<(), ScenarioError> {
-        let (turn, active) = (self.scenario.turn, self.scenario.active);
+        let turn = self.scenario.turn;
         let drawn_this_turn = |state: &GameState, player: PlayerId| state.players[player].history.this_turn(turn).count(TurnFact::CardsDrawn);
         for player in 0..self.state.players.len() {
             self.state.players[player].draws = DrawCounts::stated(turn, drawn_this_turn(&self.state, player), 0);
@@ -485,7 +485,7 @@ impl<'s> Loader<'s> {
             let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
             let player = self.checked_player(player, located.line)?;
             let this_turn = drawn_this_turn(&self.state, player);
-            let message = if player != active || self.scenario.step.step != Some(StepType::Draw) {
+            let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
             } else if count > this_turn {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"

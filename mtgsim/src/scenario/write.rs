@@ -234,8 +234,7 @@ impl<'g> Writer<'g> {
                 facts.push(PlayerWord::LandsPlayed { player: p, count: *lands_played_this_turn });
             }
             // This turn's draws are the history's row, which the loader reads back.
-            let in_draw_step = p == state.active_player && state.phase.step == Some(StepType::Draw);
-            if in_draw_step && draws.this_draw_step() > 0 {
+            if state.in_own_draw_step(p) && draws.this_draw_step() > 0 {
                 facts.push(PlayerWord::DrawnThisDrawStep { player: p, count: draws.this_draw_step() });
             }
             if draws.next(turn, false).in_turn != Some(history.this_turn(turn).count(TurnFact::CardsDrawn) + 1) {
