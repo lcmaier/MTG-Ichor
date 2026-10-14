@@ -343,31 +343,32 @@ enum Asks {
     NotLookBack,
 }
 
-/// How an arm reads its subject off a record.
+/// How an arm reads its subject off a record: where the subject was at the
+/// moment the trigger asks about.
 ///
-/// The last two both read last known information, and read its
-/// characteristics the same way, including whatever an Aura or Equipment gave
-/// the creature: Loxodon Warhammer's lifelink is part of how a Dragonhawk that
-/// has died last existed. They differ on one question, which only
-/// `TriggerSubject::Host` asks: is this creature the one *the trigger's own*
-/// Aura or Equipment is attached to? That is a fact about the moment the
-/// trigger checks, and the two snapshots were taken at different moments.
+/// The last two both read the subject's last known information, and read its
+/// characteristics alike, including what an Aura or Equipment gave it
+/// (Loxodon Warhammer's lifelink on a Dragonhawk that has died). What sets
+/// them apart is whether the subject was a permanent at the moment the
+/// trigger asks about, which decides one question: whether the trigger's own
+/// Aura or Equipment was attached to it (`TriggerSubject::Host`). Only a
+/// permanent has anything attached to it (CR 301.5, 303.4).
 #[derive(Clone, Copy)]
 enum SubjectRead<'a> {
-    /// On the board now.
+    /// Where it is now.
     Now,
-    /// A snapshot taken immediately before this very event, because the event
-    /// is the creature leaving and the trigger looks back to that moment (CR
-    /// 603.10a). "When enchanted creature dies": the Aura was attached then,
-    /// so it matches.
-    ImmediatelyBefore(&'a Lki),
-    /// A snapshot taken when the creature left, at an earlier event: damage it
-    /// deals afterwards through an ability that resolves later, Dragonhawk's
-    /// (CR 608.2h). Its characteristics still count, the Warhammer's lifelink
-    /// among them. "Whenever enchanted creature deals damage" asks about the
-    /// moment of the damage, when no Aura was attached to it any more, so it
-    /// does not match.
-    LeftEarlier(&'a Lki),
+    /// This event is the subject leaving the battlefield, and the trigger
+    /// looks back to just before it (CR 603.10a): it was a permanent then, as
+    /// its record framed it. "When enchanted creature dies" matches the Aura
+    /// that was on it.
+    LeftInThisEvent(&'a Lki),
+    /// It had left the battlefield at some earlier event, and deals damage
+    /// now as it last existed, through an ability that resolved after it had
+    /// gone (CR 608.2h): Dragonhawk's end-step damage. It is no permanent at
+    /// this event, so no Aura or Equipment is on it, and "whenever enchanted
+    /// creature deals damage" never matches it, even an Aura on a new object
+    /// that shares its id after a flicker (CR 400.7).
+    GoneBeforeThisEvent(&'a Lki),
 }
 
 impl<'a> SubjectRead<'a> {
@@ -376,7 +377,7 @@ impl<'a> SubjectRead<'a> {
     /// 603.10).
     fn of_departure(arm: &TriggerEvent, lki: &'a Option<Lki>) -> SubjectRead<'a> {
         match lki {
-            Some(lki) if arm.looks_back() => SubjectRead::ImmediatelyBefore(lki),
+            Some(lki) if arm.looks_back() => SubjectRead::LeftInThisEvent(lki),
             _ => SubjectRead::Now,
         }
     }
@@ -1476,7 +1477,7 @@ impl GameState {
                 };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::LeftEarlier);
+                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 one(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
@@ -1653,17 +1654,18 @@ impl GameState {
         match (subject, id) {
             (TriggerSubject::Any, _) => true,
             (TriggerSubject::ThisObject, Some(id)) => referents.this.is(self, id, seq),
-            // CR 603.10a: what was attached to the subject immediately before
-            // it left, which its departure framed; the Aura or Equipment that
-            // stays has been unattached since.
+            // Only a permanent has anything attached to it. One that left in
+            // this event is asked as its departure framed it (CR 603.10a), since
+            // the Aura or Equipment that stays has been unattached since.
             (TriggerSubject::Host, Some(id)) => match read {
-                SubjectRead::ImmediatelyBefore(lki) => lki.had_attached(referents.this.id()),
-                SubjectRead::Now | SubjectRead::LeftEarlier(_) => referents.host == Some(id),
+                SubjectRead::LeftInThisEvent(lki) => lki.had_attached(referents.this.id()),
+                SubjectRead::Now => referents.host == Some(id),
+                SubjectRead::GoneBeforeThisEvent(_) => false,
             },
             (TriggerSubject::Referred, Some(id)) => referents.referred.iter().any(|r| r.is(self, id, seq)),
             (TriggerSubject::Filter(filter), Some(id)) => {
                 let lki = match read {
-                    SubjectRead::ImmediatelyBefore(lki) | SubjectRead::LeftEarlier(lki) => Some(lki),
+                    SubjectRead::LeftInThisEvent(lki) | SubjectRead::GoneBeforeThisEvent(lki) => Some(lki),
                     SubjectRead::Now => None,
                 };
                 self.object_matches_filter(id, filter, &mut { *referents }, lki.map(HeldFrame::LastKnown))

@@ -41,13 +41,13 @@ use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
     ConditionObject,
-    AmountExpr, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    AmountExpr, ColorChange, PlayerGroup, PlayerSet, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, ReturnUnder, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Referred, TriggerCondition,
+    DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Referred, TriggerCondition,
     TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
@@ -982,4 +982,75 @@ fn token_aura_leaves_trigger_if_its_owner_controls_the_host_holds_after_the_toke
     resolve_all(&mut game, &test_dp());
     assert!(!game.objects.contains_key(&aura), "the token ceased to exist before its trigger resolved");
     assert_eq!(game.players[0].life_total, 21, "its owner, P0, controls the creature");
+}
+
+// ---------------------------------------------------------------------------
+// 9. "Enchanted creature" names a permanent at the event
+// ---------------------------------------------------------------------------
+
+/// Spirit Link's trigger, as a fixture: "Enchant creature. Whenever
+/// enchanted creature deals damage, you gain that much life."
+fn spirit_link_fixture() -> Arc<CardData> {
+    let text = "Whenever enchanted creature deals damage, you gain that much life.";
+    let deals_damage = TriggerEvent::DamageDealt {
+        source: TriggerSubject::Host,
+        recipient: DamageRecipient::Any,
+        combat: None,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    CardDataBuilder::new("Spirit Link Fixture")
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(deals_damage, Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller)),
+        ))
+        .build()
+}
+
+/// A creature sets up "When you next gain life, this creature deals 2 damage
+/// to each opponent", then is exiled and returned: the creature that comes
+/// back is a new object (CR 400.7), and Spirit Link is put on it. When the
+/// damage is dealt, the old creature deals it, as it last existed (CR
+/// 608.2h). The creature Spirit Link enchants dealt no damage, so Spirit
+/// Link does not trigger, though both creatures carry one id in this engine.
+#[test]
+fn enchanted_creature_deals_damage_does_not_see_the_creature_it_was_before_a_flicker() {
+    let mut game = setup_two_player_game();
+    let creature = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let deals_2 = Effect::Atom(
+        Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
+    );
+    let template = DelayedTriggerTemplate {
+        def: Arc::new(whenever(
+            TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
+            deals_2,
+        )),
+        duration: DelayedDuration::Once,
+        turn: DelayedTurn::Any,
+        rules_text: "When you next gain life, this creature deals 2 damage to each opponent.".into(),
+    };
+    let provenance = DelayedProvenance {
+        source: game.object_ref(creature).unwrap(),
+        source_card: grizzly_bears(),
+        controller: 0,
+        created_by: None,
+        x_value: None,
+        turn: TriggerTurn::Any,
+        resolution: None,
+        cause: mtgsim::events::cause::EventCause::Harness,
+    };
+    game.create_delayed_trigger(&template, provenance, Referred::default()).unwrap();
+    game.change_zone(creature, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(creature, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    let link = put_on_battlefield(&mut game, spirit_link_fixture(), 0);
+    assert!(game.attach(link, creature), "on the creature that came back");
+
+    game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: creature }, &test_ctx()).unwrap();
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(game.players[1].life_total, 18, "the old creature dealt its 2 damage");
+    assert_eq!(game.players[0].life_total, 21, "only the 1 life that set it off: Spirit Link did not trigger");
 }

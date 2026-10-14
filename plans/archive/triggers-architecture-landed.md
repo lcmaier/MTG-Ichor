@@ -1363,11 +1363,18 @@ The owner's comments were about names, and about two shapes:
   explicit `NONE` in place of `Default`; `HeldFrame::Chars`,
   `Characteristics`; `Return`, `ReturningObject`; `bound_as_it_was`,
   `triggering_object`; `kept_lki_of`, `lki_kept_by_resolving`;
-  `SubjectRead`'s `LookingBack` and `LastKnown`, `ImmediatelyBefore` and
-  `LeftEarlier`, since both read last known information and differ in when
-  it was taken; `IfAsker`, `TriggerSource`;
+  `SubjectRead`'s `LookingBack` and `LastKnown`, `LeftInThisEvent` and
+  `GoneBeforeThisEvent`: both read last known information, and what sets
+  them apart is whether the subject was a permanent at the moment the
+  trigger asks about; `IfAsker`, `TriggerSource`;
   `occurrences_whose_if_holds`, `triggers_whose_intervening_if_holds`; and
   `last_known_with` folded into `last_known_information`, which takes the
   frame its caller may read.
 - **The tests.** The intervening-if tests are named for their board and
   their answer, and the five leaves' helper says what it builds and checks.
+- **A bug the rename exposed.** A damage source that had already left the
+  battlefield was matched to an Aura's "enchanted creature" by id, so after
+  a flicker the Aura on the new object saw damage the old one dealt (CR
+  400.7, 608.2h). An object gone before the event has nothing attached to
+  it, and `Host` now answers no for it; the Spirit Link fixture failed
+  first, at 23 life against 21.
