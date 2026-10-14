@@ -550,14 +550,10 @@ fn set_word(words: &mut Vec<CardWord>, is: impl Fn(&CardWord) -> bool, word: Opt
     }
 }
 
-/// A permanent's controller and owner words, the owner said only where it
-/// differs.
+/// A permanent's seat words, as the writer writes them (`CardWord::seats`).
 fn set_seats(line: &mut CardLine, controller: PlayerId, owner: PlayerId) {
     line.words.retain(|w| !matches!(w, CardWord::Controller(_) | CardWord::Owner(_)));
-    if owner != controller {
-        line.words.insert(0, CardWord::Owner(owner));
-    }
-    line.words.insert(0, CardWord::Controller(controller));
+    line.words.splice(0..0, CardWord::seats(controller, owner));
 }
 
 /// The cards a reference can name (`setup-architecture.md` §4.2): the
@@ -574,12 +570,6 @@ fn is_among(line: &CardLine, among: Among) -> bool {
         Among::Permanents => line.kind == LineKind::Battlefield,
         Among::Commanders => listed(line).is_some() && line.words.contains(&CardWord::Commander),
     }
-}
-
-/// Does `reference` name `card`, as the loader matches: an untagged reference
-/// names every card of its name.
-fn names(reference: &NamedCard, card: &NamedCard) -> bool {
-    reference.name == card.name && (reference.tag.is_none() || reference.tag == card.tag)
 }
 
 /// Where a reference the editor keeps true is on the board.
@@ -620,7 +610,7 @@ fn references(board: &Scenario) -> Vec<(At, Among, &NamedCard)> {
 
 /// The one card line `reference` names among `among`'s, a line of one copy.
 fn named_line(cards: &[LineNumbered<CardLine>], reference: &NamedCard, among: Among) -> Option<usize> {
-    let mut named = cards.iter().enumerate().filter(|(_, line)| is_among(&line.value, among) && names(reference, &line.value.card));
+    let mut named = cards.iter().enumerate().filter(|(_, line)| is_among(&line.value, among) && reference.names(&line.value.card));
     match (named.next(), named.next()) {
         (Some((i, line)), None) if line.value.copies == 1 => Some(i),
         _ => None,
@@ -933,7 +923,7 @@ impl Draft {
         let mut moving = vec![i];
         for k in i + 1..host {
             let line = self.line(k);
-            let needs = |reference: &NamedCard| moving.iter().any(|&m| names(reference, &self.line(m).card));
+            let needs = |reference: &NamedCard| moving.iter().any(|&m| reference.names(&self.line(m).card));
             let depends = match line.kind {
                 LineKind::Counters => needs(&line.card),
                 LineKind::Battlefield => line.words.iter().any(|w| matches!(w, CardWord::AttachedTo(named) if needs(named))),
@@ -1026,10 +1016,10 @@ impl Draft {
     /// Drop each reference that named `card` among `among`'s and names
     /// nothing now that `card` is not one of them.
     fn drop_references(&mut self, card: &NamedCard, among: Among) {
-        let still_names = |reference: &NamedCard| self.board.cards.iter().any(|line| is_among(&line.value, among) && names(reference, &line.value.card));
+        let still_names = |reference: &NamedCard| self.board.cards.iter().any(|line| is_among(&line.value, among) && reference.names(&line.value.card));
         let gone: Vec<At> = references(&self.board)
             .into_iter()
-            .filter(|(_, kind, reference)| *kind == among && names(reference, card) && !still_names(reference))
+            .filter(|(_, kind, reference)| *kind == among && reference.names(card) && !still_names(reference))
             .map(|(at, ..)| at)
             .collect();
         // From the last, so each place still holds what it named.

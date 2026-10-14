@@ -22,7 +22,7 @@ use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::waiting::{Waiting, what_is_waiting};
 use mtgsim::ui::display::{
     TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_record, format_permanent, format_phase,
-    keyword_name, named, player_name, printed_faces,
+    keyword_words, named, player_name, printed_faces,
 };
 
 #[derive(Clone, Debug)]
@@ -238,8 +238,6 @@ fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<Perman
     let state = game.battlefield.get(&id)?;
     let chars = compute_characteristics(game, id)?;
     let is_creature = chars.types.contains(&CardType::Creature);
-    let mut keywords: Vec<_> = chars.keyword_flags.iter().copied().collect();
-    keywords.sort();
     let mut counters: Vec<(CounterType, u32)> =
         state.counters.iter().map(|(kind, stack)| (*kind, stack.count)).collect();
     counters.sort();
@@ -250,7 +248,7 @@ fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<Perman
         is_land: chars.types.contains(&CardType::Land),
         power_toughness: if is_creature { chars.power.zip(chars.toughness) } else { None },
         damage: state.damage_marked,
-        keywords: keywords.into_iter().map(|k| keyword_name(k).to_string()).collect(),
+        keywords: keyword_words(&chars).into_iter().map(str::to_string).collect(),
         counters: counters.into_iter().map(|(kind, n)| (kind.name().to_string(), n)).collect(),
         tapped: state.tapped,
         summoning_sick: has_summoning_sickness(game, id),
