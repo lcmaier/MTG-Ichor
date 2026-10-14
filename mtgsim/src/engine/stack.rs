@@ -3,7 +3,7 @@ use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
-use crate::state::battlefield::{CastFacts, CostChoices};
+use crate::state::battlefield::CastFacts;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::ids::ObjectId;
@@ -70,10 +70,7 @@ impl GameState {
                 from,
                 mana_spent: entry.mana_spent,
             }),
-            cost_choices: CostChoices {
-                additional: entry.additional_costs_paid.clone(),
-                alternative: entry.chosen_alternative_cost.clone(),
-            },
+            cost_choices: entry.cost_choices(),
             x_value: entry.x_value,
             identity: entry.ability_identity,
             subject: entry.trigger.as_ref().and_then(|binding| binding.subject),

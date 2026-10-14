@@ -6,10 +6,10 @@
 
 use std::sync::Arc;
 
-use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::ConditionObjects;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
@@ -118,26 +118,28 @@ impl GameState {
     /// information the resolving entry kept as it went (§6.1). `None` there is
     /// a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
-        match self.bound_as_it_was(binding)? {
-            (_, Some(lki)) => Some(Arc::clone(lki.frame())),
-            (id, None) => compute_characteristics(self, id),
-        }
+        self.bound_as_it_was(binding)?.characteristics(self)
     }
 
     /// The bound object as CR 608.2h reads it, `bound_characteristics`'
-    /// order: its id with the record's frame when the event was its
-    /// departure, alone while it is still where the event left it, or with
-    /// the last known information the resolving entry kept as it left later.
-    /// `None` for a binding with no subject, and for a missed capture.
-    fn bound_as_it_was<'a>(&'a self, binding: &'a TriggerBinding) -> Option<(ObjectId, Option<&'a Lki>)> {
+    /// order: the record's frame when the event was its departure, the
+    /// object while it is still where the event left it, or the last known
+    /// information the resolving entry kept as it left later. `None` for a
+    /// binding with no subject, and for a missed capture.
+    fn bound_as_it_was<'a>(&'a self, binding: &'a TriggerBinding) -> Option<CurrentOrLastKnown<'a>> {
         let subject = binding.subject?;
-        match subject_lki(binding) {
-            Some(lki) => Some((subject.id, Some(lki))),
-            None => match self.bound_object(binding) {
-                Some(id) => Some((id, None)),
-                None => self.resolving.as_ref()?.lki_of(subject).map(|lki| (subject.id, Some(lki))),
-            },
-        }
+        let lki = match subject_lki(binding) {
+            Some(lki) => Some(lki),
+            None if self.bound_object(binding).is_some() => None,
+            None => Some(self.kept_lki_of(subject)?),
+        };
+        Some(CurrentOrLastKnown { id: subject.id, lki })
+    }
+
+    /// What the resolving object kept of `object` once it had left (CR
+    /// 113.7a): its trigger's subject's departure frame, or a later one.
+    pub(crate) fn kept_lki_of(&self, object: ObjectRef) -> Option<&Lki> {
+        self.resolving.as_ref()?.lki_of(object)
     }
 
     /// What a resolving condition reads about the objects its text names
@@ -149,9 +151,8 @@ impl GameState {
         source: Option<ObjectRef>,
         binding: Option<&'a TriggerBinding>,
     ) -> ConditionObjects<'a> {
-        let resolving = self.resolving.as_ref();
         ConditionObjects {
-            source_lki: source.and_then(|source| resolving?.lki_of(source)),
+            source_lki: source.and_then(|source| self.kept_lki_of(source)),
             triggering: binding.and_then(|binding| self.bound_as_it_was(binding)),
         }
     }

@@ -2546,8 +2546,7 @@ impl GameState {
     /// spell, which resolves where it was cast. A source no frame was kept
     /// for reads where it is now.
     fn source_lki(&self, ctx: &ResolutionContext) -> Option<Lki> {
-        let source = ctx.ability_source?;
-        self.resolving.as_ref()?.lki_of(source).cloned()
+        self.kept_lki_of(ctx.ability_source?).cloned()
     }
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR

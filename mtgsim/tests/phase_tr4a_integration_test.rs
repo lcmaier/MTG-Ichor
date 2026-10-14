@@ -30,7 +30,7 @@ use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
 use mtgsim::state::battlefield::CostChoices;
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     effect_ctx, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
     put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
@@ -858,4 +858,102 @@ fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
     assert_eq!(game.delayed_triggers[0].owner, 0, "its owner, though its controller was P1");
     game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: token }, &test_ctx()).unwrap();
     assert!(game.delayed_triggers.is_empty(), "P0's gain is its owner's");
+}
+
+// ---------------------------------------------------------------------------
+// 8. The model pass's three disagreements, each now one reading
+// ---------------------------------------------------------------------------
+
+/// CR 603.4 at the trigger is asked of each occurrence, as it is at
+/// resolution: two attackers declared together are two triggers, each with
+/// its own "it", and only the one without a counter triggers.
+#[test]
+fn an_intervening_if_about_it_is_asked_of_each_attacker() {
+    let mut game = setup_two_player_game();
+    let text = "Whenever a creature you control attacks, if it had no +1/+1 counters on it, you gain 1 life.";
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(TriggerEvent::Attacks {
+            attacker: TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You)),
+            multiplicity: Multiplicity::PerOccurrence,
+        }),
+        intervening_if: Some(Condition::TriggeringObjectHadCounters { counter: CounterType::PlusOnePlusOne, had: false }),
+        limit: None,
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+    };
+    let watcher = CardDataBuilder::new("Attack Watcher").card_type(CardType::Enchantment).ability(triggered_ability(text, def)).build();
+    put_on_battlefield(&mut game, watcher, 0);
+    let plain = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let countered = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    add_counters(&mut game, countered, CounterType::PlusOnePlusOne, 1);
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    game.process_declare_attackers(&dp).unwrap();
+    let subjects: Vec<_> = game.pending_triggers.iter().map(|t| t.binding.subject.map(|o| o.id)).collect();
+    assert_eq!(subjects, vec![Some(plain)], "one trigger, for the attacker with no counter");
+}
+
+/// A kicked spell's delayed trigger reads the spell as it left the stack
+/// (CR 707.10, 113.7a): its entry was taken as it resolved, and the
+/// resolving object holds its cost decisions until it is put away.
+#[test]
+fn a_kicked_spells_delayed_trigger_reads_it_kicked_after_it_resolved() {
+    let mut game = setup_two_player_game();
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(TriggerEvent::GainsLife {
+            player: Some(PlayerRef::You),
+            multiplicity: Multiplicity::PerOccurrence,
+        }),
+        intervening_if: Some(Condition::SpellWasKicked),
+        limit: None,
+        effect: Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller),
+    };
+    let template = DelayedTriggerTemplate {
+        def: Arc::new(def),
+        duration: DelayedDuration::Once,
+        turn: DelayedTurn::Any,
+        rules_text: "When you next gain life, if this spell was kicked, you lose 5 life.".into(),
+    };
+    let spell = CardDataBuilder::new("Kicked Spell").card_type(CardType::Instant).build();
+    let id = put_spell_on_stack(&mut game, spell, 0);
+    let entry = game.stack_entries.get_mut(&id).unwrap();
+    entry.effect = Arc::new(Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller));
+    entry.additional_costs_paid = vec![AdditionalCost::Kicker(Vec::new())];
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(zone(&game, id), Some(Zone::Graveyard));
+
+    game.execute_action(GameAction::GainLife { player: 0, amount: 1, source: id }, &test_ctx()).unwrap();
+    assert_eq!(game.pending_triggers.len(), 1, "it was kicked");
+}
+
+/// "Its owner" in a gone source's condition is its last known information's
+/// (CR 108.3): a token Aura's leaves trigger, rechecked after CR 704.5d
+/// removed the token, asks whether its host is controlled by the Aura's
+/// owner. The store has lost the Aura; its owner has not changed.
+#[test]
+fn a_gone_sources_condition_reads_its_owner_off_its_last_known_information() {
+    let mut game = setup_two_player_game();
+    let text = "When this Aura leaves the battlefield, if enchanted creature is controlled by this Aura's owner, you gain 1 life.";
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(leaves_the_battlefield(TriggerSubject::ThisObject).into()),
+        intervening_if: Some(Condition::HostMatches(ObjectFilter::ByController(PlayerRef::Owner))),
+        limit: None,
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+    };
+    let aura_card = CardDataBuilder::new("Token Aura")
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .ability(triggered_ability(text, def))
+        .build();
+    let host = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let aura = put_on_battlefield(&mut game, aura_card, 0);
+    make_token(&mut game, aura);
+    assert!(game.attach(aura, host));
+
+    destroy(&mut game, aura);
+    resolve_all(&mut game, &test_dp());
+    assert!(!game.objects.contains_key(&aura), "the token ceased to exist before its trigger resolved");
+    assert_eq!(game.players[0].life_total, 21, "its owner, P0, controls the creature");
 }

@@ -986,8 +986,10 @@ object's copy for CR 603.10e and CV-4's `copy_of`, is TR-4d's with item 253.
 
 **The capture.** `last_known_information` builds the whole body before the
 batch performs (`capture_frame`); the frame is the memo hit it always was,
-and the facts are copied off `PermanentState`, or off the `StackEntry` for a
-spell's cost decisions. The dispatch audit's snapshots are `Lki`s too, so a
+and the facts are copied off `PermanentState`; the cost decisions are
+`GameState::cost_choices_of`'s, the one reader of them wherever the object
+is: a permanent, a spell on the stack, or the resolving spell, whose entry
+the resolution has taken. The dispatch audit's snapshots are `Lki`s too, so a
 candidate the audit finds gone keeps its host and counters as the
 dispatcher's frame candidate does. `DelayedTrigger.source_lki` replaced the
 bare `source_frame`: kept as the source leaves, or seeded as the trigger is
@@ -2302,14 +2304,19 @@ board, and a static ability passes the default:
   undying's "if it had no ... counters on it", with its polarity.
 
 Four askers build it, one per instant. The dispatch takes the candidate's
-frame and the record (`triggering_at_dispatch`). The CR 603.4 recheck and a
-resolving effect's own "if" take the resolving entry's (`condition_objects`).
+frame and the record, and asks each occurrence apart with its own "it", as
+resolution will (`occurrences_whose_if_holds`, for an object's ability and a
+delayed trigger alike): two attackers declared together are two triggers,
+and a "one or more" arm's one occurrence has no "it", as its binding has
+none. The CR 603.4 recheck and a resolving effect's own "if" take the
+resolving entry's (`condition_objects`).
 A delayed trigger takes its own `source_lki`, at the trigger and, through the
 entry it queues, at resolution. A frame candidate's entry keeps its source's
 `Lki` from the start (item 168), since the existence that triggered has
 already gone and no hand-over reaches it. `HostMatches` reads a gone
 source's host where it is, or as it left when it is the triggering object,
-and a host that left otherwise has no answer, which reads as no.
+and a host that left otherwise has no answer, which reads as no; its filter's
+"its owner" is the gone source's, off its `Lki` (CR 108.3).
 `AmountExpr::SourceCounters` is the amount's half: "the number it had" (CR
 122.8, 122.9), the source's counters as it last existed, put anew.
 
@@ -3086,7 +3093,7 @@ delayed trigger's, so the five live-source leaves read the frame (§6.1);
 as authoring words. `DelayedTrigger.source_lki`; `owner_now_or` retired;
 the filter table's owner off a held `Lki`. Items 14, 168, 251 and 252
 closed. Strangleroot Geist registered and pooled, Demonic Vigor and Compost
-registered (188 → 191, 106 → 107). Twenty-nine tests; ATOM-603.6e-002,
+registered (188 → 191, 106 → 107). Thirty-two tests; ATOM-603.6e-002,
 ATOM-122.8-001 and ATOM-122.9-001 are covered.
 
 **What moved on the way in.** `cast`, `damage_marked` and
@@ -3094,8 +3101,12 @@ ATOM-122.8-001 and ATOM-122.9-001 are covered.
 TR-4d, and `entry` is TR-4d's (§3.11). Item 251 has a resolution half:
 `subject_lki` answers only a look-back arm. Kitchen Finks is unregistered
 until hybrid payment (CP-1), so its seven rulings are tested on fixtures,
-each on both keywords. +1,711 in code and tests (code +840, tests +871),
-inside the band and under the 2,120–2,440 sizing.
+each on both keywords. The model pass (§9) found three readings that
+already disagreed in what the branch wrote — "it" per record against per
+occurrence, a resolving spell's cost decisions, and "its owner" of a gone
+source, a reachable panic — fixed and shown failing first.
++1,870 in code and tests (code +901, tests +969), inside the band and
+under the 2,120–2,440 sizing.
 
 **Measured** (`fuzz-record.md`, the TR-4a block). The engine arm plays every
 row outside timing as `main` does, cost rows included, on both pools at two
@@ -3114,7 +3125,7 @@ the three needs another.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
-| **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,711 |
+| **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
 | **TR-4b — attachment's records** (CR 701.3d, 603.10c, 603.2e; CR 704.5n, 704.5p and 704.5d in CR 704.3's batch) | `Unattached` with its route (four sites: an unattach, a re-attach, the attachment leaving, the host leaving), `former_host` an `ObjectRef`; the arms `BecomesAttached` and `BecomesUnattached`; item 228; item 178; main item 6's detaches and token sweep as batch members | Grafted Wargear; a fixture shaped like Siona's ruling; ATOM-603.10c-001, -002 and -003, and ATOM-603.2e-002 | 365–505 (550–1,010) | 600–840 | 1,150–1,850 |
 | **TR-4c — the other two look-back classes and the zone statement** (CR 603.10a's second and third classes, 113.6b, 113.6k, 603.2f, 400.7f) | the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |

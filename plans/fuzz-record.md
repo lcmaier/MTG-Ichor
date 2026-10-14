@@ -85,6 +85,13 @@ standing in, TR-6's). None of the three cards was cast in it. The engine arm
 reads `main`'s 0 on the same smoke, to the audit count, so the pool's new
 decks reached it.
 
+**The model pass round** (three readings fixed, two merges; the triggers
+doc's archive, TR-4a). Predicted identical to shipped, since no registered
+card reads "it" in an intervening "if", `SpellWasKicked` or a gone source's
+owner. `fuzz_ab.py` against shipped `5699bc9`, 200 games at seed 12345,
+audited: every row outside timing **IDENTICAL** on both pools at two seats
+and four. The rows below stand.
+
 **§3 fixture rows, shipped, two seats, 50 games / seed 12345.** Both columns
 are new baselines.
 

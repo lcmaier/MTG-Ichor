@@ -24,7 +24,7 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{triggering_at_dispatch, TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
+use super::dispatch::{IfAsker, TriggerReferents, DelayedMatch, MatchedTrigger, Refusal, ThisObject};
 use crate::types::triggers::{CreatingResolution, ReflexiveForm};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::condition::{settled_holds_with, ConditionObjects};
@@ -193,11 +193,6 @@ impl GameState {
         })
     }
 
-    /// What the resolving object kept of `object`, once it had left (CR
-    /// 113.7a).
-    fn kept_lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        self.resolving.as_ref()?.lki_of(object)
-    }
 
     /// CR 400.7: object `id` is about to move, and the next record is that
     /// move. A delayed trigger whose source it is, or that refers to it,
@@ -405,17 +400,11 @@ impl GameState {
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
         // source as it last existed once it has left (CR 113.7a, 400.7).
-        if let Some(condition) = &delayed.def.intervening_if {
-            let (event, subjects) = &matched;
-            let objects = ConditionObjects {
-                source_lki: delayed.source_lki.as_ref(),
-                triggering: triggering_at_dispatch(&delayed.def.condition.events()[event.0], record, subjects),
-            };
-            if !settled_holds_with(condition, self, delayed.source.id, Some(delayed.controller), objects) {
-                return Err(Refusal::InterveningIf);
-            }
-        }
-        Ok(matched)
+        let (event, subjects) = matched;
+        let asker = IfAsker { source: delayed.source.id, you: delayed.controller, source_lki: delayed.source_lki.as_ref() };
+        let arm = &delayed.def.condition.events()[event.0];
+        let subjects = self.occurrences_whose_if_holds(&delayed.def, arm, record, subjects, asker)?;
+        Ok((event, subjects))
     }
 
     /// The trace's `trigger` record of an entry's verdict on record `seq`,

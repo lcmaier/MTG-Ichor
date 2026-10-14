@@ -598,16 +598,19 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
     /// through CR 109.5): "you" is `locked_you` when the asker fixed it — a
     /// triggered ability's controller as it triggered — or else the source's
     /// current controller off its live frame, exactly as a static row's is.
-    /// The source is the one `ObjectFilter::NotSource` excludes. Both are
-    /// resolved up front, since there is no row to re-derive them from.
+    /// The source is the one `ObjectFilter::NotSource` excludes, and its owner
+    /// is `owner_if_gone` once the store has lost it, off its last known
+    /// information (CR 108.3). Both are resolved up front, since there is no
+    /// row to re-derive them from.
     pub(super) fn for_source(
         source: ObjectId,
         game: &'a GameState,
         board: &'a Board<'l>,
         layer_index: usize,
         locked_you: Option<PlayerId>,
+        owner_if_gone: Option<PlayerId>,
     ) -> Self {
-        let owner = game.objects.get(&source).map(|obj| obj.owner);
+        let owner = game.objects.get(&source).map(|obj| obj.owner).or(owner_if_gone);
         let you = super::condition::you_for(game, board, source, layer_index, locked_you);
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }

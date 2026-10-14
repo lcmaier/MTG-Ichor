@@ -9210,6 +9210,11 @@ ones on the last-known-information and zone-change surface are items 176 and
      **Sized:** ~200–350 lines over `triggers/dispatch.rs`, `delayed.rs` and
      `audit.rs`, after TR-7, so the merges take the whole phase's shape.
      **Slotted:** A6e, item 6's close audit, its hygiene pass.
+     **Widened by TR-4a's model pass (2026-10-14):** the inventory §3.6's
+     T12's remaining sites ("its owner" of a gone source, beside
+     `owner_of_source`), T14 (the objects a waiting entry names), T15 (which
+     object a non-filter `ObjectSet` names) and T16 (the "as long as" peel).
+     #251 fixed T10, T11 and T12's first site, each shown failing first.
 
 ### Found by items 176 and 177's design (2026-10-10)
 

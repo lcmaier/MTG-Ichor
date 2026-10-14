@@ -30,6 +30,7 @@ use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
+use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
 
@@ -46,7 +47,7 @@ pub struct ConditionObjects<'a> {
     /// The triggering object, with its last known information when the
     /// event was its departure or it has left since. `None` outside a
     /// trigger, or for an occurrence with no one object.
-    pub triggering: Option<(ObjectId, Option<&'a Lki>)>,
+    pub triggering: Option<CurrentOrLastKnown<'a>>,
 }
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -72,6 +73,8 @@ pub(super) fn holds(
     if objects.source_lki.is_none() && !game.objects.contains_key(&source) {
         return false;
     }
+    // "Its owner" for a filter, once the store has lost the source (CR 108.3).
+    let owner_if_gone = objects.source_lki.map(Lki::owner);
 
     // **A new leaf lands here and in `board::condition_reads`**, both exhaustive,
     // so the compiler asks for the second arm but cannot check it: one that
@@ -81,7 +84,7 @@ pub(super) fn holds(
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
         Condition::Player { players, fact } => {
-            player_fact_holds(players, fact, game, board, source, layer_index, locked_you)
+            player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
 
         // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
@@ -117,12 +120,12 @@ pub(super) fn holds(
             None => board.entity(game, source).is_some_and(|entity| entity.counter_count(*counter) >= *at_least),
         },
         Condition::TriggeringObjectHadCounters { counter, had } => {
-            let Some((it, lki)) = objects.triggering else {
+            let Some(it) = objects.triggering else {
                 return false;
             };
-            let n = match lki {
+            let n = match it.lki {
                 Some(lki) => lki.counters(*counter),
-                None => board.entity(game, it).map_or(0, |entity| entity.counter_count(*counter)),
+                None => board.entity(game, it.id).map_or(0, |entity| entity.counter_count(*counter)),
             };
             (n > 0) == *had
         }
@@ -142,14 +145,16 @@ pub(super) fn holds(
                 return false;
             };
             let chars = match objects.triggering {
-                Some((it, Some(lki))) if it == host => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
+                Some(CurrentOrLastKnown { id, lki: Some(lki) }) if id == host => {
+                    Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame())))
+                }
                 _ if objects.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
                 _ => board.frame_of(game, host, layer_index),
             };
             let Some(chars) = chars else {
                 return false;
             };
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
@@ -184,7 +189,7 @@ pub(super) fn holds(
                 |choices: &CostChoices| choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)));
             match objects.source_lki {
                 Some(lki) => kicked(lki.cost_choices()),
-                None => cost_choices(game, source).is_some_and(kicked),
+                None => game.cost_choices_of(source).is_some_and(|choices| kicked(&choices)),
             }
         }
 
@@ -284,15 +289,6 @@ fn history_holds(
     count.is.met_by(total)
 }
 
-/// CR 707.10's cost decisions for `source`: the resolving spell's, whose
-/// `StackEntry` resolution has taken, or the permanent's it became.
-fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
-    match &game.resolving {
-        Some(r) if r.id == source => Some(&r.cost_choices),
-        _ => game.battlefield.get(&source).map(|e| &e.cost_choices),
-    }
-}
-
 /// CR 109.5's "you": `locked_you` when the asker fixed it, or else the
 /// source's controller off its live frame, or its owner if it has no
 /// controller. `None` only when none is there — a static ability's source that
@@ -325,18 +321,18 @@ fn player_fact_holds(
     source: ObjectId,
     layer_index: usize,
     locked_you: Option<PlayerId>,
+    owner_if_gone: Option<PlayerId>,
 ) -> bool {
     let Some(you) = you_for(game, board, source, layer_index, locked_you) else {
         return false;
     };
+    let filter_players = || FilterPlayers::for_source(source, game, board, layer_index, locked_you, owner_if_gone);
     let named = |player: PlayerId| game.in_game(player) && players.contains(you, player);
     let any_named = |meets: &dyn Fn(&PlayerState) -> bool| {
         game.players.iter().enumerate().any(|(player, state)| named(player) && meets(state))
     };
     match fact {
-        PlayerFact::ControlsPermanent(filter) => {
-            controls_matching(filter, game, board, source, layer_index, locked_you, &named)
-        }
+        PlayerFact::ControlsPermanent(filter) => controls_matching(filter, game, board, layer_index, filter_players(), &named),
         // The threshold is resolved against the source's own frame, which is
         // where a static ability's dynamic number is read everywhere else.
         PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => {
@@ -357,7 +353,7 @@ fn player_fact_holds(
         // A graveyard card may be a non-member of the pass, in which case its
         // frame is its own CDA walk at this ceiling (CR 604.3).
         PlayerFact::CardInGraveyard(filter) => {
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
+            let mut players = filter_players();
             game.players.iter().enumerate().any(|(player, state)| {
                 named(player)
                     && state.graveyard.iter().any(|&card| {
@@ -380,12 +376,10 @@ fn controls_matching(
     filter: &ObjectFilter,
     game: &GameState,
     board: &Board<'_>,
-    source: ObjectId,
     layer_index: usize,
-    locked_you: Option<PlayerId>,
+    mut players: FilterPlayers<'_, '_>,
     named: &dyn Fn(PlayerId) -> bool,
 ) -> bool {
-    let mut players = FilterPlayers::for_source(source, game, board, layer_index, locked_you);
     board.battlefield_ids(game).into_iter().any(|id| {
         let Some(chars) = board.frame_of(game, id, layer_index) else {
             return false;

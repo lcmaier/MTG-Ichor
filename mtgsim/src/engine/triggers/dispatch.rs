@@ -33,7 +33,7 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
-use crate::oracle::characteristics::controller_or_owner;
+use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::battlefield::CostChoices;
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState};
@@ -368,17 +368,21 @@ impl<'a> SubjectRead<'a> {
     }
 }
 
-/// "It" for a condition asked at the trigger (CR 603.4): the occurrence's one
-/// subject, read as its record framed it when the record is its departure and
-/// the arm looks back, and on the board otherwise.
-pub(super) fn triggering_at_dispatch<'r>(
-    arm: &TriggerEvent,
-    record: &'r EventRecord,
-    subjects: &[Option<ObjectId>],
-) -> Option<(ObjectId, Option<&'r Lki>)> {
-    let [Some(it)] = subjects else { return None };
-    let lki = record.event.lki().map(|(lki, ..)| lki).filter(|lki| arm.looks_back() && lki.object().id == *it);
-    Some((*it, lki))
+/// Who asks an intervening "if" at the trigger: the source, "you" (CR
+/// 109.5), and the source's last known information once it has left.
+#[derive(Clone, Copy)]
+pub(super) struct IfAsker<'a> {
+    pub(super) source: ObjectId,
+    pub(super) you: PlayerId,
+    pub(super) source_lki: Option<&'a Lki>,
+}
+
+/// "It", one occurrence's subject, as a condition at the trigger reads it:
+/// as its record framed it when the record is its departure and the arm
+/// looks back (CR 603.10a), and on the board otherwise.
+fn triggering_as_it_was<'r>(arm: &TriggerEvent, record: &'r EventRecord, it: ObjectId) -> CurrentOrLastKnown<'r> {
+    let lki = record.event.lki().map(|(lki, ..)| lki).filter(|lki| arm.looks_back() && lki.object().id == it);
+    CurrentOrLastKnown { id: it, lki }
 }
 
 /// A match the dispatcher will queue or resolve.
@@ -878,19 +882,9 @@ impl GameState {
     /// [`Self::last_known_information`] over a frame the caller walked.
     fn last_known_with(&self, id: ObjectId, frame: Arc<EffectiveCharacteristics>) -> Option<Lki> {
         let object = self.objects.get(&id)?;
-        let permanent = self.battlefield.get(&id);
-        // CR 707.10's decisions, which a permanent keeps from its spell and a
-        // spell has on its entry.
-        let cost_choices = match (permanent, self.stack_entries.get(&id)) {
-            (Some(entry), _) => entry.cost_choices.clone(),
-            (None, Some(spell)) => CostChoices {
-                additional: spell.additional_costs_paid.clone(),
-                alternative: spell.chosen_alternative_cost.clone(),
-            },
-            (None, None) => CostChoices::NONE,
-        };
+        let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-        Some(Lki::new(existence, frame, object.owner, cost_choices, permanent))
+        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id)))
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1318,16 +1312,39 @@ impl GameState {
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
-        if let Some(condition) = &def.intervening_if {
-            let objects = ConditionObjects {
-                source_lki: candidate.frame.lki(),
-                triggering: triggering_at_dispatch(&def.condition.events()[event_index.0], record, &subjects),
-            };
-            if !settled_holds_with(condition, self, candidate.object.id, Some(candidate.controller), objects) {
-                return Err(Refusal::InterveningIf);
-            }
-        }
+        let asker = IfAsker { source: candidate.object.id, you: candidate.controller, source_lki: candidate.frame.lki() };
+        let arm = &def.condition.events()[event_index.0];
+        let subjects = self.occurrences_whose_if_holds(def, arm, record, subjects, asker)?;
         Ok((event_index, subjects))
+    }
+
+    /// CR 603.4 at the trigger, asked of each occurrence as its trigger will
+    /// be at resolution: "it" is the occurrence's own subject, read as the
+    /// record framed it when the record is its departure and the arm looks
+    /// back, and a "one or more" arm's single occurrence has none, as its
+    /// binding has none. The occurrences whose "if" holds, or the refusal when
+    /// none does.
+    pub(super) fn occurrences_whose_if_holds(
+        &self,
+        def: &TriggerDef,
+        arm: &TriggerEvent,
+        record: &EventRecord,
+        subjects: Vec<Option<ObjectId>>,
+        asker: IfAsker<'_>,
+    ) -> Result<Vec<Option<ObjectId>>, Refusal> {
+        let Some(condition) = &def.intervening_if else { return Ok(subjects) };
+        let holding: Vec<Option<ObjectId>> = subjects
+            .into_iter()
+            .filter(|subject| {
+                let triggering = match arm.multiplicity() {
+                    Multiplicity::PerOccurrence => subject.map(|it| triggering_as_it_was(arm, record, it)),
+                    Multiplicity::OncePerEvent => None,
+                };
+                let objects = ConditionObjects { source_lki: asker.source_lki, triggering };
+                settled_holds_with(condition, self, asker.source, Some(asker.you), objects)
+            })
+            .collect();
+        if holding.is_empty() { Err(Refusal::InterveningIf) } else { Ok(holding) }
     }
 
     /// The once-per-turn limits (§3.5), each read at the trigger. CR

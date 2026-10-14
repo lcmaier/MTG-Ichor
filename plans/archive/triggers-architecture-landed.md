@@ -1325,3 +1325,24 @@ PR #251, two code commits ahead of the docs.
   shape. Kitchen Finks waits for CP-1's hybrid payment.
 
 The sitting is `fuzz-record.md`'s TR-4a block.
+
+### The model pass round (2026-10-14)
+
+§9's model pass read the 22 engine files the branch changed, its report
+unseen, and found seventeen facts written twice. Three readings this branch
+wrote or exposed already disagreed, and each is fixed with a fixture shown
+failing on `5699bc9`:
+- **"It" at the trigger was per record, and at resolution per occurrence**,
+  so two attackers declared together read no "it" at all.
+  `occurrences_whose_if_holds` asks each occurrence, for both matchers.
+- **A resolving spell's cost decisions were missed by the capture**, so a
+  kicked spell's delayed trigger read it unkicked. `GameState::cost_choices_of`
+  reads a permanent, a spell on the stack or the resolving spell.
+- **"Its owner" in a gone source's condition panicked**: the `holds` guard
+  now lets a held `Lki` through, and `FilterPlayers::owner` expected a row.
+  `for_source` takes the owner off the `Lki`.
+
+Two merges in its own code rode with them: `CurrentOrLastKnown` is the one
+type for "it", and `kept_lki_of` the one lookup. The rest are the
+duplicate inventory's §3.6, beside A6e (item 247). Against `shipped`, every
+row outside timing played identically on both pools at two seats and four.
