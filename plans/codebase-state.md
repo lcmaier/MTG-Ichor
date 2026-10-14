@@ -9225,6 +9225,8 @@ ones on the last-known-information and zone-change surface are items 176 and
      "you", so the predicate is this design's to choose.
      **Sized:** a design paragraph first, then ~200–400 lines: one leaf table
      generic over how it resolves a player and an identity.
+     **Designed (2026-10-14):** `layers-architecture.md` §3.4, "One leaf
+     table for both askers".
      **Slotted:** A6m's second PR, with item 243, before TR-4a, its design paragraph reviewed first.
 
 246. **The scenario format and the dev GUI compute seven facts twice.** "The
