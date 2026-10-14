@@ -47,6 +47,7 @@ use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
+use crate::types::card_types::CardTypes;
 use crate::types::zones::{Zone, ZoneChangePattern};
 
 use crate::engine::restriction::{is_prohibited, Query};
@@ -524,19 +525,10 @@ fn push_static_ability_replacements(
 ) {
     let CheckedForReplacements { id, controller, chars, zone, scope } = *asked;
     for ability in chars.abilities.iter() {
-        if ability.ability_type != AbilityType::Static {
-            continue;
-        }
-        if !functions_in(ability, &chars.types, zone) {
-            continue;
-        }
-        // CR 604.2 through the "as long as" wrapper: the effect exists while its
-        // condition holds, and CR 614.4 asks that *before the event* — so the
-        // condition is asked here against the settled board, with the evaluator
-        // the layer pass and CR 613.11 use. Laboratory Maniac is a candidate exactly
-        // when the draw would fail, never a prompt beside Thought Reflection.
-        let Some((def, condition)) = replacement_of(ability) else { continue };
-        if condition.is_some_and(|condition| !settled_holds(condition, game, id, None)) {
+        let Some((def, condition)) = functioning_replacement(ability, &chars.types, zone) else { continue };
+        // Laboratory Maniac is a candidate exactly when the draw would fail,
+        // never a prompt beside Thought Reflection.
+        if !replacement_exists(condition, game, id) {
             continue;
         }
         if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
@@ -557,10 +549,30 @@ fn push_static_ability_replacements(
     }
 }
 
+/// The replacement effect `ability` generates where it is, with the "as long
+/// as" it exists under: [`replacement_of`] for a static ability that
+/// functions in `zone` (CR 113.6), and `None` for any other. The sweep and
+/// `oracle::mana_supply`'s scan of what changes a production both ask it.
+pub(crate) fn functioning_replacement<'a>(
+    ability: &'a AbilityDef,
+    types: &CardTypes,
+    zone: Zone,
+) -> Option<(&'a ReplacementDef, Option<&'a Condition>)> {
+    if ability.ability_type != AbilityType::Static || !functions_in(ability, types, zone) {
+        return None;
+    }
+    replacement_of(ability)
+}
+
+/// CR 604.2 through the "as long as" wrapper: the effect exists while its
+/// condition holds, and CR 614.4 asks that *before the event*, so against the
+/// settled board, with the evaluator the layer pass and CR 613.11 use.
+pub(crate) fn replacement_exists(condition: Option<&Condition>, game: &GameState, source: ObjectId) -> bool {
+    condition.is_none_or(|condition| settled_holds(condition, game, source, None))
+}
+
 /// The replacement effect a static ability's body generates, and the "as
-/// long as" it exists under (CR 604.2): the one reading of that body, for
-/// the sweep and for `oracle::mana_supply`'s scan of what changes a
-/// production.
+/// long as" it exists under (CR 604.2): the one reading of that body.
 pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, Option<&Condition>)> {
     match &ability.effect {
         Effect::Replacement(def) => Some((def, None)),

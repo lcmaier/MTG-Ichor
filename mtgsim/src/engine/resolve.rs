@@ -102,6 +102,20 @@ impl ResolutionContext {
         }
     }
 
+    /// A mana ability's resolution, activated or triggered (CR 605.3b, 605.4a):
+    /// with no stack object, the permanent is both `source` and CR 113.7a's
+    /// ability source, and it has no targets (CR 605.1a).
+    pub(crate) fn of_mana_ability(
+        game: &GameState,
+        source: ObjectId,
+        controller: PlayerId,
+        generated_by: GeneratedBy,
+    ) -> Self {
+        let mut resolution = ResolutionContext::untargeted(source, controller, generated_by);
+        resolution.ability_source = game.object_ref(source);
+        resolution
+    }
+
     /// The object this resolution's effects are attributed to: the spell, or
     /// the object that has the ability (CR 113.7), which deals the damage and
     /// gains the life (CR 120.2b, 608.2h) after its stack object is gone. A
@@ -848,19 +862,7 @@ impl GameState {
             // never be a mana ability"), which is why Mana Reflection leaves
             // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                let mana: Vec<_> = output.mana.iter()
-                    .map(|(mt, expr)| Ok((*mt, self.evaluate_amount(expr, ctx)?)))
-                    .collect::<Result<_, String>>()?;
-                self.execute_action(
-                    GameAction::ProduceMana {
-                        player: ctx.controller,
-                        source: ctx.effect_source(),
-                        mana,
-                        special: output.special.clone(),
-                        tapped_for_mana: false,
-                    },
-                    &actx,
-                )
+                self.produce_mana(output, ctx.controller, ctx.effect_source(), false, ctx, &actx)
             }
 
             Primitive::CounterSpell => {

@@ -24,6 +24,7 @@ use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::object_filter::{matched, player_ref_names, EarlierTargets, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
@@ -36,6 +37,7 @@ use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
+use crate::types::mana::ManaType;
 use crate::types::triggers::{
     DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger,
     Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
@@ -1336,13 +1338,12 @@ impl GameState {
                 one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
-                TriggerEvent::ManaAdded { source, tapped_for_mana, mana },
+                TriggerEvent::ManaAdded { .. },
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
-            ) => one(
-                tapped_for_mana.is_none_or(|t| t == *tapped)
-                    && mana.is_none_or(|m| added.iter().any(|(t, n)| *t == m && *n > 0))
-                    && self.subject_matches(source, Some(*source_id), referents, seq, None),
-            ),
+            ) => {
+                let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
+                one(self.production_matches_arm(arm, *source_id, *tapped, added, referents, seq))
+            }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
                 GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
@@ -1475,6 +1476,50 @@ impl GameState {
         }
     }
 
+    /// CR 106.12a's "is tapped for mana" and "adds mana": whether `arm`, a
+    /// `ManaAdded` arm, reads a production by `producer`, tapped for mana or
+    /// not, that added the types `added` admits, for `referents`' ability.
+    fn production_matches_arm(
+        &self,
+        arm: &TriggerEvent,
+        producer: ObjectId,
+        tapped: bool,
+        added: impl Fn(ManaType) -> bool,
+        referents: &TriggerReferents<'_>,
+        seq: EventSeq,
+    ) -> bool {
+        let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
+        tapped_for_mana.is_none_or(|t| t == tapped)
+            && mana.is_none_or(added)
+            && self.subject_matches(source, Some(producer), referents, seq, None)
+    }
+
+    /// [`Self::production_matches_arm`] for a production the mana inventory
+    /// predicts, by `permanent`'s own triggered mana ability: the record it
+    /// would be is the window's next. The trigger's limits, CR 113.6's zones
+    /// and CR 603.2f's visibility stay the dispatcher's; the inventory does
+    /// not ask them.
+    pub(crate) fn predicted_production_matches_arm(
+        &self,
+        arm: &TriggerEvent,
+        permanent: ObjectId,
+        controller: PlayerId,
+        producer: ObjectId,
+        tapped: bool,
+        added: impl Fn(ManaType) -> bool,
+    ) -> bool {
+        let Some(object) = self.objects.get(&permanent) else { return false };
+        let referents = TriggerReferents {
+            this: ThisObject::Candidate(permanent),
+            controller,
+            owner: object.owner,
+            host: crate::oracle::board::host_of(self, permanent),
+            this_ability: None,
+            referred: &[],
+        };
+        self.production_matches_arm(arm, producer, tapped, added, &referents, self.events.next_seq())
+    }
+
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
     /// attached to, a filter is read against the subject — off the record's
     /// frame for a look-back arm, since the object has left the zone the
@@ -1571,29 +1616,10 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), recipient) => {
-                let player = match recipient {
-                    EffectRecipient::Host => crate::oracle::board::host_of(self, source)
-                        .and_then(|host| controller_or_owner(self, host))
-                        .unwrap_or(pending.controller),
-                    _ => pending.controller,
-                };
-                let mut resolution = ResolutionContext::untargeted(source, player, GeneratedBy::TriggeredAbility);
-                resolution.ability_source = self.object_ref(source);
+                let player = triggered_mana_recipient(self, recipient, source, pending.controller);
+                let mut resolution = ResolutionContext::of_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
                 resolution.trigger = Some(pending.binding.clone());
-                let mut mana = Vec::with_capacity(output.mana.len());
-                for (mana_type, amount) in &output.mana {
-                    mana.push((*mana_type, self.evaluate_amount(amount, &resolution)?));
-                }
-                self.execute_action(
-                    GameAction::ProduceMana {
-                        player,
-                        source,
-                        mana,
-                        special: output.special.clone(),
-                        tapped_for_mana: false,
-                    },
-                    &ActionContext::resolving(ctx.dp, &resolution),
-                )
+                self.produce_mana(output, player, source, false, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
             }
             Effect::Sequence(effects) => {
                 for sub in effects {

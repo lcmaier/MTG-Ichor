@@ -323,7 +323,7 @@ fn can_activate_as_its_controller(
 ) -> Result<(), CannotActivate> {
     can_begin_to_activate(game, player_id, ability)?;
 
-    let other_costs: Vec<Cost> = ability.costs.iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect();
+    let (symbols, other_costs) = Cost::split_mana(ability.costs.iter().cloned());
     for cost in &other_costs {
         game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
     }
@@ -336,12 +336,7 @@ fn can_activate_as_its_controller(
         return Err(CannotActivate::NoLegalTarget);
     }
 
-    let symbols: Vec<ManaSymbol> = ability
-        .costs
-        .iter()
-        .filter_map(|c| if let Cost::Mana(mana) = c { Some(mana.symbols.iter().copied()) } else { None })
-        .flatten()
-        .collect();
+    let symbols = symbols.unwrap_or_default();
     let non_mana = NonManaCosts { source: Some(source_id), costs: &other_costs };
     if !symbols.is_empty() && !mana_payable(game, player_id, &ManaCost::from_symbols(symbols), &non_mana, supply) {
         return Err(CannotActivate::ManaShort);

@@ -80,6 +80,20 @@ pub enum CannotPay {
 }
 
 /// The engine's own words, for an error a caller returns as text.
+/// Whether a permanent can pay {T}, or {Q} where `untap`, from whether it is
+/// `tapped` and then whether it is summoning-sick (CR 302.6, 702.10c), which
+/// is false for a noncreature permanent and asked only once the tapped state
+/// passes. The check, the payment and the mana window's cached re-check ask it.
+pub(crate) fn tap_symbol_payable(tapped: bool, untap: bool, sick: impl FnOnce() -> bool) -> Result<(), CannotPay> {
+    if tapped != untap {
+        return Err(if untap { CannotPay::NotTapped } else { CannotPay::AlreadyTapped });
+    }
+    if sick() {
+        return Err(CannotPay::SummoningSick);
+    }
+    Ok(())
+}
+
 impl std::fmt::Display for CannotPay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -192,30 +206,9 @@ impl GameState {
         source_id: ObjectId,
     ) -> Result<(), CannotPay> {
         match cost {
-            Cost::TapSelf => {
+            Cost::TapSelf | Cost::UntapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
-                if entry.tapped {
-                    return Err(CannotPay::AlreadyTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // tapping, unless they have haste. `has_summoning_sickness` is
-                // false for a noncreature permanent, so it needs no type gate here.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
-                }
-                Ok(())
-            }
-            Cost::UntapSelf => {
-                let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
-                if !entry.tapped {
-                    return Err(CannotPay::NotTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // paying {Q} (untap symbol), unless they have haste.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
-                }
-                Ok(())
+                tap_symbol_payable(entry.tapped, matches!(cost, Cost::UntapSelf), || has_summoning_sickness(self, source_id))
             }
             Cost::Mana(mana_cost) => {
                 if !self.players.get(player_id).is_some_and(|player| player.mana_pool.can_pay(mana_cost)) {
@@ -237,7 +230,7 @@ impl GameState {
                 Ok(())
             }
             Cost::Sacrifice(filter, n) => {
-                let matching = self.sacrifice_candidates(filter, player_id, source_id).len();
+                let matching = self.sacrifice_candidates(filter, player_id, Some(source_id)).len();
                 if matching < *n as usize {
                     return Err(CannotPay::TooFewToSacrifice { matching, needed: *n });
                 }
@@ -260,10 +253,18 @@ impl GameState {
     /// or ability is not excluded: Krark-Clan Ironworks paying its own
     /// "Sacrifice an artifact" is the filter matching normally, and
     /// "Sacrifice another creature" is the filter asked for the source's text.
-    fn sacrifice_candidates(&self, filter: &ObjectFilter, player_id: PlayerId, source_id: ObjectId) -> Vec<ObjectId> {
+    ///
+    /// `source` is the object whose text it is, `None` for none; the mana
+    /// inventory asks it of a mana ability's cost and of a payment's.
+    pub(crate) fn sacrifice_candidates(
+        &self,
+        filter: &ObjectFilter,
+        player_id: PlayerId,
+        source: Option<ObjectId>,
+    ) -> Vec<ObjectId> {
         crate::oracle::board::permanents_controlled_by(self, player_id)
             .into_iter()
-            .filter(|&id| self.matches_for_text_of(id, filter, player_id, Some(source_id)))
+            .filter(|&id| self.matches_for_text_of(id, filter, player_id, source))
             .collect()
     }
 
@@ -313,7 +314,7 @@ impl GameState {
         let mut sacrifices: HashMap<usize, Vec<ObjectId>> = HashMap::new();
         for (idx, cost) in ordered.iter().enumerate() {
             if let Cost::Sacrifice(filter, count) = cost {
-                let candidates = self.sacrifice_candidates(filter, player_id, source_id);
+                let candidates = self.sacrifice_candidates(filter, player_id, Some(source_id));
                 let n = *count as usize;
                 if candidates.len() < n {
                     return Err(format!(
@@ -398,31 +399,13 @@ impl GameState {
     ) -> Result<(), String> {
         match cost {
             Cost::TapSelf => {
-                let entry = self.battlefield.get(&source_id)
-                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
-                if entry.tapped {
-                    return Err("Permanent is already tapped".to_string());
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // tapping, unless they have haste.
-                if has_summoning_sickness(self, source_id) {
-                    return Err("Creature has summoning sickness".to_string());
-                }
+                self.check_cost_resource(cost, player_id, source_id).map_err(|refusal| refusal.to_string())?;
                 // Through the chokepoint: CR 603.2e "becomes tapped" watchers
                 // and CR 122.1d stun counters both act on this.
                 self.execute_action(GameAction::Tap { object: source_id }, ctx)
             }
             Cost::UntapSelf => {
-                let entry = self.battlefield.get(&source_id)
-                    .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
-                if !entry.tapped {
-                    return Err("Permanent is not tapped".to_string());
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // paying {Q} (untap symbol), unless they have haste.
-                if has_summoning_sickness(self, source_id) {
-                    return Err("Creature has summoning sickness".to_string());
-                }
+                self.check_cost_resource(cost, player_id, source_id).map_err(|refusal| refusal.to_string())?;
                 // {Q} — same chokepoint as Cost::TapSelf. CR 122.1d makes Untap
                 // replaceable, which is why this cannot stay a direct write.
                 self.execute_action(GameAction::Untap { object: source_id }, ctx)
@@ -784,7 +767,7 @@ mod tests {
         let mine = add_creature(&mut game, 0, "Mine");
         let theirs = add_creature(&mut game, 1, "Theirs");
 
-        let candidates = game.sacrifice_candidates(&creature_filter(), 0, ObjectId::UNASSIGNED);
+        let candidates = game.sacrifice_candidates(&creature_filter(), 0, Some(ObjectId::UNASSIGNED));
         assert_eq!(candidates, vec![mine]);
         assert!(!candidates.contains(&theirs));
     }

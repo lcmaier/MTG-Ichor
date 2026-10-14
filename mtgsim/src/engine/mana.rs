@@ -13,7 +13,8 @@ use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
 use crate::objects::card_data::AbilityType;
 use crate::types::costs::Cost;
-use crate::types::effects::{Effect, Primitive};
+use crate::oracle::characteristics::controller_or_owner;
+use crate::types::effects::{Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::ui::decision::DecisionProvider;
@@ -100,22 +101,9 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let mut resolution = ResolutionContext::untargeted(source, player_id, GeneratedBy::ActivatedAbility);
-                resolution.ability_source = self.object_ref(source);
-                let mut mana = Vec::with_capacity(output.mana.len());
-                for (mana_type, amount_expr) in &output.mana {
-                    mana.push((*mana_type, self.evaluate_amount(amount_expr, &resolution)?));
-                }
-                self.execute_action(
-                    GameAction::ProduceMana {
-                        player: player_id,
-                        source,
-                        mana,
-                        special: output.special.clone(),
-                        tapped_for_mana,
-                    },
-                    &ActionContext::resolving(dp, &resolution),
-                )
+                let resolution = ResolutionContext::of_mana_ability(self, source, player_id, GeneratedBy::ActivatedAbility);
+                let actx = ActionContext::resolving(dp, &resolution);
+                self.produce_mana(output, player_id, source, tapped_for_mana, &resolution, &actx)
             }
             Effect::Sequence(effects) => {
                 for sub_effect in effects {
@@ -125,6 +113,47 @@ impl GameState {
             }
             _ => Err(format!("Unsupported effect in mana ability: {:?}", effect)),
         }
+    }
+
+    /// CR 106.6a's event: `output`'s mana for `player`, made by `source`, each
+    /// amount read for `resolution`, proposed under `actx` — a mana ability's,
+    /// activated or triggered, and a spell's (Dark Ritual), whose
+    /// `tapped_for_mana` is false by CR 106.12's definition.
+    pub(crate) fn produce_mana(
+        &mut self,
+        output: &ManaOutput,
+        player: PlayerId,
+        source: ObjectId,
+        tapped_for_mana: bool,
+        resolution: &ResolutionContext,
+        actx: &ActionContext,
+    ) -> Result<(), String> {
+        let mut mana = Vec::with_capacity(output.mana.len());
+        for (mana_type, amount) in &output.mana {
+            mana.push((*mana_type, self.evaluate_amount(amount, resolution)?));
+        }
+        self.execute_action(
+            GameAction::ProduceMana { player, source, mana, special: output.special.clone(), tapped_for_mana },
+            actx,
+        )
+    }
+}
+
+/// Whose pool a triggered mana ability's mana goes to: "its controller adds"
+/// on an Aura is the `Host` recipient, the enchanted permanent's controller
+/// (Wild Growth's ruling: the mana is not the land's ability), and anything
+/// else the ability's controller's.
+pub(crate) fn triggered_mana_recipient(
+    game: &GameState,
+    recipient: &EffectRecipient,
+    source: ObjectId,
+    controller: PlayerId,
+) -> PlayerId {
+    match recipient {
+        EffectRecipient::Host => crate::oracle::board::host_of(game, source)
+            .and_then(|host| controller_or_owner(game, host))
+            .unwrap_or(controller),
+        _ => controller,
     }
 }
 

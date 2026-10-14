@@ -1,5 +1,5 @@
 use super::effects::{CounterType, ObjectFilter};
-use super::mana::ManaCost;
+use super::mana::{ManaCost, ManaSymbol};
 
 /// Costs that must be paid to activate an ability or cast a spell.
 ///
@@ -30,6 +30,24 @@ pub enum Cost {
     RemoveCounters(CounterType, u32),
     /// Add N counters of a type to the source (e.g. blight counters)
     AddCounters(CounterType, u32),
+}
+
+impl Cost {
+    /// A cost list split into its mana component, every `Mana` cost's symbols
+    /// in order, and its other costs in theirs. The mana is `None` where the
+    /// list has no mana cost at all, as an alternative cost of "pay 2 life"
+    /// has none, which is not a mana cost of {0}.
+    pub fn split_mana(costs: impl IntoIterator<Item = Cost>) -> (Option<Vec<ManaSymbol>>, Vec<Cost>) {
+        let mut mana: Option<Vec<ManaSymbol>> = None;
+        let mut others = Vec::new();
+        for cost in costs {
+            match cost {
+                Cost::Mana(cost) => mana.get_or_insert_with(Vec::new).extend(cost.symbols),
+                other => others.push(other),
+            }
+        }
+        (mana, others)
+    }
 }
 
 /// An alternative cost that can replace a spell's mana cost (rule 118.9).
