@@ -132,6 +132,7 @@ impl CountableEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
@@ -249,6 +250,12 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
 /// drawn.
 pub fn draws_a_card(whose: Whose) -> CountableEvent {
     CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence, place: None })
+}
+
+/// "Whenever a spell [whose player]'s cast is countered" (CR 701.6a): "a spell
+/// you've cast" is `Whose::Yours`, read off who cast it (CR 603.10e).
+pub fn spell_is_countered(cast_by: Whose) -> TriggerEvent {
+    TriggerEvent::IsCountered { spell: None, caster: cast_by.player_ref() }
 }
 
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).

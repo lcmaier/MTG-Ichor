@@ -36,7 +36,7 @@ use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::battlefield::CostChoices;
 use crate::state::continuous_effects::triggered_ability_kinds;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -369,10 +369,10 @@ enum AnsweredArms {
 enum SubjectRead<'a> {
     /// Where it is now.
     Now,
-    /// This event is the subject leaving the battlefield, and the trigger
-    /// looks back to just before it (CR 603.10a): it was a permanent then, as
-    /// its record framed it. "When enchanted creature dies" matches the Aura
-    /// that was on it.
+    /// This event is the subject leaving where it was, and the trigger looks
+    /// back to just before it (CR 603.10): a permanent leaving the
+    /// battlefield, as its record framed it, which "when enchanted creature
+    /// dies" matches the Aura that was on; or a spell countered on the stack.
     LeftInThisEvent(&'a Lki),
     /// It had left the battlefield at some earlier event, and deals damage
     /// now as it last existed, through an ability that resolved after it had
@@ -992,7 +992,7 @@ impl GameState {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id)))
+        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1634,6 +1634,17 @@ impl GameState {
                 };
                 occurrence_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
             }
+            // CR 603.10e: the spell as it was on the stack, and whoever cast it.
+            (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { spell_id, lki, .. }) => {
+                let cast_by = lki.entry().and_then(StackEntry::caster);
+                occurrence_if(
+                    caster.as_ref().is_none_or(|p| cast_by.is_some_and(|who| self.player_ref_is(p, who, referents)))
+                        && spell.as_ref().is_none_or(|filter| {
+                            let filter = TriggerSubject::Filter(filter.clone());
+                            self.subject_matches(&filter, Some(*spell_id), referents, seq, SubjectRead::LeftInThisEvent(lki))
+                        }),
+                )
+            }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
                 GameEvent::PermanentEnteredBattlefield { object_id, controller: rc },
@@ -1722,6 +1733,7 @@ impl GameState {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }

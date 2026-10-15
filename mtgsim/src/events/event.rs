@@ -218,7 +218,10 @@ pub enum GameEvent {
     UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
     /// A spell was countered (CR 701.6a). `controller` is its controller as
     /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
-    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId },
+    /// `lki` is the spell as it was on the stack, its entry included, which
+    /// "whenever a spell is countered" looks back at (CR 603.10e): who cast
+    /// it, and what it was before it became a card in a graveyard.
+    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
@@ -433,13 +436,15 @@ impl GameEvent {
         }
     }
 
-    /// The last known information this record carries (CR 603.10a), with the
-    /// zone its object left and its owner: a zone change's or a leaving's, and
-    /// `None` for every other record and for a move no look-back reads.
+    /// The last known information this record carries (CR 603.10), with the
+    /// zone its object left and its owner: a zone change's or a leaving's
+    /// (603.10a), a countered spell's (603.10e), and `None` for every other
+    /// record and for a move no look-back reads.
     pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
         match self {
             GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
             | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            GameEvent::SpellCountered { lki, .. } => Some((lki, Zone::Stack, lki.owner())),
             _ => None,
         }
     }

@@ -1031,7 +1031,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         SpellCast { spell_id, caster } => {
             format!("SpellCast: P{} casts {}", caster, obj_name(game, *spell_id))
         }
-        SpellCountered { spell_id, controller, countered_by } => format!(
+        SpellCountered { spell_id, controller, countered_by, .. } => format!(
             "SpellCountered: {} [P{}] countered by {}", obj_name(game, *spell_id), controller, obj_name(game, *countered_by)),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {}'s {} [P{}] countered by {}",

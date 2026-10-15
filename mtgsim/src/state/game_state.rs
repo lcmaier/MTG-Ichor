@@ -53,7 +53,7 @@ pub enum NotAnOpponent {
 /// `PermanentState` is the sidecar for battlefield permanents.
 /// Created when a spell is cast or ability is activated, consumed
 /// when the stack entry resolves or is removed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StackEntry {
     /// The object ID of this stack entry (matches the key in `stack`)
     pub object_id: ObjectId,
@@ -149,6 +149,14 @@ impl StackEntry {
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
+
+    /// The player who cast this spell: the controller it was put on the stack
+    /// with, which nothing rewrites, since an effect that gains control of a
+    /// spell changes its effective controller (CR 108.4). `None` for an
+    /// ability, which is never cast.
+    pub fn caster(&self) -> Option<PlayerId> {
+        self.cast_from.map(|_| self.controller)
     }
 
     /// CR 707.10's decisions about its costs, which a copy and the permanent

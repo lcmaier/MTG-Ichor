@@ -21,7 +21,7 @@ use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{CostChoices, PermanentState};
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -183,6 +183,7 @@ counted_enum! {
         AbilityResolved,
         Attached,
         Unattached,
+        SpellCountered,
     }
 }
 
@@ -217,6 +218,7 @@ impl EventKind {
             GameEvent::AbilityResolved { .. } => EventKind::AbilityResolved,
             GameEvent::Attached { .. } => EventKind::Attached,
             GameEvent::Unattached { .. } => EventKind::Unattached,
+            GameEvent::SpellCountered { .. } => EventKind::SpellCountered,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
@@ -227,7 +229,6 @@ impl EventKind {
             | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::Scried { .. }
-            | GameEvent::SpellCountered { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
             | GameEvent::Targeted { .. }
@@ -392,6 +393,13 @@ pub enum TriggerEvent {
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
     CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> },
+    /// "Whenever a [filter] spell [you've cast] is countered" (CR 701.6a),
+    /// looking back (CR 603.10e): the filter reads the spell as it was on the
+    /// stack, and `caster` is who cast it, which an effect that took control
+    /// of the spell does not change. A spell that doesn't resolve because its
+    /// targets are illegal isn't countered (Multani's Presence's ruling), and
+    /// no printed trigger reads an ability being countered.
+    IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> },
     /// "Whenever [you/an opponent] shuffle[s] [your/their] library" (CR
     /// 701.24): one record per shuffle, a library of zero or one cards
     /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
@@ -453,15 +461,16 @@ impl TriggerEvent {
     /// CR 603.10's list, as a property of the arm's fields and never a flag a
     /// card sets (§4.3): CR 603.10a's three zone-change classes as an arm can
     /// match them (`zone_change_looks_back`), so "into a hand" with no `from`
-    /// looks back at a move from a zone all players could see; and becoming
-    /// unattached (603.10c). The other classes arrive with their arms.
+    /// looks back at a move from a zone all players could see; becoming
+    /// unattached (603.10c); and a spell being countered (603.10e). The other
+    /// classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
             TriggerEvent::ZoneChange { change, .. } => {
                 matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
                     || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
             }
-            TriggerEvent::BecomesUnattached { .. } => true,
+            TriggerEvent::BecomesUnattached { .. } | TriggerEvent::IsCountered { .. } => true,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
@@ -518,6 +527,7 @@ impl TriggerEvent {
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
+            TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
             TriggerEvent::BecomesAttached { .. } => EventKindMask::of(EventKind::Attached),
             TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
@@ -553,6 +563,7 @@ impl TriggerEvent {
             | TriggerEvent::GainsLife { .. }
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => None,
@@ -582,6 +593,7 @@ impl TriggerEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
@@ -620,7 +632,8 @@ impl TriggerEvent {
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // "That spell".
-            (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
+            (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. })
+            | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { spell_id, .. }) => Some(*spell_id),
             // "That creature" and "that permanent": the object, which every
             // printed reader acts on (Grafted Wargear's "sacrifice that
             // permanent", Enormous Energy Blade's "tap that creature").
@@ -643,6 +656,7 @@ impl TriggerEvent {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
@@ -669,6 +683,8 @@ impl TriggerEvent {
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. })
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { caster, .. }) => Some(*caster),
+            // Its controller as it left the stack, as the record keeps it.
+            (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { controller, .. }) => Some(*controller),
             (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { player_id, .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { player_id }) => Some(*player_id),
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
@@ -700,6 +716,7 @@ impl TriggerEvent {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
@@ -737,6 +754,7 @@ impl TriggerEvent {
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
+            | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
             | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
@@ -759,6 +777,7 @@ impl TriggerEvent {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
@@ -1100,6 +1119,9 @@ struct LkiBody {
     cost_choices: CostChoices,
     /// `None` for an object that left a zone other than the battlefield.
     permanent: Option<PermanentFacts>,
+    /// The stack object it was, for a spell or ability that left the stack: what
+    /// was chosen for it and who cast it (CR 603.10e, 707.10).
+    entry: Option<Arc<StackEntry>>,
 }
 
 /// What a permanent had that its characteristics do not carry: its tapped
@@ -1116,13 +1138,15 @@ struct PermanentFacts {
 
 impl Lki {
     /// `object` as it is now, about to leave: `frame` is its characteristics,
-    /// and `permanent` its entry while it is on the battlefield.
+    /// `permanent` its entry while it is on the battlefield, and `entry` its
+    /// stack entry while it is on the stack.
     pub fn new(
         object: ObjectRef,
         frame: Arc<EffectiveCharacteristics>,
         owner: PlayerId,
         cost_choices: CostChoices,
         permanent: Option<&PermanentState>,
+        entry: Option<&StackEntry>,
     ) -> Lki {
         let permanent = permanent.map(|entry| {
             // ORDER-FREE: sorted next.
@@ -1136,7 +1160,8 @@ impl Lki {
                 attached_by: entry.attached_by.clone(),
             }
         });
-        Lki(Arc::new(LkiBody { object, frame, owner, cost_choices, permanent }))
+        let entry = entry.map(|entry| Arc::new(entry.clone()));
+        Lki(Arc::new(LkiBody { object, frame, owner, cost_choices, permanent, entry }))
     }
 
     /// The existence that left.
@@ -1184,6 +1209,12 @@ impl Lki {
     /// Aura that stays was detached by then.
     pub fn had_attached(&self, attachment: ObjectId) -> bool {
         self.0.permanent.as_ref().is_some_and(|p| p.attached_by.contains(&attachment))
+    }
+
+    /// The stack object it was; `None` for an object that was not on the
+    /// stack.
+    pub fn entry(&self) -> Option<&StackEntry> {
+        self.0.entry.as_deref()
     }
 }
 
