@@ -777,15 +777,21 @@ impl GameState {
     /// the battlefield a permanent that is the source of a copy effect, or of
     /// an effect that grants or removes abilities. A player losing counts for
     /// each such permanent that goes with them (`departs_with`, CR 800.4a).
-    /// When it is true the batch snapshots the lists before performing
-    /// (`LookBackSnapshot`).
+    /// So does an attachment that is such a source leaving the object it is
+    /// on, which takes what it gave that object (CR 603.10c: "becomes
+    /// unattached" looks back). When it is true the batch snapshots the
+    /// lists before performing (`LookBackSnapshot`).
     pub(crate) fn departs_an_ability_list_source<'a>(&self, mut decided: impl Iterator<Item = &'a GameAction>) -> bool {
         let sources = &self.continuous_effects.summary().ability_list_sources;
+        let attached = |id: &ObjectId| self.battlefield.get(id).is_some_and(|entry| entry.attached_to.is_some());
         !sources.is_empty()
             && decided.any(|action| match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => sources.contains(object),
                 GameAction::PlayerLoses { player } => sources.iter().any(|&s| self.departs_with(s, *player)),
+                GameAction::Unattach { attachment } | GameAction::Attach { attachment, .. } => {
+                    sources.contains(attachment) && attached(attachment)
+                }
                 _ => false,
             })
     }
@@ -1563,6 +1569,24 @@ impl GameState {
             ) => one(referents.this_ability.is_some_and(|this| {
                 this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
             })),
+            // Read after the event: the attach is done when the dispatch asks
+            // (Siona, Captain of the Pyleas' fourth ruling).
+            (
+                TriggerEvent::BecomesAttached { attachment: watched, host: on },
+                GameEvent::Attached { attachment, host, .. },
+            ) => one(
+                self.subject_matches(watched, Some(*attachment), referents, seq, SubjectRead::Now)
+                    && self.subject_matches(on, Some(*host), referents, seq, SubjectRead::Now),
+            ),
+            // CR 603.10c: each end as it was just before, which for one that
+            // left in this event is its departure's frame.
+            (
+                TriggerEvent::BecomesUnattached { attachment: watched, former_host: from },
+                GameEvent::Unattached { attachment, former_host, .. },
+            ) => one(
+                self.subject_matches(watched, Some(attachment.id), referents, seq, self.as_it_was(*attachment))
+                    && self.subject_matches(from, Some(former_host.id), referents, seq, self.as_it_was(*former_host)),
+            ),
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no occurrence of it.
             (
@@ -1581,6 +1605,8 @@ impl GameState {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::BecomesAttached { .. }
+                | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -1683,6 +1709,21 @@ impl GameState {
         player_ref_names(who, player, &mut { *referents }) == Some(true)
     }
 
+    /// `object` as it was just before the window's event (CR 603.10): where it
+    /// is now while it is still that existence on the battlefield, and else
+    /// as its departure in this window framed it — the join `entry_origin`
+    /// makes for an entry's `from`.
+    fn as_it_was(&self, object: ObjectRef) -> SubjectRead<'_> {
+        if self.find(object).is_some() && self.battlefield.contains_key(&object.id) {
+            return SubjectRead::Now;
+        }
+        self.events
+            .held()
+            .iter()
+            .find_map(|record| record.event.lki().map(|(lki, ..)| lki).filter(|lki| lki.object() == object))
+            .map_or(SubjectRead::Now, SubjectRead::LeftInThisEvent)
+    }
+
     /// The zone the permanent at `id` entered from, off its own zone change
     /// earlier in the same window — `None` for a token, which came from
     /// nowhere (CR 111.2). The entry's performer announces both, so the
@@ -1711,6 +1752,12 @@ impl GameState {
     /// record names `id` alone, so the object is taken as the dispatch finds
     /// it, which is right after the event.
     pub(super) fn subject_after(&self, event: &GameEvent, id: ObjectId) -> Option<ObjectRef> {
+        // An unattach names each end as the existence it was, so a host that
+        // has left since is not "that permanent" (Grafted Wargear's first
+        // ruling).
+        if let GameEvent::Unattached { attachment, former_host, .. } = event {
+            return [*attachment, *former_host].into_iter().find(|end| end.id == id);
+        }
         match event.new_object() {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),

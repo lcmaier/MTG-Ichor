@@ -181,6 +181,8 @@ counted_enum! {
         CardDrawn,
         LibraryShuffled,
         AbilityResolved,
+        Attached,
+        Unattached,
     }
 }
 
@@ -213,10 +215,11 @@ impl EventKind {
             GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
             GameEvent::LibraryShuffled { .. } => EventKind::LibraryShuffled,
             GameEvent::AbilityResolved { .. } => EventKind::AbilityResolved,
+            GameEvent::Attached { .. } => EventKind::Attached,
+            GameEvent::Unattached { .. } => EventKind::Unattached,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
-            | GameEvent::Attached { .. }
             | GameEvent::BlockersDeclared { .. }
             | GameEvent::CountersAnnihilated { .. }
             | GameEvent::CountersChanged { .. }
@@ -230,7 +233,6 @@ impl EventKind {
             | GameEvent::Targeted { .. }
             | GameEvent::TokenCeasedToExist { .. }
             | GameEvent::TokenCreated { .. }
-            | GameEvent::Unattached { .. }
             | GameEvent::UntilReturnMade { .. } => return None,
         })
     }
@@ -381,6 +383,20 @@ pub enum TriggerEvent {
     /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
     /// no record (Cosi's Trickster's rulings).
     ShufflesLibrary { player: Option<PlayerRef> },
+    /// "Whenever [an Aura] becomes attached to [this creature]" (CR 701.3a),
+    /// on the transition only (CR 603.2e, 701.3b): entering attached is one
+    /// (CR 303.4f), moving from another object is one, and an attach to the
+    /// object it is already on is none (Siona, Captain of the Pyleas' first
+    /// ruling). Read after the event, so an Aura that makes its object stop
+    /// being a creature you control does not trigger Siona (her fourth
+    /// ruling). "That creature" is the object it became attached to.
+    BecomesAttached { attachment: TriggerSubject, host: TriggerSubject },
+    /// "Whenever [this Equipment] becomes unattached from [a permanent]": every
+    /// route CR 701.3d counts (Grafted Wargear's first ruling), looking back
+    /// (CR 603.10c), so an Equipment that left triggers off how it was. "That
+    /// permanent" is the object it was attached to, as the existence it was
+    /// (CR 400.7).
+    BecomesUnattached { attachment: TriggerSubject, former_host: TriggerSubject },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
@@ -404,10 +420,12 @@ pub enum IdentityRef {
 impl TriggerEvent {
     /// CR 603.10's list, as a property of the arm's fields and never a flag a
     /// card sets (§4.3): leaves-the-battlefield and dies (603.10a's first
-    /// class). The other classes arrive with their arms.
+    /// class), and becoming unattached (603.10c). The other classes arrive
+    /// with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
             TriggerEvent::ZoneChange { change, .. } => change.from == Some(Zone::Battlefield),
+            TriggerEvent::BecomesUnattached { .. } => true,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
@@ -422,6 +440,7 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => false,
         }
@@ -457,6 +476,8 @@ impl TriggerEvent {
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
+            TriggerEvent::BecomesAttached { .. } => EventKindMask::of(EventKind::Attached),
+            TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
         }
@@ -479,7 +500,9 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { subject, .. }
             | TriggerEvent::ManaAdded { source: subject, .. }
             | TriggerEvent::DamageDealt { source: subject, .. }
-            | TriggerEvent::Attacks { attacker: subject, .. } => Some(subject),
+            | TriggerEvent::Attacks { attacker: subject, .. }
+            | TriggerEvent::BecomesAttached { host: subject, .. }
+            | TriggerEvent::BecomesUnattached { former_host: subject, .. } => Some(subject),
             TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -517,6 +540,8 @@ impl TriggerEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => Multiplicity::PerOccurrence,
         }
@@ -553,6 +578,11 @@ impl TriggerEvent {
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // "That spell".
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
+            // "That creature" and "that permanent": the object, which every
+            // printed reader acts on (Grafted Wargear's "sacrifice that
+            // permanent", Enormous Energy Blade's "tap that creature").
+            (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { host, .. }) => Some(*host),
+            (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { former_host, .. }) => Some(former_host.id),
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -571,6 +601,8 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::BecomesAttached { .. }
+                | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -605,6 +637,8 @@ impl TriggerEvent {
             }
             (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
+            | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
+            | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
@@ -624,6 +658,8 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::BecomesAttached { .. }
+                | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -659,6 +695,8 @@ impl TriggerEvent {
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
+            | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
+            | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
@@ -679,6 +717,8 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::BecomesAttached { .. }
+                | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -1186,6 +1226,12 @@ mod tests {
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
             ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
             ("AbilityResolved", GameEvent::AbilityResolved { identity, controller: 0 }),
+            ("Attached", GameEvent::Attached { attachment: id, host: id, former_host: None }),
+            ("Unattached", GameEvent::Unattached {
+                attachment: identity.source,
+                former_host: identity.source,
+                route: crate::events::event::UnattachRoute::HostLeft,
+            }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
         ]
     }
@@ -1228,6 +1274,11 @@ mod tests {
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
             (TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility }, &["AbilityResolved"]),
+            (TriggerEvent::BecomesAttached { attachment: TriggerSubject::Any, host: TriggerSubject::Any }, &["Attached"]),
+            (
+                TriggerEvent::BecomesUnattached { attachment: TriggerSubject::Any, former_host: TriggerSubject::Any },
+                &["Unattached"],
+            ),
         ];
         let records = sample_records();
         for (arm, reads) in &expected {
@@ -1238,7 +1289,7 @@ mod tests {
     }
 
     /// The mask is as wide as the kinds need and no wider: one word for the
-    /// seventeen there are, every kind in it, and none of them in the empty set.
+    /// nineteen there are, every kind in it, and none of them in the empty set.
     #[test]
     fn the_mask_holds_every_kind_in_one_word() {
         assert_eq!(EventKind::WORDS, 1);

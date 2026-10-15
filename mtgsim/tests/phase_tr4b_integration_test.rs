@@ -10,11 +10,15 @@
 //!    own event (CR 303.4f).
 //! 4. Item 178: an equip ability attaches its own Equipment, by identity
 //!    (CR 400.7).
+//! 5. The two trigger events: "becomes attached" (CR 603.2e, read after the
+//!    event) and "becomes unattached" (CR 603.10c, looking back), with
+//!    Siona, Captain of the Pyleas' rulings on a fixture shaped like her.
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lh_cards::{bonesplitter, holy_strength};
+use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
@@ -22,22 +26,24 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
-use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_controller};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
-    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder, SelectionFilter, TargetCount,
-    TypeChange,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder, SelectionFilter,
+    TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
+use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::ui::decision::DecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers
@@ -479,4 +485,276 @@ fn an_equip_ability_does_not_attach_its_equipment_once_it_has_left_and_returned(
     assert_eq!(host(&game, splitter), None);
     assert_eq!(game.battlefield[&bears].attached_by, Vec::<ObjectId>::new());
     assert!(attachment_records(&game).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 5. "Becomes attached" and "becomes unattached" (CR 603.2e, 603.10c)
+// ---------------------------------------------------------------------------
+
+fn gain(n: u64) -> Effect {
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Controller)
+}
+
+fn a_creature() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Creature)
+}
+
+/// An Equipment with Equip {0} that watches itself both ways, with two
+/// amounts so one life total says what fired: 1 per "becomes attached to a
+/// creature", 10 per "becomes unattached from a creature".
+fn watching_equipment() -> Arc<CardData> {
+    CardDataBuilder::new("Probe Watching Equipment")
+        .card_type(CardType::Artifact)
+        .subtype(equipment_subtype())
+        .ability(triggered_ability(
+            "Whenever this Equipment becomes attached to a creature, you gain 1 life.",
+            whenever(becomes_attached(TriggerSubject::ThisObject, a_creature()), gain(1)),
+        ))
+        .ability(triggered_ability(
+            "Whenever this Equipment becomes unattached from a creature, you gain 10 life.",
+            whenever(becomes_unattached(TriggerSubject::ThisObject, a_creature()), gain(10)),
+        ))
+        .ability(equip("Equip {0}", Vec::new()))
+        .build()
+}
+
+/// Put every waiting trigger on the stack and resolve the stack.
+fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.perform_sba_and_triggers(dp).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(dp).unwrap();
+        game.perform_sba_and_triggers(dp).unwrap();
+    }
+}
+
+/// Activate `equipment`'s equip at the `pick`th creature and resolve it.
+fn equip_to(game: &mut GameState, equipment: ObjectId, pick: usize) {
+    let index = get_effective_abilities(game, equipment)
+        .iter()
+        .position(|a| a.ability_type == AbilityType::Activated)
+        .expect("an equip ability");
+    let dp = RecordingDecisionProvider::picking(pick);
+    game.activate_ability(0, equipment, index, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
+}
+
+fn life(game: &GameState) -> i64 {
+    game.players[0].life_total
+}
+
+/// The watching Equipment on the first of two Grizzly Bears, its trigger for
+/// that attach already resolved.
+fn watched_on_bears(game: &mut GameState) -> (ObjectId, ObjectId, ObjectId) {
+    let first = put_on_battlefield(game, grizzly_bears(), 0);
+    let second = put_on_battlefield(game, grizzly_bears(), 0);
+    let gear = put_on_battlefield(game, watching_equipment(), 0);
+    equip_to(game, gear, 0);
+    resolve_all(game, &test_dp());
+    assert_eq!(host(game, gear), Some(first));
+    (gear, first, second)
+}
+
+// COVERS: ATOM-603.2e-002
+#[test]
+fn equipping_the_creature_it_is_already_attached_to_triggers_nothing() {
+    let mut game = setup_two_player_game();
+    let (gear, first, _) = watched_on_bears(&mut game);
+    let before = life(&game);
+
+    equip_to(&mut game, gear, 0);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, gear), Some(first));
+    assert_eq!(life(&game), before, "neither \"becomes attached\" nor \"becomes unattached\" (CR 603.2e, 701.3b)");
+}
+
+/// Moving the Equipment unattaches it from the first creature, and "that
+/// creature" is the first one (CR 701.3d).
+// COVERS: ATOM-603.10c-002
+#[test]
+fn moving_an_equipment_to_another_creature_triggers_its_unattach_from_the_first() {
+    let mut game = setup_two_player_game();
+    let (gear, first, _) = watched_on_bears(&mut game);
+    let first_ref = existence(&game, first);
+
+    equip_to(&mut game, gear, 1);
+
+    let unattached: Vec<_> = game
+        .pending_triggers
+        .iter()
+        .filter(|p| p.origin.source() == gear && p.binding.records.iter().any(|r| matches!(r.event, GameEvent::Unattached { .. })))
+        .collect();
+    assert_eq!(unattached.len(), 1);
+    assert_eq!(unattached[0].binding.subject, Some(first_ref), "\"that creature\" is the one it left");
+}
+
+/// One equip, two triggers: unattached from the first, attached to the
+/// second.
+// COVERS: ATOM-603.10c-003
+#[test]
+fn moving_an_equipment_to_another_creature_triggers_both_ways() {
+    let mut game = setup_two_player_game();
+    let (gear, _, second) = watched_on_bears(&mut game);
+    let before = life(&game);
+
+    equip_to(&mut game, gear, 1);
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+
+    assert_eq!(host(&game, gear), Some(second));
+    assert_eq!(life(&game), before + 11);
+}
+
+/// The host leaving unattaches the Equipment, and the trigger reads the
+/// creature as it was before it left (CR 603.10c). Here it was a creature
+/// only while an effect animated it on the battlefield, so "from a creature"
+/// holds of how it was and not of the artifact card in the graveyard.
+// COVERS: ATOM-603.10c-001
+#[test]
+fn an_equipment_whose_creature_is_destroyed_triggers_looking_back() {
+    let mut game = setup_two_player_game();
+    let clue = Subtype::Artifact(ArtifactType::Clue);
+    put_on_battlefield(&mut game, animator(clue.clone(), &[]), 0);
+    let construct = put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("Probe Clue").card_type(CardType::Artifact).subtype(clue).build(),
+        0,
+    );
+    let gear = put_on_battlefield(&mut game, watching_equipment(), 0);
+    equip_to(&mut game, gear, 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(host(&game, gear), Some(construct), "the animated Clue, the second creature");
+    let before = life(&game);
+
+    destroy_all(&mut game, &[construct]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, gear), None);
+    assert_eq!(life(&game), before + 10);
+}
+
+/// An Equipment that leaves triggers off its own ability as it was (CR
+/// 603.10c), the way a leaves-the-battlefield ability does.
+#[test]
+fn an_equipment_that_leaves_triggers_its_own_unattach() {
+    let mut game = setup_two_player_game();
+    let (gear, _, _) = watched_on_bears(&mut game);
+    let before = life(&game);
+
+    destroy_all(&mut game, &[gear]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(game.objects[&gear].zone, Zone::Graveyard);
+    assert_eq!(life(&game), before + 10);
+}
+
+/// Siona, Captain of the Pyleas' last ability on a vanilla 2/2, gaining 1
+/// life where she makes a Soldier: "Whenever an Aura you control becomes
+/// attached to a creature you control".
+fn siona_shape() -> Arc<CardData> {
+    let yours = |filter: ObjectFilter| ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let aura = ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura));
+    CardDataBuilder::new("Probe Siona")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability(
+            "Whenever an Aura you control becomes attached to a creature you control, you gain 1 life.",
+            whenever(becomes_attached(yours(aura), yours(a_creature())), gain(1)),
+        ))
+        .build()
+}
+
+/// Siona's first ruling, its three cases: an Aura entering attached
+/// triggers her, one moving from another object triggers her, and an
+/// attach to the creature it already enchants does not.
+#[test]
+fn an_aura_entering_attached_or_moving_triggers_siona_and_one_left_in_place_does_not() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, siona_shape(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let other = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let start = life(&game);
+
+    let aura = aura_spell_targeting(&mut game, 0, bears);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game), start + 1, "entering attached is becoming attached");
+
+    attach(&mut game, aura, other);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game), start + 2, "moving from another object is too");
+
+    attach(&mut game, aura, other);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game), start + 2, "attaching it where it already is is not");
+}
+
+/// An Aura that reads "You control enchanted creature" and enchants a
+/// creature or artifact, for Siona's fourth ruling.
+fn control_aura() -> Arc<CardData> {
+    CardDataBuilder::new("Probe Control Aura")
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .ability(static_ability(Effect::Atom(
+            Primitive::GainControl(Duration::WhileSourceOnBattlefield),
+            EffectRecipient::Host,
+        )))
+        .build()
+}
+
+/// Siona's fourth ruling: the trigger reads the board after the attach. An
+/// Aura that makes an opponent's creature yours triggers her.
+#[test]
+fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, siona_shape(), 0);
+    let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let start = life(&game);
+
+    let aura = put_spell_on_stack(&mut game, control_aura(), 0);
+    let enchant = control_aura().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let chosen = TargetInstance::from_announcement(&game, enchant, &[ResolvedTarget::Object(theirs)]).unwrap();
+    game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(get_effective_controller(&game, theirs), Some(0));
+    assert_eq!(life(&game), start + 1);
+}
+
+/// An Equipment whose creature has "Whenever an Equipment becomes unattached
+/// from this creature, you gain 5 life", with Equip {0}.
+fn granting_equipment() -> Arc<CardData> {
+    let granted = triggered_ability(
+        "Whenever an Equipment becomes unattached from this creature, you gain 5 life.",
+        whenever(becomes_unattached(ObjectFilter::BySubtype(equipment_subtype()), TriggerSubject::ThisObject), gain(5)),
+    );
+    CardDataBuilder::new("Probe Granting Equipment")
+        .card_type(CardType::Artifact)
+        .subtype(equipment_subtype())
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::Host,
+        )))
+        .ability(equip("Equip {0}", Vec::new()))
+        .build()
+}
+
+/// CR 603.10c looks back to "the existence of those abilities ... immediately
+/// prior to the event": moving the Equipment takes the granted ability off
+/// the first creature in the event that triggers it, and it still triggers.
+#[test]
+fn a_creature_whose_equipment_granted_its_unattach_trigger_triggers_as_the_equipment_moves() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let gear = put_on_battlefield(&mut game, granting_equipment(), 0);
+    equip_to(&mut game, gear, 0);
+    resolve_all(&mut game, &test_dp());
+    let before = life(&game);
+
+    equip_to(&mut game, gear, 1);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(life(&game), before + 5, "the first creature's, as it was; the second's is about itself");
 }
