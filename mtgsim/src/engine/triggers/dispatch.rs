@@ -297,11 +297,14 @@ impl TriggerCandidateFrame<'_> {
     /// snapshot `looks_back_through`, or `None` when it answers none. A
     /// object that left has only its list from before; a survivor's list now
     /// answers everything unless the record's snapshot holds the one from
-    /// before, which then answers the look-back arms in its place.
-    fn asks(&self, looks_back_through: Option<usize>) -> Option<Asks> {
+    /// before, which then answers the look-back arms in its place. An object
+    /// that `arrived` where it is in this window was not there immediately
+    /// before the event, so its list now answers no look-back arm (CR
+    /// 603.10a; Bridge from Below's third ruling).
+    fn asks(&self, looks_back_through: Option<usize>, arrived: bool) -> Option<Asks> {
         match self {
             TriggerCandidateFrame::Live { snapshots, .. }
-                if looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
+                if arrived || looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
             {
                 Some(Asks::NotLookBack)
             }
@@ -1168,6 +1171,11 @@ impl GameState {
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
+        // The objects the window made: a window is one event (§4.1), so each
+        // was somewhere else immediately before every record of it.
+        let made: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.object_made_by(&record.event)).collect();
+        let arrived: Vec<bool> = candidates.iter().map(|candidate| made.contains(&candidate.object)).collect();
+
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).
         let mut defs: Vec<TriggerCandidateDef<'_>> = Vec::new();
@@ -1197,7 +1205,7 @@ impl GameState {
             let mut hits: Vec<ArmMatch<'_, '_>> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
-                let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
+                let Some(asks) = candidate.frame.asks(looks_back_through, arrived[row.candidate]) else { continue };
                 let identity = row.identity;
                 let def = row.def;
                 let outcome = self.match_def(def, candidate, asks, record, identity);
@@ -1764,6 +1772,15 @@ impl GameState {
         match event.new_object() {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),
+        }
+    }
+
+    /// The object `event` brought into being where it is (CR 400.7): a zone
+    /// change's new object, or a created token.
+    fn object_made_by(&self, event: &GameEvent) -> Option<ObjectRef> {
+        match event {
+            GameEvent::TokenCreated { object_id, .. } => self.object_ref(*object_id),
+            event => event.new_object(),
         }
     }
 

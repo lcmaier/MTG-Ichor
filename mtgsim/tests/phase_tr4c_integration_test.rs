@@ -117,6 +117,31 @@ fn bridge_from_below_reads_whose_graveyard_not_who_controlled_the_creature() {
     assert_eq!(zone(&game, bridge), Some(Zone::Exile), "the second");
 }
 
+/// Item 259: the card reaching the graveyard in the event that killed the
+/// creatures was not there immediately before it, and a leaves-the-battlefield
+/// ability looks back to then (CR 603.10a). In either batch order: one window
+/// is one event, so a record after the card's own move is no later event.
+// RULING: Bridge from Below #3 - "If Bridge from Below isn't in your graveyard immediately before a creature dies, its abilities won't trigger at all. If Bridge from Below isn't still in your graveyard as its first ability resolves, you won't create a token."
+#[test]
+fn bridge_from_below_put_into_the_graveyard_by_the_same_wipe_does_not_trigger() {
+    for bridge_first in [true, false] {
+        let mut game = setup_two_player_game();
+        let bridge = put_on_battlefield(&mut game, bridge_from_below(), 0);
+        let yours = put_on_battlefield(&mut game, grizzly_bears(), 0);
+        let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let order = if bridge_first { [bridge, yours, theirs] } else { [yours, theirs, bridge] };
+
+        destroy_all(&mut game, &order);
+        assert_eq!(zone(&game, bridge), Some(Zone::Graveyard));
+        assert_eq!(waiting_from(&game, bridge), 0, "bridge_first: {bridge_first}");
+
+        // In the graveyard now, it answers the next death.
+        let next = put_on_battlefield(&mut game, grizzly_bears(), 0);
+        destroy_all(&mut game, &[next]);
+        assert_eq!(waiting_from(&game, bridge), 1, "bridge_first: {bridge_first}");
+    }
+}
+
 /// The intervening "if" again at resolution (CR 603.4).
 // RULING: Bridge from Below #3 - "If Bridge from Below isn't in your graveyard immediately before a creature dies, its abilities won't trigger at all. If Bridge from Below isn't still in your graveyard as its first ability resolves, you won't create a token."
 #[test]
