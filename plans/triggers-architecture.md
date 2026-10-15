@@ -1029,9 +1029,9 @@ TR-4c): `zone_change_looks_back(from, to)` — from the battlefield, from a
 graveyard, and into a hand or library from a zone all players could see, CR
 603.10a's own words for the third class; a Brainstorm put-back from a hand
 was never a shared fact, so it has nothing to look back at and stays `None`.
-A departing player's graveyard is framed card by card, since each card
-leaves a graveyard (Erebos's Titan, at four seats), and a card that reaches a
-graveyard and leaves it inside one batch is framed as it leaves. **The
+Leaving the game counts only from the battlefield (CR 603.6c): a card leaving
+the game from a graveyard leaves no graveyard (Erebos's Titan's third
+ruling). **The
 reader methods live on the type** (the table above), and `TriggerBinding`'s
 readers answer live when the object is still where the event left it and
 from the frame otherwise (CR 608.2h, 113.7a); there is no second view type.
@@ -1150,7 +1150,7 @@ from a known item, so the calibration also bought two findings.
 | Kind | 1. Which object | 2. Done, and caused | 3. Replaced | 4. When read | 5. As it left |
 |---|---|---|---|---|---|
 | `ZoneChange` | holds (`new_epoch`, §2b.5); **item 258**: a move into a hand or library is still found (CR 400.7e, 400.7j, 701.17c) → TR-4d | holds (`act`, the stamp's cause, §2b.2–3); **item 131**: a same-zone substitute leaves no record (CR 614.6, 701.17c) → TR-4d; a redirect's destination is the resolving spell's too (item 261, closed by A6r) | holds (`applied`, §2b.4) | holds at the dispatch (§2b.6); item 251, a non-look-back arm reading the frame (CR 603.6c, 603.10), closed by TR-4a | holds (item 14, closed by TR-4a; items 15 and 249, closed by TR-4c) |
-| `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds (item 15: a graveyard card leaving the game, closed by TR-4c) |
+| `LeftTheGame` | holds: it left the game, so there is no new object | holds: the leaving's cause | holds: a replaced loss leaves no record (CR 603.2g) | holds | holds: a graveyard card leaving the game leaves no graveyard (Erebos's Titan's third ruling; item 15, closed by TR-4c) |
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
 | `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as the card's draw ends (`place_in_turn`, `place_in_draw_step`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
@@ -1594,11 +1594,14 @@ For each record, the candidates are the union of:
    **Amended 2026-10-15 (TR-4c): not off a frame, and where it went.** A move
    CR 603.10a does not look back across is asked after the event (CR 603.10),
    so CR 113.6k's "zones it can trigger from" are the zones the move can leave
-   the object in, the hidden ones aside (CR 603.2f). CR 702.29c says so of a
-   cycling trigger, which fires "from whatever zone the card winds up in",
-   and Yixlid Jailer's second ruling of Narcomoeba's, which fires from the
-   graveyard where the Jailer stops it. Guerrilla Tactics' discard functions in
-   the graveyard, or in Rest in Peace's exile. A look-back move still functions
+   the object in, a hidden one included: whether the card triggers there is CR
+   603.2f's question, of the object (Library of Leng's board,
+   `plans/atomic-tests/supplemental-docs/603-2f-complexity.md`, which Future
+   Sight's revealed top card turns around). CR 702.29c says so of a cycling
+   trigger, which fires "from whatever zone the card winds up in", and Yixlid
+   Jailer's second ruling of Narcomoeba's, which fires from the graveyard
+   where the Jailer stops it. Guerrilla Tactics' discard functions in the
+   graveyard, in Rest in Peace's exile and in Library of Leng's library. A look-back move still functions
    in the zone it left, asked off the frame on leg 2. And an intervening "if"
    that states a zone replaces the derivation for every condition of its
    ability (CR 113.6b; Bridge from Below, item 173), in `functioning_zones` and
@@ -1774,8 +1777,9 @@ both batch orders.
 **An object the event brought** (main item 259, TR-4c). A live candidate the
 window made, a zone change's new object or a created token, was somewhere
 else immediately before the event, so it answers no look-back arm of the
-window (`match_candidates`, which the audit shares). The whole window, not
-the records up to its own move: a window is one batch and so one event
+window (`newcomer_from`, read in `match_candidates`, which the audit
+shares). The whole window, not
+the records up to its move to the graveyard: a window is one batch and so one event
 (§4.1). A Bridge from Below put into the graveyard by the wipe that killed the
 creatures beside it does not trigger, its third ruling, in either batch order.
 
@@ -1783,10 +1787,12 @@ creatures beside it does not trigger, its third ruling, in either batch order.
 Aura's trigger on its enchanted permanent leaving
 (`TriggerEvent::watches_its_host_leave`) finds the card the Aura became in its
 owner's graveyard: `TriggerBinding.source_found_in_graveyard`, set at the
-dispatch when the Aura's own move into the graveyard is in the window (the
+dispatch when the Aura's move into the graveyard is in the window (the
 rule's first sentence, the same event), and by the performer of CR 704.5m's
-move, whose stamp names it, for each pending or stacked trigger of that Aura
-(the second). `this_object` reads it once the source itself is gone. Angelic
+move into the graveyard, whose stamp names it, for each pending or stacked
+trigger of that Aura (the second). Only the graveyard: an Aura a replacement
+exiles instead (Leyline of the Void) was never put there, and stays where it
+went. `this_object` reads it once the source itself is gone. Angelic
 Destiny's "return this card" is the consumer; Rancor's "return it" is CR
 400.7e's, read through the binding's subject since RH-3.
 
@@ -3218,34 +3224,34 @@ Bramble Elemental pooled at the review, and both tables re-recorded with it.
 
 **What shipped.** CR 603.10a's second and third classes carry their frame:
 `zone_change_looks_back(from, to)` is the one statement, read by the capture,
-the performers' hand-over and `TriggerEvent::looks_back`; a departing
-player's graveyard is framed card by card (§3.11). An intervening "if" that
+the performers' hand-over and `TriggerEvent::looks_back`; leaving the game
+counts only from the battlefield (§3.11). An intervening "if" that
 states a zone is where its ability works (CR 113.6b, item 173). A trigger on
-the object's own move outside those classes is asked where the move left it
+the card itself moving outside those classes is asked where the move left it
 (CR 603.10, 702.29c; item 249, §4.2). CR 603.2f is asked when a candidate's
 list is read (§4.2). A live candidate the window made answers no look-back
 arm (item 259), and an Aura's trigger on its host leaving finds the card the
 Aura became (CR 400.7f, item 260; §4.3). Items 15, 173, 249, 259 and 260
 closed. Bridge from Below, Guerrilla Tactics, Angelic Destiny and Rancor
-registered, Bridge from Below pooled (193 → 197, 108 → 109). Twenty-seven
+registered, Bridge from Below pooled (193 → 197, 108 → 109). Twenty-nine
 tests; ATOM-603.6e-001 and ATOM-400.7f-001 are covered.
 
-**What moved on the way in.** Three of the brief's recommendations were
-settled the other way on the CR's text. Item 249's look-back from the hand:
-the CR asks a discard trigger where the card went, and Yixlid Jailer stops it
-there. S1's "visible where it is now": a frame is asked where it was. Item
-259's per-record comparison: the window is one event. The same-event half of
-CR 400.7f did not already hold, and was built. Golgari Brownscale stays a
-fixture (§15 item 5). Found on the way: item 264, a board of Primal Vigor
-copies that no `stress` game finishes; item 265, a cast from a graveyard
-carries no frame; item 266, a resolved Guerrilla Tactics keeps the zone map
-non-empty. +1,326 in code and tests (code about +535, tests about +790),
-under the 1,560–1,750 sizing and the band's floor.
+**What moved on the way in.** Three of the brief's recommendations went the
+other way on the CR's text: item 249 asks a discard trigger where the card
+went, not off a frame; S1 asks a frame where it was; item 259 takes the whole
+window as one event. The review fixed three wrong answers, each failing
+first: a departing player's graveyard framed against Erebos's Titan's third
+ruling, an exiled Aura found as if in the graveyard, and hidden zones left out
+of a discard trigger's zones (Library of Leng). Filed: item 264 (Primal Vigor
+copies no game finishes; `GameNumber`), 265 (a cast from a graveyard carries
+no frame), 266 (Guerrilla Tactics keeps the zone map non-empty). +1,461 in
+code and tests (code about +605, tests about +855), under the sizing.
 
 **Measured** (`fuzz-record.md`, the TR-4c block). The engine arm plays every
 gameplay row as `main` does, on both pools at two seats and four, and the
-audit agrees on every dispatch. Instructions per decision +0.39%: at four
-seats a departing player's graveyard is framed, 21 more layer walks a game.
+audit agrees on every dispatch. Instructions per decision +0.28% after the
+review (+0.39% before it, when a departing player's graveyard was framed).
+Shipped's `stress` gate is item 266's.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
@@ -3261,7 +3267,7 @@ the three needs another.
 |---|---|---|---|---|---|
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
 | **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
-| **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,326 |
+| **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,461 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return

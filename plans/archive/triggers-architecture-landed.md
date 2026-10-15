@@ -1488,7 +1488,7 @@ PR #253, six code commits ahead of the docs.
   frame's before the event, where it was; any other after it. The brief's
   "where it is now" refuses a creature returned to a hidden hand.
 - **A move outside the classes** (item 249). `condition_zones` asks a
-  look-back own move in the zone left and any other where the move can leave
+  look-back move of the card itself in the zone left and any other where the move can leave
   the object, less the hidden zones. Not the item's look-back from the hand:
   CR 702.29c and Yixlid Jailer's second ruling ask such a trigger where the
   card went, and the Jailer stops Guerrilla Tactics there.
@@ -1516,3 +1516,37 @@ before their fixes because nothing triggered at all. Each was shown to bite
 on the fixed tree: Bridge's with the look-back snapshot switched off, and
 the leaves-your-graveyard card's with its frame read where the card went and
 the gate held open, since the gate itself reads the frame and returns first.
+
+### Review round (2026-10-15)
+
+- **Erebos's Titan's third ruling.** "In a multiplayer game, the last
+  ability won't trigger when a player with a creature card in their
+  graveyard leaves the game." The PR had framed a departing player's
+  graveyard for that card, which came from an oracle-text search whose
+  rulings were never read. Leaving the game now counts only from the
+  battlefield (CR 603.6c), in `zone_change_looks_back` and in the matcher's
+  `LeftTheGame` arm, and the graveyard capture is gone. With it gone, no card
+  reaches a graveyard and leaves it inside one batch, so `take_captured_lki`'s
+  assertion is strict again. The fixture checks the ruling, and failed
+  first.
+- **Rest in Peace and CR 400.7f.** The CR 704.5m hook checked the cause and
+  not the destination, so an Aura exiled instead was found and returned from
+  exile. It asks for the graveyard now. Leyline of the Void's board failed
+  first; under Rest in Peace the creature itself is exiled and nothing
+  triggers.
+- **Library of Leng.** The derivation left the hidden zones out of where a
+  discard trigger works, which folded CR 603.2f into CR 113.6k;
+  `603-2f-complexity.md` had settled visibility as the gate. The hidden zones
+  are in, and a Leng-shaped board holds CR 603.2f to the answer.
+- **Names.** `AnsweredArms` and `answered_arms`, `newcomer_from`,
+  `zones_its_text_states` and `intervening_if_zones` (CR 113.6b as one arm of
+  `functioning_zones`), and `when_this_card_moves`; "own move" is gone from
+  the docs.
+- **Item 264** points at `GameNumber` (`backlog.md` §2.28), the owner's call:
+  a symbolic count, since an effect touches all of the tokens, none, or a
+  finite few.
+- **Measured again** (`fuzz-record.md`, the TR-4c block's review round): the
+  engine arm plays every gameplay row as `main` does, the audit agrees, and
+  instructions per decision read +0.28%. Shipped's `stress` gate grew with
+  the library among Guerrilla Tactics' zones (item 266).
+

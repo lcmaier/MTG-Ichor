@@ -48,7 +48,7 @@ cards written and not registered) and **shipped** `8b09aae`.
 **Predictions, before any arm ran:**
 - engine vs `main`, gameplay rows `IDENTICAL`, both pools, two seats and
   four: no registered card has a trigger in CR 603.10a's second or third
-  class, a stated zone, an own move out of a hidden zone or an Aura's "this
+  class, a stated zone, a trigger on the card itself leaving a hidden zone or an Aura's "this
   card".
 - Cost rows: two seats about unchanged; four seats `Layer walks` +20 to +35 a
   game, a departing player's graveyard now framed (priced at 33 cards a game
@@ -95,8 +95,42 @@ shipped: 0 errors and 0 panics, and every dispatch agreed (810,411 / 820,504
 at two seats, 1,653,286 / 1,735,682 at four). One four-seat `stress` game hit
 the turn limit.
 
-**§3 fixture rows, shipped `8b09aae`, two seats, 50 games / seed 12345.**
-Both columns are new baselines.
+**Review round (2026-10-15).** Three fixes moved the engine: a card leaving
+the game from a graveyard leaves no graveyard (Erebos's Titan's third ruling),
+so a departing player's graveyard is no longer framed; CR 400.7f finds the
+Aura in the graveyard only; and a discard trigger works in the hidden zones
+too, CR 603.2f refusing it there (Library of Leng). `close_out.py --fixtures`
+again, against the same **main**, with **engine** `bfcd9e9` (`533593a` and
+the review's engine commits, cherry-picked onto it with no card registered)
+and **shipped** `8ba8817`. The predictions were not written down before this
+run, which the close-out asks for: the four-seat walks back to `main`'s with
+the graveyard capture gone, instructions below the first sitting's, and
+shipped's `stress` gate further up, the library now among Guerrilla Tactics'
+zones.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, `main` → engine, performance / stress | unchanged | unchanged |
+| `Candidate visits`, `main` → engine, performance / stress | 52.3 → 52.5 / 54.4 → 54.6 | 171.0 → 171.3 / 203.1 → 203.4 |
+| audit, engine, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| `Layer walks`, `main` → shipped, performance / stress | 327 → 337 / 366 → 467 | 697 → 696 / 915 → 1,119 |
+| `Windows past gate`, `main` → shipped, performance / stress | 44.7 → 53.2 / 45.7 → 301.6 | 125.0 → 135.3 / 152.1 → 815.8 |
+| `Candidate visits`, `main` → shipped, performance / stress | 52.3 → 62.5 / 54.4 → 382.2 | 171.0 → 185.1 / 203.1 → 1,221.1 |
+| audit, shipped, performance / stress, dispatches agreed | 160,964 / 172,232 | 320,609 / 330,180 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6681 M → 0.6700 M, **+0.28%** |
+
+The engine arm's four-seat walks are `main`'s again, and the first sitting's
++21 a game was the departing graveyard, now gone. Shipped's `performance` rows
+match the first sitting's (Bridge from Below has no hidden-zone trigger).
+Shipped's `stress` is item 266 grown: a Guerrilla Tactics in a library is on
+the zone map from the first turn, so windows past the gate rose 6.6× at two
+seats and 5.4× at four, and layer walks 28% and 22%. It is `stress` only,
+where the card is registered and not pooled. The sitting ran in 136 s.
+
+**§3 fixture rows, shipped `8ba8817`, two seats, 50 games / seed 12345.**
+Both columns are new baselines. The `stress` cost rows were re-recorded at
+the review; every other cell is the first sitting's.
 
 | | performance | stress |
 |---|---|---|
@@ -110,11 +144,11 @@ Both columns are new baselines.
 | Damage events | 21.3 | 17.4 |
 | Total damage | 58.3 | 48.6 |
 | Life changes | 15.6 | 13.3 |
-| **Layer walks** | **321** | **422** |
+| **Layer walks** | **321** | **479** |
 | **Board walks** | **189** | **234** |
-| **Memo hits** | **47,967** | **69,231** |
-| **Layer frames** | **3,473** | **4,645** |
-| **Frames/walk** | **10.82** | **11.00** |
+| **Memo hits** | **47,967** | **69,404** |
+| **Layer frames** | **3,473** | **4,702** |
+| **Frames/walk** | **10.82** | **9.82** |
 | **Dependency checks** | **3** | **32** |
 | **Replacement gathers** | **938** | **993** |
 | **Restriction queries** | **940** | **995** |

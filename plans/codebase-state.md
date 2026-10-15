@@ -5267,8 +5267,9 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
 15. **~~The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** — archived.
     A move in any of CR 603.10a's three classes carries its frame
-    (`zone_change_looks_back`): a card leaving a graveyard, a departing
-    player's graveyard included, and a visible object put into a hand or library.
+    (`zone_change_looks_back`): a card leaving a graveyard and a visible
+    object put into a hand or library. Leaving the game counts only from the
+    battlefield (CR 603.6c; Erebos's Titan's third ruling).
     **Reachability (2026-10-15):** closed — PR #253.
     Full entry: `plans/archive/codebase-state-closed.md`, "'Before Triggered abilities' item 15".
 
@@ -7854,7 +7855,7 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      Bridge from Below would do nothing anywhere.~~ — ✅ CLOSED 2026-10-15
      (PR #253, TR-4c).** — archived.
      An intervening "if" that states its zones is where the ability and each of
-     its conditions work (`zone_function::trigger_stated_zones`). Bridge from
+     its conditions work (`zone_function::intervening_if_zones`). Bridge from
      Below registered and pooled.
      **Reachability (2026-10-15):** closed — PR #253.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 173".
@@ -9413,11 +9414,15 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Reachability (2026-10-15):** reachable — not wrong today: the CR's
      answer, intractable. A `stress` run whose decks reach the board does not
      finish, so a pool change can hang CI's `stress` step.
-     **Sized:** a harness bound, ~30 lines: `fuzz_games` ends a game past an
-     object count as a harness outcome beside the turn limit. A token count
-     held as a number rather than objects is a design, far larger.
-     **Slotted:** A6s, the route review, beside its token board for the
-     performance floors, which decides between the two.
+     **Sized:** the representation is `GameNumber`'s (`backlog.md` §2.28,
+     `roadmap.md` D26): a group of identical tokens held as one object with a
+     symbolic count, since every effect touches all of them, none of them, or
+     a finite few, almost always far fewer than the total (the owner,
+     2026-10-15, at #253's review). A design, not a patch; a harness bound
+     (~30 lines, a game past an object count ends as a harness outcome beside
+     the turn limit) is only a stopgap for the fuzz runs.
+     **Slotted:** A6s, the route review, which gives `backlog.md` §2.28's
+     `GameNumber` an owner beside its token board for the performance floors.
 
 265. **A card cast from a graveyard carries no frame.** CR 601.2a's move is
      silent (`// CAST-ROLLBACK:`) and announced at 601.2i, so no batch frames
@@ -9431,22 +9436,27 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      hands the frame to the 601.2i announcement.
      **Slotted:** PM-0, whose design sizes casting from a non-hand zone.
 
-266. **A card whose one trigger is on its own move out of a hidden zone keeps
-     the zone map non-empty wherever it lands.** Guerrilla Tactics functions
-     in every public zone it can wind up in (CR 113.6k, 702.29c), so once
-     cast it sits in a graveyard on `zone_trigger_sources`, and the gate's
-     `is_empty` probe passes every window for the rest of the game, though
-     the condition can match only the window that moved it. On `stress`
+266. **A card whose one trigger is on itself leaving a zone keeps the zone
+     map non-empty wherever it is.** Guerrilla Tactics' trigger is on itself
+     being discarded, and works in every zone the discard can leave it in
+     (CR 113.6k, 702.29c), the library included, where CR 603.2f's
+     visibility refuses it. So from the first turn it sits on
+     `zone_trigger_sources`, in the library and then in a graveyard, and the
+     gate's `is_empty` probe passes every window of the game, though the
+     condition can match only the window that moved it. "From anywhere"
+     triggers on the card itself (Guile's shape) are the same. On `stress`
      (where it is registered, not pooled), windows past the gate rose 45.7 →
      121.9 a game at two seats and 152.1 → 368.5 at four, and candidate visits
-     54.4 → 142.6 and 203.1 → 505.1; Bridge from Below in a graveyard carries
-     some of it, as it should.
+     54.4 → 142.6 and 203.1 → 505.1, before the review put the library among
+     its zones; Bridge from Below in a graveyard carries some of it, as it
+     should.
      **Reachability (2026-10-15):** reachable — not wrong: a cost, on
      `stress` only.
      **Sized:** ~30 lines: the zone map marks an ability whose every
-     condition is its own non-look-back move, and the gate and the zone leg
-     pass such a source only when the window made it (`object_made_by`); the
-     audit, with the shortcut off, checks it.
+     condition is a non-look-back move of the card itself, and the gate and
+     the zone leg pass such a source only when it is one of the window's
+     newcomers (`newcomer_from`); the audit, with the shortcut off, checks
+     it.
      **Slotted:** TR-6, which adds the state check's leg to the gate, beside
      which the zone map's probe narrows.
 

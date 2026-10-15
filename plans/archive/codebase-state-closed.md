@@ -6185,14 +6185,15 @@ entry and a departing player's graveyard included), the performers hand the
 frame to the record, and a `ZoneChange` arm looks back for each class it can
 match. Priced first on 200 four-seat Commander games a pool: 72 and 97
 graveyard departures and 0 and 70 public moves into a hand or library,
-against about 5,000 battlefield departures already framed; a departing
-player's graveyard, 6,545 and 5,403 cards, is framed too, for Erebos's
-Titan. A card that reaches a graveyard and leaves it inside one batch (a
-creature dying in the check its owner loses in) is framed as it leaves. The
-fixtures (a card's own "leaves your graveyard", Golgari Brownscale's shape,
-a card painted black in a graveyard and in exile, an opponent's graveyard
-leaving the game) failed first; under Yixlid Jailer the card's own trigger
-does not fire, which reading the card where it went gets wrong.
+against about 5,000 battlefield departures already framed. The fixtures (a
+card's own "leaves your graveyard", Golgari Brownscale's shape, a card
+painted black in a graveyard and in exile) failed first; under Yixlid
+Jailer the card's own trigger does not fire, which reading the card where
+it went gets wrong. **Amended at #253's review:** the PR had also framed a
+departing player's graveyard, for Erebos's Titan, whose third ruling says
+the opposite: a card leaving the game from a graveyard leaves no graveyard.
+Leaving the game now counts only from the battlefield (CR 603.6c), in the
+capture and in the matcher.
 
 *Original entry:*
 
@@ -6279,7 +6280,11 @@ card winds up in"), and Yixlid Jailer's second ruling of Krosan Tusker and
 Narcomoeba, which trigger from the graveyard and which the Jailer stops. So
 `zone_function::condition_zones` now reads CR 113.6k's "zones it can trigger
 from" as where the object is when asked: the zone left for a look-back move,
-else every zone the move can leave it in, less the hidden ones (CR 603.2f).
+else every zone the move can leave it in. **Amended at #253's review:** the
+PR had left the hidden zones out, which folded CR 603.2f into CR 113.6k;
+Library of Leng's board (`plans/atomic-tests/supplemental-docs/603-2f-complexity.md`)
+puts the card in the library, where visibility refuses it and Future
+Sight's reveal would not.
 Guerrilla Tactics registered, its three rulings each a test; three boards
 failed first, and under Yixlid Jailer it does not trigger.
 
@@ -6319,7 +6324,7 @@ Closed by TR-4c. `match_candidates` finds the objects the window made (a
 zone change's new object, or a created token) and asks a live candidate that
 is one of them no look-back arm. The brief proposed comparing each record's
 sequence number with the candidate's arrival; the whole window is one batch
-and so one event, so a record after the card's own move is the same event,
+and so one event, so a record after the card's move to the graveyard is the same event,
 and the rule takes the window. The audit, which shares `match_candidates`,
 already refused the board off its snapshot. Bridge from Below's third
 ruling's board failed first and runs in both batch orders.
@@ -6345,10 +6350,12 @@ ruling's board failed first and runs in both batch orders.
 
 Closed by TR-4c. `TriggerBinding.source_found_in_graveyard` names the card
 the Aura became, and `this_object` finds it when the source is gone. Both
-of CR 400.7f's sentences are built: at dispatch, when the Aura's own move
+of CR 400.7f's sentences are built: at dispatch, when the Aura's move
 into the graveyard is in the window that queued the trigger, and in the
-performer, when the move is CR 704.5m's, for each pending or stacked
-trigger of that Aura whose arm watches its host leave (CR 603.6e). The
+performer, when the move is CR 704.5m's into the graveyard, for each
+pending or stacked trigger of that Aura whose arm watches its host leave
+(CR 603.6e); an Aura a replacement exiles instead is not found (Leyline of
+the Void's board, a review fix). The
 brief expected the same-event half might already hold; it did not, and its
 board failed first in both batch orders. ATOM-603.6e-001 and
 ATOM-400.7f-001 are covered by Angelic Destiny's CR 704.5m board, which
