@@ -23,7 +23,7 @@
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, CardTypes};
 use crate::types::effects::{Condition, Effect};
-use crate::types::triggers::{TriggerEvent, TriggerSubject};
+use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 /// The zones in which `ability` functions (CR 113.6), for an object whose
@@ -55,7 +55,9 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // be, never a leaves-the-battlefield ability (CR 603.6c; Guile); any other
     // object's, on the battlefield. The ability's zones are its conditions'
     // together, and the dispatcher asks each again ([`condition_functions_in`]).
-    // What an *effect* says about a zone is CR 113.6m's, not derived.
+    // An intervening "if" that states a zone replaces all of it (CR 113.6b;
+    // Bridge from Below). What an *effect* says about a zone is CR 113.6m's,
+    // not derived.
     if let Effect::Triggered(def) = &ability.effect {
         return trigger_zones(def, types);
     }
@@ -85,8 +87,12 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     default_zones(types)
 }
 
-/// CR 113.6k's derivation for a triggered ability — see the arm above.
-fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) -> ZoneSet {
+/// A triggered ability's zones: the ones its intervening "if" states (CR
+/// 113.6b), and otherwise CR 113.6k's derivation — see the arm above.
+fn trigger_zones(def: &TriggerDef, types: &CardTypes) -> ZoneSet {
+    if let Some(stated) = trigger_stated_zones(def) {
+        return stated;
+    }
     let arms = def.condition.events();
     if arms.is_empty() {
         return default_zones(types);
@@ -96,6 +102,14 @@ fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) ->
         zones |= condition_zones(arm, types);
     }
     zones
+}
+
+/// The zones a triggered ability's intervening "if" states, Bridge from
+/// Below's "if this card is in your graveyard": CR 113.6b's "only", so every
+/// one of its conditions works there and nowhere else, whatever CR 113.6k
+/// would derive.
+fn trigger_stated_zones(def: &TriggerDef) -> Option<ZoneSet> {
+    def.intervening_if.as_ref().and_then(stated_zones)
 }
 
 /// CR 113.6k for one trigger condition.
@@ -116,9 +130,10 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
 /// conditions does, so [`functions_in`] can say yes for the ability while
 /// this says no for one condition of it — Absolver Thrull's "enters" in the
 /// exile its haunt condition functions in, which is the CR's own example.
-/// `contains` for [`functions_in`]'s reason.
-pub fn condition_functions_in(arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
-    condition_zones(arm, types).contains(zone)
+/// `contains` for [`functions_in`]'s reason. A stated zone answers for every
+/// condition of the ability (CR 113.6b).
+pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
+    trigger_stated_zones(def).unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
 }
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?

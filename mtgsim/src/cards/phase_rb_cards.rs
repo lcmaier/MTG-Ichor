@@ -304,7 +304,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
 
 /// The 2/2 black Zombie Kalitas makes — named "Zombie Token" by CR 111.4,
 /// since the card gives it no name.
-fn zombie_token() -> TokenDef {
+pub(crate) fn zombie_token() -> TokenDef {
     TokenDef {
         name: None,
         colors: vec![Color::Black],

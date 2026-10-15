@@ -41,3 +41,4 @@ pub mod phase_tr3b_cards;
 pub mod phase_tr3c_cards;
 pub mod phase_tr4a_cards;
 pub mod phase_tr4b_cards;
+pub mod phase_tr4c_cards;

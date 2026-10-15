@@ -1319,7 +1319,7 @@ impl GameState {
             }
             // CR 113.6k asks each trigger condition where it functions; the
             // pre-pass asked the ability, which is their union.
-            if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
+            if !condition_functions_in(def, arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
             let subjects = self.occurrences_matching_arm(arm, &referents, record);
