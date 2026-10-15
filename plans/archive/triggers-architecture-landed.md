@@ -1549,4 +1549,10 @@ the gate held open, since the gate itself reads the frame and returns first.
   engine arm plays every gameplay row as `main` does, the audit agrees, and
   instructions per decision read +0.28%. Shipped's `stress` gate grew with
   the library among Guerrilla Tactics' zones (item 266).
+- **Item 266 built**, at the owner's call: an ability whose every condition
+  is the object itself moving waits off the battlefield on
+  `newcomer_trigger_sources`, asked only as one of the window's newcomers.
+  Shipped's `stress` windows past the gate fell from 301.6 to 62.6 a game at
+  two seats and from 815.8 to 170.7 at four; instructions per decision
+  +0.06% in the third sitting.
 

@@ -128,9 +128,37 @@ the zone map from the first turn, so windows past the gate rose 6.6× at two
 seats and 5.4× at four, and layer walks 28% and 22%. It is `stress` only,
 where the card is registered and not pooled. The sitting ran in 136 s.
 
-**§3 fixture rows, shipped `8ba8817`, two seats, 50 games / seed 12345.**
-Both columns are new baselines. The `stress` cost rows were re-recorded at
-the review; every other cell is the first sitting's.
+**Item 266 built, a third sitting (2026-10-15).** An ability whose every
+condition is the object itself moving waits off the battlefield on
+`newcomer_trigger_sources` and is asked only as one of the window's
+newcomers. **engine** `0888530` (the second sitting's engine and this commit,
+no card registered), **shipped** `3b5068b`. Predictions, written before the
+run: engine as in the second sitting, instructions about +0.28% within
+±0.05; shipped's `stress` windows past the gate back below the first
+sitting's, to Bridge from Below's share, about 50–80 and 160–250; shipped's
+`performance` unchanged.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Candidate visits`, `main` → engine, performance / stress | 52.3 → 52.5 / 54.4 → 54.6 | 171.0 → 171.3 / 203.1 → 203.4 |
+| audit, engine, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| `Windows past gate`, `main` → shipped, performance / stress | 44.7 → 53.2 / 45.7 → 62.6 | 125.0 → 135.3 / 152.1 → 170.7 |
+| `Candidate visits`, `main` → shipped, performance / stress | 52.3 → 62.5 / 54.4 → 75.3 | 171.0 → 185.1 / 203.1 → 247.6 |
+| `Layer walks`, `main` → shipped, performance / stress | 327 → 337 / 366 → 397 | 697 → 696 / 915 → 891 |
+| audit, shipped, performance / stress, dispatches agreed | 160,964 / 172,232 | 320,609 / 330,180 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6681 M → 0.6686 M, **+0.06%** |
+
+Every prediction held but the instruction one: +0.06% against about +0.28%,
+on an engine arm whose `performance` path the commit leaves alone (the set is
+empty there, and the new probe returns before reading a record). That is
+inside the ±0.3-point band a code-only change moves by layout alone. The
+1,000-game audited smoke on the shipped tree (seed 777, both pools, both seat
+counts): 0 errors, 0 panics, every dispatch agreed. The sitting ran in 120 s.
+
+**§3 fixture rows, shipped `3b5068b`, two seats, 50 games / seed 12345.**
+Both columns are new baselines. The `stress` cost rows were re-recorded with
+item 266 built; every other cell is the first sitting's.
 
 | | performance | stress |
 |---|---|---|
@@ -144,11 +172,11 @@ the review; every other cell is the first sitting's.
 | Damage events | 21.3 | 17.4 |
 | Total damage | 58.3 | 48.6 |
 | Life changes | 15.6 | 13.3 |
-| **Layer walks** | **321** | **479** |
+| **Layer walks** | **321** | **396** |
 | **Board walks** | **189** | **234** |
-| **Memo hits** | **47,967** | **69,404** |
-| **Layer frames** | **3,473** | **4,702** |
-| **Frames/walk** | **10.82** | **9.82** |
+| **Memo hits** | **47,967** | **69,165** |
+| **Layer frames** | **3,473** | **4,619** |
+| **Frames/walk** | **10.82** | **11.67** |
 | **Dependency checks** | **3** | **32** |
 | **Replacement gathers** | **938** | **993** |
 | **Restriction queries** | **940** | **995** |

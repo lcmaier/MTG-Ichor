@@ -1655,6 +1655,15 @@ probes — the whole of what today's pools pay. **The battlefield probe is
 source first**: it selects the sources whose masks meet the window's kinds
 and orders only those, so the whole board is ordered only when the summary's
 leg — a granted or copied trigger, which may be on any permanent — asks.
+**Amended 2026-10-15 (TR-4c, item 266): the zone set's sibling.** An object
+off the battlefield whose every functioning trigger is on itself changing
+zones (`TriggerDef::triggers_only_on_this_object_moving`: Guerrilla
+Tactics' discard, Guile's "from anywhere") can be triggered only by the
+window that moved it, so it waits on `newcomer_trigger_sources`, and the gate
+and the zone leg take it only as one of that window's newcomers
+(`newcomer_trigger_carriers`). On the zone map it passed every window of a
+game it was in from the library on: on `stress`, windows past the gate at
+6.6× `main`'s.
 
 **Why those four, and why four is enough.** A trigger can only come from a
 triggered ability on some object's *effective* list, and an ability reaches
@@ -2717,7 +2726,9 @@ ordered the whole battlefield and then probed each permanent's mask); a
 window whose kinds no source reads returns at the gate. It narrows the battlefield leg and nothing
 else — the granted and copied legs and the records' LKI read a list no
 registration saw, so they keep their whole-list walk, and the zone map is
-keyed by ability rather than by kind and keeps its `is_empty` probe.
+keyed by ability rather than by kind and keeps its `is_empty` probe. An
+object whose every trigger is on itself moving is off the zone map since
+TR-4c (§4.2's amendment), asked only as a newcomer.
 `TriggerEvent::reads` is now written *from* the mask's table rather than
 beside it, because a second table that had to agree with it is the bug this
 lever would otherwise have shipped with.
@@ -3233,8 +3244,8 @@ list is read (§4.2). A live candidate the window made answers no look-back
 arm (item 259), and an Aura's trigger on its host leaving finds the card the
 Aura became (CR 400.7f, item 260; §4.3). Items 15, 173, 249, 259 and 260
 closed. Bridge from Below, Guerrilla Tactics, Angelic Destiny and Rancor
-registered, Bridge from Below pooled (193 → 197, 108 → 109). Twenty-nine
-tests; ATOM-603.6e-001 and ATOM-400.7f-001 are covered.
+registered, Bridge from Below pooled (193 → 197, 108 → 109). Thirty tests;
+ATOM-603.6e-001 and ATOM-400.7f-001 are covered.
 
 **What moved on the way in.** Three of the brief's recommendations went the
 other way on the CR's text: item 249 asks a discard trigger where the card
@@ -3242,16 +3253,16 @@ went, not off a frame; S1 asks a frame where it was; item 259 takes the whole
 window as one event. The review fixed three wrong answers, each failing
 first: a departing player's graveyard framed against Erebos's Titan's third
 ruling, an exiled Aura found as if in the graveyard, and hidden zones left out
-of a discard trigger's zones (Library of Leng). Filed: item 264 (Primal Vigor
-copies no game finishes; `GameNumber`), 265 (a cast from a graveyard carries
-no frame), 266 (Guerrilla Tactics keeps the zone map non-empty). +1,461 in
-code and tests (code about +605, tests about +855), under the sizing.
+of a discard trigger's zones (Library of Leng), and built item 266 at the
+owner's call: a card whose every trigger is on itself moving is asked only
+as a newcomer. Filed: item 264 (Primal Vigor copies no game finishes;
+`GameNumber`), 265 (a cast from a graveyard carries no frame). +1,547 in code
+and tests (code about +670, tests about +875), inside the band.
 
 **Measured** (`fuzz-record.md`, the TR-4c block). The engine arm plays every
 gameplay row as `main` does, on both pools at two seats and four, and the
-audit agrees on every dispatch. Instructions per decision +0.28% after the
+audit agrees on every dispatch. Instructions per decision +0.06% after the
 review (+0.39% before it, when a departing player's graveyard was framed).
-Shipped's `stress` gate is item 266's.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
@@ -3267,7 +3278,7 @@ the three needs another.
 |---|---|---|---|---|---|
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
 | **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
-| **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,461 |
+| **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,547 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return

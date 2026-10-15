@@ -6380,3 +6380,45 @@ failed first too. Angelic Destiny and Rancor registered.
      found when its own move was the CR 704.5m sweep after its host's
      departure, and Angelic Destiny registered.
      **Slotted:** TR-4c, with Angelic Destiny.
+
+### Item 266 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed in the PR that filed it, at the owner's call in its review. An
+ability whose every condition is the object itself changing zones
+(`TriggerDef::triggers_only_on_this_object_moving`) is filed off the
+battlefield on `newcomer_trigger_sources`, not the zone map. The gate and the
+zone leg take such an object only when the window made it a newcomer
+(`GameState::newcomer_trigger_carriers`). That is exact: read after the move,
+the trigger is asked where the move left the object, by that window; read
+looking back, it is asked off the move's frame. The gate test failed first,
+a death elsewhere passing the gate with a Guerrilla Tactics in the library.
+The audit agreed on every dispatch over 1,000 audited games on both pools at
+two seats and four. Shipped's `stress` windows past the gate fell from 301.6
+to 62.6 a game at two seats, and from 815.8 to 170.7 at four (`main`: 45.7
+and 152.1; Bridge from Below in a graveyard carries the rest).
+
+*Original entry:*
+
+266. **A card whose one trigger is on itself leaving a zone keeps the zone
+     map non-empty wherever it is.** Guerrilla Tactics' trigger is on itself
+     being discarded, and works in every zone the discard can leave it in
+     (CR 113.6k, 702.29c), the library included, where CR 603.2f's
+     visibility refuses it. So from the first turn it sits on
+     `zone_trigger_sources`, in the library and then in a graveyard, and the
+     gate's `is_empty` probe passes every window of the game, though the
+     condition can match only the window that moved it. "From anywhere"
+     triggers on the card itself (Guile's shape) are the same. On `stress`
+     (where it is registered, not pooled), windows past the gate rose 45.7 →
+     121.9 a game at two seats and 152.1 → 368.5 at four, and candidate visits
+     54.4 → 142.6 and 203.1 → 505.1, before the review put the library among
+     its zones; Bridge from Below in a graveyard carries some of it, as it
+     should.
+     **Reachability (2026-10-15):** reachable — not wrong: a cost, on
+     `stress` only.
+     **Sized:** ~30 lines: the zone map marks an ability whose every
+     condition is a non-look-back move of the card itself, and the gate and
+     the zone leg pass such a source only when it is one of the window's
+     newcomers (`newcomer_from`); the audit, with the shortcut off, checks
+     it.
+     **Slotted:** TR-6, which adds the state check's leg to the gate, beside
+     which the zone map's probe narrows.

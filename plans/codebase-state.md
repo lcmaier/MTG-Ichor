@@ -9436,27 +9436,11 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      hands the frame to the 601.2i announcement.
      **Slotted:** PM-0, whose design sizes casting from a non-hand zone.
 
-266. **A card whose one trigger is on itself leaving a zone keeps the zone
-     map non-empty wherever it is.** Guerrilla Tactics' trigger is on itself
-     being discarded, and works in every zone the discard can leave it in
-     (CR 113.6k, 702.29c), the library included, where CR 603.2f's
-     visibility refuses it. So from the first turn it sits on
-     `zone_trigger_sources`, in the library and then in a graveyard, and the
-     gate's `is_empty` probe passes every window of the game, though the
-     condition can match only the window that moved it. "From anywhere"
-     triggers on the card itself (Guile's shape) are the same. On `stress`
-     (where it is registered, not pooled), windows past the gate rose 45.7 →
-     121.9 a game at two seats and 152.1 → 368.5 at four, and candidate visits
-     54.4 → 142.6 and 203.1 → 505.1, before the review put the library among
-     its zones; Bridge from Below in a graveyard carries some of it, as it
-     should.
-     **Reachability (2026-10-15):** reachable — not wrong: a cost, on
-     `stress` only.
-     **Sized:** ~30 lines: the zone map marks an ability whose every
-     condition is a non-look-back move of the card itself, and the gate and
-     the zone leg pass such a source only when it is one of the window's
-     newcomers (`newcomer_from`); the audit, with the shortcut off, checks
-     it.
-     **Slotted:** TR-6, which adds the state check's leg to the gate, beside
-     which the zone map's probe narrows.
+266. **~~A card whose one trigger is on itself leaving a zone keeps the zone
+     map non-empty wherever it is.~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** —
+     archived. An ability whose every condition is the object itself moving
+     waits off the battlefield on `newcomer_trigger_sources`, asked only by the
+     window that made the object a newcomer.
+     **Reachability (2026-10-15):** closed — PR #253.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 266".
 
