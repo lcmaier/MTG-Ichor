@@ -666,6 +666,21 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
    batch decides them against the pre-batch board, which closes both
    (`plans/references/feedback-loops.md` §4).
 
+   **The detach and token halves — ✅ done 2026-10-14 (PR #252, TR-4b).**
+   CR 704.5n, 704.5p and 704.5d are members of the CR 704.3 batch,
+   `GameAction::Unattach` and `GameAction::TokenCeasesToExist`, decided
+   against the board before the check performs. The census's timing case is a
+   test: an Equipment or Aura animated by a creature that dies in the check is
+   unattached at that check. CR 704.7's collapse keeps an unattach beside a
+   destruction of the same object, so an indestructible animated Equipment is
+   still unattached. A token that dies in a check ceases to exist at the next,
+   as CR 704.3 has it. What remains is CR 704.5q's annihilation, TR-5b's.
+
+   **Reachability (2026-10-14):** unreachable. What remains is the
+   annihilation, whose condition reads counters, which no member of the batch
+   changes, so its read after the batch is the CR's answer; Battlegrowth and
+   Chainbreaker exercise it and it counts right.
+
    **Reachability (2026-10-06):** unreachable. Re-derived at the census: the
    timing case needs a creature that animates an attached Aura or Equipment
    and dies in the check where the attachment first is one, and no registered
@@ -692,8 +707,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 
    **Phase (2026-09-19):** the counter half — CR 704.5q's annihilation — is TR-5's: two `RemoveCounters` proposals in the state-based batch, `CountersAnnihilated` deleted (`triggers-architecture.md` §3.3, §12); Protean Hydra's rulings are why it is a removal event. The detach and the token halves stay here.
    **Slotted:** TR-5b, which routes CR 704.5q's annihilation as two
-   `RemoveCounters` proposals; TR-4b, which re-emits the state-based detaches,
-   routes 704.5n/p and the 704.5d token sweep.
+   `RemoveCounters` proposals.
 
 7. **The early stack pop — ✅ DELETED 2026-09-01 (phase RC-1).** — archived.
     **Reachability (2026-09-03):** closed — RC-1, PR #80 (093e12a).
@@ -7959,21 +7973,12 @@ closed; 169 is TR-2b's. Two fixes rode in, each with a test that fails on the
 tree before it: lifelink gains once per source per batch (CR 702.15e), and a
 Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
-178. **`Primitive::Attach` finds its Equipment by id, so an Equipment that left
-     and came back would be attached (CR 400.7).** TR-2a made
-     `ResolutionContext.ability_source` an `ObjectRef`, and `ThisObject`
-     compares its epoch. `Attach` reads only the id and asks whether it is on
-     the battlefield, so an Equipment flickered in response to its equip
-     ability is a new object that the old ability still attaches.
-
-     **Reachability (2026-09-24):** unreachable — no registered effect returns
-     an Equipment to the battlefield while its equip ability waits.
-
-     **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
-     fixture with a flicker effect, ~25.
-     **Slotted:** TR-4b, which touches attachment's performers and registers
-     Grafted Wargear: `this_object(ctx)` replaces the id, with a flicker
-     fixture.
+178. **~~`Primitive::Attach` finds its Equipment by id, so an Equipment that
+     left and came back would be attached (CR 400.7).~~ — ✅ CLOSED 2026-10-14
+     (PR #252, TR-4b).** — archived.
+     `Primitive::Attach` finds its source through `this_object`, by identity.
+     **Reachability (2026-10-14):** closed — PR #252.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 178".
 
 179. **~~TR-2a's `PlayerHistory` grows with the turn count.~~ — ✅ CLOSED
      2026-09-25 (the bounded-state PR).** — archived. Two rows, a running
@@ -8985,21 +8990,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      player, the first Curse Phase 8's breadth registers (Scryfall:
      `o:"enchant player" t:aura`; the owner, at #234's review, 2026-10-08).
 
-228. **An Aura that enters attached is attached by a direct write, and
-     announces nothing.** `engine/stack.rs`'s Aura branch and
-     `GameState::return_objects`'s CR 303.4f host both call
-     `GameState::attach` after the entry, outside `perform_action`, so no
-     `Attached` record follows. Whether an Aura entering attached "becomes
-     attached" is the question TR-4's `BecomesAttached` arm answers off that
-     record.
-     **Reachability (2026-10-08):** reachable — not wrong today: no trigger
-     reads `Attached` yet.
-     **Sized:** both sites through `GameAction::Attach`, or the host on the
-     entry, ~20 lines.
-     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** Siona, Captain of the Pyleas' first
-     ruling answers the question: an Aura that enters attached "becomes
-     attached".
-     **Slotted:** TR-4b, attachment's records, with the `BecomesAttached` arm.
+228. **~~An Aura that enters attached is attached by a direct write, and
+     announces nothing.~~ — ✅ CLOSED 2026-10-14 (PR #252, TR-4b).** —
+     archived. The host rides on the entry (`EnterMods.attached_to`), and the
+     entry's performer attaches it and announces `Attached`.
+     **Reachability (2026-10-14):** closed — PR #252.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 228".
 
 229. **~~"Another" at resolution is refused, and the refusal reads as no
      candidate.~~ — ✅ CLOSED 2026-10-09 (PR #239, TR-3c).** — archived.

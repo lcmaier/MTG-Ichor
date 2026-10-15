@@ -1378,3 +1378,69 @@ The owner's comments were about names, and about two shapes:
   400.7, 608.2h). An object gone before the event has nothing attached to
   it, and `Host` now answers no for it; the Spirit Link fixture failed
   first, at 23 life against 21.
+
+#### TR-4b — attachment's records — ✅ landed 2026-10-14
+
+*Evicted 2026-10-14 from `plans/triggers-architecture.md` §12, where the heading and a stub remain, with TR-4's section after it.*
+
+### The plan as sized (TR-4b, as §12 carried it on 2026-10-14)
+
+Split by A6p's re-count (2026-10-12). Code at 1.5–2× its sizing plus tests.
+
+| Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
+|---|---|---|---|---|
+| `Unattached` with its route (four sites: an unattach, a re-attach, the attachment leaving, the host leaving), `former_host` an `ObjectRef`; the arms `BecomesAttached` and `BecomesUnattached`; item 228; item 178; main item 6's detaches and token sweep as batch members (CR 701.3d, 603.10c, 603.2e; CR 704.5n, 704.5p and 704.5d in CR 704.3's batch) | Grafted Wargear; a fixture shaped like Siona's ruling; ATOM-603.10c-001, -002 and -003, and ATOM-603.2e-002 | 365–505 (550–1,010) | 600–840 | 1,150–1,850 |
+
+TR-4b was under the band's floor at its low end; the seam is CR 701.3's, as
+RH-2's was its batch's.
+
+### As landed (2026-10-14)
+
+PR #252, eight code commits ahead of the docs.
+
+- **The record.** `Unattached { attachment: ObjectRef, former_host:
+  ObjectRef, route: UnattachRoute }`, the route `Unattach`,
+  `AttachedElsewhere`, `AttachmentLeft` or `HostLeft`, and
+  `announce_unattached` its one emitter. A re-attach announces the unattach
+  ahead of the `Attached` the arm already emitted, in one batch, which
+  ATOM-603.10c-003 needs. The leave performers read the links before
+  `move_object` drops them and announce one record per link after their own,
+  under the move's cause: the shape `EnterBattlefield` uses for entry
+  counters, since the leaving is real without the unattach. When both ends
+  leave in one event, the first to move announces it.
+- **The state-based members.** `GameAction::Unattach` (loud only for an
+  object that does not exist; an attachment the batch moved was unattached
+  by leaving, CR 701.3d) and `GameAction::TokenCeasesToExist`, decided
+  against the board before the check, so the census's timing case is a test
+  and a token that dies in a check ceases to exist at the next. Neither has
+  an `EventPattern` arm. CR 704.7's collapse key gained whether the member
+  unattaches: on the subject alone, an indestructible animated Equipment with
+  lethal damage would keep its destruction, see it refused, and never be
+  unattached while the damage stays.
+- **Item 228, the host on the entry.** `EnterMods.attached_to`, set by the
+  effect putting the Aura there (`propose_entry`'s new seed, the returns'
+  merge) and attached by the entry's performer after the arrival. CR 303.4h:
+  no attach for a permanent that entered as no Aura, Equipment or
+  Fortification, or whose object has gone. The CR 614.12 frame does not
+  predict it: no replacement reads what an entering Aura enchants.
+  `GameAction` grew 112 → 128 bytes with it.
+- **Item 178.** `Primitive::Attach` finds its Equipment through
+  `this_object`.
+- **The arms.** `BecomesAttached { attachment, host }` reads after the event
+  (Siona's fourth ruling); `BecomesUnattached { attachment, former_host }`
+  reads each end as it was, on the board while it is still that existence
+  there and else off its departure's frame in the window
+  (`GameState::as_it_was`). The binding's "that permanent" is the record's
+  existence (`subject_after`). An `Attach` or `Unattach` of an attached
+  ability-list source takes the look-back snapshot.
+- **The cards.** Grafted Wargear (each ruling a test, the first once per
+  route) and Bramble Elemental, both registered and neither pooled.
+
+**Three probes the tests did not pass at first.** A Grizzly Bears card in a
+graveyard is still a creature card, so ATOM-603.10c-001's first board passed
+with the look-back broken; it now puts the Equipment on an animated
+artifact. The Wargear's flicker test passed with `subject_after` broken,
+because the dispatch runs at each batch's close and the creature was still
+in exile; the reading that matters is a "return that permanent" after the
+host died, whose fixture fails with it. And a granted unattach trigger failed
+first, at 20 life against 25, until the snapshot reached an unattach.

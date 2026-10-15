@@ -121,6 +121,7 @@ is derived.
 | 2026-10-12 | The batch's members, decided together | `RH-2` | `replacement-architecture.md` |
 | 2026-10-12 | The record's new object, its applied replacements and its moment | `RH-3` | `replacement-architecture.md` |
 | 2026-10-14 | The frame's facts and their readers | `TR-4a` | `triggers-architecture.md` |
+| 2026-10-14 | Attachment's records | `TR-4b` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -148,7 +149,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| Attachment's records | `TR-4b` | `triggers-architecture.md` |
 | The other two look-back classes and the zone statement | `TR-4c` | `triggers-architecture.md` |
 | Control, countering, loss, and the records' missing facts | `TR-4d` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
@@ -163,9 +163,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 191 |
+| Cards registered | 193 |
 | …of them in `PERFORMANCE_POOL` | 107 |
-| `#[test]` functions | 2318 |
+| `#[test]` functions | 2355 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -187,13 +187,13 @@ is bolded.
 | | |
 |---|---:|
 | Numbered items | 317 |
-| …closed, still recorded | 164 |
-| …open — unreachable, and says why | 104 |
+| …closed, still recorded | 166 |
+| …open — unreachable, and says why | 103 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 28 |
+| …open — reachable, not wrong (perf, a name, a harness) | 27 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 151 of 153 |
+| …open, carrying an explicit `**Sized:**` | 149 of 151 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -207,7 +207,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 98 |
+| …slotted to a phase or roadmap row still to come | 96 |
 | …slotted to the first registered card that needs it | 43 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |

@@ -515,6 +515,11 @@ argument for `compute_characteristics` re-checking ability existence at every
 layer: each re-check reads a strictly lower ceiling, so the recursion descends
 and cannot oscillate. Not an optimization. → `layers-architecture.md` §5.2.
 
+**attachment** — an Aura, Equipment or Fortification, as the object that is
+attached (CR 701.3a); the CR has no noun for it. The `attachment` of
+`GameAction::Attach`, `GameAction::Unattach` and the `Attached` and
+`Unattached` records, beside its **host**. → `triggers-architecture.md` §3.3.
+
 **host** — the object an Aura or Equipment is attached to; as an `ObjectSet`
 arm, `ObjectSet::Host` resolves `attached_to` during the walk. Named `Host`
 rather than `AttachedTo`, whose longer form read as "the things attached to me"
