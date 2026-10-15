@@ -132,6 +132,7 @@ fn stage_spell_with(
         ability_identity: None,
         trigger: None,
         kept_lki: Vec::new(),
+        source_found_in_graveyard: None,
     });
     id
 }

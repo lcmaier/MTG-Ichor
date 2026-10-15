@@ -142,6 +142,12 @@ pub struct StackEntry {
     /// trigger's subject — that have left since it was put on the stack (CR 113.7a;
     /// `triggers-architecture.md` §6.1). An activated ability's too.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
+    /// CR 400.7f — the card its source, an Aura, became in its owner's
+    /// graveyard, which "this card" finds when this is the Aura's trigger on
+    /// its enchanted permanent leaving (CR 603.6e): put there in the same
+    /// event, or by CR 704.5m's check while the trigger waits. Like `kept_lki`,
+    /// a fact learned about an object it names after it triggered.
+    pub source_found_in_graveyard: Option<ObjectRef>,
 }
 
 impl StackEntry {
@@ -215,6 +221,12 @@ pub struct ResolvingObject {
     pub subject_lki: Option<crate::types::triggers::Lki>,
     /// The last known information the entry kept, and any its own effect adds.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
+    /// CR 400.7f — the card its source, an Aura, became in its owner's
+    /// graveyard, which "this card" finds when this is the Aura's trigger on
+    /// its enchanted permanent leaving (CR 603.6e): put there in the same
+    /// event, or by CR 704.5m's check while the trigger waits. Like `kept_lki`,
+    /// a fact learned about an object it names after it triggered.
+    pub source_found_in_graveyard: Option<ObjectRef>,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.
@@ -2629,6 +2641,7 @@ mod tests {
                     ability_identity: None,
     trigger: None,
     kept_lki: Vec::new(),
+    source_found_in_graveyard: None,
 };
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());

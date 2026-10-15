@@ -572,10 +572,10 @@ fn pending_of(m: MatchedTrigger, delayed: &DelayedTrigger) -> PendingTrigger {
             subject: m.subject,
             triggered_by: None,
             referred: delayed.referred.clone(),
-            source_found_in_graveyard: None,
         },
         is_state_trigger: false,
         kept_lki: delayed.source_lki.iter().cloned().collect(),
+        source_found_in_graveyard: None,
         x_value: delayed.x_value,
     }
 }

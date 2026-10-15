@@ -79,6 +79,7 @@ impl GameState {
             // The resolution reads them here, where its own effect's moves
             // add to them too (CR 608.2h).
             kept_lki: std::mem::take(&mut entry.kept_lki),
+            source_found_in_graveyard: entry.source_found_in_graveyard,
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -378,6 +379,7 @@ mod tests {
                     ability_identity: None,
     trigger: None,
     kept_lki: Vec::new(),
+    source_found_in_graveyard: None,
 });
         id
     }
@@ -507,6 +509,7 @@ mod tests {
                     ability_identity: None,
     trigger: None,
     kept_lki: Vec::new(),
+    source_found_in_graveyard: None,
 });
         id
     }
@@ -586,6 +589,7 @@ mod tests {
                     ability_identity: None,
     trigger: None,
     kept_lki: Vec::new(),
+    source_found_in_graveyard: None,
 });
         id
     }
@@ -647,6 +651,7 @@ mod tests {
                     ability_identity: None,
     trigger: None,
     kept_lki: Vec::new(),
+    source_found_in_graveyard: None,
 });
         id
     }
@@ -758,6 +763,7 @@ mod tests {
             ability_identity: None,
             trigger: None,
             kept_lki: Vec::new(),
+            source_found_in_graveyard: None,
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());
         assert_eq!(game.resolving, None, "cleared even when resolution errors out");

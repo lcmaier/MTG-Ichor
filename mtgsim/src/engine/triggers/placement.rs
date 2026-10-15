@@ -183,6 +183,7 @@ impl GameState {
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),
             kept_lki: pending.kept_lki.clone(),
+            source_found_in_graveyard: pending.source_found_in_graveyard,
         };
         let chosen = entry.chosen_targets.clone();
         self.set_stack_entry(entry);

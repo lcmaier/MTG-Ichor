@@ -804,11 +804,6 @@ pub struct TriggerBinding {
     /// CR 603.7c — what a delayed triggered ability refers to, carried to
     /// the stack for its "that card" and "it"; empty for an object's trigger.
     pub referred: Referred,
-    /// CR 400.7f — the card an Aura whose trigger watches its enchanted
-    /// permanent leave (CR 603.6e) became in its owner's graveyard, which
-    /// "this card" finds: put there in the same event, or by CR 704.5m's
-    /// check while the trigger waits. Set at dispatch or at that move.
-    pub source_found_in_graveyard: Option<ObjectRef>,
 }
 
 impl TriggerBinding {
@@ -1204,6 +1199,12 @@ pub struct PendingTrigger {
     /// The last known information of the objects it names that have left
     /// since it triggered.
     pub kept_lki: Vec<Lki>,
+    /// CR 400.7f — the card its source, an Aura, became in its owner's
+    /// graveyard, which "this card" finds when this is the Aura's trigger on
+    /// its enchanted permanent leaving (CR 603.6e): put there in the same
+    /// event, or by CR 704.5m's check while the trigger waits. Like `kept_lki`,
+    /// a fact learned about an object it names after it triggered.
+    pub source_found_in_graveyard: Option<ObjectRef>,
     /// CR 107.3n — a delayed trigger's X, its creating spell's or ability's,
     /// which its stack object carries; `None` for an object's trigger.
     pub x_value: Option<u64>,
