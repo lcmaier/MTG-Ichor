@@ -384,6 +384,23 @@ pub enum GameEvent {
         lki: Option<Lki>,
     },
 
+    /// A move a replacement sent back into the zone it was leaving: Darksteel
+    /// Colossus milled, and shuffled into its library instead. The act it
+    /// replaced still happened (CR 614.6; the card "is still milled", Jess
+    /// Dunks on Zellix, Sanity Flayer), so `act` and `applied` say what was
+    /// done and what replaced it, and `lki` is the card as it was. **Not a
+    /// zone change**: nothing left a zone and no new object was made (CR
+    /// 400.7), so it is no departure, and only an arm that names an act reads
+    /// it (`triggers-architecture.md` §3.12a decision 3).
+    SameZoneMove {
+        object_id: ObjectId,
+        owner: PlayerId,
+        zone: Zone,
+        act: ZoneChangeAct,
+        applied: Option<Arc<[AppliedReplacement]>>,
+        lki: Lki,
+    },
+
     // --- Tokens ---
     /// A token was created (CR 111.2's first sentence, CR 701.7a) — in
     /// `zone`, which is the battlefield for a creation performed as the
@@ -463,6 +480,7 @@ impl GameEvent {
             | CountersAnnihilated { object_id: id, .. }
             | CountersChanged { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
+            | SameZoneMove { object_id: id, .. }
             | TokenCeasedToExist { object_id: id }
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }

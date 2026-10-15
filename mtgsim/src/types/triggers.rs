@@ -185,6 +185,7 @@ counted_enum! {
         Unattached,
         SpellCountered,
         PlayerLost,
+        SameZoneMove,
     }
 }
 
@@ -221,6 +222,7 @@ impl EventKind {
             GameEvent::Unattached { .. } => EventKind::Unattached,
             GameEvent::SpellCountered { .. } => EventKind::SpellCountered,
             GameEvent::PlayerLost { .. } => EventKind::PlayerLost,
+            GameEvent::SameZoneMove { .. } => EventKind::SameZoneMove,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
@@ -515,10 +517,13 @@ impl TriggerEvent {
     /// CR 603.6c is why `ZoneChange` names two: a leaves-the-battlefield
     /// ability reads the departure a player leaving the game causes, and
     /// that record is `LeftTheGame` rather than a zone change (§4.2 leg 2).
+    /// An arm that names an act reads a third, the act a replacement kept in
+    /// its zone (`GameEvent::SameZoneMove`), since it still happened.
     pub fn record_kinds(&self) -> EventKindMask {
         match self {
-            TriggerEvent::ZoneChange { .. } => {
-                EventKindMask::of(EventKind::ZoneChange).with(EventKind::LeftTheGame)
+            TriggerEvent::ZoneChange { change, .. } => {
+                let moved = EventKindMask::of(EventKind::ZoneChange).with(EventKind::LeftTheGame);
+                if change.act.is_some() { moved.with(EventKind::SameZoneMove) } else { moved }
             }
             TriggerEvent::BecomesTapped { .. } => EventKindMask::of(EventKind::Tapped),
             TriggerEvent::BecomesUntapped { .. } => EventKindMask::of(EventKind::Untapped),
@@ -620,6 +625,7 @@ impl TriggerEvent {
         match (self, record) {
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { object_id, .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { object_id, .. })
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { object_id, .. })
             | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { object_id })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { object_id, .. }) => {
@@ -685,7 +691,8 @@ impl TriggerEvent {
     pub fn player_of(&self, record: &GameEvent) -> Option<PlayerId> {
         match (self, record) {
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { owner, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. }) => Some(*owner),
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { owner, .. })
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { owner, .. }) => Some(*owner),
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { player_id, .. }) => Some(*player_id),
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => match target {
                 DamageTarget::Player(pid) => Some(*pid),
@@ -743,8 +750,8 @@ impl TriggerEvent {
         }
     }
 
-    /// "That many" (§3.4): the damage dealt, the mana added. `None` for an
-    /// event with no quantity.
+    /// "That many" (§3.4): the damage dealt, the mana added, the objects
+    /// moved. `None` for an event with no quantity.
     pub fn amount_of(&self, record: &GameEvent) -> Option<u64> {
         match (self, record) {
             (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { amount, .. }) => Some(*amount),
@@ -757,12 +764,14 @@ impl TriggerEvent {
             (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((old - new).max(0) as u64)
             }
-            // One card a record, so "that many" over a "one or more" binding is
-            // the cards drawn.
-            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. }) => Some(1),
-            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
+            // One card or object a record, so "that many" over a "one or more"
+            // binding is the cards drawn, or the objects moved: "the number of
+            // cards milled" counts a Darksteel Colossus kept in its library.
+            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. })
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
-            | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
+            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { .. }) => Some(1),
+            (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
             | (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })

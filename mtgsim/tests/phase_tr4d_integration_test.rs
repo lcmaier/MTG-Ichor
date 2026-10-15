@@ -8,12 +8,15 @@
 //!    so the loser's permanents, which leave in the same event, are asked as
 //!    they were; a trigger the loser would control is kept off the stack (CR
 //!    800.4d).
+//! 3. Item 131: a mill a replacement keeps in the library still happened
+//!    (CR 614.6), and its record says so, with the card as it was milled.
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::authoring::{loses_the_game, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_rf_cards::darksteel_colossus;
 use mtgsim::cards::phase_tr4d_cards::multanis_presence;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -23,18 +26,19 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    effect_ctx, fill_library, lightning_bolt, put_in_hand, put_on_battlefield, put_on_battlefield_under, put_spell_on_stack,
-    setup_game, setup_two_player_game, static_ability, test_dp,
+    card_of_type, effect_ctx, fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
+    put_on_battlefield_under, put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::TriggerEvent;
-use mtgsim::types::zones::{Zone, ZoneSet};
+use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -288,4 +292,93 @@ fn the_losers_own_watcher_triggers_and_is_kept_off_the_stack() {
     assert_eq!(game.pending_triggers[0].controller, 3);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 3. A mill kept in the library (item 131)
+// ---------------------------------------------------------------------------
+
+/// `player` mills `n` cards, as their own spell's instruction.
+fn mill(game: &mut GameState, player: PlayerId, n: u64) {
+    let source = put_in_graveyard(game, grizzly_bears(), player);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: player,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let effect = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
+}
+
+/// A zone-change arm on `subject` leaving a library by `act`.
+fn from_library(subject: TriggerSubject, act: Option<ZoneChangeAct>, owner: Option<PlayerRef>, multiplicity: Multiplicity) -> TriggerEvent {
+    let change = ZoneChangePattern { from: Some(Zone::Library), to: None, act };
+    TriggerEvent::ZoneChange { subject, change, by: None, owner, multiplicity }
+}
+
+/// Three cards on top of `player`'s library with a Darksteel Colossus in the
+/// middle, which shuffles itself back in instead of being milled into the
+/// graveyard.
+fn colossus_among_three(game: &mut GameState, player: PlayerId) -> ObjectId {
+    put_in_library(game, card_of_type("Bottom Rock", CardType::Artifact), player);
+    let colossus = put_in_library(game, darksteel_colossus(), player);
+    put_in_library(game, card_of_type("Top Rock", CardType::Artifact), player);
+    colossus
+}
+
+/// The owner's wrinkle: "whenever an opponent mills one or more cards, you
+/// gain life equal to the number milled", over a mill of three with a
+/// Darksteel Colossus among them. It was milled (CR 614.6, 701.17c), so the
+/// number is 3. Before the record it read the two that reached the graveyard,
+/// and before a zone change had an amount it refused to read any.
+#[test]
+fn the_number_milled_counts_a_colossus_shuffled_back() {
+    let mut game = setup_two_player_game();
+    let arm = from_library(TriggerSubject::Any, Some(ZoneChangeAct::Milled), Some(PlayerRef::Opponent), Multiplicity::OncePerEvent);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringAmount), EffectRecipient::Controller);
+    let counter = CardDataBuilder::new("Fixture Mill Counter")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(arm, gain)))
+        .build();
+    put_on_battlefield(&mut game, counter, 0);
+    let colossus = colossus_among_three(&mut game, 1);
+
+    mill(&mut game, 1, 3);
+    assert_eq!(game.objects[&colossus].zone, Zone::Library, "shuffled back in");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 23);
+}
+
+/// Zellix, Sanity Flayer's shape, "whenever a player mills one or more
+/// creature cards": the Colossus is the only creature milled, and the record
+/// carries it as the creature card it was (Jess Dunks, item 131).
+#[test]
+fn a_creature_card_kept_in_the_library_was_still_milled() {
+    let mut game = setup_two_player_game();
+    let creature_cards = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
+    let arm = from_library(creature_cards, Some(ZoneChangeAct::Milled), None, Multiplicity::OncePerEvent);
+    let watching = put_on_battlefield(&mut game, watcher("Fixture Creature Mill Watcher", arm), 0);
+    colossus_among_three(&mut game, 1);
+
+    mill(&mut game, 1, 3);
+    assert_eq!(waiting_from(&game, watching), 1);
+}
+
+/// A move within a zone is no departure (CR 400.7): "whenever a card leaves
+/// your library" names no act, so it sees the two cards that left and not the
+/// Colossus.
+#[test]
+fn an_arm_naming_no_act_ignores_a_card_kept_in_its_zone() {
+    let mut game = setup_two_player_game();
+    let arm = from_library(TriggerSubject::Any, None, Some(PlayerRef::You), Multiplicity::PerOccurrence);
+    let watching = put_on_battlefield(&mut game, watcher("Fixture Library Leaver Watcher", arm), 1);
+    colossus_among_three(&mut game, 1);
+
+    mill(&mut game, 1, 3);
+    assert_eq!(waiting_from(&game, watching), 2);
 }

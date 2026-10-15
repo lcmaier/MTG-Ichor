@@ -895,7 +895,9 @@ impl GameState {
                         self.capture_frame(*object);
                     }
                 }
-                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) => {
+                // A replacement keeping the object where it was (CR 614.6): the
+                // record of the act it replaced carries the object as it was.
+                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) || from == to => {
                     self.capture_frame(*object);
                 }
                 GameAction::EnterBattlefield { object, from: Some(from), .. }
@@ -1050,11 +1052,12 @@ impl GameState {
     }
 
     /// The last known information the move of `id` out of `from` carries,
-    /// taken before its batch performed.
-    fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
+    /// taken before its batch performed: a move in one of CR 603.10a's
+    /// classes, or one a replacement kept in `from` (`GameEvent::SameZoneMove`).
+    pub(crate) fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
         let taken = self.take_named_lki(id);
         // Every such move is decided by a batch, which framed it first.
-        debug_assert!(taken.is_some(), "{id} left the {from:?} with no frame from its batch");
+        debug_assert!(taken.is_some(), "{id} moved from the {from:?} with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
             self.last_known_information(id, Arc::new(frame))
@@ -1553,6 +1556,19 @@ impl GameState {
                     && by.is_none()
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
+            ),
+            // The act a replacement kept in its zone (CR 614.6), read only by an
+            // arm that names an act: a mill, not "leaves your library". The
+            // object is asked as it was, which is how it still is.
+            (
+                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
+                GameEvent::SameZoneMove { object_id, owner: moved_owner, zone, act, lki, applied: _ },
+            ) => occurrence_if(
+                change.act.is_some()
+                    && change.matches(Some(*zone), *zone, Some(*act))
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
