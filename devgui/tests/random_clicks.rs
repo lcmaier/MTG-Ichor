@@ -122,12 +122,6 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
     let mut clock = 0.0;
     let mut last = String::from("no answer yet");
     for _ in 0..PROMPT_CAP {
-        if rng.random_ratio(1, FULL_CONTROL_ONE_IN) {
-            // What `Session::input` does with the header's switch.
-            let on = !state.full_control;
-            engine.full_control.set(on);
-            state.input(Input::FullControl(on));
-        }
         let message = next(&engine);
         match &message {
             ToWindow::Finished { outcome, .. } => {
@@ -156,6 +150,15 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
             .unwrap_or_else(|| panic!("{game}: no answer in {CLICK_CAP} clicks to {prompt:?}"));
         last = format!("answering {prompt:?} with {reply:?}");
         reached.yields += usize::from(matches!(reply, Reply::Yield(_)));
+        // What `Session::input` does with the header's switch. Flipped while
+        // the engine waits on this answer, so the prompts after it all read
+        // the flip: flipped after the answer, it lands wherever the engine
+        // thread has reached, and the game turns on the threads' timing.
+        if rng.random_ratio(1, FULL_CONTROL_ONE_IN) {
+            let on = !state.full_control;
+            engine.full_control.set(on);
+            state.input(Input::FullControl(on));
+        }
         engine.answers.send(reply).expect("the engine hung up with a prompt open");
     }
     panic!("{game}: no result after {PROMPT_CAP} prompts");
