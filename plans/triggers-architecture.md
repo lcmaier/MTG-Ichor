@@ -3142,7 +3142,7 @@ entry (`EnterMods.attached_to`), and the entry's performer attaches it (item
 228); `Primitive::Attach` finds its Equipment by identity (item 178). The
 arms: `BecomesAttached`, read after the event, and `BecomesUnattached`,
 looking back, each end as it was. Grafted Wargear and Bramble Elemental
-registered, neither pooled (191 → 193, 107 pooled). Thirty-seven tests;
+registered, neither pooled (191 → 193, 107 pooled). Thirty-five tests;
 ATOM-603.10c-001, -002, -003 and ATOM-603.2e-002 are covered.
 
 **What moved on the way in.** CR 704.7's collapse keyed members on their

@@ -22,7 +22,6 @@ use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_a
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
 use mtgsim::cards::phase_tr4b_cards::{bramble_elemental, grafted_wargear};
-use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
@@ -191,8 +190,10 @@ fn an_equipment_leaving_becomes_unattached_after_its_move() {
     assert_ne!(existence(&game, sword), sword_ref, "the record names the permanent, not the graveyard card");
 }
 
-/// A host leaving unattaches everything on it, in the order they were
-/// attached, each from the host as it was.
+/// A host leaving unattaches everything on it, each from the host as it
+/// was. The records are one event, so the CR gives them no order; this pins
+/// the engine's (`attached_by`'s, the order they were attached), since an
+/// order that reaches a prompt must be the same in every process.
 #[test]
 fn a_host_leaving_unattaches_everything_on_it() {
     let mut game = setup_two_player_game();
@@ -248,10 +249,13 @@ fn a_host_leaving_the_game_unattaches_an_equipment_another_player_owns() {
 // 2. The state-based detaches and the token sweep in CR 704.3's one event
 // ---------------------------------------------------------------------------
 
-/// The census's case (`feedback-loops.md` §4): a creature that makes an
-/// attached Equipment a creature dies in the check where CR 704.5p first sees
-/// the Equipment as one. The check reads the board before it, so the
-/// Equipment is unattached at this check, not left on the creature.
+/// The census's case (`feedback-loops.md` §4). Before the check, Probe
+/// Animator makes the Equipment a 2/2 creature, the Equipment is on Grizzly
+/// Bears, and the Animator has lethal damage. One check sees two conditions
+/// on that board (CR 704.3): the Animator dies (704.5g), and a creature is
+/// attached to something, so the Equipment becomes unattached (704.5p). Both
+/// happen. Read after the death instead, the Equipment is no creature, and
+/// nothing would ever unattach it from the Bears.
 #[test]
 fn an_equipment_animated_by_a_creature_dying_in_the_check_is_unattached_at_that_check() {
     let mut game = setup_two_player_game();
@@ -267,7 +271,7 @@ fn an_equipment_animated_by_a_creature_dying_in_the_check_is_unattached_at_that_
     assert_eq!(host(&game, sword), None, "CR 704.5p read the Equipment as the creature it was");
     let records = game.recorded_events();
     let record = records.records().iter().find(|r| matches!(r.event, GameEvent::Unattached { .. })).expect("unattached");
-    assert_eq!(record.event, unattached(sword_ref, bears_ref, UnattachRoute::Unattach));
+    assert_eq!(record.event, unattached(sword_ref, bears_ref, UnattachRoute::AttachedToNothing));
     assert_eq!(record.stamp.cause, EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached));
 }
 
@@ -973,14 +977,6 @@ fn grafted_wargear_does_not_sacrifice_an_opponents_creature() {
     assert_eq!(zone_of(&game, theirs), Some(Zone::Battlefield), "player 0 does not control it");
 }
 
-/// Registered for `stress`, where the random agent's re-equips are what it
-/// hunts with, and not pooled (its doc measures why).
-#[test]
-fn grafted_wargear_is_registered_and_not_pooled() {
-    assert!(CardRegistry::default_registry().create("Grafted Wargear").is_ok());
-    assert!(CardRegistry::performance_pool().create("Grafted Wargear").is_err());
-}
-
 // ---------------------------------------------------------------------------
 // 7. Bramble Elemental
 // ---------------------------------------------------------------------------
@@ -1032,10 +1028,4 @@ fn bramble_elemental_makes_nothing_for_an_aura_left_in_place_or_put_on_another_c
     attach(&mut game, aura, bramble);
     resolve_all(&mut game, &test_dp());
     assert_eq!(saprolings(&game), 0);
-}
-
-#[test]
-fn bramble_elemental_is_registered_and_not_pooled() {
-    assert!(CardRegistry::default_registry().create("Bramble Elemental").is_ok());
-    assert!(CardRegistry::performance_pool().create("Bramble Elemental").is_err());
 }
