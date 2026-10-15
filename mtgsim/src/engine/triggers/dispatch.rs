@@ -562,9 +562,10 @@ impl GameState {
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — five probes (§4.2): the permanents whose printed
+    /// 1. **The gate** — six probes (§4.2): the permanents whose printed
     ///    triggers read a kind this window carries (§11's mask, source
-    ///    first), the zone map, the unattributed zone set off the registry
+    ///    first), the zone map, the window's newcomers whose every trigger is
+    ///    on themselves moving, the unattributed zone set off the registry
     ///    summary, whether any record of the window carries a CR 603.10a
     ///    frame with a triggered ability in it, and whether a batch of the
     ///    window took a look-back snapshot. All empty, and a dispatch is the
@@ -633,13 +634,14 @@ impl GameState {
         window_kinds: EventKindMask,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        // --- The gate: five probes ------------------------------------------
+        // --- The gate: six probes -------------------------------------------
         if window_kinds.is_empty() {
             return Vec::new();
         }
         let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         let readers = self.battlefield_readers(window_kinds);
         let named = self.named_trigger_carriers(window_kinds);
+        let newcomers = self.newcomer_trigger_carriers(window);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 r.event.lki().is_some_and(|(lki, ..)| lki.chars().abilities.iter().any(is_triggered))
@@ -651,13 +653,14 @@ impl GameState {
         if readers.is_empty()
             && named.is_empty()
             && self.zone_trigger_sources.is_empty()
+            && newcomers.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
             && snapshots.is_empty()
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, named, unattributed, snapshots)
+        self.find_matches(window, readers, named, newcomers, unattributed, snapshots)
     }
 
     /// Steps 4 and 5, for the matches the two legs found: the objects', then
@@ -824,6 +827,23 @@ impl GameState {
             }
         }
         named
+    }
+
+    /// The window's newcomers on `newcomer_trigger_sources`: objects off the
+    /// battlefield whose every functioning trigger is on themselves moving,
+    /// which no window but the one that brought them where they are can
+    /// trigger. Empty, and no record read, while the set is.
+    fn newcomer_trigger_carriers(&self, window: &[EventSeq]) -> Vec<ObjectId> {
+        if self.newcomer_trigger_sources.is_empty() {
+            return Vec::new();
+        }
+        window
+            .iter()
+            .filter_map(|seq| self.events.record(*seq))
+            .filter_map(|record| self.newcomer_from(&record.event))
+            .filter(|newcomer| self.find(*newcomer).is_some() && self.newcomer_trigger_sources.contains(&newcomer.id))
+            .map(|newcomer| newcomer.id)
+            .collect()
     }
 
     /// Whether performing these decided actions can change which triggered
@@ -1054,7 +1074,8 @@ impl GameState {
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
         let named = self.named_trigger_carriers(EventKindMask::ALL);
-        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, unattributed)
+        // No newcomer's trigger looks back but off its own move's frame.
+        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed)
             .into_iter()
             .filter_map(|id| self.object_snapshot(id))
             .collect()
@@ -1075,9 +1096,11 @@ impl GameState {
     /// `Filter` row grants or copies a triggered ability onto the
     /// battlefield; elsewhere, every object whose printed triggered ability
     /// works in the zone it is in (CR 113.6k: a graveyard's, a hand's, exile's
-    /// — a record's own subject in a graveyard is one), the `named` objects
-    /// there, and every object in the zones a `Filter` row reaches.
-    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
+    /// — a record's own subject in a graveyard is one), the window's
+    /// `newcomers` whose every such trigger is on themselves moving, the
+    /// `named` objects there, and every object in the zones a `Filter` row
+    /// reaches.
+    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, newcomers: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
         } else if named.is_empty() {
@@ -1099,6 +1122,11 @@ impl GameState {
             .map(|&id| (self.object_timestamp(id), id))
             .collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        for id in newcomers {
+            if seen.insert(id) {
+                elsewhere.push((self.object_timestamp(id), id));
+            }
+        }
         let named_elsewhere = named.iter().copied().filter(|id| !self.battlefield.contains_key(id) && self.objects.contains_key(id));
         for id in named_elsewhere {
             if seen.insert(id) {
@@ -1125,10 +1153,11 @@ impl GameState {
         window: &[EventSeq],
         readers: Vec<ObjectId>,
         named: Vec<ObjectId>,
+        newcomers: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        let mut live = self.candidates_now(readers, named, unattributed);
+        let mut live = self.candidates_now(readers, named, newcomers, unattributed);
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after

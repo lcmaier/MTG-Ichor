@@ -303,6 +303,20 @@ impl std::ops::BitOrAssign for EventKindMask {
     }
 }
 
+impl TriggerDef {
+    /// Whether every condition is this object itself changing zones
+    /// (`TriggerSubject::ThisObject`): Guerrilla Tactics' discard, Guile's "put
+    /// into a graveyard from anywhere". Only the move itself can trigger such
+    /// an ability. Read after the move, it is asked where the move left the
+    /// object, by the one window that made it a newcomer there; read looking
+    /// back, it is asked off the move's frame. So off the battlefield it waits
+    /// on `newcomer_trigger_sources` rather than the zone map every window asks.
+    pub fn triggers_only_on_this_object_moving(&self) -> bool {
+        let arms = self.condition.events();
+        !arms.is_empty() && arms.iter().all(|arm| matches!(arm, TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, .. }))
+    }
+}
+
 /// One arm per performed event kind, in `GameEvent`'s declaration order
 /// (`triggers-architecture.md` §3.3). `None` on a field means the arm does
 /// not ask. The arms the registered cards and fixtures read; the rest land

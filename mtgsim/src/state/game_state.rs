@@ -699,6 +699,14 @@ pub struct GameState {
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
     /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
     pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
+    /// Objects off the battlefield whose printed triggered ability that
+    /// functions where they are triggers only on the object itself moving
+    /// (`TriggerDef::triggers_only_on_this_object_moving`): Guerrilla Tactics in
+    /// a library or a graveyard. Only the window that brings such an object
+    /// where it is can trigger it, so the dispatcher asks it only as one of
+    /// that window's newcomers, and the zone map, which every window asks,
+    /// stays empty of it. Kept by the zone map's doors.
+    pub newcomer_trigger_sources: IdSet<ObjectId>,
     /// Surviving objects' ability lists from before a batch that removed the
     /// source of an effect that copies, grants or removes abilities: what CR
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
@@ -998,6 +1006,7 @@ impl GameState {
             resolutions_this_turn: IdMap::default(),
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
+            newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
             lki_captures: Vec::new(),
             dispatch_audit: None,
@@ -1808,6 +1817,8 @@ impl GameState {
                         // triggered abilities is one entry reading both
                         // kinds.
                         *self.trigger_sources.entry(id).or_default() |= def.record_kinds();
+                    } else if def.triggers_only_on_this_object_moving() {
+                        self.newcomer_trigger_sources.insert(id);
                     } else {
                         self.zone_trigger_sources.entry(id).or_default().push(ability.id);
                     }

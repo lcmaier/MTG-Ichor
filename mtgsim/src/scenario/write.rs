@@ -126,6 +126,7 @@ impl<'g> Writer<'g> {
             resolutions_this_turn: _,
             trigger_sources: _,     // the dispatcher's gates
             zone_trigger_sources: _,
+            newcomer_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
             lki_captures: _,
             dispatch_audit: _,

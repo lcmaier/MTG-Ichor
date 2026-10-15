@@ -21,6 +21,8 @@
 //!    Aura became in its owner's graveyard, after CR 704.5m's move or in the
 //!    same event (CR 603.6e, 400.7f). Angelic Destiny's two rulings, and
 //!    Rancor's one.
+//! 7. Item 266: a card whose every trigger is on itself moving is asked only
+//!    by the window that moved it, so it keeps no other window past the gate.
 
 use std::sync::Arc;
 
@@ -583,6 +585,25 @@ fn guerrilla_tactics_discarded_under_yixlid_jailer_does_not_trigger() {
     let tactics = discarded_by_mind_rot(&mut game);
     assert_eq!(zone(&game, tactics), Some(Zone::Graveyard));
     assert_eq!(waiting_from(&game, tactics), 0);
+}
+
+/// Item 266: Guerrilla Tactics' one trigger is on itself being discarded, and
+/// works in the library it starts the game in (where CR 603.2f refuses it).
+/// Only the window that moves it can trigger it, so a death elsewhere passes
+/// no dispatch past the gate; and its own discard still triggers it.
+#[test]
+fn a_card_whose_trigger_is_on_itself_moving_keeps_no_other_window_past_the_gate() {
+    let mut game = setup_two_player_game();
+    put_in_library(&mut game, guerrilla_tactics(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+
+    let before = game.diagnostics.trigger_dispatch().windows;
+    destroy_all(&mut game, &[bears]);
+    assert_eq!(game.diagnostics.trigger_dispatch().windows, before, "the gate returned");
+
+    let mut game = setup_two_player_game();
+    let tactics = discarded_by_mind_rot(&mut game);
+    assert_eq!(waiting_from(&game, tactics), 1, "the window that moved it asks it");
 }
 
 /// **Fixture**, Library of Leng's replacement made mandatory and an

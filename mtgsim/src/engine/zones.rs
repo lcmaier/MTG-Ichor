@@ -558,6 +558,7 @@ impl GameState {
             // stops being one here, and `arrive_in_zone` decides again where it lands.
             self.zone_replacement_ability_sources.remove(&id);
             self.zone_trigger_sources.remove(&id);
+            self.newcomer_trigger_sources.remove(&id);
         }
     }
 }
