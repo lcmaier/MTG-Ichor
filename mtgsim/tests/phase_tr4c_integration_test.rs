@@ -577,6 +577,38 @@ fn guerrilla_tactics_discarded_under_yixlid_jailer_does_not_trigger() {
     assert_eq!(waiting_from(&game, tactics), 0);
 }
 
+/// **Fixture**, Library of Leng's replacement made mandatory and an
+/// opponent's: "If a spell or ability an opponent controls causes you to
+/// discard a card, put it on top of your library instead."
+fn leng_shaped() -> Arc<CardData> {
+    use mtgsim::types::effects::ObjectSet;
+    use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+    use mtgsim::types::restriction::SourceFilter;
+    let discard = ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) };
+    let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
+    let def = ReplacementDef::new(
+        EventPattern::ZoneChange { change: discard, object: None },
+        yours,
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
+    )
+    .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent));
+    CardDataBuilder::new("Fixture Leng").card_type(CardType::Artifact).ability(static_ability(Effect::Replacement(Box::new(def)))).build()
+}
+
+/// Library of Leng's board (`plans/atomic-tests/supplemental-docs/603-2f-complexity.md`):
+/// the card goes from one hidden zone to another and is never visible to all
+/// players, so CR 603.2f refuses the trigger. The library is a zone the
+/// trigger works in; it is the card being hidden that refuses it, and a card
+/// revealed there, under Future Sight, would trigger.
+#[test]
+fn guerrilla_tactics_put_on_its_library_instead_does_not_trigger() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, leng_shaped(), 0);
+    let tactics = discarded_by_mind_rot(&mut game);
+    assert_eq!(zone(&game, tactics), Some(Zone::Library));
+    assert_eq!(waiting_from(&game, tactics), 0);
+}
+
 /// Under Rest in Peace the card winds up in exile, and is asked there (CR
 /// 702.29c's "whatever zone the card winds up in").
 #[test]

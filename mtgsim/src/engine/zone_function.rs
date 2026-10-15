@@ -123,7 +123,9 @@ fn trigger_stated_zones(def: &TriggerDef) -> Option<ZoneSet> {
 /// can leave it in, since a replacement may send it elsewhere. CR 702.29c says
 /// so of a trigger on a discard ("whatever zone the card winds up in"), and
 /// Yixlid Jailer's second ruling of one on a card milled into a graveyard. A
-/// hidden zone is left out: CR 603.2f refuses the trigger there.
+/// hidden zone is one of them: whether the card triggers there is CR
+/// 603.2f's question, of the object (Library of Leng's board, which Future
+/// Sight's revealed top card turns around).
 fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
         TriggerEvent::ZoneChange {
@@ -134,7 +136,7 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
             if arm.looks_back() {
                 ZoneSet::of(*zone)
             } else {
-                to.map_or(ZoneSet::ALL, ZoneSet::of).without(ZoneSet::of(*zone)).without(ZoneSet::HIDDEN)
+                to.map_or(ZoneSet::ALL, ZoneSet::of).without(ZoneSet::of(*zone))
             }
         }
         TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: None, .. }, .. } => {
@@ -539,12 +541,15 @@ mod tests {
         // Narcomoeba's, from the library: the graveyard it went to (Yixlid
         // Jailer's second ruling).
         assert_eq!(functioning_zones(&own_move(Zone::Library, Some(Zone::Graveyard), None), &creature), ZoneSet::GRAVEYARD);
-        // Guerrilla Tactics', a discard: wherever the card can wind up that all
-        // players see (CR 702.29c), the graveyard or Rest in Peace's exile.
+        // Guerrilla Tactics', a discard: wherever the card can wind up (CR
+        // 702.29c), the graveyard, Rest in Peace's exile or Library of Leng's
+        // library, and never the hand it left. Whether it can trigger in the
+        // library is CR 603.2f's question, asked of the object, and not this
+        // one (`plans/atomic-tests/supplemental-docs/603-2f-complexity.md`).
         let discard = own_move(Zone::Hand, None, Some(crate::types::zones::ZoneChangeAct::Discarded));
         let wound_up = functioning_zones(&discard, &instant);
-        assert!(wound_up.contains(Zone::Graveyard) && wound_up.contains(Zone::Exile));
-        assert!(!wound_up.contains(Zone::Hand) && !wound_up.contains(Zone::Library), "never a hidden zone");
+        assert!(wound_up.contains(Zone::Graveyard) && wound_up.contains(Zone::Exile) && wound_up.contains(Zone::Library));
+        assert!(!wound_up.contains(Zone::Hand), "not the zone it left");
     }
 
     #[cfg(debug_assertions)]
