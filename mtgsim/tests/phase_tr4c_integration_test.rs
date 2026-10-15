@@ -27,7 +27,7 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::{leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
+use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
 use mtgsim::cards::phase_re8_cards::mind_rot;
 use mtgsim::cards::phase_tr4c_cards::{angelic_destiny, bridge_from_below, guerrilla_tactics, rancor};
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -651,6 +651,25 @@ fn angelic_destiny_gone_from_the_graveyard_is_not_returned() {
     move_card(&mut game, destiny, Zone::Graveyard, Zone::Exile);
     resolve_all(&mut game, &test_dp());
     assert_eq!(zone(&game, destiny), Some(Zone::Exile));
+}
+
+/// CR 400.7f finds the Aura in its owner's graveyard and nowhere else. Under
+/// Leyline of the Void the opponent's creature dies into its own graveyard
+/// and the trigger fires, but CR 704.5m's move of the Aura is replaced by an
+/// exile, so the card is never in the graveyard and stays in exile.
+#[test]
+fn angelic_destiny_exiled_instead_of_its_state_based_move_is_not_returned() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, leyline_of_the_void(), 1);
+    let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let destiny = put_on_battlefield(&mut game, angelic_destiny(), 0);
+    assert!(game.attach(destiny, theirs));
+
+    destroy_all(&mut game, &[theirs]);
+    assert_eq!(zone(&game, theirs), Some(Zone::Graveyard), "its owner's graveyard, which Leyline does not touch");
+    assert_eq!(waiting_from(&game, destiny), 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, destiny), Some(Zone::Exile), "never put into the graveyard, so not found");
 }
 
 /// The Aura spell whose target died never resolves, so it is never on the

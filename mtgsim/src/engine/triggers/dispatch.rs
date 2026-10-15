@@ -738,7 +738,8 @@ impl GameState {
     }
 
     /// CR 400.7f's second sentence: CR 704.5m has put `aura`, the existence
-    /// that was on the battlefield, into its owner's graveyard, and each of its
+    /// that was on the battlefield, into its owner's graveyard (and not, by a
+    /// replacement, anywhere else), and each of its
     /// waiting triggers on its enchanted permanent leaving finds it there. They
     /// are pending, or on the stack at the latest: the check follows the
     /// leaving before anyone receives priority.
