@@ -8,18 +8,21 @@
 //!    `plans/references/feedback-loops.md` §4).
 //! 3. Item 228: an Aura entering attached becomes attached, in the entry's
 //!    own event (CR 303.4f).
+//! 4. Item 178: an equip ability attaches its own Equipment, by identity
+//!    (CR 400.7).
 
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::cards::phase_lh_cards::{bonesplitter, holy_strength};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
@@ -32,6 +35,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 
@@ -444,3 +448,35 @@ fn a_creature_put_onto_the_battlefield_attached_enters_unattached() {
     assert!(attachment_records(&game).is_empty());
 }
 
+// ---------------------------------------------------------------------------
+// 4. An equip ability attaches the Equipment it belongs to (item 178)
+// ---------------------------------------------------------------------------
+
+/// CR 400.7: an Equipment flickered in response to its equip ability is a
+/// new object, which the old ability does not attach (CR 301.5b: nothing
+/// happens when the Equipment has left).
+#[test]
+fn an_equip_ability_does_not_attach_its_equipment_once_it_has_left_and_returned() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 1);
+    let equip = get_effective_abilities(&game, splitter)
+        .iter()
+        .position(|a| a.ability_type == AbilityType::Activated)
+        .expect("Bonesplitter's equip");
+    game.activate_ability(0, splitter, equip, &test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "one creature, so the target was forced");
+
+    let before = existence(&game, splitter);
+    game.change_zone(splitter, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    game.change_zone(splitter, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    assert_ne!(existence(&game, splitter), before, "a new object (CR 400.7)");
+    game.record_events();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert_eq!(host(&game, splitter), None);
+    assert_eq!(game.battlefield[&bears].attached_by, Vec::<ObjectId>::new());
+    assert!(attachment_records(&game).is_empty());
+}

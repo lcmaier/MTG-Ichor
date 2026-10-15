@@ -929,17 +929,18 @@ impl GameState {
             Primitive::Attach => {
                 // "Attach this permanent to target ..." (CR 702.6a). The
                 // attachment is the ability's source; a spell has none to attach.
-                let attachment = ctx.ability_source.map(|r| r.id).ok_or_else(|| {
-                    "Primitive::Attach resolved from a spell: only an ability has a permanent to attach"
-                        .to_string()
-                })?;
+                if ctx.ability_source.is_none() {
+                    return Err("Primitive::Attach resolved from a spell: only an ability has a permanent to attach".to_string());
+                }
                 // CR 608.2b partial resolution: the performer is loud, so the caller
                 // checks. The Equipment may have left after activation (CR 301.5b: nothing
-                // happens), and the target's legality was re-checked against the recipient
-                // before `resolve_effect`, which is CR 701.3b's "doesn't move".
-                if !self.battlefield.contains_key(&attachment) {
+                // happens), by identity: one that left and came back is a new object
+                // the ability does not know (CR 400.7). The target's legality was
+                // re-checked against the recipient before `resolve_effect`, which is CR
+                // 701.3b's "doesn't move".
+                let Some(attachment) = self.this_object(ctx).filter(|id| self.battlefield.contains_key(id)) else {
                     return Ok(());
-                }
+                };
                 for target in targets {
                     if let ResolvedTarget::Object(host) = target {
                         if !self.battlefield.contains_key(host) {
