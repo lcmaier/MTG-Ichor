@@ -3142,7 +3142,7 @@ entry (`EnterMods.attached_to`), and the entry's performer attaches it (item
 228); `Primitive::Attach` finds its Equipment by identity (item 178). The
 arms: `BecomesAttached`, read after the event, and `BecomesUnattached`,
 looking back, each end as it was. Grafted Wargear and Bramble Elemental
-registered, neither pooled (191 → 193, 107 pooled). Thirty-five tests;
+registered, Bramble Elemental pooled (191 → 193, 107 → 108). Thirty-five tests;
 ATOM-603.10c-001, -002, -003 and ATOM-603.2e-002 are covered.
 
 **What moved on the way in.** CR 704.7's collapse keyed members on their
@@ -3152,14 +3152,16 @@ follow the moves, so a subject's group decides under the move's cause.
 CR 603.10c's "existence of those abilities" reaches an unattach: an attached
 ability-list source's move snapshots the lists (§4.3). The 704.5n gather
 asks CR 301.6 of a Fortification, and 704.5p CR 310.9 of a battle. The
-Wargear distorts `stress` without ending games, so Bramble Elemental is the
-benign consumer beside it. +1,626 in code and tests (code ~+565, tests
-~+1,061), inside the band and the 1,150–1,850 sizing.
+Wargear distorts `stress` without ending games, so Bramble Elemental, the
+benign consumer beside it, is the phase's pooled card (the owner, at #252's
+review). +1,650 in code and tests (code ~+600, tests ~+1,050), inside the
+band and the 1,150–1,850 sizing.
 
 **Measured** (`fuzz-record.md`, the TR-4b block). The engine arm plays every
 gameplay row as `main` does, on both pools at two seats and four, and the
 audit agrees on every dispatch. Instructions per decision −1.69%: CR
 704.5n/p decided before the batch read frames the check already holds.
+Bramble Elemental pooled at the review, and both tables re-recorded with it.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4b".
 
@@ -3174,7 +3176,7 @@ the three needs another.
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
-| **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,626 |
+| **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
 | **TR-4c — the other two look-back classes and the zone statement** (CR 603.10a's second and third classes, 113.6b, 113.6k, 603.2f, 400.7f) | the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
 

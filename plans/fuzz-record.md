@@ -39,12 +39,12 @@ worth it.
 
 **Re-recorded 2026-10-14 for TR-4b** (#252: attachment's records, items
 178 and 228, and main item 6's detach and token halves). Grafted Wargear and
-Bramble Elemental join the registry and neither joins the pool (191 → 193
-registered, 107 pooled), so the `stress` column is a new baseline; the
-`performance` column's gameplay rows stand and its cost rows are new, since
-the engine's own check got cheaper. `close_out.py` against **main** `c8ba097`
-(#251's merge), with **engine** `d542385` (every engine change, no card
-registered) and **shipped** `1a54e6e`.
+Bramble Elemental join the registry, and Bramble Elemental the pool at the
+review (191 → 193 registered, 107 → 108 pooled), so both §3 columns are new
+baselines. `close_out.py` against **main** `c8ba097` (#251's merge), with
+**engine** `d542385` (every engine change, no card registered) and
+**shipped** `1a54e6e`; then again at the review with **shipped** `19cf33c`,
+Bramble Elemental pooled. The table below is the first sitting's.
 
 **Predictions, before any arm ran:**
 - engine `IDENTICAL` to `main` on every row outside timing, gameplay and cost
@@ -102,33 +102,68 @@ four-seat `stress` game hit the turn limit: game 553 (seed 1329), a standoff
 with life totals in the hundreds (Words of Worship, Exquisite Archangel),
 where Grafted Wargear was cast on turn 199 of 200.
 
-**§3 fixture rows, shipped, two seats, 50 games / seed 12345.** The
-`stress` column is a new baseline; the `performance` column's gameplay rows
-are TR-4a's, and its cost rows are new.
+**Bramble Elemental pooled, at #252's review (2026-10-15).** `engineering-practices.md`
+§3: a phase that opens a new engine path adds one card to the pool, and
+Bramble Elemental is the benign reader of the phase's records. The same
+**main** and **engine** arms, and **shipped** `19cf33c`, which carries the
+review's renames too; they change no behavior. Predictions, before the run:
+engine as in the first sitting, being the same binary; shipped's `stress`
+counters unchanged from the first sitting's shipped, since the registry is
+the same; its `performance` rows differing from `main` by the pool, the cost
+rows up by about a slot's 12–14% (§3.1a), and the dispatch rows up, since
+attach windows now have a reader.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the pool) | differ (the pool) / differ (the pool) |
+| `Layer walks`, `main` → shipped, performance | 344 → 327 | 728 → 697 |
+| `Candidate visits`, `main` → shipped, performance | 55.5 → 52.3 | 185.0 → 171.0 |
+| `Windows past gate`, `main` → shipped, performance | 46.9 → 44.7 | 130.7 → 125.0 |
+| audit, shipped, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6202 M → 0.6102 M, **−1.60%** |
+
+The engine arm read as in the first sitting, and shipped's `stress` counters
+matched the first sitting's at both seat counts. The cost prediction was
+wrong a second time: shipped's `performance` cost rows fell, the dispatch
+rows with them. §3.1a's 12–14% is CPU per game, measured as the pool went
+from 72 cards to 73, not these counters. One card in 108 changes every deck,
+so the games are other games, and the per-game counters follow them.
+Unforced on `performance`, 200 games at two seats: Bramble Elemental was
+cast 35 times, an Aura landed on it once (Pariah), and seven Bonesplitter
+equips were matched against its arm, which is the cost it measures. The
+1,000-game audited smoke on `performance`, shipped: 0 errors, 0 panics, no
+turn-limit game, and every dispatch agreed (836,457 at two seats, 1,656,890
+at four); `stress`'s smoke above stands, its pool unchanged. The sitting ran
+in 137 s.
+
+**§3 fixture rows, shipped `19cf33c`, two seats, 50 games / seed 12345.**
+Both columns are new baselines; the `stress` column matches the first
+sitting's.
 
 | | performance | stress |
 |---|---|---|
-| Wins by seat | 26 (52.0%) / 24 (48.0%) | 35 (70.0%) / 15 (30.0%) |
+| Wins by seat | 20 (40.0%) / 30 (60.0%) | 35 (70.0%) / 15 (30.0%) |
 | Wins by effect | 0 | 0 |
-| Avg turns | 28.8 | 24.9 |
-| Spells cast | 21.6 | 18.9 |
-| Lands played | 16.8 | 15.9 |
-| Combat w/ atk | 10.3 | 7.6 |
-| Creatures died | 7.6 | 4.8 |
-| Damage events | 22.3 | 16.5 |
-| Total damage | 60.4 | 46.2 |
-| Life changes | 14.4 | 13.8 |
-| **Layer walks** | **319** | **382** |
-| **Board walks** | **194** | **224** |
-| **Memo hits** | **50,734** | **60,859** |
-| **Layer frames** | **3,511** | **4,181** |
-| **Frames/walk** | **10.99** | **10.95** |
-| **Dependency checks** | **9** | **6** |
-| **Replacement gathers** | **986** | **925** |
-| **Restriction queries** | **987** | **927** |
-| Mana productions | 63 | 80 |
-| Prevention allocations | 0.00 | 0.00 |
-| Replacement prompts | 0.14 | 1.02 |
+| Avg turns | 29.3 | 24.9 |
+| Spells cast | 23.1 | 18.9 |
+| Lands played | 16.9 | 15.9 |
+| Combat w/ atk | 11.1 | 7.6 |
+| Creatures died | 8.1 | 4.8 |
+| Damage events | 23.3 | 16.5 |
+| Total damage | 60.6 | 46.2 |
+| Life changes | 16.4 | 13.8 |
+| **Layer walks** | **333** | **382** |
+| **Board walks** | **204** | **224** |
+| **Memo hits** | **55,023** | **60,859** |
+| **Layer frames** | **3,787** | **4,181** |
+| **Frames/walk** | **11.36** | **10.95** |
+| **Dependency checks** | **10** | **6** |
+| **Replacement gathers** | **1027** | **925** |
+| **Restriction queries** | **1028** | **927** |
+| Mana productions | 70 | 80 |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.10 | 1.02 |
 
 **Re-recorded 2026-10-14 for TR-4a** (#251: the frame's facts and their
 readers, items 14, 168, 251 and 252). Strangleroot Geist joins the pool, and

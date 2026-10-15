@@ -1434,7 +1434,8 @@ PR #252, eight code commits ahead of the docs.
   existence (`subject_after`). An `Attach` or `Unattach` of an attached
   ability-list source takes the look-back snapshot.
 - **The cards.** Grafted Wargear (each ruling a test, the first once per
-  route) and Bramble Elemental, both registered and neither pooled.
+  route) and Bramble Elemental, both registered; Bramble Elemental pooled at
+  the review, as §3's one card for the phase's new path.
 
 **Three probes the tests did not pass at first.** A Grizzly Bears card in a
 graveyard is still a creature card, so ATOM-603.10c-001's first board passed
