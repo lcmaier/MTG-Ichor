@@ -3279,7 +3279,7 @@ review (+0.39% before it, when a departing player's graveyard was framed).
 
 *Re-read against the tree at `7705986` with four rulings the 2026-10-12 sizing
 did not have, and sized below. Reviewed before any code; the questions the
-owner decides are the last subsection.*
+owner decided are the last subsection.*
 
 **Where it sits.** TR-4a to TR-4c finished CR 603.10a's zone-change
 look-backs: a departure's record carries the frame from before it. The other
@@ -3419,10 +3419,15 @@ not decisions:
    400.7). Its `lki` is the card as it was milled, which Zellix's "creature
    cards" reads.
 6. **Item 258.** The binding's subject, a remembered object and
-   `put_into_since` refuse a hidden zone (CR 400.7e, 400.7j). For a mill,
-   `put_into_since` finds a milled card in the public zone it moved to from
-   the library (CR 701.17c), so a delayed trigger's "that card" finds the one
-   Leyline of the Void exiled. Decision 2 is whether other verbs widen too.
+   `put_into_since` refuse a hidden zone (CR 400.7e, 400.7j). In the other
+   direction, `put_into_since` finds a moved object in whatever public zone
+   the move put it in, a replacement's destination included, for every verb
+   (CR 400.7j; CR 701.17c says the same of a mill). So a delayed trigger's
+   "that card" finds the card Leyline of the Void exiled, and the creature
+   Rest in Peace exiled instead of letting it die (decision 2). CR 610.3's
+   "until" return reads the same finds; no printed replacement redirects an
+   exile (`(o:"would be exiled" or o:"would be put into exile")
+   o:instead` is 0), so no game changes.
 7. **Cards.** Multani's Presence, whose one ruling is the `SpellFizzled` test.
    Ray of Command, which TR-3a's registry can express: `Effect::Remember`
    around the steal, then `CreateDelayedTrigger` of `ControlChanges {
@@ -3460,7 +3465,10 @@ not decisions:
   triggers. An arm with no act ignores the record.
 - Item 258: a delayed trigger's "that card" finds the milled card Leyline of
   the Void exiled, does not find the Colossus shuffled back, and finds nothing
-  in a hand.
+  in a hand. TR-3b's `an_object_a_replacement_sent_elsewhere_is_not_referred_to`
+  flips, and is rewritten as "return that card to the battlefield" so the
+  answer shows on the board: under Rest in Peace, the creature comes back from
+  exile (Rescue from the Underworld's fourth ruling).
 - `the_event_keeps_its_size` stays at 72 bytes.
 
 **Sized**
@@ -3483,10 +3491,11 @@ batches run with a control row, and what each sweep costs under the gate. If
 the build crosses 2,500, it splits on the rule seam into the mill records
 (items 131 and 258) and the three look-back arms.
 
-**Decisions for review**
+**Decisions, taken 2026-10-15**
 
-1. **The frame before the first change.** Every 603.10d reader needs the
-   board from just before the change, and the sweep sees a change only after
+1. **The frame before the first change: (a), the owner's choice.** Every
+   603.10d reader needs the board from just before the change, and the sweep
+   sees a change only after
    it. While a control row exists, the sweep walks every permanent anyway, so
    keeping each frame is free and exact. The open case is the first row: with
    none before it, nothing walked, and nothing was kept.
@@ -3515,19 +3524,22 @@ the build crosses 2,500, it splits on the rule seam into the mill records
      with no new site, but it costs a walk of every permanent at every batch
      head, in every game. Not priced; the gate exists because forcing it off
      once cost 28% a game (`RegistryScopeSummary::any_control_changing`).
-2. **Item 258's reach: the mill only, or every verb.** CR 701.17c is about
-   milled cards: "an effect that refers to a milled card can find that card in
-   the zone it moved to from the library". CR 400.7j is general, but narrower
-   in whom it lets look: "other parts of that effect". TR-3b's
-   `an_object_a_replacement_sent_elsewhere_is_not_referred_to` pins the other
-   reading for a destruction under Rest in Peace. Its delayed trigger is
-   another ability, resolving later, not another part of the destroying
-   effect.
-   - **Recommended: the mill only.** Its rule names "an effect that refers",
-     and that includes a delayed trigger, so Leyline of the Void's exiled card
-     is "that card". TR-3b's test keeps its reading.
-   - **Every verb** would flip TR-3b's test. It needs a ruling that a delayed
-     trigger is "part of" the effect that made it.
+2. **Item 258's reach: every verb, settled by a ruling.** The question was
+   whether a delayed trigger may find an object a replacement sent to
+   another public zone, or only a milled one. CR 701.17c and CR 400.7j give
+   the same answer (the owner's reading), and Rescue from the Underworld's
+   fourth ruling applies it to a delayed trigger: "if the sacrificed
+   creature is put into another public zone instead of the graveyard,
+   perhaps because it's your commander or because of another replacement
+   effect, it will return to the battlefield from the zone it went to". Its
+   card was moved by a cost, CR 400.7j's second sentence; an effect's move is
+   the first sentence, read the same way. Its commander clause predates CR
+   903.9a's state-based move. So TR-3b's
+   `an_object_a_replacement_sent_elsewhere_is_not_referred_to` pinned a wrong
+   answer, on a fixture whose "exile it" changed nothing visible, and it
+   flips. What a card's words ask for still decides: Come Back Wrong's "if a
+   creature card is put into a graveyard this way" names the zone, so under
+   Rest in Peace it returns nothing.
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 

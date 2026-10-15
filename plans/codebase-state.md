@@ -9365,10 +9365,10 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Slotted:** TR-4d, beside item 131, whose same-zone record is where CR
      701.17c's public zone is asked first: the finds refuse a hidden zone, and a
      resolution's own read finds a moved card in any public zone it went to.
-     **Designed 2026-10-15 (TR-4d):** the mill only (CR 701.17c), since CR
-     400.7j's "other parts of that effect" does not reach a delayed trigger,
-     and TR-3b's Rest in Peace test pins that reading; the owner decides
-     (`triggers-architecture.md` §12, TR-4d's decision 2).
+     **Designed 2026-10-15 (TR-4d):** every verb (CR 400.7j), as Rescue from
+     the Underworld's fourth ruling reads it for a delayed trigger, so
+     TR-3b's Rest in Peace test flips (`triggers-architecture.md` §12,
+     TR-4d's decision 2).
 
 259. **~~A newcomer to a zone is asked look-back arms of the event that brought
      it.~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** — archived.
