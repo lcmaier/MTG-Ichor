@@ -378,7 +378,7 @@ impl GameState {
         // does too: what the permanent *is*, which an effect can change (an
         // Equipment made a creature). An Aura that is a creature is unattached
         // here, and 704.5m moves it on the next check.
-        let mut unattach: Vec<(GameAction, StateBasedAction)> = Vec::new();
+        let mut illegal_host: Vec<(GameAction, StateBasedAction)> = Vec::new();
         let mut not_an_attachment: Vec<(GameAction, StateBasedAction)> = Vec::new();
         for (id, entry) in self.battlefield_ordered() {
             // `attached_to` first: it is a field read, and the questions below
@@ -395,14 +395,14 @@ impl GameState {
                 && !(equipment && is_creature(self, host))
                 && !(fortification && has_type(self, host, CardType::Land))
             {
-                unattach.push((member.clone(), StateBasedAction::EquipmentAttachedIllegally));
+                illegal_host.push((member.clone(), StateBasedAction::EquipmentAttachedIllegally));
             }
             let aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
             if is_creature(self, id) || has_type(self, id, CardType::Battle) || !(aura || equipment || fortification) {
                 not_an_attachment.push((member, StateBasedAction::NonAttachmentAttached));
             }
         }
-        batch.extend(unattach);
+        batch.extend(illegal_host);
         batch.extend(not_an_attachment);
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
