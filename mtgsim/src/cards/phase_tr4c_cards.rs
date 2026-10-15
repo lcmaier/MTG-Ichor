@@ -7,7 +7,7 @@
 //!
 //! | Card | The path | Pooled |
 //! |---|---|---|
-//! | Bridge from Below | an intervening "if" that states the zone its ability works in (CR 113.6b), asked from a graveyard; a card that reaches the graveyard in the event answers none of its look-back triggers (CR 603.10a) | no |
+//! | Bridge from Below | an intervening "if" that states the zone its ability works in (CR 113.6b), asked from a graveyard; a card that reaches the graveyard in the event answers none of its look-back triggers (CR 603.10a) | yes |
 //! | Guerrilla Tactics | a trigger on the card's own move out of a hidden zone, asked where the card went (CR 603.10, 113.6k, 702.29c) | no |
 //! | Angelic Destiny | an Aura's trigger on its creature dying finds the card the Aura became in its owner's graveyard (CR 603.6e, 400.7f) | no |
 //! | Rancor | an Aura's trigger on its own move, finding the card it became (CR 400.7e) | no |
@@ -237,6 +237,14 @@ pub fn rancor() -> Arc<CardData> {
 /// graveyard and nowhere else, so on the battlefield the card does nothing.
 /// Both abilities are leaves-the-battlefield abilities and look back (CR
 /// 603.10a), so the card has to be in the graveyard before the creature dies.
+///
+/// # In `PERFORMANCE_POOL`, and why
+///
+/// The phase's new dispatcher path: while the card sits in a graveyard,
+/// every death is matched against a trigger there. Forced into every `stress`
+/// deck, 200 games at seed 777 and two seats, it reached a graveyard 23 times
+/// (18 discarded) and triggered 24 times, and the average game ran 27.1 turns
+/// against 26.7. It does nothing on the battlefield, so it ends no game.
 ///
 /// # The rulings, and where each is tested
 ///
