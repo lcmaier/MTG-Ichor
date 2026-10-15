@@ -50,10 +50,12 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
         return ZoneSet::ALL;
     }
 
-    // CR 113.6k, **derived from the condition**: `This` moving from zone Z
-    // functions in Z (a discard, in the hand); "from anywhere" everywhere it can
-    // be, never a leaves-the-battlefield ability (CR 603.6c; Guile); any other
-    // object's, on the battlefield. The ability's zones are its conditions'
+    // CR 113.6k, **derived from the condition**: `This` moving out of zone Z
+    // functions in Z when CR 603.10a looks back across the move (dies, a card
+    // leaving a graveyard), and otherwise where the move can leave it (a
+    // discard, in the graveyard); "from anywhere" everywhere it can be, never
+    // a leaves-the-battlefield ability (CR 603.6c; Guile); any other object's,
+    // on the battlefield. The ability's zones are its conditions'
     // together, and the dispatcher asks each again ([`condition_functions_in`]).
     // An intervening "if" that states a zone replaces all of it (CR 113.6b;
     // Bridge from Below). What an *effect* says about a zone is CR 113.6m's,
@@ -113,10 +115,27 @@ fn trigger_stated_zones(def: &TriggerDef) -> Option<ZoneSet> {
 }
 
 /// CR 113.6k for one trigger condition.
+///
+/// "All zones it can trigger from" is where the object is when the condition
+/// is asked. A look-back condition is asked off the frame, in the zone the
+/// object left (CR 603.10a). Any other is asked after the event (CR 603.10),
+/// where the object went: the destination it names, else any zone the move
+/// can leave it in, since a replacement may send it elsewhere. CR 702.29c says
+/// so of a trigger on a discard ("whatever zone the card winds up in"), and
+/// Yixlid Jailer's second ruling of one on a card milled into a graveyard. A
+/// hidden zone is left out: CR 603.2f refuses the trigger there.
 fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
-        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: Some(zone), .. }, .. } => {
-            ZoneSet::of(*zone)
+        TriggerEvent::ZoneChange {
+            subject: TriggerSubject::ThisObject,
+            change: ZoneChangePattern { from: Some(zone), to, .. },
+            ..
+        } => {
+            if arm.looks_back() {
+                ZoneSet::of(*zone)
+            } else {
+                to.map_or(ZoneSet::ALL, ZoneSet::of).without(ZoneSet::of(*zone)).without(ZoneSet::HIDDEN)
+            }
         }
         TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: None, .. }, .. } => {
             ZoneSet::ALL
@@ -488,6 +507,44 @@ mod tests {
             ZoneSet::BATTLEFIELD,
             "one level, by design: a deeper walk is the search §13c decision 3 refuses"
         );
+    }
+
+    /// A trigger on the object's own move, `from` to `to`, gaining 1 life.
+    fn own_move(from: Zone, to: Option<Zone>, act: Option<crate::types::zones::ZoneChangeAct>) -> AbilityDef {
+        let arm = TriggerEvent::ZoneChange {
+            subject: TriggerSubject::ThisObject,
+            change: ZoneChangePattern { from: Some(from), to, act },
+            by: None,
+            owner: None,
+            multiplicity: crate::types::triggers::Multiplicity::PerOccurrence,
+        };
+        ability(Effect::Triggered(std::sync::Arc::new(crate::cards::authoring::whenever(
+            arm,
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        ))))
+    }
+
+    /// CR 113.6k on a trigger about the object's own move. A move CR 603.10a
+    /// looks back across functions where the object was; any other functions
+    /// where the move can leave it, less the hidden zones (CR 603.2f).
+    #[test]
+    fn an_own_move_functions_where_it_is_asked() {
+        let creature = types_of(&[CardType::Creature]);
+        let instant = types_of(&[CardType::Instant]);
+        // Dies, and a card leaving a graveyard: the zone left.
+        assert_eq!(functioning_zones(&own_move(Zone::Battlefield, Some(Zone::Graveyard), None), &creature), ZoneSet::BATTLEFIELD);
+        assert_eq!(functioning_zones(&own_move(Zone::Graveyard, None, None), &creature), ZoneSet::GRAVEYARD);
+        // Into a hand from exile, which all players see: the zone left.
+        assert_eq!(functioning_zones(&own_move(Zone::Exile, Some(Zone::Hand), None), &creature), ZoneSet::EXILE);
+        // Narcomoeba's, from the library: the graveyard it went to (Yixlid
+        // Jailer's second ruling).
+        assert_eq!(functioning_zones(&own_move(Zone::Library, Some(Zone::Graveyard), None), &creature), ZoneSet::GRAVEYARD);
+        // Guerrilla Tactics', a discard: wherever the card can wind up that all
+        // players see (CR 702.29c), the graveyard or Rest in Peace's exile.
+        let discard = own_move(Zone::Hand, None, Some(crate::types::zones::ZoneChangeAct::Discarded));
+        let wound_up = functioning_zones(&discard, &instant);
+        assert!(wound_up.contains(Zone::Graveyard) && wound_up.contains(Zone::Exile));
+        assert!(!wound_up.contains(Zone::Hand) && !wound_up.contains(Zone::Library), "never a hidden zone");
     }
 
     #[cfg(debug_assertions)]

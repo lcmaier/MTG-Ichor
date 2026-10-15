@@ -14,19 +14,28 @@
 //!    their graveyard with them, and those cards leave a graveyard too.
 //! 4. CR 603.2f at the instant a candidate's list is read: before the event
 //!    for a frame, after it for anything still there.
+//! 5. Item 249: a trigger on the card's own move out of a hidden zone is
+//!    asked where the card went (CR 603.10, 113.6k, 702.29c). Guerrilla
+//!    Tactics' three rulings, under Yixlid Jailer and under Rest in Peace.
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{leaves_the_battlefield, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_tr4c_cards::bridge_from_below;
-use mtgsim::engine::actions::GameAction;
+use mtgsim::cards::phase_rb_cards::rest_in_peace;
+use mtgsim::cards::phase_re8_cards::mind_rot;
+use mtgsim::cards::phase_tr4c_cards::{bridge_from_below, guerrilla_tactics};
+use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::{EventCause, GeneratedBy};
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    effect_ctx, put_in_exile, put_in_graveyard, put_in_library, put_on_battlefield, put_on_battlefield_under, setup_game,
-    setup_two_player_game, static_ability, test_ctx, test_dp,
+    effect_ctx, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
+    setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -444,6 +453,129 @@ fn a_creature_returned_to_its_owners_hand_triggers_its_leaves_the_battlefield_ab
 
     move_card(&mut game, creature, Zone::Battlefield, Zone::Hand);
     assert_eq!(waiting_from(&game, creature), 1);
+}
+
+// ---------------------------------------------------------------------------
+// 5. A card's own move out of a hidden zone (item 249): Guerrilla Tactics
+// ---------------------------------------------------------------------------
+
+/// Resolve `effect` as `caster`'s spell targeting `target`, its source a card
+/// in `caster`'s graveyard.
+fn resolve_spell_at_player(game: &mut GameState, effect: &Effect, caster: PlayerId, target: PlayerId, dp: &dyn DecisionProvider) {
+    let source = put_in_graveyard(game, mind_rot(), caster);
+    let mut ctx = ResolutionContext::untargeted(source, caster, GeneratedBy::Spell);
+    ctx.targets = ChosenTargets::one(vec![ResolvedTarget::Player(target)]);
+    game.resolve_effect(effect, &ctx, dp).expect("resolving");
+}
+
+/// P0 holds Guerrilla Tactics and one other card, and P1's Mind Rot makes P0
+/// discard both.
+fn discarded_by_mind_rot(game: &mut GameState) -> ObjectId {
+    let tactics = put_in_hand(game, guerrilla_tactics(), 0);
+    put_in_hand(game, grizzly_bears(), 0);
+    let rot = mind_rot().abilities[0].effect.clone();
+    resolve_spell_at_player(game, &rot, 1, 0, &test_dp());
+    tactics
+}
+
+/// The life both players have lost.
+fn damage_dealt(game: &GameState) -> i64 {
+    40 - life(game, 0) - life(game, 1)
+}
+
+/// The trigger is asked in the graveyard, where the card went, and deals 4,
+/// as the card's ability rather than a spell.
+// RULING: Guerrilla Tactics #1 - "If it is discarded, the damage done by it is done by this card due to an ability and not by a spell."
+#[test]
+fn guerrilla_tactics_discarded_by_an_opponents_spell_deals_four_damage() {
+    let mut game = setup_two_player_game();
+    let tactics = discarded_by_mind_rot(&mut game);
+    assert_eq!(zone(&game, tactics), Some(Zone::Graveyard));
+    assert_eq!(waiting_from(&game, tactics), 1);
+
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    assert_eq!(damage_dealt(&game), 4);
+    let dealt = game.recorded_events().records().iter().find_map(|r| match &r.event {
+        GameEvent::DamageDealt { source_id, .. } => Some((*source_id, r.stamp.cause)),
+        _ => None,
+    });
+    let (source, cause) = dealt.expect("damage was dealt");
+    assert_eq!(source, tactics, "dealt by the card");
+    assert!(matches!(cause, EventCause::Effect { generated_by: GeneratedBy::TriggeredAbility, .. }), "{cause:?}");
+}
+
+// RULING: Guerrilla Tactics #2 - "The second ability will trigger even on an optional discard caused by an opponent."
+#[test]
+fn guerrilla_tactics_triggers_on_an_optional_discard_an_opponent_causes() {
+    let mut game = setup_two_player_game();
+    let tactics = put_in_hand(&mut game, guerrilla_tactics(), 0);
+    let discard = mind_rot().abilities[0].effect.clone();
+    let Effect::Atom(Primitive::Discard(_, chooser), recipient) = discard else { panic!("Mind Rot's shape") };
+    let may_discard = Effect::Optional {
+        chooser: PlayerRef::Player(0),
+        effect: Box::new(Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), chooser), recipient)),
+    };
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: next_object(&game) }, vec![0]);
+    resolve_spell_at_player(&mut game, &may_discard, 1, 0, &dp);
+
+    assert_eq!(zone(&game, tactics), Some(Zone::Graveyard), "discarded by choice");
+    assert_eq!(waiting_from(&game, tactics), 1);
+}
+
+/// The id the next object put into the game will have.
+fn next_object(game: &GameState) -> ObjectId {
+    let mut probe = game.clone();
+    put_in_graveyard(&mut probe, grizzly_bears(), 0)
+}
+
+/// A cost is no spell or ability causing the discard ("costs aren't
+/// effects"), nor is the cleanup discard, nor its owner's own spell.
+// RULING: Guerrilla Tactics #3 - "Discarding as a cost to cast a spell will not trigger the ability. Only discarding as an effect will trigger the ability."
+#[test]
+fn guerrilla_tactics_discarded_as_a_cost_does_not_trigger() {
+    let mut game = setup_two_player_game();
+    let tactics = put_in_hand(&mut game, guerrilla_tactics(), 0);
+    let paying_for = put_in_hand(&mut game, grizzly_bears(), 0);
+    let dp = test_dp();
+    game.execute_action(
+        GameAction::ZoneChange { object: tactics, from: Zone::Hand, to: Zone::Graveyard, act: ZoneChangeAct::Discarded },
+        &ActionContext::paying_cost(&dp, 0, paying_for),
+    )
+    .unwrap();
+    assert_eq!(zone(&game, tactics), Some(Zone::Graveyard));
+    assert_eq!(waiting_from(&game, tactics), 0, "a cost");
+
+    let mut game = setup_two_player_game();
+    let tactics = put_in_hand(&mut game, guerrilla_tactics(), 0);
+    put_in_hand(&mut game, grizzly_bears(), 0);
+    let rot = mind_rot().abilities[0].effect.clone();
+    resolve_spell_at_player(&mut game, &rot, 0, 0, &test_dp());
+    assert_eq!(zone(&game, tactics), Some(Zone::Graveyard));
+    assert_eq!(waiting_from(&game, tactics), 0, "its owner's own spell");
+}
+
+/// Asked in the graveyard, where Yixlid Jailer takes the ability, as its
+/// second ruling says of a cycling trigger: it does not trigger. A trigger read
+/// in the hand it left would.
+#[test]
+fn guerrilla_tactics_discarded_under_yixlid_jailer_does_not_trigger() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    let tactics = discarded_by_mind_rot(&mut game);
+    assert_eq!(zone(&game, tactics), Some(Zone::Graveyard));
+    assert_eq!(waiting_from(&game, tactics), 0);
+}
+
+/// Under Rest in Peace the card winds up in exile, and is asked there (CR
+/// 702.29c's "whatever zone the card winds up in").
+#[test]
+fn guerrilla_tactics_exiled_instead_by_rest_in_peace_still_triggers() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, rest_in_peace(), 1);
+    let tactics = discarded_by_mind_rot(&mut game);
+    assert_eq!(zone(&game, tactics), Some(Zone::Exile));
+    assert_eq!(waiting_from(&game, tactics), 1);
 }
 
 /// **Fixture.** Bridge from Below's first ability with "from the
