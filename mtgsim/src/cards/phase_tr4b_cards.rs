@@ -7,7 +7,7 @@
 //! | Card | The path | Pooled |
 //! |---|---|---|
 //! | Grafted Wargear | "becomes unattached" on every route CR 701.3d counts, looking back (CR 603.10c), and "that permanent" as the existence it was | no |
-//! | Bramble Elemental | "becomes attached", an Aura entering attached included (CR 303.4f) | no |
+//! | Bramble Elemental | "becomes attached", an Aura entering attached included (CR 303.4f) | yes |
 
 use std::sync::Arc;
 
@@ -44,8 +44,8 @@ use crate::types::triggers::TriggerSubject;
 /// forced into every `stress` deck, 200 games at seed 12345 and two seats,
 /// it moved 262 times, and the average game ran 26.9 turns against 25.4
 /// (`fuzz-record.md`, the TR-4b block). It ends no game, so it is registered
-/// for `stress` to hunt with, and Bramble Elemental carries "becomes
-/// attached" beside it.
+/// for `stress` to hunt with, and Bramble Elemental, pooled, carries
+/// "becomes attached" beside it.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -107,11 +107,14 @@ pub fn grafted_wargear() -> Arc<CardData> {
 /// and an attach to it while the Aura is already there does not. Brood
 /// Keeper's first ruling says so of the same text.
 ///
-/// # Registered beside Grafted Wargear
+/// # In `PERFORMANCE_POOL`, and why
 ///
 /// The benign consumer of the same records: it harms nobody a random agent
-/// plays it against. Not pooled, like the Wargear, so the `performance`
-/// tables stand.
+/// plays it against, so it carries the phase's new path into the
+/// `performance` tables, which TR-4b re-recorded with it. A random Aura
+/// seldom lands on it; what it measures is the dispatch's cost, since while
+/// it is on the battlefield every attach a pooled Aura or Equipment makes is
+/// matched against it.
 ///
 /// # The rulings
 ///
