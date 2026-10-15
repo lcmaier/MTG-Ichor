@@ -582,7 +582,6 @@ pub fn put_spell_on_stack(
         ability_identity: None,
         trigger: None,
         kept_lki: Vec::new(),
-        source_found_in_graveyard: None,
     });
     id
 }

@@ -2131,7 +2131,6 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
         ability_identity: None,
         trigger: None,
         kept_lki: Vec::new(),
-        source_found_in_graveyard: None,
     });
     resolve_top(&mut game, &test_dp());
     place(&mut game, &test_dp());

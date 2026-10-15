@@ -217,7 +217,6 @@ impl GameState {
             ability_identity: None,
             trigger: None,
             kept_lki: Vec::new(),
-            source_found_in_graveyard: None,
         };
         self.set_stack_entry(entry);
 
@@ -475,7 +474,6 @@ impl GameState {
             ability_identity: Some(identity),
             trigger: None,
             kept_lki: Vec::new(),
-            source_found_in_graveyard: None,
         };
         self.set_stack_entry(stack_entry);
 

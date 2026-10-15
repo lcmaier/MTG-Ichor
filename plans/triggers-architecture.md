@@ -1795,8 +1795,7 @@ creatures beside it does not trigger, its third ruling, in either batch order.
 **An Aura's new object** (main item 260, TR-4c; CR 603.6e, 400.7f). An
 Aura's trigger on its enchanted permanent leaving
 (`TriggerEvent::watches_its_host_leave`) finds the card the Aura became in its
-owner's graveyard: `source_found_in_graveyard`, beside `kept_lki` on the
-pending, stacked and resolving entries, set at the
+owner's graveyard: `TriggerBinding.source_found_in_graveyard`, set at the
 dispatch when the Aura's move into the graveyard is in the window (the
 rule's first sentence, the same event), and by the performer of CR 704.5m's
 move into the graveyard, whose stamp names it, for each pending or stacked

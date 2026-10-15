@@ -67,7 +67,6 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         ability_identity: None,
         trigger: None,
         kept_lki: Vec::new(),
-        source_found_in_graveyard: None,
     });
     id
 }

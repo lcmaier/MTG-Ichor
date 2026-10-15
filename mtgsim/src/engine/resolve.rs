@@ -2635,7 +2635,7 @@ impl GameState {
             // Or, for an Aura's trigger on its enchanted permanent leaving, the
             // card the Aura became in its owner's graveyard (CR 400.7f).
             Some(source) => self.find(source).map(|_| source.id).or_else(|| {
-                let found = self.resolving_for(ctx)?.source_found_in_graveyard?;
+                let found = ctx.trigger.as_ref()?.source_found_in_graveyard?;
                 self.find(found).map(|_| found.id)
             }),
             None => {

@@ -6348,8 +6348,7 @@ ruling's board failed first and runs in both batch orders.
 
 ### Item 260 — closed 2026-10-15 by PR #253 (TR-4c)
 
-Closed by TR-4c. `source_found_in_graveyard`, beside `kept_lki` on the
-trigger's entries (moved off `TriggerBinding` at review), names the card
+Closed by TR-4c. `TriggerBinding.source_found_in_graveyard` names the card
 the Aura became, and `this_object` finds it when the source is gone. Both
 of CR 400.7f's sentences are built: at dispatch, when the Aura's move
 into the graveyard is in the window that queued the trigger, and in the

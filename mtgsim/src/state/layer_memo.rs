@@ -433,7 +433,6 @@ mod tests {
             ability_identity: None,
             trigger: None,
             kept_lki: Vec::new(),
-            source_found_in_graveyard: None,
         });
         assert_eq!(controller(&game, card), (Some(1), false));
         assert_eq!(controller(&game, card), (Some(1), true));

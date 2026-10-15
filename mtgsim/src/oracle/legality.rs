@@ -682,7 +682,6 @@ mod tests {
             subject: None,
             subject_lki: None,
             kept_lki: Vec::new(),
-            source_found_in_graveyard: None,
         });
 
         assert_eq!(

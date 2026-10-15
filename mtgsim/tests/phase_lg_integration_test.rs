@@ -112,7 +112,6 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         ability_identity: None,
         trigger: None,
         kept_lki: Vec::new(),
-        source_found_in_graveyard: None,
     }
 }
 

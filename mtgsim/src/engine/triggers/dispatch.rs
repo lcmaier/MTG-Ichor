@@ -690,6 +690,7 @@ impl GameState {
                 subject: m.subject,
                 triggered_by: None,
                 referred: Referred::default(),
+                source_found_in_graveyard,
             };
             let origin = TriggerOrigin::Object(m.identity);
             let pending = PendingTrigger {
@@ -701,7 +702,6 @@ impl GameState {
                 binding,
                 is_state_trigger: false,
                 kept_lki: m.source_lki.into_iter().collect(),
-                source_found_in_graveyard,
                 x_value: None,
             };
             if m.mana {
@@ -758,18 +758,18 @@ impl GameState {
     /// leaving before anyone receives priority.
     pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
         let Some(found) = self.object_ref(aura.id) else { return };
-        let finds = |source: ObjectRef, binding: &TriggerBinding, slot: &mut Option<ObjectRef>| {
-            if source == aura && binding.event().watches_its_host_leave() && slot.is_none() {
-                *slot = Some(found);
+        let finds = |source: ObjectRef, binding: &mut TriggerBinding| {
+            if source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none() {
+                binding.source_found_in_graveyard = Some(found);
             }
         };
         for pending in &mut self.pending_triggers {
-            finds(pending.origin.source_ref(), &pending.binding, &mut pending.source_found_in_graveyard);
+            finds(pending.origin.source_ref(), &mut pending.binding);
         }
         for id in &self.stack {
             let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_ref()) {
-                finds(identity.source, binding, &mut entry.source_found_in_graveyard);
+            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_mut()) {
+                finds(identity.source, binding);
             }
         }
     }

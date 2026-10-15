@@ -9359,7 +9359,7 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
 
 260. **~~An Aura's trigger does not find the Aura after its own CR 704.5m
      move.~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** — archived.
-     `source_found_in_graveyard` on the trigger's entry, set at dispatch for an Aura
+     `TriggerBinding.source_found_in_graveyard`, set at dispatch for an Aura
      that left in the same event and by the CR 704.5m move, which
      `this_object` finds (CR 400.7f). Angelic Destiny registered.
      **Reachability (2026-10-15):** closed — PR #253.
