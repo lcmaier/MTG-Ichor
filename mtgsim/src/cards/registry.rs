@@ -27,6 +27,7 @@ use super::phase_tr3a_cards;
 use super::phase_tr3b_cards;
 use super::phase_tr3c_cards;
 use super::phase_tr4a_cards;
+use super::phase_tr4b_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -874,6 +875,12 @@ impl CardRegistry {
         registry.register("Strangleroot Geist", phase_tr4a_cards::strangleroot_geist);
         registry.register("Demonic Vigor", phase_tr4a_cards::demonic_vigor);
         registry.register("Compost", phase_tr4a_cards::compost);
+
+        // TR-4b: attachment's records. Grafted Wargear reads "becomes
+        // unattached" on every route CR 701.3d counts, Bramble Elemental
+        // "becomes attached"; the Wargear's doc says why neither is pooled.
+        registry.register("Grafted Wargear", phase_tr4b_cards::grafted_wargear);
+        registry.register("Bramble Elemental", phase_tr4b_cards::bramble_elemental);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

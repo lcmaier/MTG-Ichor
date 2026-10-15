@@ -13,12 +13,16 @@
 //! 5. The two trigger events: "becomes attached" (CR 603.2e, read after the
 //!    event) and "becomes unattached" (CR 603.10c, looking back), with
 //!    Siona, Captain of the Pyleas' rulings on a fixture shaped like her.
+//! 6. Grafted Wargear's three rulings, the first once per route.
+//! 7. Bramble Elemental, "becomes attached"'s benign consumer.
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
+use mtgsim::cards::phase_tr4b_cards::{bramble_elemental, grafted_wargear};
+use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
@@ -757,4 +761,281 @@ fn a_creature_whose_equipment_granted_its_unattach_trigger_triggers_as_the_equip
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(life(&game), before + 5, "the first creature's, as it was; the second's is about itself");
+}
+
+// ---------------------------------------------------------------------------
+// 6. Grafted Wargear
+// ---------------------------------------------------------------------------
+
+/// Grafted Wargear on the first of two Grizzly Bears, both player 0's.
+fn wargear_on_bears(game: &mut GameState) -> (ObjectId, ObjectId, ObjectId) {
+    let first = put_on_battlefield(game, grizzly_bears(), 0);
+    let second = put_on_battlefield(game, grizzly_bears(), 0);
+    let wargear = put_on_battlefield(game, grafted_wargear(), 0);
+    equip_to(game, wargear, 0);
+    resolve_all(game, &test_dp());
+    assert_eq!(host(game, wargear), Some(first));
+    (wargear, first, second)
+}
+
+fn zone_of(game: &GameState, id: ObjectId) -> Option<Zone> {
+    game.objects.get(&id).map(|o| o.zone)
+}
+
+// RULING: Grafted Wargear #1 - equipping it to a new creature unattaches it.
+#[test]
+fn grafted_wargear_moved_to_another_creature_sacrifices_the_first() {
+    let mut game = setup_two_player_game();
+    let (wargear, first, second) = wargear_on_bears(&mut game);
+    game.record_events();
+
+    equip_to(&mut game, wargear, 1);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, wargear), Some(second));
+    assert!(game.recorded_events().events().any(|e| {
+        matches!(e, GameEvent::ZoneChange { object_id, act: ZoneChangeAct::Sacrificed, .. } if *object_id == first)
+    }));
+}
+
+// RULING: Grafted Wargear #1 - Grafted Wargear leaving the battlefield
+//   unattaches it, and its own ability triggers.
+#[test]
+fn grafted_wargear_leaving_sacrifices_its_creature() {
+    let mut game = setup_two_player_game();
+    let (wargear, first, _) = wargear_on_bears(&mut game);
+
+    destroy_all(&mut game, &[wargear]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(zone_of(&game, first), Some(Zone::Graveyard));
+}
+
+// RULING: Grafted Wargear #1 - the equipped creature ceasing to be a
+//   creature unattaches it (CR 704.5n), and the permanent it was on is
+//   sacrificed.
+#[test]
+fn grafted_wargear_on_a_creature_that_stops_being_one_sacrifices_it() {
+    let mut game = setup_two_player_game();
+    let clue = Subtype::Artifact(ArtifactType::Clue);
+    let animator = put_on_battlefield(&mut game, animator(clue.clone(), &[]), 0);
+    let construct = put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("Probe Clue").card_type(CardType::Artifact).subtype(clue).build(),
+        0,
+    );
+    let wargear = put_on_battlefield(&mut game, grafted_wargear(), 0);
+    equip_to(&mut game, wargear, 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(host(&game, wargear), Some(construct));
+
+    destroy_all(&mut game, &[animator]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, wargear), None);
+    assert_eq!(zone_of(&game, construct), Some(Zone::Graveyard), "the artifact it was on");
+}
+
+// RULING: Grafted Wargear #1 - Grafted Wargear ceasing to be an Equipment
+//   unattaches it (CR 704.5p).
+#[test]
+fn grafted_wargear_that_stops_being_an_equipment_sacrifices_its_creature() {
+    let mut game = setup_two_player_game();
+    let (wargear, first, _) = wargear_on_bears(&mut game);
+    let not_equipment = TypeChange { remove_subtypes: vec![equipment_subtype()], ..TypeChange::NONE };
+    let source = mtgsim::types::ids::new_object_id();
+    let ctx = ResolutionContext {
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(wargear)]),
+        ..ResolutionContext::untargeted(source, 0, GeneratedBy::Spell)
+    };
+    let strip = Effect::Atom(
+        Primitive::ChangeType(not_equipment, Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+    );
+    game.resolve_effect(&strip, &ctx, &test_dp()).unwrap();
+
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, wargear), None);
+    assert_eq!(zone_of(&game, first), Some(Zone::Graveyard));
+}
+
+// RULING: Grafted Wargear #1 - the equipped creature leaving unattaches it,
+//   "but the triggered ability won't do anything in that case."
+#[test]
+fn grafted_wargear_whose_creature_left_triggers_and_sacrifices_nothing() {
+    let mut game = setup_two_player_game();
+    let (wargear, first, second) = wargear_on_bears(&mut game);
+
+    destroy_all(&mut game, &[first]);
+    assert_eq!(game.pending_triggers.iter().filter(|p| p.origin.source() == wargear).count(), 1, "it triggered");
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(zone_of(&game, wargear), Some(Zone::Battlefield));
+    assert_eq!(zone_of(&game, second), Some(Zone::Battlefield));
+    assert_eq!(zone_of(&game, first), Some(Zone::Graveyard));
+}
+
+/// CR 400.7: a creature that left and came back is a new object, which
+/// "that permanent" does not name.
+#[test]
+fn grafted_wargear_does_not_sacrifice_its_creature_after_it_returned() {
+    let mut game = setup_two_player_game();
+    let (wargear, first, _) = wargear_on_bears(&mut game);
+    let exile_it = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
+    let flicker = Effect::Sequence(vec![
+        Effect::Atom(Primitive::Exile, exile_it.clone()),
+        Effect::Atom(
+            Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() },
+            EffectRecipient::SameInstanceAs(0),
+        ),
+    ]);
+    let spell = put_spell_on_stack(&mut game, card_of_type("Probe Flicker", CardType::Instant), 0);
+    let chosen = TargetInstance::from_announcement(&game, exile_it, &[ResolvedTarget::Object(first)]).unwrap();
+    let entry = game.stack_entries.get_mut(&spell).unwrap();
+    entry.effect = Arc::new(flicker);
+    entry.chosen_targets = vec![chosen];
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.pending_triggers.iter().filter(|p| p.origin.source() == wargear).count(), 1, "it triggered");
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(zone_of(&game, first), Some(Zone::Battlefield));
+}
+
+/// An Equipment that sends "that permanent" back to its owner's hand: a
+/// reader that, unlike a sacrifice, would act on a card in a graveyard.
+fn bouncing_equipment() -> Arc<CardData> {
+    CardDataBuilder::new("Probe Bouncing Equipment")
+        .card_type(CardType::Artifact)
+        .subtype(equipment_subtype())
+        .ability(triggered_ability(
+            "Whenever this Equipment becomes unattached from a permanent, return that permanent to its owner's hand.",
+            whenever(
+                becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject),
+            ),
+        ))
+        .ability(equip("Equip {0}", Vec::new()))
+        .build()
+}
+
+/// "That permanent" is the permanent (CR 400.7). A creature that died is a
+/// card in a graveyard, which an unattach trigger does not find: no CR 400.7
+/// exception reaches it, unlike an Aura's leaves-the-battlefield trigger (CR
+/// 603.6e).
+#[test]
+fn an_unattach_trigger_does_not_find_the_card_its_creature_became() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let gear = put_on_battlefield(&mut game, bouncing_equipment(), 0);
+    equip_to(&mut game, gear, 0);
+    resolve_all(&mut game, &test_dp());
+
+    destroy_all(&mut game, &[bears]);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(zone_of(&game, bears), Some(Zone::Graveyard));
+}
+
+// RULING: Grafted Wargear #2 - equipping it to the creature it is attached to
+//   is legal, and "generally won't do anything".
+#[test]
+fn grafted_wargear_equipped_again_to_its_creature_sacrifices_nothing() {
+    let mut game = setup_two_player_game();
+    let wargear = put_on_battlefield(&mut game, grafted_wargear(), 0);
+    let only = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    equip_to(&mut game, wargear, 0);
+    resolve_all(&mut game, &test_dp());
+
+    equip_to(&mut game, wargear, 0);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, wargear), Some(only));
+    assert_eq!(zone_of(&game, only), Some(Zone::Battlefield));
+}
+
+// RULING: Grafted Wargear #3 - its controller cannot sacrifice an opponent's
+//   creature.
+#[test]
+fn grafted_wargear_does_not_sacrifice_an_opponents_creature() {
+    let mut game = setup_two_player_game();
+    let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let wargear = put_on_battlefield(&mut game, grafted_wargear(), 0);
+    attach(&mut game, wargear, theirs);
+    resolve_all(&mut game, &test_dp());
+
+    equip_to(&mut game, wargear, 0);
+    resolve_all(&mut game, &test_dp());
+
+    assert_eq!(host(&game, wargear), Some(mine));
+    assert_eq!(zone_of(&game, theirs), Some(Zone::Battlefield), "player 0 does not control it");
+}
+
+/// Registered for `stress`, where the random agent's re-equips are what it
+/// hunts with, and not pooled (its doc measures why).
+#[test]
+fn grafted_wargear_is_registered_and_not_pooled() {
+    assert!(CardRegistry::default_registry().create("Grafted Wargear").is_ok());
+    assert!(CardRegistry::performance_pool().create("Grafted Wargear").is_err());
+}
+
+// ---------------------------------------------------------------------------
+// 7. Bramble Elemental
+// ---------------------------------------------------------------------------
+
+fn saprolings(game: &GameState) -> usize {
+    game.battlefield_ids_ordered()
+        .into_iter()
+        .filter(|id| game.objects.get(id).is_some_and(|o| o.is_token))
+        .count()
+}
+
+/// An Aura spell resolving onto it is an Aura becoming attached to it (CR
+/// 303.4f), and one moved onto it from another creature is too.
+#[test]
+fn bramble_elemental_makes_saprolings_for_an_aura_entering_onto_it_or_moved_onto_it() {
+    let mut game = setup_two_player_game();
+    let bramble = put_on_battlefield(&mut game, bramble_elemental(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    let aura = aura_spell_targeting(&mut game, 0, bramble);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(saprolings(&game), 2);
+
+    attach(&mut game, aura, bears);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(saprolings(&game), 2, "an Aura leaving it is no Aura becoming attached to it");
+
+    attach(&mut game, aura, bramble);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(saprolings(&game), 4);
+}
+
+/// CR 603.2e: an Aura attached to it again where it already is, or onto
+/// another creature, makes nothing.
+#[test]
+fn bramble_elemental_makes_nothing_for_an_aura_left_in_place_or_put_on_another_creature() {
+    let mut game = setup_two_player_game();
+    let bramble = put_on_battlefield(&mut game, bramble_elemental(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    aura_spell_targeting(&mut game, 0, bears);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(saprolings(&game), 0);
+
+    let aura = put_on_battlefield(&mut game, holy_strength(), 0);
+    assert!(game.attach(aura, bramble));
+    attach(&mut game, aura, bramble);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(saprolings(&game), 0);
+}
+
+#[test]
+fn bramble_elemental_is_registered_and_not_pooled() {
+    assert!(CardRegistry::default_registry().create("Bramble Elemental").is_ok());
+    assert!(CardRegistry::performance_pool().create("Bramble Elemental").is_err());
 }
