@@ -366,9 +366,10 @@ pub enum GameEvent {
     /// the game because its owner leaves the game**". So a permanent leaving
     /// here fires them, and CR 603.10a's frame is what a matcher will read —
     /// captured before `cleanup_zone_state` retires the static abilities that
-    /// produced it, the same window `perform_zone_change` has. A card leaving
-    /// from a graveyard carries one too: it leaves a graveyard (CR 603.10a's
-    /// second class). `None` from any other zone.
+    /// produced it, the same window `perform_zone_change` has. `None` for an
+    /// object that was not a permanent, which is every other zone: a card
+    /// leaving the game from a graveyard leaves no graveyard (Erebos's Titan's
+    /// third ruling).
     ///
     /// CR 603.6c's qualifier is the one part with no implementation: a *phased
     /// out* permanent does not trigger, and phasing (CR 702.26) is not built

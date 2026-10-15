@@ -419,11 +419,20 @@ pub enum IdentityRef {
 
 /// CR 603.10a's three classes of zone change, as a property of one move:
 /// leaving the battlefield, a card leaving a graveyard, and an object all
-/// players can see put into a hand or library. `to` is `None` for leaving the
-/// game (CR 800.4a). A move in a class carries the frame from before it,
-/// which is what a look-back arm reads.
+/// players can see put into a hand or library. A move in a class carries the
+/// frame from before it, which is what a look-back arm reads.
+///
+/// `to` is `None` for leaving the game (CR 800.4a), which counts only from the
+/// battlefield: CR 603.6c makes it a leaves-the-battlefield event, and a card
+/// leaving the game from a graveyard is no card leaving a graveyard (Erebos's
+/// Titan's third ruling).
 pub fn zone_change_looks_back(from: Zone, to: Option<Zone>) -> bool {
-    matches!(from, Zone::Battlefield | Zone::Graveyard) || (from.is_public() && matches!(to, Some(Zone::Hand | Zone::Library)))
+    match to {
+        None => from == Zone::Battlefield,
+        Some(to) => {
+            matches!(from, Zone::Battlefield | Zone::Graveyard) || (from.is_public() && matches!(to, Zone::Hand | Zone::Library))
+        }
+    }
 }
 
 impl TriggerEvent {

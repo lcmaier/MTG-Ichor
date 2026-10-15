@@ -843,11 +843,10 @@ impl GameState {
     /// moves in one of its three classes (`zone_change_looks_back`), in batch
     /// order: a permanent leaving the battlefield, a card leaving a graveyard,
     /// a visible object put into a hand or library. A player leaving takes
-    /// what goes with them (`departs_with`): CR 800.4a's fourth clause exiles
-    /// only after its first two have run, so the set is everything it may
-    /// exile; and each card in their graveyard leaves it. A permanent's frame
-    /// is a memo hit, since nothing has changed since the batch began
-    /// deciding.
+    /// the permanents that go with them (`departs_with`): CR 800.4a's fourth
+    /// clause exiles only after its first two have run, so the set is
+    /// everything it may exile. A permanent's frame is a memo hit, since
+    /// nothing has changed since the batch began deciding.
     ///
     /// **And every other mover an entry names, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
@@ -879,12 +878,6 @@ impl GameState {
                 }
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
-                        if self.departs_with(id, *player) {
-                            self.capture_frame(id);
-                        }
-                    }
-                    let graveyard = self.players.get(*player).map(|p| p.graveyard.clone()).unwrap_or_default();
-                    for id in graveyard {
                         if self.departs_with(id, *player) {
                             self.capture_frame(id);
                         }
@@ -1027,11 +1020,8 @@ impl GameState {
     /// taken before its batch performed.
     fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
         let taken = self.take_named_lki(id);
-        // Every departure from the battlefield is decided by a batch, which
-        // framed it first. A card can reach a graveyard and leave it inside one
-        // batch, a creature dying in the check its owner loses in (CR 800.4a),
-        // and is framed as it leaves.
-        debug_assert!(taken.is_some() || from != Zone::Battlefield, "{id} left the battlefield with no frame from its batch");
+        // Every such move is decided by a batch, which framed it first.
+        debug_assert!(taken.is_some(), "{id} left the {from:?} with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
             self.last_known_information(id, Arc::new(frame))
@@ -1506,13 +1496,16 @@ impl GameState {
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
             ),
-            // CR 603.6c names this event: a leaves-the-battlefield ability
-            // triggers on it and nothing narrower — no `to`, no act, no cause.
+            // CR 603.6c names this event for a leaves-the-battlefield ability,
+            // and for nothing else: a card leaving the game from a graveyard
+            // leaves no graveyard (Erebos's Titan's third ruling). Nothing
+            // narrower either — no `to`, no act, no cause.
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
             ) => occurrence_if(
-                change.from.is_none_or(|z| z == *from)
+                *from == Zone::Battlefield
+                    && change.from == Some(Zone::Battlefield)
                     && change.to.is_none()
                     && change.act.is_none()
                     && by.is_none()

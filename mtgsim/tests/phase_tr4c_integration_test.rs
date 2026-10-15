@@ -412,12 +412,14 @@ fn a_card_put_into_a_hand_from_exile_is_read_as_it_was_in_exile() {
     assert_eq!(waiting_from(&game, watching), 1, "black as it was");
 }
 
-/// A player leaving the game takes their graveyard with them (CR 800.4a),
-/// and each card in it leaves a graveyard: Erebos's Titan's "whenever a
-/// creature card leaves an opponent's graveyard", on a fixture. Nothing is
-/// left to read afterwards, so only the frame can answer.
+/// Erebos's Titan's "whenever a creature card leaves an opponent's
+/// graveyard", on a fixture, and its third ruling: "In a multiplayer game,
+/// the last ability won't trigger when a player with a creature card in their
+/// graveyard leaves the game." Leaving the game is CR 603.6c's event for a
+/// leaves-the-battlefield ability and nothing else. A creature card exiled
+/// from the same graveyard first shows the watcher works.
 #[test]
-fn creature_cards_leaving_the_game_from_an_opponents_graveyard_trigger_a_watcher() {
+fn creature_cards_leaving_the_game_from_an_opponents_graveyard_trigger_nothing() {
     let mut game = setup_game(3);
     let watching = put_on_battlefield(
         &mut game,
@@ -429,12 +431,14 @@ fn creature_cards_leaving_the_game_from_an_opponents_graveyard_trigger_a_watcher
         ),
         0,
     );
+    let exiled = put_in_graveyard(&mut game, grizzly_bears(), 1);
     put_in_graveyard(&mut game, grizzly_bears(), 1);
     put_in_graveyard(&mut game, grizzly_bears(), 1);
-    put_in_graveyard(&mut game, CardDataBuilder::new("Fixture Enchantment Card").card_type(CardType::Enchantment).build(), 1);
 
+    move_card(&mut game, exiled, Zone::Graveyard, Zone::Exile);
+    assert_eq!(waiting_from(&game, watching), 1, "a creature card exiled from the graveyard");
     game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).unwrap();
-    assert_eq!(waiting_from(&game, watching), 2);
+    assert_eq!(waiting_from(&game, watching), 1, "the two left with their owner, and nothing triggered");
 }
 
 // ---------------------------------------------------------------------------
