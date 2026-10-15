@@ -290,7 +290,7 @@ mod tests {
         game.players[2].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), crate::types::replacement::EnterMods::NONE, &test_ctx())
             .unwrap();
 
         assert!(!entered);
@@ -309,7 +309,7 @@ mod tests {
         game.players[0].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), crate::types::replacement::EnterMods::NONE, &test_ctx())
             .unwrap();
 
         assert!(entered);

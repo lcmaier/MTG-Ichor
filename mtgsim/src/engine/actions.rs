@@ -607,6 +607,19 @@ pub enum GameAction {
 
 }
 
+/// CR 303.4h — whether `id`, as it entered, is a permanent that can enter
+/// attached: an Aura, Equipment or Fortification.
+fn can_enter_attached(game: &GameState, id: ObjectId) -> bool {
+    use crate::types::card_types::{ArtifactType, EnchantmentType, Subtype};
+    [
+        Subtype::Enchantment(EnchantmentType::Aura),
+        Subtype::Artifact(ArtifactType::Equipment),
+        Subtype::Artifact(ArtifactType::Fortification),
+    ]
+    .iter()
+    .any(|subtype| crate::oracle::characteristics::has_subtype(game, id, subtype))
+}
+
 /// Which of CR 120.3's results a damage event has, read off the target.
 ///
 /// > 120.3. Damage dealt to a permanent or player has one or more of the
@@ -1319,7 +1332,7 @@ impl GameState {
                 return Ok(());
             }
             let controller = self.default_enter_controller(object)?;
-            self.propose_entry(object, Some(from), controller, Some(act), ctx)?;
+            self.propose_entry(object, Some(from), controller, Some(act), EnterMods::NONE, ctx)?;
             return Ok(());
         }
         self.execute_action(GameAction::ZoneChange { object, from, to, act }, ctx)
@@ -1687,6 +1700,16 @@ impl GameState {
                     }
                 }
                 self.perform_entry(object, controller, &mods, ctx.cause)?;
+                // CR 303.4f: an Aura entering attached becomes attached as it
+                // enters, in this event and after the arrival. CR 303.4h: one
+                // that entered as no Aura, Equipment or Fortification enters
+                // unattached, and so does one whose object has gone.
+                if let Some(host) = mods.attached_to
+                    && can_enter_attached(self, object)
+                    && self.attach(object, host)
+                {
+                    self.emit_event(GameEvent::Attached { attachment: object, host, former_host: None }, ctx.cause)?;
+                }
                 Ok(())
             }
 
@@ -2032,7 +2055,10 @@ impl GameState {
 
     /// Propose CR 614.1c's entry — the one proposal for a card entering the
     /// battlefield, from `from`. (A token's entry is proposed by
-    /// [`Self::create_tokens`], as a member of its creation's batch.)
+    /// [`Self::create_tokens`], as a member of its creation's batch.) `seed`
+    /// is what the effect putting it there says about how it enters, which
+    /// joins the rules' seed ahead of any replacement (CR 614.1c): an Aura
+    /// spell's host (CR 303.4f).
     ///
     /// Returns whether the entry was performed. `false` means the pipeline
     /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — or CR 800.4b
@@ -2047,11 +2073,15 @@ impl GameState {
         from: Option<Zone>,
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
+        seed: EnterMods,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
-        let Some(entry) = self.entry_proposal(object, from, controller, act) else {
+        let Some(mut entry) = self.entry_proposal(object, from, controller, act) else {
             return Ok(false);
         };
+        if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+            mods.merge(&seed);
+        }
         let performed = self.execute_actions(vec![entry], ctx)?;
         Ok(!performed.is_empty())
     }

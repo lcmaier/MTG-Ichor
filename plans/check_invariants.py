@@ -159,8 +159,6 @@ PERFORMERS = {
 #: Known violations, by `codebase-state.md` item: (check, file, name) -> (item, owner).
 KNOWN = {
     ("write", "engine/sba.rs", "result"): (263, "TR-6: CR 104.4b's draw, set directly"),
-    ("write", "engine/stack.rs", "attach"): (228, "TR-4b: an Aura entering attached announces nothing"),
-    ("write", "engine/returns.rs", "attach"): (228, "TR-4b: CR 303.4f's host, attached directly"),
     ("write", "engine/sba.rs", "remove_counters"): (6, "TR-5b: CR 704.5q's annihilation, outside the chokepoint"),
 }
 

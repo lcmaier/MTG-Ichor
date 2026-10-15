@@ -3021,6 +3021,7 @@ pub(super) fn strip_prohibited_counters(
         counters: Vec::with_capacity(extra.counters.len()),
         copy: extra.copy.clone(),
         edits: extra.edits.clone(),
+        attached_to: extra.attached_to,
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {

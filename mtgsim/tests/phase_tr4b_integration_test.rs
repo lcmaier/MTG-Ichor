@@ -6,24 +6,34 @@
 //! 2. CR 704.5n, 704.5p and 704.5d as members of CR 704.3's one event,
 //!    decided against the board before it (`codebase-state.md` item 6, and
 //!    `plans/references/feedback-loops.md` §4).
+//! 3. Item 228: an Aura entering attached becomes attached, in the entry's
+//!    own event (CR 303.4f).
 
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
+use mtgsim::events::cause::GeneratedBy;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_on_battlefield, setup_game, setup_two_player_game,
-    static_ability, test_ctx, test_dp,
+    aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
+    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
-use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange};
-use mtgsim::types::ids::{ObjectId, ObjectRef};
+use mtgsim::types::effects::{
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder, SelectionFilter, TargetCount,
+    TypeChange,
+};
+use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::types::zones::Zone;
+use mtgsim::types::replacement::EnterMods;
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers
@@ -61,17 +71,7 @@ fn existence(game: &GameState, id: ObjectId) -> ObjectRef {
 /// creature that can die in a state-based check.
 fn animator(subtype: Subtype, keywords: &[KeywordFlag]) -> Arc<CardData> {
     let animated = EffectRecipient::FilteredPermanents(ObjectFilter::BySubtype(subtype));
-    let creature = TypeChange {
-        add_types: vec![CardType::Creature],
-        remove_types: Vec::new(),
-        set_types: None,
-        add_subtypes: Vec::new(),
-        remove_subtypes: Vec::new(),
-        set_subtypes: None,
-        add_supertypes: Vec::new(),
-        remove_supertypes: Vec::new(),
-        set_supertypes: None,
-    };
+    let creature = TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE };
     let mut effects = vec![
         Effect::Atom(Primitive::ChangeType(creature, Duration::WhileSourceOnBattlefield), animated.clone()),
         Effect::Atom(
@@ -350,3 +350,97 @@ fn a_fortification_stays_on_a_land_and_is_unattached_from_a_creature() {
     assert_eq!(host(&game, on_land), Some(land));
     assert_eq!(host(&game, on_bears), None);
 }
+
+// ---------------------------------------------------------------------------
+// 3. An Aura entering attached (`codebase-state.md` item 228)
+// ---------------------------------------------------------------------------
+
+/// Holy Strength on the stack targeting `target`, as `cast_spell` leaves it
+/// after CR 601.2c: its enchant clause (CR 303.4a) is its one instance.
+fn aura_spell_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
+    let aura = put_spell_on_stack(game, holy_strength(), controller);
+    let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let chosen = TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap();
+    game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
+    aura
+}
+
+/// The batch each of `id`'s records is in, in order, with the record's kind.
+fn records_of(game: &GameState, id: ObjectId) -> Vec<(&'static str, Option<mtgsim::events::event::BatchId>)> {
+    game.recorded_events()
+        .records()
+        .iter()
+        .filter_map(|r| {
+            let kind = match &r.event {
+                GameEvent::ZoneChange { object_id, .. } if *object_id == id => "move",
+                GameEvent::PermanentEnteredBattlefield { object_id, .. } if *object_id == id => "entered",
+                GameEvent::Attached { attachment, .. } if *attachment == id => "attached",
+                _ => return None,
+            };
+            Some((kind, r.stamp.batch))
+        })
+        .collect()
+}
+
+/// CR 303.4f: an Aura spell enters attached to its target, and entering
+/// attached is "becoming attached" (Siona, Captain of the Pyleas' first
+/// ruling). Announced inside the entry's event, after the arrival.
+#[test]
+fn an_aura_spell_resolving_announces_that_it_became_attached() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let aura = aura_spell_targeting(&mut game, 0, bears);
+    game.record_events();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+
+    assert_eq!(host(&game, aura), Some(bears));
+    assert!(game.recorded_events().events().any(|e| *e == GameEvent::Attached { attachment: aura, host: bears, former_host: None }));
+    let records = records_of(&game, aura);
+    assert_eq!(records.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(), vec!["move", "entered", "attached"]);
+    assert!(records.iter().all(|(_, batch)| *batch == records[0].1), "one event (CR 303.4f's \"as it enters\")");
+}
+
+/// CR 303.4f's other door: an Aura returned to the battlefield enchants what
+/// its controller chooses as it enters, and becomes attached in that event.
+#[test]
+fn an_aura_returned_to_the_battlefield_announces_that_it_became_attached() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let aura = put_in_graveyard(&mut game, holy_strength(), 0);
+    let source = mtgsim::types::ids::new_object_id();
+    let ctx = ResolutionContext {
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(aura)]),
+        ..ResolutionContext::untargeted(source, 0, GeneratedBy::Spell)
+    };
+    let back = Effect::Atom(
+        Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() },
+        EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+    );
+    game.record_events();
+
+    game.resolve_effect(&back, &ctx, &test_dp()).unwrap();
+
+    assert_eq!(host(&game, aura), Some(bears));
+    let records = records_of(&game, aura);
+    assert_eq!(records.iter().map(|(kind, _)| *kind).collect::<Vec<_>>(), vec!["move", "entered", "attached"]);
+    assert!(records.iter().all(|(_, batch)| *batch == records[0].1));
+}
+
+/// CR 303.4h: a permanent that is no Aura, Equipment or Fortification enters
+/// unattached, whatever the effect putting it there names.
+#[test]
+fn a_creature_put_onto_the_battlefield_attached_enters_unattached() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let card = put_in_graveyard(&mut game, grizzly_bears(), 0);
+    let mods = EnterMods { attached_to: Some(bears), ..EnterMods::NONE };
+    let entry = GameAction::EnterBattlefield { object: card, from: Some(Zone::Graveyard), controller: 0, mods, act: Some(ZoneChangeAct::Put) };
+    game.record_events();
+
+    game.execute_action(entry, &test_ctx()).unwrap();
+
+    assert_eq!(host(&game, card), None);
+    assert!(attachment_records(&game).is_empty());
+}
+
