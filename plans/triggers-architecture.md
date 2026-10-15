@@ -1801,7 +1801,9 @@ rule's first sentence, the same event), and by the performer of CR 704.5m's
 move into the graveyard, whose stamp names it, for each pending or stacked
 trigger of that Aura (the second). Only the graveyard: an Aura a replacement
 exiles instead (Leyline of the Void) was never put there, and stays where it
-went. `this_object` reads it once the source itself is gone. Angelic
+went. That is the CR's text; CR 400.7e and 603.6c would find it in the first
+public zone it went to, and `engineering-practices.md` §3.4b's
+`aura-found-in-graveyard` row keeps that reading one switch away. `this_object` reads it once the source itself is gone. Angelic
 Destiny's "return this card" is the consumer; Rancor's "return it" is CR
 400.7e's, read through the binding's subject since RH-3.
 

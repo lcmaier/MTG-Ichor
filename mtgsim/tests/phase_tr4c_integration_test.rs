@@ -717,7 +717,9 @@ fn angelic_destiny_gone_from_the_graveyard_is_not_returned() {
 /// CR 400.7f finds the Aura in its owner's graveyard and nowhere else. Under
 /// Leyline of the Void the opponent's creature dies into its own graveyard
 /// and the trigger fires, but CR 704.5m's move of the Aura is replaced by an
-/// exile, so the card is never in the graveyard and stays in exile.
+/// exile, so the card is never in the graveyard and stays in exile. The CR's
+/// text, against a reading that would find the card in the first public zone
+/// it went to: `engineering-practices.md` §3.4b's `aura-found-in-graveyard`.
 #[test]
 fn angelic_destiny_exiled_instead_of_its_state_based_move_is_not_returned() {
     let mut game = setup_two_player_game();
@@ -731,6 +733,27 @@ fn angelic_destiny_exiled_instead_of_its_state_based_move_is_not_returned() {
     assert_eq!(waiting_from(&game, destiny), 1);
     resolve_all(&mut game, &test_dp());
     assert_eq!(zone(&game, destiny), Some(Zone::Exile), "never put into the graveyard, so not found");
+}
+
+/// The same board's other half (`aura-found-in-graveyard`): the Aura and the
+/// creature destroyed in one event, the Aura exiled instead, in either batch
+/// order. CR 400.7f's first sentence also names the graveyard.
+#[test]
+fn angelic_destiny_exiled_beside_its_creature_is_not_returned() {
+    for aura_first in [true, false] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, leyline_of_the_void(), 1);
+        let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let destiny = put_on_battlefield(&mut game, angelic_destiny(), 0);
+        assert!(game.attach(destiny, theirs));
+        let order = if aura_first { [destiny, theirs] } else { [theirs, destiny] };
+
+        destroy_all(&mut game, &order);
+        assert_eq!(zone(&game, destiny), Some(Zone::Exile), "aura_first: {aura_first}");
+        assert_eq!(waiting_from(&game, destiny), 1, "aura_first: {aura_first}");
+        resolve_all(&mut game, &test_dp());
+        assert_eq!(zone(&game, destiny), Some(Zone::Exile), "not found, aura_first: {aura_first}");
+    }
 }
 
 /// The Aura spell whose target died never resolves, so it is never on the
