@@ -28,6 +28,7 @@ use super::phase_tr3b_cards;
 use super::phase_tr3c_cards;
 use super::phase_tr4a_cards;
 use super::phase_tr4b_cards;
+use super::phase_tr4c_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -888,6 +889,15 @@ impl CardRegistry {
         // says why it is not.
         registry.register("Grafted Wargear", phase_tr4b_cards::grafted_wargear);
         registry.register("Bramble Elemental", phase_tr4b_cards::bramble_elemental);
+
+        // TR-4c: the other two look-back classes and the zone statement.
+        // Bridge from Below states its graveyard zone, Guerrilla Tactics
+        // triggers on its own discard where it went, and Angelic Destiny finds
+        // the card it became (CR 400.7f) beside Rancor's own move (400.7e).
+        registry.register("Bridge from Below", phase_tr4c_cards::bridge_from_below);
+        registry.register("Guerrilla Tactics", phase_tr4c_cards::guerrilla_tactics);
+        registry.register("Angelic Destiny", phase_tr4c_cards::angelic_destiny);
+        registry.register("Rancor", phase_tr4c_cards::rancor);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

@@ -354,9 +354,11 @@ fn under_yixlid_jailer_a_card_leaving_your_graveyard_does_not_trigger() {
     assert_eq!(waiting_from(&game, card), 0);
 }
 
-/// Golgari Brownscale's seventh ruling, on its trigger alone: any return
-/// from the graveyard to the hand. A card drawn is not one.
-// RULING: Golgari Brownscale #7 - "The first ability triggers when Golgari Brownscale returns to your hand from your graveyard for any reason, not just when you use its dredge ability."
+/// Golgari Brownscale's seventh ruling, on its trigger alone: "The first
+/// ability triggers when Golgari Brownscale returns to your hand from your
+/// graveyard for any reason, not just when you use its dredge ability." A
+/// card drawn is not one, and under Yixlid Jailer the card has no ability in
+/// the graveyard it is read from.
 #[test]
 fn a_card_put_into_your_hand_from_your_graveyard_triggers_its_own_ability() {
     let mut game = setup_two_player_game();
