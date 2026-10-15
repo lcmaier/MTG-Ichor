@@ -1399,10 +1399,10 @@ impl GameState {
     /// fields are the predicates over that record. **A field left `None` is
     /// not asked** — every one of them is an `is_none_or` — which is how "any"
     /// is spelled at the type, the convention the replacement patterns share.
-    /// `one` wraps a boolean as an occurrence: true is the single subject the
-    /// arm's `subject_of` projection names, false is no occurrence at all. The
-    /// only arm that does not go through it is `Attacks`, where CR 508.3a
-    /// makes each matching attacker an occurrence of its own.
+    /// `occurrence_if` wraps a boolean as an occurrence: true is the single
+    /// subject the arm's `subject_of` projection names, false is no occurrence
+    /// at all. The only arm that does not go through it is `Attacks`, where CR
+    /// 508.3a makes each matching attacker an occurrence of its own.
     pub(super) fn occurrences_matching_arm(
         &self,
         arm: &TriggerEvent,
@@ -1410,7 +1410,7 @@ impl GameState {
         record: &EventRecord,
     ) -> Vec<Option<ObjectId>> {
         let (seq, event) = (record.seq, &record.event);
-        let one = |ok: bool| if ok { vec![arm.subject_of(event)] } else { Vec::new() };
+        let occurrence_if = |ok: bool| if ok { vec![arm.subject_of(event)] } else { Vec::new() };
         match (arm, event) {
             // The subject is read as the record framed it only for an arm that
             // looks back (CR 603.10a); "from anywhere" reads the object after
@@ -1418,7 +1418,7 @@ impl GameState {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
-            ) => one(
+            ) => occurrence_if(
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
@@ -1431,7 +1431,7 @@ impl GameState {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
-            ) => one(
+            ) => occurrence_if(
                 change.from.is_none_or(|z| z == *from)
                     && change.to.is_none()
                     && change.act.is_none()
@@ -1441,23 +1441,23 @@ impl GameState {
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                one(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
+                occurrence_if(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
             }
-            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => one(
+            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => occurrence_if(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
                     && place.is_none_or(|place| {
                         place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
                     }),
             ),
             (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
-                one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                occurrence_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
                 TriggerEvent::ManaAdded { .. },
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                one(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
+                occurrence_if(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
@@ -1484,27 +1484,27 @@ impl GameState {
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
                 let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
-                one(
+                occurrence_if(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
-                one(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                occurrence_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::StepBegins { step, whose }, GameEvent::StepBegin { step: rs, player }) => {
-                one(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                occurrence_if(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
-                one(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                occurrence_if(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             // The sign is the split. A 0 gain never reaches the log (CR
             // 119.10, `replacement::never_happens`).
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                occurrence_if(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                one(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                occurrence_if(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
                 let spell_ok = match spell {
@@ -1517,7 +1517,7 @@ impl GameState {
                         SubjectRead::Now,
                     ),
                 };
-                one(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
+                occurrence_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
@@ -1533,7 +1533,7 @@ impl GameState {
                 let cast_ok = was_cast.is_none_or(|expected| {
                     self.battlefield.get(object_id).is_some_and(|e| e.cast.is_some()) == expected
                 });
-                one(
+                occurrence_if(
                     from_ok
                         && cast_ok
                         && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
@@ -1560,13 +1560,13 @@ impl GameState {
                     None => true,
                     Some(inner) => self.events.record(*cause).is_some_and(|r| inner.reads(&r.event)),
                 };
-                one(source_ok && cause_ok)
+                occurrence_if(source_ok && cause_ok)
             }
             // The same ability of the same object, whichever instance (§6.5).
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => one(referents.this_ability.is_some_and(|this| {
+            ) => occurrence_if(referents.this_ability.is_some_and(|this| {
                 this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
             })),
             // Read after the event: the attach is done when the dispatch asks
@@ -1574,7 +1574,7 @@ impl GameState {
             (
                 TriggerEvent::BecomesAttached { attachment: watched, host: on },
                 GameEvent::Attached { attachment, host, .. },
-            ) => one(
+            ) => occurrence_if(
                 self.subject_matches(watched, Some(*attachment), referents, seq, SubjectRead::Now)
                     && self.subject_matches(on, Some(*host), referents, seq, SubjectRead::Now),
             ),
@@ -1583,9 +1583,12 @@ impl GameState {
             (
                 TriggerEvent::BecomesUnattached { attachment: watched, former_host: from },
                 GameEvent::Unattached { attachment, former_host, .. },
-            ) => one(
-                self.subject_matches(watched, Some(attachment.id), referents, seq, self.as_it_was(*attachment))
-                    && self.subject_matches(from, Some(former_host.id), referents, seq, self.as_it_was(*former_host)),
+            ) => occurrence_if(
+                self.subject_matches(
+                    watched, Some(attachment.id), referents, seq, self.subject_read_looking_back(*attachment),
+                ) && self.subject_matches(
+                    from, Some(former_host.id), referents, seq, self.subject_read_looking_back(*former_host),
+                ),
             ),
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no occurrence of it.
@@ -1713,7 +1716,7 @@ impl GameState {
     /// is now while it is still that existence on the battlefield, and else
     /// as its departure in this window framed it — the join `entry_origin`
     /// makes for an entry's `from`.
-    fn as_it_was(&self, object: ObjectRef) -> SubjectRead<'_> {
+    fn subject_read_looking_back(&self, object: ObjectRef) -> SubjectRead<'_> {
         if self.find(object).is_some() && self.battlefield.contains_key(&object.id) {
             return SubjectRead::Now;
         }

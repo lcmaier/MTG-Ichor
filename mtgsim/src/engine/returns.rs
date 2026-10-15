@@ -69,8 +69,8 @@ impl GameState {
                 continue;
             };
             // "With a +1/+1 counter on it" and the Aura's host are the returning
-            // effect's own word on how it enters, joining the seed ahead of any
-            // replacement (CR 122.6, 303.4f, 614.1c).
+            // effect's own word on how it enters, joining what the rules give
+            // the entry, ahead of any replacement (CR 122.6, 303.4f, 614.1c).
             if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
                 mods.merge(&EnterMods { counters: counters.clone(), attached_to, ..EnterMods::NONE });
             }

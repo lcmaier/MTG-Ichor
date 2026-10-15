@@ -1576,7 +1576,7 @@ impl GameState {
                     return Ok(());
                 };
                 self.detach(attachment);
-                self.announce_unattached(unattached, former_host, UnattachRoute::Unattach, ctx.cause)
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -2055,10 +2055,10 @@ impl GameState {
 
     /// Propose CR 614.1c's entry — the one proposal for a card entering the
     /// battlefield, from `from`. (A token's entry is proposed by
-    /// [`Self::create_tokens`], as a member of its creation's batch.) `seed`
-    /// is what the effect putting it there says about how it enters, which
-    /// joins the rules' seed ahead of any replacement (CR 614.1c): an Aura
-    /// spell's host (CR 303.4f).
+    /// [`Self::create_tokens`], as a member of its creation's batch.)
+    /// `instructed` is what the effect putting it there says about how it
+    /// enters, which joins what the rules give the entry, ahead of any
+    /// replacement (CR 614.1c): an Aura spell's host (CR 303.4f).
     ///
     /// Returns whether the entry was performed. `false` means the pipeline
     /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — or CR 800.4b
@@ -2073,14 +2073,14 @@ impl GameState {
         from: Option<Zone>,
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
-        seed: EnterMods,
+        instructed: EnterMods,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
         let Some(mut entry) = self.entry_proposal(object, from, controller, act) else {
             return Ok(false);
         };
         if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
-            mods.merge(&seed);
+            mods.merge(&instructed);
         }
         let performed = self.execute_actions(vec![entry], ctx)?;
         Ok(!performed.is_empty())
@@ -2146,8 +2146,8 @@ impl GameState {
             ids.push(id);
             if let Some(mut entry) = self.entry_proposal(id, None, controller, None) {
                 // "Create a tapped …" is the creating effect's own word on
-                // how the token enters, so it joins the seed the rules give
-                // the entry, ahead of any replacement (CR 614.1c).
+                // how the token enters, so it joins what the rules give the
+                // entry, ahead of any replacement (CR 614.1c).
                 if def.enters_tapped
                     && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
                     mods.merge(&EnterMods::tapped());

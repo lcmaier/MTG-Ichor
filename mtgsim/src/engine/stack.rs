@@ -195,9 +195,9 @@ impl GameState {
             if is_permanent_type {
                 // CR 608.3c, 303.4f: an Aura spell enters attached to its target.
                 // The fizzle check (608.2b, 608.3b) at the top of this function
-                // guarantees the target is still legal. Instance 0 is the
-                // enchant clause (CR 303.4a), the only instance
-                // `CardData::spell_instances` gives an Aura.
+                // guarantees the target is still legal. An Aura spell targets
+                // only what its enchant ability names (CR 303.4a), so its host
+                // is the first and only entry of `chosen_targets`.
                 let attached_to = if has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura)) {
                     match entry.chosen_targets.first().and_then(|inst| inst.as_resolved_targets().next()) {
                         Some(ResolvedTarget::Object(host)) => Some(host),

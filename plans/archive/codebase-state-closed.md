@@ -6150,7 +6150,7 @@ its equip ability is a new object the old ability leaves where it is (CR
 Closed by TR-4b, with the host on the entry. CR 303.4f has the Aura's object
 chosen "as the Aura enters", so it is one event: `EnterMods.attached_to`
 carries the host, set by the effect putting the Aura there (an Aura spell's
-target, `propose_entry`'s new seed; a return's choice, merged with its
+target, `propose_entry`'s new `instructed` argument; a return's choice, merged with its
 counters), and the entry's performer attaches after the arrival and
 announces `Attached` inside the batch. CR 303.4h: a permanent that entered as
 no Aura, Equipment or Fortification enters unattached, and so does one whose

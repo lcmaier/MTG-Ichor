@@ -50,17 +50,6 @@ fn sba_destroy(id: ObjectId) -> GameAction {
     GameAction::Destroy { object: id }
 }
 
-/// CR 704.7's "the same result", as the check's dedupe key: one subject's
-/// members are one result, except that becoming unattached is a result of its
-/// own. An Equipment made a creature with lethal damage is destroyed *and*
-/// unattached (704.5g, 704.5p), and an indestructible one is still unattached.
-/// Pushed after the moves, so a subject's group decides under the move's
-/// cause, and an unattach finds an attachment the batch moved already
-/// unattached by its leaving (CR 701.3d).
-fn same_result(action: &GameAction) -> (EventSubject, bool) {
-    (subject_of(action), matches!(action, GameAction::Unattach { .. }))
-}
-
 /// CR 704.5a–c and 704.6c — `player` would lose the game, caused by
 /// `state_based_action`. A loss an effect causes is `Primitive::LoseGame`'s
 /// (CR 104.3e), proposed by its resolution and never through here.
@@ -425,9 +414,14 @@ impl GameState {
         //
         // CR 704.7's collapse is the dedupe, keyed on the subject: one event and
         // one applied set per permanent or player, named by the first condition in
-        // CR order (a dead duplicate legend was destroyed, 704.5g).
+        // CR order (a dead duplicate legend was destroyed, 704.5g). Becoming
+        // unattached is a result of its own: an Equipment made a creature with
+        // lethal damage is destroyed *and* unattached (704.5g, 704.5p), and an
+        // indestructible one is still unattached. The unattaches follow the moves,
+        // so a subject's group decides under the move's cause, and one finds an
+        // attachment the batch moved already unattached by its leaving (CR 701.3d).
         let mut seen: HashSet<(EventSubject, bool)> = HashSet::new();
-        batch.retain(|(action, _)| seen.insert(same_result(action)));
+        batch.retain(|(action, _)| seen.insert((subject_of(action), matches!(action, GameAction::Unattach { .. }))));
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
@@ -1339,7 +1333,7 @@ mod tests {
 
         // CR 704.5n's unattach, announced with its route.
         let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::Unattach }
+            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::AttachedToNothing }
                 if attachment.id == equip_id && former_host.id == land_id)
         });
         assert!(has_event);

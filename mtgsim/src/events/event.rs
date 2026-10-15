@@ -497,13 +497,16 @@ impl GameEvent {
     }
 }
 
-/// Which of CR 701.3d's ways an attachment stopped being attached.
+/// Which of CR 701.3d's ways an attachment stopped being attached to its
+/// host. In the first two both stay on the battlefield, and the name says
+/// what the attachment is attached to afterwards; in the last two one of
+/// them left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnattachRoute {
-    /// Unattached and left on the battlefield: an instruction to unattach,
-    /// or CR 704.5n's or 704.5p's state-based action.
-    Unattach,
-    /// Attached to a different object (CR 701.3c).
+    /// To nothing: CR 701.3d's "unattach" instruction, or CR 704.5n's or
+    /// 704.5p's state-based action.
+    AttachedToNothing,
+    /// To a different object (CR 701.3c).
     AttachedElsewhere,
     /// The attachment left the battlefield.
     AttachmentLeft,

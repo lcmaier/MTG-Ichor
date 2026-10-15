@@ -1399,7 +1399,7 @@ RH-2's was its batch's.
 PR #252, eight code commits ahead of the docs.
 
 - **The record.** `Unattached { attachment: ObjectRef, former_host:
-  ObjectRef, route: UnattachRoute }`, the route `Unattach`,
+  ObjectRef, route: UnattachRoute }`, the route `AttachedToNothing`,
   `AttachedElsewhere`, `AttachmentLeft` or `HostLeft`, and
   `announce_unattached` its one emitter. A re-attach announces the unattach
   ahead of the `Attached` the arm already emitted, in one batch, which
@@ -1418,7 +1418,7 @@ PR #252, eight code commits ahead of the docs.
   lethal damage would keep its destruction, see it refused, and never be
   unattached while the damage stays.
 - **Item 228, the host on the entry.** `EnterMods.attached_to`, set by the
-  effect putting the Aura there (`propose_entry`'s new seed, the returns'
+  effect putting the Aura there (`propose_entry`'s new `instructed` argument, the returns'
   merge) and attached by the entry's performer after the arrival. CR 303.4h:
   no attach for a permanent that entered as no Aura, Equipment or
   Fortification, or whose object has gone. The CR 614.12 frame does not
@@ -1430,7 +1430,7 @@ PR #252, eight code commits ahead of the docs.
   (Siona's fourth ruling); `BecomesUnattached { attachment, former_host }`
   reads each end as it was, on the board while it is still that existence
   there and else off its departure's frame in the window
-  (`GameState::as_it_was`). The binding's "that permanent" is the record's
+  (`GameState::subject_read_looking_back`). The binding's "that permanent" is the record's
   existence (`subject_after`). An `Attach` or `Unattach` of an attached
   ability-list source takes the look-back snapshot.
 - **The cards.** Grafted Wargear (each ruling a test, the first once per
