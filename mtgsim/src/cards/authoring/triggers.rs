@@ -133,6 +133,7 @@ impl CountableEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
@@ -256,6 +257,12 @@ pub fn draws_a_card(whose: Whose) -> CountableEvent {
 /// you've cast" is `Whose::Yours`, read off who cast it (CR 603.10e).
 pub fn spell_is_countered(cast_by: Whose) -> TriggerEvent {
     TriggerEvent::IsCountered { spell: None, caster: cast_by.player_ref() }
+}
+
+/// "Whenever [whose player] loses the game" (CR 603.9): "a player" is
+/// `Whose::Each`, "an opponent" `Whose::AnOpponents`.
+pub fn loses_the_game(whose: Whose) -> TriggerEvent {
+    TriggerEvent::PlayerLoses { player: whose.player_ref() }
 }
 
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).

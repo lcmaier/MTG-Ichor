@@ -4,11 +4,15 @@
 //! 1. Item 253: a countered spell's record carries the spell as it was on the
 //!    stack, and a trigger on a spell being countered looks back at it (CR
 //!    603.10e). Multani's Presence's "a spell you've cast" reads who cast it.
+//! 2. CR 603.9 and 603.10f: a trigger on a player losing the game looks back,
+//!    so the loser's permanents, which leave in the same event, are asked as
+//!    they were; a trigger the loser would control is kept off the stack (CR
+//!    800.4d).
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::counterspell;
-use mtgsim::cards::authoring::{triggered_ability, whenever};
+use mtgsim::cards::authoring::{loses_the_game, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_tr4d_cards::multanis_presence;
 use mtgsim::engine::actions::GameAction;
@@ -19,8 +23,8 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    effect_ctx, fill_library, lightning_bolt, put_in_hand, put_on_battlefield, put_spell_on_stack, setup_two_player_game,
-    static_ability, test_dp,
+    effect_ctx, fill_library, lightning_bolt, put_in_hand, put_on_battlefield, put_on_battlefield_under, put_spell_on_stack,
+    setup_game, setup_two_player_game, static_ability, test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -104,7 +108,12 @@ fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[
 
 /// An enchantment with one triggered ability, `arm` → you gain 2 life.
 fn watcher(name: &str, arm: TriggerEvent) -> Arc<CardData> {
-    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    gaining(name, arm, 2)
+}
+
+/// An enchantment with one triggered ability, `arm` → you gain `n` life.
+fn gaining(name: &str, arm: TriggerEvent, n: u64) -> Arc<CardData> {
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(n)), EffectRecipient::Controller);
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
 }
 
@@ -217,4 +226,66 @@ fn a_stolen_spell_still_counts_as_the_one_you_cast() {
 
     counter(&mut game, spell, 1);
     assert_eq!((waiting_from(&game, yours), waiting_from(&game, theirs)), (1, 0));
+}
+
+// ---------------------------------------------------------------------------
+// 2. Losing the game (CR 603.9, 603.10f)
+// ---------------------------------------------------------------------------
+
+/// "When a player loses the game, you gain 10 life."
+fn loss_watcher() -> Arc<CardData> {
+    gaining("Fixture Loss Watcher", loses_the_game(Whose::Each), 10)
+}
+
+/// `player` at 0 life, and the state-based check that makes them lose (CR
+/// 704.5a), leaving any trigger waiting.
+fn lose_at_zero_life(game: &mut GameState, player: PlayerId) {
+    game.players[player].life_total = 0;
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(game.player_lost[player], "player {player} lost");
+}
+
+// COVERS: ATOM-603.9-001
+/// At three seats, so the game goes on after the loss (CR 104.2a): an
+/// opponent losing at 0 life triggers "when a player loses the game".
+#[test]
+fn a_player_losing_the_game_triggers_a_watcher() {
+    let mut game = setup_game(3);
+    let watching = put_on_battlefield(&mut game, loss_watcher(), 0);
+
+    lose_at_zero_life(&mut game, 2);
+    assert_eq!(waiting_from(&game, watching), 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 30);
+}
+
+/// CR 603.10f looks back: a watcher the loser owned and another player
+/// controlled leaves the game with its owner (CR 800.4a) in the event it
+/// triggers on, and triggers for the player who controlled it.
+#[test]
+fn a_watcher_the_loser_owned_triggers_for_its_controller() {
+    let mut game = setup_game(4);
+    let watching = put_on_battlefield_under(&mut game, loss_watcher(), 3, 0);
+
+    lose_at_zero_life(&mut game, 3);
+    assert!(!game.objects.contains_key(&watching), "it left the game with its owner");
+    assert_eq!(game.pending_triggers.len(), 1);
+    assert_eq!(game.pending_triggers[0].controller, 0);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 30);
+}
+
+/// The loser's own watcher triggers too, looking back, and its trigger is
+/// then kept off the stack, since the player who would control it has left
+/// (CR 800.4d).
+#[test]
+fn the_losers_own_watcher_triggers_and_is_kept_off_the_stack() {
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, loss_watcher(), 3);
+
+    lose_at_zero_life(&mut game, 3);
+    assert_eq!(game.pending_triggers.len(), 1, "it triggered off its frame");
+    assert_eq!(game.pending_triggers[0].controller, 3);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
 }

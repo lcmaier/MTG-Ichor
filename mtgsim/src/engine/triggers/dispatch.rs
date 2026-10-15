@@ -1564,7 +1564,8 @@ impl GameState {
                         place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
                     }),
             ),
-            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id })
+            | (TriggerEvent::PlayerLoses { player: who }, GameEvent::PlayerLost { player_id }) => {
                 occurrence_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
@@ -1734,6 +1735,7 @@ impl GameState {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
+                | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }

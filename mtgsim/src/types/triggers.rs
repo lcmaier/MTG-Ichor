@@ -184,6 +184,7 @@ counted_enum! {
         Attached,
         Unattached,
         SpellCountered,
+        PlayerLost,
     }
 }
 
@@ -219,6 +220,7 @@ impl EventKind {
             GameEvent::Attached { .. } => EventKind::Attached,
             GameEvent::Unattached { .. } => EventKind::Unattached,
             GameEvent::SpellCountered { .. } => EventKind::SpellCountered,
+            GameEvent::PlayerLost { .. } => EventKind::PlayerLost,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
@@ -226,7 +228,6 @@ impl EventKind {
             | GameEvent::CountersAnnihilated { .. }
             | GameEvent::CountersChanged { .. }
             | GameEvent::DelayedTriggerCreated { .. }
-            | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::Scried { .. }
             | GameEvent::SpellFizzled { .. }
@@ -400,6 +401,12 @@ pub enum TriggerEvent {
     /// targets are illegal isn't countered (Multani's Presence's ruling), and
     /// no printed trigger reads an ability being countered.
     IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> },
+    /// "Whenever [a player/an opponent] loses the game" (CR 603.9), for any
+    /// reason, looking back (CR 603.10f): the loser's permanents leave in
+    /// the same event and are asked as they were, so one the loser owned and
+    /// another player controlled triggers for that player. A draw is no loss
+    /// (CR 104.4a).
+    PlayerLoses { player: Option<PlayerRef> },
     /// "Whenever [you/an opponent] shuffle[s] [your/their] library" (CR
     /// 701.24): one record per shuffle, a library of zero or one cards
     /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
@@ -462,15 +469,17 @@ impl TriggerEvent {
     /// card sets (§4.3): CR 603.10a's three zone-change classes as an arm can
     /// match them (`zone_change_looks_back`), so "into a hand" with no `from`
     /// looks back at a move from a zone all players could see; becoming
-    /// unattached (603.10c); and a spell being countered (603.10e). The other
-    /// classes arrive with their arms.
+    /// unattached (603.10c); a spell being countered (603.10e); and a player
+    /// losing the game (603.10f). The other classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
             TriggerEvent::ZoneChange { change, .. } => {
                 matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
                     || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
             }
-            TriggerEvent::BecomesUnattached { .. } | TriggerEvent::IsCountered { .. } => true,
+            TriggerEvent::BecomesUnattached { .. } | TriggerEvent::IsCountered { .. } | TriggerEvent::PlayerLoses { .. } => {
+                true
+            }
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::DrawsCard { .. }
@@ -528,6 +537,7 @@ impl TriggerEvent {
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
+            TriggerEvent::PlayerLoses { .. } => EventKindMask::of(EventKind::PlayerLost),
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
             TriggerEvent::BecomesAttached { .. } => EventKindMask::of(EventKind::Attached),
             TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
@@ -564,6 +574,7 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => None,
@@ -594,6 +605,7 @@ impl TriggerEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
@@ -629,6 +641,7 @@ impl TriggerEvent {
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
+            | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // "That spell".
@@ -657,6 +670,7 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
+                | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
@@ -686,7 +700,8 @@ impl TriggerEvent {
             // Its controller as it left the stack, as the record keeps it.
             (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { controller, .. }) => Some(*controller),
             (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { player_id, .. })
-            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { player_id }) => Some(*player_id),
+            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { player_id })
+            | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { player_id }) => Some(*player_id),
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
                 Some(*controller)
             }
@@ -717,6 +732,7 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
+                | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
@@ -755,6 +771,7 @@ impl TriggerEvent {
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { .. })
+            | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
             | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
@@ -778,6 +795,7 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
+                | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
