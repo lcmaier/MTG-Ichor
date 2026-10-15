@@ -6175,3 +6175,201 @@ Captain of the Pyleas' first ruling is tested on a fixture shaped like her.
      ruling answers the question: an Aura that enters attached "becomes
      attached".
      **Slotted:** TR-4b, attachment's records, with the `BecomesAttached` arm.
+
+### 'Before Triggered abilities' item 15 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed by TR-4c. `zone_change_looks_back(from, to)` states CR 603.10a's
+three classes as a property of one move, and three readers share it: the
+batch frames such a move before it performs (`capture_lki`, a reanimation's
+entry and a departing player's graveyard included), the performers hand the
+frame to the record, and a `ZoneChange` arm looks back for each class it can
+match. Priced first on 200 four-seat Commander games a pool: 72 and 97
+graveyard departures and 0 and 70 public moves into a hand or library,
+against about 5,000 battlefield departures already framed; a departing
+player's graveyard, 6,545 and 5,403 cards, is framed too, for Erebos's
+Titan. A card that reaches a graveyard and leaves it inside one batch (a
+creature dying in the check its owner loses in) is framed as it leaves. The
+fixtures (a card's own "leaves your graveyard", Golgari Brownscale's shape,
+a card painted black in a graveyard and in exile, an opponent's graveyard
+leaving the game) failed first; under Yixlid Jailer the card's own trigger
+does not fire, which reading the card where it went gets wrong.
+
+*Original entry:*
+
+15. **The frame is captured only for a battlefield departure (the trigger
+    survey, 2026-09-18).** CR 603.10a names three look-back classes and the
+    engine captures one: a card leaving a graveyard (38 cards) and a visible
+    object put into a hand or library (8) get `lki: None`. A continuous effect's
+    filter can reach a graveyard (`ZoneSet`, `layers-architecture.md` §13c;
+    Yixlid Jailer is registered since LJ), so under it a "when this card
+    leaves your graveyard" ability must not trigger, and only the frame from
+    before the move can say.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** the capture condition widened from `from == Battlefield` to
+    the three classes, ~10 lines, once the doc says which zones the frame is
+    computed for.
+
+    **Phase (2026-09-18):** TR-4 — the capture widens to CR 603.10a's three classes; `triggers-architecture.md` §3.11.
+    **Slotted:** TR-4c, which widens the frame's capture to CR 603.10a's three
+    look-back classes (re-slotted from TR-4a at A6p's split), with items 259
+    and 260.
+
+### Item 173 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed by TR-4c. `trigger_zones` reads the intervening "if"'s stated zones
+(`trigger_stated_zones`, through `stated_zones`) and they replace the
+derived ones, and `condition_functions_in` takes the def so each condition
+answers the same. Bridge from Below registered and pooled, its four rulings
+each a test; its graveyard board, its second and fourth rulings and item
+167's "from anywhere" twin failed first. Item 167's Jailer board itself
+needed no engine work, as the item said, and fails with the look-back
+snapshot switched off.
+
+*Original entry:*
+
+173. **A triggered ability's CR 113.6b zone statement is never read, so
+     Bridge from Below would do nothing anywhere.** `functioning_zones`
+     returns `trigger_zones` for a triggered ability (`zone_function.rs:85`),
+     which derives each condition's zones (CR 113.6k) and never reads
+     `TriggerDef.intervening_if`; `stated_zones` is asked only of a static's
+     `Effect::Conditional`, though its own doc names Bridge's intervening
+     "if" as a statement, and so does `layers-architecture.md` §13d's table.
+     A Bridge-shaped def therefore functions on the battlefield only: in a
+     graveyard it is never filed in `zone_trigger_sources` and never asked,
+     and on the battlefield its "if this card is in your graveyard" is
+     false. Found 2026-09-22 answering the owner's question on item 167's
+     Jailer board, where the engine's "no trigger" is right by accident.
+
+     **Reachability (2026-09-22):** unreachable — no registered card states
+     its zone in an intervening "if". Wrong the day one registers:
+     `o:"if this card is in your graveyard" (o:whenever or o:"at the beginning" or o:"when ")`
+     is 18 cards on Scryfall (2026-09-22), Bridge from Below, Ichorid, Blood
+     Operative, Skyclave Shade and Vengeful Pharaoh among them.
+
+     **Sized:** ~20 lines: the intervening "if"'s stated zones replace the
+     derived ones (113.6b's "only") in `trigger_zones`, and
+     `condition_functions_in` answers the same, since the dispatcher asks
+     each condition and would refuse Bridge's from a graveyard otherwise.
+     The test is Bridge in a graveyard triggering; item 167's Jailer
+     fixture follows it, and needs no engine work of its own: 167's
+     snapshot (closed 2026-09-22) already reads the zone map. So does that
+     fixture's "from anywhere" twin (the owner's review of #178): the same
+     board with Bridge's zone change printed "from anywhere" *does* trigger,
+     since CR 603.6c's last sentence makes it no leaves-the-battlefield
+     ability, read after the wipe, with Jailer gone.
+
+     **Scheduled 2026-09-23 (the trigger rulings pass): TR-4**, beside the
+     Ichorid prerequisite its §12 row already names; table three counts 17
+     trigger cards stating their zone this way.
+     **Slotted:** TR-4c, whose piece list reads item 173's zone statement off
+     the intervening "if", with Bridge from Below's graveyard test and item
+     259, which this item's fix makes reachable (re-slotted from TR-4a at
+     A6p's split).
+
+### Item 249 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed by TR-4c, and not as sized. The item argued such a condition looks
+back by necessity and proposed a frame from the hidden zone it left. The CR
+says otherwise: a discard is in none of CR 603.10a's classes, so CR 603.10's
+rule holds and the trigger is checked after the event. CR 702.29c says it of
+the same shape ("When you cycle this card" triggers "from whatever zone the
+card winds up in"), and Yixlid Jailer's second ruling of Krosan Tusker and
+Narcomoeba, which trigger from the graveyard and which the Jailer stops. So
+`zone_function::condition_zones` now reads CR 113.6k's "zones it can trigger
+from" as where the object is when asked: the zone left for a look-back move,
+else every zone the move can leave it in, less the hidden ones (CR 603.2f).
+Guerrilla Tactics registered, its three rulings each a test; three boards
+failed first, and under Yixlid Jailer it does not trigger.
+
+*Original entry:*
+
+249. **A trigger condition about this object leaving a zone other than the
+     battlefield is never asked.** CR 113.6k makes "When a spell or ability
+     an opponent controls causes you to discard this card" function in the
+     hand, and `zone_function::condition_zones` derives that. But the zone
+     map that makes the card a candidate (`zone_trigger_sources`,
+     `triggers-architecture.md` §4.2's third leg) drops the card as it moves
+     (`engine/zones.rs`, the branch for a departure from elsewhere), and the
+     dispatch runs at the window's close, after the move. In the graveyard
+     the condition does not function, and the record carries no frame, since
+     `lki` is captured for battlefield departures only. So no leg asks it.
+     Guerrilla Tactics, written for RH-1, never triggered. It was withdrawn
+     under `replacement-architecture.md` §2b.10's rule, and the fixture
+     shaped like it in `phase_rh1_integration_test.rs` stands in.
+     **Reachability (2026-10-11):** not reachable: no registered card has a
+     `ThisObject` condition whose `from` is a zone other than the battlefield
+     (`grep -rn "from: Some(Zone::" src/cards`). Obstinate Baloth and the
+     other cards that put a discarded card onto the battlefield are
+     replacements, which `gather` asks before the move, so they are not this.
+     **Sized:** ~60 lines of code and ~80 of tests. Every such condition
+     looks back by necessity: the object it names functions only in the zone
+     it left. So a departure whose mover has such a condition captures a
+     frame on its record, `TriggerEvent::looks_back` says yes for the arm,
+     and leg 2 asks it in the zone the frame left. That is TR-4a's capture,
+     with one more class behind its gate.
+     **Slotted:** TR-4c, the other two look-back classes (re-slotted from TR-4a
+     at A6p's split). Guerrilla Tactics registers with it, from RH-1's text and
+     rulings.
+
+### Item 259 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed by TR-4c. `match_candidates` finds the objects the window made (a
+zone change's new object, or a created token) and asks a live candidate that
+is one of them no look-back arm. The brief proposed comparing each record's
+sequence number with the candidate's arrival; the whole window is one batch
+and so one event, so a record after the card's own move is the same event,
+and the rule takes the window. The audit, which shares `match_candidates`,
+already refused the board off its snapshot. Bridge from Below's third
+ruling's board failed first and runs in both batch orders.
+
+*Original entry:*
+
+259. **A newcomer to a zone is asked look-back arms of the event that brought
+     it.** A Bridge from Below that reaches the graveyard in the same wipe is a
+     live candidate there, and a live candidate answers every arm
+     (`TriggerCandidateFrame::asks`). So it triggers on the creatures that
+     died beside it, where its third ruling says "If Bridge from Below isn't
+     in your graveyard immediately before a creature dies, its abilities won't
+     trigger at all" (CR 603.10a). 17 cards state their zone that way: `o:"if
+     this card is in your graveyard" (o:whenever or o:"at the beginning" or
+     o:"when ")`.
+     **Reachability (2026-10-12):** unreachable — item 173 keeps Bridge from
+     functioning in a graveyard at all.
+     **Sized:** ~25 lines of code and ~60 of tests: a live candidate is not
+     asked look-back arms of the records that brought it to its zone.
+     **Slotted:** TR-4c, with item 173 and Bridge from Below.
+
+### Item 260 — closed 2026-10-15 by PR #253 (TR-4c)
+
+Closed by TR-4c. `TriggerBinding.source_found_in_graveyard` names the card
+the Aura became, and `this_object` finds it when the source is gone. Both
+of CR 400.7f's sentences are built: at dispatch, when the Aura's own move
+into the graveyard is in the window that queued the trigger, and in the
+performer, when the move is CR 704.5m's, for each pending or stacked
+trigger of that Aura whose arm watches its host leave (CR 603.6e). The
+brief expected the same-event half might already hold; it did not, and its
+board failed first in both batch orders. ATOM-603.6e-001 and
+ATOM-400.7f-001 are covered by Angelic Destiny's CR 704.5m board, which
+failed first too. Angelic Destiny and Rancor registered.
+
+*Original entry:*
+
+260. **An Aura's trigger does not find the Aura after its own CR 704.5m
+     move.** CR 400.7f's second sentence lets "When enchanted creature dies"
+     find the new object the Aura became in its owner's graveyard "as a result
+     of being put there as a state-based action". Angelic Destiny's "return
+     this card to its owner's hand" resolves after that move. The source is
+     found by identity, and the move ended it, so the card stays where it is.
+     17 cards: `(o:"enchanted creature dies" or o:"enchanted permanent dies"
+     or o:"enchanted creature is put into" or o:"enchanted permanent leaves" or
+     o:"enchanted creature leaves") o:"this card"`. It owes ATOM-400.7f-001 and
+     ATOM-603.6e-001, which §12 had given to Rancor, whose trigger is on its
+     own move (CR 400.7e, built in RH-3).
+     **Reachability (2026-10-12):** unreachable — no registered Aura has such
+     a trigger.
+     **Sized:** ~50 lines of code and ~150 of tests: the Aura's next object
+     found when its own move was the CR 704.5m sweep after its host's
+     departure, and Angelic Destiny registered.
+     **Slotted:** TR-4c, with Angelic Destiny.
