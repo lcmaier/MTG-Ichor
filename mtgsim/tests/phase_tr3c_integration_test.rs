@@ -359,7 +359,9 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
 /// is returned to the battlefield while its trigger waits: the permanent is
 /// the object as it is, and the trigger's source is the Myr as it died.
 /// Choosing the second prevents the trigger's damage, and none of the new
-/// permanent's.
+/// permanent's. The card it became in the graveyard, which the trigger also
+/// names, is a third (CR 609.7a: "even if that object is no longer in the zone
+/// it used to be in"), kept as it left the graveyard (CR 603.10a).
 #[test]
 fn two_existences_of_one_object_are_two_sources_told_apart() {
     let mut game = setup_two_player_game();
@@ -368,10 +370,11 @@ fn two_existences_of_one_object_are_two_sources_told_apart() {
     let was = game.object_ref(myr).unwrap();
     destroy(&mut game, myr);
     game.perform_sba_and_triggers(&RecordingDecisionProvider::picking(0)).unwrap();
+    let in_graveyard = game.object_ref(myr).unwrap();
     game.change_zone(myr, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
 
     let offered = activate_circle(&mut game, circle, as_it_was(was));
-    assert_eq!(offered, logged(&game, &[now(circle), now(myr), as_it_was(was)]));
+    assert_eq!(offered, logged(&game, &[now(circle), now(myr), as_it_was(was), as_it_was(in_graveyard)]));
     assert_ne!(offered[1], offered[2], "the log tells them apart");
 
     resolve_all(&mut game, &test_dp());

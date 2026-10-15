@@ -1920,7 +1920,7 @@ impl GameState {
             return Ok(());
         }
 
-        let lki = self.hand_over_before_leaving(object, from);
+        let lki = self.hand_over_before_leaving(object, from, Some(to));
         let unattached = self.unattached_by_leaving(object);
         self.move_object(object, to)?;
         self.announce_zone_change(object, from, to, act, lki, applied, cause)?;

@@ -294,7 +294,8 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
 
     // CR 603.6c — "leaves-the-battlefield abilities trigger ... when a
     // phased-in permanent leaves the game because its owner leaves the game" —
-    // so the CR 603.10a frame rides the event, and only for the permanent.
+    // so the CR 603.10a frame rides the event for the permanent, and for the
+    // graveyard card, which leaves a graveyard (603.10a's second class).
     let frames: Vec<(Zone, bool)> = game
         .recorded_events()
         .events()
@@ -304,9 +305,10 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
         })
         .collect();
     assert_eq!(frames[0], (Zone::Battlefield, true), "the permanent carries its frame");
+    assert_eq!(frames[4], (Zone::Graveyard, true), "and so does the graveyard card");
     assert!(
-        frames[1..].iter().all(|&(_, has)| !has),
-        "and nothing else does: no other zone has a permanent to look back at"
+        frames.iter().filter(|&&(_, has)| has).count() == 2,
+        "and nothing else does: no other zone is one a trigger looks back at"
     );
     let lki = game.recorded_events().events().find_map(|e| match e {
         GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == permanent => lki.as_ref().map(|d| std::sync::Arc::clone(d.frame())),

@@ -41,9 +41,9 @@ use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primi
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger,
-    Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
-    TriggerOrigin, TriggerSeq, TriggerSubject,
+    zone_change_looks_back, DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
+    TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -799,11 +799,14 @@ impl GameState {
             })
     }
 
-    /// CR 603.10a before the batch performs: frame each permanent `decided`
-    /// takes off the battlefield, in batch order. A player leaving takes what
-    /// goes with them (`departs_with`): CR 800.4a's fourth clause exiles only
-    /// after its first two have run, so the set is everything it may exile.
-    /// The frames are memo hits: nothing has changed since the batch began
+    /// CR 603.10a before the batch performs: frame each object `decided`
+    /// moves in one of its three classes (`zone_change_looks_back`), in batch
+    /// order: a permanent leaving the battlefield, a card leaving a graveyard,
+    /// a visible object put into a hand or library. A player leaving takes
+    /// what goes with them (`departs_with`): CR 800.4a's fourth clause exiles
+    /// only after its first two have run, so the set is everything it may
+    /// exile; and each card in their graveyard leaves it. A permanent's frame
+    /// is a memo hit, since nothing has changed since the batch began
     /// deciding.
     ///
     /// **And every other mover an entry names, from whatever zone** (CR
@@ -820,6 +823,14 @@ impl GameState {
                         self.capture_frame(*object);
                     }
                 }
+                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) => {
+                    self.capture_frame(*object);
+                }
+                GameAction::EnterBattlefield { object, from: Some(from), .. }
+                    if zone_change_looks_back(*from, Some(Zone::Battlefield)) =>
+                {
+                    self.capture_frame(*object);
+                }
                 GameAction::ZoneChange { object, .. } => {
                     let named = named.get_or_insert_with(|| self.objects_entries_name());
                     if self.object_ref(*object).is_some_and(|r| named.contains(&r)) {
@@ -828,6 +839,12 @@ impl GameState {
                 }
                 GameAction::PlayerLoses { player } => {
                     for id in self.battlefield_ids_ordered() {
+                        if self.departs_with(id, *player) {
+                            self.capture_frame(id);
+                        }
+                    }
+                    let graveyard = self.players.get(*player).map(|p| p.graveyard.clone()).unwrap_or_default();
+                    for id in graveyard {
                         if self.departs_with(id, *player) {
                             self.capture_frame(id);
                         }
@@ -917,17 +934,15 @@ impl GameState {
         self.lki_captures.iter_mut().find(|d| d.object == object)
     }
 
-    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from`, before it
-    /// moves: the frame its batch took, to every entry that names it, and to a
-    /// delayed trigger it is the source of. Returns the frame its record
-    /// carries, a permanent's; a token whose entry is still being decided has
-    /// no entity and nothing to look back at (`create_tokens`).
-    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
-        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
-            self.take_captured_lki(id)
-        } else {
-            None
-        };
+    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from` for `to`
+    /// (`None`: the game), before it moves: the frame its batch took, to every
+    /// entry that names it, and to a delayed trigger it is the source of.
+    /// Returns the frame its record carries, for a move in one of CR 603.10a's
+    /// classes; a token whose entry is still being decided has no entity and
+    /// nothing to look back at (`create_tokens`).
+    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Option<Lki> {
+        let entering_token = from == Zone::Battlefield && !self.battlefield.contains_key(&id);
+        let lki = if zone_change_looks_back(from, to) && !entering_token { self.take_captured_lki(id, from) } else { None };
         self.hand_over_lki(id, lki.as_ref());
         self.note_delayed_source_moving(id);
         lki
@@ -961,19 +976,22 @@ impl GameState {
     }
 
     /// The last known information a named mover's batch took for it, if any:
-    /// the non-battlefield counterpart of `take_captured_lki`, which asserts
-    /// every battlefield departure had one.
+    /// the counterpart of `take_captured_lki` for a move in no CR 603.10a
+    /// class, which no batch is bound to frame.
     fn take_named_lki(&mut self, id: ObjectId) -> Option<Lki> {
         let object = self.object_ref(id)?;
         self.capture_of(object)?.lki.take()
     }
 
-    /// The last known information the move of `id` off the battlefield
-    /// carries, taken before its batch performed.
-    fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
+    /// The last known information the move of `id` out of `from` carries,
+    /// taken before its batch performed.
+    fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
         let taken = self.take_named_lki(id);
-        // Every departure is decided by a batch, which framed it first.
-        debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
+        // Every departure from the battlefield is decided by a batch, which
+        // framed it first. A card can reach a graveyard and leave it inside one
+        // batch, a creature dying in the check its owner loses in (CR 800.4a),
+        // and is framed as it leaves.
+        debug_assert!(taken.is_some() || from != Zone::Battlefield, "{id} left the battlefield with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
             self.last_known_information(id, Arc::new(frame))
@@ -1302,9 +1320,7 @@ impl GameState {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
         }
-        // CR 603.2f, per candidate, of the object as the event left it. A frame
-        // candidate was a permanent, which is visible.
-        if candidate.frame.lki().is_none() && !visible_to_all(self, candidate.object.id) {
+        if !self.visible_as_read(candidate) {
             return Err(Refusal::Visibility);
         }
         let referents = TriggerReferents {
@@ -1347,6 +1363,22 @@ impl GameState {
         let arm = &def.condition.events()[event_index.0];
         let subjects = self.triggers_whose_intervening_if_holds(def, arm, record, subjects, source)?;
         Ok((event_index, subjects))
+    }
+
+    /// CR 603.2f, asked at the instant the candidate's list is read: a
+    /// frame's immediately before the event (CR 603.10), in the zone the
+    /// object left, and any other list after it, where the object is. Only a
+    /// move in one of CR 603.10a's classes carries a frame, and each leaves
+    /// a public zone, so a frame always answers yes: a creature returned to
+    /// its owner's hidden hand still triggers its leaves-the-battlefield
+    /// ability.
+    fn visible_as_read(&self, candidate: &TriggerCandidate<'_>) -> bool {
+        match candidate.frame {
+            TriggerCandidateFrame::LastKnown { .. } => candidate.zone.is_public(),
+            TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
+                visible_to_all(self, candidate.object.id)
+            }
+        }
     }
 
     /// CR 603.4's first check, when the event happens: of the triggers one

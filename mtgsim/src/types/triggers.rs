@@ -417,14 +417,27 @@ pub enum IdentityRef {
     ThisAbility,
 }
 
+/// CR 603.10a's three classes of zone change, as a property of one move:
+/// leaving the battlefield, a card leaving a graveyard, and an object all
+/// players can see put into a hand or library. `to` is `None` for leaving the
+/// game (CR 800.4a). A move in a class carries the frame from before it,
+/// which is what a look-back arm reads.
+pub fn zone_change_looks_back(from: Zone, to: Option<Zone>) -> bool {
+    matches!(from, Zone::Battlefield | Zone::Graveyard) || (from.is_public() && matches!(to, Some(Zone::Hand | Zone::Library)))
+}
+
 impl TriggerEvent {
     /// CR 603.10's list, as a property of the arm's fields and never a flag a
-    /// card sets (§4.3): leaves-the-battlefield and dies (603.10a's first
-    /// class), and becoming unattached (603.10c). The other classes arrive
-    /// with their arms.
+    /// card sets (§4.3): CR 603.10a's three zone-change classes as an arm can
+    /// match them (`zone_change_looks_back`), so "into a hand" with no `from`
+    /// looks back at a move from a zone all players could see; and becoming
+    /// unattached (603.10c). The other classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
-            TriggerEvent::ZoneChange { change, .. } => change.from == Some(Zone::Battlefield),
+            TriggerEvent::ZoneChange { change, .. } => {
+                matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
+                    || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
+            }
             TriggerEvent::BecomesUnattached { .. } => true,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
