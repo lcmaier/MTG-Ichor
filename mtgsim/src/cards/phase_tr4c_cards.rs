@@ -9,18 +9,22 @@
 //! |---|---|---|
 //! | Bridge from Below | an intervening "if" that states the zone its ability works in (CR 113.6b), asked from a graveyard; a card that reaches the graveyard in the event answers none of its look-back triggers (CR 603.10a) | no |
 //! | Guerrilla Tactics | a trigger on the card's own move out of a hidden zone, asked where the card went (CR 603.10, 113.6k, 702.29c) | no |
+//! | Angelic Destiny | an Aura's trigger on its creature dying finds the card the Aura became in its owner's graveyard (CR 603.6e, 400.7f) | no |
+//! | Rancor | an Aura's trigger on its own move, finding the card it became (CR 400.7e) | no |
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{triggered_ability, whenever};
+use crate::cards::authoring::{dies, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::restriction::SourceFilter;
 use crate::types::triggers::{Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
@@ -99,6 +103,124 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
             effect: deals_damage_to_any_target(2),
         })
         .ability(triggered_ability(trigger, whenever(discarded, deals_damage_to_any_target(4))))
+        .build()
+}
+
+/// A static ability of an Aura, on the creature it enchants.
+fn enchanted_creature(rules_text: &'static str, primitives: Vec<Primitive>) -> AbilityDef {
+    AbilityDef {
+        rules_text: rules_text.into(),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Static,
+        costs: Vec::new(),
+        effect: Effect::Sequence(primitives.into_iter().map(|p| Effect::Atom(p, EffectRecipient::Host)).collect()),
+    }
+}
+
+/// Angelic Destiny — {2}{W}{W}
+/// Enchantment — Aura
+///
+/// > Enchant creature
+/// > Enchanted creature gets +4/+4, has flying and first strike, and is an
+/// > Angel in addition to its other types.
+/// > When enchanted creature dies, return this card to its owner's hand.
+///
+/// The trigger is CR 603.6e's: it looks back to the creature's departure,
+/// and "this card" is the Aura's new object in its owner's graveyard. CR
+/// 400.7f lets it find that object when the Aura went there in the same
+/// event as the creature, or by CR 704.5m's check that follows, which is
+/// the usual way: the Aura stays on the battlefield, unattached, until then.
+///
+/// # The rulings, and where each is tested
+///
+/// In `phase_tr4c_integration_test`.
+/// - *"If the creature dies before the Angelic Destiny spell resolves,
+///   Angelic Destiny will go to its owner's graveyard. It won't return to its
+///   owner's hand."* (#1) →
+///   `angelic_destiny_whose_creature_died_before_it_resolved_stays_in_the_graveyard`.
+/// - *"If Angelic Destiny is no longer in a graveyard when its triggered
+///   ability resolves, it won't be returned to its owner's hand."* (#2) →
+///   `angelic_destiny_gone_from_the_graveyard_is_not_returned`.
+pub fn angelic_destiny() -> Arc<CardData> {
+    let anthem = "Enchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.";
+    let returns = "When enchanted creature dies, return this card to its owner's hand.";
+    let angel = TypeChange {
+        add_types: Vec::new(),
+        remove_types: Vec::new(),
+        set_types: None,
+        add_subtypes: vec![Subtype::Creature(CreatureType::Angel)],
+        remove_subtypes: Vec::new(),
+        set_subtypes: None,
+        add_supertypes: Vec::new(),
+        remove_supertypes: Vec::new(),
+        set_supertypes: None,
+    };
+    CardDataBuilder::new("Angelic Destiny")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .rules_text("Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.\nWhen enchanted creature dies, return this card to its owner's hand.")
+        .ability(enchanted_creature(
+            anthem,
+            vec![
+                Primitive::ModifyPowerToughness(AmountExpr::Fixed(4), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
+                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
+                Primitive::GrantKeywordFlag(KeywordFlag::FirstStrike, Duration::WhileSourceOnBattlefield),
+                Primitive::ChangeType(angel, Duration::WhileSourceOnBattlefield),
+            ],
+        ))
+        .ability(triggered_ability(
+            returns,
+            whenever(dies(TriggerSubject::Host), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::ThisObject)),
+        ))
+        .build()
+}
+
+/// Rancor — {G}
+/// Enchantment — Aura
+///
+/// > Enchant creature
+/// > Enchanted creature gets +2/+0 and has trample.
+/// > When this Aura is put into a graveyard from the battlefield, return it
+/// > to its owner's hand.
+///
+/// A trigger on the Aura's own move: "it" is the card it became in the
+/// graveyard (CR 400.7e), which the binding names since RH-3.
+///
+/// # The ruling, and where it is tested
+///
+/// In `phase_tr4c_integration_test`.
+/// - *"If the creature this Aura would enchant is an illegal target by the
+///   time Rancor tries to resolve, the Aura spell doesn't resolve. It won't
+///   enter the battlefield, so it won't be put into a graveyard from the
+///   battlefield and its ability won't trigger."* (#1) →
+///   `rancor_whose_creature_left_before_it_resolved_does_not_trigger`.
+pub fn rancor() -> Arc<CardData> {
+    let anthem = "Enchanted creature gets +2/+0 and has trample.";
+    let returns = "When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.";
+    CardDataBuilder::new("Rancor")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .subtype(Subtype::Enchantment(EnchantmentType::Aura))
+        .enchant_filter(SelectionFilter::Creature)
+        .rules_text("Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.")
+        .ability(enchanted_creature(
+            anthem,
+            vec![
+                Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
+                Primitive::GrantKeywordFlag(KeywordFlag::Trample, Duration::WhileSourceOnBattlefield),
+            ],
+        ))
+        .ability(triggered_ability(
+            returns,
+            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject)),
+        ))
         .build()
 }
 

@@ -459,6 +459,13 @@ impl TriggerEvent {
         }
     }
 
+    /// CR 603.6e's trigger: an Aura's (or any attachment's) on the permanent
+    /// it is attached to leaving the battlefield, the one CR 400.7f lets find
+    /// the Aura's new object in a graveyard.
+    pub fn watches_its_host_leave(&self) -> bool {
+        matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
+    }
+
     /// The kinds of record this arm can match — the discriminant half of
     /// the matcher. [`Self::reads`] asks it of one record, and the
     /// dispatcher's source mask is its union over a permanent's printed
@@ -774,6 +781,11 @@ pub struct TriggerBinding {
     /// CR 603.7c — what a delayed triggered ability refers to, carried to
     /// the stack for its "that card" and "it"; empty for an object's trigger.
     pub referred: Referred,
+    /// CR 400.7f — the card an Aura whose trigger watches its enchanted
+    /// permanent leave (CR 603.6e) became in its owner's graveyard, which
+    /// "this card" finds: put there in the same event, or by CR 704.5m's
+    /// check while the trigger waits. Set at dispatch or at that move.
+    pub source_found_in_graveyard: Option<ObjectRef>,
 }
 
 impl TriggerBinding {

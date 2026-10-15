@@ -17,6 +17,10 @@
 //! 5. Item 249: a trigger on the card's own move out of a hidden zone is
 //!    asked where the card went (CR 603.10, 113.6k, 702.29c). Guerrilla
 //!    Tactics' three rulings, under Yixlid Jailer and under Rest in Peace.
+//! 6. Item 260: an Aura's trigger on its creature dying finds the card the
+//!    Aura became in its owner's graveyard, after CR 704.5m's move or in the
+//!    same event (CR 603.6e, 400.7f). Angelic Destiny's two rulings, and
+//!    Rancor's one.
 
 use std::sync::Arc;
 
@@ -25,17 +29,17 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lj_cards::yixlid_jailer;
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re8_cards::mind_rot;
-use mtgsim::cards::phase_tr4c_cards::{bridge_from_below, guerrilla_tactics};
+use mtgsim::cards::phase_tr4c_cards::{angelic_destiny, bridge_from_below, guerrilla_tactics, rancor};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     effect_ctx, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
-    setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
+    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -576,6 +580,118 @@ fn guerrilla_tactics_exiled_instead_by_rest_in_peace_still_triggers() {
     let tactics = discarded_by_mind_rot(&mut game);
     assert_eq!(zone(&game, tactics), Some(Zone::Exile));
     assert_eq!(waiting_from(&game, tactics), 1);
+}
+
+// ---------------------------------------------------------------------------
+// 6. An Aura's trigger finds the card it became (item 260): Angelic Destiny
+// ---------------------------------------------------------------------------
+
+/// `aura` on the battlefield under its owner `player`, enchanting a Grizzly
+/// Bears of theirs. Returns the Aura and the creature.
+fn enchanting_a_bear(game: &mut GameState, aura: Arc<CardData>, player: PlayerId) -> (ObjectId, ObjectId) {
+    let bears = put_on_battlefield(game, grizzly_bears(), player);
+    let aura = put_on_battlefield(game, aura, player);
+    assert!(game.attach(aura, bears));
+    (aura, bears)
+}
+
+/// ATOM-603.6e-001 and ATOM-400.7f-001's board: the creature dies, the Aura
+/// stays on the battlefield unattached, and CR 704.5m puts it into its
+/// owner's graveyard before its trigger resolves. CR 400.7f's second
+/// sentence lets "this card" find it there.
+// COVERS: ATOM-603.6e-001
+// COVERS: ATOM-400.7f-001
+#[test]
+fn angelic_destiny_returns_to_its_owners_hand_after_its_own_state_based_move() {
+    let mut game = setup_two_player_game();
+    let (destiny, bears) = enchanting_a_bear(&mut game, angelic_destiny(), 0);
+    assert_eq!(mtgsim::oracle::characteristics::get_effective_power(&game, bears), Some(6), "+4/+4");
+
+    destroy_all(&mut game, &[bears]);
+    assert_eq!(zone(&game, destiny), Some(Zone::Battlefield), "unattached, until the check");
+    assert_eq!(waiting_from(&game, destiny), 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, destiny), Some(Zone::Hand), "CR 400.7f");
+    assert!(game.players[0].hand.contains(&destiny), "its owner's hand");
+}
+
+/// CR 400.7f's first sentence: the Aura put into the graveyard in the same
+/// event, in either batch order.
+#[test]
+fn angelic_destiny_destroyed_beside_its_creature_returns_to_its_owners_hand() {
+    for aura_first in [true, false] {
+        let mut game = setup_two_player_game();
+        let (destiny, bears) = enchanting_a_bear(&mut game, angelic_destiny(), 0);
+        let order = if aura_first { [destiny, bears] } else { [bears, destiny] };
+
+        destroy_all(&mut game, &order);
+        assert_eq!(waiting_from(&game, destiny), 1, "aura_first: {aura_first}");
+        resolve_all(&mut game, &test_dp());
+        assert_eq!(zone(&game, destiny), Some(Zone::Hand), "aura_first: {aura_first}");
+    }
+}
+
+/// The new object CR 400.7f finds is the one the Aura became in the
+/// graveyard; once that card moves on, it is gone (CR 400.7).
+// RULING: Angelic Destiny #2 - "If Angelic Destiny is no longer in a graveyard when its triggered ability resolves, it won't be returned to its owner's hand."
+#[test]
+fn angelic_destiny_gone_from_the_graveyard_is_not_returned() {
+    let mut game = setup_two_player_game();
+    let (destiny, bears) = enchanting_a_bear(&mut game, angelic_destiny(), 0);
+    destroy_all(&mut game, &[bears]);
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert_eq!(zone(&game, destiny), Some(Zone::Graveyard));
+
+    move_card(&mut game, destiny, Zone::Graveyard, Zone::Exile);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, destiny), Some(Zone::Exile));
+}
+
+/// The Aura spell whose target died never resolves, so it is never on the
+/// battlefield to see a creature die (CR 608.3b).
+// RULING: Angelic Destiny #1 - "If the creature dies before the Angelic Destiny spell resolves, Angelic Destiny will go to its owner's graveyard. It won't return to its owner's hand."
+#[test]
+fn angelic_destiny_whose_creature_died_before_it_resolved_stays_in_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let destiny = aura_spell_targeting(&mut game, angelic_destiny(), 0, bears);
+    destroy_all(&mut game, &[bears]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, destiny), Some(Zone::Graveyard));
+    assert!(game.players[0].hand.is_empty());
+}
+
+// RULING: Rancor #1 - "If the creature this Aura would enchant is an illegal target by the time Rancor tries to resolve, the Aura spell doesn't resolve. It won't enter the battlefield, so it won't be put into a graveyard from the battlefield and its ability won't trigger."
+#[test]
+fn rancor_whose_creature_left_before_it_resolved_does_not_trigger() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let aura = aura_spell_targeting(&mut game, rancor(), 0, bears);
+    destroy_all(&mut game, &[bears]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, aura), Some(Zone::Graveyard));
+    assert!(game.players[0].hand.is_empty(), "no trigger returned it");
+}
+
+/// Rancor's own move: "it" is the card it became in the graveyard (CR
+/// 400.7e), after CR 704.5m put it there.
+#[test]
+fn rancor_returns_to_its_owners_hand_when_its_creature_dies() {
+    let mut game = setup_two_player_game();
+    let (aura, bears) = enchanting_a_bear(&mut game, rancor(), 0);
+    destroy_all(&mut game, &[bears]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(zone(&game, aura), Some(Zone::Hand));
+}
+
+/// `aura` on the stack as `controller`'s spell, its enchant clause targeting
+/// `target`, as `cast_spell` leaves it.
+fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: PlayerId, target: ObjectId) -> ObjectId {
+    let enchant = aura.spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let id = put_spell_on_stack(game, aura, controller);
+    let chosen = TargetInstance::from_announcement(game, enchant, &[ResolvedTarget::Object(target)]).unwrap();
+    game.stack_entries.get_mut(&id).unwrap().chosen_targets = vec![chosen];
+    id
 }
 
 /// **Fixture.** Bridge from Below's first ability with "from the

@@ -670,6 +670,7 @@ impl GameState {
             }
             let seq = TriggerSeq(self.next_trigger_seq);
             self.next_trigger_seq += 1;
+            let source_found_in_graveyard = self.aura_put_into_graveyard_beside_its_host(&m);
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
                 records: m.records,
@@ -677,6 +678,7 @@ impl GameState {
                 subject: m.subject,
                 triggered_by: None,
                 referred: Referred::default(),
+                source_found_in_graveyard,
             };
             let origin = TriggerOrigin::Object(m.identity);
             let pending = PendingTrigger {
@@ -718,6 +720,44 @@ impl GameState {
             )?;
         }
         Ok(())
+    }
+
+    /// CR 400.7f's first sentence: an Aura put into its owner's graveyard in
+    /// the event its enchanted permanent left the battlefield in, which its
+    /// trigger on that leaving (CR 603.6e) finds there. Read off the window,
+    /// which still holds the Aura's own move as the trigger is queued.
+    fn aura_put_into_graveyard_beside_its_host(&self, matched: &MatchedTrigger) -> Option<ObjectRef> {
+        let aura = matched.identity.source;
+        if !matched.def.condition.events()[matched.event.0].watches_its_host_leave() || self.find(aura).is_some() {
+            return None;
+        }
+        self.events.held().iter().find_map(|record| match &record.event {
+            GameEvent::ZoneChange { to: Zone::Graveyard, lki: Some(lki), .. } if lki.object() == aura => record.event.new_object(),
+            _ => None,
+        })
+    }
+
+    /// CR 400.7f's second sentence: CR 704.5m has put `aura`, the existence
+    /// that was on the battlefield, into its owner's graveyard, and each of its
+    /// waiting triggers on its enchanted permanent leaving finds it there. They
+    /// are pending, or on the stack at the latest: the check follows the
+    /// leaving before anyone receives priority.
+    pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
+        let Some(found) = self.object_ref(aura.id) else { return };
+        let finds = |source: ObjectRef, binding: &mut TriggerBinding| {
+            if source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none() {
+                binding.source_found_in_graveyard = Some(found);
+            }
+        };
+        for pending in &mut self.pending_triggers {
+            finds(pending.origin.source_ref(), &mut pending.binding);
+        }
+        for id in &self.stack {
+            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
+            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_mut()) {
+                finds(identity.source, binding);
+            }
+        }
     }
 
     /// The permanents whose printed triggers, or the copy's they entered as,

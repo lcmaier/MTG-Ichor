@@ -2632,7 +2632,12 @@ impl GameState {
     /// being gone, which the primitive meets as an empty target slice.
     pub(crate) fn this_object(&self, ctx: &ResolutionContext) -> Option<ObjectId> {
         match ctx.ability_source {
-            Some(source) => self.find(source).map(|_| source.id),
+            // Or, for an Aura's trigger on its enchanted permanent leaving, the
+            // card the Aura became in its owner's graveyard (CR 400.7f).
+            Some(source) => self.find(source).map(|_| source.id).or_else(|| {
+                let found = ctx.trigger.as_ref()?.source_found_in_graveyard?;
+                self.find(found).map(|_| found.id)
+            }),
             None => {
                 let id = ctx.source;
                 let here = self.battlefield.contains_key(&id)

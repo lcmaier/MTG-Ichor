@@ -1920,9 +1920,15 @@ impl GameState {
             return Ok(());
         }
 
+        let leaving = self.object_ref(object);
         let lki = self.hand_over_before_leaving(object, from, Some(to));
         let unattached = self.unattached_by_leaving(object);
         self.move_object(object, to)?;
+        if cause == EventCause::StateBasedAction(StateBasedAction::AuraAttachedIllegally)
+            && let Some(aura) = leaving
+        {
+            self.aura_put_into_graveyard_by_the_check(aura);
+        }
         self.announce_zone_change(object, from, to, act, lki, applied, cause)?;
         self.announce_unattached_by_leaving(unattached, cause)
     }
