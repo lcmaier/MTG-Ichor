@@ -1492,7 +1492,8 @@ PR #253, six code commits ahead of the docs.
   the object, less the hidden zones. Not the item's look-back from the hand:
   CR 702.29c and Yixlid Jailer's second ruling ask such a trigger where the
   card went, and the Jailer stops Guerrilla Tactics there.
-- **CR 400.7f** (item 260). `TriggerBinding.source_found_in_graveyard`, set at
+- **CR 400.7f** (item 260). `source_found_in_graveyard`, on `TriggerBinding`
+  until the review moved it beside `kept_lki` on the entries, set at
   the dispatch for the same event (`aura_put_into_graveyard_beside_its_host`)
   and by `perform_zone_change` at CR 704.5m's move
   (`aura_put_into_graveyard_by_the_check`), read by `this_object`;
@@ -1555,4 +1556,10 @@ the gate held open, since the gate itself reads the frame and returns first.
   Shipped's `stress` windows past the gate fell from 301.6 to 62.6 a game at
   two seats and from 815.8 to 170.7 at four; instructions per decision
   +0.06% in the third sitting.
+- **CR 400.7f's found card moved to the entries**, at the owner's call:
+  `source_found_in_graveyard` was the one field of `TriggerBinding` written
+  after the ability triggered, so it now sits beside `kept_lki` on
+  `PendingTrigger`, `StackEntry` and `ResolvingObject`, carried by placement
+  and by resolution, and `this_object` reads the resolving entry. No behavior
+  moves; it came after the third sitting.
 
