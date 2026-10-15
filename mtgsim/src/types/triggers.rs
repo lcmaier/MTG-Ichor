@@ -1115,9 +1115,11 @@ impl RememberedObject {
             }
     }
 
-    /// The object, while it is still this existence (CR 603.7c).
+    /// The object, while it is still this existence (CR 603.7c), in a zone
+    /// all players can see: one in a hand or a library can't be found (CR
+    /// 400.7j).
     pub fn found(self, game: &GameState) -> Option<ObjectId> {
-        game.find(self.object).map(|_| self.object.id)
+        game.find(self.object).filter(|object| object.zone.is_public()).map(|_| self.object.id)
     }
 }
 

@@ -10,12 +10,16 @@
 //!    800.4d).
 //! 3. Item 131: a mill a replacement keeps in the library still happened
 //!    (CR 614.6), and its record says so, with the card as it was milled.
+//! 4. Item 258: an effect finds what it moved in whatever public zone the
+//!    move went to (CR 400.7j, 701.17c), and never in a hand or a library
+//!    (CR 400.7e).
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::counterspell;
-use mtgsim::cards::authoring::{loses_the_game, triggered_ability, whenever, Whose};
+use mtgsim::cards::authoring::{at_beginning_of, loses_the_game, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_rb_cards::leyline_of_the_void;
 use mtgsim::cards::phase_rf_cards::darksteel_colossus;
 use mtgsim::cards::phase_tr4d_cards::multanis_presence;
 use mtgsim::engine::actions::GameAction;
@@ -23,21 +27,24 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
-use mtgsim::state::game_state::GameState;
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
     card_of_type, effect_ctx, fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
     put_on_battlefield_under, put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
+use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{
+    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
+};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -381,4 +388,128 @@ fn an_arm_naming_no_act_ignores_a_card_kept_in_its_zone() {
 
     mill(&mut game, 1, 3);
     assert_eq!(waiting_from(&game, watching), 2);
+}
+
+// ---------------------------------------------------------------------------
+// 4. Finding what an effect moved (item 258)
+// ---------------------------------------------------------------------------
+
+/// An artifact whose `{T}` ability resolves `effect`.
+fn totem(name: &str, effect: Effect) -> Arc<CardData> {
+    let ability = AbilityDef {
+        rules_text: "".into(),
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Activated,
+        costs: vec![Cost::TapSelf],
+        effect,
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    CardDataBuilder::new(name).card_type(CardType::Artifact).ability(ability).build()
+}
+
+/// "[Instruction]. At the beginning of the next end step, return that card to
+/// its owner's hand": a delayed trigger referring to what the instruction
+/// moved (CR 603.7c).
+fn then_return_it_later(instruction: Effect) -> Effect {
+    let def = Arc::new(whenever(
+        at_beginning_of(StepType::End, Whose::Each),
+        Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Referred),
+    ));
+    let template = DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::Any, rules_text: "".into() };
+    Effect::Sequence(vec![
+        Effect::Remember(Box::new(instruction)),
+        Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller),
+    ])
+}
+
+/// What the one waiting delayed trigger refers to.
+fn referred(game: &GameState) -> Vec<ObjectId> {
+    assert_eq!(game.delayed_triggers.len(), 1);
+    game.delayed_triggers[0].referred.objects.iter().map(|r| r.object.id).collect()
+}
+
+fn activate_and_resolve(game: &mut GameState, player: PlayerId, source: ObjectId) {
+    game.activate_ability(player, source, 0, &test_dp()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+}
+
+/// CR 701.17c: "an effect that refers to a milled card can find that card in
+/// the zone it moved to from the library, as long as that zone is a public
+/// zone". Leyline of the Void exiled both, and both are "that card".
+#[test]
+fn a_milled_card_a_replacement_exiled_is_still_found() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, leyline_of_the_void(), 1);
+    let below = put_in_library(&mut game, grizzly_bears(), 0);
+    let above = put_in_library(&mut game, grizzly_bears(), 0);
+    let mill_two = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let source = put_on_battlefield(&mut game, totem("Fixture Mill Totem", then_return_it_later(mill_two)), 0);
+
+    activate_and_resolve(&mut game, 0, source);
+    assert_eq!((game.objects[&above].zone, game.objects[&below].zone), (Zone::Exile, Zone::Exile));
+    assert_eq!(referred(&game), vec![above, below]);
+}
+
+/// A Darksteel Colossus milled and shuffled back is in a hidden zone, where
+/// no effect can find it (CR 701.17c), though it was milled (item 131).
+#[test]
+fn a_milled_card_shuffled_back_is_not_found() {
+    let mut game = setup_two_player_game();
+    let colossus = colossus_among_three(&mut game, 0);
+    let mill_three = Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller);
+    let source = put_on_battlefield(&mut game, totem("Fixture Mill Totem", then_return_it_later(mill_three)), 0);
+
+    activate_and_resolve(&mut game, 0, source);
+    let found = referred(&game);
+    assert_eq!(found.len(), 2);
+    assert!(!found.contains(&colossus));
+}
+
+/// CR 400.7j finds a moved object only in a public zone: a creature returned
+/// to its owner's hand is no "that card".
+#[test]
+fn a_card_put_into_a_hand_is_not_found() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let bounce = Effect::Atom(
+        Primitive::ReturnToHand,
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)), TargetCount::Exactly(1)),
+    );
+    let source = put_on_battlefield(&mut game, totem("Fixture Bounce Totem", then_return_it_later(bounce)), 0);
+
+    activate_and_resolve(&mut game, 0, source);
+    assert_eq!(game.objects[&bears].zone, Zone::Hand);
+    assert!(referred(&game).is_empty());
+}
+
+/// CR 400.7e: a zone change's trigger finds the object it moved only in a
+/// public zone. "Whenever a creature is put into your hand from the
+/// battlefield, exile it" exiles nothing.
+#[test]
+fn a_trigger_does_not_find_what_moved_into_a_hand() {
+    let mut game = setup_two_player_game();
+    let change = ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Hand), act: None };
+    let arm = TriggerEvent::ZoneChange {
+        subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
+        change,
+        by: None,
+        owner: Some(PlayerRef::You),
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject);
+    let card = CardDataBuilder::new("Fixture Bounce Watcher")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(arm, exile_it)))
+        .build();
+    let watching = put_on_battlefield(&mut game, card, 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    let by = mtgsim::types::ids::new_object_id();
+    let bounce = GameAction::ZoneChange { object: bears, from: Zone::Battlefield, to: Zone::Hand, act: ZoneChangeAct::Put };
+    game.execute_action(bounce, &effect_ctx(&game, by)).unwrap();
+    assert_eq!(waiting_from(&game, watching), 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(game.objects[&bears].zone, Zone::Hand, "not found there");
 }
