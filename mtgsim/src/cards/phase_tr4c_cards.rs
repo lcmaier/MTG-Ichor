@@ -8,9 +8,9 @@
 //! | Card | The path | Pooled |
 //! |---|---|---|
 //! | Bridge from Below | an intervening "if" that states the zone its ability works in (CR 113.6b), asked from a graveyard; a card that reaches the graveyard in the event answers none of its look-back triggers (CR 603.10a) | yes |
-//! | Guerrilla Tactics | a trigger on the card's own move out of a hidden zone, asked where the card went (CR 603.10, 113.6k, 702.29c) | no |
+//! | Guerrilla Tactics | a trigger on this card leaving a hidden zone (its discard), asked where the card went (CR 603.10, 113.6k, 702.29c) | no |
 //! | Angelic Destiny | an Aura's trigger on its creature dying finds the card the Aura became in its owner's graveyard (CR 603.6e, 400.7f) | no |
-//! | Rancor | an Aura's trigger on its own move, finding the card it became (CR 400.7e) | no |
+//! | Rancor | an Aura's trigger on itself going to the graveyard, finding the card it became (CR 400.7e) | no |
 
 use std::sync::Arc;
 
@@ -189,8 +189,8 @@ pub fn angelic_destiny() -> Arc<CardData> {
 /// > When this Aura is put into a graveyard from the battlefield, return it
 /// > to its owner's hand.
 ///
-/// A trigger on the Aura's own move: "it" is the card it became in the
-/// graveyard (CR 400.7e), which the binding names since RH-3.
+/// A trigger on the Aura itself going to the graveyard: "it" is the card it
+/// became there (CR 400.7e), which the binding names since RH-3.
 ///
 /// # The ruling, and where it is tested
 ///

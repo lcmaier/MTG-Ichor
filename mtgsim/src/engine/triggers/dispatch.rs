@@ -293,27 +293,27 @@ impl TriggerCandidateFrame<'_> {
         }
     }
 
-    /// The arms this list answers for a record that looks back through
-    /// snapshot `looks_back_through`, or `None` when it answers none. A
+    /// The arms this list may answer for a record that looks back through
+    /// snapshot `looks_back_through`, or `None` when it answers none. An
     /// object that left has only its list from before; a survivor's list now
-    /// answers everything unless the record's snapshot holds the one from
-    /// before, which then answers the look-back arms in its place. An object
-    /// that `arrived` where it is in this window was not there immediately
-    /// before the event, so its list now answers no look-back arm (CR
-    /// 603.10a; Bridge from Below's third ruling).
-    fn asks(&self, looks_back_through: Option<usize>, arrived: bool) -> Option<Asks> {
+    /// answers every arm unless the record's snapshot holds the one from
+    /// before, which then answers the look-back arms in its place. A
+    /// `newcomer` was somewhere else immediately before the event, so its
+    /// list now answers no look-back arm (CR 603.10a; Bridge from Below's
+    /// third ruling).
+    fn answered_arms(&self, looks_back_through: Option<usize>, newcomer: bool) -> Option<AnsweredArms> {
         match self {
             TriggerCandidateFrame::Live { snapshots, .. }
-                if arrived || looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
+                if newcomer || looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
             {
-                Some(Asks::NotLookBack)
+                Some(AnsweredArms::AllButLookBack)
             }
-            TriggerCandidateFrame::Live { .. } => Some(Asks::Every),
-            TriggerCandidateFrame::LastKnown { snapshot: None, .. } => Some(Asks::LookBack),
+            TriggerCandidateFrame::Live { .. } => Some(AnsweredArms::All),
+            TriggerCandidateFrame::LastKnown { snapshot: None, .. } => Some(AnsweredArms::LookBackOnly),
             TriggerCandidateFrame::LastKnown { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
                 if looks_back_through == Some(*k) =>
             {
-                Some(Asks::LookBack)
+                Some(AnsweredArms::LookBackOnly)
             }
             TriggerCandidateFrame::LastKnown { .. } | TriggerCandidateFrame::Before { .. } => None,
         }
@@ -338,12 +338,21 @@ struct TriggerCandidateDef<'a> {
     instances: &'a [EffectRecipient],
 }
 
-/// Which of a def's arms one record asks (`TriggerEvent::looks_back`).
+/// Which of a triggered ability's arms one candidate's ability list may
+/// answer for one record (CR 603.10): a list from before the event answers
+/// the look-back arms (`TriggerEvent::looks_back`), a list after it every
+/// other arm, and a live object's list both, unless the event changed the
+/// list or brought the object.
 #[derive(Clone, Copy)]
-enum Asks {
-    Every,
-    LookBack,
-    NotLookBack,
+enum AnsweredArms {
+    /// A live object's list, which the event left as it was.
+    All,
+    /// A list from before the event: an object that left, or a survivor's
+    /// list a snapshot kept.
+    LookBackOnly,
+    /// A live object's list after an event that changed it, or of an object
+    /// the event brought.
+    AllButLookBack,
 }
 
 /// How an arm reads its subject off a record: where the subject was at the
@@ -725,7 +734,8 @@ impl GameState {
     /// CR 400.7f's first sentence: an Aura put into its owner's graveyard in
     /// the event its enchanted permanent left the battlefield in, which its
     /// trigger on that leaving (CR 603.6e) finds there. Read off the window,
-    /// which still holds the Aura's own move as the trigger is queued.
+    /// which still holds the record of the Aura going to the graveyard as the
+    /// trigger is queued.
     fn aura_put_into_graveyard_beside_its_host(&self, matched: &MatchedTrigger) -> Option<ObjectRef> {
         let aura = matched.identity.source;
         if !matched.def.condition.events()[matched.event.0].watches_its_host_leave() || self.find(aura).is_some() {
@@ -1220,10 +1230,10 @@ impl GameState {
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
-        // The objects the window made: a window is one event (§4.1), so each
-        // was somewhere else immediately before every record of it.
-        let made: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.object_made_by(&record.event)).collect();
-        let arrived: Vec<bool> = candidates.iter().map(|candidate| made.contains(&candidate.object)).collect();
+        // The window's newcomers: a window is one event (§4.1), so each was
+        // somewhere else immediately before every record of it.
+        let newcomers: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect();
+        let is_newcomer: Vec<bool> = candidates.iter().map(|candidate| newcomers.contains(&candidate.object)).collect();
 
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).
@@ -1254,10 +1264,10 @@ impl GameState {
             let mut hits: Vec<ArmMatch<'_, '_>> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
-                let Some(asks) = candidate.frame.asks(looks_back_through, arrived[row.candidate]) else { continue };
+                let Some(answered) = candidate.frame.answered_arms(looks_back_through, is_newcomer[row.candidate]) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, record, identity);
+                let outcome = self.match_def(def, candidate, answered, record, identity);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1343,7 +1353,7 @@ impl GameState {
         &self,
         def: &TriggerDef,
         candidate: &TriggerCandidate<'_>,
-        asks: Asks,
+        answered: AnsweredArms,
         record: &EventRecord,
         identity: AbilityIdentity,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
@@ -1364,10 +1374,10 @@ impl GameState {
         };
         let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
         for (index, arm) in def.condition.events().iter().enumerate() {
-            match asks {
-                Asks::LookBack if !arm.looks_back() => continue,
-                Asks::NotLookBack if arm.looks_back() => continue,
-                _ => {}
+            match answered {
+                AnsweredArms::LookBackOnly if !arm.looks_back() => continue,
+                AnsweredArms::AllButLookBack if arm.looks_back() => continue,
+                AnsweredArms::All | AnsweredArms::LookBackOnly | AnsweredArms::AllButLookBack => {}
             }
             if !arm.reads(event) {
                 continue;
@@ -1841,9 +1851,14 @@ impl GameState {
         }
     }
 
-    /// The object `event` brought into being where it is (CR 400.7): a zone
-    /// change's new object, or a created token.
-    fn object_made_by(&self, event: &GameEvent) -> Option<ObjectRef> {
+    /// The newcomer `event` brought, if any: the object it put where it is
+    /// now, which was somewhere else just before the event. That is a zone
+    /// change's moved card, as the new object the move made it (CR 400.7), or
+    /// a token the event created. `match_candidates` asks a newcomer none of
+    /// the event's look-back arms (CR 603.10a), so a Bridge from Below put
+    /// into the graveyard by a wipe does not trigger on the creatures dying
+    /// beside it.
+    fn newcomer_from(&self, event: &GameEvent) -> Option<ObjectRef> {
         match event {
             GameEvent::TokenCreated { object_id, .. } => self.object_ref(*object_id),
             event => event.new_object(),

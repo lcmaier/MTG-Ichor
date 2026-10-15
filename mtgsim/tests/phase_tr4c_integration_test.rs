@@ -14,7 +14,7 @@
 //!    their graveyard with them, and those cards leave a graveyard too.
 //! 4. CR 603.2f at the instant a candidate's list is read: before the event
 //!    for a frame, after it for anything still there.
-//! 5. Item 249: a trigger on the card's own move out of a hidden zone is
+//! 5. Item 249: a trigger on the card itself leaving a hidden zone is
 //!    asked where the card went (CR 603.10, 113.6k, 702.29c). Guerrilla
 //!    Tactics' three rulings, under Yixlid Jailer and under Rest in Peace.
 //! 6. Item 260: an Aura's trigger on its creature dying finds the card the
@@ -101,7 +101,8 @@ fn watcher(name: &str, subject: TriggerSubject, change: ZoneChangePattern, owner
     CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain_one()))).build()
 }
 
-/// A card with one ability about its own move, `change`.
+/// A card whose one ability triggers on the card itself moving `change`
+/// (`TriggerSubject::ThisObject`).
 fn mover(name: &str, card_type: CardType, change: ZoneChangePattern) -> Arc<CardData> {
     let arm = TriggerEvent::ZoneChange {
         subject: TriggerSubject::ThisObject,
@@ -217,7 +218,8 @@ fn bridge_from_below_reads_whose_graveyard_not_who_controlled_the_creature() {
 /// Item 259: the card reaching the graveyard in the event that killed the
 /// creatures was not there immediately before it, and a leaves-the-battlefield
 /// ability looks back to then (CR 603.10a). In either batch order: one window
-/// is one event, so a record after the card's own move is no later event.
+/// is one event, so a record after the card's move to the graveyard is no
+/// later event.
 // RULING: Bridge from Below #3 - "If Bridge from Below isn't in your graveyard immediately before a creature dies, its abilities won't trigger at all. If Bridge from Below isn't still in your graveyard as its first ability resolves, you won't create a token."
 #[test]
 fn bridge_from_below_put_into_the_graveyard_by_the_same_wipe_does_not_trigger() {
@@ -305,10 +307,16 @@ fn bridge_from_below_under_yixlid_jailer_does_not_trigger_on_the_wipe_that_takes
     }
 }
 
-/// Its "from anywhere" twin: the same board with the zone change printed
-/// "from anywhere" is no leaves-the-battlefield ability (CR 603.6c), so it
-/// is read after the wipe, with Jailer gone, and triggers for each creature
-/// card put into the graveyard: Jailer is one.
+/// The same board with Bridge's trigger printed "put into your graveyard
+/// from anywhere" instead of "from the battlefield", which separates a
+/// look-back trigger from one read after the event. CR 603.6c: a "from
+/// anywhere" trigger is never a leaves-the-battlefield ability, so it does not
+/// look back. It is checked after the wipe, when Yixlid Jailer has left the
+/// battlefield and the card in the graveyard has its ability again, and it
+/// triggers once for each creature card the wipe put into its owner's
+/// graveyard: the Bears and Jailer itself, so twice. Bridge, which looks back
+/// to the board with Jailer still on it, triggers for neither (the test
+/// above).
 #[test]
 fn a_from_anywhere_twin_under_yixlid_jailer_triggers_after_the_wipe_that_takes_jailer() {
     for jailer_first in [true, false] {
@@ -466,7 +474,7 @@ fn a_creature_returned_to_its_owners_hand_triggers_its_leaves_the_battlefield_ab
 }
 
 // ---------------------------------------------------------------------------
-// 5. A card's own move out of a hidden zone (item 249): Guerrilla Tactics
+// 5. A card leaving a hidden zone, its trigger on itself (item 249): Guerrilla Tactics
 // ---------------------------------------------------------------------------
 
 /// Resolve `effect` as `caster`'s spell targeting `target`, its source a card
@@ -730,8 +738,8 @@ fn rancor_whose_creature_left_before_it_resolved_does_not_trigger() {
     assert!(game.players[0].hand.is_empty(), "no trigger returned it");
 }
 
-/// Rancor's own move: "it" is the card it became in the graveyard (CR
-/// 400.7e), after CR 704.5m put it there.
+/// Rancor's trigger on itself going to the graveyard: "it" is the card it
+/// became there (CR 400.7e), after CR 704.5m put it there.
 #[test]
 fn rancor_returns_to_its_owners_hand_when_its_creature_dies() {
     let mut game = setup_two_player_game();

@@ -897,8 +897,8 @@ impl CardRegistry {
         // TR-4c: the other two look-back classes and the zone statement.
         // Bridge from Below states its graveyard zone and is pooled (above),
         // Guerrilla Tactics triggers on its own discard where it went, and
-        // Angelic Destiny finds the card it became (CR 400.7f) beside Rancor's
-        // own move (400.7e).
+        // Angelic Destiny finds the card it became (CR 400.7f) beside Rancor,
+        // whose trigger is on itself going to the graveyard (400.7e).
         registry.register("Bridge from Below", phase_tr4c_cards::bridge_from_below);
         registry.register("Guerrilla Tactics", phase_tr4c_cards::guerrilla_tactics);
         registry.register("Angelic Destiny", phase_tr4c_cards::angelic_destiny);
