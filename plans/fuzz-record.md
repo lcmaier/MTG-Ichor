@@ -37,6 +37,153 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-15 for TR-4c** (#253: the other two look-back classes
+and the zone statement, items 15, 173, 249, 259 and 260). Bridge from Below,
+Guerrilla Tactics, Angelic Destiny and Rancor join the registry and Bridge
+from Below the pool (193 → 197 registered, 108 → 109 pooled), so both §3
+columns are new baselines. `close_out.py --fixtures` against **main**
+`4edf04f` (#252's merge), with **engine** `533593a` (every engine change, the
+cards written and not registered) and **shipped** `8b09aae`.
+
+**Predictions, before any arm ran:**
+- engine vs `main`, gameplay rows `IDENTICAL`, both pools, two seats and
+  four: no registered card has a trigger in CR 603.10a's second or third
+  class, a stated zone, a trigger on the card itself leaving a hidden zone or an Aura's "this
+  card".
+- Cost rows: two seats about unchanged; four seats `Layer walks` +20 to +35 a
+  game, a departing player's graveyard now framed (priced at 33 cards a game
+  on `performance`, 27 on `stress`), and candidate visits up where a player
+  leaves.
+- Every dispatch agreed. Instructions per decision +0.1% to +0.5%.
+- shipped differing from `main` on both pools, by the registry and the pool.
+- Reachability: Bridge from Below cast in about 45% of games at two seats and
+  40% at four.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, `main` → engine, performance / stress | 327 → 327 / 366 → 366 | 697 → 718 / 915 → 933 |
+| `Candidate visits`, `main` → engine, performance / stress | 52.3 → 52.5 / 54.4 → 54.6 | 171.0 → 185.0 / 203.1 → 214.3 |
+| audit, engine, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Windows past gate`, `main` → shipped, performance / stress | 44.7 → 53.2 / 45.7 → 121.9 | 125.0 → 135.7 / 152.1 → 368.5 |
+| `Candidate visits`, `main` → shipped, performance / stress | 52.3 → 62.5 / 54.4 → 142.6 | 171.0 → 197.7 / 203.1 → 505.1 |
+| audit, shipped, performance / stress, dispatches agreed | 160,964 / 172,232 | 320,609 / 330,059 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6680 M → 0.6706 M, **+0.39%** |
+
+Every prediction held; the four-seat walks came in at the low end (+21 and
++18). Bridge from Below was cast in 104 of 200 games (52%) at two seats and 75
+(38%) at four. **The move nobody predicted** is shipped's `stress` gate: windows
+past it rose 2.7×, candidate visits 2.6×. Guerrilla Tactics functions in every
+public zone a discard can leave it in, so once cast it sits in a graveyard on
+the zone map, whose `is_empty` probe then passes every window, though its
+condition can match only the window that moved it (`codebase-state.md` item
+266). Bridge from Below in a graveyard carries the rest, as it should. The
+sitting ran in 184 s.
+
+**Before registering**, each card forced into every `stress` deck, 200 games
+at two seats with the audit on, no error or panic: Angelic Destiny 25.3 turns,
+Rancor 26.0 and Guerrilla Tactics 26.8 against 27.6 at seed 12345; Bridge from
+Below 27.1 against 26.7 at seed 777, reaching a graveyard 23 times (18
+discarded) and triggering 24. At seed 12345 Bridge's decks reach a board of
+about twenty Primal Vigor copies (game 69, seed 12414, P1's turn 43) whose
+upkeep Saproling is doubled about 2^20 times, and the game never ends; the
+unforced run finishes (item 264).
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors and 0 panics, and every dispatch agreed (810,411 / 820,504
+at two seats, 1,653,286 / 1,735,682 at four). One four-seat `stress` game hit
+the turn limit.
+
+**Review round (2026-10-15).** Three fixes moved the engine: a card leaving
+the game from a graveyard leaves no graveyard (Erebos's Titan's third ruling),
+so a departing player's graveyard is no longer framed; CR 400.7f finds the
+Aura in the graveyard only; and a discard trigger works in the hidden zones
+too, CR 603.2f refusing it there (Library of Leng). `close_out.py --fixtures`
+again, against the same **main**, with **engine** `bfcd9e9` (`533593a` and
+the review's engine commits, cherry-picked onto it with no card registered)
+and **shipped** `8ba8817`. The predictions were not written down before this
+run, which the close-out asks for: the four-seat walks back to `main`'s with
+the graveyard capture gone, instructions below the first sitting's, and
+shipped's `stress` gate further up, the library now among Guerrilla Tactics'
+zones.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, `main` → engine, performance / stress | unchanged | unchanged |
+| `Candidate visits`, `main` → engine, performance / stress | 52.3 → 52.5 / 54.4 → 54.6 | 171.0 → 171.3 / 203.1 → 203.4 |
+| audit, engine, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| `Layer walks`, `main` → shipped, performance / stress | 327 → 337 / 366 → 467 | 697 → 696 / 915 → 1,119 |
+| `Windows past gate`, `main` → shipped, performance / stress | 44.7 → 53.2 / 45.7 → 301.6 | 125.0 → 135.3 / 152.1 → 815.8 |
+| `Candidate visits`, `main` → shipped, performance / stress | 52.3 → 62.5 / 54.4 → 382.2 | 171.0 → 185.1 / 203.1 → 1,221.1 |
+| audit, shipped, performance / stress, dispatches agreed | 160,964 / 172,232 | 320,609 / 330,180 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6681 M → 0.6700 M, **+0.28%** |
+
+The engine arm's four-seat walks are `main`'s again, and the first sitting's
++21 a game was the departing graveyard, now gone. Shipped's `performance` rows
+match the first sitting's (Bridge from Below has no hidden-zone trigger).
+Shipped's `stress` is item 266 grown: a Guerrilla Tactics in a library is on
+the zone map from the first turn, so windows past the gate rose 6.6× at two
+seats and 5.4× at four, and layer walks 28% and 22%. It is `stress` only,
+where the card is registered and not pooled. The sitting ran in 136 s.
+
+**Item 266 built, a third sitting (2026-10-15).** An ability whose every
+condition is the object itself moving waits off the battlefield on
+`newcomer_trigger_sources` and is asked only as one of the window's
+newcomers. **engine** `0888530` (the second sitting's engine and this commit,
+no card registered), **shipped** `3b5068b`. Predictions, written before the
+run: engine as in the second sitting, instructions about +0.28% within
+±0.05; shipped's `stress` windows past the gate back below the first
+sitting's, to Bridge from Below's share, about 50–80 and 160–250; shipped's
+`performance` unchanged.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Candidate visits`, `main` → engine, performance / stress | 52.3 → 52.5 / 54.4 → 54.6 | 171.0 → 171.3 / 203.1 → 203.4 |
+| audit, engine, performance / stress, dispatches agreed | 160,470 / 157,117 | 325,379 / 345,609 |
+| `Windows past gate`, `main` → shipped, performance / stress | 44.7 → 53.2 / 45.7 → 62.6 | 125.0 → 135.3 / 152.1 → 170.7 |
+| `Candidate visits`, `main` → shipped, performance / stress | 52.3 → 62.5 / 54.4 → 75.3 | 171.0 → 185.1 / 203.1 → 247.6 |
+| `Layer walks`, `main` → shipped, performance / stress | 327 → 337 / 366 → 397 | 697 → 696 / 915 → 891 |
+| audit, shipped, performance / stress, dispatches agreed | 160,964 / 172,232 | 320,609 / 330,180 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6681 M → 0.6686 M, **+0.06%** |
+
+Every prediction held but the instruction one: +0.06% against about +0.28%,
+on an engine arm whose `performance` path the commit leaves alone (the set is
+empty there, and the new probe returns before reading a record). That is
+inside the ±0.3-point band a code-only change moves by layout alone. The
+1,000-game audited smoke on the shipped tree (seed 777, both pools, both seat
+counts): 0 errors, 0 panics, every dispatch agreed. The sitting ran in 120 s.
+
+**§3 fixture rows, shipped `3b5068b`, two seats, 50 games / seed 12345.**
+Both columns are new baselines. The `stress` cost rows were re-recorded with
+item 266 built; every other cell is the first sitting's.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 27 (54.0%) / 23 (46.0%) | 28 (56.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 27.4 | 26.4 |
+| Spells cast | 21.0 | 19.4 |
+| Lands played | 15.9 | 16.0 |
+| Combat w/ atk | 10.0 | 8.1 |
+| Creatures died | 6.8 | 3.8 |
+| Damage events | 21.3 | 17.4 |
+| Total damage | 58.3 | 48.6 |
+| Life changes | 15.6 | 13.3 |
+| **Layer walks** | **321** | **396** |
+| **Board walks** | **189** | **234** |
+| **Memo hits** | **47,967** | **69,165** |
+| **Layer frames** | **3,473** | **4,619** |
+| **Frames/walk** | **10.82** | **11.67** |
+| **Dependency checks** | **3** | **32** |
+| **Replacement gathers** | **938** | **993** |
+| **Restriction queries** | **940** | **995** |
+| Mana productions | 63 | 82 |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.38 | 0.52 |
+
 **Re-recorded 2026-10-14 for TR-4b** (#252: attachment's records, items
 178 and 228, and main item 6's detach and token halves). Grafted Wargear and
 Bramble Elemental join the registry, and Bramble Elemental the pool at the

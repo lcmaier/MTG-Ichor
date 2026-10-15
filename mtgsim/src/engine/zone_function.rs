@@ -23,7 +23,7 @@
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, CardTypes};
 use crate::types::effects::{Condition, Effect};
-use crate::types::triggers::{TriggerEvent, TriggerSubject};
+use crate::types::triggers::{TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
 /// The zones in which `ability` functions (CR 113.6), for an object whose
@@ -50,16 +50,6 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
         return ZoneSet::ALL;
     }
 
-    // CR 113.6k, **derived from the condition**: `This` moving from zone Z
-    // functions in Z (a discard, in the hand); "from anywhere" everywhere it can
-    // be, never a leaves-the-battlefield ability (CR 603.6c; Guile); any other
-    // object's, on the battlefield. The ability's zones are its conditions'
-    // together, and the dispatcher asks each again ([`condition_functions_in`]).
-    // What an *effect* says about a zone is CR 113.6m's, not derived.
-    if let Effect::Triggered(def) = &ability.effect {
-        return trigger_zones(def, types);
-    }
-
     // CR 113.6d — what *that particular object* costs functions on the stack,
     // which is `CostSubject`'s split: affinity is `Itself`, Thalia's "creature
     // spells cost {1} more" is `Spells(_)` on the battlefield. Through "as long
@@ -74,19 +64,52 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // CR 113.6b — "An ability that states which zones it functions in
     // functions only from those zones" — and 113.6c, which is the same field
     // holding a complement (`ZoneSet::ALL.without(..)`). The statement is a
-    // clause of the card's text and the clause is a `Condition`; see
-    // [`stated_zones`] for why that is the CR's shape rather than a
-    // convenience.
-    if let Effect::Conditional(condition, _) = &ability.effect
-        && let Some(zones) = stated_zones(condition) {
+    // clause of the card's text and the clause is a `Condition`: a static
+    // ability's "as long as" (Wonder) or a triggered ability's intervening
+    // "if" (Bridge from Below). See [`stated_zones`] for why that is the CR's
+    // shape rather than a convenience.
+    if let Some(zones) = zones_its_text_states(&ability.effect) {
         return zones;
+    }
+
+    // CR 113.6k, **derived from the condition**, for a triggered ability that
+    // states no zone: a trigger on this object moving out of zone Z functions
+    // in Z when CR 603.10a looks back across the move (dies, a card leaving a
+    // graveyard), and otherwise where the move can leave it (a discard, in the
+    // graveyard); "from anywhere" everywhere it can be, never a
+    // leaves-the-battlefield ability (CR 603.6c; Guile); any other object's,
+    // on the battlefield. The ability's zones are its conditions' together,
+    // and the dispatcher asks each again ([`condition_functions_in`]). What an
+    // *effect* says about a zone is CR 113.6m's, not derived.
+    if let Effect::Triggered(def) = &ability.effect {
+        return trigger_zones(def, types);
     }
 
     default_zones(types)
 }
 
+/// The zones an ability's text states it functions in (CR 113.6b, 113.6c):
+/// the clause of a static ability's "as long as", or of a triggered ability's
+/// intervening "if". `None` when the text states none.
+fn zones_its_text_states(effect: &Effect) -> Option<ZoneSet> {
+    match effect {
+        Effect::Conditional(condition, _) => stated_zones(condition),
+        Effect::Triggered(def) => intervening_if_zones(def),
+        Effect::Atom(..)
+        | Effect::Sequence(_)
+        | Effect::Modal { .. }
+        | Effect::Optional { .. }
+        | Effect::Remember(_)
+        | Effect::ForEach(..)
+        | Effect::Repeat(..)
+        | Effect::Replacement(_)
+        | Effect::Restriction(_)
+        | Effect::CostModification(_) => None,
+    }
+}
+
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
-fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) -> ZoneSet {
+fn trigger_zones(def: &TriggerDef, types: &CardTypes) -> ZoneSet {
     let arms = def.condition.events();
     if arms.is_empty() {
         return default_zones(types);
@@ -98,11 +121,38 @@ fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) ->
     zones
 }
 
+/// The zones a triggered ability's intervening "if" states, Bridge from
+/// Below's "if this card is in your graveyard": CR 113.6b's "only", so every
+/// one of its conditions works there and nowhere else, whatever CR 113.6k
+/// would derive.
+fn intervening_if_zones(def: &TriggerDef) -> Option<ZoneSet> {
+    def.intervening_if.as_ref().and_then(stated_zones)
+}
+
 /// CR 113.6k for one trigger condition.
+///
+/// "All zones it can trigger from" is where the object is when the condition
+/// is asked. A look-back condition is asked off the frame, in the zone the
+/// object left (CR 603.10a). Any other is asked after the event (CR 603.10),
+/// where the object went: the destination it names, else any zone the move
+/// can leave it in, since a replacement may send it elsewhere. CR 702.29c says
+/// so of a trigger on a discard ("whatever zone the card winds up in"), and
+/// Yixlid Jailer's second ruling of one on a card milled into a graveyard. A
+/// hidden zone is one of them: whether the card triggers there is CR
+/// 603.2f's question, of the object (Library of Leng's board, which Future
+/// Sight's revealed top card turns around).
 fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
-        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: Some(zone), .. }, .. } => {
-            ZoneSet::of(*zone)
+        TriggerEvent::ZoneChange {
+            subject: TriggerSubject::ThisObject,
+            change: ZoneChangePattern { from: Some(zone), to, .. },
+            ..
+        } => {
+            if arm.looks_back() {
+                ZoneSet::of(*zone)
+            } else {
+                to.map_or(ZoneSet::ALL, ZoneSet::of).without(ZoneSet::of(*zone))
+            }
         }
         TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, change: ZoneChangePattern { from: None, .. }, .. } => {
             ZoneSet::ALL
@@ -116,9 +166,10 @@ fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
 /// conditions does, so [`functions_in`] can say yes for the ability while
 /// this says no for one condition of it — Absolver Thrull's "enters" in the
 /// exile its haunt condition functions in, which is the CR's own example.
-/// `contains` for [`functions_in`]'s reason.
-pub fn condition_functions_in(arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
-    condition_zones(arm, types).contains(zone)
+/// `contains` for [`functions_in`]'s reason. A stated zone answers for every
+/// condition of the ability (CR 113.6b).
+pub fn condition_functions_in(def: &TriggerDef, arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
+    intervening_if_zones(def).unwrap_or_else(|| condition_zones(arm, types)).contains(zone)
 }
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?
@@ -473,6 +524,49 @@ mod tests {
             ZoneSet::BATTLEFIELD,
             "one level, by design: a deeper walk is the search §13c decision 3 refuses"
         );
+    }
+
+    /// A triggered ability on this card itself changing zones
+    /// (`TriggerSubject::ThisObject`), "when this card is put into `to` from
+    /// `from`", gaining 1 life.
+    fn when_this_card_moves(from: Zone, to: Option<Zone>, act: Option<crate::types::zones::ZoneChangeAct>) -> AbilityDef {
+        let arm = TriggerEvent::ZoneChange {
+            subject: TriggerSubject::ThisObject,
+            change: ZoneChangePattern { from: Some(from), to, act },
+            by: None,
+            owner: None,
+            multiplicity: crate::types::triggers::Multiplicity::PerOccurrence,
+        };
+        ability(Effect::Triggered(std::sync::Arc::new(crate::cards::authoring::whenever(
+            arm,
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        ))))
+    }
+
+    /// CR 113.6k on a trigger about this card changing zones. A move CR
+    /// 603.10a looks back across functions where the card was; any other
+    /// functions wherever the move can leave it.
+    #[test]
+    fn a_trigger_on_this_card_moving_functions_where_it_is_asked() {
+        let creature = types_of(&[CardType::Creature]);
+        let instant = types_of(&[CardType::Instant]);
+        // Dies, and a card leaving a graveyard: the zone left.
+        assert_eq!(functioning_zones(&when_this_card_moves(Zone::Battlefield, Some(Zone::Graveyard), None), &creature), ZoneSet::BATTLEFIELD);
+        assert_eq!(functioning_zones(&when_this_card_moves(Zone::Graveyard, None, None), &creature), ZoneSet::GRAVEYARD);
+        // Into a hand from exile, which all players see: the zone left.
+        assert_eq!(functioning_zones(&when_this_card_moves(Zone::Exile, Some(Zone::Hand), None), &creature), ZoneSet::EXILE);
+        // Narcomoeba's, from the library: the graveyard it went to (Yixlid
+        // Jailer's second ruling).
+        assert_eq!(functioning_zones(&when_this_card_moves(Zone::Library, Some(Zone::Graveyard), None), &creature), ZoneSet::GRAVEYARD);
+        // Guerrilla Tactics', a discard: wherever the card can wind up (CR
+        // 702.29c), the graveyard, Rest in Peace's exile or Library of Leng's
+        // library, and never the hand it left. Whether it can trigger in the
+        // library is CR 603.2f's question, asked of the object, and not this
+        // one (`plans/atomic-tests/supplemental-docs/603-2f-complexity.md`).
+        let discard = when_this_card_moves(Zone::Hand, None, Some(crate::types::zones::ZoneChangeAct::Discarded));
+        let wound_up = functioning_zones(&discard, &instant);
+        assert!(wound_up.contains(Zone::Graveyard) && wound_up.contains(Zone::Exile) && wound_up.contains(Zone::Library));
+        assert!(!wound_up.contains(Zone::Hand), "not the zone it left");
     }
 
     #[cfg(debug_assertions)]

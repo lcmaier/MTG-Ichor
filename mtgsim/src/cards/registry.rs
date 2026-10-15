@@ -28,6 +28,7 @@ use super::phase_tr3b_cards;
 use super::phase_tr3c_cards;
 use super::phase_tr4a_cards;
 use super::phase_tr4b_cards;
+use super::phase_tr4c_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -59,7 +60,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 108] = [
+const PERFORMANCE_POOL: [&str; 109] = [
     "Plains",
     "Island",
     "Swamp",
@@ -503,6 +504,10 @@ const PERFORMANCE_POOL: [&str; 108] = [
     // unlike Grafted Wargear, whose Equip {0} the random agent turns on its
     // own creatures.
     "Bramble Elemental",
+    // TR-4c's: a trigger asked from a graveyard, the zone its intervening "if"
+    // states. While it sits in one, every death is matched against it there.
+    // It does nothing on the battlefield, so it ends no game.
+    "Bridge from Below",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -888,6 +893,16 @@ impl CardRegistry {
         // says why it is not.
         registry.register("Grafted Wargear", phase_tr4b_cards::grafted_wargear);
         registry.register("Bramble Elemental", phase_tr4b_cards::bramble_elemental);
+
+        // TR-4c: the other two look-back classes and the zone statement.
+        // Bridge from Below states its graveyard zone and is pooled (above),
+        // Guerrilla Tactics triggers on its own discard where it went, and
+        // Angelic Destiny finds the card it became (CR 400.7f) beside Rancor,
+        // whose trigger is on itself going to the graveyard (400.7e).
+        registry.register("Bridge from Below", phase_tr4c_cards::bridge_from_below);
+        registry.register("Guerrilla Tactics", phase_tr4c_cards::guerrilla_tactics);
+        registry.register("Angelic Destiny", phase_tr4c_cards::angelic_destiny);
+        registry.register("Rancor", phase_tr4c_cards::rancor);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

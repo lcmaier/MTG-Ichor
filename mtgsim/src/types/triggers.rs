@@ -303,6 +303,20 @@ impl std::ops::BitOrAssign for EventKindMask {
     }
 }
 
+impl TriggerDef {
+    /// Whether every condition is this object itself changing zones
+    /// (`TriggerSubject::ThisObject`): Guerrilla Tactics' discard, Guile's "put
+    /// into a graveyard from anywhere". Only the move itself can trigger such
+    /// an ability. Read after the move, it is asked where the move left the
+    /// object, by the one window that made it a newcomer there; read looking
+    /// back, it is asked off the move's frame. So off the battlefield it waits
+    /// on `newcomer_trigger_sources` rather than the zone map every window asks.
+    pub fn triggers_only_on_this_object_moving(&self) -> bool {
+        let arms = self.condition.events();
+        !arms.is_empty() && arms.iter().all(|arm| matches!(arm, TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, .. }))
+    }
+}
+
 /// One arm per performed event kind, in `GameEvent`'s declaration order
 /// (`triggers-architecture.md` §3.3). `None` on a field means the arm does
 /// not ask. The arms the registered cards and fixtures read; the rest land
@@ -417,14 +431,36 @@ pub enum IdentityRef {
     ThisAbility,
 }
 
+/// CR 603.10a's three classes of zone change, as a property of one move:
+/// leaving the battlefield, a card leaving a graveyard, and an object all
+/// players can see put into a hand or library. A move in a class carries the
+/// frame from before it, which is what a look-back arm reads.
+///
+/// `to` is `None` for leaving the game (CR 800.4a), which counts only from the
+/// battlefield: CR 603.6c makes it a leaves-the-battlefield event, and a card
+/// leaving the game from a graveyard is no card leaving a graveyard (Erebos's
+/// Titan's third ruling).
+pub fn zone_change_looks_back(from: Zone, to: Option<Zone>) -> bool {
+    match to {
+        None => from == Zone::Battlefield,
+        Some(to) => {
+            matches!(from, Zone::Battlefield | Zone::Graveyard) || (from.is_public() && matches!(to, Zone::Hand | Zone::Library))
+        }
+    }
+}
+
 impl TriggerEvent {
     /// CR 603.10's list, as a property of the arm's fields and never a flag a
-    /// card sets (§4.3): leaves-the-battlefield and dies (603.10a's first
-    /// class), and becoming unattached (603.10c). The other classes arrive
-    /// with their arms.
+    /// card sets (§4.3): CR 603.10a's three zone-change classes as an arm can
+    /// match them (`zone_change_looks_back`), so "into a hand" with no `from`
+    /// looks back at a move from a zone all players could see; and becoming
+    /// unattached (603.10c). The other classes arrive with their arms.
     pub fn looks_back(&self) -> bool {
         match self {
-            TriggerEvent::ZoneChange { change, .. } => change.from == Some(Zone::Battlefield),
+            TriggerEvent::ZoneChange { change, .. } => {
+                matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
+                    || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
+            }
             TriggerEvent::BecomesUnattached { .. } => true,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
@@ -444,6 +480,13 @@ impl TriggerEvent {
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => false,
         }
+    }
+
+    /// CR 603.6e's trigger: an Aura's (or any attachment's) on the permanent
+    /// it is attached to leaving the battlefield, the one CR 400.7f lets find
+    /// the Aura's new object in a graveyard.
+    pub fn watches_its_host_leave(&self) -> bool {
+        matches!(self, TriggerEvent::ZoneChange { subject: TriggerSubject::Host, change, .. } if change.from == Some(Zone::Battlefield))
     }
 
     /// The kinds of record this arm can match — the discriminant half of
@@ -761,6 +804,17 @@ pub struct TriggerBinding {
     /// CR 603.7c — what a delayed triggered ability refers to, carried to
     /// the stack for its "that card" and "it"; empty for an object's trigger.
     pub referred: Referred,
+    /// CR 400.7f — the card an Aura whose trigger watches its enchanted
+    /// permanent leave (CR 603.6e) became in its owner's graveyard, which
+    /// "this card" finds: put there in the same event, set at dispatch, or by
+    /// CR 704.5m's check while the trigger waits, set at that move.
+    ///
+    /// The one field written after the ability triggered. It lives here
+    /// rather than beside `kept_lki` on the three entries because the binding
+    /// travels from the pending trigger to the stack and into the resolution
+    /// by itself, and so would a copy of the ability (CR 707.10); on the
+    /// entries, every one of those hand-offs would have to carry it.
+    pub source_found_in_graveyard: Option<ObjectRef>,
 }
 
 impl TriggerBinding {

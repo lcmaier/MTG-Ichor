@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-14",
+  "fetched": "2026-10-15",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -78,6 +78,13 @@
     "Angel's Mercy": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Angelic Destiny": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2011-09-22", "comment": "If the creature dies before the Angelic Destiny spell resolves, Angelic Destiny will go to its owner's graveyard. It won't return to its owner's hand."},
+        {"n": 2, "published_at": "2011-09-22", "comment": "If Angelic Destiny is no longer in a graveyard when its triggered ability resolves, it won't be returned to its owner's hand."}
+      ]
     },
     "Archelos, Lagoon Mystic": {
       "first_seen": "2026-09-28",
@@ -174,6 +181,15 @@
     "Bramble Elemental": {
       "first_seen": "2026-10-14",
       "rulings": []
+    },
+    "Bridge from Below": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2018-12-07", "comment": "While Bridge from Below is on the battlefield, it has no effect. It does something only if it's in a graveyard. Yes, this is a bit weird."},
+        {"n": 2, "published_at": "2018-12-07", "comment": "Neither ability cares who controlled the creature that died, only which graveyard it was put into. This means that if an opponent controls a creature you own, its death causes Bridge from Below's first ability to trigger, not its second."},
+        {"n": 3, "published_at": "2018-12-07", "comment": "If Bridge from Below isn't in your graveyard immediately before a creature dies, its abilities won't trigger at all. If Bridge from Below isn't still in your graveyard as its first ability resolves, you won't create a token."},
+        {"n": 4, "published_at": "2018-12-07", "comment": "If a nontoken creature you control and a creature an opponent controls die at the same time, you choose the order in which Bridge from Below's triggered abilities resolve. You can create a token before you exile Bridge from Below."}
+      ]
     },
     "Burst of Energy": {
       "first_seen": "2026-09-17",
@@ -543,6 +559,14 @@
         {"n": 1, "published_at": "2009-10-01", "comment": "This ability prevents 1 damage from each source an opponent controls each time that source would deal damage to you. It prevents 1 of any damage, not just combat damage."},
         {"n": 2, "published_at": "2009-10-01", "comment": "Spells and permanents have controllers, but cards that aren’t on the stack or the battlefield don’t. If a source without a controller (such as a cycled Jund Sojourners, for example) would deal damage to you, 1 of that damage is prevented if an opponent owns that source."},
         {"n": 3, "published_at": "2009-10-01", "comment": "The effects from multiple Guardian Seraphs are cumulative."}
+      ]
+    },
+    "Guerrilla Tactics": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "If it is discarded, the damage done by it is done by this card due to an ability and not by a spell."},
+        {"n": 2, "published_at": "2004-10-04", "comment": "The second ability will trigger even on an optional discard caused by an opponent."},
+        {"n": 3, "published_at": "2004-10-04", "comment": "Discarding as a cost to cast a spell will not trigger the ability. Only discarding as an effect will trigger the ability."}
       ]
     },
     "Hallowed Moonlight": {
@@ -920,6 +944,12 @@
     "Raise the Alarm": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Rancor": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2018-03-16", "comment": "If the creature this Aura would enchant is an illegal target by the time Rancor tries to resolve, the Aura spell doesn't resolve. It won't enter the battlefield, so it won't be put into a graveyard from the battlefield and its ability won't trigger."}
+      ]
     },
     "Reflect Damage": {
       "first_seen": "2026-09-17",

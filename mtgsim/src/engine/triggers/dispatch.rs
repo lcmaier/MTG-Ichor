@@ -41,9 +41,9 @@ use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primi
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger,
-    Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit,
-    TriggerOrigin, TriggerSeq, TriggerSubject,
+    zone_change_looks_back, DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
+    TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
@@ -293,24 +293,27 @@ impl TriggerCandidateFrame<'_> {
         }
     }
 
-    /// The arms this list answers for a record that looks back through
-    /// snapshot `looks_back_through`, or `None` when it answers none. A
+    /// The arms this list may answer for a record that looks back through
+    /// snapshot `looks_back_through`, or `None` when it answers none. An
     /// object that left has only its list from before; a survivor's list now
-    /// answers everything unless the record's snapshot holds the one from
-    /// before, which then answers the look-back arms in its place.
-    fn asks(&self, looks_back_through: Option<usize>) -> Option<Asks> {
+    /// answers every arm unless the record's snapshot holds the one from
+    /// before, which then answers the look-back arms in its place. A
+    /// `newcomer` was somewhere else immediately before the event, so its
+    /// list now answers no look-back arm (CR 603.10a; Bridge from Below's
+    /// third ruling).
+    fn answered_arms(&self, looks_back_through: Option<usize>, newcomer: bool) -> Option<AnsweredArms> {
         match self {
             TriggerCandidateFrame::Live { snapshots, .. }
-                if looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
+                if newcomer || looks_back_through.is_some_and(|k| snapshots.contains(&k)) =>
             {
-                Some(Asks::NotLookBack)
+                Some(AnsweredArms::AllButLookBack)
             }
-            TriggerCandidateFrame::Live { .. } => Some(Asks::Every),
-            TriggerCandidateFrame::LastKnown { snapshot: None, .. } => Some(Asks::LookBack),
+            TriggerCandidateFrame::Live { .. } => Some(AnsweredArms::All),
+            TriggerCandidateFrame::LastKnown { snapshot: None, .. } => Some(AnsweredArms::LookBackOnly),
             TriggerCandidateFrame::LastKnown { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
                 if looks_back_through == Some(*k) =>
             {
-                Some(Asks::LookBack)
+                Some(AnsweredArms::LookBackOnly)
             }
             TriggerCandidateFrame::LastKnown { .. } | TriggerCandidateFrame::Before { .. } => None,
         }
@@ -335,12 +338,21 @@ struct TriggerCandidateDef<'a> {
     instances: &'a [EffectRecipient],
 }
 
-/// Which of a def's arms one record asks (`TriggerEvent::looks_back`).
+/// Which of a triggered ability's arms one candidate's ability list may
+/// answer for one record (CR 603.10): a list from before the event answers
+/// the look-back arms (`TriggerEvent::looks_back`), a list after it every
+/// other arm, and a live object's list both, unless the event changed the
+/// list or brought the object.
 #[derive(Clone, Copy)]
-enum Asks {
-    Every,
-    LookBack,
-    NotLookBack,
+enum AnsweredArms {
+    /// A live object's list, which the event left as it was.
+    All,
+    /// A list from before the event: an object that left, or a survivor's
+    /// list a snapshot kept.
+    LookBackOnly,
+    /// A live object's list after an event that changed it, or of an object
+    /// the event brought.
+    AllButLookBack,
 }
 
 /// How an arm reads its subject off a record: where the subject was at the
@@ -550,9 +562,10 @@ impl GameState {
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — five probes (§4.2): the permanents whose printed
+    /// 1. **The gate** — six probes (§4.2): the permanents whose printed
     ///    triggers read a kind this window carries (§11's mask, source
-    ///    first), the zone map, the unattributed zone set off the registry
+    ///    first), the zone map, the window's newcomers whose every trigger is
+    ///    on themselves moving, the unattributed zone set off the registry
     ///    summary, whether any record of the window carries a CR 603.10a
     ///    frame with a triggered ability in it, and whether a batch of the
     ///    window took a look-back snapshot. All empty, and a dispatch is the
@@ -621,13 +634,14 @@ impl GameState {
         window_kinds: EventKindMask,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        // --- The gate: five probes ------------------------------------------
+        // --- The gate: six probes -------------------------------------------
         if window_kinds.is_empty() {
             return Vec::new();
         }
         let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         let readers = self.battlefield_readers(window_kinds);
         let named = self.named_trigger_carriers(window_kinds);
+        let newcomers = self.newcomer_trigger_carriers(window);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 r.event.lki().is_some_and(|(lki, ..)| lki.chars().abilities.iter().any(is_triggered))
@@ -639,13 +653,14 @@ impl GameState {
         if readers.is_empty()
             && named.is_empty()
             && self.zone_trigger_sources.is_empty()
+            && newcomers.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
             && snapshots.is_empty()
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, named, unattributed, snapshots)
+        self.find_matches(window, readers, named, newcomers, unattributed, snapshots)
     }
 
     /// Steps 4 and 5, for the matches the two legs found: the objects', then
@@ -667,6 +682,7 @@ impl GameState {
             }
             let seq = TriggerSeq(self.next_trigger_seq);
             self.next_trigger_seq += 1;
+            let source_found_in_graveyard = self.aura_put_into_graveyard_beside_its_host(&m);
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
                 records: m.records,
@@ -674,6 +690,7 @@ impl GameState {
                 subject: m.subject,
                 triggered_by: None,
                 referred: Referred::default(),
+                source_found_in_graveyard,
             };
             let origin = TriggerOrigin::Object(m.identity);
             let pending = PendingTrigger {
@@ -715,6 +732,48 @@ impl GameState {
             )?;
         }
         Ok(())
+    }
+
+    /// CR 400.7f's first sentence: an Aura put into its owner's graveyard in
+    /// the event its enchanted permanent left the battlefield in, which its
+    /// trigger on that leaving (CR 603.6e) finds there. Read off the window,
+    /// which still holds the record of the Aura going to the graveyard as the
+    /// trigger is queued.
+    fn aura_put_into_graveyard_beside_its_host(&self, matched: &MatchedTrigger) -> Option<ObjectRef> {
+        let aura = matched.identity.source;
+        if !matched.def.condition.events()[matched.event.0].watches_its_host_leave() || self.find(aura).is_some() {
+            return None;
+        }
+        // `aura-found-in-graveyard`'s switch (`engineering-practices.md`
+        // §3.4b), with the CR 704.5m hook's: the graveyard only.
+        self.events.held().iter().find_map(|record| match &record.event {
+            GameEvent::ZoneChange { to: Zone::Graveyard, lki: Some(lki), .. } if lki.object() == aura => record.event.new_object(),
+            _ => None,
+        })
+    }
+
+    /// CR 400.7f's second sentence: CR 704.5m has put `aura`, the existence
+    /// that was on the battlefield, into its owner's graveyard (and not, by a
+    /// replacement, anywhere else), and each of its
+    /// waiting triggers on its enchanted permanent leaving finds it there. They
+    /// are pending, or on the stack at the latest: the check follows the
+    /// leaving before anyone receives priority.
+    pub(crate) fn aura_put_into_graveyard_by_the_check(&mut self, aura: ObjectRef) {
+        let Some(found) = self.object_ref(aura.id) else { return };
+        let finds = |source: ObjectRef, binding: &mut TriggerBinding| {
+            if source == aura && binding.event().watches_its_host_leave() && binding.source_found_in_graveyard.is_none() {
+                binding.source_found_in_graveyard = Some(found);
+            }
+        };
+        for pending in &mut self.pending_triggers {
+            finds(pending.origin.source_ref(), &mut pending.binding);
+        }
+        for id in &self.stack {
+            let Some(entry) = self.stack_entries.get_mut(id) else { continue };
+            if let (Some(identity), Some(binding)) = (entry.ability_identity, entry.trigger.as_mut()) {
+                finds(identity.source, binding);
+            }
+        }
     }
 
     /// The permanents whose printed triggers, or the copy's they entered as,
@@ -772,6 +831,23 @@ impl GameState {
         named
     }
 
+    /// The window's newcomers on `newcomer_trigger_sources`: objects off the
+    /// battlefield whose every functioning trigger is on themselves moving,
+    /// which no window but the one that brought them where they are can
+    /// trigger. Empty, and no record read, while the set is.
+    fn newcomer_trigger_carriers(&self, window: &[EventSeq]) -> Vec<ObjectId> {
+        if self.newcomer_trigger_sources.is_empty() {
+            return Vec::new();
+        }
+        window
+            .iter()
+            .filter_map(|seq| self.events.record(*seq))
+            .filter_map(|record| self.newcomer_from(&record.event))
+            .filter(|newcomer| self.find(*newcomer).is_some() && self.newcomer_trigger_sources.contains(&newcomer.id))
+            .map(|newcomer| newcomer.id)
+            .collect()
+    }
+
     /// Whether performing these decided actions can change which triggered
     /// abilities a *surviving* object has: true when one of them takes off
     /// the battlefield a permanent that is the source of a copy effect, or of
@@ -796,12 +872,14 @@ impl GameState {
             })
     }
 
-    /// CR 603.10a before the batch performs: frame each permanent `decided`
-    /// takes off the battlefield, in batch order. A player leaving takes what
-    /// goes with them (`departs_with`): CR 800.4a's fourth clause exiles only
-    /// after its first two have run, so the set is everything it may exile.
-    /// The frames are memo hits: nothing has changed since the batch began
-    /// deciding.
+    /// CR 603.10a before the batch performs: frame each object `decided`
+    /// moves in one of its three classes (`zone_change_looks_back`), in batch
+    /// order: a permanent leaving the battlefield, a card leaving a graveyard,
+    /// a visible object put into a hand or library. A player leaving takes
+    /// the permanents that go with them (`departs_with`): CR 800.4a's fourth
+    /// clause exiles only after its first two have run, so the set is
+    /// everything it may exile. A permanent's frame is a memo hit, since
+    /// nothing has changed since the batch began deciding.
     ///
     /// **And every other mover an entry names, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
@@ -816,6 +894,14 @@ impl GameState {
                     if self.battlefield.contains_key(object) {
                         self.capture_frame(*object);
                     }
+                }
+                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) => {
+                    self.capture_frame(*object);
+                }
+                GameAction::EnterBattlefield { object, from: Some(from), .. }
+                    if zone_change_looks_back(*from, Some(Zone::Battlefield)) =>
+                {
+                    self.capture_frame(*object);
                 }
                 GameAction::ZoneChange { object, .. } => {
                     let named = named.get_or_insert_with(|| self.objects_entries_name());
@@ -914,17 +1000,15 @@ impl GameState {
         self.lki_captures.iter_mut().find(|d| d.object == object)
     }
 
-    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from`, before it
-    /// moves: the frame its batch took, to every entry that names it, and to a
-    /// delayed trigger it is the source of. Returns the frame its record
-    /// carries, a permanent's; a token whose entry is still being decided has
-    /// no entity and nothing to look back at (`create_tokens`).
-    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
-        let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
-            self.take_captured_lki(id)
-        } else {
-            None
-        };
+    /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from` for `to`
+    /// (`None`: the game), before it moves: the frame its batch took, to every
+    /// entry that names it, and to a delayed trigger it is the source of.
+    /// Returns the frame its record carries, for a move in one of CR 603.10a's
+    /// classes; a token whose entry is still being decided has no entity and
+    /// nothing to look back at (`create_tokens`).
+    pub(crate) fn hand_over_before_leaving(&mut self, id: ObjectId, from: Zone, to: Option<Zone>) -> Option<Lki> {
+        let entering_token = from == Zone::Battlefield && !self.battlefield.contains_key(&id);
+        let lki = if zone_change_looks_back(from, to) && !entering_token { self.take_captured_lki(id, from) } else { None };
         self.hand_over_lki(id, lki.as_ref());
         self.note_delayed_source_moving(id);
         lki
@@ -958,19 +1042,19 @@ impl GameState {
     }
 
     /// The last known information a named mover's batch took for it, if any:
-    /// the non-battlefield counterpart of `take_captured_lki`, which asserts
-    /// every battlefield departure had one.
+    /// the counterpart of `take_captured_lki` for a move in no CR 603.10a
+    /// class, which no batch is bound to frame.
     fn take_named_lki(&mut self, id: ObjectId) -> Option<Lki> {
         let object = self.object_ref(id)?;
         self.capture_of(object)?.lki.take()
     }
 
-    /// The last known information the move of `id` off the battlefield
-    /// carries, taken before its batch performed.
-    fn take_captured_lki(&mut self, id: ObjectId) -> Option<Lki> {
+    /// The last known information the move of `id` out of `from` carries,
+    /// taken before its batch performed.
+    fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
         let taken = self.take_named_lki(id);
-        // Every departure is decided by a batch, which framed it first.
-        debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
+        // Every such move is decided by a batch, which framed it first.
+        debug_assert!(taken.is_some(), "{id} left the {from:?} with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
             self.last_known_information(id, Arc::new(frame))
@@ -992,7 +1076,8 @@ impl GameState {
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
         let named = self.named_trigger_carriers(EventKindMask::ALL);
-        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, unattributed)
+        // No newcomer's trigger looks back but off its own move's frame.
+        self.candidates_now(self.battlefield_readers(EventKindMask::ALL), named, Vec::new(), unattributed)
             .into_iter()
             .filter_map(|id| self.object_snapshot(id))
             .collect()
@@ -1013,9 +1098,11 @@ impl GameState {
     /// `Filter` row grants or copies a triggered ability onto the
     /// battlefield; elsewhere, every object whose printed triggered ability
     /// works in the zone it is in (CR 113.6k: a graveyard's, a hand's, exile's
-    /// — a record's own subject in a graveyard is one), the `named` objects
-    /// there, and every object in the zones a `Filter` row reaches.
-    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
+    /// — a record's own subject in a graveyard is one), the window's
+    /// `newcomers` whose every such trigger is on themselves moving, the
+    /// `named` objects there, and every object in the zones a `Filter` row
+    /// reaches.
+    fn candidates_now(&self, readers: Vec<ObjectId>, named: Vec<ObjectId>, newcomers: Vec<ObjectId>, unattributed: ZoneSet) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
             self.battlefield_ids_ordered()
         } else if named.is_empty() {
@@ -1037,6 +1124,11 @@ impl GameState {
             .map(|&id| (self.object_timestamp(id), id))
             .collect();
         let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        for id in newcomers {
+            if seen.insert(id) {
+                elsewhere.push((self.object_timestamp(id), id));
+            }
+        }
         let named_elsewhere = named.iter().copied().filter(|id| !self.battlefield.contains_key(id) && self.objects.contains_key(id));
         for id in named_elsewhere {
             if seen.insert(id) {
@@ -1063,10 +1155,11 @@ impl GameState {
         window: &[EventSeq],
         readers: Vec<ObjectId>,
         named: Vec<ObjectId>,
+        newcomers: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
-        let mut live = self.candidates_now(readers, named, unattributed);
+        let mut live = self.candidates_now(readers, named, newcomers, unattributed);
 
         // Each survivor's lists from before the window's snapshotting batches.
         // A survivor no live set reaches now, like a grant's carrier after
@@ -1168,6 +1261,11 @@ impl GameState {
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
+        // The window's newcomers: a window is one event (§4.1), so each was
+        // somewhere else immediately before every record of it.
+        let newcomers: Vec<ObjectRef> = records.iter().filter_map(|(_, record)| self.newcomer_from(&record.event)).collect();
+        let is_newcomer: Vec<bool> = candidates.iter().map(|candidate| newcomers.contains(&candidate.object)).collect();
+
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).
         let mut defs: Vec<TriggerCandidateDef<'_>> = Vec::new();
@@ -1197,10 +1295,10 @@ impl GameState {
             let mut hits: Vec<ArmMatch<'_, '_>> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
-                let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
+                let Some(answered) = candidate.frame.answered_arms(looks_back_through, is_newcomer[row.candidate]) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, record, identity);
+                let outcome = self.match_def(def, candidate, answered, record, identity);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -1286,7 +1384,7 @@ impl GameState {
         &self,
         def: &TriggerDef,
         candidate: &TriggerCandidate<'_>,
-        asks: Asks,
+        answered: AnsweredArms,
         record: &EventRecord,
         identity: AbilityIdentity,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
@@ -1294,9 +1392,7 @@ impl GameState {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
         }
-        // CR 603.2f, per candidate, of the object as the event left it. A frame
-        // candidate was a permanent, which is visible.
-        if candidate.frame.lki().is_none() && !visible_to_all(self, candidate.object.id) {
+        if !self.visible_as_read(candidate) {
             return Err(Refusal::Visibility);
         }
         let referents = TriggerReferents {
@@ -1309,17 +1405,17 @@ impl GameState {
         };
         let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
         for (index, arm) in def.condition.events().iter().enumerate() {
-            match asks {
-                Asks::LookBack if !arm.looks_back() => continue,
-                Asks::NotLookBack if arm.looks_back() => continue,
-                _ => {}
+            match answered {
+                AnsweredArms::LookBackOnly if !arm.looks_back() => continue,
+                AnsweredArms::AllButLookBack if arm.looks_back() => continue,
+                AnsweredArms::All | AnsweredArms::LookBackOnly | AnsweredArms::AllButLookBack => {}
             }
             if !arm.reads(event) {
                 continue;
             }
             // CR 113.6k asks each trigger condition where it functions; the
             // pre-pass asked the ability, which is their union.
-            if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
+            if !condition_functions_in(def, arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
             let subjects = self.occurrences_matching_arm(arm, &referents, record);
@@ -1339,6 +1435,22 @@ impl GameState {
         let arm = &def.condition.events()[event_index.0];
         let subjects = self.triggers_whose_intervening_if_holds(def, arm, record, subjects, source)?;
         Ok((event_index, subjects))
+    }
+
+    /// CR 603.2f, asked at the instant the candidate's list is read: a
+    /// frame's immediately before the event (CR 603.10), in the zone the
+    /// object left, and any other list after it, where the object is. Only a
+    /// move in one of CR 603.10a's classes carries a frame, and each leaves
+    /// a public zone, so a frame always answers yes: a creature returned to
+    /// its owner's hidden hand still triggers its leaves-the-battlefield
+    /// ability.
+    fn visible_as_read(&self, candidate: &TriggerCandidate<'_>) -> bool {
+        match candidate.frame {
+            TriggerCandidateFrame::LastKnown { .. } => candidate.zone.is_public(),
+            TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::Before { .. } => {
+                visible_to_all(self, candidate.object.id)
+            }
+        }
     }
 
     /// CR 603.4's first check, when the event happens: of the triggers one
@@ -1426,13 +1538,16 @@ impl GameState {
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
             ),
-            // CR 603.6c names this event: a leaves-the-battlefield ability
-            // triggers on it and nothing narrower — no `to`, no act, no cause.
+            // CR 603.6c names this event for a leaves-the-battlefield ability,
+            // and for nothing else: a card leaving the game from a graveyard
+            // leaves no graveyard (Erebos's Titan's third ruling). Nothing
+            // narrower either — no `to`, no act, no cause.
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
             ) => occurrence_if(
-                change.from.is_none_or(|z| z == *from)
+                *from == Zone::Battlefield
+                    && change.from == Some(Zone::Battlefield)
                     && change.to.is_none()
                     && change.act.is_none()
                     && by.is_none()
@@ -1764,6 +1879,20 @@ impl GameState {
         match event.new_object() {
             Some(made) if made.id == id => Some(made),
             _ => self.object_ref(id),
+        }
+    }
+
+    /// The newcomer `event` brought, if any: the object it put where it is
+    /// now, which was somewhere else just before the event. That is a zone
+    /// change's moved card, as the new object the move made it (CR 400.7), or
+    /// a token the event created. `match_candidates` asks a newcomer none of
+    /// the event's look-back arms (CR 603.10a), so a Bridge from Below put
+    /// into the graveyard by a wipe does not trigger on the creatures dying
+    /// beside it.
+    fn newcomer_from(&self, event: &GameEvent) -> Option<ObjectRef> {
+        match event {
+            GameEvent::TokenCreated { object_id, .. } => self.object_ref(*object_id),
+            event => event.new_object(),
         }
     }
 

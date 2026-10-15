@@ -1233,9 +1233,11 @@ mod tests {
         // change names the object as it was in the zone it left.
         let log = format_event_log(&game);
         let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
-        // Its own CR 707.9 replacement applied to its entry, and is named.
+        // Its own CR 707.9 replacement applied to its entry, and is named. A
+        // card leaving a graveyard carries its frame (CR 603.10a), so its type
+        // there is printed as a permanent's is.
         has(format!(
-            "ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Put] by Harness, replaced by StaticAbility of Clone ({clone}) [P0]"
+            "ZoneChange: Clone ({clone}) (Creature) [P0] Graveyard -> Battlefield [Put] by Harness, replaced by StaticAbility of Clone ({clone}) [P0]"
         ));
         has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
         has(format!("Tapped: Grizzly Bears (Clone, {clone})"));

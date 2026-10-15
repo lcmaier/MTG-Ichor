@@ -35,9 +35,11 @@ pub enum GameEvent {
         /// **Only the replacement pipeline and the trigger matcher may branch
         /// on this.** See [`ZoneChangeAct`](crate::engine::actions::ZoneChangeAct).
         act: ZoneChangeAct,
-        /// CR 603.10a — the permanent's characteristics an instant *before* it
-        /// left the battlefield. `None` when it did not leave the battlefield,
-        /// because then there is nothing to look back at.
+        /// CR 603.10a — the object's characteristics an instant *before* it
+        /// moved, for a move in one of the rule's three classes
+        /// (`zone_change_looks_back`): leaving the battlefield, a card leaving
+        /// a graveyard, an object all players could see put into a hand or
+        /// library. `None` for any other move, which no trigger looks back at.
         ///
         /// Leaves-the-battlefield abilities "look back in time": the game reads
         /// the object as it existed before the event, which is how a creature
@@ -365,7 +367,9 @@ pub enum GameEvent {
     /// here fires them, and CR 603.10a's frame is what a matcher will read —
     /// captured before `cleanup_zone_state` retires the static abilities that
     /// produced it, the same window `perform_zone_change` has. `None` for an
-    /// object that was not a permanent, which is every other zone.
+    /// object that was not a permanent, which is every other zone: a card
+    /// leaving the game from a graveyard leaves no graveyard (Erebos's Titan's
+    /// third ruling).
     ///
     /// CR 603.6c's qualifier is the one part with no implementation: a *phased
     /// out* permanent does not trigger, and phasing (CR 702.26) is not built

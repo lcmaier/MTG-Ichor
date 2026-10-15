@@ -294,7 +294,9 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
 
     // CR 603.6c — "leaves-the-battlefield abilities trigger ... when a
     // phased-in permanent leaves the game because its owner leaves the game" —
-    // so the CR 603.10a frame rides the event, and only for the permanent.
+    // so the CR 603.10a frame rides the event, and only for the permanent: a
+    // graveyard card leaving the game leaves no graveyard (Erebos's Titan's
+    // third ruling).
     let frames: Vec<(Zone, bool)> = game
         .recorded_events()
         .events()

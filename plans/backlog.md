@@ -2013,7 +2013,9 @@ mechanic rather than a migration, which is why it is here and not in
   function of `GameState` (item 40's discipline); (2) needs a
   `DecisionProvider` surface (§2.22) and `GameNumber`.
 - **Blocks** — every combo deck's win; `fuzz_games`' 200-turn limit stands in
-  for both halves until then.
+  for both halves until then. `GameNumber` is wanted outside loops too: a
+  board of token doublers asks for about a million identical tokens, which
+  only a symbolic count holds (`codebase-state.md` item 264).
 - **Owner** — none; raised at RE-4's review (R21).
 
 ### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)

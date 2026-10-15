@@ -1445,3 +1445,121 @@ because the dispatch runs at each batch's close and the creature was still
 in exile; the reading that matters is a "return that permanent" after the
 host died, whose fixture fails with it. And a granted unattach trigger failed
 first, at 20 life against 25, until the snapshot reached an unattach.
+
+#### TR-4c — the other two look-back classes and the zone statement — ✅ landed 2026-10-15
+
+*Evicted 2026-10-15 from `plans/triggers-architecture.md` §12, where the heading and a stub remain, with TR-4's section after it.*
+
+### The plan as sized (TR-4c, as §12 carried it on 2026-10-15)
+
+Split by A6p's re-count (2026-10-12). Code at 1.5–2× its sizing plus tests.
+
+| Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
+|---|---|---|---|---|
+| the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
+
+### As landed (2026-10-15)
+
+PR #253, six code commits ahead of the docs.
+
+- **The zone statement** (item 173). `trigger_zones` reads the intervening
+  "if"'s stated zones (`trigger_stated_zones`), which replace CR 113.6k's
+  derivation, and `condition_functions_in` takes the def so each condition
+  answers the same (CR 113.6b's "only").
+- **The newcomer** (item 259). `match_candidates` finds the objects the window
+  made (`object_made_by`: a zone change's new object, a created token), and a
+  live candidate among them answers no look-back arm. The brief proposed
+  comparing each record with the candidate's arrival; a window is one batch
+  and so one event, so the rule takes the whole window. The audit, sharing
+  `match_candidates`, already refused the board off its snapshot.
+- **The two classes** (item 15). `zone_change_looks_back(from, to)`;
+  `capture_lki` frames a graveyard departure, a reanimation's entry, a public
+  move into a hand or library and a departing player's graveyard;
+  `hand_over_before_leaving` takes the destination; the arm's `looks_back`
+  reads the classes as it can match them. Priced first on 200 four-seat
+  Commander games a pool: 72 and 97 graveyard departures, 0 and 70 public
+  moves into a hand or library, against about 5,000 battlefield departures
+  already framed, and 6,545 and 5,403 graveyard cards leaving the game with
+  their owner, so the capture is unconditional. A card that reaches a
+  graveyard and leaves it in one batch (a creature dying in the check its
+  owner loses in) is framed as it leaves; the debug assertion, which caught
+  it, now covers battlefield departures only.
+- **S1** (`visible_as_read`). CR 603.2f at the instant a list is read: a
+  frame's before the event, where it was; any other after it. The brief's
+  "where it is now" refuses a creature returned to a hidden hand.
+- **A move outside the classes** (item 249). `condition_zones` asks a
+  look-back move of the card itself in the zone left and any other where the move can leave
+  the object, less the hidden zones. Not the item's look-back from the hand:
+  CR 702.29c and Yixlid Jailer's second ruling ask such a trigger where the
+  card went, and the Jailer stops Guerrilla Tactics there.
+- **CR 400.7f** (item 260). `TriggerBinding.source_found_in_graveyard`, set at
+  the dispatch for the same event (`aura_put_into_graveyard_beside_its_host`)
+  and by `perform_zone_change` at CR 704.5m's move
+  (`aura_put_into_graveyard_by_the_check`), read by `this_object`;
+  `TriggerEvent::watches_its_host_leave` is CR 603.6e's arm. The same-event
+  half did not already hold.
+- **The cards.** Bridge from Below (pooled), Guerrilla Tactics, Angelic
+  Destiny and Rancor, each ruling a test. Forced into every `stress` deck at
+  two seats, Bridge read 27.1 turns against 26.7 (seed 777) and triggered 24
+  times from a graveyard; Angelic Destiny 25.3, Rancor 26.0 and Guerrilla
+  Tactics 26.8 against 27.6 (seed 12345). At seed 12345 Bridge's decks reach
+  a board no game finishes (item 264), so its reading moved to seed 777.
+
+**Four tests moved with the frame**: RE-7's departing player (the graveyard
+card carries one), RC-4b's Containment Priest (its Graveyard → Exile move is
+framed), the event log (a card leaving a graveyard prints its type there),
+and TR-3c's choose-a-source board, which offers the Myr's graveyard
+existence too, as CR 609.7a allows.
+
+**Probes the tests did not pass at first.** The Yixlid Jailer boards passed
+before their fixes because nothing triggered at all. Each was shown to bite
+on the fixed tree: Bridge's with the look-back snapshot switched off, and
+the leaves-your-graveyard card's with its frame read where the card went and
+the gate held open, since the gate itself reads the frame and returns first.
+
+### Review round (2026-10-15)
+
+- **Erebos's Titan's third ruling.** "In a multiplayer game, the last
+  ability won't trigger when a player with a creature card in their
+  graveyard leaves the game." The PR had framed a departing player's
+  graveyard for that card, which came from an oracle-text search whose
+  rulings were never read. Leaving the game now counts only from the
+  battlefield (CR 603.6c), in `zone_change_looks_back` and in the matcher's
+  `LeftTheGame` arm, and the graveyard capture is gone. With it gone, no card
+  reaches a graveyard and leaves it inside one batch, so `take_captured_lki`'s
+  assertion is strict again. The fixture checks the ruling, and failed
+  first.
+- **Rest in Peace and CR 400.7f.** The CR 704.5m hook checked the cause and
+  not the destination, so an Aura exiled instead was found and returned from
+  exile. It asks for the graveyard now. Leyline of the Void's board failed
+  first; under Rest in Peace the creature itself is exiled and nothing
+  triggers.
+- **Library of Leng.** The derivation left the hidden zones out of where a
+  discard trigger works, which folded CR 603.2f into CR 113.6k;
+  `603-2f-complexity.md` had settled visibility as the gate. The hidden zones
+  are in, and a Leng-shaped board holds CR 603.2f to the answer.
+- **Names.** `AnsweredArms` and `answered_arms`, `newcomer_from`,
+  `zones_its_text_states` and `intervening_if_zones` (CR 113.6b as one arm of
+  `functioning_zones`), and `when_this_card_moves`; "own move" is gone from
+  the docs.
+- **Item 264** points at `GameNumber` (`backlog.md` §2.28), the owner's call:
+  a symbolic count, since an effect touches all of the tokens, none, or a
+  finite few.
+- **Measured again** (`fuzz-record.md`, the TR-4c block's review round): the
+  engine arm plays every gameplay row as `main` does, the audit agrees, and
+  instructions per decision read +0.28%. Shipped's `stress` gate grew with
+  the library among Guerrilla Tactics' zones (item 266).
+- **Item 266 built**, at the owner's call: an ability whose every condition
+  is the object itself moving waits off the battlefield on
+  `newcomer_trigger_sources`, asked only as one of the window's newcomers.
+  Shipped's `stress` windows past the gate fell from 301.6 to 62.6 a game at
+  two seats and from 815.8 to 170.7 at four; instructions per decision
+  +0.06% in the third sitting.
+- **CR 400.7f's found card stays on `TriggerBinding`.** It is the binding's
+  one field written after the ability triggered, so it was moved beside
+  `kept_lki` on the pending, stacked and resolving entries, and moved back
+  the same day at the owner's second look. The move touched 21 struct
+  literals and left three hand-offs that a future path could forget, a copy
+  of the ability among them (CR 707.10). On the binding it travels by
+  itself, and its doc comment says why it lives there.
+

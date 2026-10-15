@@ -567,6 +567,11 @@ is derivable; where each name was read is not, and the gate needs the names.
 - **Added by the TR-3b dev GUI PR (2026-10-09)**:
   - `next_until_return_id`: the counter a return's `UntilReturnId` comes
     from, which a client keeps a waiting return by; no fact about the game.
+- **Added by TR-4c (2026-10-15)**:
+  - `newcomer_trigger_sources`: a fast-path gate over printed abilities, the
+    zone map's sibling for an object whose every trigger is on itself
+    moving, which only the window that moved it can trigger; an index, no
+    fact about the game, under `CLAUDE.md`'s gate rule as the five above.
 
 ---
 

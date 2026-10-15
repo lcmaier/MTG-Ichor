@@ -229,9 +229,10 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
 
 /// The trace RC-4's review pinned: a creature card returned from the graveyard
 /// under Containment Priest. The CR says it was exiled from the graveyard and
-/// never entered, so the log holds one zone change, `Graveyard → Exile`, with
-/// no CR 603.10a frame (nothing left the battlefield) — and the object moved
-/// once, so its CR 400.7 epoch advanced once.
+/// never entered, so the log holds one zone change, `Graveyard → Exile`, whose
+/// CR 603.10a frame is the card's in the graveyard it left (the rule's second
+/// class), never a permanent's — and the object moved once, so its CR 400.7
+/// epoch advanced once.
 #[test]
 fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
     let mut game = setup_two_player_game();
@@ -254,8 +255,8 @@ fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
     // move goes (CR 614.6, `codebase-state.md` item 176).
     assert_eq!(
         moves_of(&game, start, bear),
-        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeAct::Put, false)],
-        "one move from where it was, and no look-back frame for a permanent that never existed"
+        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeAct::Put, true)],
+        "one move from where it was, framed as the card that left the graveyard"
     );
     assert!(!entries(&game, start).contains(&bear), "it never entered");
     assert_eq!(
