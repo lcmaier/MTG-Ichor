@@ -149,8 +149,8 @@ and no ✅ heading records, in the docs' order.
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
-| The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | Control, countering, loss, and the records' missing facts | `TR-4d` | `triggers-architecture.md` |
+| The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | The binding's roles and the attack declaration | `TR-5a` | `triggers-architecture.md` |
 | Counters | `TR-5b` | `triggers-architecture.md` |

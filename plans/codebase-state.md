@@ -5255,6 +5255,12 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Slotted:** TR-4d, whose state-check sweep against `announced_controller`
     emits `ControlChanged` for CR 603.10d's look-back (re-slotted from TR-4b at
     A6p's split).
+    **Designed 2026-10-15 (TR-4d, `triggers-architecture.md` §12):** the gate
+    is `any_control_changing` or a permanent announced away from the
+    controller it entered under, since the summary is rebuilt as rows go and
+    Act of Treason's end at cleanup would otherwise go unannounced. The
+    frames are kept before each row a resolution or a static writes, which
+    the first steal on a board needs (decision 1).
 
 14. **~~The LKI frame carries characteristics and no status.~~ — ✅ CLOSED
     2026-10-14 (PR #251, TR-4a).** — archived.
@@ -5947,6 +5953,12 @@ named:**
      item 6 inherits. The board had counted this item as
      a wrong answer since 2026-09-14 because its verdict contains the words
      "wrong today"; the classifier learned the negation the same day.
+
+     **Designed 2026-10-15 (TR-4d, `triggers-architecture.md` §12):** the
+     record is `GameEvent::SameZoneMove`, which only an arm naming an act
+     reads. The owner's wrinkle does not read 2 today: a zone-change arm has
+     no amount (`TriggerEvent::amount_of`), so "the number milled" refuses.
+     TR-4d makes it one per record, and the board gains 3.
 
 What is *not* a ledger line, and where each waits: the to-battlefield entry
 substitution and the five cards that print it are CR 113.6's, critical-path
@@ -9254,6 +9266,10 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      the stack object framed before `change_zone`, and the two kinds added to
      `GameEvent::lki`.
      **Slotted:** TR-4d, with the `IsCountered` arm and Multani's Presence.
+     **Designed 2026-10-15 (TR-4d):** the arm reads `SpellCountered` only,
+     since no printed trigger reads an ability being countered. "A spell
+     you've cast" is `StackEntry::caster()`, the controller the entry was
+     made with, which nothing rewrites after the cast.
 
 254. **~~A draw's place among its player's draws is read through a proxy, and
      a trigger cannot ask for it.~~ — ✅ CLOSED 2026-10-13 (PR #248, A6r).** — archived.
@@ -9349,6 +9365,10 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Slotted:** TR-4d, beside item 131, whose same-zone record is where CR
      701.17c's public zone is asked first: the finds refuse a hidden zone, and a
      resolution's own read finds a moved card in any public zone it went to.
+     **Designed 2026-10-15 (TR-4d):** the mill only (CR 701.17c), since CR
+     400.7j's "other parts of that effect" does not reach a delayed trigger,
+     and TR-3b's Rest in Peace test pins that reading; the owner decides
+     (`triggers-architecture.md` §12, TR-4d's decision 2).
 
 259. **~~A newcomer to a zone is asked look-back arms of the event that brought
      it.~~ — ✅ CLOSED 2026-10-15 (PR #253, TR-4c).** — archived.
