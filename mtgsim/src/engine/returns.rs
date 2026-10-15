@@ -40,13 +40,13 @@ impl GameState {
 
     /// Move each object back as one event. An Aura's host is chosen first,
     /// against the board before any of them entered, so it cannot be a
-    /// permanent entering beside it (Calix, Destiny's Hand's ruling); an Aura
-    /// with none stays where it is (CR 303.4g). An object already where it
-    /// is going, or on the stack, is not moved. Each return is caused by its
-    /// own effect, and the event is `ctx`'s.
+    /// permanent entering beside it (Calix, Destiny's Hand's ruling), and it
+    /// rides on the entry, which attaches it (CR 303.4f); an Aura with none
+    /// stays where it is (CR 303.4g). An object already where it is going,
+    /// or on the stack, is not moved. Each return is caused by its own
+    /// effect, and the event is `ctx`'s.
     pub(crate) fn return_objects(&mut self, returns: &[ReturningObject], ctx: &ActionContext) -> Result<(), String> {
         let mut batch = Vec::new();
-        let mut hosts = Vec::new();
         for ReturningObject { object, to, controller, counters, cause } in returns {
             let (object, to, controller, cause) = (*object, *to, *controller, *cause);
             let from = self.get_object(object)?.zone;
@@ -57,20 +57,22 @@ impl GameState {
                 batch.push((GameAction::ZoneChange { object, from, to, act: ZoneChangeAct::Put }, cause));
                 continue;
             }
-            if has_subtype(self, object, &Subtype::Enchantment(EnchantmentType::Aura)) {
+            let attached_to = if has_subtype(self, object, &Subtype::Enchantment(EnchantmentType::Aura)) {
                 match self.choose_what_it_enchants(object, controller, ctx.dp)? {
-                    Some(host) => hosts.push((object, host)),
+                    Some(host) => Some(host),
                     None => continue,
                 }
-            }
+            } else {
+                None
+            };
             let Some(mut entry) = self.entry_proposal(object, Some(from), controller, Some(ZoneChangeAct::Put)) else {
                 continue;
             };
-            // "With a +1/+1 counter on it" is the returning effect's own word
-            // on how it enters, joining the seed ahead of any replacement
-            // (CR 122.6, 614.1c).
+            // "With a +1/+1 counter on it" and the Aura's host are the returning
+            // effect's own word on how it enters, joining what the rules give
+            // the entry, ahead of any replacement (CR 122.6, 303.4f, 614.1c).
             if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
-                mods.merge(&EnterMods { counters: counters.clone(), ..EnterMods::NONE });
+                mods.merge(&EnterMods { counters: counters.clone(), attached_to, ..EnterMods::NONE });
             }
             batch.push((entry, cause));
         }
@@ -78,11 +80,6 @@ impl GameState {
             return Ok(());
         }
         self.execute_caused_actions(batch, ctx)?;
-        // As the Aura spell's attach (`engine/stack.rs`): an Aura whose entry
-        // happened, to a host still there.
-        for (aura, host) in hosts {
-            self.attach(aura, host);
-        }
         Ok(())
     }
 

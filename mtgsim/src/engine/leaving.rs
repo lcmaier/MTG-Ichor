@@ -110,8 +110,10 @@ impl GameState {
             // triggers "when a phased-in permanent leaves the game because its
             // owner leaves the game".
             let lki = self.hand_over_before_leaving(id, from);
+            let unattached = self.unattached_by_leaving(id);
             self.remove_from_game(id)?;
             self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki }, cause)?;
+            self.announce_unattached_by_leaving(unattached, cause)?;
         }
         Ok(())
     }
@@ -288,7 +290,7 @@ mod tests {
         game.players[2].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), crate::types::replacement::EnterMods::NONE, &test_ctx())
             .unwrap();
 
         assert!(!entered);
@@ -307,7 +309,7 @@ mod tests {
         game.players[0].hand.push(id);
 
         let entered = game
-            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), &test_ctx())
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeAct::Put), crate::types::replacement::EnterMods::NONE, &test_ctx())
             .unwrap();
 
         assert!(entered);

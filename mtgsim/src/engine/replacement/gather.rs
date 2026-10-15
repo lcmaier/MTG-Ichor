@@ -116,7 +116,9 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
                 CounterSubject::Player(pid) => EventSubject::Player(*pid),
             }
         }
-        GameAction::Attach { attachment, .. } => EventSubject::Object(*attachment),
+        GameAction::Attach { attachment, .. } | GameAction::Unattach { attachment } => EventSubject::Object(*attachment),
+        // CR 616.1's "affected object": the token, whose owner chooses.
+        GameAction::TokenCeasesToExist { object } => EventSubject::Object(*object),
         // CR 614.10's three units are all about a *player* — "skip **your**
         // next turn", "**players** skip their upkeep steps" — so CR 616.1's
         // chooser is the player whose turn it is and Eon Hub on a four-player

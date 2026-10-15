@@ -6118,3 +6118,60 @@ tests fail with the live read put back.
      the stress pool).
      **Slotted:** TR-4a, the frame's facts and their readers, with Demonic
      Vigor and ATOM-603.6e-002.
+
+### Item 178 — closed 2026-10-14 by PR #252 (TR-4b)
+
+Closed by TR-4b. `Primitive::Attach` finds the Equipment through
+`this_object`, which compares the existence on
+`ResolutionContext.ability_source`, so an Equipment flickered in response to
+its equip ability is a new object the old ability leaves where it is (CR
+400.7, 301.5b). The flicker fixture failed first, attaching the new object.
+
+*Original entry:*
+
+178. **`Primitive::Attach` finds its Equipment by id, so an Equipment that left
+     and came back would be attached (CR 400.7).** TR-2a made
+     `ResolutionContext.ability_source` an `ObjectRef`, and `ThisObject`
+     compares its epoch. `Attach` reads only the id and asks whether it is on
+     the battlefield, so an Equipment flickered in response to its equip
+     ability is a new object that the old ability still attaches.
+
+     **Reachability (2026-09-24):** unreachable — no registered effect returns
+     an Equipment to the battlefield while its equip ability waits.
+
+     **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
+     fixture with a flicker effect, ~25.
+     **Slotted:** TR-4b, which touches attachment's performers and registers
+     Grafted Wargear: `this_object(ctx)` replaces the id, with a flicker
+     fixture.
+
+### Item 228 — closed 2026-10-14 by PR #252 (TR-4b)
+
+Closed by TR-4b, with the host on the entry. CR 303.4f has the Aura's object
+chosen "as the Aura enters", so it is one event: `EnterMods.attached_to`
+carries the host, set by the effect putting the Aura there (an Aura spell's
+target, `propose_entry`'s new `instructed` argument; a return's choice, merged with its
+counters), and the entry's performer attaches after the arrival and
+announces `Attached` inside the batch. CR 303.4h: a permanent that entered as
+no Aura, Equipment or Fortification enters unattached, and so does one whose
+object has gone. Two `check_invariants.py` entries came off. Both fixtures, a
+spell and a return, failed first, attached with nothing announced; Siona,
+Captain of the Pyleas' first ruling is tested on a fixture shaped like her.
+
+*Original entry:*
+
+228. **An Aura that enters attached is attached by a direct write, and
+     announces nothing.** `engine/stack.rs`'s Aura branch and
+     `GameState::return_objects`'s CR 303.4f host both call
+     `GameState::attach` after the entry, outside `perform_action`, so no
+     `Attached` record follows. Whether an Aura entering attached "becomes
+     attached" is the question TR-4's `BecomesAttached` arm answers off that
+     record.
+     **Reachability (2026-10-08):** reachable — not wrong today: no trigger
+     reads `Attached` yet.
+     **Sized:** both sites through `GameAction::Attach`, or the host on the
+     entry, ~20 lines.
+     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** Siona, Captain of the Pyleas' first
+     ruling answers the question: an Aura that enters attached "becomes
+     attached".
+     **Slotted:** TR-4b, attachment's records, with the `BecomesAttached` arm.

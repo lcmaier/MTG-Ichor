@@ -215,6 +215,21 @@ impl GameState {
         // Ordered sweeps: the batch order is a CR 616.1 prompt's, and the
         // graveyard is an ordered zone.
 
+        // 704.5d — a token in a zone other than the battlefield ceases to exist:
+        // one there as the check begins, so a token that dies in this check
+        // ceases at the next. Ordered by its last move's epoch (`move_object`'s,
+        // monotone; a token made off the battlefield carries one too), since
+        // `objects` is a `HashMap` and the members announce.
+        // ORDER-FREE: sorted by epoch next.
+        let mut tokens_outside: Vec<(ObjectId, ZoneChangeEpoch)> = self.objects.iter()
+            .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
+            .map(|(&id, obj)| (id, obj.zone_change_epoch))
+            .collect();
+        tokens_outside.sort_by_key(|&(_, epoch)| epoch);
+        for (object, _) in tokens_outside {
+            batch.push((GameAction::TokenCeasesToExist { object }, StateBasedAction::TokenOutsideTheBattlefield));
+        }
+
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
             if !is_creature(self, id) {
@@ -344,6 +359,41 @@ impl GameState {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
+        // 704.5n — an Equipment or Fortification attached to an illegal
+        // permanent becomes unattached and remains on the battlefield: an
+        // Equipment equips a creature (CR 301.5c), a Fortification fortifies a
+        // land (CR 301.6). 704.5p — a creature or battle attached to anything,
+        // and an attached permanent that is no Aura, Equipment or Fortification,
+        // does too: what the permanent *is*, which an effect can change (an
+        // Equipment made a creature). An Aura that is a creature is unattached
+        // here, and 704.5m moves it on the next check.
+        let mut illegal_host: Vec<(GameAction, StateBasedAction)> = Vec::new();
+        let mut not_an_attachment: Vec<(GameAction, StateBasedAction)> = Vec::new();
+        for (id, entry) in self.battlefield_ordered() {
+            // `attached_to` first: it is a field read, and the questions below
+            // each compute a characteristics frame. Asking them of every
+            // permanent on the battlefield, almost none of which is attached, is
+            // what made this sweep expensive.
+            let Some(host) = entry.attached_to else { continue };
+            let member = GameAction::Unattach { attachment: id };
+            // Effective types, never printed: the rule is about what a
+            // continuous effect made the permanent.
+            let equipment = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
+            let fortification = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
+            if (equipment || fortification)
+                && !(equipment && is_creature(self, host))
+                && !(fortification && has_type(self, host, CardType::Land))
+            {
+                illegal_host.push((member.clone(), StateBasedAction::EquipmentAttachedIllegally));
+            }
+            let aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
+            if is_creature(self, id) || has_type(self, id, CardType::Battle) || !(aura || equipment || fortification) {
+                not_an_attachment.push((member, StateBasedAction::NonAttachmentAttached));
+            }
+        }
+        batch.extend(illegal_host);
+        batch.extend(not_an_attachment);
+
         // 704.6c — dealt 21 or more combat damage by one commander over the
         // course of the game. After the 704.5 losses because it is 704.6, and
         // a player already losing to a 704.5 reason is collapsed onto that one
@@ -364,9 +414,14 @@ impl GameState {
         //
         // CR 704.7's collapse is the dedupe, keyed on the subject: one event and
         // one applied set per permanent or player, named by the first condition in
-        // CR order (a dead duplicate legend was destroyed, 704.5g).
-        let mut seen: HashSet<EventSubject> = HashSet::new();
-        batch.retain(|(action, _)| seen.insert(subject_of(action)));
+        // CR order (a dead duplicate legend was destroyed, 704.5g). Becoming
+        // unattached is a result of its own: an Equipment made a creature with
+        // lethal damage is destroyed *and* unattached (704.5g, 704.5p), and an
+        // indestructible one is still unattached. The unattaches follow the moves,
+        // so a subject's group decides under the move's cause, and one finds an
+        // attachment the batch moved already unattached by its leaving (CR 701.3d).
+        let mut seen: HashSet<(EventSubject, bool)> = HashSet::new();
+        batch.retain(|(action, _)| seen.insert((subject_of(action), matches!(action, GameAction::Unattach { .. }))));
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
@@ -377,69 +432,6 @@ impl GameState {
             let members = batch.into_iter().map(|(action, rule)| (action, EventCause::StateBasedAction(rule))).collect();
             self.execute_caused_actions(members, &ActionContext::game_rule(decisions, GameRule::StateBasedCheck))?;
             any_performed |= self.events.next_seq() > before;
-        }
-
-        // 704.5n — an Equipment or Fortification attached to an illegal
-        // permanent becomes unattached and remains on the battlefield.
-        let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
-            .into_iter()
-            .filter_map(|(id, entry)| {
-                // `attached_to` first: it is a field read, and the subtype
-                // questions below each compute a characteristics frame. Asking
-                // them of every permanent on the battlefield — almost none of
-                // which is attached — is what made this sweep expensive.
-                let host_id = entry.attached_to?;
-                self.objects.get(&id)?;
-                let has_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
-                let has_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
-                if !has_equip && !has_fort { return None; }
-                if !is_creature(self, host_id) {
-                    Some((id, host_id))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for (equip_id, host_id) in equip_bad_host {
-            self.detach(equip_id);
-            self.emit_event(
-                GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id },
-                EventCause::StateBasedAction(StateBasedAction::EquipmentAttachedIllegally),
-            )?;
-            any_performed = true;
-        }
-
-        // 704.5p — both sentences, one pass. The first is about what the permanent
-        // *is*, which 704.5n (the host) and the second sentence (by subtype) both
-        // miss: an Equipment made a creature (March of the Machines). An Aura that is
-        // a creature is unattached here, and 704.5m moves it on the next pass.
-        let detachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
-            .into_iter()
-            .filter_map(|(id, entry)| {
-                let host_id = entry.attached_to?;
-                // Effective types, never printed: the whole rule is about a
-                // permanent a continuous effect turned into a creature.
-                if is_creature(self, id) {
-                    return Some((id, host_id));
-                }
-                let is_aura = has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura));
-                let is_equip = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Equipment));
-                let is_fort = has_subtype(self, id, &Subtype::Artifact(ArtifactType::Fortification));
-                if is_aura || is_equip || is_fort {
-                    return None;
-                }
-                Some((id, host_id))
-            })
-            .collect();
-
-        for (att_id, host_id) in detachments {
-            self.detach(att_id);
-            self.emit_event(
-                GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id },
-                EventCause::StateBasedAction(StateBasedAction::NonAttachmentAttached),
-            )?;
-            any_performed = true;
         }
 
         // 704.5q — +1/+1 and -1/-1 counter annihilation
@@ -464,27 +456,6 @@ impl GameState {
             self.emit_event(
                 GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs },
                 EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate),
-            )?;
-            any_performed = true;
-        }
-
-        // 704.5d — a token in a non-battlefield zone ceases to exist, no zone change.
-        // Ordered by its last move's epoch (`move_object`'s, monotone; a token made
-        // off the battlefield carries one too), since `objects` is a `HashMap` and
-        // this sweep announces.
-        // ORDER-FREE: sorted by epoch next.
-        let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
-            .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
-            .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))
-            .collect();
-        tokens_to_remove.sort_by_key(|&(_, _, epoch)| epoch);
-
-        for (id, zone, _) in tokens_to_remove {
-            self.remove_from_zone_collection(id, zone)?;
-            self.remove_object(id);
-            self.emit_event(
-                GameEvent::TokenCeasedToExist { object_id: id },
-                EventCause::StateBasedAction(StateBasedAction::TokenOutsideTheBattlefield),
             )?;
             any_performed = true;
         }
@@ -1360,10 +1331,10 @@ mod tests {
         // Land should no longer have equipment in attached_by
         assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
 
-        // Verify EquipmentDetached event
+        // CR 704.5n's unattach, announced with its route.
         let has_event = game.recorded_events().events().any(|e| {
-            matches!(e, crate::events::event::GameEvent::EquipmentDetached { equipment_id, former_host }
-                if *equipment_id == equip_id && *former_host == land_id)
+            matches!(e, crate::events::event::GameEvent::Unattached { attachment, former_host, route: crate::events::event::UnattachRoute::AttachedToNothing }
+                if attachment.id == equip_id && former_host.id == land_id)
         });
         assert!(has_event);
     }

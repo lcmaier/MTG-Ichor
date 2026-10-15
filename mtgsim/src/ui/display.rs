@@ -1066,9 +1066,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             ),
             None => format!("Attached: {} to {}", obj_name(game, *attachment), obj_name(game, *host)),
         },
-        EquipmentDetached { equipment_id, former_host } => {
-            format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
-        }
+        Unattached { attachment, former_host, route } => format!(
+            "Unattached: {} from {} ({:?})",
+            obj_name(game, attachment.id), obj_name(game, former_host.id), route
+        ),
         LeftTheGame { object_id, owner, from, lki } => {
             format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki.as_ref(), announced), owner, from)
         }

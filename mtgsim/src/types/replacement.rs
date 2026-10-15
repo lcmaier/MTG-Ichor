@@ -1505,6 +1505,15 @@ pub struct EnterMods {
     /// order the effects applied, which is the order the board applies them
     /// in. Not copiable (CR 707.2's last sentence). Shared for `copy`'s reason.
     pub edits: Option<std::sync::Arc<[CharacteristicEdit]>>,
+
+    /// CR 303.4f — what the permanent enters attached to: an Aura spell's
+    /// target, or what its controller chose as an Aura enters by any other
+    /// means. The effect putting it onto the battlefield says, never a
+    /// replacement, so the CR 614.12 frame does not predict it. The entry's
+    /// performer attaches it after the arrival, in the same event, unless it
+    /// entered as no Aura, Equipment or Fortification (CR 303.4h) or the
+    /// object has gone.
+    pub attached_to: Option<ObjectId>,
 }
 
 /// CR 110.5's tapped/untapped category, as an entry replacement sets it.
@@ -1547,7 +1556,7 @@ impl EntryCounters {
 
 impl EnterMods {
     /// Nothing modifies how this permanent enters — CR 110.5b's default.
-    pub const NONE: EnterMods = EnterMods { status: None, counters: Vec::new(), copy: None, edits: None };
+    pub const NONE: EnterMods = EnterMods { status: None, counters: Vec::new(), copy: None, edits: None, attached_to: None };
 
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
@@ -1568,7 +1577,11 @@ impl EnterMods {
 
     /// Is this the CR 110.5b default — nothing to apply?
     pub fn is_none(&self) -> bool {
-        self.status.is_none() && self.counters.is_empty() && self.copy.is_none() && self.edits.is_none()
+        self.status.is_none()
+            && self.counters.is_empty()
+            && self.copy.is_none()
+            && self.edits.is_none()
+            && self.attached_to.is_none()
     }
 
     /// Fold `other`'s modifications into this one — CR 616.1f's accumulation.
@@ -1591,6 +1604,10 @@ impl EnterMods {
             if let Some(copy) = &mut self.copy {
                 copy.added.replaced_status = None;
             }
+        }
+        if other.attached_to.is_some() {
+            // NOT AN EVENT: the proposal's seed; the entry's performer attaches.
+            self.attached_to = other.attached_to;
         }
         if let Some(more) = &other.edits {
             self.edits = Some(match self.edits.take() {

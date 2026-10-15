@@ -171,6 +171,10 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Bramble Elemental": {
+      "first_seen": "2026-10-14",
+      "rulings": []
+    },
     "Burst of Energy": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -519,6 +523,14 @@
         {"n": 1, "published_at": "2018-10-05", "comment": "To determine the total cost of a spell, start with the mana cost or alternative cost you're paying, add any cost increases, then apply any cost reductions. The mana value of the spell remains unchanged, no matter what the total cost to cast it was."},
         {"n": 2, "published_at": "2018-10-05", "comment": "Goblin Electromancer's effect reduces only generic mana in the spell's total cost."},
         {"n": 3, "published_at": "2017-03-14", "comment": "Two Goblin Electromancers will make instant and sorcery spells you cast cost {2} less to cast, and so on."}
+      ]
+    },
+    "Grafted Wargear": {
+      "first_seen": "2026-10-14",
+      "rulings": [
+        {"n": 1, "published_at": "2020-11-10", "comment": "Grafted Wargear becomes unattached from the creature it's equipping if you equip it to a new creature, if Grafted Wargear leaves the battlefield, if the equipped creature ceases to be a creature, or if Grafted Wargear ceases to be an Equipment. (It also becomes unattached if the equipped creature leaves the battlefield, but the triggered ability won't do anything in that case.)"},
+        {"n": 2, "published_at": "2013-04-15", "comment": "You may activate this card's equip ability targeting the creature that it is currently attached to, even if it's the only creature you control. Since the equip ability costs zero, you can do this as many times as you like during your main phases, though it generally won't do anything."},
+        {"n": 3, "published_at": "2004-12-01", "comment": "If your Grafted Wargear somehow ends up on an opponent's creature and it then becomes unattached from that creature, you won't be able to sacrifice that creature because you don't control it."}
       ]
     },
     "Grizzly Bears": {

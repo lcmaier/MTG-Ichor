@@ -216,6 +216,7 @@ mod tests {
                 added: CopyAdditions::default(),
             }),
             edits: Some(Arc::from(vec![mutant])),
+            attached_to: None,
         };
         game.resolving = Some(ResolvingObject {
             id: card,

@@ -5,6 +5,7 @@ use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::GameEvent;
 use crate::state::battlefield::CastFacts;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
+use crate::types::replacement::EnterMods;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::ids::ObjectId;
 use crate::types::zones::Zone;
@@ -192,10 +193,28 @@ impl GameState {
             let is_permanent_type = has_permanent_type(self, object_id);
 
             if is_permanent_type {
-                // CR 608.3a (608.3c for an Aura, below): enters under its CR 110.2b
-                // *default* controller, a steal's Layer 2 row still applying on top
-                // (CR 400.7a). The entry's performer announces it.
-                self.change_zone(object_id, Zone::Battlefield, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellResolves))?;
+                // CR 608.3c, 303.4f: an Aura spell enters attached to its target.
+                // The fizzle check (608.2b, 608.3b) at the top of this function
+                // guarantees the target is still legal. An Aura spell targets
+                // only what its enchant ability names (CR 303.4a), so its host
+                // is the first and only entry of `chosen_targets`.
+                let attached_to = if has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura)) {
+                    match entry.chosen_targets.first().and_then(|inst| inst.as_resolved_targets().next()) {
+                        Some(ResolvedTarget::Object(host)) => Some(host),
+                        _ => return Err(format!(
+                            "Aura {object_id} resolved from stack with no Object target: the fizzle check should have caught it"
+                        )),
+                    }
+                } else {
+                    None
+                };
+                // CR 608.3a: enters under its CR 110.2b *default* controller, a
+                // steal's Layer 2 row still applying on top (CR 400.7a). The
+                // entry's performer announces it, and the attach with it.
+                let controller = self.default_enter_controller(object_id)?;
+                let enters = EnterMods { attached_to, ..EnterMods::NONE };
+                let resolves = rule(GameRule::PermanentSpellResolves);
+                self.propose_entry(object_id, Some(Zone::Stack), controller, Some(ZoneChangeAct::Put), enters, &resolves)?;
                 // CR 608.3e — "if a permanent spell resolves but its controller
                 // can't put it onto the battlefield, that player puts it into
                 // its owner's graveyard." The entry was refused (CR 614.17d) or
@@ -204,32 +223,6 @@ impl GameState {
                 // needs nothing.
                 if self.get_object(object_id)?.zone == Zone::Stack {
                     self.change_zone(object_id, Zone::Graveyard, ZoneChangeAct::Put, &rule(GameRule::PermanentSpellCantEnter))?;
-                }
-
-                // Rule 303.4f: Aura spell resolves → enters attached to its
-                // target.  The fizzle check (608.2b) at the top of this
-                // function guarantees the target is still legal — if it
-                // weren't, the spell would have fizzled before reaching here.
-                // Only if it arrived: an Aura whose entry did not happen is not
-                // on the battlefield to attach, and its host must not list it.
-                let is_aura = self.battlefield.contains_key(&object_id)
-                    && has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
-                if is_aura {
-                    // Instance 0 is the enchant clause (CR 303.4a) — the only
-                    // instance `CardData::spell_instances` gives an Aura.
-                    let host_id = match entry
-                        .chosen_targets
-                        .first()
-                        .and_then(|inst| inst.as_resolved_targets().next())
-                    {
-                        Some(ResolvedTarget::Object(id)) => id,
-                        _ => return Err(format!(
-                            "Aura {} resolved from stack with no Object target — \
-                             this should have been caught by the fizzle check",
-                            object_id
-                        )),
-                    };
-                    self.attach(object_id, host_id);
                 }
             } else if self.get_object(object_id)?.zone == Zone::Stack {
                 // Instant/sorcery: to its owner's graveyard as the final part

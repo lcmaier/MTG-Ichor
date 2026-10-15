@@ -4,11 +4,11 @@ use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, SubjectGroup};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction, TurnBasedAction};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
-use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
 use crate::types::triggers::Lki;
@@ -268,6 +268,23 @@ pub enum GameAction {
         host: ObjectId,
     },
 
+    /// Unattach an Aura, Equipment or Fortification from whatever it is
+    /// attached to and leave it on the battlefield (CR 701.3d's first
+    /// sentence) — CR 704.5n's and 704.5p's state-based action.
+    ///
+    /// A proposal because "becomes unattached" triggers read the performed
+    /// stream (CR 603.10c), and because a state-based check decides it with
+    /// the check's other members against one board (CR 704.3): a creature
+    /// that animates an Equipment and dies in the same check leaves it
+    /// attached to a creature, and only the board before the check says so.
+    /// An attachment that is attached to nothing performs nothing (CR
+    /// 603.2e), including one whose leaving earlier in the same event
+    /// unattached it (CR 701.3d). No `EventPattern` arm, for
+    /// [`Self::Attach`]'s reason.
+    Unattach {
+        attachment: ObjectId,
+    },
+
     /// Put counters on a permanent, or give them to a player (CR 122.1).
     ///
     /// A proposal rather than a direct write because CR 614.16's counter
@@ -415,6 +432,18 @@ pub enum GameAction {
     CreateTokenIn {
         object: ObjectId,
         zone: Zone,
+    },
+
+    /// A token that is not on the battlefield ceases to exist (CR 704.5d,
+    /// 111.7) — no zone change, since it goes to no zone.
+    ///
+    /// A proposal so CR 704.3 decides it with the check's other members,
+    /// against the board before any of them is performed: a token that dies
+    /// in a check ceases to exist at the next one. No `EventPattern` arm, for
+    /// [`Self::Attach`]'s reason: nothing replaces a token ceasing to exist.
+    /// Announced as `TokenCeasedToExist`.
+    TokenCeasesToExist {
+        object: ObjectId,
     },
 
     /// A turn begins (CR 500.11, 614.10) — **the unit a "skip your next turn"
@@ -576,6 +605,19 @@ pub enum GameAction {
         tapped_for_mana: bool,
     },
 
+}
+
+/// CR 303.4h — whether `id`, as it entered, is a permanent that can enter
+/// attached: an Aura, Equipment or Fortification.
+fn can_enter_attached(game: &GameState, id: ObjectId) -> bool {
+    use crate::types::card_types::{ArtifactType, EnchantmentType, Subtype};
+    [
+        Subtype::Enchantment(EnchantmentType::Aura),
+        Subtype::Artifact(ArtifactType::Equipment),
+        Subtype::Artifact(ArtifactType::Fortification),
+    ]
+    .iter()
+    .any(|subtype| crate::oracle::characteristics::has_subtype(game, id, subtype))
 }
 
 /// Which of CR 120.3's results a damage event has, read off the target.
@@ -1290,7 +1332,7 @@ impl GameState {
                 return Ok(());
             }
             let controller = self.default_enter_controller(object)?;
-            self.propose_entry(object, Some(from), controller, Some(act), ctx)?;
+            self.propose_entry(object, Some(from), controller, Some(act), EnterMods::NONE, ctx)?;
             return Ok(());
         }
         self.execute_action(GameAction::ZoneChange { object, from, to, act }, ctx)
@@ -1506,12 +1548,35 @@ impl GameState {
                     return Err(format!("Cannot attach to {}: not on the battlefield", host));
                 }
                 let former_host = self.battlefield[&attachment].attached_to;
+                let unattached_from = former_host.and_then(|former| self.object_ref(former));
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
+                    // CR 701.3d: leaving the first host is becoming unattached
+                    // from it, in the same event and ahead of the attach.
+                    if let (Some(former), Some(moved)) = (unattached_from, self.object_ref(attachment)) {
+                        self.announce_unattached(moved, former, UnattachRoute::AttachedElsewhere, ctx.cause)?;
+                    }
                     self.emit_event(GameEvent::Attached { attachment, host, former_host }, ctx.cause)?;
                 }
                 Ok(())
+            }
+
+            GameAction::Unattach { attachment } => {
+                // Loud only for an object that does not exist. One that left
+                // the battlefield was unattached by leaving (CR 701.3d), which
+                // its move announced.
+                if !self.objects.contains_key(&attachment) {
+                    return Err(format!("Cannot unattach {}: no such object", attachment));
+                }
+                let former_host = self.battlefield.get(&attachment).and_then(|entry| entry.attached_to);
+                let (Some(former_host), Some(unattached)) =
+                    (former_host.and_then(|host| self.object_ref(host)), self.object_ref(attachment))
+                else {
+                    return Ok(());
+                };
+                self.detach(attachment);
+                self.announce_unattached(unattached, former_host, UnattachRoute::AttachedToNothing, ctx.cause)
             }
 
             GameAction::Tap { object } => {
@@ -1635,6 +1700,16 @@ impl GameState {
                     }
                 }
                 self.perform_entry(object, controller, &mods, ctx.cause)?;
+                // CR 303.4f: an Aura entering attached becomes attached as it
+                // enters, in this event and after the arrival. CR 303.4h: one
+                // that entered as no Aura, Equipment or Fortification enters
+                // unattached, and so does one whose object has gone.
+                if let Some(host) = mods.attached_to
+                    && can_enter_attached(self, object)
+                    && self.attach(object, host)
+                {
+                    self.emit_event(GameEvent::Attached { attachment: object, host, former_host: None }, ctx.cause)?;
+                }
                 Ok(())
             }
 
@@ -1650,6 +1725,18 @@ impl GameState {
             GameAction::CreateTokenIn { object, zone } => {
                 self.put_token_into(object, zone)?;
                 self.announce_token_created(object, zone, ctx.cause)
+            }
+
+            GameAction::TokenCeasesToExist { object } => {
+                let token = self.get_object(object)?;
+                let zone = token.zone;
+                if !token.is_token || zone == Zone::Battlefield {
+                    return Err(format!("{} cannot cease to exist: CR 704.5d is a token's off the battlefield", object));
+                }
+                self.remove_from_zone_collection(object, zone)?;
+                self.remove_object(object);
+                self.emit_event(GameEvent::TokenCeasedToExist { object_id: object }, ctx.cause)?;
+                Ok(())
             }
 
             // --- Turn structure (CR 500, 614.10) ----------------------------
@@ -1834,8 +1921,44 @@ impl GameState {
         }
 
         let lki = self.hand_over_before_leaving(object, from);
+        let unattached = self.unattached_by_leaving(object);
         self.move_object(object, to)?;
-        self.announce_zone_change(object, from, to, act, lki, applied, cause)
+        self.announce_zone_change(object, from, to, act, lki, applied, cause)?;
+        self.announce_unattached_by_leaving(unattached, cause)
+    }
+
+    /// CR 701.3d — what a permanent's leaving the battlefield unattaches,
+    /// read before it moves, since the move drops every link it is in
+    /// (`cleanup_zone_state`): itself from its host, then whatever is attached
+    /// to it, in the order they were attached. Each end is the existence it is
+    /// before the move. Empty for anything not on the battlefield.
+    pub(crate) fn unattached_by_leaving(&self, id: ObjectId) -> Vec<(ObjectRef, ObjectRef, UnattachRoute)> {
+        let (Some(entry), Some(leaving)) = (self.battlefield.get(&id), self.object_ref(id)) else {
+            return Vec::new();
+        };
+        let from_host = entry
+            .attached_to
+            .and_then(|host| self.object_ref(host))
+            .map(|host| (leaving, host, UnattachRoute::AttachmentLeft));
+        let from_it = entry
+            .attached_by
+            .iter()
+            .filter_map(|&attachment| self.object_ref(attachment))
+            .map(|attachment| (attachment, leaving, UnattachRoute::HostLeft));
+        from_host.into_iter().chain(from_it).collect()
+    }
+
+    /// A leaving's unattaches (`unattached_by_leaving`), announced after its
+    /// own record by the performer that moved it, under the move's cause.
+    pub(crate) fn announce_unattached_by_leaving(
+        &mut self,
+        unattached: Vec<(ObjectRef, ObjectRef, UnattachRoute)>,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        for (attachment, former_host, route) in unattached {
+            self.announce_unattached(attachment, former_host, route, cause)?;
+        }
+        Ok(())
     }
 
     /// **The only emitter of `GameEvent::ZoneChange`.** Three callers, each of
@@ -1859,6 +1982,19 @@ impl GameState {
         let moved = self.get_object(object)?;
         let (owner, new_epoch) = (moved.owner, moved.zone_change_epoch);
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, act, lki, applied, new_epoch }, cause)?;
+        Ok(())
+    }
+
+    /// **The only emitter of `GameEvent::Unattached`**, whose callers each
+    /// performed the unattach they announce (CR 701.3d).
+    pub(crate) fn announce_unattached(
+        &mut self,
+        attachment: ObjectRef,
+        former_host: ObjectRef,
+        route: UnattachRoute,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        self.emit_event(GameEvent::Unattached { attachment, former_host, route }, cause)?;
         Ok(())
     }
 
@@ -1920,6 +2056,9 @@ impl GameState {
     /// Propose CR 614.1c's entry — the one proposal for a card entering the
     /// battlefield, from `from`. (A token's entry is proposed by
     /// [`Self::create_tokens`], as a member of its creation's batch.)
+    /// `instructed` is what the effect putting it there says about how it
+    /// enters, which joins what the rules give the entry, ahead of any
+    /// replacement (CR 614.1c): an Aura spell's host (CR 303.4f).
     ///
     /// Returns whether the entry was performed. `false` means the pipeline
     /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — or CR 800.4b
@@ -1934,11 +2073,15 @@ impl GameState {
         from: Option<Zone>,
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
+        instructed: EnterMods,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
-        let Some(entry) = self.entry_proposal(object, from, controller, act) else {
+        let Some(mut entry) = self.entry_proposal(object, from, controller, act) else {
             return Ok(false);
         };
+        if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+            mods.merge(&instructed);
+        }
         let performed = self.execute_actions(vec![entry], ctx)?;
         Ok(!performed.is_empty())
     }
@@ -2003,8 +2146,8 @@ impl GameState {
             ids.push(id);
             if let Some(mut entry) = self.entry_proposal(id, None, controller, None) {
                 // "Create a tapped …" is the creating effect's own word on
-                // how the token enters, so it joins the seed the rules give
-                // the entry, ahead of any replacement (CR 614.1c).
+                // how the token enters, so it joins what the rules give the
+                // entry, ahead of any replacement (CR 614.1c).
                 if def.enters_tapped
                     && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
                     mods.merge(&EnterMods::tapped());

@@ -2354,10 +2354,10 @@ the four files that put an ability on the stack and take it off (CR 602.2a,
 diff**, the same shape as §10.2's drawing files.
 
 `KNOWN` lists the violations an item already owns, by item number, because a
-source comment carries none: item 6's three state-based writes (TR-4b,
-TR-5b), item 228's Aura attachments (TR-4b) and item 263's CR 104.4b draw
-(TR-6). An entry that matches nothing fails, so the PR that closes an item
-takes its entry off in the same diff.
+source comment carries none: item 6's CR 704.5q annihilation (TR-5b) and
+item 263's CR 104.4b draw (TR-6). An entry that matches nothing fails, so
+the PR that closes an item takes its entry off in the same diff: TR-4b took
+four.
 
 ### 11.3 What the gate does not see
 

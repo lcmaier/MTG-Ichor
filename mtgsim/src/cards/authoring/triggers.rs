@@ -133,6 +133,8 @@ impl CountableEvent {
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
@@ -252,6 +254,17 @@ pub fn draws_a_card(whose: Whose) -> CountableEvent {
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).
 pub fn shuffles_their_library(whose: Whose) -> TriggerEvent {
     TriggerEvent::ShufflesLibrary { player: whose.player_ref() }
+}
+
+/// "Whenever [attachment] becomes attached to [host]" (CR 701.3a, 603.2e).
+pub fn becomes_attached(attachment: impl Into<TriggerSubject>, host: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::BecomesAttached { attachment: attachment.into(), host: host.into() }
+}
+
+/// "Whenever [attachment] becomes unattached from [former host]" (CR
+/// 701.3d, 603.10c).
+pub fn becomes_unattached(attachment: impl Into<TriggerSubject>, former_host: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::BecomesUnattached { attachment: attachment.into(), former_host: former_host.into() }
 }
 
 /// "Whenever [subject] enters" (CR 603.6a). Which zone it came from and

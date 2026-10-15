@@ -315,8 +315,8 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
 | `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, multiplicity }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live, per object and kind over the window: the count now minus the window's `added` for that object and kind, since CR 122.7 and the Sagas' CR 714.2b compare the counts around the event, and two wither sources in one combat damage step write two records on one creature (§3.12a); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count. Simic Ascendancy's "one or more ... on a creature" is once per creature, §4.4's third multiplicity (corrected 2026-09-24; it read `OncePerEvent`) | no | TR-5 |
 | `CountersAnnihilated` | **no arm, and the variant goes** — CR 704.5q's annihilation *is* a removal of counters: Protean Hydra's ruling has a -1/-1 counter meeting a +1/+1 counter trigger "whenever a +1/+1 counter is removed". Today the state-based sweep writes both kinds directly and announces this variant (Deferred Migrations item 6's counter half, `sba.rs:484`); TR-5 routes it through two `RemoveCounters` proposals in the state-based batch, so the annihilation is two `CountersChanged` records the removal arm reads, and the variant is deleted with item 18's three | — | TR-5 |
-| `Attached` | `BecomesAttached { attachment: Option<ObjectFilter>, host: Option<ObjectFilter> }` — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002) | no | TR-4 |
-| `EquipmentDetached` → **`Unattached`** | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's three routes (question 5), replacing `EquipmentDetached`; the record names its route, and the stamp its cause (§3.12a) | yes (603.10c): the frame is the attachment's, with `attached_to` from item 14 | TR-4 |
+| `Attached` | `BecomesAttached { attachment, host }`, each a `TriggerSubject`, read after the event (Siona, Captain of the Pyleas' fourth ruling) — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002), and an Aura entering attached is one (CR 303.4f; item 228). "That creature" is the host | no | TR-4b |
+| `Unattached` (was `EquipmentDetached`) | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's four routes (question 5), named by `UnattachRoute`, the cause on the stamp (§3.12a). Both ends are `ObjectRef`s, and "that permanent" is the existence the record names (CR 400.7) | yes (603.10c): each end as it was, off its departure's frame when it left in the window; an attached ability-list source's move snapshots the lists before it (§4.3) | TR-4b |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
 | `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13). **Amended 2026-09-23 (the rulings pass, G2):** a reflexive "when you do" on a creation asks whether each token is of the definition the instruction named — Ajani, Nacatl Avenger's ruling triggers once per Cat Warrior under Doubling Season and not at all for the Angels Divine Visitation makes instead — so `kind` matches the instructed definition, not a token type | no | TR-5 (fixture) |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
@@ -1059,9 +1059,11 @@ Each of the survey's nine gaps, absorbed or declined:
 
 Plus one record this design adds for its own use: **`AbilityTriggered {
 seq, identity: TriggerOrigin, controller, caused_by: usize }`**, the event
-CR 603.3b's second tier watches (§4.8). And one renamed: `EquipmentDetached`
-becomes `Unattached { attachment, former_host, route: UnattachRoute }` (named for CR 701.3d's route since RH-1 gave "cause" to the stamp, §3.12a) with
-three emitters behind one `announce_unattached` (question 5).
+CR 603.3b's second tier watches (§4.8). And one renamed, in TR-4b:
+`EquipmentDetached` became `Unattached { attachment, former_host, route:
+UnattachRoute }` (named for CR 701.3d's route since RH-1 gave "cause" to the
+stamp, §3.12a), emitted only by `announce_unattached`, whose callers are the
+`Attach` and `Unattach` arms and the two leave performers (question 5).
 
 ### 3.12a The records' contract — every kind, the binding and the frame (A6p)
 
@@ -1681,9 +1683,13 @@ property of the arm's fields, never a flag a card sets:
 - `ZoneChange { from: Some(Graveyard) }` — leaves a graveyard (second class);
 - `ZoneChange { to: Some(Hand) | Some(Library) }` — put into a hand or
   library from a public zone (third class);
-- `BecomesUnattached` (603.10c), `ControlChanges` (603.10d), `IsCountered`
-  (603.10e), `PlayerLoses` (603.10f). 603.10b (phases out) waits for
-  phasing; 603.10g (planeswalks) is out of scope.
+- `BecomesUnattached` (603.10c, TR-4b), `ControlChanges` (603.10d),
+  `IsCountered` (603.10e), `PlayerLoses` (603.10f). 603.10b (phases out)
+  waits for phasing; 603.10g (planeswalks) is out of scope. CR 603.10's "the
+  existence of those abilities" reaches an unattach as it does a leaving: an
+  Equipment that grants its creature an unattach trigger takes it away in
+  the move that triggers it, so an `Attach` or `Unattach` of an attached
+  ability-list source snapshots the lists before it (TR-4b).
 
 **"From anywhere" is `from: None`, and `from: None` is not on the list.** CR
 603.6c: an ability that triggers when a card is put into a zone "from
@@ -2577,7 +2583,7 @@ read at dispatch and never later, since the outermost dispatch flushes it
 | `engine/combat/steps.rs` (`:86`, `:177`) | attackers, per-defender blockers | defenders on the record; one blockers record | TR-5 |
 | `replacement/pipeline.rs::apply_rewrite` | prevention leg | announce `DamagePrevented` | TR-5 |
 | `actions.rs` `EnterBattlefield` performer | announces the entry | one `CountersChanged` per entry row after it | TR-5 |
-| `sba.rs` (`:439`, `:480`), `GameState::attach`, the zone-change performers | `EquipmentDetached` at two sites | `announce_unattached` at three | TR-4 |
+| `sba.rs`, the `Attach` performer, the zone-change performers | `EquipmentDetached` at two sites | `Unattached` from `announce_unattached`, called by the `Attach` and `Unattach` arms and the two leave performers; CR 704.5n, 704.5p and 704.5d as members of the state-based batch | TR-4b |
 | `sba.rs` (`:484`–`:503`), CR 704.5q | writes both counter kinds directly, announces `CountersAnnihilated` | two `RemoveCounters` proposals in the state-based batch; the variant deleted | TR-5 |
 | `resolve.rs` `Primitive::GainControl` | writes the Layer 2 row | unchanged — the sweep detects it | TR-4 |
 | `ui/choice_types.rs`, `ui/ask.rs`, `ui/cli.rs`, `trace_records.rs`, `sba.rs` | five exhaustive `ChoiceKind` matches in `src`, four test files | one arm each per new kind (§9) | per phase |
@@ -3119,6 +3125,46 @@ decision +0.17%.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4a".
 
+### TR-4b — attachment's records — ✅ landed 2026-10-14
+
+*Body evicted 2026-10-14 to `plans/archive/triggers-architecture-landed.md`,
+"TR-4b", with the plan as sized.*
+
+**What shipped.** `Unattached { attachment, former_host, route }` replaced
+`EquipmentDetached`: both ends `ObjectRef`s, the route one of CR 701.3d's
+four (`UnattachRoute`), the cause on the stamp, and `announce_unattached`
+the one emitter. The `Attach` arm announces the unattach from the old host
+ahead of `Attached`, and the two leave performers what their move dropped,
+after their own record. CR 704.5n, 704.5p and 704.5d are members of the CR
+704.3 batch (`GameAction::Unattach`, `GameAction::TokenCeasesToExist`),
+decided against the board before the check. An Aura carries its host on the
+entry (`EnterMods.attached_to`), and the entry's performer attaches it (item
+228); `Primitive::Attach` finds its Equipment by identity (item 178). The
+arms: `BecomesAttached`, read after the event, and `BecomesUnattached`,
+looking back, each end as it was. Grafted Wargear and Bramble Elemental
+registered, Bramble Elemental pooled (191 → 193, 107 → 108). Thirty-five tests;
+ATOM-603.10c-001, -002, -003 and ATOM-603.2e-002 are covered.
+
+**What moved on the way in.** CR 704.7's collapse keyed members on their
+subject alone, which drops an indestructible animated Equipment's unattach
+for good; the key now says whether a member unattaches, and the unattaches
+follow the moves, so a subject's group decides under the move's cause.
+CR 603.10c's "existence of those abilities" reaches an unattach: an attached
+ability-list source's move snapshots the lists (§4.3). The 704.5n gather
+asks CR 301.6 of a Fortification, and 704.5p CR 310.9 of a battle. The
+Wargear distorts `stress` without ending games, so Bramble Elemental, the
+benign consumer beside it, is the phase's pooled card (the owner, at #252's
+review). +1,650 in code and tests (code ~+600, tests ~+1,050), inside the
+band and the 1,150–1,850 sizing.
+
+**Measured** (`fuzz-record.md`, the TR-4b block). The engine arm plays every
+gameplay row as `main` does, on both pools at two seats and four, and the
+audit agrees on every dispatch. Instructions per decision −1.69%: CR
+704.5n/p decided before the batch read frames the check already holds.
+Bramble Elemental pooled at the review, and both tables re-recorded with it.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4b".
+
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
 **Re-counted and split in four on 2026-10-12 (A6p, §3.12a)**, one read-only
@@ -3130,12 +3176,9 @@ the three needs another.
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
-| **TR-4b — attachment's records** (CR 701.3d, 603.10c, 603.2e; CR 704.5n, 704.5p and 704.5d in CR 704.3's batch) | `Unattached` with its route (four sites: an unattach, a re-attach, the attachment leaving, the host leaving), `former_host` an `ObjectRef`; the arms `BecomesAttached` and `BecomesUnattached`; item 228; item 178; main item 6's detaches and token sweep as batch members | Grafted Wargear; a fixture shaped like Siona's ruling; ATOM-603.10c-001, -002 and -003, and ATOM-603.2e-002 | 365–505 (550–1,010) | 600–840 | 1,150–1,850 |
+| **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
 | **TR-4c — the other two look-back classes and the zone statement** (CR 603.10a's second and third classes, 113.6b, 113.6k, 603.2f, 400.7f) | the capture for a graveyard departure and for a visible card put into a hand or library, with `looks_back` for both and the hand-over for a non-battlefield mover; item 173; item 249; S1's exemption (§4.2); items 259 and 260 | Guerrilla Tactics, Bridge from Below, Angelic Destiny, Rancor; Guile's two boards under Yixlid Jailer; Golgari Brownscale's fixture, since dredge does not fit `Rewrite` (§15 item 5); ATOM-603.6e-001 and ATOM-400.7f-001 | ~350 (525–700) | ~1,040 | 1,560–1,750 |
 | **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
-
-TR-4b is under the band's floor at its low end; the seam is CR 701.3's, as
-RH-2's was its batch's.
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
 themselves from a graveyard, which CR 113.6m places in that zone and
@@ -3371,10 +3414,12 @@ then is claimed there.
    history. TR-2a.
 4. **122.6's entry counters.** A `CountersChanged` per entry row, announced
    after the entry inside its batch, never proposed. §3.12 item 17. TR-5.
-5. **Unattach's three routes.** All three are the event (CR 701.3d lists
-   them), one record through one emitter, and an Aura put into the graveyard
-   by 704.5m becomes unattached as it leaves, which is its own zone change's
-   announcement. Grafted Wargear's ruling enumerates the routes. TR-4.
+5. **Unattach's routes.** Four, all the event (CR 701.3d lists them): an
+   unattach, a move to another object, the attachment leaving and the host
+   leaving. One record through one emitter, the route on the record, and an
+   Aura put into the graveyard by 704.5m becomes unattached as it leaves,
+   which its own zone change's performer announces. Grafted Wargear's ruling
+   enumerates the routes. Built in TR-4b.
 6. **Triggered abilities with no source.** `TriggerOrigin::Rule(InherentAbility)`
    — an arm beside the object's identity, never a fake source on it — built
    with the designation that owns it (the monarch, Phase 9). TR-6 declares
