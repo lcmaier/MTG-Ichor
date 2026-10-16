@@ -18,6 +18,8 @@
 //!    battlefield is losing control (Khârn the Betrayer's first ruling), a
 //!    steal ending at cleanup triggers in a second cleanup step (CR 514.3a),
 //!    and a player leaving takes back what they stole (CR 800.4a).
+//! 6. Ray of Command's three rulings: its delayed trigger on losing control
+//!    taps the creature, at cleanup or when a third player takes it.
 
 use std::sync::Arc;
 
@@ -29,7 +31,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_rb_cards::leyline_of_the_void;
 use mtgsim::cards::phase_rf_cards::darksteel_colossus;
-use mtgsim::cards::phase_tr4d_cards::multanis_presence;
+use mtgsim::cards::phase_tr4d_cards::{multanis_presence, ray_of_command};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, ObjectSet};
@@ -773,4 +775,75 @@ fn a_permanent_that_arrives_stolen_announces_no_change() {
     assert_eq!(controller(&game, spell), Some(1));
     let announced = game.recorded_events().records_from(before).iter().filter(|r| matches!(r.event, GameEvent::ControlChanged { .. })).count();
     assert_eq!(announced, 0);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Ray of Command
+// ---------------------------------------------------------------------------
+
+/// Ray of Command cast by player 0 at `creature`, the one creature an
+/// opponent controls, so no prompt asks for it; resolved.
+fn ray_at(game: &mut GameState, creature: ObjectId) {
+    cast_at(game, 0, ray_of_command(), &[(ManaType::Blue, 4)], &[]);
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(controller(game, creature), Some(0));
+}
+
+fn tapped(game: &GameState, id: ObjectId) -> bool {
+    game.battlefield[&id].tapped
+}
+
+// RULING: Ray of Command #3 - "The creature returns to the opponent when the "until end of turn" effect wears off during the cleanup step. It taps during the Cleanup step (if it is not already tapped), so any abilities triggered off it tapping happen at that time."
+#[test]
+fn ray_of_command_taps_the_creature_in_the_cleanup_step() {
+    let mut state = stocked(2);
+    let bears = put_on_battlefield(&mut state, grizzly_bears(), 1);
+    ray_at(&mut state, bears);
+    state.set_turn_position(Phase::new(PhaseType::Postcombat));
+    let before = state.recorded_events().len();
+    let mut game = Game { state, config: GameConfig::unrestricted() };
+
+    game.resume_turn_at_priority(&test_dp()).unwrap();
+    let state = &game.state;
+    assert_eq!(controller(state, bears), Some(1), "back with its owner");
+    // Its owner's untap step, which the driver also ran, untaps it again, so
+    // the stream says where it was tapped: between the two cleanup steps.
+    let order: Vec<&str> = state
+        .recorded_events()
+        .records_from(before)
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::StepBegin { step: StepType::Cleanup, .. } => Some("cleanup"),
+            GameEvent::ControlChanged { object_id, .. } if *object_id == bears => Some("back"),
+            GameEvent::Tapped { object_id } if *object_id == bears => Some("tapped"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(order, vec!["cleanup", "back", "tapped", "cleanup"]);
+}
+
+// RULING: Ray of Command #1 - "You tap the creature when you lose control of it for any reason — because Ray of Command's effect ends, or because a spell or ability causes another player to gain control of it."
+#[test]
+fn ray_of_command_taps_the_creature_another_player_takes() {
+    let mut game = stocked(3);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    ray_at(&mut game, bears);
+
+    steal(&mut game, 2, bears);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(controller(&game, bears), Some(2));
+    assert!(tapped(&game, bears), "Act of Treason untapped it, and Ray's trigger tapped it after");
+}
+
+// RULING: Ray of Command #2 - "You may target an untapped creature with Ray of Command."
+#[test]
+fn ray_of_command_may_target_an_untapped_creature() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    assert!(!tapped(&game, bears));
+
+    ray_at(&mut game, bears);
+    assert!(!tapped(&game, bears), "the untap does nothing, and the steal still happens");
+    assert_eq!(game.delayed_triggers.len(), 1);
 }

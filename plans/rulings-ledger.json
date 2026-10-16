@@ -789,6 +789,12 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Multani's Presence": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2018-04-27", "comment": "A spell that doesn’t resolve because its targets are illegal isn’t countered, so this ability won’t trigger. This is a change from previous rules."}
+      ]
+    },
     "Myr Enforcer": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -949,6 +955,14 @@
       "first_seen": "2026-10-15",
       "rulings": [
         {"n": 1, "published_at": "2018-03-16", "comment": "If the creature this Aura would enchant is an illegal target by the time Rancor tries to resolve, the Aura spell doesn't resolve. It won't enter the battlefield, so it won't be put into a graveyard from the battlefield and its ability won't trigger."}
+      ]
+    },
+    "Ray of Command": {
+      "first_seen": "2026-10-15",
+      "rulings": [
+        {"n": 1, "published_at": "2008-10-01", "comment": "You tap the creature when you lose control of it for any reason — because Ray of Command’s effect ends, or because a spell or ability causes another player to gain control of it."},
+        {"n": 2, "published_at": "2004-10-04", "comment": "You may target an untapped creature with Ray of Command."},
+        {"n": 3, "published_at": "2004-10-04", "comment": "The creature returns to the opponent when the “until end of turn” effect wears off during the cleanup step. It taps during the Cleanup step (if it is not already tapped), so any abilities triggered off it tapping happen at that time."}
       ]
     },
     "Reflect Damage": {
