@@ -9328,3 +9328,24 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Reachability (2026-10-15):** closed — PR #253.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 266".
 
+### Found after TR-4d (2026-10-16)
+
+267. **A permanent whose controller changes stays in combat.** CR 506.4
+     removes a permanent from combat "if its controller changes".
+     `GameState::remove_from_combat` (main item 18) is called by
+     regeneration's rider and by a permanent leaving the battlefield, and by
+     nothing that changes control. So an attacker stolen during combat stays
+     attacking, now for the player it attacks: P0's Grizzly Bears declared at
+     P1 and then stolen by P1 read `controller 1, attacking Player(1)`
+     (probed 2026-10-16), and its combat damage would be dealt to its own
+     controller.
+     **Reachability (2026-10-16):** reachable — wrong today: Ray of Command,
+     registered and pooled since #254, is an instant whose target is a
+     creature an opponent controls, so a defender can steal an attacker.
+     **Sized:** ~25 lines of code and ~60 of tests. TR-4d's control sweep
+     already sees each change; a change of a permanent in combat removes it
+     from combat through `remove_from_combat`, whose blocked attacker stays
+     blocked (CR 509.1h), as part of the event the sweep announces.
+     **Slotted:** TR-5a, which owns the attack declaration and the defender
+     each attacker is attacking.
+
