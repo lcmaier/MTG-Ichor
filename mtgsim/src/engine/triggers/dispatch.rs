@@ -1213,6 +1213,12 @@ impl GameState {
                 .map(|(snapshot, chars)| TriggerCandidateFrame::Before { chars, snapshot });
             let lists = std::iter::once(TriggerCandidateFrame::Live { chars, snapshots }).chain(before_lists);
             for frame in lists {
+                // A list from before the event is its controller's then (CR
+                // 603.10, 603.3a), which a control change made someone else.
+                let controller = match &frame {
+                    TriggerCandidateFrame::Before { chars, .. } => chars.controller,
+                    TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::LastKnown { .. } => controller,
+                };
                 candidates.push(TriggerCandidate {
                     object: existence,
                     controller,
@@ -1733,6 +1739,26 @@ impl GameState {
                     from, Some(former_host.id), referents, seq, self.subject_read_looking_back(*former_host),
                 ),
             ),
+            // CR 603.10d: the subject as it was before the change, "you" its
+            // controller then (the candidate's, off its frame from before).
+            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { object_id, from: lost, to: gained, lki }) => {
+                occurrence_if(
+                    from.as_ref().is_none_or(|p| self.player_ref_is(p, *lost, referents))
+                        && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
+                        && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+                )
+            }
+            // Leaving the battlefield is losing control of it (Khârn the
+            // Betrayer's first ruling), to nobody: so only an arm that names no
+            // one gaining it, and its controller as it left.
+            (
+                TriggerEvent::ControlChanges { subject, from, to: None },
+                GameEvent::ZoneChange { object_id, from: Zone::Battlefield, lki: Some(lki), .. }
+                | GameEvent::LeftTheGame { object_id, from: Zone::Battlefield, lki: Some(lki), .. },
+            ) => occurrence_if(
+                from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+            ),
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no occurrence of it.
             (
@@ -1755,6 +1781,7 @@ impl GameState {
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
+                | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,

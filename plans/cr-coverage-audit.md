@@ -572,6 +572,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     zone map's sibling for an object whose every trigger is on itself
     moving, which only the window that moved it can trigger; an index, no
     fact about the game, under `CLAUDE.md`'s gate rule as the five above.
+- **Added by TR-4d (2026-10-15)**:
+  - `control_announced_away`: whether some permanent's announced controller
+    is not the one it entered under, the control sweep's gate beside the
+    registry's `any_control_changing`. The fact it summarizes is per
+    permanent, on `PermanentState.announced_controller` (CR 603.10d's "from"),
+    so this holds none of its own; it keeps the change back announced as the
+    last control-changing effect ends (`triggers-architecture.md` §12,
+    TR-4d).
 
 ---
 

@@ -186,6 +186,7 @@ counted_enum! {
         SpellCountered,
         PlayerLost,
         SameZoneMove,
+        ControlChanged,
     }
 }
 
@@ -223,6 +224,7 @@ impl EventKind {
             GameEvent::SpellCountered { .. } => EventKind::SpellCountered,
             GameEvent::PlayerLost { .. } => EventKind::PlayerLost,
             GameEvent::SameZoneMove { .. } => EventKind::SameZoneMove,
+            GameEvent::ControlChanged { .. } => EventKind::ControlChanged,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
@@ -428,6 +430,14 @@ pub enum TriggerEvent {
     /// permanent" is the object it was attached to, as the existence it was
     /// (CR 400.7).
     BecomesUnattached { attachment: TriggerSubject, former_host: TriggerSubject },
+    /// "When you lose control of [subject]" is `from: You`; "whenever an
+    /// opponent gains control of [subject] from you" adds `to: Opponent`.
+    /// Looking back (CR 603.10d): the subject as it was before the change, and
+    /// "you" its controller then. Losing control includes the permanent
+    /// leaving the battlefield (Khârn the Betrayer's first ruling), so an arm
+    /// with `to: None` reads a battlefield departure too, controlled by `from`
+    /// as it left; another player gaining control does not.
+    ControlChanges { subject: TriggerSubject, from: Option<PlayerRef>, to: Option<PlayerRef> },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
@@ -471,15 +481,19 @@ impl TriggerEvent {
     /// card sets (§4.3): CR 603.10a's three zone-change classes as an arm can
     /// match them (`zone_change_looks_back`), so "into a hand" with no `from`
     /// looks back at a move from a zone all players could see; becoming
-    /// unattached (603.10c); a spell being countered (603.10e); and a player
-    /// losing the game (603.10f). The other classes arrive with their arms.
+    /// unattached (603.10c); a change of control (603.10d); a spell being
+    /// countered (603.10e); and a player losing the game (603.10f). Phasing
+    /// out (603.10b) arrives with phasing.
     pub fn looks_back(&self) -> bool {
         match self {
             TriggerEvent::ZoneChange { change, .. } => {
                 matches!(change.from, Some(Zone::Battlefield | Zone::Graveyard))
                     || (matches!(change.to, Some(Zone::Hand | Zone::Library)) && change.from.is_none_or(|from| from.is_public()))
             }
-            TriggerEvent::BecomesUnattached { .. } | TriggerEvent::IsCountered { .. } | TriggerEvent::PlayerLoses { .. } => {
+            TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. } => {
                 true
             }
             TriggerEvent::BecomesTapped { .. }
@@ -546,6 +560,10 @@ impl TriggerEvent {
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
             TriggerEvent::BecomesAttached { .. } => EventKindMask::of(EventKind::Attached),
             TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
+            TriggerEvent::ControlChanges { to, .. } => {
+                let changed = EventKindMask::of(EventKind::ControlChanged);
+                if to.is_none() { changed.with(EventKind::ZoneChange).with(EventKind::LeftTheGame) } else { changed }
+            }
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
             TriggerEvent::AbilityResolves { .. } => EventKindMask::of(EventKind::AbilityResolved),
         }
@@ -570,7 +588,8 @@ impl TriggerEvent {
             | TriggerEvent::DamageDealt { source: subject, .. }
             | TriggerEvent::Attacks { attacker: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
-            | TriggerEvent::BecomesUnattached { former_host: subject, .. } => Some(subject),
+            | TriggerEvent::BecomesUnattached { former_host: subject, .. }
+            | TriggerEvent::ControlChanges { subject, .. } => Some(subject),
             TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -614,6 +633,7 @@ impl TriggerEvent {
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => Multiplicity::PerOccurrence,
         }
@@ -658,6 +678,10 @@ impl TriggerEvent {
             // permanent", Enormous Energy Blade's "tap that creature").
             (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { host, .. }) => Some(*host),
             (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { former_host, .. }) => Some(former_host.id),
+            // The permanent whose control changed, or which left.
+            (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { object_id, .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { object_id, .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { object_id, .. }) => Some(*object_id),
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -680,6 +704,7 @@ impl TriggerEvent {
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
+                | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -704,6 +729,8 @@ impl TriggerEvent {
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. })
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { caster, .. }) => Some(*caster),
+            // The player who gained control.
+            (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { to, .. }) => Some(*to),
             // Its controller as it left the stack, as the record keeps it.
             (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { controller, .. }) => Some(*controller),
             (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { player_id, .. })
@@ -720,6 +747,8 @@ impl TriggerEvent {
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
             | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
             | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
@@ -743,6 +772,7 @@ impl TriggerEvent {
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
+                | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
@@ -784,6 +814,9 @@ impl TriggerEvent {
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { .. })
             | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { .. })
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
@@ -808,6 +841,7 @@ impl TriggerEvent {
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
+                | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,

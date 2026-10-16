@@ -1691,6 +1691,10 @@ impl GameState {
         affected: Vec<ObjectId>,
         modification: EffectModification,
     ) -> EffectId {
+        // A row a resolution writes may move control, and the change looks
+        // back (CR 603.10d): Act of Treason's steal is read with whatever its
+        // own resolution did first.
+        self.keep_frames_before_control_change(layer == Layer::Layer2Control);
         self.continuous_effects.add(ContinuousEffect {
             id: 0,
             source: ctx.effect_source(),

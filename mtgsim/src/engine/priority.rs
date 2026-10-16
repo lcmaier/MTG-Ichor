@@ -1,3 +1,5 @@
+use crate::engine::actions::ActionContext;
+use crate::events::cause::GameRule;
 use crate::oracle::legality::candidate_priority_actions;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
@@ -269,6 +271,11 @@ impl GameState {
             if self.result.is_some() {
                 break;
             }
+
+            // A change of control the check made, as an Aura that left takes
+            // its creature back, or a player's leaving (CR 800.4a), is an
+            // event before anything is placed.
+            self.announce_control_changes(&ActionContext::game_rule(decisions, GameRule::ControlChanges))?;
 
             // Step 2: Place triggered abilities on the stack (rule 603.3)
             let triggers_placed = self.place_pending_triggers(decisions)?;

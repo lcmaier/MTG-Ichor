@@ -53,6 +53,8 @@ impl Scenario {
         loader.load_draw_step_counts()?;
         loader.load_this_turn_counts()?;
         let setup = loader.resolve_setup_actions()?;
+        // A board at a priority point has announced every change of control.
+        loader.state.settle_announced_controllers();
         let game = Game { state: loader.state, config: GameConfig { starting_life: self.starting_life, ..GameConfig::unrestricted() } };
         Ok(BuiltScenario { game, setup })
     }

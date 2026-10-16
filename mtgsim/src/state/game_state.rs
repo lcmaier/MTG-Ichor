@@ -720,6 +720,11 @@ pub struct GameState {
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
     /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
+    /// Whether some permanent's announced controller is not the one it
+    /// entered under, as the last control sweep found: the sweep's gate
+    /// beside the registry's `any_control_changing`, so control going back
+    /// as the last control-changing effect ends is still announced.
+    pub(crate) control_announced_away: bool,
     /// The CR 603.10a frames of the permanents the open batches decided to
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
@@ -1016,6 +1021,7 @@ impl GameState {
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
+            control_announced_away: false,
             lki_captures: Vec::new(),
             dispatch_audit: None,
             events: EventWindow::new(),
@@ -1499,6 +1505,11 @@ impl GameState {
         // anything can look.
         let effective = crate::oracle::characteristics::get_effective_controller(self, id)
             .unwrap_or(controller);
+        // Announced under that controller too: the stolen spell's permanent
+        // arrives the thief's, and no control changed (CR 603.10d).
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.announced_controller = effective;
+        }
         self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
@@ -1905,6 +1916,7 @@ impl GameState {
                         affected_objects: affected.clone(),
                         modification,
                     };
+                    self.keep_frames_before_the_first_control_row(layer);
                     self.continuous_effects.add(effect);
                 }
             }
@@ -1983,6 +1995,7 @@ impl GameState {
                         self.static_effect_timestamp(id, ability, Some(copy_timestamp));
 
                     for (layer, modification) in rows {
+                        self.keep_frames_before_the_first_control_row(layer);
                         self.continuous_effects.add(ContinuousEffect {
                             id: 0,
                             source: id,

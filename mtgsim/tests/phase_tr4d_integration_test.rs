@@ -13,25 +13,37 @@
 //! 4. Item 258: an effect finds what it moved in whatever public zone the
 //!    move went to (CR 400.7j, 701.17c), and never in a hand or a library
 //!    (CR 400.7e).
+//! 5. Item 13: a change of control is announced by a sweep and looks back
+//!    (CR 603.10d), so "you" is the player who lost control. Leaving the
+//!    battlefield is losing control (Khârn the Betrayer's first ruling), a
+//!    steal ending at cleanup triggers in a second cleanup step (CR 514.3a),
+//!    and a player leaving takes back what they stole (CR 800.4a).
 
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::counterspell;
-use mtgsim::cards::authoring::{at_beginning_of, loses_the_game, triggered_ability, whenever, Whose};
+use mtgsim::cards::authoring::{
+    an_opponent_gains_control_of, at_beginning_of, loses_the_game, triggered_ability, whenever, you_lose_control_of, Whose,
+};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_rb_cards::leyline_of_the_void;
 use mtgsim::cards::phase_rf_cards::darksteel_colossus;
 use mtgsim::cards::phase_tr4d_cards::multanis_presence;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, ObjectSet};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
-use mtgsim::state::game_state::{GameState, StepType};
+use mtgsim::state::game::Game;
+use mtgsim::state::game_config::GameConfig;
+use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     card_of_type, effect_ctx, fill_library, lightning_bolt, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
-    put_on_battlefield_under, put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_dp,
+    put_on_battlefield_under, put_spell_on_stack, registered, setup_game, setup_two_player_game, static_ability,
+    test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -40,7 +52,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
@@ -512,4 +524,253 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
     assert_eq!(waiting_from(&game, watching), 1);
     resolve_all(&mut game, &test_dp());
     assert_eq!(game.objects[&bears].zone, Zone::Hand, "not found there");
+}
+
+// ---------------------------------------------------------------------------
+// 5. A change of control (item 13, CR 603.10d)
+// ---------------------------------------------------------------------------
+
+/// **Fixture**, Khârn the Betrayer's Sigil of Corruption on a creature: "When
+/// you lose control of this creature, draw two cards."
+fn kharn_shaped() -> Arc<CardData> {
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    CardDataBuilder::new("Fixture Betrayer")
+        .card_type(CardType::Creature)
+        .power_toughness(5, 5)
+        .ability(triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw_two)))
+        .build()
+}
+
+/// Act of Treason's resolution, `thief` taking `victim` until end of turn.
+fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
+    let card = act_of_treason();
+    // Where the sorcery is as it finishes resolving, out of every hand.
+    let source = put_in_graveyard(game, card.clone(), thief);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: thief,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
+}
+
+fn controller(game: &GameState, id: ObjectId) -> Option<PlayerId> {
+    mtgsim::oracle::characteristics::get_effective_controller(game, id)
+}
+
+fn stocked(players: usize) -> GameState {
+    let mut game = if players == 2 { setup_two_player_game() } else { setup_game(players) };
+    for p in 0..players {
+        fill_library(&mut game, p, 10);
+    }
+    game
+}
+
+/// Stolen by Act of Treason, the creature's owner lost control of it, and the
+/// trigger looks back to the board before: "you" is the owner, who draws.
+#[test]
+fn a_stolen_creature_triggers_for_the_player_who_lost_it() {
+    let mut game = stocked(2);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    let (thiefs, owners) = (hand_size(&game, 0), hand_size(&game, 1));
+
+    steal(&mut game, 0, betrayer);
+    assert_eq!(controller(&game, betrayer), Some(0));
+    assert_eq!(waiting_from(&game, betrayer), 1);
+    assert_eq!(game.pending_triggers[0].controller, 1, "CR 603.3a, off the frame from before");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!((hand_size(&game, 0), hand_size(&game, 1)), (thiefs, owners + 2));
+}
+
+/// CR 603.4's instant: Act of Treason's change is an event before its "untap
+/// that creature" is, announced at the head of the untap's batch.
+#[test]
+fn the_change_is_announced_before_the_next_instruction() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.battlefield.get_mut(&bears).unwrap().tapped = true;
+    let before = game.recorded_events().len();
+
+    steal(&mut game, 0, bears);
+    let order: Vec<&str> = game
+        .recorded_events()
+        .records_from(before)
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::ControlChanged { object_id, from: 1, to: 0, .. } if *object_id == bears => Some("control"),
+            GameEvent::Untapped { object_id } if *object_id == bears => Some("untap"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(order, vec!["control", "untap"]);
+}
+
+/// The steal ends at cleanup (CR 514.2), and the creature going back is a
+/// change the sweep announces though no control-changing effect is left. The
+/// thief lost control, so the thief draws, in the cleanup step, which grants
+/// priority and repeats (CR 514.3a; Ogre Geargrabber's fourth ruling).
+#[test]
+fn a_steal_ending_at_cleanup_triggers_for_the_thief_in_a_second_cleanup() {
+    let mut state = stocked(2);
+    let betrayer = put_on_battlefield(&mut state, kharn_shaped(), 1);
+    steal(&mut state, 0, betrayer);
+    resolve_all(&mut state, &test_dp());
+    state.set_turn_position(Phase::new(PhaseType::Postcombat));
+    let (thiefs, before) = (hand_size(&state, 0), state.recorded_events().len());
+    let mut game = Game { state, config: GameConfig::unrestricted() };
+
+    game.resume_turn_at_priority(&test_dp()).unwrap();
+    let state = &game.state;
+    assert_eq!(controller(state, betrayer), Some(1), "it went back at cleanup");
+    let records = state.recorded_events();
+    let cleanups = records.records_from(before).iter().filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup, .. })).count();
+    assert_eq!(cleanups, 2, "the trigger made the step grant priority, and another began");
+    assert_eq!(hand_size(state, 0), thiefs + 2);
+}
+
+/// "You lose control of Khârn the Betrayer when it leaves the battlefield or
+/// another player gains control of it" (its first ruling): dying is losing
+/// control, and its controller as it left draws.
+#[test]
+fn leaving_the_battlefield_is_losing_control() {
+    let mut game = stocked(2);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 0);
+    let before = hand_size(&game, 0);
+    let by = mtgsim::types::ids::new_object_id();
+    game.execute_action(GameAction::Destroy { object: betrayer }, &effect_ctx(&game, by)).unwrap();
+
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 0), before + 2);
+}
+
+/// At four seats, the thief losing ends the steal (CR 800.4a), and the
+/// creature goes back to its owner: the thief lost control, and the thief has
+/// left, so the trigger is kept off the stack (CR 800.4d) and nobody draws.
+#[test]
+fn the_thief_leaving_returns_control_and_drops_the_thiefs_trigger() {
+    let mut game = stocked(4);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    steal(&mut game, 0, betrayer);
+    resolve_all(&mut game, &test_dp());
+    let owners = hand_size(&game, 1);
+
+    game.players[0].life_total = 0;
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(game.player_lost[0]);
+    assert_eq!(controller(&game, betrayer), Some(1), "back with its owner");
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty(), "the thief's trigger was dropped");
+    assert_eq!(hand_size(&game, 1), owners, "and not given to the owner");
+}
+
+// COVERS: ATOM-603.10d-001
+/// "Whenever an opponent gains control of a permanent you own, draw a card":
+/// an opponent steals one of your creatures, and the trigger looks back to
+/// see you had the ability before the change.
+#[test]
+fn an_opponent_gaining_control_of_a_permanent_you_own_triggers() {
+    let mut game = stocked(2);
+    let arm = TriggerEvent::ControlChanges {
+        subject: TriggerSubject::Filter(ObjectFilter::ByOwner(PlayerRef::You)),
+        from: None,
+        to: Some(PlayerRef::Opponent),
+    };
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let card = CardDataBuilder::new("Fixture Owner's Watch").card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, draw))).build();
+    let watching = put_on_battlefield(&mut game, card, 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    steal(&mut game, 1, bears);
+    assert_eq!(waiting_from(&game, watching), 1);
+}
+
+/// Zidane, Tantalus Thief's first ruling: an opponent gaining control of it
+/// and another permanent at once triggers its "whenever an opponent gains
+/// control of a permanent from you" for each, itself included, off how it was
+/// before.
+#[test]
+fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
+    let mut game = stocked(2);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let any_permanent = TriggerSubject::Filter(ObjectFilter::All);
+    let zidane = CardDataBuilder::new("Fixture Tantalus Thief")
+        .card_type(CardType::Creature)
+        .power_toughness(3, 3)
+        .ability(triggered_ability("", whenever(an_opponent_gains_control_of(any_permanent), gain)))
+        .build();
+    let zidane = put_on_battlefield(&mut game, zidane, 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let mob_rule = Effect::Atom(
+        Primitive::GainControl(Duration::UntilEndOfTurn),
+        EffectRecipient::FilteredPermanents(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+        )),
+    );
+    let source = put_in_hand(&mut game, grizzly_bears(), 1);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&mob_rule, &ctx, &test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(controller(&game, zidane), Some(1));
+    resolve_all(&mut game, &test_dp());
+    assert_eq!((life(&game, 0), life(&game, 1)), (22, 20), "two triggers, both the player's it was stolen from");
+}
+
+/// Decision 1's board: the first change on a board with no control-changing
+/// effect. "Creatures you control have 'when you lose control of this, draw a
+/// card'" gave the creature its trigger only while its owner controlled it;
+/// stolen, it has it no more, and CR 603.10's "existence of those abilities
+/// ... immediately prior to the event" still triggers it.
+#[test]
+fn the_first_steal_on_a_board_reads_the_frame_from_before() {
+    let mut game = stocked(2);
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let mut granted = triggered_ability("", whenever(you_lose_control_of(TriggerSubject::ThisObject), draw));
+    granted.id = new_ability_id();
+    let granter = put_on_battlefield(&mut game, card_of_type("Fixture Banner", CardType::Enchantment), 0);
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    game.continuous_effects.add(ContinuousEffect {
+        duration: Duration::WhileSourceOnBattlefield,
+        affected_objects: ObjectSet::Filter { filter: yours, zones: ZoneSet::of(Zone::Battlefield) },
+        ..registered(granter, Layer::Layer6Ability, 100, EffectModification::GrantAbility(Arc::new(granted)))
+    });
+    game.bump_layer_epoch();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let before = hand_size(&game, 0);
+    assert!(!game.continuous_effects.summary().any_control_changing, "no steal in progress");
+
+    steal(&mut game, 1, bears);
+    assert_eq!(waiting_from(&game, bears), 1, "it had the ability just before");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 0), before + 1);
+}
+
+/// A spell an effect stole on the stack (CR 108.4) arrives its new
+/// controller's (CR 400.7a's row): nothing changed control, and nothing is
+/// announced.
+#[test]
+fn a_permanent_that_arrives_stolen_announces_no_change() {
+    let mut game = stocked(2);
+    let spell = put_spell_on_stack(&mut game, grizzly_bears(), 0);
+    resolve_at(&mut game, 1, Primitive::GainControl(Duration::Indefinite), spell);
+    let before = game.recorded_events().len();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(controller(&game, spell), Some(1));
+    let announced = game.recorded_events().records_from(before).iter().filter(|r| matches!(r.event, GameEvent::ControlChanged { .. })).count();
+    assert_eq!(announced, 0);
 }

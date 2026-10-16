@@ -933,6 +933,9 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}] by {}{}",
                     as_it_left(game, *object_id, lki.as_ref(), announced), was, owner, from, to, act, cause_words(game, cause), replaced)
         }
+        ControlChanged { object_id, from, to, lki: _ } => {
+            format!("ControlChanged: {} [P{} -> P{}]", obj_name(game, *object_id), from, to)
+        }
         SameZoneMove { object_id, owner, zone, act, lki: _, applied } => {
             let replaced = applied.as_deref().map(|applied| {
                 let each: Vec<String> = applied.iter().map(|a| cause_words(game, &a.by)).collect();

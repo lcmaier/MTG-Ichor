@@ -339,6 +339,7 @@ impl GameState {
     /// *would have* begun; the registries use it only to refuse an expiry on
     /// the turn the row was created.
     fn expire_until_your_next_turn(&mut self, player: PlayerId, turn: u32) {
+        self.keep_frames_before_control_change(false);
         self.continuous_effects.remove_expired_at_turn_start(player, turn);
         // CR 611.2b applies to replacement effects with a duration the same
         // way — a regeneration shield or "prevent all damage this turn" ends
@@ -407,7 +408,9 @@ impl GameState {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
                 }
-                // Rule 514.2: End "until end of turn" continuous effects
+                // Rule 514.2: End "until end of turn" continuous effects, the
+                // frames kept first for a change of control they make.
+                self.keep_frames_before_control_change(false);
                 self.continuous_effects.remove_expired_at_cleanup(
                     self.active_player,
                     self.turn_number,
@@ -436,6 +439,10 @@ impl GameState {
                 // beside the expiry, rather than at the next sweep. Free until
                 // somebody has left.
                 self.exile_objects_no_player_in_game_controls(dp)?;
+                // A steal that ended returns its permanent, an event in this
+                // step (Ray of Command's third ruling), so CR 514.3a's check
+                // finds its triggers waiting and the step grants priority.
+                self.announce_control_changes(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
 
                 // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
                 // `Game::run_turn`'s loop, one level up with 514.1's discard.

@@ -2498,6 +2498,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
         affected_objects: ObjectSet::Fixed(vec![stolen]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
+    game.settle_announced_controllers();
     assert_eq!(
         get_effective_controller(&game, stolen),
         Some(0),

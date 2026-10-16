@@ -422,6 +422,7 @@ fn a_creature_referred_to_that_another_player_controls_is_not_sacrificed() {
         duration: Duration::Indefinite,
         ..registered(bears, Layer::Layer2Control, 200, EffectModification::SetController(PlayerRef::Player(1)))
     });
+    game.settle_announced_controllers();
 
     advance_to(&mut game, 0, StepType::End);
     place_and_resolve(&mut game);
@@ -844,6 +845,7 @@ fn an_until_return_is_under_its_owners_control() {
         duration: Duration::Indefinite,
         ..registered(stolen, Layer::Layer2Control, 200, EffectModification::SetController(PlayerRef::Player(0)))
     });
+    game.settle_announced_controllers();
     assert_eq!(get_effective_controller(&game, stolen), Some(0));
     let priest = put_on_battlefield(&mut game, banisher(ReturnUnder::Owner), 0);
     place_and_resolve(&mut game);

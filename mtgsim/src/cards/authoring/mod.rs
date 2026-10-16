@@ -22,7 +22,7 @@
 pub mod triggers;
 
 pub use triggers::{
-    another, at_beginning_of, becomes_attached, becomes_unattached, dies, draws_a_card, enters, is_sacrificed,
-    leaves_the_battlefield, loses_the_game, persist, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
-    when_you_dont, whenever, CountableEvent, Whose,
+    an_opponent_gains_control_of, another, at_beginning_of, becomes_attached, becomes_unattached, dies, draws_a_card, enters,
+    is_sacrificed, leaves_the_battlefield, loses_the_game, persist, shuffles_their_library, spell_is_countered,
+    triggered_ability, undying, when_you_do, when_you_dont, whenever, you_lose_control_of, CountableEvent, Whose,
 };

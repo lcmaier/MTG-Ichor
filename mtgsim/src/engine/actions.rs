@@ -760,11 +760,17 @@ impl GameState {
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_batch();
-        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // The outermost batch dispatches its window at its close. A nested one
         // joined an enclosing window and dispatches nothing of its own.
         let outermost = self.nesting.batch_depth == 0;
+        // A change of control the board made since the last proposal, as a
+        // resolution's earlier instruction did, is announced before this one
+        // (CR 603.4's instant): Act of Treason's, before its untap.
+        if outermost && self.nesting.dispatch_depth == 0 {
+            self.announce_control_changes(ctx)?;
+        }
+        let previous = self.events.open_batch();
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and

@@ -351,6 +351,15 @@ pub enum GameEvent {
     /// it is the stamp's, not the route's.
     Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute },
 
+    /// A permanent's controller became `to` from `from` (CR 613.1b): a
+    /// control-changing effect started or ended. No performer does this, so
+    /// `announce_control_changes` finds it, comparing each permanent with the
+    /// controller the stream last announced; one sweep's changes are one
+    /// event. `lki` is the permanent as it was before, which "when you lose
+    /// control of" and "an opponent gains control of" look back to (CR
+    /// 603.10d): it names `from` as its controller.
+    ControlChanged { object_id: ObjectId, from: PlayerId, to: PlayerId, lki: Lki },
+
     // --- Multiplayer (CR 800.4a) ---
     /// An object owned by a player who has just left the game left it too.
     ///
@@ -481,6 +490,7 @@ impl GameEvent {
             | CountersChanged { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
             | SameZoneMove { object_id: id, .. }
+            | ControlChanged { object_id: id, .. }
             | TokenCeasedToExist { object_id: id }
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }

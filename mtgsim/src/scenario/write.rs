@@ -128,6 +128,7 @@ impl<'g> Writer<'g> {
             zone_trigger_sources: _,
             newcomer_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
+            control_announced_away: _, // the control sweep's, settled at load
             lki_captures: _,
             dispatch_audit: _,
             events: _,
@@ -462,6 +463,8 @@ impl<'g> Writer<'g> {
             cast: _,
             cost_choices,
             entered_as,
+            announced_controller: _, // every change is announced at a prompt; settled at load
+            frame_before_control_change: _,
         } = entry;
         let obj = &state.objects[&id];
         let card = line.card.to_string();

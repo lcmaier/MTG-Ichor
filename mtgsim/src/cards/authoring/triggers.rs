@@ -137,6 +137,7 @@ impl CountableEvent {
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
@@ -257,6 +258,17 @@ pub fn draws_a_card(whose: Whose) -> CountableEvent {
 /// you've cast" is `Whose::Yours`, read off who cast it (CR 603.10e).
 pub fn spell_is_countered(cast_by: Whose) -> TriggerEvent {
     TriggerEvent::IsCountered { spell: None, caster: cast_by.player_ref() }
+}
+
+/// "When you lose control of [subject]" (CR 603.10d), which leaving the
+/// battlefield is too (Khârn the Betrayer's first ruling).
+pub fn you_lose_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: None }
+}
+
+/// "Whenever an opponent gains control of [subject] from you" (CR 603.10d).
+pub fn an_opponent_gains_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: Some(PlayerRef::Opponent) }
 }
 
 /// "Whenever [whose player] loses the game" (CR 603.9): "a player" is
