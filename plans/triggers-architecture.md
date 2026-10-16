@@ -298,7 +298,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
-| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and the arm's `it: DamageParticipant` says which one "it" is (§3.12a, `codebase-state.md` item 255; TR-5a's design, §12) | no | TR-1 |
+| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and the arm's `triggering_object: DamageParticipant` says which one "it" is (§3.12a, `codebase-state.md` item 255; TR-5a's design, §12) | no | TR-1 |
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
 | `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, was_cast: Option<bool>, multiplicity }` — `from` and `was_cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
 | `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3). `cause` waits for its one customer, CR 727's rad counters | no | TR-1, TR-2a |
@@ -3444,7 +3444,8 @@ of its readers get the wrong object, or none:
    off its frame, and anything else as the dispatch finds it, right after the
    event.
 2. **The damage arm says which object "it" is** (item 255; decision 2).
-   `DamageDealt` gains `it: DamageParticipant`, either `Source` or `Recipient`:
+   `DamageDealt` gains `triggering_object: DamageParticipant`, either `Source`
+   or `Recipient`, named for the reader it steers, `TriggeringObject`:
    Sphere Grid's is `Source`, and "whenever this creature deals damage to a
    creature, destroy that creature" is `Recipient`. "That creature", "its
    power", "if it …" and "them" all read the arm's choice. A `Recipient` arm
@@ -3504,25 +3505,17 @@ binding.
    records plus a list of objects beside them, is two collections kept in step
    (`engineering-practices.md` §2c). **Agreed at review (2026-10-16)**, with
    the two types named for triggers.
-2. **How a card says which object "it" is.** Today "it" is one projection
-   per arm, and the damage arm's names the recipient. Two shapes:
-   - **The arm says (recommended).** One field, `it: DamageParticipant`, on
-     one arm and its eight literals. The four readers of "it" stay as they
-     are: `TriggeringObject`, `TriggeringPower` and `TriggeringToughness`,
-     `ConditionObject::TriggeringObject`, and "them". The choice belongs to
-     the condition's text, since "that creature" refers back to the creature
-     the condition names, so it is made once, where that text is written. A
-     reader of the *other* object gets a recipient of its own where a card
-     prints one, such as TR-5e's "the player it's attacking".
-   - **A recipient per role.** No arm changes, but each of the four readers
-     needs the role as a parameter: every reader of "it" in four card files
-     and the authoring words, and nineteen in the tests. And a card could
-     read "its power" off one object and "that creature" off the other with
-     nothing to stop it.
-
-   Neither costs anything at run time. Upkeep: TR-5c's blocks repeat the same
-   choice, and its `BlockShape` already decides "it" per reading, as the arm
-   does here.
+2. **The trigger condition says which participant a reference means**
+   (decided at review, 2026-10-16). A damage event involves a source and a
+   recipient, and "that creature" is the source on Sphere Grid and the
+   recipient on "whenever this creature deals damage to a creature, destroy
+   that creature". The arm names the participant once, so the four readers
+   of "it" follow it unchanged: `TriggeringObject`, `TriggeringPower` and
+   `TriggeringToughness`, `ConditionObject::TriggeringObject`, and "them".
+   The alternative, each instruction naming its participant, would migrate
+   every reader of "it" (four card files, the authoring words, nineteen test
+   uses), and would let one card read "its power" off one participant and
+   "that creature" off the other.
 
    **Neither makes the engine read English.** Which existence each
    participant is, and whether it can still be found, is rules (CR 400.7,
@@ -3531,9 +3524,39 @@ binding.
    the card definition states it, through the authoring word for each
    template ("[a creature] deals damage" against "[a creature] is dealt
    damage"). The count of "target" is the contrast: CR 601.2c counts its
-   instances, so that one is the engine's. The two options differ only in
-   where the definition states the choice: once on the condition, or on each
-   instruction. Open at review: the owner asked for this context.
+   instances, so that one is the engine's.
+
+   **The choice is not only "it", but the list is closed** (the owner asked
+   whether it would grow with card breadth). A reference can name only a
+   participant of the matched record. There is one record kind per performed
+   event (§0, commitment two), and its participants are fixed by the CR rule
+   that defines the event, so new cards add no candidates. Every choice in
+   print, counted with `(o:"when" or o:"whenever")` and the query shown:
+
+   | Record | Reader | Candidates | Printed | Owner |
+   |---|---|---|---|---|
+   | `DamageDealt` | `TriggeringObject` | the source or the recipient | 81 source, `o:"deals combat damage to a player" (o:"that creature" or o:" on it")`; 37 recipient, `o:"is dealt damage" (o:"that creature" or o:" it ")` | TR-5a |
+   | `ZoneChange` | `TriggeringPlayer` | the owner, or the controller as it left | 4 controller, `o:"opponent controls dies" o:"that player"`; 4 owner, `o:"into an opponent's graveyard" o:"that player"` | item 268 |
+   | `Attached` | `TriggeringObject` | the host or the attachment | 3 host, `o:"becomes attached to" o:"that creature"`; 1 attachment, `o:"becomes attached to" (o:"that equipment" or o:"that aura")` | item 268 |
+   | `CountersChanged` | `TriggeringPlayer` | the object's controller or the putter | 15, `o:"counters on" o:"that player"` | TR-5b |
+   | `BlockersDeclared` | `TriggeringObject` | the blocker or the attacker | 55, `o:"blocks" o:"that creature"` | TR-5c, by `BlockShape` |
+   | `Targeted` | `TriggeringObject` | the target, or the spell or ability targeting it | 17, `o:"becomes the target of" (o:"that spell" or o:"that ability")` | TR-5c |
+   | `DamageDealt` | `TriggeringAmount` | the damage dealt, or its excess (CR 120.10) | 10, `o:"excess damage"` | TR-5c |
+   | `AttackersDeclared` | `TriggeringPlayer` | the attacking player or the player attacked | follows the occurrence (TR-5e's table) | TR-5e, no field |
+
+   Damage's "that player" has one candidate in print, the recipient (194,
+   `o:"deals combat damage to a player" o:"that player"`), and "that
+   creature's controller" is derived from the source. A record not listed
+   offers each reader one candidate.
+
+   **One pattern for every row.** An arm carries a choice only for a reader
+   its record gives more than one candidate. The field is named for the
+   reader it steers, `triggering_object` or `triggering_player`, and its type
+   is that record's own participant enum, so it cannot name a participant the
+   record lacks. A reference to the *other* participant is derived from the
+   chosen one ("its controller", "its power"), or is a CR relation of it ("the
+   player it's attacking", "the creature blocking it"). The relations are a
+   set CR 506–509 and 701.3 close.
 3. **`WithCounters` takes an optional kind.** "Any counter" is its own printed
    family, and the filter shares `CountIs` with `Condition::CounterCount`.
    **Agreed at review (2026-10-16).**
@@ -3548,7 +3571,7 @@ binding.
    there, and a PR in a split carries a consumer of what it builds
    (`engineering-practices.md` §4). TR-5a is then under the band's floor.
    The alternative is the brief's split as written, which moves about 135
-   lines of item 267 into TR-5e. Open at review.
+   lines of item 267 into TR-5e. **Agreed at review (2026-10-16).**
 
 ### TR-5e — the attack declaration
 
