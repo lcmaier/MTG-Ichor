@@ -6637,3 +6637,105 @@ the opposite for a destruction, and flipped (decision 2).
      the Underworld's fourth ruling reads it for a delayed trigger, so
      TR-3b's Rest in Peace test flips (`triggers-architecture.md` §12,
      TR-4d's decision 2).
+
+### Item 250 — closed 2026-10-16 by PR #255 (TR-5a)
+
+Closed by TR-5a. The binding keeps occurrences, each its record and the
+objects it is about as `ObjectRef`s taken at the dispatch
+(`TriggerParticipants`). `EffectRecipient::TriggeringObjects` names the
+participant it reads, and finds each occurrence's while it is still that
+object (CR 400.7). Tested over combat damage, an attack and two entries,
+one of them destroyed before the trigger resolves.
+
+*Original entry:*
+
+250. **"Them" over a record that is not a zone change is refused.**
+     `EffectRecipient::TriggeringObjects` finds each matched zone change's
+     new object (CR 400.7e). A damage, attack or entry record names its
+     object by id only, and the binding keeps one subject, so a "them" there
+     has no existence to find and `triggering_objects` refuses it rather than
+     read the object live, which would find an object that has since moved
+     and come back (CR 400.7). 28 of the 59 printed "them" triggers are of
+     that kind, by their trigger condition: 14 combat damage, 9 attacks and
+     5 entries (Descendants' Fury, Aloy, Celes, and the rest).
+     **Reachability (2026-10-12):** unreachable — no registered card writes
+     `TriggeringObjects`.
+     **Sized:** ~50 lines of code and ~80 of tests. A `OncePerEvent`
+     binding keeps each matched occurrence's identity at dispatch beside its
+     record, as a `PerOccurrence` binding keeps its one subject, one
+     collection of records each with its occurrences rather than two lists
+     kept in step (`engineering-practices.md` §2c).
+     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** item 255 is the same binding change
+     for a record's second object, and the two are one facility.
+     **Slotted:** TR-5a, the binding's roles, where 23 of the 28 are.
+
+### Item 255 — closed 2026-10-16 by PR #255 (TR-5a)
+
+Closed by TR-5a. Each occurrence keeps every object its record names, by
+the part it played (`TriggerParticipants`): a damage record's source and
+recipient, an attack's attacker, an attach's attachment and host. Each
+reader of a triggering object names its `Participant`, since CR 608.2c
+leaves the antecedent of "that creature" to the text (TR-5a's decision 2,
+reversed at review from a choice on the condition). A source that left
+before dealing its damage is the existence that dealt it (CR 608.2h). A
+registry test checks every named participant against its condition's
+arms. Sphere Grid registers. The blocks' and the targeting's records get
+their participants with their arms in TR-5c.
+
+*Original entry:*
+
+255. **A record names two objects, and the binding keeps one.** Each combat
+     and targeting record names two parties:
+     - the attacker and its defender (Hellrider's "the player or planeswalker
+       it's attacking");
+     - the blocker and the attacker (Loyal Sentry's "that creature");
+     - the damage's source and its recipient;
+     - the target and the spell or ability (Frost Titan's "that spell or
+       ability").
+
+     `TriggerEvent::subject` makes the damage arm's subject its source, and
+     `subject_of` projects the recipient. So in "Whenever a creature you
+     control deals combat damage to a player, put a +1/+1 counter on that
+     creature", "that creature" binds nothing. 21 cards: `o:"deals combat
+     damage to a player" o:"that creature"`, about ten of which mean the
+     source; 96 with "it": `(o:"deals combat damage to a player" or o:"deals
+     combat damage to an opponent") (o:"that creature" or o:" on it" or
+     o:"untap it" or o:"return it")`.
+     **Reachability (2026-10-12):** unreachable — no registered card reads
+     `TriggeringObject` on these records; seven tests do, one of them the
+     recipient fixture.
+     **Sized:** ~240 lines of code and ~210 of tests, with item 250: an
+     occurrence keeps both of its record's objects as `ObjectRef`s at the
+     dispatch, the damage arm's subject flips to its source, and a recipient
+     names the counterpart.
+     **Slotted:** TR-5a, the binding's roles, with item 250 and Sphere Grid.
+
+### Item 267 — closed 2026-10-16 by PR #255 (TR-5a)
+
+Closed by TR-5a. The control sweep's `announce` removes each permanent
+whose controller changed from combat before it emits the change, so the
+change's triggers read the board CR 506.4 leaves. Removal from combat is no
+event (`NOT AN EVENT:`), the call regeneration's rider makes. An attacker
+whose blocker is taken stays blocked (CR 509.1h). Both tests failed before
+the fix.
+
+*Original entry:*
+
+267. **A permanent whose controller changes stays in combat.** CR 506.4
+     removes a permanent from combat "if its controller changes".
+     `GameState::remove_from_combat` (main item 18) is called by
+     regeneration's rider and by a permanent leaving the battlefield, and by
+     nothing that changes control. So an attacker stolen during combat stays
+     attacking, now for the player it attacks: P0's Grizzly Bears declared at
+     P1 and then stolen by P1 read `controller 1, attacking Player(1)`
+     (probed 2026-10-16), and its combat damage would be dealt to its own
+     controller.
+     **Reachability (2026-10-16):** reachable — wrong today: Ray of Command,
+     registered and pooled since #254, is an instant whose target is a
+     creature an opponent controls, so a defender can steal an attacker.
+     **Sized:** ~25 lines of code and ~60 of tests. TR-4d's control sweep
+     already sees each change; a change of a permanent in combat removes it
+     from combat through `remove_from_combat`, whose blocked attacker stays
+     blocked (CR 509.1h), as part of the event the sweep announces.
+     **Slotted:** TR-5a, which owns the attack declaration and the defender
+     each attacker is attacking.

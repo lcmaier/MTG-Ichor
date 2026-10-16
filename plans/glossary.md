@@ -622,9 +622,9 @@ it can trigger repeatedly if one event contains multiple occurrences", so a
 wipe of three lands is three triggers for "whenever a land is put into a
 graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
 (`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
-arm says one of its events is (a subject `occurrences_matching_arm` returns: a
-record for most kinds, an attacker for the attack shape, a counter for the
-counter arms).
+arm says one of its events is (one `TriggerParticipants` that
+`occurrences_matching_arm` returns: a record for most kinds, an attacker for
+the attack shape, a counter for the counter arms).
 The CR gives the occurrence a name and the choice between the two none, so this
 one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
 
@@ -648,11 +648,20 @@ its tables stay as they are, the record being keyed on them, and prose about
 the struct says rows. → `state/diagnostics.rs`.
 
 **binding** — what a pending or stacked trigger remembers about its event:
-the def, the records that matched (by `EventSeq`, never by copy), which of
-the condition's events matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
-player" and "that many" are read back through that event's projections at
-resolution, so there is one copy of every fact and the frame comes with the
-record. → `TriggerBinding`, `engine::triggers::binding`.
+the def, which of the condition's events matched, and its occurrences, each the
+record that holds it, copied whole, with its **participants** as `ObjectRef`s
+(id and epoch). "That creature", "that player" and "that many" are read back
+through that event's projections at resolution, so there is one copy of every
+fact and the frame comes with the record. → `TriggerBinding`,
+`engine::triggers::binding`.
+
+**participant** — an object one occurrence of a trigger event is about, by the
+part it played: a damage record's source and recipient, an attack's attacker,
+an attach's attachment and host, or the one object of a record about one. Each
+instruction that reads a triggering object names the participant it means,
+since CR 608.2c leaves the antecedent of "that creature" to the text. The
+project's word; it avoids CR 700.8's *party* and the Role tokens. →
+`Participant`, `TriggerParticipants`, `triggers-architecture.md` §12 (TR-5a).
 
 **elision** — the engine declining to ask a prompt whose every legal answer
 leaves the same game, with the conditions under which that stops being true

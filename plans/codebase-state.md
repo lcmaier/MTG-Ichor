@@ -9122,25 +9122,11 @@ that is wrong today.
 
 ### Found by RH-3 — the record's new object, its applied replacements and its moment (2026-10-12)
 
-250. **"Them" over a record that is not a zone change is refused.**
-     `EffectRecipient::TriggeringObjects` finds each matched zone change's
-     new object (CR 400.7e). A damage, attack or entry record names its
-     object by id only, and the binding keeps one subject, so a "them" there
-     has no existence to find and `triggering_objects` refuses it rather than
-     read the object live, which would find an object that has since moved
-     and come back (CR 400.7). 28 of the 59 printed "them" triggers are of
-     that kind, by their trigger condition: 14 combat damage, 9 attacks and
-     5 entries (Descendants' Fury, Aloy, Celes, and the rest).
-     **Reachability (2026-10-12):** unreachable — no registered card writes
-     `TriggeringObjects`.
-     **Sized:** ~50 lines of code and ~80 of tests. A `OncePerEvent`
-     binding keeps each matched occurrence's identity at dispatch beside its
-     record, as a `PerOccurrence` binding keeps its one subject, one
-     collection of records each with its occurrences rather than two lists
-     kept in step (`engineering-practices.md` §2c).
-     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** item 255 is the same binding change
-     for a record's second object, and the two are one facility.
-     **Slotted:** TR-5a, the binding's roles, where 23 of the 28 are.
+250. **~~"Them" over a record that is not a zone change is refused.~~ — ✅ CLOSED 2026-10-16 (PR #255, TR-5a).** — archived.
+     "Them" reads the object that played the part its instruction names in
+     each occurrence, over any record: damage, an attack, an entry.
+     **Reachability (2026-10-16):** closed — PR #255.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 250".
 
 ### Found by the records' contract (2026-10-12, A6p)
 
@@ -9180,31 +9166,12 @@ item 131, and split TR-4 and TR-5 in four each. Counts are Scryfall's
      **Reachability (2026-10-13):** closed — PR #248.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 254".
 
-255. **A record names two objects, and the binding keeps one.** Each combat
-     and targeting record names two parties:
-     - the attacker and its defender (Hellrider's "the player or planeswalker
-       it's attacking");
-     - the blocker and the attacker (Loyal Sentry's "that creature");
-     - the damage's source and its recipient;
-     - the target and the spell or ability (Frost Titan's "that spell or
-       ability").
-
-     `TriggerEvent::subject` makes the damage arm's subject its source, and
-     `subject_of` projects the recipient. So in "Whenever a creature you
-     control deals combat damage to a player, put a +1/+1 counter on that
-     creature", "that creature" binds nothing. 21 cards: `o:"deals combat
-     damage to a player" o:"that creature"`, about ten of which mean the
-     source; 96 with "it": `(o:"deals combat damage to a player" or o:"deals
-     combat damage to an opponent") (o:"that creature" or o:" on it" or
-     o:"untap it" or o:"return it")`.
-     **Reachability (2026-10-12):** unreachable — no registered card reads
-     `TriggeringObject` on these records; seven tests do, one of them the
-     recipient fixture.
-     **Sized:** ~240 lines of code and ~210 of tests, with item 250: an
-     occurrence keeps both of its record's objects as `ObjectRef`s at the
-     dispatch, the damage arm's subject flips to its source, and a recipient
-     names the counterpart.
-     **Slotted:** TR-5a, the binding's roles, with item 250 and Sphere Grid.
+255. **~~A record names two objects, and the binding keeps one.~~ — ✅ CLOSED 2026-10-16 (PR #255, TR-5a).** — archived.
+     Each occurrence keeps every object it is about, by the part it played, and
+     each instruction names the one it reads (CR 608.2c). TR-5c gives the
+     blocks' and the targeting's records their participants in the same way.
+     **Reachability (2026-10-16):** closed — PR #255.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 255".
 
 256. **"Copy that ability" has no stack object to copy.** `AbilityActivated`
      names the ability by identity, which two activations of one ability
@@ -9333,30 +9300,17 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
 ### Found after TR-4d (2026-10-16)
 
-267. **A permanent whose controller changes stays in combat.** CR 506.4
-     removes a permanent from combat "if its controller changes".
-     `GameState::remove_from_combat` (main item 18) is called by
-     regeneration's rider and by a permanent leaving the battlefield, and by
-     nothing that changes control. So an attacker stolen during combat stays
-     attacking, now for the player it attacks: P0's Grizzly Bears declared at
-     P1 and then stolen by P1 read `controller 1, attacking Player(1)`
-     (probed 2026-10-16), and its combat damage would be dealt to its own
-     controller.
-     **Reachability (2026-10-16):** reachable — wrong today: Ray of Command,
-     registered and pooled since #254, is an instant whose target is a
-     creature an opponent controls, so a defender can steal an attacker.
-     **Sized:** ~25 lines of code and ~60 of tests. TR-4d's control sweep
-     already sees each change; a change of a permanent in combat removes it
-     from combat through `remove_from_combat`, whose blocked attacker stays
-     blocked (CR 509.1h), as part of the event the sweep announces.
-     **Slotted:** TR-5a, which owns the attack declaration and the defender
-     each attacker is attacking.
+267. **~~A permanent whose controller changes stays in combat.~~ — ✅ CLOSED 2026-10-16 (PR #255, TR-5a).** — archived.
+     The control sweep removes each changed permanent from combat as part of
+     the change (CR 506.4); a blocked attacker stays blocked (CR 509.1h).
+     **Reachability (2026-10-16):** closed — PR #255.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 267".
 
 ### Found by TR-5a's design (2026-10-16)
 
 268. **"That player" is one projection per arm, and two records give it two
      candidates.** Since TR-5a each instruction names the object participant
-     it reads (`triggers-architecture.md` §12, TR-5a's decision 2, CR 608.2c).
+     it reads (TR-5a's decision 2, `plans/archive/triggers-architecture-landed.md`; CR 608.2c).
      `EffectRecipient::TriggeringPlayer` still reads one fixed player per arm
      (`TriggerEvent::player_of`), and a zone change's is its owner. 4 cards
      mean the controller as it left, `(o:"when" or o:"whenever") o:"opponent
