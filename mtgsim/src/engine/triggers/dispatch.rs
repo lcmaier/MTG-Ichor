@@ -1698,8 +1698,9 @@ impl GameState {
             }
             (TriggerEvent::Attacks { attacker, .. }, GameEvent::AttackersDeclared { attackers }) => attackers
                 .iter()
-                .filter(|id| self.subject_matches(attacker, Some(**id), referents, seq, SubjectRead::Now))
-                .filter_map(|&id| self.subject_after(event, id))
+                .map(|&(id, _)| id)
+                .filter(|id| self.subject_matches(attacker, Some(*id), referents, seq, SubjectRead::Now))
+                .filter_map(|id| self.subject_after(event, id))
                 .map(|attacker| TriggeringEventObjects::Attack { attacker })
                 .collect(),
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {

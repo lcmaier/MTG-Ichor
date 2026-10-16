@@ -10,6 +10,7 @@ use crate::types::mana::ManaType;
 use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::targeting::TargetRef;
+use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
 use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerSeq};
@@ -151,7 +152,10 @@ pub enum GameEvent {
     },
 
     // --- Combat ---
-    AttackersDeclared { attackers: Vec<ObjectId> },
+    /// CR 508.1: each creature declared as an attacker, with what it attacks
+    /// (CR 508.1b). A creature put onto the battlefield attacking is in no
+    /// record: it never "attacked" (CR 508.4).
+    AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
     BlockersDeclared { blockers: Vec<(ObjectId, ObjectId)> },
 
     // --- Spells ---
@@ -481,7 +485,8 @@ impl GameEvent {
     /// zone it left instead, off its look-back frame or its card.
     pub fn objects_named_as_announced(&self) -> impl Iterator<Item = ObjectId> + '_ {
         use GameEvent::*;
-        // Up to three objects named one by one, then the two variants' lists.
+        // Up to three objects named one by one, then the lists three variants
+        // hold.
         let (named, listed, paired): ([Option<ObjectId>; 3], &[ObjectId], &[(ObjectId, ObjectId)]) = match self {
             Tapped { object_id: id }
             | Untapped { object_id: id }
@@ -516,7 +521,7 @@ impl GameEvent {
             | SpellCountered { spell_id: a, countered_by: b, .. } => ([Some(*a), Some(*b), None], &[], &[]),
             Unattached { attachment, former_host, .. } => ([Some(attachment.id), Some(former_host.id), None], &[], &[]),
             Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
-            AttackersDeclared { attackers } => ([None; 3], attackers, &[]),
+            AttackersDeclared { .. } => ([None; 3], &[], &[]),
             BlockersDeclared { blockers } => ([None; 3], &[], blockers),
             ZoneChange { .. }
             | LeftTheGame { .. }
@@ -530,7 +535,14 @@ impl GameEvent {
             | LibraryShuffled { .. }
             | StateBasedActionPerformed => ([None; 3], &[], &[]),
         };
-        named.into_iter().flatten().chain(listed.iter().copied()).chain(paired.iter().flat_map(|&(a, b)| [a, b]))
+        // Each attacker, and the permanent it attacks.
+        let attacks: &[(ObjectId, AttackTarget)] = if let AttackersDeclared { attackers } = self { attackers } else { &[] };
+        named
+            .into_iter()
+            .flatten()
+            .chain(listed.iter().copied())
+            .chain(paired.iter().flat_map(|&(a, b)| [a, b]))
+            .chain(attacks.iter().flat_map(|&(attacker, target)| [Some(attacker), target.permanent()]).flatten())
     }
 }
 

@@ -1030,8 +1030,17 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("LifeChanged: P{} {} -> {}{}", player_id, old, new, src)
         }
         AttackersDeclared { attackers } => {
-            let names: Vec<String> = attackers.iter().map(|id| obj_name(game, *id)).collect();
-            format!("AttackersDeclared: [{}]", names.join(", "))
+            let attacks: Vec<String> = attackers
+                .iter()
+                .map(|&(attacker, target)| {
+                    let attacked = match target {
+                        AttackTarget::Player(pid) => format!("P{}", pid),
+                        AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => obj_name(game, id),
+                    };
+                    format!("{} -> {}", obj_name(game, attacker), attacked)
+                })
+                .collect();
+            format!("AttackersDeclared: [{}]", attacks.join(", "))
         }
         BlockersDeclared { blockers } => {
             let pairs: Vec<String> = blockers.iter()

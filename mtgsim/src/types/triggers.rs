@@ -1438,6 +1438,7 @@ mod tests {
     use super::*;
     use crate::events::event::EventSeq;
     use crate::types::zones::ZoneChangeAct;
+    use crate::state::battlefield::AttackTarget;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
@@ -1476,7 +1477,7 @@ mod tests {
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
-            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![id] }),
+            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
