@@ -720,11 +720,10 @@ pub struct GameState {
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
     /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
-    /// Whether some permanent's announced controller is not the one it
-    /// entered under, as the last control sweep found: the sweep's gate
-    /// beside the registry's `any_control_changing`, so control going back
-    /// as the last control-changing effect ends is still announced.
-    pub(crate) control_announced_away: bool,
+    /// Whether a control-changing effect existed at the last control sweep
+    /// (`settle_announced_controllers`). If one did, the next sweep runs with
+    /// none left, so control going back as the last one ends is announced.
+    pub(crate) control_effects_at_last_sweep: bool,
     /// The CR 603.10a frames of the permanents the open batches decided to
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
@@ -1021,7 +1020,7 @@ impl GameState {
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
-            control_announced_away: false,
+            control_effects_at_last_sweep: false,
             lki_captures: Vec::new(),
             dispatch_audit: None,
             events: EventWindow::new(),

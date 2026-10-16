@@ -1879,3 +1879,29 @@ before the first control row, the sweep at a batch's head, the sweep after
 the cleanup expiry, and the departure reading. Item 131's and item 258's
 tests failed against the tree before them, as did TR-3b's flipped test.
 
+### Review round (2026-10-16)
+
+- **The snapshot holds every permanent's kept frame.** The first build kept
+  a frame for each permanent whose controller changed, and for any other
+  whose ability list differed across the sweep, which took a second struct
+  pairing two frames (`Unchanged`) and a list comparison. The owner found the
+  struct strange. Every permanent's kept frame now goes in, which is the same
+  answer by construction: a list the change left alone answers the same
+  before and after. `a_grant_the_steal_moves_still_triggers_the_creatures_left_behind`
+  is the board that needs the survivors, a stolen "creatures you control
+  have" source, and failed with only the changed permanents' frames.
+- **One function, one name.** `settle_announced_controllers` was a one-line
+  wrapper over `sweep_controllers`. It is the sweep now, returning a
+  `ControlSweep`, and `announce_control_changes` announces what it returns.
+- **The gate's flag** was `control_announced_away`, true while a permanent
+  was announced under another controller than it entered under. It is
+  `control_effects_at_last_sweep`, whether a control-changing effect existed
+  at the last sweep: the same runs of the sweep, said as what it asks.
+- **One-sided Humility, both ways** (the owner's request). The thief's makes
+  the owner's creature trigger-less before the steal, and it does not
+  trigger though it has the trigger after; the owner's takes the trigger
+  away after the steal, and it triggers off its list from before. A "lose
+  control" trigger refuses the first board on its "you" too, so
+  `a_trigger_on_any_change_the_creature_lacked_before_does_not_trigger`
+  names no player and fails with the snapshot off.
+

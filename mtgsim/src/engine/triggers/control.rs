@@ -30,22 +30,22 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
-/// One permanent whose controller changed: from whom, to whom, and its frame
-/// from before.
-struct ControlChange {
+/// One permanent whose controller changed, from whom and to whom.
+pub struct ControlChange {
     object: ObjectId,
     from: PlayerId,
     to: PlayerId,
-    before: Option<Arc<EffectiveCharacteristics>>,
 }
 
-/// A permanent whose controller did not change, with its frame from before
-/// the sweep and its frame now: the change may still have altered its
-/// ability list, as a "you control" grant moving does.
-struct Unchanged {
-    object: ObjectId,
-    before: Arc<EffectiveCharacteristics>,
-    now: Arc<EffectiveCharacteristics>,
+/// What a sweep found: each permanent whose controller changed, and every
+/// permanent's frame as it was kept before the change, which the change
+/// looks back to (CR 603.10d). Every permanent's and not only the ones that
+/// changed hands, because one permanent's controller can change another's
+/// abilities: "creatures you control have ..." follows its source to the
+/// thief, and the creatures left behind lose what it gave them.
+pub struct ControlSweep {
+    changes: Vec<ControlChange>,
+    frames_before: Vec<(ObjectId, Arc<EffectiveCharacteristics>)>,
 }
 
 impl GameState {
@@ -76,90 +76,71 @@ impl GameState {
     }
 
     /// Announce every permanent whose controller is no longer the one the
-    /// stream last announced, as one event, and dispatch it. A no-op unless a
-    /// control-changing effect exists or a permanent is announced away from
-    /// the controller it entered under, which is the change back as the last
-    /// such effect ends.
+    /// stream last announced, as one event, and dispatch it.
     pub(crate) fn announce_control_changes(&mut self, ctx: &ActionContext) -> Result<(), String> {
-        let (changes, kept) = self.sweep_controllers();
-        if changes.is_empty() {
+        let sweep = self.settle_announced_controllers();
+        if sweep.changes.is_empty() {
             return Ok(());
         }
-        self.announce(changes, kept, ctx)
+        self.announce(sweep, ctx)
     }
 
-    /// Take every permanent's controller as announced, and announce nothing:
-    /// a board built outside play, as if every change of control on it had
-    /// been announced as it happened. The scenario loader's, at the priority
-    /// point it builds; and a test's that writes a control-changing row
-    /// straight into the registry.
-    pub fn settle_announced_controllers(&mut self) {
-        self.sweep_controllers();
-    }
-
-    /// The sweep: each permanent's controller against the one announced,
-    /// written as announced, with the frame from before for each that
-    /// changed, and the pair of frames for each that did not.
-    fn sweep_controllers(&mut self) -> (Vec<ControlChange>, Vec<Unchanged>) {
+    /// The sweep: write each permanent's controller as the one announced, and
+    /// return what changed since the last sweep, with the frames from before.
+    /// Announcing it is the caller's: `announce_control_changes` in play, and
+    /// nobody for a board built outside play, which takes its controllers as
+    /// if each change had been announced as it happened: the scenario
+    /// loader's, and a test's that writes a control-changing row straight
+    /// into the registry.
+    ///
+    /// A no-op unless a control-changing effect exists now or did at the last
+    /// sweep: that one announces control going back as the last effect ends.
+    pub fn settle_announced_controllers(&mut self) -> ControlSweep {
         let rows = self.continuous_effects.summary().any_control_changing;
-        let mut changes: Vec<ControlChange> = Vec::new();
-        let mut kept: Vec<Unchanged> = Vec::new();
-        if !rows && !self.control_announced_away {
-            return (changes, kept);
+        let mut sweep = ControlSweep { changes: Vec::new(), frames_before: Vec::new() };
+        if !rows && !self.control_effects_at_last_sweep {
+            return sweep;
         }
-        let mut away = false;
         for id in self.battlefield_ids_ordered() {
             // With no control-changing effect, a permanent's controller is the
             // one it entered under, and there is nothing to walk.
             let frame = if rows { compute_characteristics(self, id) } else { None };
             let Some(entry) = self.battlefield.get_mut(&id) else { continue };
             let now = frame.as_ref().map_or(entry.controller, |frame| frame.controller);
-            let before = std::mem::replace(&mut entry.frame_before_control_change, frame.clone());
-            if now != entry.announced_controller {
-                changes.push(ControlChange { object: id, from: entry.announced_controller, to: now, before });
-                entry.announced_controller = now;
-            } else if let (Some(before), Some(now)) = (before, frame) {
-                kept.push(Unchanged { object: id, before, now });
+            if let Some(before) = std::mem::replace(&mut entry.frame_before_control_change, frame) {
+                sweep.frames_before.push((id, before));
             }
-            away |= now != entry.controller;
+            if now != entry.announced_controller {
+                sweep.changes.push(ControlChange { object: id, from: entry.announced_controller, to: now });
+                entry.announced_controller = now;
+            }
         }
-        self.control_announced_away = away;
-        (changes, kept)
+        self.control_effects_at_last_sweep = rows;
+        sweep
     }
 
-    /// The changes one sweep found, as one window, with the lists from
-    /// before it (`LookBackSnapshot`): each changed permanent's, and each
-    /// other permanent's whose ability list the change altered, as a "you
-    /// control" grant moving does.
-    fn announce(
-        &mut self,
-        changes: Vec<ControlChange>,
-        kept: Vec<Unchanged>,
-        ctx: &ActionContext,
-    ) -> Result<(), String> {
+    /// The changes one sweep found, as one window, with every permanent's
+    /// list from before it (`LookBackSnapshot`).
+    fn announce(&mut self, sweep: ControlSweep, ctx: &ActionContext) -> Result<(), String> {
+        let ControlSweep { changes, frames_before } = sweep;
         let mut frames: Vec<ObjectSnapshot> = Vec::new();
+        for (object, before) in frames_before {
+            if let Some(lki) = self.last_known_information(object, before) {
+                frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki });
+            }
+        }
         let mut records: Vec<GameEvent> = Vec::new();
         for change in changes {
-            let before = match change.before {
-                Some(before) => before,
+            let lki = match frames.iter().find(|frame| frame.lki.object().id == change.object) {
+                Some(frame) => frame.lki.clone(),
                 None => {
                     debug_assert!(false, "{}'s controller changed with no frame kept from before it", change.object);
                     compute_characteristics(self, change.object)
-                        .ok_or_else(|| format!("{}'s controller changed and it has no characteristics", change.object))?
+                        .and_then(|now| self.last_known_information(change.object, now))
+                        .ok_or_else(|| format!("{}'s controller changed and it is not in the store", change.object))?
                 }
             };
-            let lki = self
-                .last_known_information(change.object, before)
-                .ok_or_else(|| format!("{}'s controller changed and it is not in the store", change.object))?;
-            frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki: lki.clone() });
             records.push(GameEvent::ControlChanged { object_id: change.object, from: change.from, to: change.to, lki });
-        }
-        for Unchanged { object, before, now } in kept {
-            if before.abilities != now.abilities
-                && let Some(lki) = self.last_known_information(object, before)
-            {
-                frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki });
-            }
         }
         let audit = self.audit_frames_before_control_change(&frames);
 

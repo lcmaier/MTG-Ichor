@@ -6435,8 +6435,8 @@ cleanup step. The frame from before is the one the last sweep read, kept
 while a control-changing effect exists, and kept again before a resolution's
 row, an expiry and the first control row; the window carries those frames as
 a `LookBackSnapshot`, whose candidates now take their controller from then.
-The gate also covers a permanent announced away from the controller it
-entered under, since the registry's summary is rebuilt as rows go.
+The sweep also runs once after the last control-changing effect ends,
+since the registry's summary is rebuilt as rows go.
 `TriggerEvent::ControlChanges` reads it, and reads a battlefield departure
 for an arm naming no one gaining control (Khârn the Betrayer's first ruling).
 Ray of Command registers and is pooled.

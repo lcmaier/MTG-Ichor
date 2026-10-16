@@ -573,13 +573,13 @@ is derivable; where each name was read is not, and the gate needs the names.
     moving, which only the window that moved it can trigger; an index, no
     fact about the game, under `CLAUDE.md`'s gate rule as the five above.
 - **Added by TR-4d (2026-10-15)**:
-  - `control_announced_away`: whether some permanent's announced controller
-    is not the one it entered under, the control sweep's gate beside the
-    registry's `any_control_changing`. The fact it summarizes is per
-    permanent, on `PermanentState.announced_controller` (CR 603.10d's "from"),
-    so this holds none of its own; it keeps the change back announced as the
-    last control-changing effect ends (`triggers-architecture.md` §12,
-    TR-4d).
+  - `control_effects_at_last_sweep`: whether a control-changing effect
+    existed at the last control sweep, the sweep's gate beside the
+    registry's `any_control_changing`, so control going back as the last
+    such effect ends is still announced. A fact about the sweep, not the
+    game: what changed hands is per permanent, on
+    `PermanentState.announced_controller` (CR 603.10d's "from")
+    (`triggers-architecture.md` §12, TR-4d).
 
 ---
 

@@ -1383,10 +1383,10 @@ it. Its phase builds the corrected one.
   - **An earlier moment.** The sweep runs at the head of `execute_actions` as
     well. Act of Treason's change is then announced before its "untap that
     creature", which is CR 603.4's instant.
-  - **Two more, found by TR-4d's re-read (§12).** The gate also covers a
-    permanent announced away from the controller it entered under, or a
-    steal's end goes unannounced. And the frame before the first control
-    row is kept as that row is written (TR-4d's decision 1).
+  - **Two more, found by TR-4d's re-read (§12).** The sweep also runs once
+    after the last control-changing effect ends, or a steal's end goes
+    unannounced. And the frame before the first control row is kept as that
+    row is written (TR-4d's decision 1).
 - **`DamagePrevented` keeps its instance and drops its source** (§3.12 item
   16, TR-5d). One subject group can hold several sources, as two attackers into
   a Fog do. The printed readers say "prevented this way", which the instance
@@ -1895,9 +1895,9 @@ in §12's TR-4d section): for each permanent, compare
 on a difference emit the record and write the field. A field with one
 meaning, the last announced controller; a "becomes" on a computed value,
 detected where computed values are re-read. Its gate is
-`any_control_changing` or a permanent announced away from the controller
-it entered under, since the summary is rebuilt as rows go, and its points
-are TR-4d's rather than this check's.
+`any_control_changing` now or at the last sweep
+(`control_effects_at_last_sweep`), since the summary is rebuilt as rows go,
+and its points are TR-4d's rather than this check's.
 
 ### 4.6 Delayed and reflexive (CR 603.7, 603.12; questions 1 and 14)
 

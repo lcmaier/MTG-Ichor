@@ -128,7 +128,7 @@ impl<'g> Writer<'g> {
             zone_trigger_sources: _,
             newcomer_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
-            control_announced_away: _, // the control sweep's, settled at load
+            control_effects_at_last_sweep: _, // the control sweep's, settled at load
             lki_captures: _,
             dispatch_audit: _,
             events: _,
