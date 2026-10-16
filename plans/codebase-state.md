@@ -9324,8 +9324,13 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      participant as the object readers do, a player the record names or an
      object participant's owner or controller, and the existing
      `TriggeringPlayer` uses migrate.
+     **Re-checked 2026-10-16 (TR-5e's re-count, `triggers-architecture.md`
+     §12):** the attack arm's "that player" is this item's too. One
+     declaration holds an occurrence for each attacker or each defender, each
+     with its own player, and `player_of` reads only the record.
      **Slotted:** with the first registered card whose "that player" has two
-     candidates.
+     candidates, or the first registered attack trigger that reads "that
+     player".
 
 269. **A value of an object is seven `AmountExpr` variants, one per object and
      value.** `SourcePower`, `SourceCounters`, `TargetPower`, `TargetToughness`,
