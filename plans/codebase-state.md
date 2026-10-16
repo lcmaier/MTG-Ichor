@@ -9354,24 +9354,21 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
 ### Found by TR-5a's design (2026-10-16)
 
-268. **Two records give a reference two candidates, and the arm keeps one.**
-     A trigger's "that player" or "that creature" names a participant of the
-     record it matched, and which one is the card's to state (CR 608.2c;
-     `triggers-architecture.md` §12, TR-5a's decision 2, which lists every
-     such choice in print). Two have no phase:
-     - a zone change's "that player" is its owner (`player_of`), and 4 cards
-       mean the controller as it left: `(o:"when" or o:"whenever")
-       o:"opponent controls dies" o:"that player"`, beside 4 that mean the
-       owner, `(o:"when" or o:"whenever") o:"into an opponent's graveyard"
-       o:"that player"`;
-     - an attach's "that creature" is its host, and 1 card means the
-       attachment: `(o:"when" or o:"whenever") o:"becomes attached to"
-       (o:"that equipment" or o:"that aura")`.
-     **Reachability (2026-10-16):** unreachable — no registered card prints
-     either reference.
-     **Sized:** ~25 lines of code and ~40 of tests for `triggering_player` on
-     `ZoneChange`, most of it its 29 literals and the authoring words; ~10 and
-     ~30 for `triggering_object` on `BecomesAttached`. Each field is typed by
-     its record's own participants, the pattern TR-5a's damage arm sets.
-     **Slotted:** with the first registered card that prints either
-     reference.
+268. **"That player" is one projection per arm, and two records give it two
+     candidates.** Since TR-5a each instruction names the object participant
+     it reads (`triggers-architecture.md` §12, TR-5a's decision 2, CR 608.2c).
+     `EffectRecipient::TriggeringPlayer` still reads one fixed player per arm
+     (`TriggerEvent::player_of`), and a zone change's is its owner. 4 cards
+     mean the controller as it left, `(o:"when" or o:"whenever") o:"opponent
+     controls dies" o:"that player"`, beside 4 that mean the owner,
+     `(o:"when" or o:"whenever") o:"into an opponent's graveyard" o:"that
+     player"`. Counters' "that player" (the object's controller or the putter)
+     is the other.
+     **Reachability (2026-10-16):** unreachable — no registered card's "that
+     player" has two candidates.
+     **Sized:** ~40 lines of code and ~60 of tests: "that player" names its
+     participant as the object readers do, a player the record names or an
+     object participant's owner or controller, and the existing
+     `TriggeringPlayer` uses migrate.
+     **Slotted:** with the first registered card whose "that player" has two
+     candidates.
