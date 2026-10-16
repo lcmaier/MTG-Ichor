@@ -151,8 +151,9 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
+| The binding's roles | `TR-5a` | `triggers-architecture.md` |
+| The attack declaration | `TR-5e` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
-| The binding's roles and the attack declaration | `TR-5a` | `triggers-architecture.md` |
 | Counters | `TR-5b` | `triggers-architecture.md` |
 | Blocks, targeting, activation and excess damage | `TR-5c` | `triggers-architecture.md` |
 | Prevention, the multiplier, tokens and scry | `TR-5d` | `triggers-architecture.md` |

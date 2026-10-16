@@ -5201,9 +5201,10 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** its blockers half is TR-5c's, which
     writes one record per declaration step, also when nobody blocks: today
     none is written then, and CR 509.3g's "attacks and isn't blocked" reads it.
-    **Slotted:** TR-5a, whose `AttackShape` reads each attacker's defender off
-    the declaration record (CR 508.3a, 508.3b, 508.3e); the blockers half
-    TR-5c.
+    **Slotted:** TR-5e, whose attack readings read each attacker's defender
+    off the declaration record (CR 508.3a, 508.3b, 508.3e; re-slotted from
+    TR-5a at its design, 2026-10-16, `triggers-architecture.md` §12); the
+    blockers half TR-5c.
 
 12. **No event announces a target being chosen (the trigger survey,
     2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
@@ -5753,8 +5754,10 @@ Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
-     **Slotted:** TR-5a, whose tests put a token onto the battlefield attacking
-     over this field, never declared as an attacker (CR 508.4).
+     **Slotted:** TR-5e, whose tests put a token onto the battlefield attacking
+     over this field, never declared as an attacker (CR 508.4), the defender
+     chosen or specified (re-slotted from TR-5a at its design, 2026-10-16,
+     `triggers-architecture.md` §12).
 
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
 
