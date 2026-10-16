@@ -25,14 +25,14 @@ pub struct BoundReads(u16);
 
 impl BoundReads {
     pub const NOTHING: BoundReads = BoundReads(0);
-    /// "That object", "that spell": an object of the one occurrence.
-    pub const SUBJECT: BoundReads = BoundReads(1 << 0);
+    /// "That creature", "them": an object of the triggering events.
+    pub const TRIGGERING_OBJECTS: BoundReads = BoundReads(1 << 0);
     /// "That player".
     pub const PLAYER: BoundReads = BoundReads(1 << 1);
     /// "That many".
     pub const AMOUNT: BoundReads = BoundReads(1 << 2);
-    /// "Its power", "its toughness": the subject, and the record its frame
-    /// comes from.
+    /// "Its power", "its toughness": an object of the triggering event, and
+    /// the record its frame comes from.
     pub const CHARACTERISTICS: BoundReads = BoundReads(1 << 3);
     /// "This object": the source the entry's origin names.
     pub const SOURCE: BoundReads = BoundReads(1 << 4);
@@ -41,13 +41,11 @@ impl BoundReads {
     /// "That card", "that token": what a delayed trigger refers to (CR
     /// 603.7c).
     pub const REFERRED: BoundReads = BoundReads(1 << 6);
-    /// "Them": the objects the matched zone changes made.
-    pub const OBJECTS: BoundReads = BoundReads(1 << 7);
     /// Every fact, and no participant: a def that reads everything is asked
     /// whatever its participants are, and a participant named inside a
     /// delayed trigger's or a static ability's body is that body's own.
-    const EVERYTHING: BoundReads = BoundReads(0x00FF);
-    const FIRST_PARTICIPANT: u16 = 8;
+    const EVERYTHING: BoundReads = BoundReads(0x007F);
+    const FIRST_PARTICIPANT: u16 = 7;
 
     /// The def names `participant` of its event.
     pub fn participant(participant: Participant) -> BoundReads {
@@ -124,8 +122,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         | EffectRecipient::SameInstanceAs(_)
         | EffectRecipient::EachOf(_) => BoundReads::NOTHING,
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
-        EffectRecipient::TriggeringObject(p) => BoundReads::SUBJECT | BoundReads::participant(*p),
-        EffectRecipient::TriggeringObjects(p) => BoundReads::OBJECTS | BoundReads::participant(*p),
+        EffectRecipient::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(*p),
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
         EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
@@ -208,7 +205,7 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::CounterCount { object: ConditionObject::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         // "It had": the object, as the record it left with framed it.
-        Condition::CounterCount { object: ConditionObject::TriggeringObject(p), .. } => {
+        Condition::CounterCount { object: ConditionObject::Triggering(p), .. } => {
             BoundReads::CHARACTERISTICS | BoundReads::participant(*p)
         }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
@@ -315,7 +312,7 @@ mod tests {
                     refers_to: None,
                     under: ReturnUnder::Owner,
                 },
-                EffectRecipient::TriggeringObject(Participant::Object),
+                EffectRecipient::Triggering(Participant::Object),
             ),
         )
     }
@@ -323,19 +320,19 @@ mod tests {
     #[test]
     fn an_exile_until_reads_its_source() {
         let reads = exile_that_creature_until_this_leaves().bound_reads();
-        assert!(reads.contains(BoundReads::SUBJECT), "the exiled creature");
+        assert!(reads.contains(BoundReads::TRIGGERING_OBJECTS), "the exiled creature");
         assert!(reads.contains(BoundReads::SOURCE), "the source whose leaving returns it");
     }
 
     /// "Whenever a creature dies, destroy the creature it dealt damage to": a
-    /// dies record has no recipient, and the def says so.
+    /// dies record has no damage recipient, and the def says so.
     #[test]
     fn a_participant_the_arm_lacks_is_named() {
         let def = whenever(
             crate::cards::authoring::dies(TriggerSubject::Any),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::TriggeringObject(Participant::Recipient)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(Participant::DamageRecipient)),
         );
-        assert_eq!(def.participants_its_arms_lack(), vec![Participant::Recipient]);
+        assert_eq!(def.participants_its_arms_lack(), vec![Participant::DamageRecipient]);
         assert!(exile_that_creature_until_this_leaves().participants_its_arms_lack().is_empty());
     }
 
@@ -344,8 +341,8 @@ mod tests {
     fn a_plain_exile_reads_only_its_object() {
         let def = whenever(
             enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject(Participant::Object)),
+            Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(Participant::Object)),
         );
-        assert_eq!(def.bound_reads(), BoundReads::SUBJECT | BoundReads::participant(Participant::Object));
+        assert_eq!(def.bound_reads(), BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(Participant::Object));
     }
 }

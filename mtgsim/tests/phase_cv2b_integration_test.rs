@@ -327,7 +327,7 @@ fn with_subtypes(subtypes: &[CreatureType]) -> TypeChange {
 /// hexproof: RG's fixture, whose seventh ruling makes him no planeswalker
 /// while he is a creature.
 fn kaito_shaped() -> Arc<CardData> {
-    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, counter: CounterType::Loyalty, is: CountIs::AtLeast(1) };
+    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, kind: Some(CounterType::Loyalty), count: CountIs::AtLeast(1) };
     let ninja_creature = TypeChange {
         set_types: Some(CardTypes::from([CardType::Creature])),
         add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],

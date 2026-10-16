@@ -602,7 +602,7 @@ fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
 /// which holds on a board cast in its controller's main phase, and the
 /// hexproof; its ninjutsu and loyalty abilities are not the board.
 fn kaito_shaped() -> Arc<CardData> {
-    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, counter: CounterType::Loyalty, is: CountIs::AtLeast(1) };
+    let with_counters = Condition::CounterCount { object: ConditionObject::ThisObject, kind: Some(CounterType::Loyalty), count: CountIs::AtLeast(1) };
     let ninja_creature = TypeChange {
         set_types: Some(CardTypes::from([CardType::Creature])),
         add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],

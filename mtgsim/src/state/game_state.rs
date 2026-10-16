@@ -212,16 +212,12 @@ pub struct ResolvingObject {
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
-    /// The objects its trigger's occurrence is about, for a triggered
-    /// ability: with `identity`'s source, what it names, so an object its own
-    /// effect moves hands it a frame too (CR 608.2h's "the effect has moved
-    /// it").
-    pub occurrence_objects: [Option<crate::types::ids::ObjectRef>; 2],
-    /// Each of those objects its record framed (`binding::record_frame`),
-    /// with the frame: a dies trigger's creature as it left, which deals the
-    /// trigger's damage where the object is the card it became, and a damage
-    /// source that had left before dealing it. Read through `lki_of`.
-    pub occurrence_frames: Vec<(crate::types::ids::ObjectRef, crate::types::triggers::Lki)>,
+    /// Its trigger's binding, for a triggered ability: the objects of its
+    /// triggering event are, with `identity`'s source, what it names, so an
+    /// object its own effect moves hands it a frame too (CR 608.2h's "the
+    /// effect has moved it"), and the frames their record carries answer
+    /// `lki_of`. `None` for a spell or an activated ability.
+    pub trigger: Option<crate::types::triggers::TriggerBinding>,
     /// The last known information the entry kept, and any its own effect adds.
     pub kept_lki: Vec<crate::types::triggers::Lki>,
 }

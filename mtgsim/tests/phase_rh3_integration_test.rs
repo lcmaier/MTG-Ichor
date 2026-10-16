@@ -100,7 +100,7 @@ fn returns_when_it_dies() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::TriggeringObject(Participant::Object)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )
@@ -144,7 +144,7 @@ fn aura_returning_to_hand() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject(Participant::Object)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object)),
             ),
         ))
         .build()
@@ -183,7 +183,7 @@ fn shuffles_in_from_anywhere() -> Arc<CardData> {
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
-                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::TriggeringObject(Participant::Object)),
+                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )
@@ -226,7 +226,7 @@ fn returns_milled_cards() -> Arc<CardData> {
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::OncePerEvent,
                 },
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObjects(Participant::Object)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )

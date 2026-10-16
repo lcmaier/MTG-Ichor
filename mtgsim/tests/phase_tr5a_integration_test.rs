@@ -33,14 +33,16 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    AmountExpr, Condition, ConditionObject, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
-use mtgsim::types::triggers::{DamageRecipient, Multiplicity, Participant, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{
+    DamageRecipient, Multiplicity, Participant, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -251,7 +253,7 @@ fn sphere_grid_puts_its_counter_on_the_creature_that_dealt_the_damage() {
 #[test]
 fn that_creature_is_the_recipient_when_the_instruction_names_it() {
     let mut game = stocked(2);
-    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::TriggeringObject(Participant::Recipient));
+    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(Participant::DamageRecipient));
     let dealt_damage = TriggerEvent::DamageDealt {
         source: TriggerSubject::Any,
         recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
@@ -293,8 +295,8 @@ fn martyr() -> Arc<CardData> {
 fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     let mut game = stocked(2);
     let gains_its_power = Effect::Sequence(vec![
-        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::Source)), EffectRecipient::Controller),
-        a_counter_on(EffectRecipient::TriggeringObject(Participant::Source)),
+        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::DamageSource)), EffectRecipient::Controller),
+        a_counter_on(EffectRecipient::Triggering(Participant::DamageSource)),
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
@@ -311,9 +313,9 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let top = *game.stack.last().expect("the leech's trigger");
     let binding = game.stack_entries[&top].trigger.as_ref().expect("a triggered ability");
-    let dealt_by = binding.triggering_object(Participant::Source).expect("the damage's source");
+    let dealt_by = binding.triggering_object(Participant::DamageSource).expect("the damage's source");
     assert_ne!(Some(dealt_by), game.object_ref(martyr), "the existence that dealt it, not the card it became");
-    assert_eq!(game.bound_object(binding, Participant::Source), None, "which nothing finds");
+    assert!(game.bound_objects(binding, Participant::DamageSource).is_empty(), "which nothing finds");
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 20, "dealt 2, then gained its power as it last existed, 2");
 }
@@ -328,7 +330,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
 #[test]
 fn them_over_combat_damage_is_each_creature_that_dealt_it() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::TriggeringObjects(Participant::Source));
+    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::DamageSource));
     put_on_battlefield(&mut game, watcher("Fixture Bloodied Banner", combat_damage_to_a_player(Multiplicity::OncePerEvent), on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -347,7 +349,7 @@ fn them_over_combat_damage_is_each_creature_that_dealt_it() {
 #[test]
 fn them_over_an_attack_is_each_attacker() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::TriggeringObjects(Participant::Attacker));
+    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::Attacker));
     let attack = TriggerEvent::Attacks { attacker: TriggerSubject::Filter(creature_you_control()), multiplicity: Multiplicity::OncePerEvent };
     put_on_battlefield(&mut game, watcher("Fixture War Drum", attack, on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -367,7 +369,7 @@ fn them_over_an_attack_is_each_attacker() {
 #[test]
 fn them_over_entries_is_each_creature_still_there() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::TriggeringObjects(Participant::Object));
+    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::Object));
     let enters = TriggerEvent::EntersBattlefield {
         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
         controller: Some(PlayerRef::You),
@@ -455,6 +457,45 @@ fn a_look_back_filter_counts_the_counters_it_died_with() {
     destroy(&mut game, countered);
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 0), 23);
+}
+
+/// Angelic Sleuth's shape, "Whenever another permanent you control leaves the
+/// battlefield, if it had counters on it, [you gain 2 life]": an intervening
+/// "if" (CR 603.4) that counts every kind of counter, read off the frame the
+/// permanent left with.
+#[test]
+fn an_intervening_if_counts_every_kind_of_counter_it_had() {
+    let mut game = stocked(2);
+    let had_counters = Condition::CounterCount {
+        object: ConditionObject::Triggering(Participant::Object),
+        kind: None,
+        count: CountIs::AtLeast(1),
+    };
+    let leaves = mtgsim::cards::authoring::leaves_the_battlefield(TriggerSubject::Filter(ObjectFilter::And(
+        Box::new(ObjectFilter::NotSource),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    )));
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(leaves.into()),
+        intervening_if: Some(had_counters),
+        limit: None,
+        effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+    };
+    put_on_battlefield(
+        &mut game,
+        CardDataBuilder::new("Fixture Sleuth").card_type(CardType::Enchantment).ability(triggered_ability("", def)).build(),
+        0,
+    );
+    let charged = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let bare = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    game.add_counters(charged, CounterType::Charge, 1);
+
+    destroy(&mut game, bare);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 20, "it had no counters");
+    destroy(&mut game, charged);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 22, "a charge counter is a counter");
 }
 
 /// Player 1's 2/2 flier attacks player 0, whose Grizzly Bears with a +1/+1

@@ -114,7 +114,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
             text,
             whenever(
                 dies(TriggerSubject::Host),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject(Participant::Object)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object)),
             ),
         ))
         .build()

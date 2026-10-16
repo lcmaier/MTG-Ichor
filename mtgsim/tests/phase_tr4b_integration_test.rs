@@ -917,7 +917,7 @@ fn bouncing_equipment() -> Arc<CardData> {
             "Whenever this Equipment becomes unattached from a permanent, return that permanent to its owner's hand.",
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject(Participant::Host)),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))

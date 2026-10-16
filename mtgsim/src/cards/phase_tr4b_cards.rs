@@ -88,7 +88,7 @@ pub fn grafted_wargear() -> Arc<CardData> {
             text,
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::TriggeringObject(Participant::Host)),
+                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(Participant::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))

@@ -32,7 +32,7 @@ use crate::types::triggers::{DamageRecipient, Multiplicity, Participant, Trigger
 /// > reach and trample.
 ///
 /// "That creature" is the creature the condition names, the damage's source
-/// (`Participant::Source`). "Unlock Ability" is a flavor word (CR 207.2d).
+/// (`Participant::DamageSource`). "Unlock Ability" is a flavor word (CR 207.2d).
 ///
 /// # The ruling, and where it is tested
 ///
@@ -63,7 +63,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     };
     let counter_on_that_creature = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::TriggeringObject(Participant::Source),
+        EffectRecipient::Triggering(Participant::DamageSource),
     );
     let grant = |keyword: KeywordFlag| {
         Effect::Atom(

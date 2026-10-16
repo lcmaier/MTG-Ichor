@@ -232,11 +232,11 @@ impl GameState {
     /// A trigger as the comparison and its report read it.
     fn describe(&self, matched: &MatchedTrigger) -> String {
         let source = matched.identity.source;
-        let mut occurrences: Vec<(usize, String)> =
-            matched.occurrences.iter().map(|o| (o.record.seq.0, format!("{:?}", o.participants))).collect();
-        occurrences.sort_unstable();
+        let mut events: Vec<(usize, String)> =
+            matched.triggering_events.iter().map(|e| (e.record.seq.0, format!("{:?}", e.objects))).collect();
+        events.sort_unstable();
         format!(
-            "{} {}@{} ability {} arm {} occurrences {occurrences:?} controller {}",
+            "{} {}@{} ability {} arm {} triggering events {events:?} controller {}",
             crate::ui::display::printed_name(self, source.id),
             source.id,
             source.zone_change_epoch,

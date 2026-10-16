@@ -108,20 +108,19 @@ impl GameState {
     pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
-        // The participants the def names, each occurrence's: one it does not
-        // name may differ, as each Wargear's own attachment does.
+        // The participants the def names, each triggering event's: one it
+        // does not name may differ, as each Wargear's own attachment does.
         let named: Vec<Participant> = reads.participants().collect();
         let objects = |binding: &TriggerBinding| -> Vec<Option<ObjectRef>> {
-            binding.occurrences.iter().flat_map(|o| named.iter().map(move |&p| o.participants.get(p))).collect()
+            binding.triggering_events.iter().flat_map(|e| named.iter().map(move |&p| e.objects.get(p))).collect()
         };
-        (unread(BoundReads::SUBJECT) || objects(x) == objects(y))
+        (unread(BoundReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(BoundReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
             && (unread(BoundReads::CHARACTERISTICS) || (objects(x) == objects(y) && x.first_record() == y.first_record()))
             && (unread(BoundReads::SOURCE) || a.origin == b.origin)
             && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
             && (unread(BoundReads::REFERRED) || x.referred == y.referred)
-            && (unread(BoundReads::OBJECTS) || objects(x) == objects(y))
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this

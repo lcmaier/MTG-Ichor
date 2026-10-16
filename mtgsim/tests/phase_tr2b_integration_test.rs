@@ -366,7 +366,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
 #[test]
 fn a_trigger_sacrifices_the_object_its_event_named() {
     let mut game = setup_two_player_game();
-    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::TriggeringObject(Participant::Object));
+    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(Participant::Object));
     put_on_battlefield(
         &mut game,
         watcher("Ravenous Gate", enters(ObjectFilter::ByType(CardType::Creature)), sacrifice_it),

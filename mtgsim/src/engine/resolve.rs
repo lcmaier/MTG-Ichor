@@ -76,7 +76,7 @@ pub struct ResolutionContext {
     /// rider, for `replaced_amount`'s reason.
     pub damage_prevented: Option<u64>,
     /// A triggered ability's bound facts, for the resolution of one and for
-    /// nothing else (`triggers-architecture.md` §6.3): `TriggeringObject`,
+    /// nothing else (`triggers-architecture.md` §6.3): `Triggering`,
     /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
     /// a trigger rather than reading a default. One field, not a third
     /// `Option` beside the rider pair (§15 item 8).
@@ -283,8 +283,7 @@ impl GameState {
             // slice it already reads — empty when CR 603.6 finds nothing.
             Effect::Atom(
                 primitive,
-                recipient @ (EffectRecipient::TriggeringObject(_)
-                | EffectRecipient::TriggeringObjects(_)
+                recipient @ (EffectRecipient::Triggering(_)
                 | EffectRecipient::TriggeringPlayer
                 | EffectRecipient::Referred),
             ) => {
@@ -1252,8 +1251,7 @@ impl GameState {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::ThisObject
-                    | EffectRecipient::TriggeringObject(_)
-                    | EffectRecipient::TriggeringObjects(_)
+                    | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => {
                         debug_assert!(
@@ -1557,8 +1555,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
-                    | EffectRecipient::TriggeringObject(_)
-                    | EffectRecipient::TriggeringObjects(_)
+                    | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => targets
                         .iter()

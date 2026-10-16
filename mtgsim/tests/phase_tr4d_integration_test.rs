@@ -512,7 +512,7 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
         owner: Some(PlayerRef::You),
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject(Participant::Object));
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(Participant::Object));
     let card = CardDataBuilder::new("Fixture Bounce Watcher")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(arm, exile_it)))

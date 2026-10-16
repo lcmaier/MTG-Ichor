@@ -219,7 +219,7 @@ pub fn rancor() -> Arc<CardData> {
         ))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject(Participant::Object))),
+            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object))),
         ))
         .build()
 }
