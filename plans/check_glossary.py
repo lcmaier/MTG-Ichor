@@ -97,7 +97,7 @@ WATCHLIST = [
     "condition", "trigger condition", "diagnostics rows",
     "multiplicity",
     # Added 2026-10-16, TR-5a: what an instruction names of its event.
-    "participant",
+    "participant", "triggering event",
     # Added 2026-09-25, the bounded-state PR.
     "flush",
     # Added 2026-10-14, A6m's second PR.

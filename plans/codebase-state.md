@@ -9326,3 +9326,22 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      `TriggeringPlayer` uses migrate.
      **Slotted:** with the first registered card whose "that player" has two
      candidates.
+
+269. **A value of an object is seven `AmountExpr` variants, one per object and
+     value.** `SourcePower`, `SourceCounters`, `TargetPower`, `TargetToughness`,
+     `TriggeringPower`, `TriggeringToughness` and `AffectedManaValue` are each
+     "a value of some object": which object (the source, a target, a
+     triggering event's participant, the object affected) crossed with which
+     value (power, toughness, mana value, counters of a kind). A new pairing
+     needs a new variant, and printed cards ask for many: 265 say "equal to
+     its power" (`o:"equal to its power"`), 51 "its toughness" (`o:"equal to
+     its toughness"`) and 174 a mana value (`(o:"its mana value" or o:"that
+     card's mana value" or o:"that creature's mana value")`). Found at #255's
+     review (the owner, 2026-10-16).
+     **Reachability (2026-10-16):** reachable — not wrong today: every
+     registered card's pairing has its variant; the cost is the next one.
+     **Sized:** ~60 lines of code and ~40 of tests, most of them the card
+     files' literals: one `AmountExpr::ValueOf(which object, which value)`,
+     the object word shared with `ConditionObject` and TR-5e's
+     `AttackedBy`.
+     **Slotted:** A6e, the naming sweep beside item 6's close audit.

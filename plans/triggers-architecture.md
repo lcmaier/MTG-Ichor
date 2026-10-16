@@ -298,7 +298,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
-| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and each instruction names the one it reads, `Participant::Source` or `Participant::Recipient` (§3.12a, `codebase-state.md` item 255; TR-5a, §12) | no | TR-1 |
+| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and each instruction names the one it reads, `Participant::DamageSource` or `Participant::DamageRecipient` (§3.12a, `codebase-state.md` item 255; TR-5a, §12) | no | TR-1 |
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
 | `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, was_cast: Option<bool>, multiplicity }` — `from` and `was_cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
 | `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3). `cause` waits for its one customer, CR 727's rad counters | no | TR-1, TR-2a |
@@ -398,17 +398,18 @@ dispatch (`subject_after`, item 177). "Them" on a "one or more" binding is
 `EffectRecipient::TriggeringObjects`, each matched zone change's new object;
 over another kind of record it is refused (`codebase-state.md` item 250).
 
-**Amended 2026-10-16 (TR-5a's design, §12):** the binding keeps a list of
-occurrences, each with the record that holds it and its participants: the
-objects it is about, by the part each played, as `ObjectRef`s taken at the
-dispatch. That replaces `records` and `subject`. Each instruction names
-the participant it reads, "that object" off the one occurrence and "them"
-off every occurrence, over any kind of record (items 250 and 255).
+**Amended 2026-10-16 (TR-5a, §12):** the binding keeps its triggering
+events (`TriggeringEvent`), each the record that holds it and the objects it
+is about (`TriggeringEventObjects`), by the part each played, as `ObjectRef`s
+taken at the dispatch. That replaces `records` and `subject`. Each instruction
+names the participant it reads: `EffectRecipient::Triggering(participant)` is
+"that creature" off a trigger on each event and "them" off "one or more", over
+any kind of record (items 250 and 255).
 
 **The projections live on the arm, and they are exhaustive matches.**
 `TriggerEvent` carries three methods — `subject_of(&GameEvent) ->
 Option<ObjectId>`, `player_of(..) -> Option<PlayerId>`, `amount_of(..) ->
-Option<u64>` — and the dispatcher's `occurrences_matching_arm` one more,
+Option<u64>` — and the dispatcher's `triggering_events_in` one more,
 each a `match` whose last arm names every arm with `_` for the record (the
 triggers midpoint audit, item 231: a bare wildcard had stood there since
 TR-1). So a new arm must say what its "that many" is (damage
@@ -1823,8 +1824,9 @@ Destiny's "return this card" is the consumer; Rancor's "return it" is CR
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm
-gives. The *occurrence* it counts is one subject `occurrences_matching_arm`
-returns, below; the word is the project's, and `plans/glossary.md` carries it.
+gives. The *occurrence* it counts is one triggering event
+`triggering_events_in` returns, below; the word is the CR's, and
+`plans/glossary.md` carries it.
 
 - **`PerOccurrence`** (the default): one trigger per occurrence, and the
   matcher's arm for each says what an occurrence is — a record for most
@@ -3350,18 +3352,20 @@ item 173's 113.6b statement).
 *Body evicted 2026-10-16 to `plans/archive/triggers-architecture-landed.md`,
 "TR-5a", with the plan as designed and its four decisions.*
 
-**What shipped.** The binding keeps occurrences (`TriggerOccurrence`), each
-its record and its `TriggerParticipants`: every object the occurrence is
-about, by the part it played, as the existence the dispatch found (§3.4's
-amendment). Each reader of a triggering object names its `Participant`,
+**What shipped.** The binding keeps its triggering events
+(`TriggeringEvent`), each its record and its `TriggeringEventObjects`: every
+object the event is about, by the part it played, as the existence the
+dispatch found (§3.4's amendment). Each reader names its `Participant`, as
+`EffectRecipient::Triggering(Participant::DamageSource)`,
 since CR 608.2c leaves the antecedent of "that creature" to the text, and a
 registry test checks each named participant against its condition's arms.
 One `record_frame` reads a departure's frame and a damage source that left
 before dealing its damage (CR 608.2h), at the trigger and at resolution.
-`ObjectFilter::WithCounters` counts off the board or off the `Lki`. Item 267:
+`ObjectFilter::WithCounters`, and `Condition::CounterCount`, count one kind
+or every kind, off the board or the `Lki`. Item 267:
 a change of control removes the permanent from combat (CR 506.4), shown
 failing first. Items 250, 255 and 267 closed. Sphere Grid registered and
-pooled (199 → 200, 110 → 111). Sixteen tests; TR-5a owed no atom.
+pooled (199 → 200, 110 → 111). Seventeen tests; TR-5a owed no atom.
 
 **What moved on the way in.** The count crossed the band, so TR-5a split
 again: TR-5e is the attack declaration (decision 4). Decision 2 was first
@@ -3370,8 +3374,10 @@ were counted from the records: "that player" alone has two or more
 candidates on almost every record. Item 268 keeps "that player" for its first
 two-candidate reader. The close-out's game-by-game attribution found the
 elision comparing every participant, which asked an ordering prompt `main`
-skips; it now compares the ones the def reads, shown failing first. +1,482
-in code and tests (code +904, tests +578), against the 1,380–1,600 sizing.
+skips; it now compares the ones the def reads, shown failing first. The
+owner's code review renamed the types for their call sites and merged "that
+creature" and "them" into one reader. +1,585 in code and tests (code +961,
+tests +624), against the 1,380–1,600 sizing.
 
 **Measured** (`fuzz-record.md`, the TR-5a block). Engine against `main`: the
 four-seat tables identical, and three games in 400 at two seats apart, each
@@ -3429,7 +3435,7 @@ onto the battlefield attacking (item 128) cannot be made at all.
 **The pieces**
 1. **Item 11:** `AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)>
    }`, at its one emit site, its display line and the fuzz dump.
-   `TriggerParticipants::Attack` gains `defender: ObjectOrPlayer`.
+   `TriggeringEventObjects::Attack` gains `defender: ObjectOrPlayer`.
 2. **The arm** (decision 5):
    ```rust
    Attacks {
@@ -3448,7 +3454,7 @@ onto the battlefield attacking (item 128) cannot be made at all.
    planeswalker you control", 17 cards. Nothing attacks a planeswalker or a
    battle until `backlog.md` §2.23's attack path lands, but the filter reads
    `AttackTarget` whole now. A defender occurrence's participants are
-   `TriggerParticipants::Defense { defender, attackers }`. The readings:
+   `TriggeringEventObjects::Defense { defender, attackers }`. The readings:
 
    | Rule | Text | `attacker` | `defender` | `occurrence` | `multiplicity` | "It" · "them" · "that player" |
    |---|---|---|---|---|---|---|
