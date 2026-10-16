@@ -3391,7 +3391,7 @@ of its readers get the wrong object, or none:
        pub event: EventIndex,
        /// What triggered it (CR 603.2c): one occurrence for a `PerOccurrence`
        /// trigger, every one of its window's for a `OncePerEvent` trigger.
-       pub occurrences: Vec<Occurrence>,
+       pub occurrences: Vec<TriggerOccurrence>,
        pub triggered_by: Option<TriggerSeq>,
        pub referred: Referred,
        pub source_found_in_graveyard: Option<ObjectRef>,
@@ -3399,15 +3399,15 @@ of its readers get the wrong object, or none:
 
    /// One occurrence of the matched event, with the record that holds it,
    /// copied whole (§3.4).
-   pub struct Occurrence {
+   pub struct TriggerOccurrence {
        pub record: EventRecord,
-       pub participants: Participants,
+       pub participants: TriggerParticipants,
    }
 
    /// The objects one occurrence is about, each by the part it played, as the
    /// existence the dispatch found (CR 400.7): the one fact a record, which
    /// names its objects by id, does not carry.
-   pub enum Participants {
+   pub enum TriggerParticipants {
        /// A step beginning, a life change, a player losing.
        NoObject,
        /// The card a zone change moved, as the object the move made; the
@@ -3421,18 +3421,23 @@ of its readers get the wrong object, or none:
        Attack { attacker: ObjectRef },
    }
    ```
-   The records and their objects are one collection, not two kept in step
-   (`engineering-practices.md` §2c). `subject` goes. The binding answers "that
+   `TriggerEvent` is already the arm enum, CR 603.2's "trigger event" that an
+   ability watches for, so one match of it is a `TriggerOccurrence`, CR
+   603.2c's word (the owner, at review). The records and their objects are one
+   collection, not two kept in step (`engineering-practices.md` §2c).
+   `subject` goes. The binding answers "that
    creature" as `triggering_object()`, the one occurrence's, and `None` for a
    "one or more" binding, as today. It answers "them" as
-   `triggering_objects()`, each occurrence's. Every reader of `subject` or
-   `records` moves to those two or to `occurrences`:
+   `triggering_objects()`, each occurrence's. Which participant an
+   instruction acts on is the card definition's, never the engine's (decision
+   2). Every reader of `subject` or `records` moves to those two or to
+   `occurrences`:
    - `bound_object`, `triggering_object`'s CR 608.2h read and `subject_lki`;
    - `ResolvingObject.subject` and the kept LKI's naming;
    - the elision, the delayed registry's CR 603.7b choice and its fold;
    - the audit and the trace.
 
-   `subject_of` becomes the matcher's projection to `Participants`,
+   `subject_of` becomes the matcher's projection to `TriggerParticipants`,
    exhaustive as it is now, each arm saying which objects its record names.
    Each object is taken where `subject_after` takes it today. A zone change's
    new object and an unattach's ends come off the record, a departed source
@@ -3495,9 +3500,10 @@ binding.
 **Decisions, for review**
 
 1. **The binding keeps a list of occurrences, each with its record and its
-   participants**, as `Participants` above. The alternative, the records plus
-   a list of objects beside them, is two collections kept in step
-   (`engineering-practices.md` §2c).
+   participants**, as `TriggerParticipants` above. The alternative, the
+   records plus a list of objects beside them, is two collections kept in step
+   (`engineering-practices.md` §2c). **Agreed at review (2026-10-16)**, with
+   the two types named for triggers.
 2. **How a card says which object "it" is.** Today "it" is one projection
    per arm, and the damage arm's names the recipient. Two shapes:
    - **The arm says (recommended).** One field, `it: DamageParticipant`, on
@@ -3517,8 +3523,20 @@ binding.
    Neither costs anything at run time. Upkeep: TR-5c's blocks repeat the same
    choice, and its `BlockShape` already decides "it" per reading, as the arm
    does here.
+
+   **Neither makes the engine read English.** Which existence each
+   participant is, and whether it can still be found, is rules (CR 400.7,
+   603.6, 608.2h), so the engine keeps every participant. Which one "that
+   creature" names is not: CR 608.2c leaves it to "the rules of English", so
+   the card definition states it, through the authoring word for each
+   template ("[a creature] deals damage" against "[a creature] is dealt
+   damage"). The count of "target" is the contrast: CR 601.2c counts its
+   instances, so that one is the engine's. The two options differ only in
+   where the definition states the choice: once on the condition, or on each
+   instruction. Open at review: the owner asked for this context.
 3. **`WithCounters` takes an optional kind.** "Any counter" is its own printed
    family, and the filter shares `CountIs` with `Condition::CounterCount`.
+   **Agreed at review (2026-10-16).**
 4. **The split, and where item 267 goes.** TR-5a plus TR-5e count
    2,950–3,360, against 2,040–2,390 for the row. The row missed the attack
    readings' defender occurrence, `Lki`'s attack, item 128's CR 506.3 checks
@@ -3530,7 +3548,7 @@ binding.
    there, and a PR in a split carries a consumer of what it builds
    (`engineering-practices.md` §4). TR-5a is then under the band's floor.
    The alternative is the brief's split as written, which moves about 135
-   lines of item 267 into TR-5e.
+   lines of item 267 into TR-5e. Open at review.
 
 ### TR-5e — the attack declaration
 
@@ -3580,7 +3598,7 @@ onto the battlefield attacking (item 128) cannot be made at all.
 **The pieces**
 1. **Item 11:** `AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)>
    }`, at its one emit site, its display line and the fuzz dump.
-   `Participants::Attack` gains `defender: ObjectOrPlayer`.
+   `TriggerParticipants::Attack` gains `defender: ObjectOrPlayer`.
 2. **The arm** (decision 5):
    ```rust
    Attacks {
@@ -3599,7 +3617,7 @@ onto the battlefield attacking (item 128) cannot be made at all.
    planeswalker you control", 17 cards. Nothing attacks a planeswalker or a
    battle until `backlog.md` §2.23's attack path lands, but the filter reads
    `AttackTarget` whole now. A defender occurrence's participants are
-   `Participants::Defense { defender, attackers }`. The readings:
+   `TriggerParticipants::Defense { defender, attackers }`. The readings:
 
    | Rule | Text | `attacker` | `defender` | `occurrence` | `multiplicity` | "It" · "them" · "that player" |
    |---|---|---|---|---|---|---|
@@ -3631,8 +3649,8 @@ onto the battlefield attacking (item 128) cannot be made at all.
    later their planeswalkers and battles, asked only when there are two or
    more. That never happens at two seats, so no fixture moves. There is no
    record, so no attack trigger and no history row (CR 508.3a, 508.4).
-6. **Hellrider**, registered. Its stress distortion is measured before it is
-   pooled (decision 7).
+6. **Hellrider**, registered and pooled, with its stress distortion
+   measured and reported (decision 7).
 7. **ATOM-508.2a-001.** A creature turned green after its declaration
    triggers nothing, since the dispatch at the declaration is CR 508.2a's
    instant. It is a test, not code.
@@ -3669,18 +3687,19 @@ own. The test uses four seats.
      defender.
 
    The table above keeps the seven readings as the tests, each named by its
-   rule.
-6. **"Defending player" goes in TR-5e (recommended), or waits for its first
-   registered card.** In TR-5e it costs about 215 lines and the phase stays
+   rule. **Fields, decided at review (2026-10-16).**
+6. **"Defending player" goes in TR-5e** (decided at review, 2026-10-16),
+   rather than waiting for its first registered card. In TR-5e it costs about 215 lines and the phase stays
    inside the band. It is the attack declaration's main reader.
    `cr-coverage-audit.md` §3 had planned it on the record. A field on the
    permanent also answers an attacking creature's static or activated
    ability, which CR 508.5 names too and which holds no record.
-7. **Hellrider is pooled only after its stress distortion is measured**
-   (`engineering-practices.md` §3, the measuring rule). It deals 1 damage for
-   every attacker, every attack. If it distorts `stress`, a benign attack
-   trigger is pooled beside it, as Bramble Elemental was beside Grafted
-   Wargear in TR-4b.
+7. **Hellrider is pooled, and its stress distortion is measured and
+   reported** (decided at review, 2026-10-16). The design had proposed a
+   benign attack trigger beside it if it distorted `stress`, as Bramble
+   Elemental was beside Grafted Wargear in TR-4b. The owner's reasons against:
+   Hellrider asks the random agents no choice to get stuck on, and the pool
+   has to take on complex effects at some point.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5e (7,850–9,025)
 
