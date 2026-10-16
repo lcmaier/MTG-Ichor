@@ -321,6 +321,15 @@ impl PermanentState {
         self.counters.get(&counter_type).map(|s| s.count).unwrap_or(0)
     }
 
+    /// How many counters of `kind` it has, or of every kind for `None`.
+    pub fn counters_of(&self, kind: Option<CounterType>) -> u32 {
+        match kind {
+            Some(kind) => self.counter_count(kind),
+            // ORDER-FREE: a sum.
+            None => self.counters.values().map(|stack| stack.count).sum(),
+        }
+    }
+
     /// The CR 613.7c timestamp shared by every counter of this kind, if any.
     pub fn counter_timestamp(&self, counter_type: CounterType) -> Option<Timestamp> {
         self.counters.get(&counter_type).map(|s| s.timestamp)

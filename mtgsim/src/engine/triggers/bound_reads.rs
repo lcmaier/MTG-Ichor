@@ -175,6 +175,7 @@ fn filter(f: &ObjectFilter) -> BoundReads {
         | ObjectFilter::BySupertype(_)
         | ObjectFilter::ByColor(_)
         | ObjectFilter::PowerLE(_)
+        | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token
         | ObjectFilter::OtherThanInstance(_) => BoundReads::NOTHING,
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),

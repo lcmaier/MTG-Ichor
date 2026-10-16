@@ -674,7 +674,7 @@ impl GameState {
                 return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
             }
             Some(HeldFrame::LastKnown(lki)) => {
-                return object_filter::evaluate(self, filter, id, &|| Some(lki.chars()), Some(lki.owner()), referents);
+                return object_filter::evaluate(self, filter, id, &|| Some(lki.chars()), Some(lki), referents);
             }
             None => {}
         }

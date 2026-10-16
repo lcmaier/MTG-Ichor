@@ -1462,6 +1462,15 @@ impl Lki {
         permanent.counters.iter().find(|(k, _)| *k == kind).map_or(0, |&(_, n)| n)
     }
 
+    /// How many counters of `kind` it had, or of every kind for `None`.
+    pub fn counters_of(&self, kind: Option<CounterType>) -> u32 {
+        match (kind, &self.0.permanent) {
+            (Some(kind), _) => self.counters(kind),
+            (None, Some(permanent)) => permanent.counters.iter().map(|&(_, n)| n).sum(),
+            (None, None) => 0,
+        }
+    }
+
     /// What it was attached to.
     pub fn host(&self) -> Option<ObjectId> {
         self.0.permanent.as_ref().and_then(|p| p.attached_to)

@@ -211,6 +211,12 @@ pub enum ObjectFilter {
     ByController(PlayerRef),
     /// Power less than or equal to N (for "creature with power N or less")
     PowerLE(i32),
+    /// "With a +1/+1 counter on it", "with three or more counters on it",
+    /// "with no counters on it": how many counters of `kind` the object has,
+    /// counting every kind when `kind` is `None` (CR 122.1). Read off the
+    /// permanent, or off its last known information for a frame: a counter is
+    /// no characteristic, and no layer writes one.
+    WithCounters { kind: Option<CounterType>, count: crate::types::history::CountIs },
     /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
     ///
     /// Its own leaf, and it earns its place
