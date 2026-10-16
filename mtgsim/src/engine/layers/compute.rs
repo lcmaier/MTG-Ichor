@@ -27,6 +27,7 @@ use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
 #[cfg(debug_assertions)]
 use crate::state::layer_memo::AuditOwed;
+use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
 /// The layers, in application order (CR 613.1). Index into this array is the
@@ -692,6 +693,10 @@ impl FilterReferents for FilterPlayers<'_, '_> {
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {
         EarlierTargets::None
+    }
+
+    fn counters_on(&self, game: &GameState, id: ObjectId, kind: Option<CounterType>) -> u32 {
+        self.board.entity(game, id).map_or(0, |entity| entity.counters_of(kind))
     }
 }
 

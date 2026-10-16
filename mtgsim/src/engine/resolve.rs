@@ -76,7 +76,7 @@ pub struct ResolutionContext {
     /// rider, for `replaced_amount`'s reason.
     pub damage_prevented: Option<u64>,
     /// A triggered ability's bound facts, for the resolution of one and for
-    /// nothing else (`triggers-architecture.md` §6.3): `TriggeringObject`,
+    /// nothing else (`triggers-architecture.md` §6.3): `Triggering`,
     /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
     /// a trigger rather than reading a default. One field, not a third
     /// `Option` beside the rider pair (§15 item 8).
@@ -283,8 +283,7 @@ impl GameState {
             // slice it already reads — empty when CR 603.6 finds nothing.
             Effect::Atom(
                 primitive,
-                recipient @ (EffectRecipient::TriggeringObject
-                | EffectRecipient::TriggeringObjects
+                recipient @ (EffectRecipient::Triggering(_)
                 | EffectRecipient::TriggeringPlayer
                 | EffectRecipient::Referred),
             ) => {
@@ -1252,8 +1251,7 @@ impl GameState {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::ThisObject
-                    | EffectRecipient::TriggeringObject
-                    | EffectRecipient::TriggeringObjects
+                    | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => {
                         debug_assert!(
@@ -1557,8 +1555,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
-                    | EffectRecipient::TriggeringObject
-                    | EffectRecipient::TriggeringObjects
+                    | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred => targets
                         .iter()
@@ -2380,18 +2377,18 @@ impl GameState {
             // "Its power", "its toughness" (CR 608.2h). A negative value is
             // no amount: Paladin of Atonement's ruling gains nothing, and
             // loses nothing, for toughness below 0.
-            AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => {
+            AmountExpr::TriggeringPower(participant) | AmountExpr::TriggeringToughness(participant) => {
                 let binding = _ctx.trigger.as_ref().ok_or_else(|| {
                     format!("{:?} has no meaning outside a triggered ability's resolution", expr)
                 })?;
-                let chars = self.bound_characteristics(binding).ok_or_else(|| {
+                let chars = self.bound_characteristics(binding, *participant).ok_or_else(|| {
                     format!(
                         "{:?}: the bound object has left since the event and no last known information answers for it, which is a missed capture",
                         expr
                     )
                 })?;
                 let value = match expr {
-                    AmountExpr::TriggeringPower => chars.power,
+                    AmountExpr::TriggeringPower(_) => chars.power,
                     _ => chars.toughness,
                 };
                 Ok(value.unwrap_or(0).max(0) as u64)

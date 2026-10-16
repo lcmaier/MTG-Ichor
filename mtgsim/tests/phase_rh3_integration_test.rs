@@ -32,7 +32,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::restriction::SourceFilter;
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, Participant};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::decision::DecisionProvider;
 
@@ -100,7 +100,7 @@ fn returns_when_it_dies() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )
@@ -144,7 +144,7 @@ fn aura_returning_to_hand() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object)),
             ),
         ))
         .build()
@@ -183,7 +183,7 @@ fn shuffles_in_from_anywhere() -> Arc<CardData> {
                     owner: None,
                     multiplicity: Multiplicity::PerOccurrence,
                 },
-                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ShuffleIntoLibrary, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )
@@ -226,7 +226,7 @@ fn returns_milled_cards() -> Arc<CardData> {
                     owner: Some(PlayerRef::You),
                     multiplicity: Multiplicity::OncePerEvent,
                 },
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObjects),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object)),
             ),
         ),
     )

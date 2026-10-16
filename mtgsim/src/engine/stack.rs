@@ -74,8 +74,7 @@ impl GameState {
             cost_choices: entry.cost_choices(),
             x_value: entry.x_value,
             identity: entry.ability_identity,
-            subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
-            subject_lki: entry.trigger.as_ref().and_then(crate::engine::triggers::binding::subject_lki).cloned(),
+            trigger: entry.trigger.clone(),
             // The resolution reads them here, where its own effect's moves
             // add to them too (CR 608.2h).
             kept_lki: std::mem::take(&mut entry.kept_lki),

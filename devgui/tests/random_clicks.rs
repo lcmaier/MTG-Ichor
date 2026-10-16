@@ -59,6 +59,13 @@ const YIELD_ONE_IN: u32 = 20;
 /// often as a yield, so a game still plays on.
 const WHY_ONE_IN: u32 = 20;
 
+/// How often a click is "Stop yielding", where the prompt offers it: half
+/// the time. A yielding seat is asked only what is not priority, about a
+/// dozen times across the six dealt games, so a stop that is one click among
+/// the options and their keys can go unreached; the other half answers while
+/// the yield holds.
+const STOP_ONE_IN: u32 = 2;
+
 /// What the games reached, beside the primitives.
 #[derive(Default)]
 struct Reached {
@@ -171,11 +178,14 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
     for _ in 0..CLICK_CAP {
         let can_reset = state.prompt_view().is_some_and(|prompt| prompt.can_reset);
         let yields = live_yields(state);
+        let stop = live_stop(state);
         let whys = why_clicks(state);
         let input = if can_reset && rng.random_ratio(1, RESET_ONE_IN) {
             Input::Reset
         } else if !yields.is_empty() && rng.random_ratio(1, YIELD_ONE_IN) {
             yields[rng.random_range(0..yields.len())].clone()
+        } else if let Some(stop) = stop.filter(|_| rng.random_ratio(1, STOP_ONE_IN)) {
+            stop
         } else if !whys.is_empty() && rng.random_ratio(1, WHY_ONE_IN) {
             whys[rng.random_range(0..whys.len())].clone()
         } else {
@@ -259,9 +269,15 @@ fn live_yields(state: &WindowState) -> Vec<Input> {
     prompt.yields.iter().filter(|button| button.live).map(|SeatButton { input, .. }| input.clone()).collect()
 }
 
-/// What `app::draw` lets a person click now, besides "Start over" and the
-/// yields: each option's button or an allocation's live "−" and "+", the
-/// number's field, the confirm button while it is live, "Stop yielding", each
+/// "Stop yielding", while the prompt offers it live.
+fn live_stop(state: &WindowState) -> Option<Input> {
+    let (_, stop) = state.prompt_view()?.yielding?;
+    stop.live.then_some(stop.input)
+}
+
+/// What `app::draw` lets a person click now, besides "Start over", the
+/// yields and "Stop yielding": each option's button or an allocation's live
+/// "−" and "+", the number's field, the confirm button while it is live, each
 /// board item marked clickable, and the key for each live button that has
 /// one.
 fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
@@ -284,8 +300,6 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     if let Some(DoneButton { live: true, .. }) = prompt.done {
         inputs.push(Input::Done);
     }
-    let stop = prompt.yielding.as_ref().map(|(_, stop)| stop).filter(|button| button.live);
-    inputs.extend(stop.map(|SeatButton { input, .. }| input.clone()));
     let key = |key| Input::Key { key, repeat: false };
     let mut keyed: Vec<Input> = inputs
         .iter()

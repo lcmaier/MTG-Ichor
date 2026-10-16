@@ -352,7 +352,8 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object());
         let binding = entry.trigger.as_ref();
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
-        referred.extend(binding.and_then(|b| b.subject).map(as_it_left));
+        let objects = binding.into_iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
+        referred.extend(objects.map(|(_, object)| as_it_left(object)));
         if let Some(binding) = binding {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
@@ -364,7 +365,8 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     if let Some(resolving) = &game.resolving {
         let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object());
         referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
-        referred.extend(resolving.subject.map(as_it_left));
+        let objects = resolving.trigger.iter().flat_map(|b| b.triggering_events.iter()).flat_map(|e| e.objects.objects());
+        referred.extend(objects.map(|(_, object)| as_it_left(object)));
         referred.extend(resolving.kept_lki.iter().map(|d| d.object()));
     }
     for row in game.replacement_effects.iter() {
@@ -679,8 +681,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
             identity: None,
-            subject: None,
-            subject_lki: None,
+            trigger: None,
             kept_lki: Vec::new(),
         });
 

@@ -442,11 +442,19 @@ at most once per pipeline iteration. → `engine/layers/board.rs`,
 **LKI** — an object's last known information (CR 113.7a, 608.2h): the
 existence that left its zone (CR 400.7) together with its **frame** as it last
 existed there, the type `Lki`. A departure record carries one, and so does
-damage a source deals after it left (`source_lki`). An entry keeps one for
-each object it names that leaves later (`kept_lki`), and `lki_of` reads both.
+damage a source deals after it left (`source_lki`). A **keeper** keeps one
+for each object it reads that leaves later (`kept_lki`), and `lki_of` reads
+both.
 A frame alone has no identity, so it is not an LKI; and an LKI is never
 "departed", which is a player. → `types/triggers.rs`;
 `triggers-architecture.md` §6.1, and §3.11 for what TR-4a adds.
+
+**keeper** — a holder of a `kept_lki`: a triggered ability waiting to be put
+on the stack, a stack entry, the resolving object, or a delayed trigger
+waiting for its event. Each reads its source later, and a trigger the objects
+of its one triggering event too, so it keeps the **LKI** of one that leaves
+(CR 113.7a, 608.2h). The project's word, from the field. → `LkiKeeper`,
+`engine::triggers::dispatch`.
 
 **entity** — a permanent's state on the battlefield, `PermanentState`: what the
 battlefield map holds for an object there. Its controller, tapped status,
@@ -622,9 +630,9 @@ it can trigger repeatedly if one event contains multiple occurrences", so a
 wipe of three lands is three triggers for "whenever a land is put into a
 graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
 (`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
-arm says one of its events is (a subject `occurrences_matching_arm` returns: a
-record for most kinds, an attacker for the attack shape, a counter for the
-counter arms).
+arm says one of its events is (one **triggering event** that
+`triggering_events_in` returns: a record for most kinds, an attacker for
+the attack shape, a counter for the counter arms).
 The CR gives the occurrence a name and the choice between the two none, so this
 one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
 
@@ -648,11 +656,29 @@ its tables stay as they are, the record being keyed on them, and prose about
 the struct says rows. → `state/diagnostics.rs`.
 
 **binding** — what a pending or stacked trigger remembers about its event:
-the def, the records that matched (by `EventSeq`, never by copy), which of
-the condition's events matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
-player" and "that many" are read back through that event's projections at
-resolution, so there is one copy of every fact and the frame comes with the
-record. → `TriggerBinding`, `engine::triggers::binding`.
+the def, which of the condition's events matched, and its **triggering
+events**, each the record that holds it, copied whole, with its
+**participants** as `ObjectRef`s (id and epoch). "That creature", "that player" and "that many" are read back
+through that event's projections at resolution, so there is one copy of every
+fact and the frame comes with the record. → `TriggerBinding`,
+`engine::triggers::binding`.
+
+**participant** — an object a triggering event is about, by the part it
+played: a damage record's source and recipient, an attack's attacker,
+an attach's attachment and host, or the one object of a record about one. Each
+instruction that reads a triggering object names the participant it means,
+since CR 608.2c leaves the antecedent of "that creature" to the text. The
+project's word; it avoids CR 700.8's *party* and the Role tokens. →
+`Participant`, `TriggeringEventObjects`, `triggers-architecture.md` §12
+(TR-5a).
+
+**triggering event** — one event that triggered an ability: one occurrence of
+its trigger event (CR 603.2c), with the record that holds it and the objects
+it is about. Not the **trigger event**, CR 603.2's name for what an ability
+watches for, which the engine spells `TriggerEvent`: the trigger event is the
+condition, the triggering event is what happened. A trigger on each event
+binds one; a "one or more" trigger binds every one in its window. →
+`TriggeringEvent`, `TriggerBinding::triggering_events`.
 
 **elision** — the engine declining to ask a prompt whose every legal answer
 leaves the same game, with the conditions under which that stops being true

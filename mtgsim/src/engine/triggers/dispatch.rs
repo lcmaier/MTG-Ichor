@@ -33,7 +33,7 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
-use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
+use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::CostChoices;
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
@@ -42,9 +42,10 @@ use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, Pla
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
     zone_change_looks_back, DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
-    PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
-    TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
+    ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
+    TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
+use super::binding::TriggeringEventView;
 
 use crate::types::zones::{DrawOrdinals, Zone, ZoneSet};
 
@@ -114,10 +115,30 @@ pub struct LkiCapture {
     lki: Option<Lki>,
 }
 
-/// Where an entry keeps the last known information of an object it names
-/// once that object leaves (CR 113.7a, 608.2h): a queued, stacked or
-/// resolving entry's list, one per object, or a delayed trigger's one of its
-/// source.
+/// A holder of a `kept_lki` (CR 113.7a, 608.2h): a triggered ability waiting
+/// to be put on the stack, a stack entry, the resolving object, or a delayed
+/// trigger waiting for its event. Each reads its source later, and a trigger
+/// the objects of its one triggering event too, so when one of them leaves,
+/// the keeper keeps its last known information.
+#[derive(Clone, Copy)]
+struct LkiKeeper<'a> {
+    source: Option<ObjectRef>,
+    trigger: Option<&'a TriggerBinding>,
+}
+
+impl LkiKeeper<'_> {
+    /// The objects it keeps last known information for: its source, then its
+    /// triggering event's objects.
+    fn objects(self) -> impl Iterator<Item = ObjectRef> {
+        let event_objects = self.trigger.and_then(TriggerBinding::triggering_event).into_iter().flat_map(|event| event.objects.objects());
+        self.source.into_iter().chain(event_objects.map(|(_, object)| object))
+    }
+}
+
+/// Where a keeper keeps the last known information of an object it reads
+/// once that object leaves (CR 113.7a, 608.2h): the list of a waiting
+/// triggered ability, a stack entry or the resolving object, one per object,
+/// or a delayed trigger's one of its source.
 enum KeptLkiSlot<'a> {
     List(&'a mut Vec<Lki>),
     Source(&'a mut Option<Lki>),
@@ -325,7 +346,7 @@ struct ArmMatch<'r, 'a> {
     row: &'r TriggerCandidateDef<'a>,
     /// Which of the condition's events matched.
     arm: EventIndex,
-    subjects: Vec<Option<ObjectId>>,
+    triggering_events: Vec<TriggeringEventObjects>,
 }
 
 /// One triggered ability of one candidate, with the facts that do not depend
@@ -406,14 +427,6 @@ pub(super) struct TriggerSource<'a> {
     pub(super) lki: Option<&'a Lki>,
 }
 
-/// "It", one occurrence's subject, as a condition at the trigger reads it:
-/// as its record framed it when the record is its departure and the arm
-/// looks back (CR 603.10a), and on the board otherwise.
-fn triggering_as_it_was<'r>(arm: &TriggerEvent, record: &'r EventRecord, it: ObjectId) -> CurrentOrLastKnown<'r> {
-    let lki = record.event.lki().map(|(lki, ..)| lki).filter(|lki| arm.looks_back() && lki.object().id == it);
-    CurrentOrLastKnown { id: it, lki }
-}
-
 /// A match the dispatcher will queue or resolve.
 pub(super) struct MatchedTrigger {
     pub(super) identity: AbilityIdentity,
@@ -422,8 +435,7 @@ pub(super) struct MatchedTrigger {
     pub(super) source_card: Arc<CardData>,
     pub(super) instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
-    pub(super) records: Vec<EventRecord>,
-    pub(super) subject: Option<ObjectRef>,
+    pub(super) triggering_events: Vec<TriggeringEvent>,
     pub(super) mana: bool,
     /// The source's last known information when the existence that
     /// triggered had already left, which its entry keeps from the start (CR
@@ -431,7 +443,7 @@ pub(super) struct MatchedTrigger {
     pub(super) source_lki: Option<Lki>,
 }
 
-/// One registry entry's matches in a window (`delayed.rs`): every occurrence
+/// One registry entry's matches in a window (`delayed.rs`): every event
 /// that triggers it, which its duration then queues all of or chooses one of.
 pub(super) struct DelayedMatch {
     pub(super) id: DelayedTriggerId,
@@ -674,7 +686,7 @@ impl GameState {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
-            let caused_by = m.records[0].seq;
+            let caused_by = m.triggering_events[0].record.seq;
             // "Triggers only once each turn" is written as the ability
             // queues, so a second match in this same window finds it taken.
             if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.triggered_this_turn.insert(m.identity) {
@@ -685,9 +697,8 @@ impl GameState {
             let source_found_in_graveyard = self.aura_put_into_graveyard_beside_its_host(&m);
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
-                records: m.records,
+                triggering_events: m.triggering_events,
                 event: m.event,
-                subject: m.subject,
                 triggered_by: None,
                 referred: Referred::default(),
                 source_found_in_graveyard,
@@ -881,12 +892,12 @@ impl GameState {
     /// everything it may exile. A permanent's frame is a memo hit, since
     /// nothing has changed since the batch began deciding.
     ///
-    /// **And every other mover an entry names, from whatever zone** (CR
+    /// **And every other mover a keeper reads, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
-    /// subject is, a card a draw trigger named. The move hands the frame to
-    /// each entry naming the mover (`hand_over_lki`).
+    /// triggering event is about, a card a draw trigger named. The move hands
+    /// the frame to each keeper that reads the mover (`hand_over_lki`).
     pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
-        let mut named: Option<Vec<ObjectRef>> = None;
+        let mut kept_for: Option<Vec<ObjectRef>> = None;
         for action in decided {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
@@ -906,8 +917,8 @@ impl GameState {
                     self.capture_frame(*object);
                 }
                 GameAction::ZoneChange { object, .. } => {
-                    let named = named.get_or_insert_with(|| self.objects_entries_name());
-                    if self.object_ref(*object).is_some_and(|r| named.contains(&r)) {
+                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+                    if self.object_ref(*object).is_some_and(|r| kept_for.contains(&r)) {
                         self.capture_frame(*object);
                     }
                 }
@@ -917,8 +928,8 @@ impl GameState {
                             self.capture_frame(id);
                         }
                     }
-                    let named = named.get_or_insert_with(|| self.objects_entries_name());
-                    for object in named.iter() {
+                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+                    for object in kept_for.iter() {
                         if self.departs_with(object.id, *player) {
                             self.capture_frame(object.id);
                         }
@@ -929,48 +940,46 @@ impl GameState {
         }
     }
 
-    /// The objects the entries name (`for_each_naming_entry`), each once.
-    /// Empty or short on the common board.
-    fn objects_entries_name(&mut self) -> Vec<ObjectRef> {
-        let mut named: Vec<ObjectRef> = Vec::new();
-        self.for_each_naming_entry(|objects, _| {
-            for object in objects.into_iter().flatten() {
-                if !named.contains(&object) {
-                    named.push(object);
+    /// The objects some keeper keeps last known information for
+    /// (`for_each_lki_keeper`), each once. Empty or short on the common board.
+    fn objects_lki_is_kept_for(&mut self) -> Vec<ObjectRef> {
+        let mut kept_for: Vec<ObjectRef> = Vec::new();
+        self.for_each_lki_keeper(|keeper, _| {
+            for object in keeper.objects() {
+                if !kept_for.contains(&object) {
+                    kept_for.push(object);
                 }
             }
         });
-        named
+        kept_for
     }
 
-    /// Every entry that names objects, with the objects it names and where it
-    /// keeps the frame of one that leaves: a queued, stacked or resolving
-    /// entry's source and its trigger's subject, and a waiting delayed
-    /// trigger's source. The one list of who names what, so the capture
-    /// (`objects_entries_name`) and the hand-over cannot disagree.
-    fn for_each_naming_entry(&mut self, mut each: impl FnMut([Option<ObjectRef>; 2], KeptLkiSlot<'_>)) {
+    /// Every keeper, with where it keeps the frame of an object it reads that
+    /// leaves. The one list of keepers, so the capture
+    /// (`objects_lki_is_kept_for`) and the hand-over cannot disagree.
+    fn for_each_lki_keeper(&mut self, mut each: impl FnMut(LkiKeeper<'_>, KeptLkiSlot<'_>)) {
         for pending in &mut self.pending_triggers {
-            let named = [Some(pending.origin.source_ref()), pending.binding.subject];
-            each(named, KeptLkiSlot::List(&mut pending.kept_lki));
+            let keeper = LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) };
+            each(keeper, KeptLkiSlot::List(&mut pending.kept_lki));
         }
         // In stack order, never the map's: a capture is a layer walk, which
         // writes a trace record.
         for id in &self.stack {
             let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            let named = [entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref().and_then(|binding| binding.subject)];
-            each(named, KeptLkiSlot::List(&mut entry.kept_lki));
+            let keeper = LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() };
+            each(keeper, KeptLkiSlot::List(&mut entry.kept_lki));
         }
         if let Some(resolving) = &mut self.resolving {
-            let named = [resolving.identity.map(|identity| identity.source), resolving.subject];
-            each(named, KeptLkiSlot::List(&mut resolving.kept_lki));
+            let keeper = LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() };
+            each(keeper, KeptLkiSlot::List(&mut resolving.kept_lki));
         }
         for delayed in &mut self.delayed_triggers {
-            each([Some(delayed.source), None], KeptLkiSlot::Source(&mut delayed.source_lki));
+            each(LkiKeeper { source: Some(delayed.source), trigger: None }, KeptLkiSlot::Source(&mut delayed.source_lki));
         }
     }
 
     /// A mover's frame, taken before its batch performs (CR 603.10a for a
-    /// permanent, 113.7a for anything an entry names). One an enclosing batch
+    /// permanent, 113.7a for anything a keeper reads). One an enclosing batch
     /// already framed keeps that frame, since a destruction's move is a
     /// nested batch and the event it belongs to is the outer one.
     fn capture_frame(&mut self, id: ObjectId) {
@@ -1004,7 +1013,7 @@ impl GameState {
 
     /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from` for `to`
     /// (`None`: the game), before it moves: the frame its batch took, to every
-    /// entry that names it, and to a delayed trigger it is the source of.
+    /// keeper that reads it.
     /// Returns the frame its record carries, for a move in one of CR 603.10a's
     /// classes; a token whose entry is still being decided has no entity and
     /// nothing to look back at (`create_tokens`).
@@ -1016,12 +1025,11 @@ impl GameState {
         lki
     }
 
-    /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
-    /// each queued, stacked or resolving entry that names it, and each
-    /// delayed trigger waiting with it as source, keeps the frame its batch
-    /// took. That is `lki`, the record's own, for a permanent, and
-    /// for any other mover the one `capture_lki` took because an
-    /// entry named it. One writer; its callers are the two performers that
+    /// CR 113.7a, 608.2h — `id` is leaving the zone a keeper expected it in:
+    /// each keeper that reads it keeps the frame its batch took. That is
+    /// `lki`, the record's own, for a permanent, and for any other mover the
+    /// one `capture_lki` took because a keeper reads it. One writer; its
+    /// callers are the two performers that
     /// move an object out of a zone, before the move.
     fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
         let lki = match lki {
@@ -1032,8 +1040,8 @@ impl GameState {
             },
         };
         let object = lki.object();
-        self.for_each_naming_entry(|named, slot| {
-            if !named.contains(&Some(object)) {
+        self.for_each_lki_keeper(|keeper, slot| {
+            if !keeper.objects().any(|kept_for| kept_for == object) {
                 return;
             }
             match slot {
@@ -1043,7 +1051,7 @@ impl GameState {
         });
     }
 
-    /// The last known information a named mover's batch took for it, if any:
+    /// The last known information a kept-for mover's batch took for it, if any:
     /// the counterpart of `take_captured_lki` for a move in no CR 603.10a
     /// class, which no batch is bound to frame.
     fn take_named_lki(&mut self, id: ObjectId) -> Option<Lki> {
@@ -1308,8 +1316,8 @@ impl GameState {
                 let identity = row.identity;
                 let def = row.def;
                 let outcome = self.match_def(def, candidate, answered, record, identity);
-                let (matched, subjects, refusal) = match outcome {
-                    Ok((event, subjects)) => (Some(event), subjects, None),
+                let (matched, triggering_events, refusal) = match outcome {
+                    Ok((event, triggering_events)) => (Some(event), triggering_events, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
                 };
                 let mana = matched.is_some() && is_mana_ability(def);
@@ -1325,14 +1333,14 @@ impl GameState {
                     )
                 });
                 let Some(arm) = matched else { continue };
-                let this = ArmMatch { row, arm, subjects };
+                let this = ArmMatch { row, arm, triggering_events };
                 match hits.iter_mut().find(|hit| hit.row.identity == identity) {
                     Some(earlier) if this.arm < earlier.arm => *earlier = this,
                     Some(_) => {}
                     None => hits.push(this),
                 }
             }
-            for ArmMatch { row, arm: matched, subjects } in hits {
+            for ArmMatch { row, arm: matched, triggering_events } in hits {
                 let candidate = &candidates[row.candidate];
                 let (identity, def) = (row.identity, row.def);
                 let mana = is_mana_ability(def);
@@ -1343,7 +1351,7 @@ impl GameState {
                 let def_arc: Arc<TriggerDef> = Arc::clone(def);
                 match arm.multiplicity() {
                     Multiplicity::PerOccurrence => {
-                        for subject in subjects {
+                        for objects in triggering_events {
                             matches.push(MatchedTrigger {
                                 identity,
                                 controller: candidate.controller,
@@ -1351,18 +1359,18 @@ impl GameState {
                                 source_card: Arc::clone(&candidate.card),
                                 instances: row.instances.to_vec(),
                                 event: matched,
-                                records: vec![(*record).clone()],
-                                subject: subject.and_then(|id| self.subject_after(&record.event, id)),
+                                triggering_events: vec![TriggeringEvent { record: (*record).clone(), objects }],
                                 mana,
                                 source_lki: candidate.frame.lki().cloned(),
                             });
                         }
                     }
                     // CR 603.2c's boundary is the window: one trigger, every
-                    // matching record in its binding, no one object.
+                    // matching event in its binding, no one object.
                     Multiplicity::OncePerEvent => {
+                        let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: (*record).clone(), objects });
                         match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
-                            Some((_, at)) => matches[*at].records.push((*record).clone()),
+                            Some((_, at)) => matches[*at].triggering_events.extend(these),
                             None => {
                                 once.push(((identity, matched), matches.len()));
                                 matches.push(MatchedTrigger {
@@ -1372,8 +1380,7 @@ impl GameState {
                                     source_card: Arc::clone(&candidate.card),
                                     instances: row.instances.to_vec(),
                                     event: matched,
-                                    records: vec![(*record).clone()],
-                                    subject: None,
+                                    triggering_events: these.collect(),
                                     mana,
                                     source_lki: candidate.frame.lki().cloned(),
                                 });
@@ -1387,7 +1394,7 @@ impl GameState {
     }
 
     /// One def against one record: the first arm that matches, and the
-    /// subjects of its occurrences (one per trigger). `Err` names the
+    /// objects of its triggering events (one per trigger). `Err` names the
     /// predicate that refused.
     fn match_def(
         &self,
@@ -1396,7 +1403,7 @@ impl GameState {
         answered: AnsweredArms,
         record: &EventRecord,
         identity: AbilityIdentity,
-    ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
+    ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
         let event = &record.event;
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
@@ -1412,7 +1419,7 @@ impl GameState {
             this_ability: Some(identity),
             referred: &[],
         };
-        let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
+        let mut matched: Option<(EventIndex, Vec<TriggeringEventObjects>)> = None;
         for (index, arm) in def.condition.events().iter().enumerate() {
             match answered {
                 AnsweredArms::LookBackOnly if !arm.looks_back() => continue,
@@ -1427,13 +1434,13 @@ impl GameState {
             if !condition_functions_in(def, arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
-            let subjects = self.occurrences_matching_arm(arm, &referents, record);
-            if !subjects.is_empty() {
-                matched = Some((EventIndex(index), subjects));
+            let triggering_events = self.triggering_events_in(arm, &referents, record);
+            if !triggering_events.is_empty() {
+                matched = Some((EventIndex(index), triggering_events));
                 break;
             }
         }
-        let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
+        let (event_index, triggering_events) = matched.ok_or(Refusal::TriggerCondition)?;
         if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn()) {
             return Err(Refusal::Limit);
         }
@@ -1442,8 +1449,8 @@ impl GameState {
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
         let arm = &def.condition.events()[event_index.0];
-        let subjects = self.triggers_whose_intervening_if_holds(def, arm, record, subjects, source)?;
-        Ok((event_index, subjects))
+        let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
+        Ok((event_index, triggering_events))
     }
 
     /// CR 603.2f, asked at the instant the candidate's list is read: a
@@ -1463,27 +1470,27 @@ impl GameState {
     }
 
     /// CR 603.4's first check, when the event happens: of the triggers one
-    /// event makes — one per subject, as two attackers make two — the ones
-    /// whose intervening "if" holds, each asked about its own "it" exactly as
-    /// it will be again at resolution. A "one or more" trigger is one trigger
-    /// with no single "it". Refused when none holds.
+    /// event makes — one per triggering event, as two attackers make two — the ones
+    /// whose intervening "if" holds, each asked about its own objects exactly
+    /// as they will be again at resolution. A "one or more" trigger is one
+    /// trigger with no single triggering event. Refused when none holds.
     pub(super) fn triggers_whose_intervening_if_holds(
         &self,
         def: &TriggerDef,
         arm: &TriggerEvent,
         record: &EventRecord,
-        subjects: Vec<Option<ObjectId>>,
+        triggering_events: Vec<TriggeringEventObjects>,
         source: TriggerSource<'_>,
-    ) -> Result<Vec<Option<ObjectId>>, Refusal> {
-        let Some(condition) = &def.intervening_if else { return Ok(subjects) };
-        let holding: Vec<Option<ObjectId>> = subjects
+    ) -> Result<Vec<TriggeringEventObjects>, Refusal> {
+        let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };
+        let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
-            .filter(|subject| {
-                let triggering_object = match arm.multiplicity() {
-                    Multiplicity::PerOccurrence => subject.map(|it| triggering_as_it_was(arm, record, it)),
-                    Multiplicity::OncePerEvent => None,
+            .filter(|&objects| {
+                let triggering_event = match arm.multiplicity() {
+                    Multiplicity::PerOccurrence => TriggeringEventView::AtTrigger { arm, record, objects },
+                    Multiplicity::OncePerEvent => TriggeringEventView::None,
                 };
-                let referents = ConditionReferents { source_lki: source.lki, triggering_object };
+                let referents = ConditionReferents { source_lki: source.lki, triggering_event };
                 settled_holds(condition, self, source.object, Some(source.controller), referents)
             })
             .collect();
@@ -1509,29 +1516,29 @@ impl GameState {
         }
     }
 
-    /// Each occurrence of `arm`'s event that `record` holds, as that
-    /// occurrence's subject ("that object", if any), read for the trigger's
-    /// `referents`: each is one trigger (CR 603.2c). A record holds one
-    /// occurrence for every arm but `Attacks`, which holds one per matching
-    /// attacker. Empty when the record does not match the arm.
+    /// Each event `record` holds that triggers `arm`, as the objects that
+    /// event is about, read for the trigger's `referents`: each is one trigger
+    /// (CR 603.2c's occurrences). A record holds one for every arm but
+    /// `Attacks`, which holds one per matching attacker. Empty when the record
+    /// does not match the arm.
     ///
     /// One arm against one record, and every case has the same shape: the
     /// `match` pairs the arm with the record kind it reads, and the arm's own
     /// fields are the predicates over that record. **A field left `None` is
     /// not asked** — every one of them is an `is_none_or` — which is how "any"
     /// is spelled at the type, the convention the replacement patterns share.
-    /// `occurrence_if` wraps a boolean as an occurrence: true is the single
-    /// subject the arm's `subject_of` projection names, false is no occurrence
-    /// at all. The only arm that does not go through it is `Attacks`, where CR
-    /// 508.3a makes each matching attacker an occurrence of its own.
-    pub(super) fn occurrences_matching_arm(
+    /// `triggering_event_if` wraps a boolean as an event: true is the one
+    /// event `triggering_event_objects` reads off the record, false is none.
+    /// The only arm that does not go through it is `Attacks`, where CR 508.3a
+    /// makes each matching attacker an event of its own.
+    pub(super) fn triggering_events_in(
         &self,
         arm: &TriggerEvent,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
-    ) -> Vec<Option<ObjectId>> {
+    ) -> Vec<TriggeringEventObjects> {
         let (seq, event) = (record.seq, &record.event);
-        let occurrence_if = |ok: bool| if ok { vec![arm.subject_of(event)] } else { Vec::new() };
+        let triggering_event_if = |ok: bool| if ok { vec![self.triggering_event_objects(arm, record)] } else { Vec::new() };
         match (arm, event) {
             // The subject is read as the record framed it only for an arm that
             // looks back (CR 603.10a); "from anywhere" reads the object after
@@ -1539,7 +1546,7 @@ impl GameState {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::ZoneChange { object_id, owner: moved_owner, from, to, act, lki, applied: _, new_epoch: _ },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
@@ -1554,7 +1561,7 @@ impl GameState {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::LeftTheGame { object_id, owner: moved_owner, from, lki },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 *from == Zone::Battlefield
                     && change.from == Some(Zone::Battlefield)
                     && change.to.is_none()
@@ -1569,7 +1576,7 @@ impl GameState {
             (
                 TriggerEvent::ZoneChange { subject, change, by, owner, .. },
                 GameEvent::SameZoneMove { object_id, owner: moved_owner, zone, act, lki, applied: _ },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 change.act.is_some()
                     && change.matches(Some(*zone), *zone, Some(*act))
                     && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
@@ -1578,9 +1585,9 @@ impl GameState {
             ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
-                occurrence_if(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
+                triggering_event_if(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
             }
-            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => occurrence_if(
+            (TriggerEvent::DrawsCard { player: who, place, .. }, GameEvent::CardDrawn { player_id, .. }) => triggering_event_if(
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents))
                     && place.is_none_or(|place| {
                         place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
@@ -1588,14 +1595,14 @@ impl GameState {
             ),
             (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id })
             | (TriggerEvent::PlayerLoses { player: who }, GameEvent::PlayerLost { player_id }) => {
-                occurrence_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                triggering_event_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
                 TriggerEvent::ManaAdded { .. },
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                occurrence_if(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
+                triggering_event_if(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
@@ -1622,27 +1629,27 @@ impl GameState {
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
                 let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
-                occurrence_if(
+                triggering_event_if(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
                 )
             }
             (TriggerEvent::PhaseBegins { phase, whose }, GameEvent::PhaseBegin { phase: rp, player }) => {
-                occurrence_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(phase == rp && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::StepBegins { step, whose }, GameEvent::StepBegin { step: rs, player }) => {
-                occurrence_if(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(step == rs && whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
-                occurrence_if(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
+                triggering_event_if(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents)))
             }
             // The sign is the split. A 0 gain never reaches the log (CR
             // 119.10, `replacement::never_happens`).
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                occurrence_if(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                triggering_event_if(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
-                occurrence_if(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
+                triggering_event_if(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
                 let spell_ok = match spell {
@@ -1655,12 +1662,12 @@ impl GameState {
                         SubjectRead::Now,
                     ),
                 };
-                occurrence_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
+                triggering_event_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
             }
             // CR 603.10e: the spell as it was on the stack, and whoever cast it.
             (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { spell_id, lki, .. }) => {
                 let cast_by = lki.entry().and_then(StackEntry::caster);
-                occurrence_if(
+                triggering_event_if(
                     caster.as_ref().is_none_or(|p| cast_by.is_some_and(|who| self.player_ref_is(p, who, referents)))
                         && spell.as_ref().is_none_or(|filter| {
                             let filter = TriggerSubject::Filter(filter.clone());
@@ -1682,7 +1689,7 @@ impl GameState {
                 let cast_ok = was_cast.is_none_or(|expected| {
                     self.battlefield.get(object_id).is_some_and(|e| e.cast.is_some()) == expected
                 });
-                occurrence_if(
+                triggering_event_if(
                     from_ok
                         && cast_ok
                         && controller.as_ref().is_none_or(|p| self.player_ref_is(p, *rc, referents))
@@ -1692,7 +1699,8 @@ impl GameState {
             (TriggerEvent::Attacks { attacker, .. }, GameEvent::AttackersDeclared { attackers }) => attackers
                 .iter()
                 .filter(|id| self.subject_matches(attacker, Some(**id), referents, seq, SubjectRead::Now))
-                .map(|id| Some(*id))
+                .filter_map(|&id| self.subject_after(event, id))
+                .map(|attacker| TriggeringEventObjects::Attack { attacker })
                 .collect(),
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
@@ -1709,13 +1717,13 @@ impl GameState {
                     None => true,
                     Some(inner) => self.events.record(*cause).is_some_and(|r| inner.reads(&r.event)),
                 };
-                occurrence_if(source_ok && cause_ok)
+                triggering_event_if(source_ok && cause_ok)
             }
             // The same ability of the same object, whichever instance (§6.5).
             (
                 TriggerEvent::AbilityResolves { identity: IdentityRef::ThisAbility },
                 GameEvent::AbilityResolved { identity: resolved, .. },
-            ) => occurrence_if(referents.this_ability.is_some_and(|this| {
+            ) => triggering_event_if(referents.this_ability.is_some_and(|this| {
                 this.source == resolved.source && this.ability.definition() == resolved.ability.definition()
             })),
             // Read after the event: the attach is done when the dispatch asks
@@ -1723,7 +1731,7 @@ impl GameState {
             (
                 TriggerEvent::BecomesAttached { attachment: watched, host: on },
                 GameEvent::Attached { attachment, host, .. },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 self.subject_matches(watched, Some(*attachment), referents, seq, SubjectRead::Now)
                     && self.subject_matches(on, Some(*host), referents, seq, SubjectRead::Now),
             ),
@@ -1732,7 +1740,7 @@ impl GameState {
             (
                 TriggerEvent::BecomesUnattached { attachment: watched, former_host: from },
                 GameEvent::Unattached { attachment, former_host, .. },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 self.subject_matches(
                     watched, Some(attachment.id), referents, seq, self.subject_read_looking_back(*attachment),
                 ) && self.subject_matches(
@@ -1742,7 +1750,7 @@ impl GameState {
             // CR 603.10d: the subject as it was before the change, "you" its
             // controller then (the candidate's, off its frame from before).
             (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { object_id, from: lost, to: gained, lki }) => {
-                occurrence_if(
+                triggering_event_if(
                     from.as_ref().is_none_or(|p| self.player_ref_is(p, *lost, referents))
                         && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
                         && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
@@ -1755,12 +1763,12 @@ impl GameState {
                 TriggerEvent::ControlChanges { subject, from, to: None },
                 GameEvent::ZoneChange { object_id, from: Zone::Battlefield, lki: Some(lki), .. }
                 | GameEvent::LeftTheGame { object_id, from: Zone::Battlefield, lki: Some(lki), .. },
-            ) => occurrence_if(
+            ) => triggering_event_if(
                 from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
             // Every arm, by name, so a new arm does not compile until it is matched
-            // here; a record of another kind holds no occurrence of it.
+            // here; a record of another kind holds no event of it.
             (
                 TriggerEvent::ZoneChange { .. }
                 | TriggerEvent::BecomesTapped { .. }
@@ -1916,6 +1924,96 @@ impl GameState {
             }
         }
         None
+    }
+
+    /// The objects `record`'s one triggering event is about (§3.4), each as
+    /// the existence the trigger remembers (`subject_after`). The arm says
+    /// which participants the event has, grouped as `participants()` groups
+    /// them; its record is one `triggering_events_in` matched to it. An
+    /// object the store no longer holds leaves the event about none. An
+    /// attack record holds one event per attacker, which
+    /// `triggering_events_in` makes, so it answers none here.
+    fn triggering_event_objects(&self, arm: &TriggerEvent, record: &EventRecord) -> TriggeringEventObjects {
+        match arm {
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::ControlChanges { .. } => self.single_object(&record.event),
+            TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
+            TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
+                self.attachment_objects(&record.event)
+            }
+            TriggerEvent::Attacks { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => TriggeringEventObjects::NoObject,
+        }
+    }
+
+    /// The one object a one-object event is about: the card or permanent
+    /// that moved, was tapped, untapped, entered or changed control, the
+    /// mana's source, the card drawn, or the spell.
+    fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
+        let id = match event {
+            GameEvent::ZoneChange { object_id, .. }
+            | GameEvent::LeftTheGame { object_id, .. }
+            | GameEvent::SameZoneMove { object_id, .. }
+            | GameEvent::Tapped { object_id }
+            | GameEvent::Untapped { object_id }
+            | GameEvent::PermanentEnteredBattlefield { object_id, .. }
+            | GameEvent::ControlChanged { object_id, .. } => *object_id,
+            GameEvent::ManaAdded { source_id, .. } => *source_id,
+            GameEvent::CardDrawn { card_id, .. } => *card_id,
+            GameEvent::SpellCast { spell_id, .. } | GameEvent::SpellCountered { spell_id, .. } => *spell_id,
+            _ => return TriggeringEventObjects::NoObject,
+        };
+        self.subject_after(event, id).map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object)
+    }
+
+    /// A damage event's source and recipient. A source that left before
+    /// dealing the damage is the existence that dealt it (CR 608.2h).
+    fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
+        let GameEvent::DamageDealt { source_id, source_lki, target, .. } = event else {
+            return TriggeringEventObjects::NoObject;
+        };
+        let source = source_lki.as_ref().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let recipient = match target {
+            DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
+            DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
+        };
+        match (source, recipient) {
+            (Some(source), Some(recipient)) => TriggeringEventObjects::Damage { source, recipient },
+            _ => TriggeringEventObjects::NoObject,
+        }
+    }
+
+    /// An attachment and its host, or its former host. An unattach names
+    /// each end as the existence the record names (Grafted Wargear's first
+    /// ruling).
+    fn attachment_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
+        match event {
+            GameEvent::Attached { attachment, host, .. } => {
+                match (self.subject_after(event, *attachment), self.subject_after(event, *host)) {
+                    (Some(attachment), Some(host)) => TriggeringEventObjects::Attach { attachment, host },
+                    _ => TriggeringEventObjects::NoObject,
+                }
+            }
+            GameEvent::Unattached { attachment, former_host, .. } => {
+                TriggeringEventObjects::Attach { attachment: *attachment, host: *former_host }
+            }
+            _ => TriggeringEventObjects::NoObject,
+        }
     }
 
     /// "That object" as a trigger remembers it: `id` together with the

@@ -751,6 +751,9 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
             }
         }
         ObjectFilter::PowerLE(_) => out.members |= Channels::POWER,
+        // A counter is no layer's output; a counter write bumps the layer
+        // epoch instead.
+        ObjectFilter::WithCounters { .. } => {}
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
             filter_reads(a, out, you_channel);
             filter_reads(b, out, you_channel);

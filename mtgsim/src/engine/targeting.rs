@@ -388,8 +388,7 @@ impl GameState {
             // walks the declared clauses rather than the atoms.
             // A trigger's bound fact is announced by nothing (CR 608.2k — it is
             // "a specific untargeted object"), so there is no clause here.
-            EffectRecipient::TriggeringObject
-            | EffectRecipient::TriggeringObjects
+            EffectRecipient::Triggering(_)
             | EffectRecipient::TriggeringPlayer
             | EffectRecipient::Referred => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
@@ -674,7 +673,7 @@ impl GameState {
                 return object_filter::evaluate(self, filter, id, &|| Some(chars), None, referents);
             }
             Some(HeldFrame::LastKnown(lki)) => {
-                return object_filter::evaluate(self, filter, id, &|| Some(lki.chars()), Some(lki.owner()), referents);
+                return object_filter::evaluate(self, filter, id, &|| Some(lki.chars()), Some(lki), referents);
             }
             None => {}
         }

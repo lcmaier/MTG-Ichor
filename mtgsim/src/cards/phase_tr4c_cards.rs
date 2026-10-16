@@ -27,7 +27,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::restriction::SourceFilter;
-use crate::types::triggers::{Multiplicity, TriggerDef, TriggerEvent, TriggerSubject};
+use crate::types::triggers::{Multiplicity, Participant, TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 
 /// "Whenever [subject] is put into [whose] graveyard from the battlefield":
@@ -219,7 +219,7 @@ pub fn rancor() -> Arc<CardData> {
         ))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject)),
+            whenever(dies(TriggerSubject::ThisObject), Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Object))),
         ))
         .build()
 }

@@ -225,8 +225,7 @@ mod tests {
             cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], alternative: None },
             x_value: Some(3),
             identity: None,
-            subject: None,
-            subject_lki: None,
+            trigger: None,
             kept_lki: Vec::new(),
         });
 

@@ -37,6 +37,83 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-16 for TR-5a** (#255: the binding's roles; items 250,
+255 and 267). Sphere Grid joins the registry and the pool (199 → 200
+registered, 110 → 111 pooled), so both §3 columns are new baselines.
+`close_out.py --fixtures` against **main** `42d7828` (#254's merge), with
+**engine** `81c8674` (the branch's head with Sphere Grid unregistered, a
+close-out commit never pushed) and **shipped** `f3e08bf`.
+
+**Predictions, before any arm ran** (in the PR body):
+- engine vs `main`, every gameplay row the same, both pools, two seats and
+  four, except the games where Ray of Command resolves on an attacking or
+  blocking creature, which item 267's fix moves; each such game diverges
+  first at that steal, and no game for another reason.
+- Cost rows only with those games; instructions per decision +0.0 to +0.4.
+- shipped differing from `main` by the pool; Sphere Grid's trigger and grant
+  reached.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | differ (item 267) / differ (item 267) | **IDENTICAL** / **IDENTICAL** |
+| games apart, game by game, performance / stress | 2 of 200 / 1 of 200 | 0 / 0 |
+| `Memo hits`, `main` → engine, performance / stress | 53,251 → 53,190 / 51,789 → 51,733 | 157,237 → 157,237 / 220,838 → 220,838 |
+| `Layer frames`, `main` → engine, performance / stress | 3,691 → 3,679 / 3,634 → 3,630 | 11,848 → 11,848 / 15,976 → 15,976 |
+| `Windows past gate`, `main` → engine, performance / stress | 49.8 → 49.9 / 50.6 → 50.6 | 129.8 → 129.8 / 168.2 → 168.2 |
+| `Candidate visits`, `main` → engine, performance / stress | 81.1 → 81.4 / 71.4 → 71.4 | 261.2 → 261.2 / 277.1 → 277.1 |
+| audit, engine, performance / stress, dispatches agreed | 161,597 / 149,105 | 317,148 / 349,688 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Windows past gate`, `main` → shipped, performance / stress | 49.8 → 52.5 / 50.6 → 60.9 | 129.8 → 143.5 / 168.2 → 158.9 |
+| `Candidate visits`, `main` → shipped, performance / stress | 81.1 → 86.7 / 71.4 → 84.1 | 261.2 → 282.4 / 277.1 → 281.8 |
+| audit, shipped, performance / stress, dispatches agreed | 158,957 / 152,086 | 328,606 / 335,275 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6722 M → 0.6723 M, **+0.02%** |
+
+Every prediction held on the second sitting. **The first sitting did not
+hold one**: a four-seat `stress` game moved with no Ray of Command in it. The
+game-by-game diff put it at two Grafted Wargears on one dying host, whose
+triggers `main` placed unasked and the branch asked to order. The elision
+compared every participant, each Wargear's own attachment included, where it
+should compare the ones the def reads (`5e235b5`, shown failing first). The
+three games apart in the second sitting each first differ in combat right
+after a Ray of Command steal: game 89 of the two-seat `performance` run has a
+stolen Strangleroot Geist blocking itself on `main`. The cost rows move only
+with them. Instructions per decision read +0.21% in the first sitting and
++0.02% in the second.
+
+**Reachability**, shipped, 200 games forced: Sphere Grid cast 188 times in 132
+games at two seats and 138 in 117 at four; in the two-seat run its trigger
+placed 731 times, each counter on the creature that dealt the damage.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors, 0 panics, no game at the turn limit, and no disagreement
+(812,583 / 826,969 dispatches at two seats, 1,624,039 / 1,712,118 at four).
+
+**§3 fixture rows, shipped `f3e08bf`, two seats, 50 games / seed 12345.**
+Both columns are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.5 | 24.6 |
+| Spells cast | 22.9 | 19.3 |
+| Lands played | 17.3 | 15.3 |
+| Combat w/ atk | 10.7 | 7.5 |
+| Creatures died | 7.7 | 4.4 |
+| Damage events | 22.1 | 16.6 |
+| Total damage | 58.1 | 52.6 |
+| Life changes | 15.0 | 12.1 |
+| **Layer walks** | **344** | **379** |
+| **Board walks** | **204** | **206** |
+| **Memo hits** | **55,793** | **56,103** |
+| **Layer frames** | **3,870** | **4,100** |
+| **Frames/walk** | **11.24** | **10.82** |
+| **Dependency checks** | **8** | **51** |
+| **Replacement gathers** | **1023** | **888** |
+| **Restriction queries** | **1025** | **890** |
+| Mana productions | 68 | 74 |
+| Prevention allocations | 0.00 | 0.00 |
+
 **Re-recorded 2026-10-15 for TR-4d** (#254: control, countering, loss, and
 the records' missing facts; items 13, 131, 253 and 258). Multani's Presence
 and Ray of Command join the registry and Ray of Command the pool (197 → 199

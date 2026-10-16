@@ -31,6 +31,7 @@ use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Condition, ConditionObject, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
 use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::engine::triggers::binding::TriggeringEventView;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
 
@@ -44,7 +45,7 @@ use crate::types::triggers::Lki;
 /// and 608.2h answer from how the object last existed, so the caller passes
 /// that here (`triggers-architecture.md` §6.1):
 /// - "this", the ability's source, once it has left: `source_lki`;
-/// - "it", the object the trigger's event was about: `triggering_object`.
+/// - "it", an object of the triggering event: `triggering_event`.
 ///
 /// A static ability's "as long as" refers to neither, and passes [`Self::NONE`].
 #[derive(Clone, Copy)]
@@ -52,16 +53,17 @@ pub struct ConditionReferents<'a> {
     /// The source as it last existed, once it has left; `None` while it is
     /// still there, where the board answers.
     pub source_lki: Option<&'a Lki>,
-    /// The triggering object: read live while it is where the event left it,
-    /// or as it last existed when the event was its departure or it has left
-    /// since. `None` outside a trigger, and for a "one or more" trigger,
-    /// which has no single object.
-    pub triggering_object: Option<CurrentOrLastKnown<'a>>,
+    /// The objects of the triggering event, each read live while it is where
+    /// the event left it, or as it last existed when its record framed it or
+    /// it has left since. None outside a trigger, and for a "one or more"
+    /// trigger, which has no single triggering event.
+    pub triggering_event: TriggeringEventView<'a>,
 }
 
 impl ConditionReferents<'_> {
     /// Nothing beyond the board: every static ability's condition.
-    pub const NONE: ConditionReferents<'static> = ConditionReferents { source_lki: None, triggering_object: None };
+    pub const NONE: ConditionReferents<'static> =
+        ConditionReferents { source_lki: None, triggering_event: TriggeringEventView::None };
 }
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -131,22 +133,22 @@ pub(super) fn holds(
         },
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
-        Condition::CounterCount { object, counter, is } => {
+        Condition::CounterCount { object, kind, count } => {
             let asked = match object {
                 ConditionObject::ThisObject => CurrentOrLastKnown { id: source, lki: referents.source_lki },
-                ConditionObject::TriggeringObject => match referents.triggering_object {
+                ConditionObject::Triggering(participant) => match referents.triggering_event.object(*participant) {
                     Some(it) => it,
                     None => return false,
                 },
             };
             let n = match asked.lki {
-                Some(lki) => lki.counters(*counter),
+                Some(lki) => lki.counters_of(*kind),
                 None => match board.entity(game, asked.id) {
-                    Some(entity) => entity.counter_count(*counter),
+                    Some(entity) => entity.counters_of(*kind),
                     None => return false,
                 },
             };
-            is.met_by(u64::from(n))
+            count.met_by(u64::from(n))
         }
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
@@ -163,10 +165,8 @@ pub(super) fn holds(
             let Some(host) = host else {
                 return false;
             };
-            let chars = match referents.triggering_object {
-                Some(CurrentOrLastKnown { id, lki: Some(lki) }) if id == host => {
-                    Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame())))
-                }
+            let chars = match referents.triggering_event.object_with_id(host) {
+                Some(CurrentOrLastKnown { lki: Some(lki), .. }) => Some(FrameRef::Shared(std::sync::Arc::clone(lki.frame()))),
                 _ if referents.source_lki.is_some() && !game.battlefield.contains_key(&host) => None,
                 _ => board.frame_of(game, host, layer_index),
             };

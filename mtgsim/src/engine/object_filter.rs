@@ -16,8 +16,9 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
-use crate::types::effects::{ObjectFilter, PlayerRef};
+use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::triggers::Lki;
 
 /// What a filter's words for its own text mean where it is asked: CR 109.5's
 /// "you", CR 113.7a's "this" and its owner (CR 108.3), and the instances of
@@ -33,6 +34,13 @@ pub(crate) trait FilterReferents {
     fn source(&self) -> Option<ObjectId>;
     fn source_owner(&mut self) -> Option<PlayerId>;
     fn earlier_targets(&self) -> EarlierTargets<'_>;
+    /// How many counters of `kind`, or of every kind for `None`, the
+    /// permanent `id` has: off the battlefield here, and off the entity the
+    /// layer walk is building there, which under a look-ahead is the entering
+    /// one. An object that is no permanent has none.
+    fn counters_on(&self, game: &GameState, id: ObjectId, kind: Option<CounterType>) -> u32 {
+        game.battlefield.get(&id).map_or(0, |entity| entity.counters_of(kind))
+    }
 }
 
 /// The referents of an asker outside the layer walk, given as plain values:
@@ -180,8 +188,9 @@ impl std::fmt::Display for FilterRefusal {
 
 /// Does `id` match `filter`, over a frame `frame` supplies on demand (`None`
 /// for an object with none) and the words `referents` gives its text?
-/// `owner` is the owner the asker holds with a last known frame, which
-/// answers once the store has lost the object (CR 108.3).
+/// `last_known` is the last known information the asker holds the frame
+/// with, which says who owned the object once the store has lost it (CR
+/// 108.3) and which counters it had (CR 122.1), neither a characteristic.
 ///
 /// A refusal reads as no. A malformed question — a leaf the card wrote where
 /// the asker cannot answer it — is loud in a debug build and `cargo test`,
@@ -192,10 +201,10 @@ pub(crate) fn evaluate<'f>(
     filter: &ObjectFilter,
     id: ObjectId,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
-    owner: Option<PlayerId>,
+    last_known: Option<&Lki>,
     referents: &mut impl FilterReferents,
 ) -> bool {
-    match answer_or_refuse(game, filter, id, frame, owner, referents) {
+    match answer_or_refuse(game, filter, id, frame, last_known, referents) {
         Ok(matches) => matches,
         Err(refusal) => {
             debug_assert!(!refusal.is_malformed_question(), "a filter was asked a malformed question: {refusal}");
@@ -213,7 +222,7 @@ fn answer_or_refuse<'f>(
     filter: &ObjectFilter,
     id: ObjectId,
     frame: &impl Fn() -> Option<&'f EffectiveCharacteristics>,
-    owner: Option<PlayerId>,
+    last_known: Option<&Lki>,
     referents: &mut impl FilterReferents,
 ) -> Result<bool, FilterRefusal> {
     let chars = || frame().ok_or(FilterRefusal::ObjectGone(id));
@@ -236,14 +245,21 @@ fn answer_or_refuse<'f>(
         ObjectFilter::Token => Ok(object()?.is_token),
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.
         ObjectFilter::ByOwner(who) => {
-            let owner = match owner {
-                Some(owner) => owner,
+            let owner = match last_known {
+                Some(lki) => lki.owner(),
                 None => object()?.owner,
             };
             player_ref_names(who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
         ObjectFilter::PowerLE(max_power) => {
             chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
+        }
+        ObjectFilter::WithCounters { kind, count } => {
+            let n = match last_known {
+                Some(lki) => lki.counters_of(*kind),
+                None => referents.counters_on(game, id, *kind),
+            };
+            Ok(count.met_by(u64::from(n)))
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),
@@ -257,22 +273,22 @@ fn answer_or_refuse<'f>(
             Ok(!earlier.instance_names(*ix, ResolvedTarget::Object(id)))
         }
         ObjectFilter::And(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, owner, referents);
+            let left = answer_or_refuse(game, a, id, frame, last_known, referents);
             if left == Ok(false) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, owner, referents);
+            let right = answer_or_refuse(game, b, id, frame, last_known, referents);
             if right == Ok(false) || left.is_ok() { right } else { left }
         }
         ObjectFilter::Or(a, b) => {
-            let left = answer_or_refuse(game, a, id, frame, owner, referents);
+            let left = answer_or_refuse(game, a, id, frame, last_known, referents);
             if left == Ok(true) {
                 return left;
             }
-            let right = answer_or_refuse(game, b, id, frame, owner, referents);
+            let right = answer_or_refuse(game, b, id, frame, last_known, referents);
             if right == Ok(true) || left.is_ok() { right } else { left }
         }
-        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, owner, referents).map(|matches| !matches),
+        ObjectFilter::Not(inner) => answer_or_refuse(game, inner, id, frame, last_known, referents).map(|matches| !matches),
     }
 }
 

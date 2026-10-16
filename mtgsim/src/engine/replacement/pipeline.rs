@@ -24,6 +24,7 @@ use crate::types::replacement::{
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawFilter, Zone};
+use crate::types::history::CountIs;
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
@@ -1520,6 +1521,10 @@ struct EntryWrites {
     added_types: Vec<CardType>,
     added_subtypes: Vec<Subtype>,
     added_supertypes: Vec<Supertype>,
+    /// The kinds of counter the members put on, which a filter counting
+    /// counters reads; every kind when a member multiplies any counter.
+    counter_kinds: Vec<CounterType>,
+    every_counter_kind: bool,
     /// A write the table cannot follow value by value: an edit that sets or
     /// removes, whose member has no class anyway, or a status or counter
     /// write where the entering object's own characteristics hang on its
@@ -1562,6 +1567,7 @@ impl EntryWrites {
                         Kinds::All => {
                             writes.raises_power = true;
                             writes.lowers_power = true;
+                            writes.every_counter_kind = true;
                         }
                         Kinds::These(kinds) => kinds.into_iter().for_each(|k| writes.add_counter_kind(k)),
                     }
@@ -1581,8 +1587,12 @@ impl EntryWrites {
         writes
     }
 
-    /// What a counter of this kind feeds: power, or nothing a filter reads.
+    /// What a counter of this kind feeds: power, and the filters that count
+    /// counters.
     fn add_counter_kind(&mut self, counter: CounterType) {
+        if !self.counter_kinds.contains(&counter) {
+            self.counter_kinds.push(counter);
+        }
         match counter {
             CounterType::PlusOnePlusOne => self.raises_power = true,
             CounterType::MinusOneMinusOne => self.lowers_power = true,
@@ -1648,6 +1658,16 @@ impl EntryWrites {
                     self.lowers_power
                 } else {
                     self.raises_power
+                }
+            }
+            // An entry only adds counters, which can turn "at least" on and
+            // "at most" off.
+            ObjectFilter::WithCounters { kind, count } => {
+                let adds = self.every_counter_kind
+                    || kind.map_or(!self.counter_kinds.is_empty(), |kind| self.counter_kinds.contains(&kind));
+                adds && match count {
+                    CountIs::AtLeast(_) => negated,
+                    CountIs::AtMost(_) => !negated,
                 }
             }
             ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {

@@ -61,7 +61,7 @@ use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent,
-    TriggerSubject, TriggerTier,
+    TriggerSubject, TriggerTier, Participant,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -451,7 +451,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
     let source = put_on_battlefield(&mut game2, sol_ring(), 1);
     destroy_all(&mut game2, &lands, source);
     assert_eq!(pending(&game2), 1, "CR 603.2c — the batch is the event for \"one or more\"");
-    assert_eq!(game2.pending_triggers[0].binding.records.len(), 3, "and the binding holds every record");
+    assert_eq!(game2.pending_triggers[0].binding.triggering_events.len(), 3, "and the binding holds every record");
 }
 
 // ---------------------------------------------------------------------------
@@ -615,7 +615,7 @@ fn two_triggers_with_targets_are_asked_their_order() {
 fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     let mut game = setup_two_player_game();
     let loses_its_power = Effect::Atom(
-        Primitive::LoseLife(AmountExpr::TriggeringPower),
+        Primitive::LoseLife(AmountExpr::TriggeringPower(Participant::Object)),
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
     );
     put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), loses_its_power), 0);
@@ -719,7 +719,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
 
     assert_eq!(pending(&game), 2, "one per attacker");
     let subjects: Vec<Option<ObjectId>> =
-        game.pending_triggers.iter().map(|t| t.binding.subject.map(|o| o.id)).collect();
+        game.pending_triggers.iter().map(|t| t.binding.triggering_object(Participant::Attacker).map(|o| o.id)).collect();
     assert_eq!(subjects, vec![Some(a), Some(b)]);
     let watcher = StackWatcher::new();
     game.run_priority_round(&watcher).unwrap();
@@ -932,7 +932,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
 fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     let counter_on_it = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::TriggeringObject,
+        EffectRecipient::Triggering(Participant::Object),
     );
     // Control: still there, it gets the counter.
     let mut game = setup_two_player_game();
@@ -968,7 +968,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
 // COVERS: ATOM-603.6c-002
 #[test]
 fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
-    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject);
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(Participant::Object));
     let mut game = setup_two_player_game();
     let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::ThisObject), exile_it.clone()), 0);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
@@ -1319,7 +1319,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
                 enters(a_creature()),
                 Effect::Atom(
                     Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-                    EffectRecipient::TriggeringObject,
+                    EffectRecipient::Triggering(Participant::Object),
                 ),
             )),
         ),
@@ -1955,8 +1955,8 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     assert_eq!(identity.ability, soul_warden().abilities[0].id);
     assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
     let binding = entry.trigger.as_ref().unwrap();
-    assert_eq!(binding.subject.map(|o| o.id), Some(bear));
-    assert_eq!(game.bound_object(binding), Some(bear));
+    assert_eq!(binding.triggering_object(Participant::Object).map(|o| o.id), Some(bear));
+    assert_eq!(game.bound_objects(binding, Participant::Object), vec![bear]);
     assert_eq!(game.get_object(id).unwrap().card_data.name, "Soul Warden");
 }
 

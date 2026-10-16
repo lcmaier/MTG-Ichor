@@ -65,14 +65,15 @@ pub enum AmountExpr {
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
     /// with no quantity refuses rather than answering 0.
     TriggeringAmount,
-    /// "Its power" on a triggered ability: the bound object's (CR 608.2h),
-    /// read off the record's CR 603.10a frame when the event was its
-    /// departure, and live when it is still where the event left it
+    /// "Its power" on a triggered ability: the power of the object that played
+    /// the named part in its event (CR 608.2h), read off the record's frame
+    /// when the event was its departure or it had left before the event, and
+    /// live when it is still where the event left it
     /// (`triggers-architecture.md` §3.4, §6.3).
-    TriggeringPower,
+    TriggeringPower(crate::types::triggers::Participant),
     /// "Its toughness", read the same way: Paladin of Atonement's "you gain
     /// life equal to its toughness" as it last existed on the battlefield.
-    TriggeringToughness,
+    TriggeringToughness(crate::types::triggers::Participant),
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
@@ -210,6 +211,12 @@ pub enum ObjectFilter {
     ByController(PlayerRef),
     /// Power less than or equal to N (for "creature with power N or less")
     PowerLE(i32),
+    /// "With a +1/+1 counter on it", "with three or more counters on it",
+    /// "with no counters on it": how many counters of `kind` the object has,
+    /// counting every kind when `kind` is `None` (CR 122.1). Read off the
+    /// permanent, or off its last known information for a frame: a counter is
+    /// no characteristic, and no layer writes one.
+    WithCounters { kind: Option<CounterType>, count: crate::types::history::CountIs },
     /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
     ///
     /// Its own leaf, and it earns its place
@@ -593,18 +600,20 @@ pub enum Condition {
     /// a leaf of its own because a `Not` is the one wrapper
     /// `zone_function::stated_zones` would have to refuse.
     SourceTapped,
-    /// How many counters of one kind an object has, or had: "as long as Kaito
-    /// has one or more loyalty counters on him" (`ThisObject`, `AtLeast(1)`),
-    /// CR 711.2a's leveler, "level N1 or more" (`AtLeast(N1)`), and persist's
-    /// "if it had no -1/-1 counters on it" (`TriggeringObject`, `AtMost(0)`,
-    /// CR 702.79a), undying's on +1/+1 counters (CR 702.93a).
+    /// How many counters of `kind` an object has, or had, counting every kind
+    /// for `None` (the counting `ObjectFilter::WithCounters` does): "as long as
+    /// Kaito has one or more loyalty counters on him" (`ThisObject`,
+    /// `AtLeast(1)`), CR 711.2a's leveler, "level N1 or more" (`AtLeast(N1)`),
+    /// persist's "if it had no -1/-1 counters on it" (`Triggering(Object)`,
+    /// `AtMost(0)`, CR 702.79a), undying's on +1/+1 counters (CR 702.93a), and
+    /// Angelic Sleuth's "if it had counters on it" (`None`, `AtLeast(1)`).
     ///
     /// Read off the entity, which under a look-ahead is the one the entry
     /// would build, or off the object's last known information once it has
     /// left (CR 113.7a), which is how persist reads a creature that died. No
     /// layer writes a counter, so it is never a CR 613.8 dependency; a
     /// counter write bumps the layer epoch.
-    CounterCount { object: ConditionObject, counter: CounterType, is: crate::types::history::CountIs },
+    CounterCount { object: ConditionObject, kind: Option<CounterType>, count: crate::types::history::CountIs },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -637,9 +646,10 @@ pub enum Condition {
 pub enum ConditionObject {
     /// "This": the object whose ability it is (CR 113.7a).
     ThisObject,
-    /// "It": the object the trigger's event was about, a triggered ability's
-    /// alone. A static ability has none, and the leaf answers no.
-    TriggeringObject,
+    /// "It": the object that played the named part in the triggering event, a
+    /// triggered ability's alone. A static ability has none, and the leaf
+    /// answers no.
+    Triggering(crate::types::triggers::Participant),
 }
 
 impl Condition {
@@ -802,16 +812,15 @@ pub enum EffectRecipient {
     /// the instance declared at 0", which is what a card author needs to see
     /// without opening this file.
     SameInstanceAs(usize),
-    /// "That creature", "it" on a triggered ability — the record's subject,
-    /// found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7 in
-    /// one comparison): a creature that died and was returned before the
-    /// trigger resolves is a new object and this resolves to nothing.
-    TriggeringObject,
-    /// "Them", "those cards" on a "one or more" trigger (CR 603.2c): the
-    /// object each matched zone change made (CR 400.7e), found while it is
-    /// still that object, so a card moved again before the trigger resolves
-    /// is not one of them (CR 603.6c).
-    TriggeringObjects,
+    /// "That creature", "it", "them" on a triggered ability: the object that
+    /// played the named part in each triggering event, which the card states
+    /// (CR 608.2c), so the damage's source after "[a creature] deals damage"
+    /// and its recipient after "[a creature] is dealt damage". One object for a
+    /// trigger on each event, each event's for "one or more" (CR 603.2c). Each
+    /// is found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7
+    /// in one comparison): a creature that died and was returned before the
+    /// trigger resolves is a new object, and is not found.
+    Triggering(crate::types::triggers::Participant),
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
@@ -1612,7 +1621,7 @@ pub enum Primitive {
     /// Sacrifice (CR 701.21a): "its controller moves it from the battlefield
     /// directly to its owner's graveyard". The recipient is the permanent, as
     /// [`Self::Destroy`]'s is: `ThisObject` for "sacrifice this enchantment",
-    /// `TriggeringObject` for "sacrifice that creature", and
+    /// `Triggering(..)` for "sacrifice that creature", and
     /// [`EffectRecipient::ChosenBy`] for an edict's "a creature of their
     /// choice", whose count is a ceiling (CR 101.3).
     ///

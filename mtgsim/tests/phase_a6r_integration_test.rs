@@ -257,8 +257,9 @@ fn a_draw_of_three_after_the_draw_steps_card_holds_the_turns_third() {
     assert_eq!(triggered(&game, tamiyo), 1, "the third card, not the second or fourth");
     let binding = &game.pending_triggers.last().expect("queued, not yet on the stack").binding;
     assert!(matches!(
-        binding.records[..],
-        [ref record] if matches!(record.event, GameEvent::CardDrawn { .. }) && record.place_in_turn() == Some(3)
+        binding.triggering_events[..],
+        [ref event] if matches!(event.record.event, GameEvent::CardDrawn { .. })
+            && event.record.place_in_turn() == Some(3)
     ));
 }
 

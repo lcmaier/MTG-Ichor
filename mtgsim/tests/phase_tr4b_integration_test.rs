@@ -44,7 +44,7 @@ use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
-use mtgsim::types::triggers::TriggerSubject;
+use mtgsim::types::triggers::{TriggerSubject, Participant};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::DecisionProvider;
 
@@ -590,10 +590,10 @@ fn moving_an_equipment_to_another_creature_triggers_its_unattach_from_the_first(
     let unattached: Vec<_> = game
         .pending_triggers
         .iter()
-        .filter(|p| p.origin.source() == gear && p.binding.records.iter().any(|r| matches!(r.event, GameEvent::Unattached { .. })))
+        .filter(|p| p.origin.source() == gear && p.binding.records().any(|r| matches!(r.event, GameEvent::Unattached { .. })))
         .collect();
     assert_eq!(unattached.len(), 1);
-    assert_eq!(unattached[0].binding.subject, Some(first_ref), "\"that creature\" is the one it left");
+    assert_eq!(unattached[0].binding.triggering_object(Participant::Host), Some(first_ref), "\"that creature\" is the one it left");
 }
 
 /// One equip, two triggers: unattached from the first, attached to the
@@ -917,7 +917,7 @@ fn bouncing_equipment() -> Arc<CardData> {
             "Whenever this Equipment becomes unattached from a permanent, return that permanent to its owner's hand.",
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Triggering(Participant::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))

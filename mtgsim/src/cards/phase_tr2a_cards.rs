@@ -27,7 +27,7 @@ use crate::types::history::{CountIs, HistoryCount, TurnFact};
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
+use crate::types::triggers::{Multiplicity, Participant, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
 
 /// "Put a +1/+1 counter on this creature."
 fn counter_on_this() -> Effect {
@@ -83,7 +83,7 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
             intervening_if: None,
             limit: None,
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness), EffectRecipient::Controller),
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(Participant::Object)), EffectRecipient::Controller),
         }))
         .build()
 }
