@@ -63,15 +63,6 @@ pub(crate) fn occurrence_objects(binding: &TriggerBinding) -> [Option<ObjectRef>
     named
 }
 
-/// What "them" means in a trigger like Hedge Shredder's "Whenever one or more
-/// land cards are put into your graveyard from your library, put them onto the
-/// battlefield": the object that played `participant` in each occurrence, so
-/// for a zone change the object each move made, and a card that has moved
-/// again since is not found.
-pub(crate) fn triggering_objects(binding: &TriggerBinding, participant: Participant) -> Vec<ObjectRef> {
-    binding.triggering_objects(participant)
-}
-
 /// The last known information a stack object carries for `object` (CR
 /// 113.7a, 608.2h), once `object` has left: the frame its occurrence's record
 /// carries for it (`record_frame`), else what it kept as `object` left later.
@@ -259,7 +250,11 @@ impl GameState {
             EffectRecipient::TriggeringObject(participant) => {
                 self.bound_object(binding, *participant).map(ResolvedTarget::Object).into_iter().collect()
             }
-            EffectRecipient::TriggeringObjects(participant) => triggering_objects(binding, *participant)
+            // "Them", as in Hedge Shredder's "Whenever one or more land cards
+            // are put into your graveyard from your library, put them onto the
+            // battlefield": a card that has moved again since is not found.
+            EffectRecipient::TriggeringObjects(participant) => binding
+                .triggering_objects(*participant)
                 .into_iter()
                 .filter(|&object| self.find(object).is_some())
                 .map(|object| ResolvedTarget::Object(object.id))
