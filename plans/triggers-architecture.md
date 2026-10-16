@@ -3540,26 +3540,16 @@ onto the battlefield attacking (item 128) cannot be made at all.
 4. **"Defending player"** (decision 6, with its creature named above):
    `PlayerRef::DefendingPlayer(ConditionObject)`. It is the player that
    creature is attacking, or the controller or protector of what it attacks.
-   Once the creature has left combat, it is the one it was attacking before,
-   which `remove_from_combat` keeps until the combat phase ends (CR 508.5;
-   decision 9 says where). Once the creature has left the battlefield while
-   attacking, its `Lki` keeps its attack. Each `FilterReferents` finds the creature: a
-   target's filter at placement reads the trigger's attacker off the binding.
-   With no creature named, CR 802.2a's choice is decision 10's.
-5. **Item 128, with CR 508.4.** `TokenDef.enters_attacking:
-   Option<EntersAttacking>`, which is `ChosenByController` or
-   `Specified(EffectRecipient)`; the second is "attacking that player", 13
-   cards (`o:"tapped and attacking that"`). It is resolved where
-   `enters_tapped` is merged (`actions.rs`), into `EnterMods.attacking`, and
-   the entry's performer writes `AttackingInfo` when CR 506.3a–c and 508.4a
-   allow. The choice is `SelectRecipients` among the defending players, and
-   later their planeswalkers and battles, asked only when there are two or
-   more. That never happens at two seats, so no fixture moves. There is no
-   record, so no attack trigger and no history row (CR 508.3a, 508.4). The
-   23 literals of `TokenDef` each gain the field.
-6. **Hellrider**, registered and pooled, with its stress distortion
+   Once the creature has left combat, it is the one it was attacking before
+   (CR 508.5). For a creature that left the battlefield while attacking,
+   its `Lki` keeps that attack. For one that left combat and stayed, it is
+   TR-5f's combat history (decision 9), and nothing until TR-5f lands. Each
+   `FilterReferents` finds the creature: a target's filter at placement
+   reads the trigger's attacker off the binding. With no creature named, it
+   is decision 10's predicate.
+5. **Hellrider**, registered and pooled, with its stress distortion
    measured and reported (decision 7).
-7. **ATOM-508.2a-001.** A creature turned green after its declaration
+6. **ATOM-508.2a-001.** A creature turned green after its declaration
    triggers nothing, since the dispatch at the declaration is CR 508.2a's
    instant. It is a test, not code.
 
@@ -3569,7 +3559,7 @@ own. The test uses four seats.
 
 **Sized.** Code at 1.5–2× plus tests, re-counted 2026-10-16 and again at
 review. As designed it was 1,690–1,910: code ~445 (670–890) and tests
-~1,020. The last column is the split decision 9 proposes.
+~1,020. The last column is the split decision 9 made.
 
 | Piece | Code | Tests | Split |
 |---|---|---|---|
@@ -3647,8 +3637,8 @@ are more than it counted. Only the arm's literals came in fewer.
      found as one of "them". That gives up TR-5a's rule that every object is
      fixed when the trigger matches, and adds a second reader for "them".
 9. **Removal from combat is a record, and the combat's history keeps what
-   each creature did** (CR 506.4, 508.5; for review; rewritten twice at
-   review, 2026-10-16).
+   each creature did** (CR 506.4, 508.5; rewritten twice at review, then
+   decided with the split, 2026-10-16; built in TR-5f).
 
    **Why anything is kept.** At two seats nothing is: during combat the
    defending player is the nonactive player (CR 506.2), whatever the
@@ -3730,8 +3720,8 @@ are more than it counted. Only the arm's literals came in fewer.
    record and the history close. A flag inside `AttackingInfo` must be
    checked by each of the 23 readers.
 
-   **It splits TR-5e (proposed).** Built whole, the phase is 2,410–2,745,
-   past the band. The seam is CR 508.4: an attack that was never declared,
+   **It split TR-5e** (decided at review, 2026-10-16). Built whole, the
+   phase was 2,410–2,745, past the band. The seam is CR 508.4: an attack that was never declared,
    and the end of one. **TR-5e, the attack declaration** (CR 508.1–508.3,
    506.5, 508.5's first sentence): item 11, the arm and decision 8, "the
    player it's attacking" with `Lki`'s attack, "defending player" while its
@@ -3788,19 +3778,57 @@ are more than it counted. Only the arm's literals came in fewer.
       code and 150 of tests on top, which takes TR-5e past the band.
     - **All of it to RS-2**, as first recommended, and nothing in TR-5e.
 
-### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5e (8,690–10,010)
+### TR-5f — creatures put onto the battlefield attacking, and removal from combat
+
+*Split from TR-5e at its review (2026-10-16, decision 9), and built after
+it. Its brief re-counts it against the tree TR-5e leaves.*
+
+**Where it sits.** TR-5e's arm reads only the declaration (CR 508.1). Two
+ways a creature's part in combat changes write nothing. A creature put onto
+the battlefield attacking (CR 508.4, item 128) cannot be made at all. A
+creature removed from combat (CR 506.4) writes no record. So "defending
+player" for a creature that left combat but not the battlefield reads
+nothing (CR 508.5's second sentence).
+
+**The pieces**
+1. **Item 128, with CR 508.4.** `TokenDef.enters_attacking:
+   Option<EntersAttacking>`, which is `ChosenByController` or
+   `Specified(EffectRecipient)`; the second is "attacking that player", 13
+   cards (`o:"tapped and attacking that"`). It is resolved where
+   `enters_tapped` is merged (`actions.rs`), into `EnterMods.attacking`, and
+   the entry's performer writes `AttackingInfo` when CR 506.3a–c and 508.4a
+   allow. The choice is `SelectRecipients` among the defending players, and
+   later their planeswalkers and battles, asked only when there are two or
+   more. That never happens at two seats, so no fixture moves. There is no
+   declaration record, so no attack trigger and no attack row in the
+   history (CR 508.3a, 508.3b, 508.4). The 23 literals of `TokenDef` each
+   gain the field.
+2. **Removal from combat is a record**, `RemovedFromCombat`, announced by
+   each caller of `remove_from_combat` (TR-5e's decision 9).
+3. **The combat's history**, advanced by `advance_history` from the
+   declaration and the removals; "defending player" for a creature that left
+   combat but not the battlefield reads its last removal row (decision 9).
+
+**Sized** (TR-5e's table, its last column). Item 128: code ~115 and tests
+~315. Decision 9: code ~125 and tests ~270. **945–1,065**, below the band.
+
+### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
 
 **Re-counted and split in four on 2026-10-12 (A6p)**, as TR-4 was. TR-5c
 reads TR-5a's roles; the others are independent of one another. Damage an
 ability deals is dealt by its source permanent since TR-3b (item 223), so it
 left the row. **TR-5a split in two at its design (2026-10-16), above**: TR-5a,
-the binding's roles, then TR-5e, the attack declaration. The route is TR-5a,
-TR-5e, TR-5b, TR-5c, TR-5d.
+the binding's roles, then TR-5e, the attack declaration. **TR-5e split in
+two at its review (2026-10-16, decision 9)**: the declaration, then TR-5f,
+creatures put onto the battlefield attacking and removal from combat, whose
+rows TR-5c's block triggers read. The route is TR-5a, TR-5e, TR-5f, TR-5b,
+TR-5c, TR-5d.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
 | **TR-5a — the binding's roles** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5a" | | | | +1,454 |
-| **TR-5e — the attack declaration** (CR 508, 506.3, 506.5), designed above, re-counted 2026-10-16 | item 11's attackers with their defenders; the arm's three filters, what one triggering event is and `alone` over them, and a defender's triggering event (decision 8); "the player it's attacking", with `Lki`'s attack; "defending player", naming its creature (decision 6), with the creature-free predicate (decision 10); removal from combat as a record, and the combat's history (decision 9); item 128, with CR 508.4's defender, chosen or specified. **Decision 9 proposes splitting TR-5f off**: item 128 and decision 9, at 945–1,065, leaving TR-5e at 1,465–1,680 | Hellrider, whose "or planeswalker" waits for `backlog.md` §2.23's attack path, so its board attacks players; ATOM-508.2a-001 and the seven readings of CR 508.3a–e and 506.5 | ~670 (1,005–1,340) | ~1,405 | 2,410–2,745 |
+| **TR-5e — the attack declaration** (CR 508, 506.3, 506.5), designed above, re-counted 2026-10-16 | item 11's attackers with their defenders; the arm's three filters, what one triggering event is and `alone` over them, and a defender's triggering event (decision 8); "the player it's attacking", with `Lki`'s attack; "defending player", naming its creature (decision 6), with the creature-free predicate (decision 10) | Hellrider, whose "or planeswalker" waits for `backlog.md` §2.23's attack path, so its board attacks players; ATOM-508.2a-001 and the seven readings of CR 508.3a–e and 506.5 | ~430 (645–860) | ~820 | 1,465–1,680 |
+| **TR-5f — creatures put onto the battlefield attacking, and removal from combat** (CR 506.3, 506.4, 508.4, 508.5), split from TR-5e at its review | item 128, with CR 508.4's defender, chosen or specified; removal from combat as a record, and the combat's history (TR-5e's decision 9); "defending player" once its creature has left combat | fixtures: never "attacked", by 508.3a, 508.3b and 508.3d; the four-seat choice; Parallel Lives' extra tokens; the former defender after a steal | ~240 (360–480) | ~585 | 945–1,065 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
 | **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |

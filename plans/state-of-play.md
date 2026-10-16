@@ -153,6 +153,7 @@ and no ✅ heading records, in the docs' order.
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | The attack declaration | `TR-5e` | `triggers-architecture.md` |
+| Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | Counters | `TR-5b` | `triggers-architecture.md` |
 | Blocks, targeting, activation and excess damage | `TR-5c` | `triggers-architecture.md` |

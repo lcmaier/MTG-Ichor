@@ -5754,9 +5754,10 @@ Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
-     **Slotted:** TR-5e, whose tests put a token onto the battlefield attacking
+     **Slotted:** TR-5f, whose tests put a token onto the battlefield attacking
      over this field, never declared as an attacker (CR 508.4), the defender
-     chosen or specified (re-slotted from TR-5a at its design, 2026-10-16,
+     chosen or specified (re-slotted from TR-5a at its design, then from
+     TR-5e at its review, which split TR-5f off, 2026-10-16,
      `triggers-architecture.md` §12).
 
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
