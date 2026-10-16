@@ -18,6 +18,7 @@ use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_re_cards::soldier_token;
+use mtgsim::cards::phase_tr4b_cards::grafted_wargear;
 use mtgsim::cards::phase_tr4d_cards::ray_of_command;
 use mtgsim::cards::phase_tr5a_cards::sphere_grid;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -28,7 +29,7 @@ use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, set_active_player, set_attacking, set_blocked_by,
-    set_blocking, setup_game, setup_two_player_game, test_dp, vanilla_creature,
+    set_blocking, setup_game, setup_two_player_game, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -503,4 +504,28 @@ fn a_sphere_grid_blocker_keeps_blocking_once_the_grid_leaves() {
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(life(&game, 0), 20, "the flier stayed blocked");
     assert!(!game.battlefield.contains_key(&flier), "and the 3/3 blocker killed it");
+}
+
+// ---------------------------------------------------------------------------
+// 5. The elision compares the participants a def reads, and no others
+// ---------------------------------------------------------------------------
+
+/// Two Grafted Wargears on one creature, which dies: each becomes unattached,
+/// and each trigger sacrifices "that permanent", the host they share. The def
+/// reads the host and not the attachment, so the two entries agree on every
+/// participant it reads and go on the stack unasked (§5.2's elision), as
+/// before the binding kept every participant.
+#[test]
+fn entries_differing_only_in_a_participant_the_def_does_not_read_are_not_ordered() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let first = put_on_battlefield(&mut game, grafted_wargear(), 0);
+    let second = put_on_battlefield(&mut game, grafted_wargear(), 0);
+    assert!(game.attach(first, bears) && game.attach(second, bears));
+
+    destroy(&mut game, bears);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.perform_sba_and_triggers(&dp).unwrap();
+    assert_eq!(game.stack.len(), 2, "both triggered");
+    assert!(!dp.kinds().contains(&"OrderTriggers".to_string()), "and nothing asked their order: {:?}", dp.kinds());
 }
