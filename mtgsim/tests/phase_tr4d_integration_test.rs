@@ -777,6 +777,103 @@ fn a_permanent_that_arrives_stolen_announces_no_change() {
     assert_eq!(announced, 0);
 }
 
+/// **Fixture**, a one-sided Humility: "Creatures your opponents control lose
+/// all abilities."
+fn silencer() -> Arc<CardData> {
+    let theirs = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+    ));
+    CardDataBuilder::new("Fixture Silencer")
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Atom(Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield), theirs)))
+        .build()
+}
+
+/// CR 603.10 reads "the existence of those abilities ... immediately prior to
+/// the event". The thief's one-sided Humility left the owner's creature no
+/// abilities before the steal; stolen, it has its trigger again, and still
+/// does not trigger.
+#[test]
+fn a_trigger_the_creature_lacked_before_the_steal_does_not_trigger() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, silencer(), 0);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    let owners = hand_size(&game, 1);
+
+    steal(&mut game, 0, betrayer);
+    assert_eq!(waiting_from(&game, betrayer), 0, "it had no trigger just before");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 1), owners);
+}
+
+/// The same board with a trigger that names no player, "whenever control of
+/// this creature changes": read live, the stolen creature has it and would
+/// trigger, so only its list from before (CR 603.10) keeps it from triggering.
+/// The "lose control" board above refuses on its "you" as well.
+#[test]
+fn a_trigger_on_any_change_the_creature_lacked_before_does_not_trigger() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, silencer(), 0);
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let any_change = TriggerEvent::ControlChanges { subject: TriggerSubject::ThisObject, from: None, to: None };
+    let watcher = CardDataBuilder::new("Fixture Turncoat")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability("", whenever(any_change, draw_two)))
+        .build();
+    let turncoat = put_on_battlefield(&mut game, watcher, 1);
+
+    steal(&mut game, 0, turncoat);
+    assert_eq!(waiting_from(&game, turncoat), 0, "it had no trigger just before");
+}
+
+/// The other side: the owner's one-sided Humility takes the creature's
+/// trigger away once the thief controls it, and the trigger it had just
+/// before the steal still triggers, for the owner.
+#[test]
+fn a_trigger_the_steal_takes_away_still_triggers() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, silencer(), 1);
+    let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 1);
+    let owners = hand_size(&game, 1);
+
+    steal(&mut game, 0, betrayer);
+    assert_eq!(waiting_from(&game, betrayer), 1, "it had the trigger just before");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(hand_size(&game, 1), owners + 2);
+}
+
+/// A change of one permanent's controller can change another's abilities:
+/// "creatures you control have ..." follows its source to the thief, and the
+/// creatures left behind lose what it gave them. Each had the trigger just
+/// before the steal, so each triggers (CR 603.10), the granter and the Bears
+/// alike.
+#[test]
+fn a_grant_the_steal_moves_still_triggers_the_creatures_left_behind() {
+    let mut game = stocked(2);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let watcher = triggered_ability("", whenever(an_opponent_gains_control_of(TriggerSubject::Filter(ObjectFilter::All)), gain));
+    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Creature)),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ));
+    let banner_bearer = CardDataBuilder::new("Fixture Banner-Bearer")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantAbility(Arc::new(watcher), Duration::WhileSourceOnBattlefield),
+            yours,
+        )))
+        .build();
+    let bearer = put_on_battlefield(&mut game, banner_bearer, 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    steal(&mut game, 1, bearer);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0), 22, "the Bears and the granter, each off its list from before");
+}
+
 // ---------------------------------------------------------------------------
 // 6. Ray of Command
 // ---------------------------------------------------------------------------
