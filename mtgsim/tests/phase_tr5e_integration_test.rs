@@ -1,15 +1,35 @@
 //! TR-5e — the attack declaration (`triggers-architecture.md` §12, TR-5e).
 //!
 //! 1. The declaration's record names what each attacker attacks (CR 508.1b).
+//! 2. The readings of CR 508.3a–e and 506.5 over that record: a triggering
+//!    event for each attacker, or for each player attacked with its
+//!    attackers, and CR 508.2a's moment.
 
+use std::sync::Arc;
+
+use mtgsim::cards::authoring::{
+    attacks, attacks_alone, attacks_defender, is_attacked, player_attacks, player_attacks_player, triggered_ability, whenever,
+    Whose,
+};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
-use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, setup_two_player_game};
-use mtgsim::types::ids::ObjectId;
+use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
+use mtgsim::types::card_types::CardType;
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{
+    AmountExpr, ColorChange, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    TargetCount,
+};
+use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::triggers::{DefenderFilter, Participant, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
 
 // ---------------------------------------------------------------------------
@@ -27,7 +47,7 @@ fn stocked(players: usize) -> GameState {
 /// Player 0 declares `attacks`, each attacker against its player. The
 /// declaration's options are each attacker against each opponent, the
 /// attackers in the order they entered and the opponents in seat order.
-fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, usize)]) {
+fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, PlayerId)]) {
     let opponents = game.players.len() - 1;
     let picks = attacks
         .iter()
@@ -54,6 +74,56 @@ fn declared(game: &GameState) -> Vec<(ObjectId, AttackTarget)> {
     attacks
 }
 
+/// Put every waiting trigger on the stack and resolve the stack, answering
+/// every prompt with `dp`.
+fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.perform_sba_and_triggers(dp).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(dp).unwrap();
+        game.perform_sba_and_triggers(dp).unwrap();
+    }
+}
+
+/// An enchantment with one triggered ability.
+fn watcher(name: &str, arm: impl Into<TriggerEvent>, effect: Effect) -> Arc<CardData> {
+    CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, effect))).build()
+}
+
+/// "Put a +1/+1 counter on that creature", or "on each of them".
+fn a_counter_on_the_attackers() -> Effect {
+    Effect::Atom(
+        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
+        EffectRecipient::Triggering(Participant::Attacker),
+    )
+}
+
+/// A provider that answers one ordering prompt, `player`'s two triggers,
+/// which differ in the attackers they read.
+fn ordered_by(player: PlayerId) -> ScriptedDecisionProvider {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, vec![0, 1]);
+    dp
+}
+
+fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
+    game.battlefield[&id].counter_count(CounterType::PlusOnePlusOne)
+}
+
+fn creature_you_control() -> ObjectFilter {
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+}
+
+/// `n` Grizzly Bears under player 0.
+fn bears(game: &mut GameState, n: usize) -> Vec<ObjectId> {
+    (0..n).map(|_| put_on_battlefield(game, grizzly_bears(), 0)).collect()
+}
+
+/// How many attackers each waiting trigger's triggering events name, in the
+/// order they triggered.
+fn attackers_per_trigger(game: &GameState) -> Vec<usize> {
+    game.pending_triggers.iter().map(|t| t.binding.triggering_objects(Participant::Attacker).len()).collect()
+}
+
 // ---------------------------------------------------------------------------
 // 1. The record
 // ---------------------------------------------------------------------------
@@ -71,4 +141,178 @@ fn the_declaration_names_what_each_attacker_attacks() {
     let log = format_event_log(&game);
     let line = format!("AttackersDeclared: [Grizzly Bears ({first}) -> P1, Grizzly Bears ({second}) -> P3]");
     assert!(log.contains(&line), "no {line:?} in {log:#?}");
+}
+
+// ---------------------------------------------------------------------------
+// 2. The readings
+// ---------------------------------------------------------------------------
+
+/// CR 508.3a: "whenever a creature attacks" triggers once for each creature
+/// declared as an attacker, whatever it attacks, and "that creature" is each.
+#[test]
+fn a_creature_attacks_triggers_for_each_attacker() {
+    let mut game = stocked(4);
+    put_on_battlefield(&mut game, watcher("Fixture War Horn", attacks(TriggerSubject::Any), a_counter_on_the_attackers()), 2);
+    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+
+    assert_eq!(attackers_per_trigger(&game), vec![1, 1]);
+    resolve_all(&mut game, &ordered_by(2));
+    assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
+}
+
+/// CR 508.3a's second sentence: "whenever a creature attacks you" triggers
+/// for the attacker attacking its controller and not the one attacking
+/// another player.
+#[test]
+fn a_creature_attacks_you_triggers_for_your_attacker_only() {
+    let mut game = stocked(4);
+    let attacks_you = attacks_defender(TriggerSubject::Any, DefenderFilter::Player(Some(PlayerRef::You)));
+    put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
+    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+
+    assert_eq!(attackers_per_trigger(&game), vec![1]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 0));
+}
+
+/// CR 508.3b: "whenever a player is attacked" triggers once for each player
+/// attacked, and "them" is the creatures attacking that player: three
+/// attackers against two players make two triggers, of two attackers and one.
+#[test]
+fn a_player_is_attacked_triggers_for_each_player_with_its_attackers() {
+    let mut game = stocked(4);
+    let attacked = is_attacked(DefenderFilter::Player(None));
+    put_on_battlefield(&mut game, watcher("Fixture Watchtower", attacked, a_counter_on_the_attackers()), 2);
+    let [first, second, third] = bears(&mut game, 3)[..] else { unreachable!() };
+    declare(&mut game, &[first, second, third], &[(first, 1), (second, 3), (third, 1)]);
+
+    assert_eq!(attackers_per_trigger(&game), vec![2, 1], "player 1's two attackers, then player 3's one");
+    resolve_all(&mut game, &ordered_by(2));
+    assert_eq!([first, second, third].map(|id| plus_ones(&game, id)), [1, 1, 1]);
+}
+
+/// CR 508.3c: "whenever you attack with a creature" is a creature its
+/// controller attacks with: player 0's watcher triggers for each, and the same
+/// watcher under player 1, whose creatures do not attack, not at all.
+#[test]
+fn you_attack_with_a_creature_triggers_for_each_of_yours() {
+    let mut game = stocked(2);
+    let yours = || watcher("Fixture Banner", attacks(creature_you_control()), a_counter_on_the_attackers());
+    put_on_battlefield(&mut game, yours(), 0);
+    put_on_battlefield(&mut game, yours(), 1);
+    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+    declare(&mut game, &[first, second], &[(first, 1), (second, 1)]);
+
+    assert_eq!(attackers_per_trigger(&game), vec![1, 1]);
+    assert!(game.pending_triggers.iter().all(|t| t.controller == 0));
+}
+
+/// CR 508.3d: "whenever you attack" triggers once however many creatures
+/// attack, and "them" is every one.
+#[test]
+fn you_attack_triggers_once_for_the_declaration() {
+    let mut game = stocked(4);
+    put_on_battlefield(&mut game, watcher("Fixture Drum", player_attacks(Whose::Yours), a_counter_on_the_attackers()), 0);
+    put_on_battlefield(&mut game, watcher("Fixture Drum", player_attacks(Whose::Yours), a_counter_on_the_attackers()), 1);
+    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+
+    assert_eq!(attackers_per_trigger(&game), vec![2], "player 0's one trigger; player 1 did not attack");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
+}
+
+/// CR 508.3e: "whenever you attack an opponent" triggers once for each
+/// opponent attacked, with its attackers; "whenever an opponent attacks you"
+/// triggers only for the player attacked.
+#[test]
+fn you_attack_a_player_triggers_for_each_player_attacked() {
+    let mut game = stocked(4);
+    let effect = a_counter_on_the_attackers;
+    put_on_battlefield(&mut game, watcher("Fixture Raid Horn", player_attacks_player(Whose::Yours, Whose::AnOpponents), effect()), 0);
+    let attacks_you = || player_attacks_player(Whose::AnOpponents, Whose::Yours);
+    put_on_battlefield(&mut game, watcher("Fixture Alarm", attacks_you(), effect()), 2);
+    put_on_battlefield(&mut game, watcher("Fixture Alarm", attacks_you(), effect()), 3);
+    let [first, second, third] = bears(&mut game, 3)[..] else { unreachable!() };
+    declare(&mut game, &[first, second, third], &[(first, 1), (second, 3), (third, 1)]);
+
+    let mut by_controller: Vec<(PlayerId, usize)> = game
+        .pending_triggers
+        .iter()
+        .map(|t| (t.controller, t.binding.triggering_objects(Participant::Attacker).len()))
+        .collect();
+    by_controller.sort();
+    assert_eq!(by_controller, vec![(0, 1), (0, 2), (3, 1)], "player 0 for players 1 and 3; player 3, attacked; not player 2");
+}
+
+/// CR 506.5: "whenever a creature attacks alone" triggers when it is the only
+/// creature declared as an attacker, and not when another attacks beside it.
+#[test]
+fn attacks_alone_triggers_only_for_a_lone_attacker() {
+    for (attackers, triggers) in [(1, 1), (2, 0)] {
+        let mut game = stocked(2);
+        put_on_battlefield(&mut game, watcher("Fixture Duelist's Oath", attacks_alone(TriggerSubject::Any), a_counter_on_the_attackers()), 0);
+        let creatures = bears(&mut game, attackers);
+        let attacks: Vec<(ObjectId, PlayerId)> = creatures.iter().map(|&id| (id, 1)).collect();
+        declare(&mut game, &creatures, &attacks);
+        assert_eq!(game.pending_triggers.len(), triggers, "{attackers} attacking");
+    }
+}
+
+/// A defender's triggering event has several attackers, so a reader of one
+/// object, "its power", cannot name them: the registry check refuses it, and
+/// accepts "them".
+#[test]
+fn its_power_over_a_defenders_attackers_is_refused() {
+    let gain = |amount| Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Controller);
+    let its_power = whenever(is_attacked(DefenderFilter::Player(None)), gain(AmountExpr::TriggeringPower(Participant::Attacker)));
+    assert_eq!(its_power.participants_its_arms_lack(), vec![Participant::Attacker]);
+    let them = whenever(is_attacked(DefenderFilter::Player(None)), a_counter_on_the_attackers());
+    assert!(them.participants_its_arms_lack().is_empty());
+    let each = whenever(attacks(TriggerSubject::Any), gain(AmountExpr::TriggeringPower(Participant::Attacker)));
+    assert!(each.participants_its_arms_lack().is_empty(), "an attacker's own triggering event has one");
+}
+
+// COVERS: ATOM-508.2a-001
+/// CR 508.2a: "whenever a green creature attacks" asks at the declaration. A
+/// blue creature turned green after it attacks triggers nothing, then or
+/// later.
+#[test]
+fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
+    let mut game = stocked(2);
+    let green = ObjectFilter::ByColor(Color::Green);
+    put_on_battlefield(&mut game, watcher("Fixture Verdant Banner", attacks(green), a_counter_on_the_attackers()), 0);
+    let drake = CardDataBuilder::new("Fixture Blue Drake").card_type(CardType::Creature).color(Color::Blue).power_toughness(2, 2).build();
+    let drake = put_on_battlefield(&mut game, drake, 0);
+    declare(&mut game, &[drake], &[(drake, 1)]);
+    assert!(game.pending_triggers.is_empty(), "blue as it was declared");
+
+    let make_green = Effect::Atom(
+        Primitive::ChangeColor(ColorChange::Set([Color::Green].into_iter().collect()), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        source: drake,
+        ability_source: None,
+        controller: 0,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(drake)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&make_green, &ctx, &test_dp()).unwrap();
+    assert!(mtgsim::oracle::characteristics::get_effective_colors(&game, drake).contains(&Color::Green), "green now");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(plus_ones(&game, drake), 0);
+
+    // The same board with a green creature: the watcher does trigger.
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, watcher("Fixture Verdant Banner", attacks(ObjectFilter::ByColor(Color::Green)), a_counter_on_the_attackers()), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    declare(&mut game, &[bear], &[(bear, 1)]);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(plus_ones(&game, bear), 1);
 }

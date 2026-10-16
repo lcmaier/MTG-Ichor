@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{at_beginning_of, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose};
+use mtgsim::cards::authoring::{at_beginning_of, attacks, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_re_cards::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
@@ -579,7 +579,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
             "Next Charge",
             ManaCost::build(&[ManaType::Red], 0),
             create(template(
-                TriggerEvent::Attacks { attacker: TriggerSubject::Filter(you_control), multiplicity: mtgsim::types::triggers::Multiplicity::PerOccurrence },
+                attacks(TriggerSubject::Filter(you_control)),
                 Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::Attacker)), EffectRecipient::Controller),
                 DelayedDuration::Once,
             )),

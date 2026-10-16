@@ -33,15 +33,15 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
-use crate::oracle::characteristics::controller_or_owner;
-use crate::state::battlefield::CostChoices;
+use crate::oracle::characteristics::{controller_or_owner, get_effective_controller};
+use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackEventPer, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -1485,7 +1485,7 @@ impl GameState {
         let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };
         let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
-            .filter(|&objects| {
+            .filter(|objects| {
                 let triggering_event = match arm.multiplicity() {
                     Multiplicity::PerOccurrence => TriggeringEventView::AtTrigger { arm, record, objects },
                     Multiplicity::OncePerEvent => TriggeringEventView::None,
@@ -1696,13 +1696,43 @@ impl GameState {
                         && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now),
                 )
             }
-            (TriggerEvent::Attacks { attacker, .. }, GameEvent::AttackersDeclared { attackers }) => attackers
-                .iter()
-                .map(|&(id, _)| id)
-                .filter(|id| self.subject_matches(attacker, Some(*id), referents, seq, SubjectRead::Now))
-                .filter_map(|id| self.subject_after(event, id))
-                .map(|attacker| TriggeringEventObjects::Attack { attacker })
-                .collect(),
+            // The declaration's attackers that match, each with what it
+            // attacks, in the record's order: a triggering event each, or one
+            // for each player, planeswalker or battle they attack.
+            (
+                TriggerEvent::Attacks { attacker, defender, per, alone, .. },
+                GameEvent::AttackersDeclared { attackers },
+            ) => {
+                // CR 506.5: the only creature declared as an attacker.
+                if *alone && attackers.len() != 1 {
+                    return Vec::new();
+                }
+                let attacks = attackers
+                    .iter()
+                    .filter(|&&(id, target)| {
+                        self.subject_matches(attacker, Some(id), referents, seq, SubjectRead::Now)
+                            && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
+                    })
+                    .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
+                match per {
+                    AttackEventPer::Attacker => {
+                        attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
+                    }
+                    AttackEventPer::Defender => {
+                        let mut defenses: Vec<(ObjectOrPlayer, Vec<ObjectRef>)> = Vec::new();
+                        for (attacker, defender) in attacks {
+                            match defenses.iter_mut().find(|(attacked, _)| *attacked == defender) {
+                                Some((_, its_attackers)) => its_attackers.push(attacker),
+                                None => defenses.push((defender, vec![attacker])),
+                            }
+                        }
+                        defenses
+                            .into_iter()
+                            .map(|(defender, attackers)| TriggeringEventObjects::Defense { defender, attackers })
+                            .collect()
+                    }
+                }
+            }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
                     None => true,
@@ -1891,6 +1921,37 @@ impl GameState {
     /// trigger's referents (CR 109.5's "you" is its controller).
     fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
         player_ref_names(who, player, &mut { *referents }) == Some(true)
+    }
+
+    /// Whether `target`, what a creature was declared attacking, is what
+    /// `asked` names (CR 508.3a, 508.3b, 508.3e).
+    fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+        match (asked, target) {
+            (DefenderFilter::Player(who), AttackTarget::Player(player)) => {
+                who.as_ref().is_none_or(|who| self.player_ref_is(who, player, referents))
+            }
+            (DefenderFilter::Permanent(among), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+                self.subject_matches(&TriggerSubject::Filter(among.clone()), Some(id), referents, seq, SubjectRead::Now)
+            }
+            (DefenderFilter::PlayerOrTheirPlaneswalker(who), AttackTarget::Player(player)) => {
+                self.player_ref_is(who, player, referents)
+            }
+            (DefenderFilter::PlayerOrTheirPlaneswalker(who), AttackTarget::Planeswalker(id)) => {
+                get_effective_controller(self, id).is_some_and(|player| self.player_ref_is(who, player, referents))
+            }
+            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
+            | (DefenderFilter::Permanent(_), AttackTarget::Player(_))
+            | (DefenderFilter::PlayerOrTheirPlaneswalker(_), AttackTarget::Battle(_)) => false,
+        }
+    }
+
+    /// What `target` names, a permanent as the existence it is now (CR
+    /// 400.7). `None` for a permanent the store no longer holds.
+    fn attacked(&self, target: AttackTarget) -> Option<ObjectOrPlayer> {
+        Some(match target {
+            AttackTarget::Player(player) => ObjectOrPlayer::Player(player),
+            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => ObjectOrPlayer::Object(self.object_ref(id)?),
+        })
     }
 
     /// `object` as it was just before the window's event (CR 603.10): where it

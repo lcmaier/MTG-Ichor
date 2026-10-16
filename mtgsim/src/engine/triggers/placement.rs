@@ -111,8 +111,12 @@ impl GameState {
         // The participants the def names, each triggering event's: one it
         // does not name may differ, as each Wargear's own attachment does.
         let named: Vec<Participant> = reads.participants().collect();
-        let objects = |binding: &TriggerBinding| -> Vec<Option<ObjectRef>> {
-            binding.triggering_events.iter().flat_map(|e| named.iter().map(move |&p| e.objects.get(p))).collect()
+        let objects = |binding: &TriggerBinding| -> Vec<(Participant, ObjectRef)> {
+            binding
+                .triggering_events
+                .iter()
+                .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)))
+                .collect()
         };
         (unread(BoundReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))

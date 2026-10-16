@@ -85,7 +85,7 @@ pub enum TriggeringEventView<'a> {
     None,
     /// When the ability triggers: one triggering event's objects, each as
     /// `read_at_trigger` reads it.
-    AtTrigger { arm: &'a TriggerEvent, record: &'a EventRecord, objects: TriggeringEventObjects },
+    AtTrigger { arm: &'a TriggerEvent, record: &'a EventRecord, objects: &'a TriggeringEventObjects },
     /// As the ability resolves: the binding's one triggering event, as
     /// `GameState::triggering_object` reads it.
     Resolving { game: &'a GameState, binding: &'a TriggerBinding },

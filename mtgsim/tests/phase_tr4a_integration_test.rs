@@ -18,7 +18,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, leaves_the_battlefield, persist, triggered_ability, undying, whenever};
+use mtgsim::cards::authoring::{attacks, dies, leaves_the_battlefield, persist, triggered_ability, undying, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cv_cards;
 use mtgsim::cards::phase_lh_cards::holy_strength;
@@ -894,10 +894,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     let mut game = setup_two_player_game();
     let text = "Whenever a creature you control attacks, if it had no +1/+1 counters on it, you gain 1 life.";
     let def = TriggerDef {
-        condition: TriggerCondition::Event(TriggerEvent::Attacks {
-            attacker: TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You)),
-            multiplicity: Multiplicity::PerOccurrence,
-        }),
+        condition: TriggerCondition::Event(attacks(TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You))).into()),
         intervening_if: Some(Condition::CounterCount {
             object: ConditionObject::Triggering(Participant::Attacker),
             kind: Some(CounterType::PlusOnePlusOne),

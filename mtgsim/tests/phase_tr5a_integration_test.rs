@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{attacks, dies, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_re_cards::soldier_token;
@@ -350,7 +350,7 @@ fn them_over_combat_damage_is_each_creature_that_dealt_it() {
 fn them_over_an_attack_is_each_attacker() {
     let mut game = stocked(2);
     let on_each = a_counter_on(EffectRecipient::Triggering(Participant::Attacker));
-    let attack = TriggerEvent::Attacks { attacker: TriggerSubject::Filter(creature_you_control()), multiplicity: Multiplicity::OncePerEvent };
+    let attack = attacks(TriggerSubject::Filter(creature_you_control())).once_per_event();
     put_on_battlefield(&mut game, watcher("Fixture War Drum", attack, on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);

@@ -18,9 +18,10 @@ use crate::types::effects::{
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
+use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Participant, ReflexiveForm, TriggerCondition, TriggerDef,
-    TriggerEvent, TriggerSubject,
+    AttackEventPer, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Participant, ReflexiveForm,
+    TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
@@ -303,4 +304,67 @@ pub fn enters(subject: impl Into<TriggerSubject>) -> CountableEvent {
         was_cast: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
+}
+
+/// "Whenever [subject] attacks" (CR 508.3a): one trigger for each creature
+/// declared as an attacker, so "whenever a creature you control attacks" is
+/// also CR 508.3c's "whenever you attack with a creature".
+pub fn attacks(subject: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(attack_event(subject.into(), None, AttackEventPer::Attacker))
+}
+
+/// "Whenever [subject] attacks [defender]" (CR 508.3a's second sentence):
+/// "whenever a creature attacks you or a planeswalker you control".
+pub fn attacks_defender(subject: impl Into<TriggerSubject>, defender: DefenderFilter) -> CountableEvent {
+    CountableEvent(attack_event(subject.into(), Some(defender), AttackEventPer::Attacker))
+}
+
+/// "Whenever [subject] attacks alone" (CR 506.5): the only creature declared
+/// as an attacker.
+pub fn attacks_alone(subject: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::Attacks {
+        attacker: subject.into(),
+        defender: None,
+        per: AttackEventPer::Attacker,
+        alone: true,
+        multiplicity: Multiplicity::PerOccurrence,
+    }
+}
+
+/// "Whenever [defender] is attacked" (CR 508.3b): one trigger for each
+/// player, planeswalker or battle that one or more creatures are declared
+/// attacking, whose "them" are those creatures.
+pub fn is_attacked(defender: DefenderFilter) -> TriggerEvent {
+    attack_event(TriggerSubject::Any, Some(defender), AttackEventPer::Defender)
+}
+
+/// "Whenever [whose player] attacks" (CR 508.3d): one trigger for a
+/// declaration with one or more creatures that player controls in it, whose
+/// "them" are those creatures.
+pub fn player_attacks(whose: Whose) -> TriggerEvent {
+    CountableEvent(attack_event(creature_controlled_by(whose), None, AttackEventPer::Attacker)).once_per_event()
+}
+
+/// "Whenever [whose player] attacks [attacked player]" (CR 508.3e): one
+/// trigger for each such player one or more creatures the first player
+/// controls are declared attacking. A planeswalker or battle attacked is not
+/// the player.
+pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
+    let defender = DefenderFilter::Player(attacked.player_ref());
+    attack_event(creature_controlled_by(whose), Some(defender), AttackEventPer::Defender)
+}
+
+fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, per: AttackEventPer) -> TriggerEvent {
+    TriggerEvent::Attacks { attacker, defender, per, alone: false, multiplicity: Multiplicity::PerOccurrence }
+}
+
+/// "A creature [whose player] controls"; any creature for `Whose::Each`.
+fn creature_controlled_by(whose: Whose) -> TriggerSubject {
+    match whose.player_ref() {
+        None => TriggerSubject::Any,
+        Some(player) => TriggerSubject::Filter(ObjectFilter::And(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByController(player)),
+        )),
+    }
 }

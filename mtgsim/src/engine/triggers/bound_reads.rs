@@ -19,9 +19,10 @@ use crate::types::triggers::{Participant, TriggerDef, TriggerLimit};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the participants of its event it names. Built like
-/// `Channels`: a bit per fact, then a bit per [`Participant`].
+/// `Channels`: a bit per fact, then a bit per [`Participant`], then a bit per
+/// participant it reads as one object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BoundReads(u16);
+pub struct BoundReads(u32);
 
 impl BoundReads {
     pub const NOTHING: BoundReads = BoundReads(0);
@@ -45,17 +46,30 @@ impl BoundReads {
     /// whatever its participants are, and a participant named inside a
     /// delayed trigger's or a static ability's body is that body's own.
     const EVERYTHING: BoundReads = BoundReads(0x007F);
-    const FIRST_PARTICIPANT: u16 = 7;
+    const FIRST_PARTICIPANT: u32 = 7;
+    const FIRST_PARTICIPANT_AS_ONE: u32 = Self::FIRST_PARTICIPANT + Participant::ALL.len() as u32;
 
     /// The def names `participant` of its event.
     pub fn participant(participant: Participant) -> BoundReads {
-        BoundReads(1 << (Self::FIRST_PARTICIPANT + participant as u16))
+        BoundReads(1 << (Self::FIRST_PARTICIPANT + participant as u32))
+    }
+
+    /// The def reads `participant` as one object: "its power", "if it had",
+    /// "the player it's attacking".
+    fn participant_as_one(participant: Participant) -> BoundReads {
+        BoundReads::participant(participant) | BoundReads(1 << (Self::FIRST_PARTICIPANT_AS_ONE + participant as u32))
     }
 
     /// Each participant of its event the def names, which every arm of its
     /// condition must have (`TriggerEvent::participants`).
     pub fn participants(self) -> impl Iterator<Item = Participant> {
         Participant::ALL.into_iter().filter(move |&p| self.contains(BoundReads::participant(p)))
+    }
+
+    /// Each participant the def reads as one object, which no arm of its
+    /// condition may have several of (`TriggerEvent::has_several`).
+    pub fn participants_read_as_one(self) -> impl Iterator<Item = Participant> {
+        Participant::ALL.into_iter().filter(move |&p| self.contains(BoundReads::participant_as_one(p)))
     }
 
     pub fn contains(self, fact: BoundReads) -> bool {
@@ -82,12 +96,21 @@ impl TriggerDef {
     }
 
     /// Each participant the def names that some arm of its condition does not
-    /// have (`TriggerEvent::participants`): an instruction that could only
-    /// ever find nothing there, which is a card written wrong. Empty for every
-    /// registered card (`cards::registry`'s test).
+    /// have (`TriggerEvent::participants`), or reads as one object where an
+    /// arm has several (`TriggerEvent::has_several`): an instruction that
+    /// could only ever find nothing there, which is a card written wrong.
+    /// Empty for every registered card (`cards::registry`'s test).
     pub fn participants_its_arms_lack(&self) -> Vec<Participant> {
         let arms = self.condition.events();
-        self.bound_reads().participants().filter(|p| arms.iter().any(|arm| !arm.participants().contains(p))).collect()
+        let reads = self.bound_reads();
+        let mut lacking: Vec<Participant> =
+            reads.participants().filter(|p| arms.iter().any(|arm| !arm.participants().contains(p))).collect();
+        for several in reads.participants_read_as_one().filter(|&p| arms.iter().any(|arm| arm.has_several(p))) {
+            if !lacking.contains(&several) {
+                lacking.push(several);
+            }
+        }
+        lacking
     }
 }
 
@@ -152,7 +175,7 @@ fn amount(a: &AmountExpr) -> BoundReads {
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => BoundReads::SOURCE,
         AmountExpr::TriggeringAmount => BoundReads::AMOUNT,
         AmountExpr::TriggeringPower(p) | AmountExpr::TriggeringToughness(p) => {
-            BoundReads::CHARACTERISTICS | BoundReads::participant(*p)
+            BoundReads::CHARACTERISTICS | BoundReads::participant_as_one(*p)
         }
     }
 }
@@ -206,7 +229,7 @@ fn condition(c: &Condition) -> BoundReads {
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         // "It had": the object, as the record it left with framed it.
         Condition::CounterCount { object: ConditionObject::Triggering(p), .. } => {
-            BoundReads::CHARACTERISTICS | BoundReads::participant(*p)
+            BoundReads::CHARACTERISTICS | BoundReads::participant_as_one(*p)
         }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,

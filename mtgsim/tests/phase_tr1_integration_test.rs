@@ -18,7 +18,7 @@ use std::sync::Arc;
 use mtgsim::cards::alpha::lightning_bolt;
 use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
-    another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose,
+    another, at_beginning_of, attacks, dies, enters, triggered_ability, whenever, Whose,
 };
 use mtgsim::cards::basic_lands::{forest, plains, swamp};
 use mtgsim::cards::creatures::grizzly_bears;
@@ -703,7 +703,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
         enchantment_watcher(
             "War Drums",
             triggered_ability("", whenever(
-                TriggerEvent::Attacks { attacker: TriggerSubject::Any, multiplicity: Multiplicity::PerOccurrence },
+                attacks(TriggerSubject::Any),
                 gain_one(),
             )),
         ),
