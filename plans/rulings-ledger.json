@@ -1136,6 +1136,12 @@
         {"n": 9, "published_at": "2019-05-03", "comment": "If Spark Double somehow enters the battlefield at the same time as another permanent, it can’t become a copy of that permanent. You may choose only a creature or planeswalker that’s already on the battlefield."}
       ]
     },
+    "Sphere Grid": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2025-06-06", "comment": "Once a creature that has reach because of Sphere Grid's last ability has blocked a creature, removing all +1/+1 counters from that creature or causing Sphere Grid to leave the battlefield won't cause that creature to stop blocking."}
+      ]
+    },
     "Strangleroot Geist": {
       "first_seen": "2026-10-14",
       "rulings": []

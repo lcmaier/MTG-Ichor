@@ -30,6 +30,7 @@ use super::phase_tr4a_cards;
 use super::phase_tr4b_cards;
 use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
+use super::phase_tr5a_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -61,7 +62,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 110] = [
+const PERFORMANCE_POOL: [&str; 111] = [
     "Plains",
     "Island",
     "Swamp",
@@ -513,6 +514,10 @@ const PERFORMANCE_POOL: [&str; 110] = [
     // the sweep; its steal ends at cleanup, where its delayed trigger repeats
     // the step. A steal until end of turn ends no game.
     "Ray of Command",
+    // TR-5a's: a damage trigger whose instruction names the damage's source,
+    // and a grant over a filter that counts counters. A counter after combat
+    // damage, and reach and trample, end no game.
+    "Sphere Grid",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -915,6 +920,11 @@ impl CardRegistry {
         // makes (CR 603.10d, 514.3a).
         registry.register("Multani's Presence", phase_tr4d_cards::multanis_presence);
         registry.register("Ray of Command", phase_tr4d_cards::ray_of_command);
+
+        // TR-5a: the binding's roles. Sphere Grid's "that creature" is the
+        // damage's source, which its instruction names (CR 608.2c), and its
+        // grant counts the counters on each creature.
+        registry.register("Sphere Grid", phase_tr5a_cards::sphere_grid);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
