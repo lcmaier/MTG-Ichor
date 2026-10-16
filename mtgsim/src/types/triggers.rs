@@ -1265,10 +1265,10 @@ impl RememberedObject {
 /// that left (CR 400.7), its characteristics as it last existed in the zone it
 /// left, and the facts about it that no layer computes. A departure record
 /// carries one (CR 603.10a), and so does damage a source deals after it left.
-/// An entry that names an object — its source, or its trigger's subject —
-/// keeps one when the object leaves the zone the entry expected it in
-/// (`triggers-architecture.md` §6.1), since the departure is a later event
-/// than the one that triggered.
+/// A holder of a `kept_lki` that reads an object — its source, or one of its
+/// triggering event's objects — keeps one when the object leaves the zone the
+/// holder expected it in (`triggers-architecture.md` §6.1), since the
+/// departure is a later event than the one that triggered.
 ///
 /// One body behind one pointer: the record and every entry that keeps it
 /// share it, and handing it over clones the pointer.

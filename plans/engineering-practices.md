@@ -365,7 +365,7 @@ silent until a reader pairs the wrong two.
 entry that names them (`PendingTrigger`, `StackEntry`, `ResolvingObject`), so
 they move with the entry and die with it. Its design rejected a `GameState` map
 keyed by `ObjectRef` for exactly this reason. A collection *derived* from
-another and dropped at once, such as `objects_entries_name`, rebuilt for the one
+another and dropped at once, such as `objects_lki_is_kept_for`, rebuilt for the one
 batch that needs it, is not a second copy, because nothing keeps it.
 
 ## 3. Two card pools

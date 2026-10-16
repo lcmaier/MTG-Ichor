@@ -442,11 +442,19 @@ at most once per pipeline iteration. → `engine/layers/board.rs`,
 **LKI** — an object's last known information (CR 113.7a, 608.2h): the
 existence that left its zone (CR 400.7) together with its **frame** as it last
 existed there, the type `Lki`. A departure record carries one, and so does
-damage a source deals after it left (`source_lki`). An entry keeps one for
-each object it names that leaves later (`kept_lki`), and `lki_of` reads both.
+damage a source deals after it left (`source_lki`). A **keeper** keeps one
+for each object it reads that leaves later (`kept_lki`), and `lki_of` reads
+both.
 A frame alone has no identity, so it is not an LKI; and an LKI is never
 "departed", which is a player. → `types/triggers.rs`;
 `triggers-architecture.md` §6.1, and §3.11 for what TR-4a adds.
+
+**keeper** — a holder of a `kept_lki`: a triggered ability waiting to be put
+on the stack, a stack entry, the resolving object, or a delayed trigger
+waiting for its event. Each reads its source later, and a trigger the objects
+of its one triggering event too, so it keeps the **LKI** of one that leaves
+(CR 113.7a, 608.2h). The project's word, from the field. → `LkiKeeper`,
+`engine::triggers::dispatch`.
 
 **entity** — a permanent's state on the battlefield, `PermanentState`: what the
 battlefield map holds for an object there. Its controller, tapped status,

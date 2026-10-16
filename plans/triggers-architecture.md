@@ -753,7 +753,7 @@ departures from the sketch, each forced by a board:
   TR-4a (§3.11): CR 113.7a's last known information, the frame the source
   left with. `hand_over_lki`,
   the one writer of kept LKI, gives it to the entry as it gives it to
-  every entry naming the mover, and `objects_entries_name` names the
+  every keeper reading the mover, and `objects_lki_is_kept_for` names the
   registry's sources, so a spell is framed as it leaves the stack. The
   trigger carries it to the stack in its `kept_lki`; its first reader is
   item 223's attribution (Dragonhawk's damage, lifelink read off the frame).

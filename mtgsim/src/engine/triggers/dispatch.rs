@@ -115,25 +115,30 @@ pub struct LkiCapture {
     lki: Option<Lki>,
 }
 
-/// What one entry names: its source, and the objects of its trigger's one
-/// triggering event (CR 113.7a, 608.2h).
+/// A holder of a `kept_lki` (CR 113.7a, 608.2h): a triggered ability waiting
+/// to be put on the stack, a stack entry, the resolving object, or a delayed
+/// trigger waiting for its event. Each reads its source later, and a trigger
+/// the objects of its one triggering event too, so when one of them leaves,
+/// the keeper keeps its last known information.
 #[derive(Clone, Copy)]
-struct NamedByEntry<'a> {
+struct LkiKeeper<'a> {
     source: Option<ObjectRef>,
     trigger: Option<&'a TriggerBinding>,
 }
 
-impl NamedByEntry<'_> {
+impl LkiKeeper<'_> {
+    /// The objects it keeps last known information for: its source, then its
+    /// triggering event's objects.
     fn objects(self) -> impl Iterator<Item = ObjectRef> {
         let event_objects = self.trigger.and_then(TriggerBinding::triggering_event).into_iter().flat_map(|event| event.objects.objects());
         self.source.into_iter().chain(event_objects.map(|(_, object)| object))
     }
 }
 
-/// Where an entry keeps the last known information of an object it names
-/// once that object leaves (CR 113.7a, 608.2h): a queued, stacked or
-/// resolving entry's list, one per object, or a delayed trigger's one of its
-/// source.
+/// Where a keeper keeps the last known information of an object it reads
+/// once that object leaves (CR 113.7a, 608.2h): the list of a waiting
+/// triggered ability, a stack entry or the resolving object, one per object,
+/// or a delayed trigger's one of its source.
 enum KeptLkiSlot<'a> {
     List(&'a mut Vec<Lki>),
     Source(&'a mut Option<Lki>),
@@ -887,12 +892,12 @@ impl GameState {
     /// everything it may exile. A permanent's frame is a memo hit, since
     /// nothing has changed since the batch began deciding.
     ///
-    /// **And every other mover an entry names, from whatever zone** (CR
+    /// **And every other mover a keeper reads, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
-    /// subject is, a card a draw trigger named. The move hands the frame to
-    /// each entry naming the mover (`hand_over_lki`).
+    /// triggering event is about, a card a draw trigger named. The move hands
+    /// the frame to each keeper that reads the mover (`hand_over_lki`).
     pub(crate) fn capture_lki<'a>(&mut self, decided: impl Iterator<Item = &'a GameAction>) {
-        let mut named: Option<Vec<ObjectRef>> = None;
+        let mut kept_for: Option<Vec<ObjectRef>> = None;
         for action in decided {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
@@ -912,8 +917,8 @@ impl GameState {
                     self.capture_frame(*object);
                 }
                 GameAction::ZoneChange { object, .. } => {
-                    let named = named.get_or_insert_with(|| self.objects_entries_name());
-                    if self.object_ref(*object).is_some_and(|r| named.contains(&r)) {
+                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+                    if self.object_ref(*object).is_some_and(|r| kept_for.contains(&r)) {
                         self.capture_frame(*object);
                     }
                 }
@@ -923,8 +928,8 @@ impl GameState {
                             self.capture_frame(id);
                         }
                     }
-                    let named = named.get_or_insert_with(|| self.objects_entries_name());
-                    for object in named.iter() {
+                    let kept_for = kept_for.get_or_insert_with(|| self.objects_lki_is_kept_for());
+                    for object in kept_for.iter() {
                         if self.departs_with(object.id, *player) {
                             self.capture_frame(object.id);
                         }
@@ -935,48 +940,46 @@ impl GameState {
         }
     }
 
-    /// The objects the entries name (`for_each_naming_entry`), each once.
-    /// Empty or short on the common board.
-    fn objects_entries_name(&mut self) -> Vec<ObjectRef> {
-        let mut named: Vec<ObjectRef> = Vec::new();
-        self.for_each_naming_entry(|entry, _| {
-            for object in entry.objects() {
-                if !named.contains(&object) {
-                    named.push(object);
+    /// The objects some keeper keeps last known information for
+    /// (`for_each_lki_keeper`), each once. Empty or short on the common board.
+    fn objects_lki_is_kept_for(&mut self) -> Vec<ObjectRef> {
+        let mut kept_for: Vec<ObjectRef> = Vec::new();
+        self.for_each_lki_keeper(|keeper, _| {
+            for object in keeper.objects() {
+                if !kept_for.contains(&object) {
+                    kept_for.push(object);
                 }
             }
         });
-        named
+        kept_for
     }
 
-    /// Every entry that names objects, with the objects it names and where it
-    /// keeps the frame of one that leaves: a queued, stacked or resolving
-    /// entry's source and its triggering event's objects, and a waiting
-    /// delayed trigger's source. The one list of who names what, so the
-    /// capture (`objects_entries_name`) and the hand-over cannot disagree.
-    fn for_each_naming_entry(&mut self, mut each: impl FnMut(NamedByEntry<'_>, KeptLkiSlot<'_>)) {
+    /// Every keeper, with where it keeps the frame of an object it reads that
+    /// leaves. The one list of keepers, so the capture
+    /// (`objects_lki_is_kept_for`) and the hand-over cannot disagree.
+    fn for_each_lki_keeper(&mut self, mut each: impl FnMut(LkiKeeper<'_>, KeptLkiSlot<'_>)) {
         for pending in &mut self.pending_triggers {
-            let named = NamedByEntry { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) };
-            each(named, KeptLkiSlot::List(&mut pending.kept_lki));
+            let keeper = LkiKeeper { source: Some(pending.origin.source_ref()), trigger: Some(&pending.binding) };
+            each(keeper, KeptLkiSlot::List(&mut pending.kept_lki));
         }
         // In stack order, never the map's: a capture is a layer walk, which
         // writes a trace record.
         for id in &self.stack {
             let Some(entry) = self.stack_entries.get_mut(id) else { continue };
-            let named = NamedByEntry { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() };
-            each(named, KeptLkiSlot::List(&mut entry.kept_lki));
+            let keeper = LkiKeeper { source: entry.ability_identity.map(|identity| identity.source), trigger: entry.trigger.as_ref() };
+            each(keeper, KeptLkiSlot::List(&mut entry.kept_lki));
         }
         if let Some(resolving) = &mut self.resolving {
-            let named = NamedByEntry { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() };
-            each(named, KeptLkiSlot::List(&mut resolving.kept_lki));
+            let keeper = LkiKeeper { source: resolving.identity.map(|identity| identity.source), trigger: resolving.trigger.as_ref() };
+            each(keeper, KeptLkiSlot::List(&mut resolving.kept_lki));
         }
         for delayed in &mut self.delayed_triggers {
-            each(NamedByEntry { source: Some(delayed.source), trigger: None }, KeptLkiSlot::Source(&mut delayed.source_lki));
+            each(LkiKeeper { source: Some(delayed.source), trigger: None }, KeptLkiSlot::Source(&mut delayed.source_lki));
         }
     }
 
     /// A mover's frame, taken before its batch performs (CR 603.10a for a
-    /// permanent, 113.7a for anything an entry names). One an enclosing batch
+    /// permanent, 113.7a for anything a keeper reads). One an enclosing batch
     /// already framed keeps that frame, since a destruction's move is a
     /// nested batch and the event it belongs to is the outer one.
     fn capture_frame(&mut self, id: ObjectId) {
@@ -1010,7 +1013,7 @@ impl GameState {
 
     /// CR 603.10a, 113.7a — what `id` hands over as it leaves `from` for `to`
     /// (`None`: the game), before it moves: the frame its batch took, to every
-    /// entry that names it, and to a delayed trigger it is the source of.
+    /// keeper that reads it.
     /// Returns the frame its record carries, for a move in one of CR 603.10a's
     /// classes; a token whose entry is still being decided has no entity and
     /// nothing to look back at (`create_tokens`).
@@ -1022,12 +1025,11 @@ impl GameState {
         lki
     }
 
-    /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
-    /// each queued, stacked or resolving entry that names it, and each
-    /// delayed trigger waiting with it as source, keeps the frame its batch
-    /// took. That is `lki`, the record's own, for a permanent, and
-    /// for any other mover the one `capture_lki` took because an
-    /// entry named it. One writer; its callers are the two performers that
+    /// CR 113.7a, 608.2h — `id` is leaving the zone a keeper expected it in:
+    /// each keeper that reads it keeps the frame its batch took. That is
+    /// `lki`, the record's own, for a permanent, and for any other mover the
+    /// one `capture_lki` took because a keeper reads it. One writer; its
+    /// callers are the two performers that
     /// move an object out of a zone, before the move.
     fn hand_over_lki(&mut self, id: ObjectId, lki: Option<&Lki>) {
         let lki = match lki {
@@ -1038,8 +1040,8 @@ impl GameState {
             },
         };
         let object = lki.object();
-        self.for_each_naming_entry(|entry, slot| {
-            if !entry.objects().any(|named| named == object) {
+        self.for_each_lki_keeper(|keeper, slot| {
+            if !keeper.objects().any(|kept_for| kept_for == object) {
                 return;
             }
             match slot {
@@ -1049,7 +1051,7 @@ impl GameState {
         });
     }
 
-    /// The last known information a named mover's batch took for it, if any:
+    /// The last known information a kept-for mover's batch took for it, if any:
     /// the counterpart of `take_captured_lki` for a move in no CR 603.10a
     /// class, which no batch is bound to frame.
     fn take_named_lki(&mut self, id: ObjectId) -> Option<Lki> {
@@ -1925,94 +1927,92 @@ impl GameState {
     }
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
-    /// the existence the trigger remembers (`subject_after`), and a damage
-    /// source that left before dealing the damage as the existence that dealt
-    /// it (CR 608.2h). An object the store no longer holds leaves the event
-    /// about none. An attack record holds one event per attacker, which
+    /// the existence the trigger remembers (`subject_after`). The arm says
+    /// which participants the event has, grouped as `participants()` groups
+    /// them; its record is one `triggering_events_in` matched to it. An
+    /// object the store no longer holds leaves the event about none. An
+    /// attack record holds one event per attacker, which
     /// `triggering_events_in` makes, so it answers none here.
     fn triggering_event_objects(&self, arm: &TriggerEvent, record: &EventRecord) -> TriggeringEventObjects {
-        use TriggeringEventObjects as Objects;
-        let event = &record.event;
-        let refer = |id: ObjectId| self.subject_after(event, id);
-        let one = |id: ObjectId| refer(id).map_or(Objects::NoObject, Objects::Object);
-        match (arm, event) {
-            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { object_id, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { object_id, .. })
-            | (TriggerEvent::ZoneChange { .. }, GameEvent::SameZoneMove { object_id, .. })
-            | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { object_id })
-            | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { object_id })
-            | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { object_id, .. })
-            // The permanent whose control changed, or which left.
-            | (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { object_id, .. })
-            | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { object_id, .. })
-            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { object_id, .. }) => one(*object_id),
-            (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { source_id, .. }) => one(*source_id),
-            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { card_id, .. }) => one(*card_id),
-            // "That spell".
-            (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. })
-            | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { spell_id, .. }) => one(*spell_id),
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { source_id, source_lki, target, .. }) => {
-                let source = match source_lki {
-                    Some(lki) => Some(lki.object()),
-                    None => refer(*source_id),
-                };
-                let recipient = match target {
-                    DamageTarget::Object(id) => refer(*id).map(ObjectOrPlayer::Object),
-                    DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
-                };
-                match (source, recipient) {
-                    (Some(source), Some(recipient)) => Objects::Damage { source, recipient },
-                    _ => Objects::NoObject,
+        match arm {
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::ControlChanges { .. } => self.the_object(&record.event),
+            TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
+            TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
+                self.attachment_objects(&record.event)
+            }
+            TriggerEvent::Attacks { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => TriggeringEventObjects::NoObject,
+        }
+    }
+
+    /// The one object a one-object event is about: the card or permanent
+    /// that moved, was tapped, untapped, entered or changed control, the
+    /// mana's source, the card drawn, or the spell.
+    fn the_object(&self, event: &GameEvent) -> TriggeringEventObjects {
+        let id = match event {
+            GameEvent::ZoneChange { object_id, .. }
+            | GameEvent::LeftTheGame { object_id, .. }
+            | GameEvent::SameZoneMove { object_id, .. }
+            | GameEvent::Tapped { object_id }
+            | GameEvent::Untapped { object_id }
+            | GameEvent::PermanentEnteredBattlefield { object_id, .. }
+            | GameEvent::ControlChanged { object_id, .. } => *object_id,
+            GameEvent::ManaAdded { source_id, .. } => *source_id,
+            GameEvent::CardDrawn { card_id, .. } => *card_id,
+            GameEvent::SpellCast { spell_id, .. } | GameEvent::SpellCountered { spell_id, .. } => *spell_id,
+            _ => return TriggeringEventObjects::NoObject,
+        };
+        self.subject_after(event, id).map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object)
+    }
+
+    /// A damage event's source and recipient. A source that left before
+    /// dealing the damage is the existence that dealt it (CR 608.2h).
+    fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
+        let GameEvent::DamageDealt { source_id, source_lki, target, .. } = event else {
+            return TriggeringEventObjects::NoObject;
+        };
+        let source = source_lki.as_ref().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let recipient = match target {
+            DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
+            DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
+        };
+        match (source, recipient) {
+            (Some(source), Some(recipient)) => TriggeringEventObjects::Damage { source, recipient },
+            _ => TriggeringEventObjects::NoObject,
+        }
+    }
+
+    /// An attachment and its host, or its former host. An unattach names
+    /// each end as the existence the record names (Grafted Wargear's first
+    /// ruling).
+    fn attachment_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
+        match event {
+            GameEvent::Attached { attachment, host, .. } => {
+                match (self.subject_after(event, *attachment), self.subject_after(event, *host)) {
+                    (Some(attachment), Some(host)) => TriggeringEventObjects::Attach { attachment, host },
+                    _ => TriggeringEventObjects::NoObject,
                 }
             }
-            (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { attachment, host, .. }) => {
-                match (refer(*attachment), refer(*host)) {
-                    (Some(attachment), Some(host)) => Objects::Attach { attachment, host },
-                    _ => Objects::NoObject,
-                }
+            GameEvent::Unattached { attachment, former_host, .. } => {
+                TriggeringEventObjects::Attach { attachment: *attachment, host: *former_host }
             }
-            // Each end as the existence the record names (Grafted Wargear's
-            // first ruling).
-            (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { attachment, former_host, .. }) => {
-                Objects::Attach { attachment: *attachment, host: *former_host }
-            }
-            (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
-            | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
-            | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
-            | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
-            | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
-            | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
-            | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
-            | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
-            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => Objects::NoObject,
-            // Every arm, by name, so a new arm does not compile until it says what
-            // this projection is for it; the record never matches the arm otherwise.
-            (
-                TriggerEvent::ZoneChange { .. }
-                | TriggerEvent::BecomesTapped { .. }
-                | TriggerEvent::BecomesUntapped { .. }
-                | TriggerEvent::DrawsCard { .. }
-                | TriggerEvent::ManaAdded { .. }
-                | TriggerEvent::DamageDealt { .. }
-                | TriggerEvent::PhaseBegins { .. }
-                | TriggerEvent::StepBegins { .. }
-                | TriggerEvent::TurnBegins { .. }
-                | TriggerEvent::GainsLife { .. }
-                | TriggerEvent::LosesLife { .. }
-                | TriggerEvent::EntersBattlefield { .. }
-                | TriggerEvent::Attacks { .. }
-                | TriggerEvent::CastsSpell { .. }
-                | TriggerEvent::IsCountered { .. }
-                | TriggerEvent::PlayerLoses { .. }
-                | TriggerEvent::ShufflesLibrary { .. }
-                | TriggerEvent::BecomesAttached { .. }
-                | TriggerEvent::BecomesUnattached { .. }
-                | TriggerEvent::ControlChanges { .. }
-                | TriggerEvent::AbilityTriggers { .. }
-                | TriggerEvent::AbilityResolves { .. },
-                _,
-            ) => Objects::NoObject,
+            _ => TriggeringEventObjects::NoObject,
         }
     }
 
