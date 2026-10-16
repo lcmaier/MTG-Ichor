@@ -982,7 +982,9 @@ Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
 TR-4a to TR-4d. `cast`, CR 400.7d's facts (the 2026-09-23 amendment's
 Vibrance, "if {R}{R} was spent to cast it" after it left), has no condition
 leaf that reads mana spent, and the card is unregistered. `entry`, a stack
-object's copy for CR 603.10e and CV-4's `copy_of`, is TR-4d's with item 253.
+object's copy for CR 603.10e and CV-4's `copy_of`, was built in TR-4d with
+item 253: `last_known_information` keeps it for any object framed on the
+stack, and `entry()` reads it.
 
 **The capture.** `last_known_information` builds the whole body before the
 batch performs (`capture_frame`); the frame is the memo hit it always was,
@@ -2400,9 +2402,9 @@ and a host that left otherwise has no answer, which reads as no; its filter's
 `AmountExpr::SourceCounters` is the amount's half: "the number it had" (CR
 122.8, 122.9), the source's counters as it last existed, put anew.
 
-**What waits.** The `IsCountered` look-back (CR 603.10e) reads the countered
-spell's frame, which no record carries until TR-4d's `Lki.entry` (item
-253).
+**Built in TR-4d.** The `IsCountered` look-back (CR 603.10e) reads the
+countered spell's frame, which `SpellCountered` carries with `Lki.entry`
+(item 253).
 
 The two amendments below are the design record this was built from.
 
@@ -3275,271 +3277,45 @@ review (+0.39% before it, when a departing player's graveyard was framed).
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
-### TR-4d — control, countering, loss, and the records' missing facts — designed 2026-10-15
+### TR-4d — control, countering, loss, and the records' missing facts — ✅ landed 2026-10-15
 
-*Re-read against the tree at `7705986` with four rulings the 2026-10-12 sizing
-did not have, and sized below. Reviewed before any code; the questions the
-owner decided are the last subsection.*
+*Body evicted 2026-10-15 to `plans/archive/triggers-architecture-landed.md`,
+"TR-4d", with the plan as designed and its two decisions.*
 
-**Where it sits.** TR-4a to TR-4c finished CR 603.10a's zone-change
-look-backs: a departure's record carries the frame from before it. The other
-three look-backs have nothing like it. A control change has no performer,
-since control is the layer walk's output (§3.12 item 13), so nothing proposes
-it and nothing records it. A countered spell's record carries no frame (item
-253). A loss is read off its player's departures. Items 131 and 258 are the
-two facts the zone-change records still drop: a mill that a replacement keeps
-in its library leaves no record, and a find does not ask whether a zone is
-public.
+**What shipped.** CR 603.10's three remaining look-backs. A change of control
+is announced by a sweep (`announce_control_changes`, `engine/triggers/control.rs`):
+each permanent's controller against `PermanentState.announced_controller`, at
+the head of an outermost batch, at each state-based pass and in the cleanup
+step after the expiry, one sweep's changes one event, caused by
+`GameRule::ControlChanges`. It looks back off the frame the last sweep read,
+kept while a control-changing effect exists and kept again before a
+resolution's row, an expiry and the first control row (decision 1, the
+owner's). `ControlChanges` reads it, and for an arm naming no one gaining
+control a battlefield departure (Khârn the Betrayer's first ruling). A
+countered spell's record carries its frame with `Lki.entry` (item 253), which
+`IsCountered` reads, "a spell you've cast" off `StackEntry::caster`.
+`PlayerLoses` reads a loss and looks back at the loser's departures (CR 603.9,
+603.10f). A mill a replacement keeps in its library is a `SameZoneMove` (item
+131), and an effect finds what it moved in any public zone it went to and
+never a hidden one (item 258; decision 2, settled by Rescue from the
+Underworld's fourth ruling). Items 13, 131, 253 and 258 closed. Multani's
+Presence and Ray of Command registered, Ray of Command pooled (197 → 199,
+109 → 110). Twenty-eight tests; ATOM-603.10d-001, ATOM-603.10e-001 and
+ATOM-603.9-001 are covered.
 
-**Four rulings** (Scryfall, 2026-10-15):
-1. **Losing control includes leaving the battlefield.** Khârn the Betrayer's
-   first ruling, and Gustha's Scepter's. So "you lose control of" also reads a
-   battlefield departure. "An opponent gains control" does not.
-2. **An "until end of turn" steal ends in the cleanup step, and its trigger
-   lands there.** It goes on the stack, players get priority, and another
-   cleanup step follows (Ogre Geargrabber #4, Ray of Command #3, CR 514.3a).
-   Six of the nine "lose control of" cards are delayed triggers: Krovikan
-   Vampire, Magus of the Unseen, Ogre Geargrabber, Ray of Command, Seraph and
-   Stolen Uniform. The other three are Duplicity, Gustha's Scepter and Khârn.
-3. **Four seats.** A player who leaves ends every effect that gave them
-   control (CR 800.4a), and control going back is a change the sweep
-   announces. Their own trigger on it is then kept off the stack (CR 800.4d).
-4. **A trigger reads the record; an effect finds the card.** Zellix, Sanity
-   Flayer still makes a Horror under Wheel of Sun and Moon (item 131), so the
-   new record carries the card as it was milled. CR 701.17c finds a milled
-   card only in a public zone (item 258).
+**What moved on the way in.** The re-read found three defects: the sweep's
+gate missed the change back (the registry's summary is rebuilt as rows go),
+nothing kept a frame before the first steal, and a `Before` candidate kept
+today's controller. A zone-change arm had no "that many". TR-3b's Rest in
+Peace test pinned the opposite of Rescue from the Underworld's ruling, and
+flipped. +1,613 in code and tests (code +742, tests +871), inside the band.
 
-And one the re-read found. Zidane, Tantalus Thief's first ruling: a stolen
-Zidane triggers its own "whenever an opponent gains control of a permanent
-from you", and one taken beside others triggers once for each. So the changed
-object is asked off its own frame from before, and each record is one
-occurrence.
+**Measured** (`fuzz-record.md`, the TR-4d block). Engine against `main`, every gameplay row
+identical on both pools at two seats and four, and the audit agreeing on
+every dispatch; instructions per decision +0.32%. The 1,000-game audited
+smoke: no error, panic or turn-limit game, every dispatch agreed.
 
-**What the re-read corrected.** These are defects in the plan, fixed below,
-not decisions:
-- **The gate misses the change back.** `RegistryScopeSummary` is rebuilt as
-  rows come and go. When Act of Treason's row ends at cleanup,
-  `any_control_changing` is false, and a sweep gated on it alone never
-  announces the return. The gate is `any_control_changing ||
-  control_announced_away`. The second is a flag the sweep writes: true while
-  some permanent's announced controller is not the one it entered under.
-- **The frame before is missing for the first change.** A frame kept only
-  while a control row exists holds nothing when the first row is written,
-  which is Act of Treason on a board with no steal in progress: the common
-  case. With the gate off, the sweep walks nothing, so there is nothing to
-  keep. Decision 1 is the fix.
-- **A candidate's list from before keeps today's controller.**
-  `find_matches` gives a `TriggerCandidateFrame::Before` candidate the live
-  controller. The snapshots so far came from batches that move no controller.
-  A control change does, and CR 603.10 reads the object "immediately prior to
-  the event", so that candidate's "you" (CR 603.3a) is its frame's controller.
-- **"That many" is no zone change's.** `TriggerEvent::amount_of` answers
-  `None` for a zone-change arm, so item 131's "gain life equal to the number
-  milled" refuses today; it does not read 2. A zone-change arm's amount
-  becomes one per record: the objects moved, counted.
-- **`PlayerLoses` already names two things.** `GameAction::PlayerLoses` and
-  `EventPattern::PlayerLoses` (33 hits in `src`). The trigger arm takes the
-  same word on a third enum, as `EventPattern` mirrors `GameAction`.
-- **ATOM-603.9-001 needs three seats.** At two the loss ends the game (CR
-  104.2a), and a game that has ended places nothing.
-
-**The pieces**
-
-1. **The sweep (item 13, CR 603.10d).** `announce_control_changes` compares
-   each permanent's effective controller with
-   `PermanentState.announced_controller`, in `battlefield_ids_ordered` order,
-   behind the gate above.
-   - **The record.** Each difference is one `GameEvent::ControlChanged {
-     object_id, from, to, lki }`, caused by `GameRule::ControlChanges`, since
-     the sweep cannot name the effect (§3.12a). The changes one sweep finds
-     are one window, so one event (§4.1), which is Zidane's "for each of those
-     permanents".
-   - **Its points.** The head of an outermost `execute_actions` outside a
-     dispatch, so Act of Treason's change is announced before its "untap that
-     creature" (CR 603.4's instant). Each `perform_sba_and_triggers` pass,
-     after the state-based actions and before placement. And the cleanup
-     step, after CR 514.2's expiry and before CR 514.3a's check, so the change
-     back makes the step grant priority. CR 800.4a's ending is announced at
-     the pass after the check the player lost in.
-   - **Where a permanent starts.** Announced under the controller it entered
-     under, read through the layers while a control row exists. So a
-     permanent that enters under an effect has made no change.
-   - **The frame before.** `PermanentState` keeps the frame each sweep read,
-     while a control row exists. It is the walk the comparison already does,
-     so keeping it costs an `Arc` clone a permanent. The record's `lki` is
-     built from it. The window carries a `LookBackSnapshot` of the changed
-     permanents' frames, and of each survivor whose ability list the change
-     altered, which the existing `Before` candidate reads. The dispatch
-     audit's snapshot is the same frames.
-   - **Exact, not "back to the last sweep point".** Control moves only when
-     the board does: in a batch, in a row a resolution writes, in a static's
-     registration, or in an expiry. A batch's head is a sweep point. The
-     other three keep the frames just before they write, while the gate is
-     on: a pump and then a steal in one resolution are read with the pump.
-     Before the first control row, decision 1.
-   - **The scenario save** writes neither field. A saved board is at a
-     priority point, where every change has been announced, so the loader
-     derives both.
-2. **The arm `ControlChanges { subject, from: Option<PlayerRef>, to:
-   Option<PlayerRef> }`.** "You lose control of" is `from: Some(You)`; "an
-   opponent gains control of a permanent from you" adds `to: Some(Opponent)`,
-   read against the same "you". ATOM-603.10d-001's "a permanent you own" is
-   the subject's filter. It reads `ControlChanged`, and for an arm with `to:
-   None` a battlefield departure whose frame's controller is `from`: a
-   `ZoneChange` from the battlefield, or a `LeftTheGame` (ruling 1). It looks
-   back. A delayed trigger's "the creature" is `TriggerSubject::Referred`.
-3. **`IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> }`
-   (item 253, CR 603.10e).** Reads `SpellCountered`, which gains `lki: Lki`:
-   the stack object framed before `change_zone` (`resolve.rs:882`), with
-   `Lki.entry`, a shared copy of its `StackEntry` (§3.11), which CV-4's
-   `copy_of` reads too.
-   - **"A spell you've cast"** reads `StackEntry::caster()`, the controller
-     the entry was made with, for a spell that was cast. Nothing writes
-     `controller` after the cast: `put_on_stack.rs:205` makes the entry, and
-     `:282` writes only `mana_spent`. A spell an effect steals (CR 108.4,
-     `Primitive::GainControl` on a spell) changes its effective controller,
-     not the field.
-   - **No arm on `AbilityCountered`.** No printed trigger reads an ability
-     being countered: `(o:"when " or o:"whenever ") o:"ability" o:"is
-     countered"` is 2, Green Slime and Tishana's Tidebinder, both "countered
-     this way" effects. `SpellFizzled` stays arm-less (Multani's Presence's
-     ruling).
-4. **`PlayerLoses { player: Option<PlayerRef> }` (CR 603.9, 603.10f).** Reads
-   `PlayerLost`, and looks back. The loser's permanents leave in the same
-   window, since `player_left_the_game` joins it, so each is asked off its
-   departure's frame. One the loser controlled is kept off the stack (CR
-   800.4d, §5.3). One the loser owned and another player controlled triggers
-   for that player. Nothing leaves the game without losing (CR 104.3a's
-   concession is a loss), so the record is the only one to read.
-5. **Item 131's record.** `GameEvent::SameZoneMove { object_id, owner, zone,
-   act, applied, lki }`, emitted where `perform_zone_change` now returns
-   silently for `from == to` (`actions.rs:1919`), when a replacement sent the
-   move there. Only an arm that names an act reads it (§3.12a decision 3),
-   since a move within a zone is no departure and makes no new object (CR
-   400.7). Its `lki` is the card as it was milled, which Zellix's "creature
-   cards" reads.
-6. **Item 258.** The binding's subject, a remembered object and
-   `put_into_since` refuse a hidden zone (CR 400.7e, 400.7j). In the other
-   direction, `put_into_since` finds a moved object in whatever public zone
-   the move put it in, a replacement's destination included, for every verb
-   (CR 400.7j; CR 701.17c says the same of a mill). So a delayed trigger's
-   "that card" finds the card Leyline of the Void exiled, and the creature
-   Rest in Peace exiled instead of letting it die (decision 2). CR 610.3's
-   "until" return reads the same finds; no printed replacement redirects an
-   exile (`(o:"would be exiled" or o:"would be put into exile")
-   o:instead` is 0), so no game changes.
-7. **Cards.** Multani's Presence, whose one ruling is the `SpellFizzled` test.
-   Ray of Command, which TR-3a's registry can express: `Effect::Remember`
-   around the steal, then `CreateDelayedTrigger` of `ControlChanges {
-   subject: Referred, from: Some(You), to: None }` that taps it. So fuzz games
-   and `--audit` reach the sweep and the cleanup path, not only a fixture. Its
-   stress distortion is measured before it registers.
-
-**Fixtures, each shown failing first**
-- A Khârn-shaped "when you lose control of this, draw two cards":
-  - stolen by Act of Treason, its owner draws, since the frame before names
-    them;
-  - when the steal ends at cleanup, the thief draws, in a repeated cleanup
-    step that granted priority;
-  - when it dies, its controller draws (ruling 1);
-  - when the thief loses at four seats, control goes back and the thief's
-    trigger is dropped.
-- The first change on a board with no control row, with the trigger granted
-  by a "creatures you control have" ability of the owner's: it triggers. This
-  is decision 1's test.
-- Act of Treason's change is announced before its untap.
-- ATOM-603.10d-001: an opponent gains control of a permanent you own. A
-  Zidane-shaped watcher stolen with another permanent triggers twice.
-- Ray of Command: the creature taps in the cleanup step, and taps when a third
-  player steals it before then.
-- ATOM-603.10e-001 and Multani's Presence: a countered spell triggers; a spell
-  that failed on illegal targets does not; an opponent's countered spell does
-  not; a spell of yours another player stole, then countered, draws you the
-  card and not them.
-- ATOM-603.9-001 at three seats. At four, a copy the loser owned and another
-  player controlled triggers for that player, and the loser's own is kept off
-  the stack.
-- Item 131: mill three with a Darksteel Colossus among them, under "gain life
-  equal to the number milled", gains 3 (it refuses today). A "mills one or
-  more creature cards" trigger with the Colossus as the only creature
-  triggers. An arm with no act ignores the record.
-- Item 258: a delayed trigger's "that card" finds the milled card Leyline of
-  the Void exiled, does not find the Colossus shuffled back, and finds nothing
-  in a hand. TR-3b's `an_object_a_replacement_sent_elsewhere_is_not_referred_to`
-  flips, and is rewritten as "return that card to the battlefield" so the
-  answer shows on the board: under Rest in Peace, the creature comes back from
-  exile (Rescue from the Underworld's fourth ruling).
-- `the_event_keeps_its_size` stays at 72 bytes.
-
-**Sized**
-
-| Piece | Code (×1.5–2) | Tests |
-|---|---|---|
-| the sweep, its points, the frames it keeps and the writes that keep them (decision 1), the `Before` controller, the audit's snapshot | ~250 (375–500) | ~330 |
-| `ControlChanged`, `ControlChanges` with the departure reading | ~70 (105–140) | (above) |
-| `IsCountered`, `Lki.entry`, `StackEntry::caster` | ~90 (135–180) | ~150 |
-| `PlayerLoses` | ~25 (40–50) | ~100 |
-| item 131's record and the zone-change amount | ~65 (100–130) | ~100 |
-| item 258 | ~40 (60–80) | ~90 |
-| Multani's Presence, Ray of Command | ~70 (105–140) | (above) |
-| **Total** | **~610 (920–1,220)** | **~770** |
-
-1,690–1,990 in code and tests, inside the band. The rulings and Ray of
-Command are counted. Projected docs at close-out: about 400. The sweep is
-priced on 200 four-seat stress games before its first commit: how many
-batches run with a control row, and what each sweep costs under the gate. If
-the build crosses 2,500, it splits on the rule seam into the mill records
-(items 131 and 258) and the three look-back arms.
-
-**Decisions, taken 2026-10-15**
-
-1. **The frame before the first change: (a), the owner's choice.** Every
-   603.10d reader needs the board from just before the change, and the sweep
-   sees a change only after
-   it. While a control row exists, the sweep walks every permanent anyway, so
-   keeping each frame is free and exact. The open case is the first row: with
-   none before it, nothing walked, and nothing was kept.
-   - **(a), recommended: keep the frames just before the first control row
-     is written, at the sites that already keep them while the gate is on.**
-     Two places can write the first control row: a resolution's Layer 2 row
-     (`add_resolution_effect`, which Act of Treason's `Primitive::GainControl`
-     calls) and a printed or copied static's registration
-     (`game_state.rs:1900`, `:1978`). A granted static cannot, since layers
-     1–5 refuse a grant (`resolve.rs:1771`). So at those two sites the
-     condition is "the gate is on, or this row sets a controller". In debug
-     builds, the sweep fails on a change it has no frame for, which names a
-     missed site. Cost: a walk of each permanent per steal. Maintenance: a new
-     site that writes a row needs the call, and the assertion catches one
-     that doesn't. Not CLAUDE.md's "reconcile at a chokepoint": that rule is
-     about deciding whether an effect exists outside the walk. This decides
-     nothing; it keeps last known information before a write, as
-     `capture_lki` does before a batch performs.
-   - **(b): read the first change off the board now, with "you" taken from
-     the record's `from`.** No new site. It is exact for every printed reader:
-     the three object readers print their trigger, and the six delayed ones
-     have a fixed "you" (CR 603.7d). It is wrong where the change itself moved
-     a "you control" grant onto or off the reader, or a "you control" type
-     change onto a subject. That is a known wrong answer on a fixture board.
-   - **(c): refresh the frames at every sweep point on every board.** Exact,
-     with no new site, but it costs a walk of every permanent at every batch
-     head, in every game. Not priced; the gate exists because forcing it off
-     once cost 28% a game (`RegistryScopeSummary::any_control_changing`).
-2. **Item 258's reach: every verb, settled by a ruling.** The question was
-   whether a delayed trigger may find an object a replacement sent to
-   another public zone, or only a milled one. CR 701.17c and CR 400.7j give
-   the same answer (the owner's reading), and Rescue from the Underworld's
-   fourth ruling applies it to a delayed trigger: "if the sacrificed
-   creature is put into another public zone instead of the graveyard,
-   perhaps because it's your commander or because of another replacement
-   effect, it will return to the battlefield from the zone it went to". Its
-   card was moved by a cost, CR 400.7j's second sentence; an effect's move is
-   the first sentence, read the same way. Its commander clause predates CR
-   903.9a's state-based move. So TR-3b's
-   `an_object_a_replacement_sent_elsewhere_is_not_referred_to` pinned a wrong
-   answer, on a fixture whose "exile it" changed nothing visible, and it
-   flips. What a card's words ask for still decides: Come Back Wrong's "if a
-   creature card is put into a graveyard this way" names the zone, so under
-   Rest in Peace it returns nothing.
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d".
 
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
@@ -3554,7 +3330,8 @@ the three needs another.
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
 | **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
 | **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,547 |
-| **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) — designed 2026-10-15, above, and re-sized there with four rulings and Ray of Command | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | ~610 (920–1,220) | ~770 | 1,690–1,990 |
+| **TR-4d — control, countering, loss, and the records' missing facts** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4d" | | | | +1,613 |
+| *TR-4d as sized (CR 603.10d, 603.10e, 603.10f, 603.9), kept for the record* | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | ~610 (920–1,220) | ~770 | 1,690–1,990 |
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
 themselves from a graveyard, which CR 113.6m places in that zone and

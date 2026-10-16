@@ -37,6 +37,89 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-15 for TR-4d** (#254: control, countering, loss, and
+the records' missing facts; items 13, 131, 253 and 258). Multani's Presence
+and Ray of Command join the registry and Ray of Command the pool (197 → 199
+registered, 109 → 110 pooled), so both §3 columns are new baselines.
+`close_out.py --fixtures` against **main** `7705986` (#253's merge), with
+**engine** `d202dbd` (every engine change, the two cards written and not
+registered) and **shipped** `55c535e`.
+
+**Predictions, before any arm ran:**
+- engine vs `main`, gameplay rows `IDENTICAL`, both pools, two seats and
+  four: no registered card reads the new arms, and the new records
+  (`ControlChanged`, `SameZoneMove`, the countered spell's frame) move no game.
+- Cost rows: `Windows past gate` up a little on `stress`, where Act of
+  Treason's steals make sweep windows; memo hits up under 1%. Instructions per
+  decision +0.1 to +0.6 points: Act of Treason is pooled, so the sweep walks
+  every permanent at each batch head for a steal's turn, and everywhere else
+  it is two bool tests a batch.
+- shipped differing from `main` on both pools, by the pool and the registry.
+- Reachability: Ray of Command reaches its delayed trigger (45 control
+  changes and 22 triggers over 40 two-seat `stress` games, taken first).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → engine, performance / stress | 52,497 → 52,590 / 71,587 → 71,652 | 159,223 → 159,641 / 187,756 → 187,940 |
+| `Layer frames`, `main` → engine, performance / stress | 3,762 → 3,763 / 4,940 → 4,941 | 11,884 → 11,886 / 14,211 → 14,211 |
+| `Windows past gate`, `main` → engine, performance / stress | 53.2 → 53.5 / 62.6 → 62.8 | 135.3 → 136.2 / 170.7 → 171.0 |
+| `Candidate visits`, `main` → engine, performance / stress | 62.5 → 63.1 / 75.3 → 75.6 | 185.1 → 186.9 / 247.6 → 248.2 |
+| audit, engine, performance / stress, dispatches agreed | 161,020 / 172,261 | 320,776 / 330,241 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Layer walks`, `main` → shipped, performance / stress | 337 → 334 / 397 → 345 | 696 → 703 / 891 → 935 |
+| `Windows past gate`, `main` → shipped, performance / stress | 53.2 → 49.8 / 62.6 → 50.6 | 135.3 → 129.8 / 170.7 → 168.2 |
+| `Candidate visits`, `main` → shipped, performance / stress | 62.5 → 59.3 / 75.3 → 61.8 | 185.1 → 171.6 / 247.6 → 237.0 |
+| audit, shipped, performance / stress, dispatches agreed | 161,801 / 149,272 | 317,148 / 349,688 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7594 M → 0.7619 M, **+0.32%** |
+
+Every prediction held. The engine arm's cost rows moved as the sweep's windows
+and frames predict: memo hits +0.1% to +0.3%, windows past the gate +0.3 to
++0.9 a game, layer frames unchanged within two. Ray of Command was cast in
+117 of 200 games (58%) at two seats and 86 (43%) at four, resolving all but
+three times. Shipped's rows are a new pool and registry, read as baselines.
+The sitting ran in 138 s.
+
+**Before the sweep's commit**, priced on 200 four-seat `stress` games, seed
+12345: every gameplay counter as `main`'s; with eight Act of Treasons forced
+into every deck, +2 layer walks a game (965 → 967), memo hits +3% and CPU per
+game +0.9%, the audit agreeing.
+
+**Before registering**, each card forced into every `stress` deck, 200 games
+at two seats with the audit on, no error or panic: Ray of Command 25.2 turns
+and Multani's Presence 25.3, against 24.9 at seed 12345.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors, 0 panics, no game at the turn limit, and every dispatch
+agreed (835,735 / 813,027 at two seats, 1,662,007 / 1,715,200 at four).
+
+**§3 fixture rows, shipped `55c535e`, two seats, 50 games / seed 12345.**
+Both columns are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 26 (52.0%) | 27 (54.0%) / 22 (44.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 31.5 | 25.5 |
+| Spells cast | 23.9 | 19.2 |
+| Lands played | 17.7 | 15.7 |
+| Combat w/ atk | 11.1 | 7.2 |
+| Creatures died | 8.5 | 4.1 |
+| Damage events | 24.0 | 15.9 |
+| Total damage | 64.7 | 50.5 |
+| Life changes | 16.0 | 12.1 |
+| **Layer walks** | **358** | **357** |
+| **Board walks** | **213** | **205** |
+| **Memo hits** | **60,291** | **54,545** |
+| **Layer frames** | **4,142** | **3,875** |
+| **Frames/walk** | **11.56** | **10.85** |
+| **Dependency checks** | **16** | **21** |
+| **Replacement gathers** | **1105** | **903** |
+| **Restriction queries** | **1107** | **904** |
+| Mana productions | 74 | 76 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.34 | 0.74 |
+
 **Re-recorded 2026-10-15 for TR-4c** (#253: the other two look-back classes
 and the zone statement, items 15, 173, 249, 259 and 260). Bridge from Below,
 Guerrilla Tactics, Angelic Destiny and Rancor join the registry and Bridge
