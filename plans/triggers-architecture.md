@@ -302,7 +302,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
 | `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, was_cast: Option<bool>, multiplicity }` — `from` and `was_cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
 | `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3). `cause` waits for its one customer, CR 727's rad counters | no | TR-1, TR-2a |
-| `AttackersDeclared` | `Attacks { attacker, defender: Option<DefenderFilter>, occurrence: AttackOccurrence, alone, multiplicity }` — CR 508.3a–e's and 506.5's seven readings as three filters, what one occurrence is (an attacker, or what is attacked) and `alone`; reads item 11's defender. **Revised at TR-5a's design (2026-10-16, §12's TR-5e, decision 5)** from an enum of seven, `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`, which this row had called five | no; 508.2a's snapshot is the dispatch instant | TR-5e |
+| `AttackersDeclared` | `Attacks { attacker, defender: Option<DefenderFilter>, per: AttackEventPer, alone, multiplicity }` — CR 508.3a–e's and 506.5's seven readings as three filters, what one triggering event is (an attacker, or what is attacked) and `alone`; reads item 11's defender, and only a declared attacker (CR 508.4). **Revised at TR-5a's design (2026-10-16, §12's TR-5e, decision 5)** from an enum of seven, `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`, which this row had called five | no; 508.2a's snapshot is the dispatch instant | TR-5e |
 | `BlockersDeclared` | `Blocks { shape: BlockShape, .. }` — 509.3a–d and 509.3g's five readings of one pair list: `Blocks`, `BlocksACreature`, `BecomesBlocked`, `BecomesBlockedBy`, `AttacksAndIsntBlocked` | no | TR-5 |
 | `SpellCast` | `CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> }` — the stack object is live at dispatch (types, colors, mana value through the layer walk). `from` waits for casting from a zone other than the hand (`backlog.md` §2.3) | no | TR-2a |
 | `AbilityActivated` | `ActivatesAbility { controller, source: Option<ObjectFilter>, loyalty: Option<bool> }`. "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, CV-4) | no | TR-5 |
@@ -3442,8 +3442,8 @@ onto the battlefield attacking (item 128) cannot be made at all.
   dispatch's `Attacks` arm.
 - **The arm is built in five places, not eight**: one in `src` and four in
   tests. No registered card has an attack trigger, so Hellrider is the first.
-- **The defender occurrence fits none of `TriggeringEventObjects`' three
-  assumptions.** The type is `Copy`, `objects()` assumes no event names more
+- **A defender's triggering event fits none of `TriggeringEventObjects`'
+  three assumptions.** The type is `Copy`, `objects()` assumes no event names more
   than two objects, and `triggering_objects` reads one object per event
   through `get`. That is 47 references in four files (decision 8).
 - **`remove_from_combat` sets `attacking = None`**, which loses the defender
@@ -3475,8 +3475,8 @@ onto the battlefield attacking (item 128) cannot be made at all.
   planeswalker" after "attacks a planeswalker you control". A player who is
   attacked is no participant.
 - **"That player" on the attack arm is item 268's.** `player_of` reads a
-  record, and one declaration holds an occurrence for each attacker or each
-  defender, each with its own player: the attacker's controller, the player
+  record, and one declaration holds a triggering event for each attacker or
+  each defender, each with its own player: the attacker's controller, the player
   attacked, or the controller of the planeswalker attacked. Item 268 makes
   "that player" name its participant, which is what an attack needs. Its slot
   widens to the first registered attack trigger that reads "that player".
@@ -3488,15 +3488,16 @@ onto the battlefield attacking (item 128) cannot be made at all.
    }`, at its one emit site and its six readers. `objects_named_as_announced`
    hands out the pairs, as it does `BlockersDeclared`'s.
    `TriggeringEventObjects::Attack` gains `defender: ObjectOrPlayer`, and a
-   defender occurrence is `Defense { defender, attackers }` (decision 8).
+   defender's triggering event is `Defense { defender, attackers }`
+   (decision 8).
 2. **The arm** (decision 5):
    ```rust
    Attacks {
        attacker: TriggerSubject,
        defender: Option<DefenderFilter>,
-       /// CR 603.2c's occurrence: each attacker, or each player, planeswalker
-       /// or battle attacked.
-       occurrence: AttackOccurrence,
+       /// CR 603.2c: one triggering event for each attacker, or for each
+       /// player, planeswalker or battle attacked.
+       per: AttackEventPer,
        /// CR 506.5: the only creature declared as an attacker.
        alone: bool,
        multiplicity: Multiplicity,
@@ -3506,12 +3507,22 @@ onto the battlefield attacking (item 128) cannot be made at all.
    `PlayerOrTheirPlaneswalker(PlayerRef)`. The last is "attacks you or a
    planeswalker you control", 17 cards. Nothing attacks a planeswalker or a
    battle until `backlog.md` §2.23's attack path lands, but the filter reads
-   `AttackTarget` whole now. Both occurrences have the participants
-   `Attacker` and `Attacked`: one of each for an attacker occurrence, and
-   every attacker of one defender for a defender occurrence. The readings,
-   whose "that player" is item 268's (above):
+   `AttackTarget` whole now. Both kinds of triggering event have the
+   participants `Attacker` and `Attacked`: one of each for an attacker's,
+   and every attacker of one defender for a defender's.
 
-   | Rule | Text | `attacker` | `defender` | `occurrence` | `multiplicity` | "It" · "them" · "that player" |
+   **Only a declared attacker counts.** Every reading is matched against
+   the declaration's record, which only CR 508.1's declaration writes. A
+   creature put onto the battlefield attacking (piece 5) is in no record. So
+   it makes no attacker's triggering event, it is none of a defender's
+   attackers, and it makes no defender's triggering event of its own (CR
+   508.3a, 508.3b, 508.3e, 508.4: such creatures "never 'attacked'"). The
+   defender is whatever the record names, a player, a planeswalker or a
+   battle alike, and `DefenderFilter` chooses among them.
+
+   The readings, whose "that player" is item 268's (above):
+
+   | Rule | Text | `attacker` | `defender` | `per` | `multiplicity` | "It" · "them" · "that player" |
    |---|---|---|---|---|---|---|
    | 508.3a | "whenever [a creature] attacks" | its filter | — | `Attacker` | `PerOccurrence` | the attacker · — · its controller |
    | 508.3a | "… attacks [a player, planeswalker or battle]" | its filter | `Some` | `Attacker` | `PerOccurrence` | the same |
@@ -3529,9 +3540,9 @@ onto the battlefield attacking (item 128) cannot be made at all.
    `PlayerRef::DefendingPlayer(ConditionObject)`. It is the player that
    creature is attacking, or the controller or protector of what it attacks.
    Once the creature has left combat, it is the one it was attacking before,
-   which `remove_from_combat` keeps on the permanent until the combat phase
-   ends (CR 508.5; decision 9). Once the creature has left the battlefield,
-   its `Lki` keeps both. Each `FilterReferents` finds the creature: a
+   which `remove_from_combat` keeps until the combat phase ends (CR 508.5;
+   decision 9 says where). Once the creature has left the battlefield while
+   attacking, its `Lki` keeps its attack. Each `FilterReferents` finds the creature: a
    target's filter at placement reads the trigger's attacker off the binding.
    With no creature named, CR 802.2a's choice is decision 10's.
 5. **Item 128, with CR 508.4.** `TokenDef.enters_attacking:
@@ -3562,26 +3573,27 @@ it was 1,690–1,910: code ~445 (670–890) and tests ~1,020.
 |---|---|---|
 | Item 11, the record, at its six readers | ~35 | ~20 |
 | The arm, `DefenderFilter`, the projections, the authoring words and its five literals | ~145 | ~420: the seven readings, with four seats for 508.3b and 508.3e; ATOM-508.2a-001 |
-| The defender occurrence (decision 8): `Copy` dropped at its by-value sites, `objects()` over the attackers, `triggering_objects` through it, `Participant::Attacked`, and the registry's refusal | ~50 | ~40 |
+| A defender's triggering event (decision 8): `Copy` dropped at its by-value sites, `objects()` over the attackers, `triggering_objects` through it, `Participant::Attacked`, and the registry's refusal | ~50 | ~40 |
 | "The player it's attacking" and `Lki`'s attack | ~60 | ~170: Hellrider's ruling at four seats, both halves of Swordjack's, and a steal in response |
-| Item 128, with CR 508.4, and `TokenDef`'s 23 literals | ~115 | ~315: never "attacked", by 508.3a and by 508.3d; the four-seat choice; 508.4d; 506.3a and 506.3b; 508.4a; a specified defender; Parallel Lives' extra tokens |
+| Item 128, with CR 508.4, and `TokenDef`'s 23 literals | ~115 | ~315: never "attacked", by 508.3a, 508.3b and 508.3d; the four-seat choice; 508.4d; 506.3a and 506.3b; 508.4a; a specified defender; Parallel Lives' extra tokens |
 | Hellrider | ~30 | in the row above |
 | "Defending player" (decision 6), naming its creature, at nine `PlayerRef` matches and three `FilterReferents`; the former defender (decision 9), with the save's line | ~100 | ~150: a source and a trigger's attacker that disagree at four seats; a target's filter at placement; an intervening "if" asked again after its creature left combat |
 | **Total: 1,920–2,185** | ~535 (805–1,070) | ~1,115 |
-| *Decision 10 built here, if chosen* | *~90 (135–185)* | *~150* |
+| *Decision 10's predicate, as recommended* | *~25 (40–50)* | *~60* |
 
 The re-count grew it by 230–275 lines. Decision 8 is new work, "defending
 player" reaches more matches than the design counted, and the token
 literals and the record's readers are more than it counted. Only the arm's
-literals came in fewer. Built with decision 10, it is 2,205–2,520.
+literals came in fewer. With decision 10's predicate it is 2,020–2,295.
+Decision 9's map and its field on each permanent cost the same lines.
 
 **Decisions, for review**
 
 5. **The attack readings are fields, not an enum of seven.** §3.3 planned one
    enum: `Creature`, `CreatureAgainst`, `PlayerIsAttacked`,
    `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`.
-   But CR 508.3a–e differ in two things only: what one occurrence is (an
-   attacker or something attacked), and which of three filters they ask. 508.3d's
+   But CR 508.3a–e differ in two things only: what one triggering event is
+   (an attacker or something attacked), and which of three filters they ask. 508.3d's
    "one or more" is `OncePerEvent`, the axis every other arm already has.
    - **Fields (recommended).** Every combination means something, and there
      is one way to write each trigger.
@@ -3604,45 +3616,89 @@ literals came in fewer. Built with decision 10, it is 2,205–2,520.
    Elemental was beside Grafted Wargear in TR-4b. The owner's reasons against:
    Hellrider asks the random agents no choice to get stuck on, and the pool
    has to take on complex effects at some point.
-8. **A defender occurrence holds its attackers** (for review). CR 508.3b and
-   508.3e trigger once for each player, planeswalker or battle attacked, and
-   "them" is that defender's attackers. Today one occurrence holds at most
-   two objects, by value, and every one of them is fixed as the existence
-   the dispatch found (TR-5a).
-   - **Hold them on the occurrence (recommended).**
+8. **A defender's triggering event holds its attackers** (for review). CR
+   508.3b and 508.3e trigger once for each player, planeswalker or battle
+   attacked, and "them" is the creatures declared attacking it. Today one
+   triggering event holds at most two objects, by value, and each is fixed
+   as the existence the dispatch found (TR-5a). Only declared attackers are
+   among them, as the pieces say: a creature put onto the battlefield
+   attacking is in no record.
+   - **Hold them on the triggering event (recommended).**
      `Defense { defender: ObjectOrPlayer, attackers: Vec<ObjectRef> }`. The
      type stops being `Copy`. `objects()` chains the attackers after its
      fixed pair, so it still allocates nothing. `triggering_objects` reads
      `objects()` rather than `get`, and `get` answers only a participant
      that is one object. So the registry test refuses a reader of one object
-     ("its power", an intervening "if"'s "it") of `Attacker` on a defender
-     arm. Of the 47 references, most build a variant and do not move. The
-     ones that do are the by-value matches, and the trigger-time view, which
-     holds the occurrence by value and would hold it by reference. The `Vec`
-     allocates only for a defender occurrence, and no registered card has
-     one: Hellrider's is an attacker occurrence. So the clone counters stay
-     where they are, and the type's size is the one thing to read at
-     close-out.
+     ("its power", an intervening "if"'s "it") of `Attacker` on an arm whose
+     events are per defender. Of the 47 references, most build a variant and
+     do not move. The ones that do are the by-value matches, and the
+     trigger-time view, which holds the event's objects by value and would
+     hold them by reference. The `Vec` allocates only for a defender's
+     triggering event, and no registered card has one: Hellrider's are per
+     attacker. So the clone counters stay where they are, and the type's
+     size is the one thing to read at close-out.
    - **Read the attackers off the record at resolution.** The type stays
      `Copy` and nothing above moves. But the record names its attackers by
      `ObjectId`, so a creature that left and came back (CR 400.7) would be
      found as one of "them". That gives up TR-5a's rule that every object is
      fixed when the trigger matches, and adds a second reader for "them".
-9. **Where the former defender lives** (CR 508.5; for review). Once its
-   creature has left combat, "defending player" is the player it was
-   attacking before. `remove_from_combat` clears `attacking`, and every CR
-   506.4 reader takes `None` as "not attacking": 23 reads of `attacking` in
-   the engine and the dev GUI.
-   - **A field beside `attacking` (recommended).**
-     `PermanentState.attacking_before_removal: Option<AttackTarget>`.
-     `remove_from_combat` writes it when the creature was attacking, and the
-     end of the combat phase clears it with `attacking` (CR 511.3).
-     `PermanentFacts` keeps both, since "the player it's attacking" reads
-     only `attacking` (Swordjack's ruling) and "defending player" reads
-     either. Its one reader is "defending player", and `attacking: None`
-     keeps its one meaning. It costs 16 bytes on each permanent, against
-     floor 3's 28% room. The save names the field in its destructure and
-     reports it, since the scenario file has no word for it.
+9. **What "defending player" reads once its creature has left combat** (CR
+   508.5; for review; rewritten at review, 2026-10-16).
+
+   **Why anything is kept.** At two seats nothing is: during combat the
+   defending player is the nonactive player (CR 506.2), whatever the
+   creature does. With more seats every opponent of the attacking player is
+   a defending player (CR 802.2), and "defending player" means the one the
+   creature is attacking (CR 508.5, 802.2a), which `AttackingInfo.target`
+   says. CR 508.5's second sentence covers a reader that outlives the
+   attack: "If that creature is no longer attacking, the defending player
+   it's referring to is the player that creature was attacking before it
+   was removed from combat". The reader is nearly always a trigger on the
+   stack, such as "whenever this creature attacks, defending player loses 2
+   life", resolving after its creature stopped attacking. That happens two
+   ways.
+   - **The creature left the battlefield**, killed in response. Its `Lki`
+     keeps its attack, which "the player it's attacking" needs anyway.
+     Nothing more is kept.
+   - **The creature stayed and left combat.** It was stolen in response:
+     Ray of Command and Act of Treason are registered, and since item 267 a
+     change of control removes the creature from combat. Or it regenerated,
+     or an effect removed it (25 cards, `o:"remove" o:"from combat"`). Then
+     `attacking` is `None`, and at four seats "defending player" has three
+     candidates and nothing to choose by.
+
+   So what must be kept is narrow. It is what a creature that left combat
+   but not the battlefield was attacking, until the combat phase ends.
+   - **A combat-scoped map on `GameState` (recommended).**
+     `attacked_before_removal: IdMap<ObjectRef, AttackTarget>`, beside
+     `dealt_first_strike_damage`, the same kind of fact: about a creature,
+     for this combat only. `remove_from_combat` adds the creature's attack
+     when it was attacking, and the end of the combat phase clears the map
+     with the rest of the combat state (CR 511.3). It is keyed by the
+     existence (CR 400.7), so a creature that leaves and comes back in the
+     same combat is a new object with nothing kept. Its one reader is
+     "defending player", by key and never by iteration, so it has no order to
+     keep deterministic. The map is empty in every combat where nothing
+     leaves combat, so it costs nothing per clone until then. The save writes
+     it as a word on the creature, as it does "dealt first-strike damage".
+     `attacking: None` keeps its one meaning for its 23 readers. About 10
+     lines.
+   - **A field on each permanent**, as first proposed. It holds the same
+     fact with the same writers, but costs 16 bytes on every permanent in
+     every clone, and a line in the save's `PermanentState` destructure.
+   - **Keep nothing, and read the trigger's own event.** An attack trigger's
+     triggering event holds the attacker's defender as declared (decision
+     8). So "defending player" would read the creature's target while it
+     attacks, its `Lki` once it has left the battlefield, and the event's
+     defender otherwise. No state at all, but two gaps. One is a reselection
+     between the declaration and the removal: Portal Mage, Windshaper
+     Planetar, Misleading Signpost and Capricopian reselect what a creature
+     attacks (`o:"reselect"`), and the event keeps the defender declared,
+     not the one CR 508.5 names. The other is a trigger on another combat
+     event, such as "whenever this creature becomes blocked, defending
+     player discards a card" (15 cards, `o:"becomes blocked" o:"defending
+     player"`). Its event would have to carry the defender as well, in
+     TR-5c.
    - **A "removed" flag inside `AttackingInfo`.** It costs no bytes, since
      the flag fits in the padding. But each of the 23 reads must check it,
      and one that forgets counts a removed creature as attacking, so it can
@@ -3652,37 +3708,47 @@ literals came in fewer. Built with decision 10, it is 2,205–2,520.
      nothing holds the record at resolution. And a creature put onto the
      battlefield attacking has no record.
 10. **CR 802.2a's last sentence, the "defending player" no creature settles**
-    (for review). "If there are multiple defending players that could be
-    chosen, the controller of the spell or ability chooses one." Decision 6
-    covers the readings tied to a creature, and the corrected shape above
-    names that creature. What is left is text that names none. Five cards
-    among `o:"defending player" (t:instant or t:sorcery)`'s 7 and
-    `o:"defending player" o:"activate only"`'s 6: Yare, Blaze of Glory and
-    False Orders ("target creature defending player controls" on a spell),
-    and Arcum's Sleigh and Kjeldoran Guard ("activate only … if defending
-    player controls …"). The others tie it to a creature or say "each
-    defending player". **The brief planned
-    this on item 128's chooser, which asks at resolution, and that is too
-    late.** The targets need the choice before CR 601.2c chooses them, and
-    the activations need it before their restriction is checked.
-    - **Build it in TR-5e.** A form of `PlayerRef` for "defending player"
-      with no creature, asked on item 128's chooser as the spell or ability
-      becomes a stack object: at the cast and the activation before targets,
-      and at a trigger's placement (CR 603.3d). The answer is kept on the
-      stack entry, a field at 19 struct literals. An activation's restriction,
-      asked before any of that, reads whether some defending player
-      qualifies. It is asked only with two or more defending players, so no
-      two-seat test moves. About 90 lines of code (135–185) and 150 of
-      tests, which brings TR-5e to 2,205–2,520, at the band's top.
-    - **A debt item slotted to RS-2 (recommended).** RS-2, the read-side
-      choice points, works in the checks this choice sits in: the cast's,
-      the activation's and the target's (`cant-effects-architecture.md`'s
-      RS-2 row). It is the first step of four-player Commander end to end,
-      after this track. That is where a game the route plays first has two
-      defending players and a choice to make. Until then the type cannot
-      say it: TR-5e's "defending player" always names its creature. At two
-      seats there is one defending player, so a creature-free reading
-      cannot come out wrong there.
+    (for review; revised at review, 2026-10-16). "If there are multiple
+    defending players that could be chosen, the controller of the spell or
+    ability chooses one." Decision 6 covers the readings tied to a creature,
+    and the corrected shape above names that creature. What is left is text
+    that names none. Five cards among `o:"defending player" (t:instant or
+    t:sorcery)`'s 7 and `o:"defending player" o:"activate only"`'s 6 do so:
+    Yare, Blaze of Glory and False Orders ("target creature defending player
+    controls" on a spell), and Arcum's Sleigh and Kjeldoran Guard ("activate
+    only during combat and only if defending player controls …"). The others
+    tie it to a creature or say "each defending player".
+
+    **For all five, what the controller picks settles the choice** (the
+    owner, at review). CR 802.2 makes every opponent of the attacking player
+    a defending player for the whole combat phase, from its start. Arcum's
+    Sleigh can be activated in any combat step, the beginning of combat
+    included, before anything attacks. Its controller picks a defending
+    player who controls a snow land, so it can be activated when any of them
+    does. On another player's turn its controller may be a defending player
+    too. Yare's target picks its player. So for these five, "defending
+    player" is a predicate, "is a defending player", as `PlayerRef::Opponent`
+    already is in a filter (CR 102.3). That needs no prompt, no answer kept,
+    and nothing in the cast. The choice is real only where nothing the
+    controller picks settles it: the same player read twice (two targets, or
+    a target and then "that player loses 2 life"), every creature that player
+    controls, a condition in an effect, or the player acted on. No printed
+    card that names no creature does any of these.
+    - **Build the predicate in TR-5e (recommended).**
+      `PlayerRef::AnyDefendingPlayer`: in one target's filter or an
+      activation's restriction, any of the attacking player's opponents
+      during combat (CR 506.2, 802.2), and nobody outside combat. It has an
+      arm at each of the nine matches. As the player an action acts on, with
+      two or more candidates, it is an authoring error and loud, as
+      `Opponent` is in `resolve_player_ref`. The kept choice for the shapes
+      it does not settle is a debt item slotted to RS-2, whose cast,
+      activation and target checks it would be asked in. About 25 lines of
+      code (40–50) and 60 of tests: Arcum's Sleigh's restriction at four
+      seats in the beginning of combat step, and a Yare-shaped target.
+    - **Build the kept choice too.** It is asked as the stack object is made
+      and kept on its entry, at 19 struct literals. That is about 90 lines of
+      code and 150 of tests on top, which takes TR-5e past the band.
+    - **All of it to RS-2**, as first recommended, and nothing in TR-5e.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5e (8,200–9,450)
 
@@ -3696,7 +3762,7 @@ TR-5e, TR-5b, TR-5c, TR-5d.
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
 | **TR-5a — the binding's roles** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5a" | | | | +1,454 |
-| **TR-5e — the attack declaration** (CR 508, 506.3, 506.5), designed above, re-counted 2026-10-16 | item 11's attackers with their defenders; the arm's three filters, its occurrence and `alone` over them, and the defender occurrence (decision 8); "the player it's attacking", with `Lki`'s attack; "defending player", naming its creature (decision 6), with the former defender (decision 9); item 128, with CR 508.4's defender, chosen or specified | Hellrider, whose "or planeswalker" waits for `backlog.md` §2.23's attack path, so its board attacks players; ATOM-508.2a-001 and the seven readings of CR 508.3a–e and 506.5 | ~535 (805–1,070) | ~1,115 | 1,920–2,185 |
+| **TR-5e — the attack declaration** (CR 508, 506.3, 506.5), designed above, re-counted 2026-10-16 | item 11's attackers with their defenders; the arm's three filters, what one triggering event is and `alone` over them, and a defender's triggering event (decision 8); "the player it's attacking", with `Lki`'s attack; "defending player", naming its creature (decision 6), with the former defender (decision 9); item 128, with CR 508.4's defender, chosen or specified | Hellrider, whose "or planeswalker" waits for `backlog.md` §2.23's attack path, so its board attacks players; ATOM-508.2a-001 and the seven readings of CR 508.3a–e and 506.5 | ~535 (805–1,070) | ~1,115 | 1,920–2,185 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
 | **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
