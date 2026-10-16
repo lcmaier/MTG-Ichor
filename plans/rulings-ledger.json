@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-15",
+  "fetched": "2026-10-16",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -569,6 +569,12 @@
         {"n": 3, "published_at": "2004-10-04", "comment": "Discarding as a cost to cast a spell will not trigger the ability. Only discarding as an effect will trigger the ability."}
       ]
     },
+    "Gustha's Scepter": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "The last ability will trigger when a different player gains control of Gustha’s Scepter, as well as when Gustha’s Scepter leaves the battlefield."}
+      ]
+    },
     "Hallowed Moonlight": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -646,6 +652,15 @@
       "first_seen": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2008-08-01", "comment": "This is a Characteristic-Defining Ability. It checks the number of non-Wall creatures you control continuously, and applies in all zones. It is never “locked in”."}
+      ]
+    },
+    "Khârn the Betrayer": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2022-10-07", "comment": "You lose control of Khârn the Betrayer when it leaves the battlefield or another player gains control of it."},
+        {"n": 2, "published_at": "2022-10-07", "comment": "An opponent gaining control of it is part of the replacement effect and happens immediately, even if you are in the middle of resolving the spell or ability and it has more instructions to perform after taking damage."},
+        {"n": 3, "published_at": "2022-10-07", "comment": "In contrast, the Sigil of Corruption ability is a triggered ability, and it won't go onto the stack until after the spell or ability that tried to deal damage finishes resolving."},
+        {"n": 4, "published_at": "2022-10-07", "comment": "In some cases, a single spell or ability will deal damage to this creature multiple times during its resolution. In that case, a new player gains control of it each time, its ability triggers once each time, and the appropriate players control those triggers. After that spell or ability is done resolving, all of those triggers are put onto the stack in turn order, starting with the active player (or the next player in turn order if the active player isn't involved). Usually, this means that the cards are drawn in a different order than the control-changing effects took place."}
       ]
     },
     "Kird Ape": {
@@ -846,6 +861,15 @@
         {"n": 4, "published_at": "2020-01-24", "comment": "The effects of multiple Nyxbloom Ancients are cumulative. For example, if you have two Nyxbloom Ancients on the battlefield, you’ll get nine times the original amount and type of mana."}
       ]
     },
+    "Ogre Geargrabber": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2011-01-01", "comment": "If the targeted Equipment can’t be attached to Ogre Geargrabber for some reason, you’ll still gain control of it until end of turn."},
+        {"n": 2, "published_at": "2011-01-01", "comment": "Any ability of the targeted Equipment that triggers “whenever equipped creature attacks” won’t trigger. That’s because Ogre Geargrabber is already attacking at the time that Equipment becomes attached to it."},
+        {"n": 3, "published_at": "2011-01-01", "comment": "The delayed triggered ability (“When you lose control of that Equipment, unattach it”) triggers the next time you lose control of the Equipment for any reason, not just when Ogre Geargrabber’s control-changing effect ends. The Equipment will become unattached from whatever creature it happens to be attached to at that time. It doesn’t matter if Ogre Geargrabber is still on the battlefield at this time."},
+        {"n": 4, "published_at": "2011-01-01", "comment": "Ogre Geargrabber’s control-changing effect ends during the cleanup step, at the same time that damage marked on permanents is removed. If you still controlled the Equipment at that time, this causes the delayed triggered ability to trigger. It goes on the stack and players can respond (which normally doesn’t happen during the cleanup step), then, once that cleanup step ends, another one begins."}
+      ]
+    },
     "Opalescence": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -968,6 +992,16 @@
     "Reflect Damage": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Rescue from the Underworld": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2013-09-15", "comment": "Once you announce you're casting Rescue from the Underworld, no player may attempt to stop you from casting the spell by removing the creature you want to sacrifice."},
+        {"n": 2, "published_at": "2013-09-15", "comment": "If you sacrifice a creature token to cast Rescue from the Underworld, it won't return to the battlefield, although the target creature card will."},
+        {"n": 3, "published_at": "2013-09-15", "comment": "If either the sacrificed creature or the target creature card leaves the graveyard before the delayed triggered ability resolves during your next upkeep, it won't return."},
+        {"n": 4, "published_at": "2013-09-15", "comment": "However, if the sacrificed creature is put into another public zone instead of the graveyard, perhaps because it's your commander or because of another replacement effect, it will return to the battlefield from the zone it went to."},
+        {"n": 5, "published_at": "2013-09-15", "comment": "Rescue from the Underworld is exiled as it resolves, not later as its delayed trigger resolves."}
+      ]
     },
     "Rest in Peace": {
       "first_seen": "2026-09-17",
@@ -1353,6 +1387,12 @@
         {"n": 5, "published_at": "2021-03-19", "comment": "If a card with changeling is in a graveyard, it still has all creature types.", "disposition": {"kind": "not-expressible", "facility": "changeling (CR 702.73a) — a CDA granting every creature type. `Primitive::ChangeType` takes an explicit subtype list and the crate has no all-creature-types value to hand it.", "owner": "backlog.md §2.6"}},
         {"n": 6, "published_at": "2021-03-19", "comment": "If a card in a graveyard has an ability that defines a * in its power or toughness, that * is 0. For example, Tarmogoyf is a 0/1 creature card in your graveyard while you control Yixlid Jailer."},
         {"n": 7, "published_at": "2021-03-19", "comment": "If a spell or ability allows you to cast a spell from your graveyard, the first step in doing so is to move it to the stack. That spell's additional and alternative costs may be applied. However, if a card's own ability allows you to cast it from your graveyard (such as a flashback ability) Yixlid Jailer stops that ability.", "disposition": {"kind": "not-expressible", "facility": "casting a spell from a zone other than the hand, which is what both halves of the ruling turn on.", "owner": "backlog.md §2.3"}}
+      ]
+    },
+    "Zidane, Tantalus Thief": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2025-06-06", "comment": "If an opponent gains control of Zidane from you, Zidane's last ability will trigger and you'll create a Treasure token. If an opponent gains control of Zidane and one or more other permanents from you simultaneously, Zidane's last ability will trigger for each of those permanents, including itself. This means you'll create a Treasure token for each of those permanents, including Zidane."}
       ]
     }
   }

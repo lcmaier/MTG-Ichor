@@ -92,6 +92,19 @@ Everything else is the backlog: counted, printed, queued pool-first, never
 failed. Two stamps the fetcher writes and one field an author writes, so
 nothing here needs git.
 
+# Cited cards: a ruling a fixture answers before its card is registered
+
+A fixture shaped like a printed card answers that card's rulings long before
+the card is registered: TR-4d's "when you lose control of this" fixture is
+Khârn the Betrayer's first ruling. So `--fetch` also takes every card a
+`// RULING:` or `// RULING-DEVIATION:` names that the registry does not hold
+(`cited`), and the annotation links to a real ruling the day it is written.
+A cited card is **owed nothing** until it is registered - the gate's teeth
+are the registry's - and its first registration then finds the rulings its
+fixtures already answer. To cite a new card, write the annotation with
+Scryfall's order for `n` (the first fetch numbers a card's rulings in that
+order), and run `--fetch`: `--check` refuses the annotation until then.
+
 # The escape, and what it has to carry
 
 "Not yet expressible" stays a legal answer - §3.4's third, and the one that
@@ -198,6 +211,12 @@ def registered():
     return names, pool
 
 
+def cited(names):
+    """The cards an annotation names that `registry.rs` does not register."""
+    named = {card for card, _ in scan_annotations()} | {card for card, _ in scan_deviations()}
+    return sorted(named - set(names))
+
+
 def annotated_fn(lines, n):
     """The test a `// RULING:` at 1-based line `n` annotates.
 
@@ -269,9 +288,10 @@ def load():
     return json.loads(LEDGER.read_text(encoding="utf-8"))
 
 
-def in_scope(card, created):
-    """A card the gate has teeth on. The docstring's two stamps and one field."""
-    return bool(card.get("read")) or card.get("first_seen") != created
+def in_scope(card, created, registered):
+    """A card the gate has teeth on: a registered one, by the docstring's two
+    stamps and one field. A card only cited is owed nothing yet."""
+    return registered and (bool(card.get("read")) or card.get("first_seen") != created)
 
 
 # --------------------------------------------------------------------------
@@ -290,9 +310,10 @@ def verify(ledger, names, pool, links, deviations=None, register=frozenset()):
                        f"- run `python plans/check_rulings.py --fetch`")
 
     item_nums = codebase_state_items()
+    registry = set(names)
     for name in sorted(cards):
         card = cards[name]
-        scoped = in_scope(card, created)
+        scoped = in_scope(card, created, name in registry)
         for r in card["rulings"]:
             key = (name, r["n"])
             linked = links.get(key)
@@ -324,6 +345,11 @@ def verify(ledger, names, pool, links, deviations=None, register=frozenset()):
     for (name, n), where in sorted(list(links.items()) + named):
         if (name, n) not in have:
             _, path, line = where[0]
+            if name not in cards:
+                bad.append(f"{path}:{line}: names {name}, a card the ledger has "
+                           f"not fetched - run `python plans/check_rulings.py "
+                           f"--fetch`, which takes every card a test cites")
+                continue
             bad.append(f"{path}:{line}: names {name} #{n}, which the ledger "
                        f"does not hold. A ruling whose text changed is a "
                        f"removal and an addition - re-read it and re-link")
@@ -379,15 +405,19 @@ def codebase_state_items():
 
 def census(ledger, names, pool):
     cards, created = ledger["cards"], ledger["created"]
+    registry = set(names)
     rulings = sum(len(c["rulings"]) for c in cards.values())
     carrying = sum(1 for c in cards.values() if c["rulings"])
     pooled = {n: c for n, c in cards.items() if n in pool}
     counts = sorted(len(c["rulings"]) for c in cards.values())
-    scoped = [n for n, c in cards.items() if in_scope(c, created)]
+    scoped = [n for n, c in cards.items() if in_scope(c, created, n in registry)]
+    only_cited = sorted(n for n in cards if n not in registry)
     print(f"ledger  {LEDGER.relative_to(ROOT)}   created {created}, "
           f"fetched {ledger['fetched']}")
     print(f"  registered names            {len(names)}")
-    print(f"    real cards                {len(cards)}")
+    print(f"    real cards                {len(cards) - len(only_cited)}")
+    print(f"  cited, not registered       {len(only_cited)}"
+          f"  {', '.join(only_cited)}")
     print(f"    fixtures (no rulings)     {len(ledger.get('fixtures', []))}"
           f"  {', '.join(ledger.get('fixtures', []))}")
     print(f"  cards carrying >=1 ruling   {carrying} of {len(cards)} "
@@ -400,7 +430,7 @@ def census(ledger, names, pool):
           f"{sum(len(cards[n]['rulings']) for n in scoped)} ruling(s)")
 
 
-def queue(ledger, pool, limit=None):
+def queue(ledger, names, pool, limit=None):
     """The backlog, pool first - §3.4a's work queue, descending by count.
 
     Pool first because the pool is what every measurement walks, which is
@@ -408,9 +438,10 @@ def queue(ledger, pool, limit=None):
     in the measured pool, found by reading one ruling.
     """
     cards, created = ledger["cards"], ledger["created"]
+    registry = set(names)
     rows = [(n in pool, len(c["rulings"]), n)
             for n, c in cards.items()
-            if c["rulings"] and not in_scope(c, created)]
+            if n in registry and c["rulings"] and not in_scope(c, created, True)]
     rows.sort(key=lambda r: (not r[0], -r[1], r[2]))
     shown = rows if limit is None else rows[:limit]
     print(f"\nbacklog: {sum(r[1] for r in rows)} ruling(s) over {len(rows)} "
@@ -493,8 +524,11 @@ def norm(text):
 
 
 def fetch(today):
-    """Rewrite the ledger from Scryfall, keeping every number already given."""
-    names, _ = registered()
+    """Rewrite the ledger from Scryfall, keeping every number already given:
+    every registered card, and every card an annotation cites."""
+    registry, _ = registered()
+    citations = cited(registry)
+    names = sorted(set(registry) | set(citations))
     bad = [n for n in names if "#" in n]
     if bad:
         sys.exit(f"the key is `<name> #<n>` and these names contain '#': {bad}")
@@ -502,7 +536,7 @@ def fetch(today):
     old_cards = old.get("cards", {})
     created = old.get("created", today)
 
-    print(f"identifying {len(names)} registered name(s) ...")
+    print(f"identifying {len(registry)} registered and {len(citations)} cited name(s) ...")
     found, fixtures = identify(names)
     print(f"  {len(found)} printing(s), {len(fixtures)} fixture(s): "
           f"{', '.join(sorted(fixtures)) or '-'}")
@@ -541,7 +575,7 @@ def fetch(today):
         time.sleep(SLEEP)
 
     for name in sorted(set(old_cards) - set(cards)):
-        print(f"  dropped (no longer registered): {name}")
+        print(f"  dropped (no longer registered or cited): {name}")
     report_drift(added, removed, cards, created)
     write(created, today, cards, sorted(fixtures))
     print(f"\nwrote {LEDGER.relative_to(ROOT)}: {len(cards)} card(s), "
@@ -559,7 +593,8 @@ def report_drift(added, removed, cards, created):
     if not added and not removed:
         print("  no drift: every ruling is the one the ledger already held")
         return
-    scoped = {n for n, c in cards.items() if in_scope(c, created)}
+    registry = set(registered()[0])
+    scoped = {n for n, c in cards.items() if in_scope(c, created, n in registry)}
     for label, rows in (("gone (edited, or withdrawn)", removed),
                         ("new since the last fetch", added)):
         if rows:
@@ -642,6 +677,11 @@ def selftest():
                                       "comment": "x", "disposition": {
                                           "kind": "not-expressible",
                                           "facility": "", "owner": "backlog.md"}}]},
+        "Only Cited": {"first_seen": "2026-06-01",
+                       "rulings": [{"n": 1, "published_at": "2020-01-01",
+                                    "comment": "a fixture answers this"},
+                                   {"n": 2, "published_at": "2020-01-01",
+                                    "comment": "and nobody this, which is not owed"}]},
         "Both Answers": {"first_seen": "2026-01-01", "read": "2026-02-01",
                          "rulings": [{"n": 2, "published_at": "2020-01-01",
                                       "comment": "x", "disposition": {
@@ -654,11 +694,12 @@ def selftest():
     links = {("Read And Linked", 1): [("test_a", "tests/x.rs", 1)],
              ("Both Answers", 2): [("test_b", "tests/x.rs", 2)],
              ("Ghost", 9): [("test_c", "tests/x.rs", 3)],
-             ("Deviated And Linked", 1): [("test_g", "tests/x.rs", 4)]}
+             ("Deviated And Linked", 1): [("test_g", "tests/x.rs", 4)],
+             ("Only Cited", 1): [("test_h", "tests/x.rs", 5)]}
     deviations = {("Deviated", 1): [("test_d", "tests/y.rs", 1, "known-id")],
                   ("Deviated Unregistered", 1): [("test_e", "tests/z.rs", 2, "no-such-id")],
                   ("Deviated And Linked", 1): [("test_f", "tests/y.rs", 3, "known-id")]}
-    names = sorted(ledger["cards"]) + ["Never Fetched"]
+    names = sorted(set(ledger["cards"]) - {"Only Cited"}) + ["Never Fetched"]
     bad = verify(ledger, names, set(), links, deviations, {"known-id"})
     # Each failure named by its subject, which is the text before the first
     # colon. The list is the whole contract: everything else must pass.
@@ -672,6 +713,7 @@ def selftest():
     assert "Backlog" not in joined, "selftest: the backlog is not owed"
     assert "Disposed #" not in joined, "selftest: an honest escape is an answer"
     assert "Deviated #" not in joined, "selftest: a registered deviation is an answer"
+    assert "Only Cited" not in joined, "selftest: a card only cited is owed nothing"
 
 
 def main():
@@ -694,7 +736,7 @@ def main():
     ledger = load()
     names, pool = registered()
     census(ledger, names, pool)
-    queue(ledger, pool, None if args.queue else 8)
+    queue(ledger, names, pool, None if args.queue else 8)
 
     bad = verify(ledger, names, pool, scan_annotations(), scan_deviations(), register_ids())
     print()

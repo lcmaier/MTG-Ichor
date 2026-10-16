@@ -989,6 +989,13 @@ line below because the *rate* moved and the rate is what sizes the rest.
 `python plans/check_rulings.py` prints it from the ledger; nothing here is
 typed twice.
 
+**Cited cards (2026-10-16, the owner at #254's review).** A fixture shaped
+like a printed card cites that card's ruling with the same `// RULING:`,
+and `--fetch` takes every card a test cites as well as every registered
+one. A card only cited is owed nothing; once registered, it is owed every
+ruling, and finds the ones its fixtures already answer. The script's
+docstring, "Cited cards", has the workflow.
+
 **The registry grew 1.7× and the rulings grew 2.3×**, which is the number a
 re-count exists to find. Per card it is 1.58 → 2.06 and the carrying rate 46%
 → 60%, so the phases since CM-3 registered rulings-heavier cards than the ones

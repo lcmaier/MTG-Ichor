@@ -464,6 +464,7 @@ fn a_delayed_trigger_refers_to_the_player_its_creator_named() {
 /// from the Underworld's fourth ruling: a sacrificed creature "put into
 /// another public zone instead of the graveyard ... will return to the
 /// battlefield from the zone it went to".
+// RULING: Rescue from the Underworld #4 - a card a replacement put into another public zone returns from there.
 #[test]
 fn an_object_a_replacement_sent_elsewhere_is_still_referred_to() {
     let mut game = setup_two_player_game();

@@ -575,6 +575,7 @@ fn stocked(players: usize) -> GameState {
 
 /// Stolen by Act of Treason, the creature's owner lost control of it, and the
 /// trigger looks back to the board before: "you" is the owner, who draws.
+// RULING: Khârn the Betrayer #1 - another player gaining control of it is losing control.
 #[test]
 fn a_stolen_creature_triggers_for_the_player_who_lost_it() {
     let mut game = stocked(2);
@@ -616,6 +617,7 @@ fn the_change_is_announced_before_the_next_instruction() {
 /// change the sweep announces though no control-changing effect is left. The
 /// thief lost control, so the thief draws, in the cleanup step, which grants
 /// priority and repeats (CR 514.3a; Ogre Geargrabber's fourth ruling).
+// RULING: Ogre Geargrabber #4 - the steal ends at cleanup, its trigger gets priority, and another cleanup step begins.
 #[test]
 fn a_steal_ending_at_cleanup_triggers_for_the_thief_in_a_second_cleanup() {
     let mut state = stocked(2);
@@ -638,6 +640,8 @@ fn a_steal_ending_at_cleanup_triggers_for_the_thief_in_a_second_cleanup() {
 /// "You lose control of Khârn the Betrayer when it leaves the battlefield or
 /// another player gains control of it" (its first ruling): dying is losing
 /// control, and its controller as it left draws.
+// RULING: Khârn the Betrayer #1 - leaving the battlefield is losing control of it.
+// RULING: Gustha's Scepter #1 - its lose-control trigger fires as it leaves the battlefield.
 #[test]
 fn leaving_the_battlefield_is_losing_control() {
     let mut game = stocked(2);
@@ -694,6 +698,7 @@ fn an_opponent_gaining_control_of_a_permanent_you_own_triggers() {
 /// and another permanent at once triggers its "whenever an opponent gains
 /// control of a permanent from you" for each, itself included, off how it was
 /// before.
+// RULING: Zidane, Tantalus Thief #1 - stolen beside other permanents, it triggers once for each, itself included.
 #[test]
 fn a_watcher_stolen_with_another_permanent_triggers_for_each() {
     let mut game = stocked(2);
