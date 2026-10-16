@@ -57,7 +57,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
+    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject, Participant,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -512,7 +512,7 @@ fn a_trigger_does_not_find_what_moved_into_a_hand() {
         owner: Some(PlayerRef::You),
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject);
+    let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject(Participant::Object));
     let card = CardDataBuilder::new("Fixture Bounce Watcher")
         .card_type(CardType::Enchantment)
         .ability(triggered_ability("", whenever(arm, exile_it)))

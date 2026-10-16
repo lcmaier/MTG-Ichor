@@ -12,12 +12,11 @@ use std::sync::Arc;
 
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
-use crate::engine::triggers::binding::triggering_objects;
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::ObjectId;
-use crate::types::triggers::{PendingTrigger, TriggerSeq, TriggerTier};
+use crate::types::triggers::{PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -109,15 +108,15 @@ impl GameState {
     pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
-        (unread(BoundReads::SUBJECT) || x.subject == y.subject)
+        let participants = |binding: &TriggerBinding| binding.occurrences.iter().map(|o| o.participants).collect::<Vec<_>>();
+        (unread(BoundReads::SUBJECT) || participants(x) == participants(y))
             && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
             && (unread(BoundReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
-            && (unread(BoundReads::CHARACTERISTICS)
-                || (x.subject == y.subject && x.records.first() == y.records.first()))
+            && (unread(BoundReads::CHARACTERISTICS) || x.occurrences == y.occurrences)
             && (unread(BoundReads::SOURCE) || a.origin == b.origin)
             && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
             && (unread(BoundReads::REFERRED) || x.referred == y.referred)
-            && (unread(BoundReads::OBJECTS) || triggering_objects(x) == triggering_objects(y))
+            && (unread(BoundReads::OBJECTS) || participants(x) == participants(y))
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this

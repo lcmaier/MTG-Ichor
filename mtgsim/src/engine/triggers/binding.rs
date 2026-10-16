@@ -1,95 +1,151 @@
 //! The bound facts, read back at resolution (`triggers-architecture.md` §3.4, §6.3).
 //!
-//! A [`TriggerBinding`] holds the records it matched, copied at dispatch, so
-//! every read here is of the binding's own records through the matched arm's
-//! projection, and the frame comes with the record.
+//! A [`TriggerBinding`] holds its occurrences, each with the record it matched,
+//! copied at dispatch, and the objects the occurrence is about. Every read here
+//! is of the binding's own records through the matched arm's projection, and
+//! each instruction names the participant it reads (TR-5a's decision 2).
 
 use std::sync::Arc;
 
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::events::event::{EventRecord, GameEvent};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{Lki, TriggerBinding, TriggerEvent};
+use crate::types::triggers::{Lki, Participant, TriggerBinding, TriggerEvent, TriggerParticipants};
 
-/// The subject as it was in the zone it left, when the matched event was its
-/// own departure and the arm that matched looks back: the record's CR
-/// 603.10a frame, naming the existence that left. A "from anywhere" arm's
-/// subject is the object after the move (CR 603.6c), read where it went.
-pub(crate) fn subject_lki(binding: &TriggerBinding) -> Option<&Lki> {
-    let subject = binding.subject?;
-    if !binding.event().looks_back() {
-        return None;
+/// The frame `record` carries for its object `id`, as `arm` reads it: a
+/// departure's CR 603.10a frame for an arm that looks back, and a damage
+/// source as it last existed when it had left before dealing the damage (CR
+/// 608.2h). A "from anywhere" arm's object is the object after the move (CR
+/// 603.6c), read where it went.
+pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
+    if let GameEvent::DamageDealt { source_id, source_lki: Some(lki), .. } = &record.event
+        && *source_id == id
+    {
+        return Some(lki);
     }
-    let (lki, ..) = binding.records.first()?.event.lki()?;
-    (lki.object().id == subject.id).then_some(lki)
+    let (lki, ..) = record.event.lki()?;
+    (arm.looks_back() && lki.object().id == id).then_some(lki)
+}
+
+/// An object of one occurrence as a condition reads it at the trigger: as its
+/// record framed it (`record_frame`), and on the board otherwise.
+pub(crate) fn as_it_was<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> CurrentOrLastKnown<'r> {
+    CurrentOrLastKnown { id, lki: record_frame(arm, record, id) }
+}
+
+/// Each object of the binding's one occurrence that its record carries a
+/// frame for, with that frame (`record_frame`). Nothing for a "one or more"
+/// binding, which has no single occurrence.
+pub(crate) fn occurrence_frames(binding: &TriggerBinding) -> impl Iterator<Item = (ObjectRef, &Lki)> {
+    let arm = binding.event();
+    binding.occurrence().into_iter().flat_map(move |occurrence| {
+        occurrence
+            .participants
+            .objects()
+            .filter_map(move |(_, object)| Some((object, record_frame(arm, &occurrence.record, object.id)?)))
+    })
+}
+
+/// The objects of the binding's one occurrence, which its entry keeps the
+/// frames of as they leave later (CR 113.7a, 608.2h).
+pub(crate) fn occurrence_objects(binding: &TriggerBinding) -> [Option<ObjectRef>; 2] {
+    let mut named = [None, None];
+    if let Some(occurrence) = binding.occurrence() {
+        for (slot, (_, object)) in named.iter_mut().zip(occurrence.participants.objects()) {
+            *slot = Some(object);
+        }
+    }
+    named
 }
 
 /// What "them" means in a trigger like Hedge Shredder's "Whenever one or more
 /// land cards are put into your graveyard from your library, put them onto the
-/// battlefield": every card that event moved. One trigger matched all of the
-/// event's records (CR 603.2c's "one or more"), and each record says where its
-/// card went (`GameEvent::new_object`), so a card that has moved again since
-/// is not found. `Err` for a record that is not a zone change: it says only
-/// the object's id, not which existence of it the event was about.
-pub(crate) fn triggering_objects(binding: &TriggerBinding) -> Result<Vec<ObjectRef>, String> {
-    binding
-        .records
-        .iter()
-        .map(|record| {
-            record.event.new_object().ok_or_else(|| {
-                format!("\"them\" names the objects zone changes made, and record {} is {:?}", record.seq.0, record.event)
-            })
-        })
-        .collect()
+/// battlefield": the object that played `participant` in each occurrence, so
+/// for a zone change the object each move made, and a card that has moved
+/// again since is not found.
+pub(crate) fn triggering_objects(binding: &TriggerBinding, participant: Participant) -> Vec<ObjectRef> {
+    binding.triggering_objects(participant)
 }
 
 /// The last known information a stack object carries for `object` (CR
-/// 113.7a, 608.2h), once `object` has left: its subject's departure record's,
-/// when its trigger's event was that departure (CR 603.10a) and `object` is
-/// that subject — which it names by the object it became — else what it kept
-/// as `object` left later. `None` while `object` has not left. The one
-/// reading of the rule, which an object on the stack and the object
-/// resolving both ask through `lki_of`.
+/// 113.7a, 608.2h), once `object` has left: the frame its occurrence's record
+/// carries for it (`record_frame`), else what it kept as `object` left later.
+/// `None` while `object` has not left. The one reading of the rule, which an
+/// object on the stack and the object resolving both ask through `lki_of`.
 fn carried_lki<'a>(
     object: ObjectRef,
-    subject: Option<ObjectRef>,
-    subject_lki: Option<&'a Lki>,
+    mut frames: impl Iterator<Item = (ObjectRef, &'a Lki)>,
     kept: &'a [Lki],
 ) -> Option<&'a Lki> {
-    match subject_lki {
-        Some(lki) if subject == Some(object) => Some(lki),
-        _ => kept.iter().find(|frame| frame.object() == object),
+    match frames.find(|(named, _)| *named == object) {
+        Some((_, lki)) => Some(lki),
+        None => kept.iter().find(|frame| frame.object() == object),
     }
 }
 
 impl StackEntry {
     /// The last known information it carries for `object` (`carried_lki`).
     pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        let binding = self.trigger.as_ref();
-        carried_lki(object, binding.and_then(|b| b.subject), binding.and_then(subject_lki), &self.kept_lki)
+        let frames = self.trigger.iter().flat_map(occurrence_frames);
+        carried_lki(object, frames, &self.kept_lki)
     }
 }
 
 impl ResolvingObject {
     /// The last known information it carries for `object` (`carried_lki`).
     pub fn lki_of(&self, object: ObjectRef) -> Option<&Lki> {
-        carried_lki(object, self.subject, self.subject_lki.as_ref(), &self.kept_lki)
+        let frames = self.occurrence_frames.iter().map(|(named, lki)| (*named, lki));
+        carried_lki(object, frames, &self.kept_lki)
+    }
+}
+
+/// The objects a triggered ability's occurrence is about, as a condition
+/// reads them (CR 113.7a, 608.2h; `ConditionReferents`).
+#[derive(Clone, Copy)]
+pub enum OccurrenceObjects<'a> {
+    /// Outside a trigger, and a "one or more" trigger, which has no single
+    /// occurrence.
+    None,
+    /// At the trigger: one occurrence's objects, each as `as_it_was` reads it.
+    AtTrigger { arm: &'a TriggerEvent, record: &'a EventRecord, participants: TriggerParticipants<ObjectId> },
+    /// At resolution: the binding's one occurrence, as
+    /// `GameState::triggering_object` reads it.
+    Bound { game: &'a GameState, binding: &'a TriggerBinding },
+}
+
+impl<'a> OccurrenceObjects<'a> {
+    /// The object that played `participant`, as it is read here.
+    pub fn object(self, participant: Participant) -> Option<CurrentOrLastKnown<'a>> {
+        match self {
+            OccurrenceObjects::None => None,
+            OccurrenceObjects::AtTrigger { arm, record, participants } => {
+                participants.get(participant).map(|id| as_it_was(arm, record, id))
+            }
+            OccurrenceObjects::Bound { game, binding } => game.triggering_object(binding, participant),
+        }
+    }
+
+    /// The one of its objects that is `id`, as `object` reads it.
+    pub fn object_with_id(self, id: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+        Participant::ALL.into_iter().filter_map(|participant| self.object(participant)).find(|object| object.id == id)
     }
 }
 
 impl GameState {
-    /// "That object" — the binding's subject, if it is still the object the
-    /// event was about. CR 603.6's "unable to be found in the zone it went
-    /// to" and CR 400.7's new object are one comparison: the id is in the
-    /// store and its `zone_change_epoch` is the one the dispatcher saw. A
-    /// zone change's trigger finds the object it moved only in a public zone
-    /// (CR 400.7e), so not in the hand or library it went to.
-    pub fn bound_object(&self, binding: &TriggerBinding) -> Option<ObjectId> {
-        let reference = binding.subject?;
+    /// "That object" — the object that played `participant` in the trigger's
+    /// one occurrence, if it is still the object the event was about. CR
+    /// 603.6's "unable to be found in the zone it went to" and CR 400.7's new
+    /// object are one comparison: the id is in the store and its
+    /// `zone_change_epoch` is the one the dispatcher saw. A zone change's
+    /// trigger finds the object it moved only in a public zone (CR 400.7e), so
+    /// not in the hand or library it went to.
+    pub fn bound_object(&self, binding: &TriggerBinding, participant: Participant) -> Option<ObjectId> {
+        let reference = binding.triggering_object(participant)?;
         let object = self.find(reference)?;
         let out_of_sight = matches!(binding.event(), TriggerEvent::ZoneChange { .. }) && !object.zone.is_public();
         (!out_of_sight).then_some(reference.id)
@@ -97,7 +153,7 @@ impl GameState {
 
     /// "That player" — the matched event's `player_of` on the first record.
     pub fn bound_player(&self, binding: &TriggerBinding) -> Option<PlayerId> {
-        binding.event().player_of(&binding.records.first()?.event)
+        binding.event().player_of(&binding.first_record()?.event)
     }
 
     /// "That many" — the arm's `amount_of`, summed over the matched records
@@ -106,44 +162,53 @@ impl GameState {
     pub fn bound_amount(&self, binding: &TriggerBinding) -> Option<u64> {
         let event = binding.event();
         let mut total: Option<u64> = None;
-        for record in &binding.records {
+        for record in binding.records() {
             let n = event.amount_of(&record.event)?;
             total = Some(total.unwrap_or(0) + n);
         }
         total
     }
 
-    /// "Its power", "its toughness": the bound object's characteristics as
-    /// CR 608.2h reads them. When the matched event was the object's
-    /// departure, it is expected where it was, so the record's CR 603.10a
-    /// frame answers (Paladin of Atonement's ruling: its toughness "as it last
-    /// existed on the battlefield"). Otherwise it is the object now, while it
-    /// is still where the event left it, and once it has left, the last known
-    /// information the resolving entry kept as it went (§6.1). `None` there is
-    /// a missed capture.
-    pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
-        self.triggering_object(binding)?.characteristics(self)
+    /// "Its power", "its toughness": the characteristics of the object that
+    /// played `participant`, as CR 608.2h reads them. When its record framed
+    /// it (`record_frame`), it is expected where it was, so the frame answers
+    /// (Paladin of Atonement's ruling: its toughness "as it last existed on the
+    /// battlefield"). Otherwise it is the object now, while it is still where
+    /// the event left it, and once it has left, the last known information the
+    /// resolving entry kept as it went (§6.1). `None` there is a missed
+    /// capture.
+    pub fn bound_characteristics(
+        &self,
+        binding: &TriggerBinding,
+        participant: Participant,
+    ) -> Option<Arc<EffectiveCharacteristics>> {
+        self.triggering_object(binding, participant)?.characteristics(self)
     }
 
-    /// "It", the object a resolving trigger's event was about, in the form
-    /// CR 608.2h reads it: the object itself while it is still where the
-    /// event left it, and otherwise how it last existed.
+    /// "It", the object that played `participant` in a resolving trigger's
+    /// event, in the form CR 608.2h reads it: the object itself while it is
+    /// still where the event left it, and otherwise how it last existed.
     ///
-    /// "How it last existed" comes from one of two places. When the event
-    /// was the object's own departure — a dies trigger's creature — the
-    /// event's record framed it just before it left. When it left later,
-    /// say sacrificed in response, the resolving trigger kept its frame as it
-    /// went ([`Self::lki_kept_by_resolving`]). `None` when the trigger has
-    /// no single object, or when the object left and nothing was kept, which
+    /// "How it last existed" comes from one of two places. When its record
+    /// framed it — a dies trigger's creature, a source that left before
+    /// dealing damage — that frame. When it left later, say sacrificed in
+    /// response, the resolving trigger kept its frame as it went
+    /// ([`Self::lki_kept_by_resolving`]). `None` when the trigger has no
+    /// single occurrence, or when the object left and nothing was kept, which
     /// is a missed capture.
-    fn triggering_object<'a>(&'a self, binding: &'a TriggerBinding) -> Option<CurrentOrLastKnown<'a>> {
-        let subject = binding.subject?;
-        let lki = match subject_lki(binding) {
+    pub(crate) fn triggering_object<'a>(
+        &'a self,
+        binding: &'a TriggerBinding,
+        participant: Participant,
+    ) -> Option<CurrentOrLastKnown<'a>> {
+        let occurrence = binding.occurrence()?;
+        let object = occurrence.participants.get(participant)?;
+        let lki = match record_frame(binding.event(), &occurrence.record, object.id) {
             Some(lki) => Some(lki),
-            None if self.find(subject).is_some() => None,
-            None => Some(self.lki_kept_by_resolving(subject)?),
+            None if self.find(object).is_some() => None,
+            None => Some(self.lki_kept_by_resolving(object)?),
         };
-        Some(CurrentOrLastKnown { id: subject.id, lki })
+        Some(CurrentOrLastKnown { id: object.id, lki })
     }
 
     /// How `object` last existed, as the spell or ability now resolving
@@ -159,7 +224,7 @@ impl GameState {
     /// What a resolving condition reads about the objects its text names
     /// (CR 113.7a, 608.2h): the source's last known information once
     /// `source`, the existence that put the ability on the stack, has left,
-    /// and "it", the trigger's subject, as `bound_characteristics` reads it.
+    /// and the trigger's objects, as `triggering_object` reads them.
     pub(crate) fn condition_objects<'a>(
         &'a self,
         source: Option<ObjectRef>,
@@ -167,15 +232,18 @@ impl GameState {
     ) -> ConditionReferents<'a> {
         ConditionReferents {
             source_lki: source.and_then(|source| self.lki_kept_by_resolving(source)),
-            triggering_object: binding.and_then(|binding| self.triggering_object(binding)),
+            occurrence: match binding {
+                Some(binding) => OccurrenceObjects::Bound { game: self, binding },
+                None => OccurrenceObjects::None,
+            },
         }
     }
 
-    /// The bound fact a `TriggeringObject`, `TriggeringPlayer` or `Referred`
-    /// atom acts on, as the target slice every primitive already reads —
-    /// empty when the object can no longer be found (CR 603.6, 603.7c), which
-    /// is the primitive doing nothing. `Err` outside a trigger's resolution:
-    /// a spell has no event to refer back to.
+    /// The bound fact a `TriggeringObject`, `TriggeringObjects`,
+    /// `TriggeringPlayer` or `Referred` atom acts on, as the target slice
+    /// every primitive already reads — empty when the object can no longer be
+    /// found (CR 603.6, 603.7c), which is the primitive doing nothing. `Err`
+    /// outside a trigger's resolution: a spell has no event to refer back to.
     pub(crate) fn bound_targets(
         &self,
         recipient: &EffectRecipient,
@@ -188,10 +256,10 @@ impl GameState {
             )
         })?;
         Ok(match recipient {
-            EffectRecipient::TriggeringObject => {
-                self.bound_object(binding).map(ResolvedTarget::Object).into_iter().collect()
+            EffectRecipient::TriggeringObject(participant) => {
+                self.bound_object(binding, *participant).map(ResolvedTarget::Object).into_iter().collect()
             }
-            EffectRecipient::TriggeringObjects => triggering_objects(binding)?
+            EffectRecipient::TriggeringObjects(participant) => triggering_objects(binding, *participant)
                 .into_iter()
                 .filter(|&object| self.find(object).is_some())
                 .map(|object| ResolvedTarget::Object(object.id))

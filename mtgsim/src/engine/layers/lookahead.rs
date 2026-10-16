@@ -225,8 +225,8 @@ mod tests {
             cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], alternative: None },
             x_value: Some(3),
             identity: None,
-            subject: None,
-            subject_lki: None,
+            occurrence_objects: [None, None],
+            occurrence_frames: Vec::new(),
             kept_lki: Vec::new(),
         });
 

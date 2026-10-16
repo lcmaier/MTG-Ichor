@@ -23,7 +23,7 @@ use crate::types::effects::{
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
+use crate::types::triggers::{Multiplicity, Participant, TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneChangePattern};
 
 /// Strangleroot Geist — {G}{G}
@@ -114,7 +114,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
             text,
             whenever(
                 dies(TriggerSubject::Host),
-                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject),
+                Effect::Atom(Primitive::ReturnToHand, EffectRecipient::TriggeringObject(Participant::Object)),
             ),
         ))
         .build()

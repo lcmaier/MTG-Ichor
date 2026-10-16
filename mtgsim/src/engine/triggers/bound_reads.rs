@@ -15,16 +15,17 @@ use crate::types::effects::{
     AmountExpr, Condition, ConditionObject, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{TriggerDef, TriggerLimit};
+use crate::types::triggers::{Participant, TriggerDef, TriggerLimit};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
-/// compares. Built like `Channels`: a bit per fact.
+/// compares, and the participants of its event it names. Built like
+/// `Channels`: a bit per fact, then a bit per [`Participant`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BoundReads(u8);
+pub struct BoundReads(u16);
 
 impl BoundReads {
     pub const NOTHING: BoundReads = BoundReads(0);
-    /// "That object", "that spell": the binding's subject.
+    /// "That object", "that spell": an object of the one occurrence.
     pub const SUBJECT: BoundReads = BoundReads(1 << 0);
     /// "That player".
     pub const PLAYER: BoundReads = BoundReads(1 << 1);
@@ -42,7 +43,22 @@ impl BoundReads {
     pub const REFERRED: BoundReads = BoundReads(1 << 6);
     /// "Them": the objects the matched zone changes made.
     pub const OBJECTS: BoundReads = BoundReads(1 << 7);
-    const EVERYTHING: BoundReads = BoundReads(u8::MAX);
+    /// Every fact, and no participant: a def that reads everything is asked
+    /// whatever its participants are, and a participant named inside a
+    /// delayed trigger's or a static ability's body is that body's own.
+    const EVERYTHING: BoundReads = BoundReads(0x00FF);
+    const FIRST_PARTICIPANT: u16 = 8;
+
+    /// The def names `participant` of its event.
+    pub fn participant(participant: Participant) -> BoundReads {
+        BoundReads(1 << (Self::FIRST_PARTICIPANT + participant as u16))
+    }
+
+    /// Each participant of its event the def names, which every arm of its
+    /// condition must have (`TriggerEvent::participants`).
+    pub fn participants(self) -> impl Iterator<Item = Participant> {
+        Participant::ALL.into_iter().filter(move |&p| self.contains(BoundReads::participant(p)))
+    }
 
     pub fn contains(self, fact: BoundReads) -> bool {
         self.0 & fact.0 == fact.0
@@ -78,9 +94,10 @@ fn effect(e: &Effect) -> BoundReads {
         Effect::ForEach(over, inner) => selector(over) | effect(inner),
         Effect::Repeat(times, inner) => amount(times) | effect(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
-        // elided. The other four are static abilities' bodies.
-        Effect::Modal { .. }
-        | Effect::Replacement(_)
+        // elided, and each mode's participants are the def's. The other four
+        // are static abilities' bodies.
+        Effect::Modal { modes, .. } => modes.iter().fold(BoundReads::EVERYTHING, |reads, e| reads | effect(e)),
+        Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)
         | Effect::Triggered(_) => BoundReads::EVERYTHING,
@@ -98,8 +115,8 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         | EffectRecipient::SameInstanceAs(_)
         | EffectRecipient::EachOf(_) => BoundReads::NOTHING,
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
-        EffectRecipient::TriggeringObject => BoundReads::SUBJECT,
-        EffectRecipient::TriggeringObjects => BoundReads::OBJECTS,
+        EffectRecipient::TriggeringObject(p) => BoundReads::SUBJECT | BoundReads::participant(*p),
+        EffectRecipient::TriggeringObjects(p) => BoundReads::OBJECTS | BoundReads::participant(*p),
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
         EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
@@ -128,7 +145,9 @@ fn amount(a: &AmountExpr) -> BoundReads {
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
         AmountExpr::SourcePower | AmountExpr::SourceCounters(_) => BoundReads::SOURCE,
         AmountExpr::TriggeringAmount => BoundReads::AMOUNT,
-        AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => BoundReads::CHARACTERISTICS,
+        AmountExpr::TriggeringPower(p) | AmountExpr::TriggeringToughness(p) => {
+            BoundReads::CHARACTERISTICS | BoundReads::participant(*p)
+        }
     }
 }
 
@@ -178,8 +197,10 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::SourceTapped
         | Condition::CounterCount { object: ConditionObject::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
-        // "It had": the subject, as the record it left with framed it.
-        Condition::CounterCount { object: ConditionObject::TriggeringObject, .. } => BoundReads::CHARACTERISTICS,
+        // "It had": the object, as the record it left with framed it.
+        Condition::CounterCount { object: ConditionObject::TriggeringObject(p), .. } => {
+            BoundReads::CHARACTERISTICS | BoundReads::participant(*p)
+        }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,
         // A mode makes the def modal, which reads everything; a history and
@@ -268,7 +289,7 @@ mod tests {
     use crate::cards::authoring::{enters, leaves_the_battlefield, whenever};
     use crate::types::card_types::CardType;
     use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder};
-    use crate::types::triggers::{TriggerDef, TriggerSubject};
+    use crate::types::triggers::{Participant, TriggerDef, TriggerSubject};
 
     /// "Whenever a creature enters, exile it until this leaves the
     /// battlefield": the exile reads the entering creature, and its return
@@ -284,7 +305,7 @@ mod tests {
                     refers_to: None,
                     under: ReturnUnder::Owner,
                 },
-                EffectRecipient::TriggeringObject,
+                EffectRecipient::TriggeringObject(Participant::Object),
             ),
         )
     }
@@ -301,8 +322,8 @@ mod tests {
     fn a_plain_exile_reads_only_its_object() {
         let def = whenever(
             enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject),
+            Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject(Participant::Object)),
         );
-        assert_eq!(def.bound_reads(), BoundReads::SUBJECT);
+        assert_eq!(def.bound_reads(), BoundReads::SUBJECT | BoundReads::participant(Participant::Object));
     }
 }

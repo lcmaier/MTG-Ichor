@@ -48,7 +48,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Referred, TriggerCondition,
-    TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn,
+    TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn, Participant,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -108,7 +108,7 @@ fn abduction_fixture() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .rules_text(text)
-        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Host), Effect::Atom(returns, EffectRecipient::TriggeringObject))))
+        .ability(triggered_ability(text, whenever(dies(TriggerSubject::Host), Effect::Atom(returns, EffectRecipient::TriggeringObject(Participant::Object)))))
         .build()
 }
 
@@ -899,7 +899,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
             multiplicity: Multiplicity::PerOccurrence,
         }),
         intervening_if: Some(Condition::CounterCount {
-            object: ConditionObject::TriggeringObject,
+            object: ConditionObject::TriggeringObject(Participant::Attacker),
             counter: CounterType::PlusOnePlusOne,
             is: CountIs::AtMost(0),
         }),
@@ -916,7 +916,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
     game.process_declare_attackers(&dp).unwrap();
-    let subjects: Vec<_> = game.pending_triggers.iter().map(|t| t.binding.subject.map(|o| o.id)).collect();
+    let subjects: Vec<_> = game.pending_triggers.iter().map(|t| t.binding.triggering_object(Participant::Attacker).map(|o| o.id)).collect();
     assert_eq!(subjects, vec![Some(plain)], "one trigger, for the attacker with no counter");
 }
 

@@ -19,7 +19,7 @@ use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, ReflexiveForm, TriggerCondition, TriggerDef,
+    DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Participant, ReflexiveForm, TriggerCondition, TriggerDef,
     TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -217,9 +217,9 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     };
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
-        intervening_if: Some(Condition::CounterCount { object: ConditionObject::TriggeringObject, counter, is: CountIs::AtMost(0) }),
+        intervening_if: Some(Condition::CounterCount { object: ConditionObject::TriggeringObject(Participant::Object), counter, is: CountIs::AtMost(0) }),
         limit: None,
-        effect: Effect::Atom(returns, EffectRecipient::TriggeringObject),
+        effect: Effect::Atom(returns, EffectRecipient::TriggeringObject(Participant::Object)),
     })
 }
 

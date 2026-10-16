@@ -65,14 +65,15 @@ pub enum AmountExpr {
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
     /// with no quantity refuses rather than answering 0.
     TriggeringAmount,
-    /// "Its power" on a triggered ability: the bound object's (CR 608.2h),
-    /// read off the record's CR 603.10a frame when the event was its
-    /// departure, and live when it is still where the event left it
+    /// "Its power" on a triggered ability: the power of the object that played
+    /// the named part in its event (CR 608.2h), read off the record's frame
+    /// when the event was its departure or it had left before the event, and
+    /// live when it is still where the event left it
     /// (`triggers-architecture.md` §3.4, §6.3).
-    TriggeringPower,
+    TriggeringPower(crate::types::triggers::Participant),
     /// "Its toughness", read the same way: Paladin of Atonement's "you gain
     /// life equal to its toughness" as it last existed on the battlefield.
-    TriggeringToughness,
+    TriggeringToughness(crate::types::triggers::Participant),
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
@@ -596,7 +597,7 @@ pub enum Condition {
     /// How many counters of one kind an object has, or had: "as long as Kaito
     /// has one or more loyalty counters on him" (`ThisObject`, `AtLeast(1)`),
     /// CR 711.2a's leveler, "level N1 or more" (`AtLeast(N1)`), and persist's
-    /// "if it had no -1/-1 counters on it" (`TriggeringObject`, `AtMost(0)`,
+    /// "if it had no -1/-1 counters on it" (`TriggeringObject(Object)`, `AtMost(0)`,
     /// CR 702.79a), undying's on +1/+1 counters (CR 702.93a).
     ///
     /// Read off the entity, which under a look-ahead is the one the entry
@@ -637,9 +638,10 @@ pub enum Condition {
 pub enum ConditionObject {
     /// "This": the object whose ability it is (CR 113.7a).
     ThisObject,
-    /// "It": the object the trigger's event was about, a triggered ability's
-    /// alone. A static ability has none, and the leaf answers no.
-    TriggeringObject,
+    /// "It": the object that played the named part in the trigger's event, a
+    /// triggered ability's alone. A static ability has none, and the leaf
+    /// answers no.
+    TriggeringObject(crate::types::triggers::Participant),
 }
 
 impl Condition {
@@ -802,16 +804,19 @@ pub enum EffectRecipient {
     /// the instance declared at 0", which is what a card author needs to see
     /// without opening this file.
     SameInstanceAs(usize),
-    /// "That creature", "it" on a triggered ability — the record's subject,
-    /// found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7 in
-    /// one comparison): a creature that died and was returned before the
-    /// trigger resolves is a new object and this resolves to nothing.
-    TriggeringObject,
+    /// "That creature", "it" on a triggered ability — the object that played
+    /// the named part in its event, which the card states (CR 608.2c): the
+    /// source after "[a creature] deals damage", the recipient after "[a
+    /// creature] is dealt damage". Found by id **and** epoch (CR 603.6's
+    /// "unable to be found", CR 400.7 in one comparison): a creature that died
+    /// and was returned before the trigger resolves is a new object and this
+    /// resolves to nothing.
+    TriggeringObject(crate::types::triggers::Participant),
     /// "Them", "those cards" on a "one or more" trigger (CR 603.2c): the
-    /// object each matched zone change made (CR 400.7e), found while it is
-    /// still that object, so a card moved again before the trigger resolves
-    /// is not one of them (CR 603.6c).
-    TriggeringObjects,
+    /// object that played the named part in each occurrence, found while it
+    /// is still that object, so a card moved again before the trigger
+    /// resolves is not one of them (CR 603.6c).
+    TriggeringObjects(crate::types::triggers::Participant),
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,

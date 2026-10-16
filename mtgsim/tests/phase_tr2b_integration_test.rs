@@ -37,7 +37,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, Participant};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -366,7 +366,7 @@ fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
 #[test]
 fn a_trigger_sacrifices_the_object_its_event_named() {
     let mut game = setup_two_player_game();
-    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::TriggeringObject);
+    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::TriggeringObject(Participant::Object));
     put_on_battlefield(
         &mut game,
         watcher("Ravenous Gate", enters(ObjectFilter::ByType(CardType::Creature)), sacrifice_it),
@@ -460,7 +460,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
 /// "Each opponent loses life equal to [the bound object]'s power."
 fn each_opponent_loses_its_power() -> Effect {
     Effect::Atom(
-        Primitive::LoseLife(AmountExpr::TriggeringPower),
+        Primitive::LoseLife(AmountExpr::TriggeringPower(Participant::Object)),
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
     )
 }

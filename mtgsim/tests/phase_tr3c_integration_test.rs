@@ -50,7 +50,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
+    DelayedDuration, DelayedTriggerTemplate, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject, Participant,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -545,7 +545,7 @@ fn you_sacrifice() -> TriggerEvent {
 fn spitefang_manticore() -> Arc<CardData> {
     let text = "When this creature enters, you may sacrifice another creature. When you do, this creature deals damage equal to that creature's power to any target.";
     let that_creatures_power = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::TriggeringPower, unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::TriggeringPower(Participant::Object), unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
     let deals_its_power = when_you_do(

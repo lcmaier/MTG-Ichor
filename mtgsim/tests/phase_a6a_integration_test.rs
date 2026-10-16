@@ -36,7 +36,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::types::triggers::{TriggerCondition, TriggerDef};
+use mtgsim::types::triggers::{TriggerCondition, TriggerDef, Participant};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -157,7 +157,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
 #[test]
 fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
     let mut game = setup_two_player_game();
-    let gains_its_power = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower), EffectRecipient::Controller);
+    let gains_its_power = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::Object)), EffectRecipient::Controller);
     let mourner = put_on_battlefield(
         &mut game,
         creature_with_ability(

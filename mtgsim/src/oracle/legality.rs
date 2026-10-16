@@ -352,7 +352,8 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         let as_it_left = |object: ObjectRef| entry.lki_of(object).map_or(object, |lki| lki.object());
         let binding = entry.trigger.as_ref();
         referred.extend(entry.ability_identity.map(|identity| as_it_left(identity.source)));
-        referred.extend(binding.and_then(|b| b.subject).map(as_it_left));
+        let participants = binding.into_iter().flat_map(|b| b.occurrences.iter()).flat_map(|o| o.participants.objects());
+        referred.extend(participants.map(|(_, object)| as_it_left(object)));
         if let Some(binding) = binding {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
@@ -364,7 +365,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     if let Some(resolving) = &game.resolving {
         let as_it_left = |object: ObjectRef| resolving.lki_of(object).map_or(object, |lki| lki.object());
         referred.extend(resolving.identity.map(|identity| as_it_left(identity.source)));
-        referred.extend(resolving.subject.map(as_it_left));
+        referred.extend(resolving.occurrence_objects.into_iter().flatten().map(as_it_left));
         referred.extend(resolving.kept_lki.iter().map(|d| d.object()));
     }
     for row in game.replacement_effects.iter() {
@@ -679,8 +680,8 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
             identity: None,
-            subject: None,
-            subject_lki: None,
+            occurrence_objects: [None, None],
+            occurrence_frames: Vec::new(),
             kept_lki: Vec::new(),
         });
 

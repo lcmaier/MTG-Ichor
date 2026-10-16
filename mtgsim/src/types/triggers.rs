@@ -152,6 +152,142 @@ pub enum DamageRecipient {
     Object(Option<ObjectFilter>),
 }
 
+/// The part an object played in the event a trigger matched, which an
+/// instruction names to say which object it reads. "That creature" after
+/// "[a creature] deals damage" is the source, and after "[a creature] is dealt
+/// damage" the recipient: CR 608.2c leaves the antecedent to the text, so the
+/// card states it (`triggers-architecture.md` §12, TR-5a's decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Participant {
+    /// The one object a record about one object names: the card a zone change
+    /// moved, the permanent tapped or that entered, the card drawn, the spell
+    /// cast or countered, the source of mana, the permanent whose control
+    /// changed.
+    Object,
+    /// CR 120.1: what dealt the damage.
+    Source,
+    /// CR 120.1: what the damage was dealt to.
+    Recipient,
+    /// CR 508.1: a creature declared as an attacker.
+    Attacker,
+    /// CR 701.3: the Aura, Equipment or Fortification.
+    Attachment,
+    /// CR 701.3: the object it became attached to, or was attached to.
+    Host,
+}
+
+impl Participant {
+    pub const ALL: [Participant; 6] = [
+        Participant::Object,
+        Participant::Source,
+        Participant::Recipient,
+        Participant::Attacker,
+        Participant::Attachment,
+        Participant::Host,
+    ];
+}
+
+/// What damage is dealt to (CR 120.1): an object, or a player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectOrPlayer<O = ObjectRef> {
+    Object(O),
+    Player(PlayerId),
+}
+
+/// The objects one occurrence is about, each by the part it played: as ids
+/// where the matcher reads them off the record, and as `ObjectRef`s in the
+/// binding, the existence the dispatch found (CR 400.7), which is the one
+/// fact a record that names its objects by id does not carry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TriggerParticipants<O = ObjectRef> {
+    /// A step beginning, a life change, a player losing.
+    NoObject,
+    /// [`Participant::Object`].
+    Object(O),
+    /// CR 120.1: the damage's source, as the existence that dealt it, and what
+    /// it was dealt to.
+    Damage { source: O, recipient: ObjectOrPlayer<O> },
+    /// CR 508.1: one creature declared as an attacker.
+    Attack { attacker: O },
+    /// CR 701.3: an attachment and the object it became, or was, attached to.
+    Attach { attachment: O, host: O },
+}
+
+impl<O: Copy> TriggerParticipants<O> {
+    /// The object that played `participant`, if this occurrence has one.
+    pub fn get(&self, participant: Participant) -> Option<O> {
+        match (*self, participant) {
+            (TriggerParticipants::Object(object), Participant::Object)
+            | (TriggerParticipants::Damage { source: object, .. }, Participant::Source)
+            | (TriggerParticipants::Damage { recipient: ObjectOrPlayer::Object(object), .. }, Participant::Recipient)
+            | (TriggerParticipants::Attack { attacker: object }, Participant::Attacker)
+            | (TriggerParticipants::Attach { attachment: object, .. }, Participant::Attachment)
+            | (TriggerParticipants::Attach { host: object, .. }, Participant::Host) => Some(object),
+            (
+                TriggerParticipants::NoObject
+                | TriggerParticipants::Object(_)
+                | TriggerParticipants::Damage { .. }
+                | TriggerParticipants::Attack { .. }
+                | TriggerParticipants::Attach { .. },
+                _,
+            ) => None,
+        }
+    }
+
+    /// Each object, with the part it played.
+    pub fn objects(&self) -> impl Iterator<Item = (Participant, O)> {
+        let pairs: [Option<(Participant, O)>; 2] = match *self {
+            TriggerParticipants::NoObject => [None, None],
+            TriggerParticipants::Object(object) => [Some((Participant::Object, object)), None],
+            TriggerParticipants::Damage { source, recipient } => [
+                Some((Participant::Source, source)),
+                match recipient {
+                    ObjectOrPlayer::Object(object) => Some((Participant::Recipient, object)),
+                    ObjectOrPlayer::Player(_) => None,
+                },
+            ],
+            TriggerParticipants::Attack { attacker } => [Some((Participant::Attacker, attacker)), None],
+            TriggerParticipants::Attach { attachment, host } => {
+                [Some((Participant::Attachment, attachment)), Some((Participant::Host, host))]
+            }
+        };
+        pairs.into_iter().flatten()
+    }
+
+    /// The same occurrence with each object turned into another form by
+    /// `refer`, which is told the part each played. `None` when `refer` finds
+    /// no form for one of them.
+    pub fn refer<P: Copy>(self, mut refer: impl FnMut(Participant, O) -> Option<P>) -> Option<TriggerParticipants<P>> {
+        Some(match self {
+            TriggerParticipants::NoObject => TriggerParticipants::NoObject,
+            TriggerParticipants::Object(object) => TriggerParticipants::Object(refer(Participant::Object, object)?),
+            TriggerParticipants::Damage { source, recipient } => TriggerParticipants::Damage {
+                source: refer(Participant::Source, source)?,
+                recipient: match recipient {
+                    ObjectOrPlayer::Object(object) => ObjectOrPlayer::Object(refer(Participant::Recipient, object)?),
+                    ObjectOrPlayer::Player(player) => ObjectOrPlayer::Player(player),
+                },
+            },
+            TriggerParticipants::Attack { attacker } => {
+                TriggerParticipants::Attack { attacker: refer(Participant::Attacker, attacker)? }
+            }
+            TriggerParticipants::Attach { attachment, host } => TriggerParticipants::Attach {
+                attachment: refer(Participant::Attachment, attachment)?,
+                host: refer(Participant::Host, host)?,
+            },
+        })
+    }
+}
+
+/// One occurrence of a trigger event (CR 603.2c) — one match of a
+/// [`TriggerEvent`] — with the record that holds it, copied whole (§3.4), and
+/// the objects it is about.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggerOccurrence {
+    pub record: EventRecord,
+    pub participants: TriggerParticipants,
+}
+
 counted_enum! {
     /// The kind of record a trigger arm reads - one variant per `GameEvent`
     /// variant any [`TriggerEvent`] can match, and none for the records no arm
@@ -639,9 +775,42 @@ impl TriggerEvent {
         }
     }
 
-    /// "That object" — the record's subject (§3.4). `None` for an event about
-    /// no object.
-    pub fn subject_of(&self, record: &GameEvent) -> Option<ObjectId> {
+    /// The objects in which parts its occurrences can have — what an
+    /// instruction may name of this arm's event, which a registry test checks
+    /// every registered card against (TR-5a's decision 2).
+    pub fn participants(&self) -> &'static [Participant] {
+        match self {
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::ControlChanges { .. } => &[Participant::Object],
+            TriggerEvent::DamageDealt { .. } => &[Participant::Source, Participant::Recipient],
+            TriggerEvent::Attacks { .. } => &[Participant::Attacker],
+            TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
+                &[Participant::Attachment, Participant::Host]
+            }
+            TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => &[],
+        }
+    }
+
+    /// The objects `record`'s one occurrence is about, by id (§3.4). An
+    /// attack record holds one occurrence per attacker, which the matcher
+    /// makes, so it answers none here.
+    pub fn participants_of(&self, record: &GameEvent) -> TriggerParticipants<ObjectId> {
+        use TriggerParticipants as P;
         match (self, record) {
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { object_id, .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { object_id, .. })
@@ -649,16 +818,16 @@ impl TriggerEvent {
             | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { object_id })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { object_id, .. }) => {
-                Some(*object_id)
+                P::Object(*object_id)
             }
-            (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { source_id, .. }) => Some(*source_id),
-            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { card_id, .. }) => Some(*card_id),
-            // "That creature" on a damage trigger is the permanent dealt damage,
-            // the way Fungusaur reads it; the source is `player_of`'s question
-            // only through its controller.
-            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { target, .. }) => match target {
-                DamageTarget::Object(id) => Some(*id),
-                DamageTarget::Player(_) => None,
+            (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { source_id, .. }) => P::Object(*source_id),
+            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { card_id, .. }) => P::Object(*card_id),
+            (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { source_id, target, .. }) => P::Damage {
+                source: *source_id,
+                recipient: match target {
+                    DamageTarget::Object(id) => ObjectOrPlayer::Object(*id),
+                    DamageTarget::Player(player) => ObjectOrPlayer::Player(*player),
+                },
             },
             (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
@@ -669,19 +838,20 @@ impl TriggerEvent {
             | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
-            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => None,
+            | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { .. }) => P::NoObject,
             // "That spell".
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. })
-            | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { spell_id, .. }) => Some(*spell_id),
-            // "That creature" and "that permanent": the object, which every
-            // printed reader acts on (Grafted Wargear's "sacrifice that
-            // permanent", Enormous Energy Blade's "tap that creature").
-            (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { host, .. }) => Some(*host),
-            (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { former_host, .. }) => Some(former_host.id),
+            | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { spell_id, .. }) => P::Object(*spell_id),
+            (TriggerEvent::BecomesAttached { .. }, GameEvent::Attached { attachment, host, .. }) => {
+                P::Attach { attachment: *attachment, host: *host }
+            }
+            (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { attachment, former_host, .. }) => {
+                P::Attach { attachment: attachment.id, host: former_host.id }
+            }
             // The permanent whose control changed, or which left.
             (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { object_id, .. })
             | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { object_id, .. })
-            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { object_id, .. }) => Some(*object_id),
+            | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { object_id, .. }) => P::Object(*object_id),
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -708,7 +878,7 @@ impl TriggerEvent {
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,
-            ) => None,
+            ) => P::NoObject,
         }
     }
 
@@ -871,14 +1041,12 @@ pub struct TriggerBinding {
     /// dispatch, so a Humility landing between triggering and placement
     /// cannot un-trigger it (CR 113.7a).
     pub def: Arc<TriggerDef>,
-    /// The records that matched: one for a `PerOccurrence` trigger, every
-    /// matching record of the window for a `OncePerEvent` one.
-    pub records: Vec<EventRecord>,
+    /// What triggered it (CR 603.2c): one occurrence for a `PerOccurrence`
+    /// trigger, every one of its window's for a `OncePerEvent` trigger, each
+    /// with its record and the objects it is about.
+    pub occurrences: Vec<TriggerOccurrence>,
     /// Which event matched — whose projections say what the bound facts are.
     pub event: EventIndex,
-    /// The subject's epoch at dispatch. `None` for an event about no object
-    /// and for a `OncePerEvent` binding.
-    pub subject: Option<ObjectRef>,
     /// The ability whose triggering this is (CR 603.3b's second tier).
     pub triggered_by: Option<TriggerSeq>,
     /// CR 603.7c — what a delayed triggered ability refers to, carried to
@@ -901,6 +1069,38 @@ impl TriggerBinding {
     /// The event the binding's projections read through.
     pub fn event(&self) -> &TriggerEvent {
         &self.def.condition.events()[self.event.0]
+    }
+
+    /// The matched records, one an occurrence, in the window's order.
+    pub fn records(&self) -> impl Iterator<Item = &EventRecord> {
+        self.occurrences.iter().map(|occurrence| &occurrence.record)
+    }
+
+    /// The record of the first occurrence, which caused the trigger.
+    pub fn first_record(&self) -> Option<&EventRecord> {
+        self.records().next()
+    }
+
+    /// The one occurrence of a `PerOccurrence` trigger. `None` for a "one or
+    /// more" trigger, which has no single occurrence.
+    pub fn occurrence(&self) -> Option<&TriggerOccurrence> {
+        match self.event().multiplicity() {
+            Multiplicity::PerOccurrence => self.occurrences.first(),
+            Multiplicity::OncePerEvent => None,
+        }
+    }
+
+    /// "That creature", "it": the object that played `participant` in the one
+    /// occurrence, as the existence the dispatch found. `None` for a "one or
+    /// more" trigger, which has no single object, and for an occurrence with
+    /// no such object.
+    pub fn triggering_object(&self, participant: Participant) -> Option<ObjectRef> {
+        self.occurrence()?.participants.get(participant)
+    }
+
+    /// "Them": the object that played `participant` in each occurrence.
+    pub fn triggering_objects(&self, participant: Participant) -> Vec<ObjectRef> {
+        self.occurrences.iter().filter_map(|occurrence| occurrence.participants.get(participant)).collect()
     }
 }
 

@@ -52,7 +52,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
-    Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
+    Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject, Participant,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -642,7 +642,7 @@ fn pump(game: &mut GameState, id: ObjectId, n: u64) {
 fn its_power_is_read_as_the_effect_applies() {
     let mut game = setup_two_player_game();
     let bolt_of_self = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::TriggeringPower, unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::TriggeringPower(Participant::Object), unpreventable: false },
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
     );
     let brute = put_on_battlefield(

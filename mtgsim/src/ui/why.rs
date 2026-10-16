@@ -506,7 +506,7 @@ fn applied_already(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec
 /// answered when asked about the events the queued abilities triggered on.
 fn asked_about_these_events(game: &GameState, trace: &[TraceRecord], id: ObjectId) -> Vec<WhyLine> {
     let bound: Vec<u64> =
-        game.pending_triggers.iter().flat_map(|t| t.binding.records.iter().map(|r| r.seq.0 as u64)).collect();
+        game.pending_triggers.iter().flat_map(|t| t.binding.records().map(|r| r.seq.0 as u64)).collect();
     trace
         .iter()
         .filter(|r| r.kind == RecordKind::Trigger && r.u64("source") == Some(id.raw()))
