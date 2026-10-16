@@ -1943,7 +1943,7 @@ impl GameState {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::ControlChanges { .. } => self.the_object(&record.event),
+            | TriggerEvent::ControlChanges { .. } => self.single_object(&record.event),
             TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 self.attachment_objects(&record.event)
@@ -1964,7 +1964,7 @@ impl GameState {
     /// The one object a one-object event is about: the card or permanent
     /// that moved, was tapped, untapped, entered or changed control, the
     /// mana's source, the card drawn, or the spell.
-    fn the_object(&self, event: &GameEvent) -> TriggeringEventObjects {
+    fn single_object(&self, event: &GameEvent) -> TriggeringEventObjects {
         let id = match event {
             GameEvent::ZoneChange { object_id, .. }
             | GameEvent::LeftTheGame { object_id, .. }
