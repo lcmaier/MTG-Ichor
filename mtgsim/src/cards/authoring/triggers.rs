@@ -132,9 +132,12 @@ impl CountableEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
@@ -249,6 +252,29 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
 /// drawn.
 pub fn draws_a_card(whose: Whose) -> CountableEvent {
     CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence, place: None })
+}
+
+/// "Whenever a spell [whose player]'s cast is countered" (CR 701.6a): "a spell
+/// you've cast" is `Whose::Yours`, read off who cast it (CR 603.10e).
+pub fn spell_is_countered(cast_by: Whose) -> TriggerEvent {
+    TriggerEvent::IsCountered { spell: None, caster: cast_by.player_ref() }
+}
+
+/// "When you lose control of [subject]" (CR 603.10d), which leaving the
+/// battlefield is too (Khârn the Betrayer's first ruling).
+pub fn you_lose_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: None }
+}
+
+/// "Whenever an opponent gains control of [subject] from you" (CR 603.10d).
+pub fn an_opponent_gains_control_of(subject: impl Into<TriggerSubject>) -> TriggerEvent {
+    TriggerEvent::ControlChanges { subject: subject.into(), from: Some(PlayerRef::You), to: Some(PlayerRef::Opponent) }
+}
+
+/// "Whenever [whose player] loses the game" (CR 603.9): "a player" is
+/// `Whose::Each`, "an opponent" `Whose::AnOpponents`.
+pub fn loses_the_game(whose: Whose) -> TriggerEvent {
+    TriggerEvent::PlayerLoses { player: whose.player_ref() }
 }
 
 /// "Whenever [whose player] shuffle[s] their library" (CR 701.24).

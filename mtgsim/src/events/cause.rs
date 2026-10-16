@@ -215,4 +215,8 @@ pub enum GameRule {
     ControllerLeftTheGame,
     /// CR 704.3: a state-based check performed something, one event.
     StateBasedCheck,
+    /// CR 613.1b: a permanent's controller changed, which a continuous effect
+    /// did by starting or ending, and which no performer proposes. The sweep
+    /// that announces it cannot tell which effect it was.
+    ControlChanges,
 }

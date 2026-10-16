@@ -572,6 +572,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     zone map's sibling for an object whose every trigger is on itself
     moving, which only the window that moved it can trigger; an index, no
     fact about the game, under `CLAUDE.md`'s gate rule as the five above.
+- **Added by TR-4d (2026-10-15)**:
+  - `control_effects_at_last_sweep`: whether a control-changing effect
+    existed at the last control sweep, the sweep's gate beside the
+    registry's `any_control_changing`, so control going back as the last
+    such effect ends is still announced. A fact about the sweep, not the
+    game: what changed hands is per permanent, on
+    `PermanentState.announced_controller` (CR 603.10d's "from")
+    (`triggers-architecture.md` §12, TR-4d).
 
 ---
 

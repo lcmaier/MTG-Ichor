@@ -119,11 +119,13 @@ impl GameState {
         }))
     }
 
-    /// What resolution `stamp` exiled from `mark` on and is still in exile,
-    /// by identity, each with the zone it came from. A token it created in
-    /// exile came from no zone and is never returned (CR 111.8, 610.3).
+    /// What resolution `stamp` exiled from `mark` on and is still where the
+    /// exile put it, by identity, each with the zone it came from: in exile,
+    /// or in the public zone a replacement sent it to instead
+    /// (`put_into_since`). A token it created came from no zone and is never
+    /// returned (CR 111.8, 610.3).
     pub(crate) fn exiled_since(&self, stamp: ResolutionStamp, mark: EventSeq) -> Vec<(ObjectRef, Zone)> {
-        self.put_into_since(stamp, mark, Zone::Exile)
+        self.put_into_since(stamp, mark)
             .into_iter()
             .filter_map(|(object, from)| Some((object, from?)))
             .collect()

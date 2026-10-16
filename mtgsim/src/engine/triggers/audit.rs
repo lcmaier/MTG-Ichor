@@ -82,6 +82,22 @@ impl GameState {
         Some(frames)
     }
 
+    /// The audit's snapshot for a control change's window: every object that
+    /// could carry a triggered ability, as it was before the change. The
+    /// sweep's `before` holds the permanents the change altered; every other
+    /// object is as it was. `None` when the audit is off.
+    pub(super) fn audit_frames_before_control_change(&mut self, before: &[ObjectSnapshot]) -> Option<Vec<ObjectSnapshot>> {
+        self.dispatch_audit.as_ref()?;
+        let saved = self.save_observers();
+        let frames = self
+            .objects_that_may_trigger()
+            .into_iter()
+            .filter_map(|id| before.iter().find(|frame| frame.lki.object().id == id).cloned().or_else(|| self.object_snapshot(id)))
+            .collect();
+        self.restore_observers(saved);
+        Some(frames)
+    }
+
     /// Keep a batch's snapshot for its window's dispatch.
     pub(crate) fn file_audit_snapshot(&mut self, snapshot: LookBackSnapshot) {
         if let Some(audit) = self.dispatch_audit.as_mut() {
@@ -180,9 +196,11 @@ impl GameState {
                 let lki = &frame.lki;
                 let id = lki.object().id;
                 let candidate = match self.find(lki.object()) {
+                    // Still here: its list as it was, under its controller then,
+                    // which a control change made someone else (CR 603.10).
                     Some(object) => TriggerCandidate {
                         object: lki.object(),
-                        controller: controller_or_owner(self, id).unwrap_or(object.owner),
+                        controller: lki.chars().controller,
                         owner: object.owner,
                         zone: object.zone,
                         host: crate::oracle::board::host_of(self, id),

@@ -53,7 +53,7 @@ pub enum NotAnOpponent {
 /// `PermanentState` is the sidecar for battlefield permanents.
 /// Created when a spell is cast or ability is activated, consumed
 /// when the stack entry resolves or is removed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StackEntry {
     /// The object ID of this stack entry (matches the key in `stack`)
     pub object_id: ObjectId,
@@ -149,6 +149,14 @@ impl StackEntry {
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
+
+    /// The player who cast this spell: the controller it was put on the stack
+    /// with, which nothing rewrites, since an effect that gains control of a
+    /// spell changes its effective controller (CR 108.4). `None` for an
+    /// ability, which is never cast.
+    pub fn caster(&self) -> Option<PlayerId> {
+        self.cast_from.map(|_| self.controller)
     }
 
     /// CR 707.10's decisions about its costs, which a copy and the permanent
@@ -712,6 +720,10 @@ pub struct GameState {
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
     /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
+    /// Whether a control-changing effect existed at the last control sweep
+    /// (`settle_announced_controllers`). If one did, the next sweep runs with
+    /// none left, so control going back as the last one ends is announced.
+    pub(crate) control_effects_at_last_sweep: bool,
     /// The CR 603.10a frames of the permanents the open batches decided to
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
@@ -1008,6 +1020,7 @@ impl GameState {
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
+            control_effects_at_last_sweep: false,
             lki_captures: Vec::new(),
             dispatch_audit: None,
             events: EventWindow::new(),
@@ -1491,6 +1504,11 @@ impl GameState {
         // anything can look.
         let effective = crate::oracle::characteristics::get_effective_controller(self, id)
             .unwrap_or(controller);
+        // Announced under that controller too: the stolen spell's permanent
+        // arrives the thief's, and no control changed (CR 603.10d).
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.announced_controller = effective;
+        }
         self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
@@ -1897,6 +1915,7 @@ impl GameState {
                         affected_objects: affected.clone(),
                         modification,
                     };
+                    self.keep_frames_before_the_first_control_row(layer);
                     self.continuous_effects.add(effect);
                 }
             }
@@ -1975,6 +1994,7 @@ impl GameState {
                         self.static_effect_timestamp(id, ability, Some(copy_timestamp));
 
                     for (layer, modification) in rows {
+                        self.keep_frames_before_the_first_control_row(layer);
                         self.continuous_effects.add(ContinuousEffect {
                             id: 0,
                             source: id,

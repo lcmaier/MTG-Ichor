@@ -212,6 +212,8 @@ fn give_control(game: &mut GameState, object: ObjectId, player: PlayerId) {
         duration: Duration::Indefinite,
         ..registered(object, Layer::Layer2Control, 200, EffectModification::SetController(PlayerRef::Player(player)))
     });
+    // Announced as if the change had happened in play.
+    game.settle_announced_controllers();
 }
 
 /// The dispatcher's two work counters: windows past its gate, and the

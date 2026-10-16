@@ -6422,3 +6422,218 @@ and 152.1; Bridge from Below in a graveyard carries the rest).
      it.
      **Slotted:** TR-6, which adds the state check's leg to the gate, beside
      which the zone map's probe narrows.
+
+### Item 13, a change of control — closed 2026-10-15 by PR #254 (TR-4d)
+
+Closed by TR-4d. `announce_control_changes` (`engine/triggers/control.rs`)
+compares each permanent's controller with `PermanentState.announced_controller`
+and announces each difference as `GameEvent::ControlChanged`, caused by
+`GameRule::ControlChanges`, one sweep's changes one event. It runs at the head
+of an outermost batch, at each state-based pass before placement, and in the
+cleanup step after the expiry, so a steal ending there triggers in a second
+cleanup step. The frame from before is the one the last sweep read, kept
+while a control-changing effect exists, and kept again before a resolution's
+row, an expiry and the first control row; the window carries those frames as
+a `LookBackSnapshot`, whose candidates now take their controller from then.
+The sweep also runs once after the last control-changing effect ends,
+since the registry's summary is rebuilt as rows go.
+`TriggerEvent::ControlChanges` reads it, and reads a battlefield departure
+for an arm naming no one gaining control (Khârn the Betrayer's first ruling).
+Ray of Command registers and is pooled.
+
+*Original entry:*
+
+13. **No event announces a control change (the trigger survey,
+    2026-09-18).** CR 603.10d's look-back triggers (126 cards) watch an event
+    the engine performs as a Layer 2 registry row: `Primitive::GainControl`
+    writes it and `get_effective_controller` answers differently from then
+    on, and the row expiring at cleanup changes control back with no proposal
+    anywhere. Not a field: control is a computed value, and "gains control"
+    is a "becomes" on the layer walk's output, the shape CR 603.2e gives
+    tapping.
+
+    **Reachability (2026-09-18):** unreachable — no reader; the change itself
+    happens in measured games, since Act of Treason is registered (LG).
+
+    **Sized:** unknown until the doc says whether a change in a computed
+    value is detected at the registry write and its expiry, by the walk, or
+    as a state trigger's cousin; the doc's.
+
+    **Phase (2026-09-18):** TR-4 — decided: a sweep at the state check, gated on `any_control_changing`, against a materialized `PermanentState.announced_controller`, emitting `ControlChanged`; `triggers-architecture.md` §3.12, §4.5.
+    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record carries the frame from
+    before the change, since "When you lose control of this" (9 cards) reads
+    the old controller; its cause is a `GameRule` arm of its own; and the
+    sweep runs at the head of `execute_actions` too, so a change mid-resolution
+    is announced before the next instruction.
+    **Slotted:** TR-4d, whose state-check sweep against `announced_controller`
+    emits `ControlChanged` for CR 603.10d's look-back (re-slotted from TR-4b at
+    A6p's split).
+    **Designed 2026-10-15 (TR-4d, `triggers-architecture.md` §12):** the gate
+    is `any_control_changing` or a permanent announced away from the
+    controller it entered under, since the summary is rebuilt as rows go and
+    Act of Treason's end at cleanup would otherwise go unannounced. The
+    frames are kept before each row a resolution or a static writes, which
+    the first steal on a board needs (decision 1).
+
+### Item 131 — closed 2026-10-15 by PR #254 (TR-4d)
+
+Closed by TR-4d. A replaced move that lands back in its own zone is announced
+as `GameEvent::SameZoneMove`, with the act it replaced, the applied set and
+the card as it was, framed by its batch before it performs. Not a
+`ZoneChange`: nothing left a zone and no object was made (CR 400.7), so only
+a zone-change arm that names an act reads it. A zone-change arm's amount is
+one per record, the objects moved, so the owner's board ("you gain life equal
+to the number milled") gains 3; it had refused to read any amount, not read 2.
+
+*Original entry:*
+
+131. **A same-zone substitute leaves no record, so the act it replaced is
+     written nowhere** (re-scoped 2026-09-24). **The first two instances closed
+     with item 176** (the type-surface re-sweep, pass 1): a substituted zone
+     change overwrote the replaced event's `cause`, and `ZoneChangeTo` now
+     names only a destination, so the discard and the resolution below keep
+     their acts (CR 614.6). What follows is as found at RE-8, kept for the
+     third instance. A discard is the instance that found it; a resolution is
+     the one that bit.
+     `GameActionTemplate::ZoneChangeTo` carries the substitute's
+     `ZoneChangeCause` and overwrites the replaced event's, so under Leyline of
+     the Void a discarded card's performed event is `ZoneChange { to: Exile,
+     cause: Exiled }` and the `Discarded` cause is gone. The card *was*
+     discarded: Dodecapod's and Wilt-Leaf Liege's rulings say "you've still
+     discarded it. Abilities that trigger whenever you discard a card will
+     trigger", and CR 701.9c calls a card put into a hidden zone this way
+     "discarded" while describing the move. Found by reading a `--dump-events`
+     log at RE-8's review (`replacement-architecture.md` §11 item 90).
+
+     **The same erasure, on `Resolved`, is what made RE-8's own Hymn to
+     Tourach row look wrong.** `events/event.rs` says a spell finishing
+     resolution *is* "a `ZoneChange` out of the stack with
+     `ZoneChangeCause::Resolved`" — the log's only signal for it — and under
+     Leyline of the Void a resolved sorcery leaves as `Exiled` instead.
+     `fuzz_games` read that cause and under-counted; it reads
+     `EventStamp::resolution` now, which no rewrite can touch, because a
+     substitution happens *inside* the resolution that proposed the event
+     (`replacement-architecture.md` §11 item 91).
+
+     **Reachability (2026-09-24):** reachable, and not wrong today — the
+     third instance only. Darksteel Colossus and Nexus of Fate are registered
+     and Angel of Suffering mills, but nothing reads a mill count yet. On
+     2026-09-14 this line bounded the first two by "every *engine* reader of a
+     cause reads the **proposal**", but CR 616.1f's re-gather reads the
+     rewritten event, so Nephalia Academy under Leyline of the Void was
+     reachable and wrong from RE-8 on (item 176).
+
+     **Sized:** the first two closed in item 176's PR, once the question this
+     line asked was answered: what a substitution *about the destination*
+     should do to the reason the object is moving. It keeps it, for every
+     template (CR 614.6). What is left is the third instance, which has no
+     record for a kept cause to ride on. **Where a stamp fits, it is the
+     pattern to copy** — it answered the harness's question exactly and needs
+     no field at all — and it belongs to whoever builds critical-path item 6's
+     zone-change matcher, the first reader that can tell it is wrong.
+
+     **A third instance, sharper than both (RF's review, 2026-09-16).** Under
+     Darksteel Colossus's clause a milled member's substitute is a zone
+     change from the library *to the library*, and `perform_zone_change`
+     performs and announces nothing for a same-zone move — so there is no
+     record at all on which a kept cause could ride. The owner's wrinkle:
+     "whenever an opponent mills one or more cards, you gain life equal to
+     the number milled", on a mill of three with a Colossus in it. The
+     performed stream shows two `Milled` records (and, until item 176, none
+     under Rest in Peace, whose substitute wrote `Exiled`); CR 701.17c's
+     framing — "the zone it moved to from the library" — treats a milled card
+     that went elsewhere as milled all the same, which reads 3, while the
+     owner's first reading was 2. Which is right is item 6's to settle with 701.17c open;
+     what RF adds is that a *stamp* is the only shape that can carry the
+     fact, because a stamp can exist where no record does.
+
+     **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
+     zone-change matcher, as sized above, and since 2026-09-24 for the third
+     instance only; `replacement-architecture.md` §14 lists it among what
+     item 6 inherits. The board had counted this item as
+     a wrong answer since 2026-09-14 because its verdict contains the words
+     "wrong today"; the classifier learned the negation the same day.
+
+     **Designed 2026-10-15 (TR-4d, `triggers-architecture.md` §12):** the
+     record is `GameEvent::SameZoneMove`, which only an arm naming an act
+     reads. The owner's wrinkle does not read 2 today: a zone-change arm has
+     no amount (`TriggerEvent::amount_of`), so "the number milled" refuses.
+     TR-4d makes it one per record, and the board gains 3.
+
+### Item 253 — closed 2026-10-15 by PR #254 (TR-4d)
+
+Closed by TR-4d. `Primitive::CounterSpell` frames the spell before it moves
+it, and `SpellCountered` carries that `Lki` with `Lki.entry`, the stack entry
+behind an `Arc`. `TriggerEvent::IsCountered` reads the spell as it was (CR
+603.10e) and "a spell you've cast" off `StackEntry::caster()`, which nothing
+rewrites after the cast. No printed trigger reads an ability being countered,
+so the arm reads spells only. Multani's Presence registers.
+
+*Original entry:*
+
+253. **The countered records carry no frame.** CR 603.10e looks back, and
+     `SpellCountered` and `AbilityCountered` carry no `lki`. `GameEvent::lki`
+     reads the zone change and the leaving only, and a move from the stack is
+     no CR 603.10a class. So no record carries the frame that §3.11's `entry`
+     and §6.1's `IsCountered` read were planned for. 1 card: `(o:"when " or
+     o:"whenever ") o:"spell" o:"is countered" -o:"countered this way"`,
+     Multani's Presence, whose "a spell you've cast" reads the spell as it was.
+     **Reachability (2026-10-12):** unreachable — no `IsCountered` arm yet.
+     **Sized:** ~70 lines of code (`Lki.entry` among them) and ~80 of tests:
+     the stack object framed before `change_zone`, and the two kinds added to
+     `GameEvent::lki`.
+     **Slotted:** TR-4d, with the `IsCountered` arm and Multani's Presence.
+     **Designed 2026-10-15 (TR-4d):** the arm reads `SpellCountered` only,
+     since no printed trigger reads an ability being countered. "A spell
+     you've cast" is `StackEntry::caster()`, the controller the entry was
+     made with, which nothing rewrites after the cast.
+
+### Item 258 — closed 2026-10-15 by PR #254 (TR-4d)
+
+Closed by TR-4d. `put_into_since` follows a move into whatever public zone it
+went to, a replacement's destination included (CR 400.7j, 701.17c; Rescue
+from the Underworld's fourth ruling), and refuses a hand or a library. A
+remembered object refuses a hidden zone too, and so does a zone change's
+trigger finding its object (CR 400.7e). TR-3b's Rest in Peace test pinned
+the opposite for a destruction, and flipped (decision 2).
+
+*Original entry:*
+
+258. **CR 400.7j's, 400.7e's and 701.17c's "public zone" is not asked.**
+     `GameState::find` answers in a hand or a library, so a trigger or an
+     effect that moved a card there could still find it. No printed card does:
+     - the triggers on a move into a hand or library act on nothing they
+       moved: 7 cards, `(o:"when " or o:"whenever ") (o:"put into your hand"
+       or o:"put into a hand" or o:"put into your library" or o:"put into a
+       library" or o:"put on top of")`;
+     - the effects that return "that card" to a hand find it in a graveyard or
+       in exile first: 25 cards, `(o:"owner's hand" or o:"owner's library")
+       (o:"when that card" or o:"that card is" or o:"return that card" or
+       o:"exile that card" or o:"cast that card")`.
+
+     **Reachability (2026-10-13):** unreachable — no registered reader.
+     Fateful Tempest is the printed one, and it would get a shuffled-back
+     Colossus right by construction, since `put_into_since` reads only the
+     verb's zone.
+     **Sized:** ~30 lines of code and ~80 of tests: the binding's, the
+     remembered object's and `put_into_since`'s finds refuse a hidden zone,
+     and a resolution's own read finds a moved card in any public zone it
+     went to.
+     **The other direction, and the slot (2026-10-13, #246's review).** CR
+     701.17c lets "an effect that refers to a milled card ... find that card in
+     the zone it moved to from the library, as long as that zone is a public
+     zone". So the rule turns on the zone. A Darksteel Colossus milled and
+     shuffled back into its library is not found, and Fateful Tempest's "total
+     mana value of cards milled this way" does not count it: the owner's judge
+     Discord, citing CR 701.17c. It was still milled (item 131). In the other
+     direction, a milled card that Leyline of the Void exiled is found in
+     exile. `put_into_since` reads only the verb's zone, so it misses that card
+     (CR 400.7j's "other parts of that effect"). No registered card reads
+     "milled this way".
+     **Slotted:** TR-4d, beside item 131, whose same-zone record is where CR
+     701.17c's public zone is asked first: the finds refuse a hidden zone, and a
+     resolution's own read finds a moved card in any public zone it went to.
+     **Designed 2026-10-15 (TR-4d):** every verb (CR 400.7j), as Rescue from
+     the Underworld's fourth ruling reads it for a delayed trigger, so
+     TR-3b's Rest in Peace test flips (`triggers-architecture.md` §12,
+     TR-4d's decision 2).

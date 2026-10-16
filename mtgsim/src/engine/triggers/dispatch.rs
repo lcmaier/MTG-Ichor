@@ -36,7 +36,7 @@ use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::{controller_or_owner, CurrentOrLastKnown};
 use crate::state::battlefield::CostChoices;
 use crate::state::continuous_effects::triggered_ability_kinds;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
@@ -369,10 +369,10 @@ enum AnsweredArms {
 enum SubjectRead<'a> {
     /// Where it is now.
     Now,
-    /// This event is the subject leaving the battlefield, and the trigger
-    /// looks back to just before it (CR 603.10a): it was a permanent then, as
-    /// its record framed it. "When enchanted creature dies" matches the Aura
-    /// that was on it.
+    /// This event is the subject leaving where it was, and the trigger looks
+    /// back to just before it (CR 603.10): a permanent leaving the
+    /// battlefield, as its record framed it, which "when enchanted creature
+    /// dies" matches the Aura that was on; or a spell countered on the stack.
     LeftInThisEvent(&'a Lki),
     /// It had left the battlefield at some earlier event, and deals damage
     /// now as it last existed, through an ability that resolved after it had
@@ -895,7 +895,9 @@ impl GameState {
                         self.capture_frame(*object);
                     }
                 }
-                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) => {
+                // A replacement keeping the object where it was (CR 614.6): the
+                // record of the act it replaced carries the object as it was.
+                GameAction::ZoneChange { object, from, to, .. } if zone_change_looks_back(*from, Some(*to)) || from == to => {
                     self.capture_frame(*object);
                 }
                 GameAction::EnterBattlefield { object, from: Some(from), .. }
@@ -992,7 +994,7 @@ impl GameState {
         let object = self.objects.get(&id)?;
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
-        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id)))
+        Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1050,11 +1052,12 @@ impl GameState {
     }
 
     /// The last known information the move of `id` out of `from` carries,
-    /// taken before its batch performed.
-    fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
+    /// taken before its batch performed: a move in one of CR 603.10a's
+    /// classes, or one a replacement kept in `from` (`GameEvent::SameZoneMove`).
+    pub(crate) fn take_captured_lki(&mut self, id: ObjectId, from: Zone) -> Option<Lki> {
         let taken = self.take_named_lki(id);
         // Every such move is decided by a batch, which framed it first.
-        debug_assert!(taken.is_some(), "{id} left the {from:?} with no frame from its batch");
+        debug_assert!(taken.is_some(), "{id} moved from the {from:?} with no frame from its batch");
         taken.or_else(|| {
             let frame = crate::engine::layers::compute::compute_characteristics_uncached(self, id)?;
             self.last_known_information(id, Arc::new(frame))
@@ -1210,6 +1213,12 @@ impl GameState {
                 .map(|(snapshot, chars)| TriggerCandidateFrame::Before { chars, snapshot });
             let lists = std::iter::once(TriggerCandidateFrame::Live { chars, snapshots }).chain(before_lists);
             for frame in lists {
+                // A list from before the event is its controller's then (CR
+                // 603.10, 603.3a), which a control change made someone else.
+                let controller = match &frame {
+                    TriggerCandidateFrame::Before { chars, .. } => chars.controller,
+                    TriggerCandidateFrame::Live { .. } | TriggerCandidateFrame::LastKnown { .. } => controller,
+                };
                 candidates.push(TriggerCandidate {
                     object: existence,
                     controller,
@@ -1554,6 +1563,19 @@ impl GameState {
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
             ),
+            // The act a replacement kept in its zone (CR 614.6), read only by an
+            // arm that names an act: a mill, not "leaves your library". The
+            // object is asked as it was, which is how it still is.
+            (
+                TriggerEvent::ZoneChange { subject, change, by, owner, .. },
+                GameEvent::SameZoneMove { object_id, owner: moved_owner, zone, act, lki, applied: _ },
+            ) => occurrence_if(
+                change.act.is_some()
+                    && change.matches(Some(*zone), *zone, Some(*act))
+                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+            ),
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 occurrence_if(self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now))
@@ -1564,7 +1586,8 @@ impl GameState {
                         place.matches(DrawOrdinals { in_turn: record.place_in_turn(), in_draw_step: record.place_in_draw_step() })
                     }),
             ),
-            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+            (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id })
+            | (TriggerEvent::PlayerLoses { player: who }, GameEvent::PlayerLost { player_id }) => {
                 occurrence_if(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, referents)))
             }
             (
@@ -1633,6 +1656,17 @@ impl GameState {
                     ),
                 };
                 occurrence_if(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, referents)))
+            }
+            // CR 603.10e: the spell as it was on the stack, and whoever cast it.
+            (TriggerEvent::IsCountered { spell, caster }, GameEvent::SpellCountered { spell_id, lki, .. }) => {
+                let cast_by = lki.entry().and_then(StackEntry::caster);
+                occurrence_if(
+                    caster.as_ref().is_none_or(|p| cast_by.is_some_and(|who| self.player_ref_is(p, who, referents)))
+                        && spell.as_ref().is_none_or(|filter| {
+                            let filter = TriggerSubject::Filter(filter.clone());
+                            self.subject_matches(&filter, Some(*spell_id), referents, seq, SubjectRead::LeftInThisEvent(lki))
+                        }),
+                )
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
@@ -1705,6 +1739,26 @@ impl GameState {
                     from, Some(former_host.id), referents, seq, self.subject_read_looking_back(*former_host),
                 ),
             ),
+            // CR 603.10d: the subject as it was before the change, "you" its
+            // controller then (the candidate's, off its frame from before).
+            (TriggerEvent::ControlChanges { subject, from, to }, GameEvent::ControlChanged { object_id, from: lost, to: gained, lki }) => {
+                occurrence_if(
+                    from.as_ref().is_none_or(|p| self.player_ref_is(p, *lost, referents))
+                        && to.as_ref().is_none_or(|p| self.player_ref_is(p, *gained, referents))
+                        && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+                )
+            }
+            // Leaving the battlefield is losing control of it (Khârn the
+            // Betrayer's first ruling), to nobody: so only an arm that names no
+            // one gaining it, and its controller as it left.
+            (
+                TriggerEvent::ControlChanges { subject, from, to: None },
+                GameEvent::ZoneChange { object_id, from: Zone::Battlefield, lki: Some(lki), .. }
+                | GameEvent::LeftTheGame { object_id, from: Zone::Battlefield, lki: Some(lki), .. },
+            ) => occurrence_if(
+                from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
+                    && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
+            ),
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no occurrence of it.
             (
@@ -1722,9 +1776,12 @@ impl GameState {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::CastsSpell { .. }
+                | TriggerEvent::IsCountered { .. }
+                | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
+                | TriggerEvent::ControlChanges { .. }
                 | TriggerEvent::AbilityTriggers { .. }
                 | TriggerEvent::AbilityResolves { .. },
                 _,

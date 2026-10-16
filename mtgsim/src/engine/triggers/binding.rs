@@ -13,7 +13,7 @@ use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{Lki, TriggerBinding};
+use crate::types::triggers::{Lki, TriggerBinding, TriggerEvent};
 
 /// The subject as it was in the zone it left, when the matched event was its
 /// own departure and the arm that matched looks back: the record's CR
@@ -85,10 +85,14 @@ impl GameState {
     /// "That object" — the binding's subject, if it is still the object the
     /// event was about. CR 603.6's "unable to be found in the zone it went
     /// to" and CR 400.7's new object are one comparison: the id is in the
-    /// store and its `zone_change_epoch` is the one the dispatcher saw.
+    /// store and its `zone_change_epoch` is the one the dispatcher saw. A
+    /// zone change's trigger finds the object it moved only in a public zone
+    /// (CR 400.7e), so not in the hand or library it went to.
     pub fn bound_object(&self, binding: &TriggerBinding) -> Option<ObjectId> {
         let reference = binding.subject?;
-        self.find(reference).map(|_| reference.id)
+        let object = self.find(reference)?;
+        let out_of_sight = matches!(binding.event(), TriggerEvent::ZoneChange { .. }) && !object.zone.is_public();
+        (!out_of_sight).then_some(reference.id)
     }
 
     /// "That player" — the matched event's `player_of` on the first record.
@@ -136,7 +140,7 @@ impl GameState {
         let subject = binding.subject?;
         let lki = match subject_lki(binding) {
             Some(lki) => Some(lki),
-            None if self.bound_object(binding).is_some() => None,
+            None if self.find(subject).is_some() => None,
             None => Some(self.lki_kept_by_resolving(subject)?),
         };
         Some(CurrentOrLastKnown { id: subject.id, lki })

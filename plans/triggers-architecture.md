@@ -307,9 +307,9 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `SpellCast` | `CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> }` — the stack object is live at dispatch (types, colors, mana value through the layer walk). `from` waits for casting from a zone other than the hand (`backlog.md` §2.3) | no | TR-2a |
 | `AbilityActivated` | `ActivatesAbility { controller, source: Option<ObjectFilter>, loyalty: Option<bool> }`. "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, CV-4) | no | TR-5 |
 | `AbilityResolved` | `AbilityResolves { identity: IdentityRef }` — `ThisAbility` for CR 603.7h's delayed form, read with the resolution count (§6.5) | no | TR-3 |
-| `SpellCountered` / `AbilityCountered` | `IsCountered { subject: CounteredRef }` — **never `SpellFizzled`** (question 2; Multani's Presence's ruling). The look-back reads a frame these records carry: the stack object's `Lki` with its `entry` (§3.12a, item 253) | yes (603.10e) | TR-4 |
+| `SpellCountered` / `AbilityCountered` | `IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> }`, reading `SpellCountered` only — **never `SpellFizzled`** (question 2; Multani's Presence's ruling). The look-back reads the frame the record carries: the stack object's `Lki` with its `entry` (§3.12a, item 253), whose `StackEntry::caster()` is "a spell you've cast". No printed trigger reads an ability being countered (§12, TR-4d) | yes (603.10e) | TR-4d |
 | `SpellFizzled` / `AbilityFizzled` | **no arm.** CR 608.2b's "doesn't resolve" is not "countered" under the baseline CR, and no printed trigger reads it. An ability's is its own record since #231, named by its identity as `AbilityResolved` is | — | — |
-| `PlayerLost` | `PlayerLoses { player }` — 603.9's "regardless of the reason", so no reason field: why is the record's cause, and `LossReason` folded into it at RH-2. Its "unless as the result of a draw": a draw is `GameResult::Draw`, not a `PlayerLost` | yes (603.10f) | TR-4 |
+| `PlayerLost` | `PlayerLoses { player }` — 603.9's "regardless of the reason", so no reason field: why is the record's cause, and `LossReason` folded into it at RH-2. Its "unless as the result of a draw": a draw is `GameResult::Draw`, not a `PlayerLost`. The loser's permanents leave in the same window and are asked off their departure frames; one the loser controlled is kept off the stack (CR 800.4d), and one another player controlled triggers for that player | yes (603.10f) | TR-4d |
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
@@ -322,7 +322,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
 | `Targeted` (item 12; the record since #231) | `BecomesTarget { subject: TargetRef (object or player), by: Option<TargetingFilter> (a spell, an ability, "an opponent controls", "an Aura spell"), first_time_each_turn }` — once per spell or ability, however many instances (question 11) | no | TR-5 |
-| *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "loses control", "an opponent gains control of a permanent you own" | yes (603.10d), with the caveat in §15 item 4 | TR-4 |
+| *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "you lose control of" is `from: You`; "an opponent gains control of a permanent from you" adds `to: Opponent` (Zidane, Tantalus Thief); "a permanent you own" is the subject's filter. Losing control includes leaving the battlefield (Khârn the Betrayer's first ruling), so an arm with `to: None` also reads a battlefield departure whose frame's controller is `from` | yes (603.10d), off the frame the sweep kept (§12, TR-4d) | TR-4d |
 | *new* `DamagePrevented` (item 16) | `DamageIsPrevented { target: DamageRecipient, multiplicity }` — one record per prevention applied per subject group (CR 615.13) | no | TR-5 |
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), source: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
 
@@ -982,7 +982,9 @@ Each fact carries a reader that TR-4a built or one that TR-4b to TR-4d name:
 TR-4a to TR-4d. `cast`, CR 400.7d's facts (the 2026-09-23 amendment's
 Vibrance, "if {R}{R} was spent to cast it" after it left), has no condition
 leaf that reads mana spent, and the card is unregistered. `entry`, a stack
-object's copy for CR 603.10e and CV-4's `copy_of`, is TR-4d's with item 253.
+object's copy for CR 603.10e and CV-4's `copy_of`, was built in TR-4d with
+item 253: `last_known_information` keeps it for any object framed on the
+stack, and `entry()` reads it.
 
 **The capture.** `last_known_information` builds the whole body before the
 batch performs (`capture_frame`); the frame is the memo hit it always was,
@@ -1381,6 +1383,10 @@ it. Its phase builds the corrected one.
   - **An earlier moment.** The sweep runs at the head of `execute_actions` as
     well. Act of Treason's change is then announced before its "untap that
     creature", which is CR 603.4's instant.
+  - **Two more, found by TR-4d's re-read (§12).** The sweep also runs once
+    after the last control-changing effect ends, or a steal's end goes
+    unannounced. And the frame before the first control row is kept as that
+    row is written (TR-4d's decision 1).
 - **`DamagePrevented` keeps its instance and drops its source** (§3.12 item
   16, TR-5d). One subject group can hold several sources, as two attackers into
   a Fog do. The printed readers say "prevented this way", which the instance
@@ -1883,12 +1889,15 @@ intervening "if"**: a state trigger checks at the trigger only, so
 `intervening_if` is `None` on a `State` condition and the matcher refuses
 the pair.
 
-The same pass is where **`ControlChanged` is announced** (item 13): for each
-permanent, when `any_control_changing`, compare `get_effective_controller`
-against `PermanentState.announced_controller`; on a difference emit the
-record and write the field. A field with one meaning, the last announced
-controller; a "becomes" on a computed value, detected where computed values
-are re-read.
+**`ControlChanged` is announced by a sweep of its own** (item 13; designed
+in §12's TR-4d section): for each permanent, compare
+`get_effective_controller` against `PermanentState.announced_controller`;
+on a difference emit the record and write the field. A field with one
+meaning, the last announced controller; a "becomes" on a computed value,
+detected where computed values are re-read. Its gate is
+`any_control_changing` now or at the last sweep
+(`control_effects_at_last_sweep`), since the summary is rebuilt as rows go,
+and its points are TR-4d's rather than this check's.
 
 ### 4.6 Delayed and reflexive (CR 603.7, 603.12; questions 1 and 14)
 
@@ -2393,9 +2402,9 @@ and a host that left otherwise has no answer, which reads as no; its filter's
 `AmountExpr::SourceCounters` is the amount's half: "the number it had" (CR
 122.8, 122.9), the source's counters as it last existed, put anew.
 
-**What waits.** The `IsCountered` look-back (CR 603.10e) reads the countered
-spell's frame, which no record carries until TR-4d's `Lki.entry` (item
-253).
+**Built in TR-4d.** The `IsCountered` look-back (CR 603.10e) reads the
+countered spell's frame, which `SpellCountered` carries with `Lki.entry`
+(item 253).
 
 The two amendments below are the design record this was built from.
 
@@ -3268,6 +3277,46 @@ review (+0.39% before it, when a departing player's graveyard was framed).
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-4c".
 
+### TR-4d — control, countering, loss, and the records' missing facts — ✅ landed 2026-10-15
+
+*Body evicted 2026-10-15 to `plans/archive/triggers-architecture-landed.md`,
+"TR-4d", with the plan as designed and its two decisions.*
+
+**What shipped.** CR 603.10's three remaining look-backs. A change of control
+is announced by a sweep (`announce_control_changes`, `engine/triggers/control.rs`):
+each permanent's controller against `PermanentState.announced_controller`, at
+the head of an outermost batch, at each state-based pass and in the cleanup
+step after the expiry, one sweep's changes one event, caused by
+`GameRule::ControlChanges`. It looks back off the frame the last sweep read,
+kept while a control-changing effect exists and kept again before a
+resolution's row, an expiry and the first control row (decision 1, the
+owner's). `ControlChanges` reads it, and for an arm naming no one gaining
+control a battlefield departure (Khârn the Betrayer's first ruling). A
+countered spell's record carries its frame with `Lki.entry` (item 253), which
+`IsCountered` reads, "a spell you've cast" off `StackEntry::caster`.
+`PlayerLoses` reads a loss and looks back at the loser's departures (CR 603.9,
+603.10f). A mill a replacement keeps in its library is a `SameZoneMove` (item
+131), and an effect finds what it moved in any public zone it went to and
+never a hidden one (item 258; decision 2, settled by Rescue from the
+Underworld's fourth ruling). Items 13, 131, 253 and 258 closed. Multani's
+Presence and Ray of Command registered, Ray of Command pooled (197 → 199,
+109 → 110). Twenty-eight tests; ATOM-603.10d-001, ATOM-603.10e-001 and
+ATOM-603.9-001 are covered.
+
+**What moved on the way in.** The re-read found three defects: the sweep's
+gate missed the change back (the registry's summary is rebuilt as rows go),
+nothing kept a frame before the first steal, and a `Before` candidate kept
+today's controller. A zone-change arm had no "that many". TR-3b's Rest in
+Peace test pinned the opposite of Rescue from the Underworld's ruling, and
+flipped. +1,613 in code and tests (code +742, tests +871), inside the band.
+
+**Measured** (`fuzz-record.md`, the TR-4d block). Engine against `main`, every gameplay row
+identical on both pools at two seats and four, and the audit agreeing on
+every dispatch; instructions per decision +0.32%. The 1,000-game audited
+smoke: no error, panic or turn-limit game, every dispatch agreed.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-4d".
+
 ### TR-4 — the frame, the look-back classes and their records — TR-4a to TR-4d (6,005–8,080)
 
 **Re-counted and split in four on 2026-10-12 (A6p, §3.12a)**, one read-only
@@ -3281,7 +3330,8 @@ the three needs another.
 | **TR-4a — the frame's facts and their readers** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4a" | | | | +1,870 |
 | **TR-4b — attachment's records** — ✅ landed 2026-10-14, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4b" | | | | +1,650 |
 | **TR-4c — the other two look-back classes and the zone statement** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4c" | | | | +1,547 |
-| **TR-4d — control, countering, loss, and the records' missing facts** (CR 603.10d, 603.10e, 603.10f, 603.9) | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | 415–635 (620–1,270) | 555–770 | 1,175–2,040 |
+| **TR-4d — control, countering, loss, and the records' missing facts** — ✅ landed 2026-10-15, above | → `plans/archive/triggers-architecture-landed.md`, "TR-4d" | | | | +1,613 |
+| *TR-4d as sized (CR 603.10d, 603.10e, 603.10f, 603.9), kept for the record* | `ControlChanged` from the sweep, with the frame before, a `GameRule` cause and the earlier moment (§3.12a), and `announced_controller`, with sweep points of its own rather than TR-6's; the arms `ControlChanges`, `IsCountered`, `PlayerLoses`; items 253 (with `Lki.entry`), 131 and 258; items 254 and 261 went to A6r, before TR-4 (the owner, 2026-10-13) | Multani's Presence; a fixture over the registered Act of Treason, shaped like Khârn the Betrayer; fixtures for items 253, 131 and 258; ATOM-603.10d-001, ATOM-603.10e-001 and ATOM-603.9-001 | ~610 (920–1,220) | ~770 | 1,690–1,990 |
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
 themselves from a graveyard, which CR 113.6m places in that zone and
@@ -3597,6 +3647,8 @@ Recorded here at authoring; a finding that becomes a code item moves to
    controller the object had, and the frame after makes the new controller
    the trigger's (CR 603.3a), so it never matches. So the sweep keeps a frame
    per permanent while `any_control_changing` is set, and TR-4d prices it.
+   TR-4d's re-read (§12) found that this keeps nothing for the first change
+   on a board with no control row; its decision 1 is the fix.
 5. **Golgari Brownscale's dredge** does not fit `Rewrite` (re-counted
    2026-10-12): it needs a library-size condition and a CR 616.1 choice among
    dredges as well. So TR-4c's class is a fixture, and the card waits here

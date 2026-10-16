@@ -760,11 +760,17 @@ impl GameState {
         proposals: Vec<(GameAction, EventCause)>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
-        let previous = self.events.open_batch();
-        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // The outermost batch dispatches its window at its close. A nested one
         // joined an enclosing window and dispatches nothing of its own.
         let outermost = self.nesting.batch_depth == 0;
+        // A change of control the board made since the last proposal, as a
+        // resolution's earlier instruction did, is announced before this one
+        // (CR 603.4's instant): Act of Treason's, before its untap.
+        if outermost && self.nesting.dispatch_depth == 0 {
+            self.announce_control_changes(ctx)?;
+        }
+        let previous = self.events.open_batch();
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
@@ -1896,7 +1902,8 @@ impl GameState {
     /// Shared by the `ZoneChange` arm and the `EnterBattlefield` arm rather
     /// than being the first one's body, because entering is a zone change and
     /// the log must not be able to tell which arm moved a card. `from == to`
-    /// performs and announces nothing.
+    /// performs nothing, and is announced only when a replacement sent the
+    /// move back where it was (`GameEvent::SameZoneMove`).
     fn perform_zone_change(
         &mut self,
         object: ObjectId,
@@ -1917,7 +1924,11 @@ impl GameState {
             ));
         }
         if from == to {
-            return Ok(());
+            if applied.is_none() {
+                return Ok(());
+            }
+            let lki = self.take_captured_lki(object, from);
+            return self.announce_same_zone_move(object, from, act, lki, applied, cause);
         }
 
         let leaving = self.object_ref(object);
@@ -1956,6 +1967,22 @@ impl GameState {
             .filter_map(|&attachment| self.object_ref(attachment))
             .map(|attachment| (attachment, leaving, UnattachRoute::HostLeft));
         from_host.into_iter().chain(from_it).collect()
+    }
+
+    /// **The only emitter of `GameEvent::SameZoneMove`**: a move a replacement
+    /// kept in `zone`, which `perform_zone_change` performed by not moving it.
+    fn announce_same_zone_move(
+        &mut self,
+        object: ObjectId,
+        zone: Zone,
+        act: ZoneChangeAct,
+        lki: Option<Lki>,
+        applied: Option<Arc<[AppliedReplacement]>>,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        let lki = lki.ok_or_else(|| format!("{object} was kept in the {zone:?} with no frame to announce it by"))?;
+        let owner = self.get_object(object)?.owner;
+        self.emit_event(GameEvent::SameZoneMove { object_id: object, owner, zone, act, applied, lki }, cause)
     }
 
     /// A leaving's unattaches (`unattached_by_leaving`), announced after its

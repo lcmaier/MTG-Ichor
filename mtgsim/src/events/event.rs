@@ -218,7 +218,10 @@ pub enum GameEvent {
     UntilReturnMade { id: UntilReturnId, source: ObjectId, controller: PlayerId, returns: Vec<ObjectId> },
     /// A spell was countered (CR 701.6a). `controller` is its controller as
     /// it left the stack: in its owner's graveyard it has none (CR 108.4a).
-    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId },
+    /// `lki` is the spell as it was on the stack, its entry included, which
+    /// "whenever a spell is countered" looks back at (CR 603.10e): who cast
+    /// it, and what it was before it became a card in a graveyard.
+    SpellCountered { spell_id: ObjectId, controller: PlayerId, countered_by: ObjectId, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
     AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectId },
@@ -348,6 +351,15 @@ pub enum GameEvent {
     /// it is the stamp's, not the route's.
     Unattached { attachment: ObjectRef, former_host: ObjectRef, route: UnattachRoute },
 
+    /// A permanent's controller became `to` from `from` (CR 613.1b): a
+    /// control-changing effect started or ended. No performer does this, so
+    /// `announce_control_changes` finds it, comparing each permanent with the
+    /// controller the stream last announced; one sweep's changes are one
+    /// event. `lki` is the permanent as it was before, which "when you lose
+    /// control of" and "an opponent gains control of" look back to (CR
+    /// 603.10d): it names `from` as its controller.
+    ControlChanged { object_id: ObjectId, from: PlayerId, to: PlayerId, lki: Lki },
+
     // --- Multiplayer (CR 800.4a) ---
     /// An object owned by a player who has just left the game left it too.
     ///
@@ -379,6 +391,23 @@ pub enum GameEvent {
         owner: PlayerId,
         from: Zone,
         lki: Option<Lki>,
+    },
+
+    /// A move a replacement sent back into the zone it was leaving: Darksteel
+    /// Colossus milled, and shuffled into its library instead. The act it
+    /// replaced still happened (CR 614.6; the card "is still milled", Jess
+    /// Dunks on Zellix, Sanity Flayer), so `act` and `applied` say what was
+    /// done and what replaced it, and `lki` is the card as it was. **Not a
+    /// zone change**: nothing left a zone and no new object was made (CR
+    /// 400.7), so it is no departure, and only an arm that names an act reads
+    /// it (`triggers-architecture.md` §3.12a decision 3).
+    SameZoneMove {
+        object_id: ObjectId,
+        owner: PlayerId,
+        zone: Zone,
+        act: ZoneChangeAct,
+        applied: Option<Arc<[AppliedReplacement]>>,
+        lki: Lki,
     },
 
     // --- Tokens ---
@@ -433,13 +462,15 @@ impl GameEvent {
         }
     }
 
-    /// The last known information this record carries (CR 603.10a), with the
-    /// zone its object left and its owner: a zone change's or a leaving's, and
-    /// `None` for every other record and for a move no look-back reads.
+    /// The last known information this record carries (CR 603.10), with the
+    /// zone its object left and its owner: a zone change's or a leaving's
+    /// (603.10a), a countered spell's (603.10e), and `None` for every other
+    /// record and for a move no look-back reads.
     pub fn lki(&self) -> Option<(&Lki, Zone, PlayerId)> {
         match self {
             GameEvent::ZoneChange { lki: Some(lki), from, owner, .. }
             | GameEvent::LeftTheGame { lki: Some(lki), from, owner, .. } => Some((lki, *from, *owner)),
+            GameEvent::SpellCountered { lki, .. } => Some((lki, Zone::Stack, lki.owner())),
             _ => None,
         }
     }
@@ -458,6 +489,8 @@ impl GameEvent {
             | CountersAnnihilated { object_id: id, .. }
             | CountersChanged { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
+            | SameZoneMove { object_id: id, .. }
+            | ControlChanged { object_id: id, .. }
             | TokenCeasedToExist { object_id: id }
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }

@@ -874,16 +874,21 @@ impl GameState {
                 for target in targets {
                     if let ResolvedTarget::Object(id) = target {
                         let id = *id;
-                        // Its controller read while it is a spell, as the record
-                        // keeps it (CR 108.4a: a card in a graveyard has none).
+                        // Its controller and its frame read while it is a spell, as
+                        // the record keeps them (CR 108.4a: a card in a graveyard
+                        // has none; CR 603.10e looks back at the spell).
                         if self.stack.contains(&id)
                             && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
                         {
+                            let lki = crate::engine::layers::compute_characteristics(self, id)
+                                .and_then(|frame| self.last_known_information(id, frame))
+                                .ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
                             self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, &actx)?;
                             let countered = crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 controller,
                                 countered_by: ctx.source,
+                                lki,
                             };
                             self.emit_event(countered, actx.cause)?;
                         }
@@ -1686,6 +1691,10 @@ impl GameState {
         affected: Vec<ObjectId>,
         modification: EffectModification,
     ) -> EffectId {
+        // A row a resolution writes may move control, and the change looks
+        // back (CR 603.10d): Act of Treason's steal is read with whatever its
+        // own resolution did first.
+        self.keep_frames_before_control_change(layer == Layer::Layer2Control);
         self.continuous_effects.add(ContinuousEffect {
             id: 0,
             source: ctx.effect_source(),
@@ -2552,10 +2561,10 @@ impl GameState {
 
     /// What `Effect::Remember`'s instruction acted on, as it left them (CR
     /// 603.7c, 400.7). A verb that moves things: each object its records put
-    /// where the verb puts them, and each token it made there, if it is
-    /// still there. A move a replacement sent elsewhere (Rest in Peace's
-    /// exile) is not "that card". A verb that moves nothing: each object it
-    /// acted on, as it is. Either way, each player it named.
+    /// into a public zone, and each token it made in one, if it is still
+    /// there (`put_into_since`), so a move a replacement sent elsewhere (Rest
+    /// in Peace's exile) is still "that card". A verb that moves nothing: each
+    /// object it acted on, as it is. Either way, each player it named.
     fn remembered_since(
         &self,
         primitive: &Primitive,
@@ -2571,8 +2580,8 @@ impl GameState {
             })
             .collect();
         let objects = match primitive.moves_into() {
-            Some(zone) => self
-                .put_into_since(ctx.stamp(), mark, zone)
+            Some(_) => self
+                .put_into_since(ctx.stamp(), mark)
                 .into_iter()
                 .map(|(object, _)| RememberedObject::now(object))
                 .collect(),
@@ -2592,27 +2601,28 @@ impl GameState {
         Referred { objects, players }
     }
 
-    /// What resolution `stamp` put into `zone` from `mark` on and is still
-    /// there, once each: every object it moved there, as the object its move
+    /// What resolution `stamp` put into a public zone from `mark` on and is
+    /// still there, once each: every object it moved, as the object its move
     /// made (CR 400.7e), with the zone it came from, and every token it
-    /// created there, which came from no zone (CR 111.2).
+    /// created, which came from no zone (CR 111.2). Wherever the move went,
+    /// a replacement's destination included, the effect can find it (CR
+    /// 400.7j; 701.17c for a mill; Rescue from the Underworld's fourth
+    /// ruling), and in a hand or a library it can't.
     pub(crate) fn put_into_since(
         &self,
         stamp: ResolutionStamp,
         mark: crate::events::event::EventSeq,
-        zone: Zone,
     ) -> Vec<(ObjectRef, Option<Zone>)> {
         let mut put: Vec<(ObjectRef, Option<Zone>)> = Vec::new();
         for record in self.events.resolution_records(stamp, mark) {
             let moved = match &record.event {
-                GameEvent::ZoneChange { from, to, .. } if *to == zone => record.event.new_object().map(|o| (o, Some(*from))),
-                GameEvent::TokenCreated { object_id, zone: made_in, .. } if *made_in == zone => {
-                    self.object_ref(*object_id).map(|o| (o, None))
-                }
+                GameEvent::ZoneChange { from, to, .. } => record.event.new_object().map(|o| (o, Some(*from), *to)),
+                GameEvent::TokenCreated { object_id, zone, .. } => self.object_ref(*object_id).map(|o| (o, None, *zone)),
                 _ => None,
             };
-            if let Some((object, from)) = moved
-                && self.find(object).is_some_and(|o| o.zone == zone)
+            if let Some((object, from, to)) = moved
+                && to.is_public()
+                && self.find(object).is_some_and(|o| o.zone == to)
                 && !put.iter().any(|(seen, _)| *seen == object)
             {
                 put.push((object, from));

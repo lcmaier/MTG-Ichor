@@ -29,6 +29,7 @@ use super::phase_tr3c_cards;
 use super::phase_tr4a_cards;
 use super::phase_tr4b_cards;
 use super::phase_tr4c_cards;
+use super::phase_tr4d_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -60,7 +61,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 109] = [
+const PERFORMANCE_POOL: [&str; 110] = [
     "Plains",
     "Island",
     "Swamp",
@@ -508,6 +509,10 @@ const PERFORMANCE_POOL: [&str; 109] = [
     // states. While it sits in one, every death is matched against it there.
     // It does nothing on the battlefield, so it ends no game.
     "Bridge from Below",
+    // TR-4d's: a change of control, which no performer makes, announced by
+    // the sweep; its steal ends at cleanup, where its delayed trigger repeats
+    // the step. A steal until end of turn ends no game.
+    "Ray of Command",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -903,6 +908,13 @@ impl CardRegistry {
         registry.register("Guerrilla Tactics", phase_tr4c_cards::guerrilla_tactics);
         registry.register("Angelic Destiny", phase_tr4c_cards::angelic_destiny);
         registry.register("Rancor", phase_tr4c_cards::rancor);
+
+        // TR-4d: control, countering and loss. Multani's Presence looks back at
+        // who cast a countered spell (CR 603.10e); Ray of Command's delayed
+        // trigger is on losing control, which its own steal ending at cleanup
+        // makes (CR 603.10d, 514.3a).
+        registry.register("Multani's Presence", phase_tr4d_cards::multanis_presence);
+        registry.register("Ray of Command", phase_tr4d_cards::ray_of_command);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
