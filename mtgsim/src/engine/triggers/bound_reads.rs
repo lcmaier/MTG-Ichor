@@ -82,6 +82,15 @@ impl TriggerDef {
         };
         effect(&self.effect) | self.intervening_if.as_ref().map_or(BoundReads::NOTHING, condition) | gate
     }
+
+    /// Each participant the def names that some arm of its condition does not
+    /// have (`TriggerEvent::participants`): an instruction that could only
+    /// ever find nothing there, which is a card written wrong. Empty for every
+    /// registered card (`cards::registry`'s test).
+    pub fn participants_its_arms_lack(&self) -> Vec<Participant> {
+        let arms = self.condition.events();
+        self.bound_reads().participants().filter(|p| arms.iter().any(|arm| !arm.participants().contains(p))).collect()
+    }
 }
 
 fn effect(e: &Effect) -> BoundReads {
@@ -316,6 +325,18 @@ mod tests {
         let reads = exile_that_creature_until_this_leaves().bound_reads();
         assert!(reads.contains(BoundReads::SUBJECT), "the exiled creature");
         assert!(reads.contains(BoundReads::SOURCE), "the source whose leaving returns it");
+    }
+
+    /// "Whenever a creature dies, destroy the creature it dealt damage to": a
+    /// dies record has no recipient, and the def says so.
+    #[test]
+    fn a_participant_the_arm_lacks_is_named() {
+        let def = whenever(
+            crate::cards::authoring::dies(TriggerSubject::Any),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::TriggeringObject(Participant::Recipient)),
+        );
+        assert_eq!(def.participants_its_arms_lack(), vec![Participant::Recipient]);
+        assert!(exile_that_creature_until_this_leaves().participants_its_arms_lack().is_empty());
     }
 
     /// The control: a plain exile of the same creature reads only it.

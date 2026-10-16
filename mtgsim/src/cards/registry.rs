@@ -1212,6 +1212,66 @@ mod tests {
         }
     }
 
+    /// Every participant a registered trigger names is one every arm of its
+    /// condition has (TR-5a's decision 2): "that creature" after a dies
+    /// trigger is the card that moved, and no dies record has a recipient. A
+    /// delayed trigger's def, which its creating instruction carries, is
+    /// checked against its own arms.
+    #[test]
+    fn every_trigger_names_participants_its_arms_have() {
+        use crate::objects::card_data::AbilityDef;
+        use crate::types::effects::{Effect, Primitive};
+        use crate::types::triggers::TriggerDef;
+
+        fn check(what: &str, def: &TriggerDef) {
+            assert!(
+                def.participants_its_arms_lack().is_empty(),
+                "{what}: names {:?}, which an arm of its condition does not have",
+                def.participants_its_arms_lack()
+            );
+        }
+        fn walk(what: &str, effect: &Effect) {
+            match effect {
+                Effect::Triggered(def) => {
+                    check(what, def);
+                    walk(what, &def.effect);
+                }
+                Effect::Atom(Primitive::CreateDelayedTrigger(template), _) => {
+                    check(&format!("{what}, its delayed trigger"), &template.def);
+                    walk(what, &template.def.effect);
+                }
+                Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
+                    effects.iter().for_each(|e| walk(what, e));
+                }
+                Effect::Conditional(_, inner)
+                | Effect::Optional { effect: inner, .. }
+                | Effect::Remember(inner)
+                | Effect::ForEach(_, inner)
+                | Effect::Repeat(_, inner) => walk(what, inner),
+                Effect::Atom(..)
+                | Effect::Replacement(_)
+                | Effect::Restriction(_)
+                | Effect::CostModification(_) => {}
+            }
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                walk(&format!("{name} ability #{i}"), &ability.effect);
+                let mut nested = 0usize;
+                ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| {
+                    walk(&format!("{name} ability #{i}, nested def #{nested}"), &def.effect);
+                    nested += 1;
+                });
+            }
+        }
+    }
+
     /// Every ability a registered card carries says what its card says. A
     /// printed ability's text is exactly one paragraph of the card's rules
     /// text (CR 113.2c), a modal ability's bullets with it (CR 700.2), and
