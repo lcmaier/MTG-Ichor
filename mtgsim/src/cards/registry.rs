@@ -61,7 +61,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 109] = [
+const PERFORMANCE_POOL: [&str; 110] = [
     "Plains",
     "Island",
     "Swamp",
@@ -509,6 +509,10 @@ const PERFORMANCE_POOL: [&str; 109] = [
     // states. While it sits in one, every death is matched against it there.
     // It does nothing on the battlefield, so it ends no game.
     "Bridge from Below",
+    // TR-4d's: a change of control, which no performer makes, announced by
+    // the sweep; its steal ends at cleanup, where its delayed trigger repeats
+    // the step. A steal until end of turn ends no game.
+    "Ray of Command",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
