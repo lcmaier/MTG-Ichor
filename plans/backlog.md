@@ -2799,6 +2799,25 @@ between public zones, one of CR 400.7's twelve exceptions (400.7m,
 | **Atoms** | none: session 1 ruled CR 123 out, so they are authored when an owner takes the entry |
 | **Owner** | — |
 
+### 2.46 Revealing until a card matches — a library walk on the information model
+
+**Raised at TR-5f's review (2026-10-17, PR #257)**: Raph & Mikey,
+Troublemakers, a card of the baseline's own set, attacks and "reveal[s]
+cards from the top of your library until you reveal a creature card. Put
+that card onto the battlefield tapped and attacking and the rest on the
+bottom of your library in a random order." Its attacking half is built
+(`ReturnToBattlefield` takes `tapped` and `attacking` and moves a card from
+any zone but the stack). The walk is not.
+
+| Field | |
+|---|---|
+| **Rules** | CR 701.20 (reveal: shown to all players, and the card stays in its zone, 701.20b), 401.2–401.3 (a library's order is hidden), and the random order of the rest, drawn from `GameState.rng` |
+| **Verdict** | nothing: no primitive walks a library until a card matches a filter. The nearest are `Mill`, `PutTopCardsIntoHand`, `Scry` and `Surveil`, each a fixed count. The walk's shape: reveal from the top one card at a time until one matches, or the library runs out; the match goes where the effect says, the rest where it says, often in a random order. **It waits on the information model**: on A6f's design (`roadmap-v2.md` A6f, §2.9 here) at the least, and on most of B4's build. A reveal changes nothing an omniscient engine can observe, so a walk built before the model writes what each player saw nowhere, and the model's per-viewer record would have to be threaded through it again |
+| **Size** | unsized. A primitive, its destinations and its rulings' edge cases (an empty library, no match), once the model can record what was revealed to whom |
+| **Blocks** | `o:"until you reveal"`: 80 cards (Scryfall, 2026-10-17). The same walk with exile in place of reveal is cascade and discover, whose cast half `permission-architecture.md`'s census owns ("cast while something resolves"): `o:"exile cards from the top of your library until"` 26, `keyword:cascade` 38, `keyword:discover` 32 |
+| **Atoms** | none of its own: CR 701.20's atoms are the information model's |
+| **Owner** | — ; after A6f's design, with B4 |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

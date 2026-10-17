@@ -135,7 +135,7 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
-        // NOT AN EVENT: deathtouch's memory of damage already announced.
+        // NOT REPLACEABLE: deathtouch's memory of damage already announced.
         // ORDER-FREE: each entry's flag is read and cleared alone, into a set.
         let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
             .battlefield

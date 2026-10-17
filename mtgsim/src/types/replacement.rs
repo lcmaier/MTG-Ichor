@@ -1626,11 +1626,11 @@ impl EnterMods {
             }
         }
         if other.attached_to.is_some() {
-            // NOT AN EVENT: the proposal's seed; the entry's performer attaches.
+            // NOT REPLACEABLE: the proposal's seed; the entry's performer attaches.
             self.attached_to = other.attached_to;
         }
         if other.attacking.is_some() {
-            // NOT AN EVENT: the proposal's seed; the entry's performer writes it.
+            // NOT REPLACEABLE: the proposal's seed; the entry's performer writes it.
             self.attacking.clone_from(&other.attacking);
         }
         if let Some(more) = &other.edits {

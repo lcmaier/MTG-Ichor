@@ -1470,7 +1470,7 @@ impl GameState {
                 Ok(())
             }
 
-            // NOT AN EVENT: CR 506.4. Writes `PermanentState` directly: 506.4 defines a
+            // NOT REPLACEABLE: CR 506.4. Writes `PermanentState` directly: 506.4 defines a
             // *consequence* with seven causes, and this arm is one of them. The CR
             // does not forbid "can't be removed from combat"; it puts that card's
             // enforcement at all seven causes, which makes it a `RestrictionDef`
@@ -1483,7 +1483,7 @@ impl GameState {
                 self.announce_removal_from_combat(removed, ctx.cause())
             }
 
-            // NOT AN EVENT: a direct write because nothing replaces *this* removal — Pyramids, the
+            // NOT REPLACEABLE: a direct write because nothing replaces *this* removal — Pyramids, the
             // one printed card that removes all damage, uses it as a replacement's
             // substituted event. Not by analogy to the CR 514.2 cleanup wipe, which
             // seven cards restrict and which owes an enforcement point

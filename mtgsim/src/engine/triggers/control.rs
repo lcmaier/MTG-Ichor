@@ -130,7 +130,7 @@ impl GameState {
             }
         }
         let changed: Vec<ObjectId> = changes.iter().map(|change| change.object).collect();
-        // NOT AN EVENT: CR 506.4 removes a permanent whose controller changed
+        // NOT REPLACEABLE: CR 506.4 removes a permanent whose controller changed
         // from combat, as part of the change, so the change's triggers read
         // the board without it. An attacker it blocked stays blocked (CR
         // 509.1h), which `remove_from_combat` keeps. Announced in the change's

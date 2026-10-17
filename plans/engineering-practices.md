@@ -2334,7 +2334,7 @@ mid-sentence is a mention, which is how this section can name them.
 | `NO ROW REACHES:` | printed | asked of an object no continuous effect reaches, whose printed characteristics are its effective ones, or with a leg that asks the effective list when a row may reach |
 | `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone and nothing announced |
 | `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i (`replacement-architecture.md` §2) |
-| `NOT AN EVENT:` | write | a write no rule makes an event: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads |
+| `NOT REPLACEABLE:` | write | a write no replacement effect can watch for (CR 614.1), so nothing is proposed: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads. Named for CR 614 and not CR 700.1, under which each is still an event, and the removal is announced as one (`RemovedFromCombat`). `NOT AN EVENT:` until 2026-10-17 |
 
 `AUXILIARY-MOVE:` is the one chokepoint tag the gate does not read. It marks
 a batch, CR 614.13's moves, and a batch is proposed.

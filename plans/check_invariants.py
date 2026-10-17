@@ -67,7 +67,7 @@ GAME_STATE = SRC / "state" / "game_state.rs"
 TAGS = {
     "printed": ("PRE-LAYER ZONE", "AS PRINTED", "NO ROW REACHES"),
     "unordered": ("ORDER-FREE",),
-    "write": ("CAST-ROLLBACK", "NOT AN EVENT"),
+    "write": ("CAST-ROLLBACK", "NOT REPLACEABLE"),
 }
 
 # --- printed -----------------------------------------------------------------
@@ -387,8 +387,8 @@ def main() -> int:
         "ruled on) or `// NO ROW REACHES:` (no continuous effect reaches it, so printed is effective).",
         "unordered": "Iterate through battlefield_ordered / battlefield_ids_ordered or sort by timestamp first,\n"
         "or tag the statement `// ORDER-FREE:` with why no order can be observed.",
-        "write": "Propose it with execute_action / change_zone, or tag it `// NOT AN EVENT:` with the rule that\n"
-        "makes it none. A new performer is a row in PERFORMERS, which a review reads in the diff.",
+        "write": "Propose it with execute_action / change_zone, or tag it `// NOT REPLACEABLE:` with the rule\n"
+        "that leaves no replacement effect to watch for it (CR 614.1). A new performer is a row in PERFORMERS, which a review reads in the diff.",
     }
     for check, lines in failures.items():
         print(f"\n{check}: {len(lines)} untagged site(s):\n")

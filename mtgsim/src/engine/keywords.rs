@@ -42,7 +42,7 @@ pub fn apply_deathtouch_flag(
     if !deals_damage_with(game, source, lki, KeywordFlag::Deathtouch) {
         return;
     }
-    // NOT AN EVENT: CR 704.5h's memory of the damage, which `DealDamage`
+    // NOT REPLACEABLE: CR 704.5h's memory of the damage, which `DealDamage`
     // announced.
     if let DamageTarget::Object(id) = target
         && let Some(entry) = game.battlefield.get_mut(id) {
