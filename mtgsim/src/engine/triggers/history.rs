@@ -16,6 +16,7 @@ use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::zones::Zone;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
@@ -69,14 +70,19 @@ impl GameState {
             .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
             .map(|&seq| (seq, self.history_update(seq)))
             .collect();
+        let mut wrote = false;
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
             if let Some(update) = update {
                 self.count(&update);
                 in_turn = self.place_in_turn(&update);
                 in_draw_step = self.place_in_draw_step(&update);
+                wrote = true;
             }
             self.events.note_counted(seq, in_turn, in_draw_step);
+        }
+        if wrote {
+            self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
         }
     }
 

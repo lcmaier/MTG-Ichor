@@ -20,6 +20,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// What a filter's words for its own text mean where it is asked: CR 109.5's
 /// "you", CR 113.7a's "this" and its owner (CR 108.3), and the instances of
@@ -254,6 +255,7 @@ fn answer_or_refuse<'f>(
         ObjectFilter::Token => Ok(object()?.is_token),
         // The existence it is, or the one its frame kept (CR 400.7).
         ObjectFilter::AttackedThisTurn => {
+            game.note_gated_read(GatedWalkInput::Histories);
             let existence = match last_known {
                 Some(lki) => lki.object(),
                 None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))?,

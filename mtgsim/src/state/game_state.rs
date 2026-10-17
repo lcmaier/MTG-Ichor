@@ -9,7 +9,7 @@ use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState};
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::diagnostics::Diagnostics;
-use crate::state::layer_memo::LayerMemo;
+use crate::state::layer_memo::{GatedWalkInput, LayerMemo};
 use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
 };
@@ -22,7 +22,7 @@ use crate::types::ids::{
     AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
-use crate::types::replacement::{EnterMods, EntryAttackCandidates, ReplacementDef};
+use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
 use crate::types::triggers::EventKindMask;
 
 /// The outcome of a game that has ended (CR 104).
@@ -1064,6 +1064,7 @@ impl GameState {
         self.active_player = player;
         self.last_turn_began[player] = turn;
         self.history.turn_began(keep_from);
+        self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then
@@ -1449,12 +1450,28 @@ impl GameState {
     /// condition names only players still in the game; the registry's rows through its own
     /// `mutating`, including the re-stamp `attach` asks of it (CR 613.7e) —
     /// the entity's own `timestamp` is not a walk input, only registration
-    /// reads it. Status the walk never reads — `tapped`, damage, combat,
-    /// the mana pool — has no bump, and must not get one: every bump costs
+    /// reads it. Four inputs a static's condition or filter can read move it
+    /// only when a frame valid now read them ([`GatedWalkInput`]): life
+    /// totals, `tapped`, combat and the histories. What no walk reads, damage
+    /// and the mana pool, has no bump, and must not get one: every bump costs
     /// one walk per queried object. `&mut self` on purpose, so a read path
     /// cannot call this.
     pub fn bump_layer_epoch(&mut self) {
         self.layer_epoch += 1;
+    }
+
+    /// Inside a walk, note that it read `input`, so a write to it moves the
+    /// epoch while the walk's frames are valid.
+    pub(crate) fn note_gated_read(&self, input: GatedWalkInput) {
+        self.layer_memo.note_gated_read(input, self.layer_epoch());
+    }
+
+    /// `input` was written: move the layer epoch if a frame valid now read
+    /// it. After the write, as every bump is.
+    pub(crate) fn bump_layer_epoch_if_read(&mut self, input: GatedWalkInput) {
+        if self.layer_memo.gated_read_at(input, self.layer_epoch()) {
+            self.bump_layer_epoch();
+        }
     }
 
     // --- Battlefield convenience ---
@@ -1526,7 +1543,7 @@ impl GameState {
     /// requirement or restriction on the declaration is not asked (508.4c),
     /// and one entering after blockers are declared is unblocked (508.4d),
     /// as `is_blocked` starts.
-    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntryAttackCandidates) -> Option<AttackTarget> {
+    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntersAttackingCandidates) -> Option<AttackTarget> {
         let [target] = attack.candidates[..] else { return None };
         if self.phase.phase_type != PhaseType::Combat || controller != self.active_player {
             return None;
@@ -1710,6 +1727,9 @@ impl GameState {
             .collect();
         for exit in &exits {
             self.remove_one_from_combat(exit.object.id);
+        }
+        if !exits.is_empty() {
+            self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
         }
         exits
     }

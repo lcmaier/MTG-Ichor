@@ -21,6 +21,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
 use crate::ui::choice_types::Rejection;
 use crate::ui::decision::DecisionProvider;
+use crate::state::layer_memo::GatedWalkInput;
 
 impl GameState {
     /// Declare attackers turn-based action (rule 508.1).
@@ -80,6 +81,7 @@ impl GameState {
         }
 
         self.combat_had_attackers = true;
+        self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
 
         // With the step's provider: the one unbatched record that can carry
         // two triggering events of one arm, which CR 603.7b's choice asks
@@ -164,6 +166,7 @@ impl GameState {
                 }
             }
 
+            self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
             let blocker_pairs: Vec<(ObjectId, ObjectId)> = proposed.clone();
             self.emit_event(
                 GameEvent::BlockersDeclared { blockers: blocker_pairs },

@@ -1021,8 +1021,15 @@ residual rather than in advance.
   statics are registry rows and are covered already. **A row's condition reads
   more than the row** (found 2026-10-01 by A6g's random-click games): whether a
   player is still in the game, which `PlayerLoses` bumps for since A6g's review
-  PR; a player's life total, which nothing bumps for (`codebase-state.md` item
-  199); and, since RG, the source's tapped status (item 187).
+  PR; and four inputs whose writes are too frequent to bump at each, life
+  totals (`codebase-state.md` item 199), the tapped status (item 187), combat
+  and the histories with the turn number. **Since TR-5f's review those four are
+  `GatedWalkInput`s**: a walk whose frames will be stored notes each one it
+  reads against the epoch, and each writer moves the epoch only when a frame
+  valid now read it. A walk with no such read costs nothing, and a write
+  costs a compare. The note rather than items 187 and 199's registry bit,
+  because a note covers every route to the read: a row's condition, a
+  filter (`ObjectFilter::AttackedThisTurn`) and a CDA alike.
 - **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical
   and the CR 603.10a LKI frame computes the past; neither consults or fills the memo.
   The per-call frame cache of §5.2 is untouched: it is the termination argument, not a

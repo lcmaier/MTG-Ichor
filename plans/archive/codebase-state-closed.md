@@ -6799,3 +6799,70 @@ has left. Both tests failed with the read taken out.
      of tests.
      **Slotted:** TR-5f, whose combat history keeps what each creature
      removed from combat was attacking.
+
+### Item 187 — closed 2026-10-17 by PR #257 (TR-5f's review)
+
+Closed at TR-5f's review. The tapped status is one of four `GatedWalkInput`s:
+a walk that reads one notes it against the epoch, and the `Tap` and `Untap`
+arms move the epoch only when a frame valid now read it. Built as the
+walk's note rather than the registry bit sketched below, since a note
+covers every route to the read, a filter and a CDA as well as a row's
+condition. CV-6's face-down status joins the same enum.
+
+*Original entry:*
+
+187. **A tap or an untap bumps no layer epoch, and a layer row can read the
+     tapped status.** `Condition::SourceUntapped` and, since RG,
+     `Condition::SourceTapped` can condition a static ability, and on a layer
+     row the board pass reads them in the walk. `perform_action`'s `Tap` and
+     `Untap` arms move no epoch, so the memo can answer with a frame computed
+     before the tap: "as long as ~ is untapped, …" would keep or drop its
+     effect one question late.
+
+     **Reachability (2026-09-28):** unreachable. Archelos's conditions are on
+     replacement effects, read at the entry and never memoized, and no
+     registered card conditions a layer row on the status. The memo's debug
+     audit would catch the stale frame on the first such board.
+
+     **Sized:** ~20 lines and a fixture: a registry summary bit for "a row
+     reads the tapped status", beside `RegistryScopeSummary`'s others, and
+     the two arms bump the epoch when it is set. **Slotted: CV-6**
+     (`roadmap-v2.md` B6), whose face-down status is the first status the
+     walk reads by design and needs the same bump when a permanent turns face
+     up; or with the first registered card of the shape, if one comes first.
+
+### Item 199 — closed 2026-10-17 by PR #257 (TR-5f's review)
+
+Closed at TR-5f's review, with item 187. Life totals are a
+`GatedWalkInput`, and the `GainLife` and `LoseLife` arms move the epoch only
+when a frame valid now read one. The same review found two more inputs
+no item named: combat, which `Condition::DefendingPlayer` reads, and the
+histories with the turn number, which the turn-summary conditions and
+`ObjectFilter::AttackedThisTurn` read. Both are gated the same way.
+Five integration tests, one per input and one through the settlement,
+each failing on the tree before.
+
+*Original entry:*
+
+199. **A life change bumps no layer epoch, and a layer condition can read a
+     life total.** `Condition::Player` reads `PlayerFact::LifeAtLeast` and
+     `LifeAtMost` in the walk when a static ability carries it (Bloodghast's
+     "as long as an opponent has 10 or less life"), and `perform_action`'s
+     `GainLife` and `LoseLife` arms move no epoch, so the memo can answer
+     with a frame from before the change. The condition's other player
+     input, whether a player is still in the game, bumps since A6g's review
+     PR: the dev GUI's random-click games found it (`a_loss_bumps`).
+
+     **Reachability (2026-10-01):** unreachable — no registered static
+     ability's condition reads a life total. Felidar Sovereign's is a
+     trigger's intervening "if", read when the trigger is checked and never
+     memoized. The memo's debug audit would catch the stale frame on the
+     first such board.
+
+     **Sized:** ~20 lines and a fixture, item 187's shape: a registry
+     summary bit for "a row's condition reads a life total", and the two
+     arms bump when it is set, since a bump at every life change would cost
+     a walk per queried object after each combat damage step. **Slotted:**
+     with the first registered card whose static ability reads a life total,
+     in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
+     whose summary bit it shares, if that comes first.

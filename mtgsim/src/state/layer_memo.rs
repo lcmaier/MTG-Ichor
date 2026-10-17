@@ -16,7 +16,7 @@
 //! reads it in order; a memo that fed a choice, a log or a count would be a
 //! determinism hole (CLAUDE.md, "Determinism at the decision boundary").
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 use crate::engine::layers::board::RowNote;
@@ -51,6 +51,12 @@ pub struct LayerMemo {
     /// one scan per epoch for every player's inventory. Shared, so a fork
     /// copies nothing for it.
     mana_production_watchers: RefCell<Option<(u64, Arc<ManaProductionWatchers>)>>,
+    /// The gated inputs the frames stored at an epoch read, with that epoch
+    /// (`GatedWalkInput`): what a write to one asks before it moves the epoch.
+    gated_reads: Cell<(u64, u8)>,
+    /// How many walks whose frames will be stored are open: a read notes a
+    /// gated input only inside one, since a read outside one is never kept.
+    walks_open: Cell<u32>,
     /// The debug audits' pause (`GameState::pause_layer_audit`).
     #[cfg(debug_assertions)]
     audit_paused: std::cell::Cell<bool>,
@@ -58,6 +64,44 @@ pub struct LayerMemo {
     /// `GameState::audit_each_frame_once`.
     #[cfg(debug_assertions)]
     audit_scope: AuditScope,
+}
+
+/// A walk input whose write moves the layer epoch only when a frame valid now
+/// read it. A write to one is frequent and nearly every walk ignores it: a
+/// tap for mana, a life change, an attack, a record counted. A bump at each
+/// would cost a walk per queried object after every one, for statics few
+/// boards have, so the walk notes what it read
+/// (`GameState::note_gated_read`) and the write asks
+/// (`GameState::bump_layer_epoch_if_read`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GatedWalkInput {
+    /// Each player's life total (CR 119): "as long as you have 30 or more
+    /// life".
+    LifeTotals,
+    /// A permanent's tapped status (CR 110.5): "as long as this artifact is
+    /// untapped".
+    TappedStatus,
+    /// What each creature is attacking or blocking (CR 506): "defending
+    /// player".
+    Combat,
+    /// The turn number and what the histories count: "as long as you've
+    /// gained life this turn", "creatures that attacked this turn".
+    Histories,
+}
+
+impl GatedWalkInput {
+    fn bit(self) -> u8 {
+        1 << self as u8
+    }
+}
+
+/// Closes the walk [`LayerMemo::open_walk`] opened when it drops.
+pub(crate) struct OpenWalk<'m>(&'m LayerMemo);
+
+impl Drop for OpenWalk<'_> {
+    fn drop(&mut self) {
+        self.0.walks_open.set(self.0.walks_open.get() - 1);
+    }
 }
 
 /// What the open `GameState::audit_each_frame_once` has checked: every
@@ -189,6 +233,28 @@ impl LayerMemo {
 
     pub(crate) fn insert_mana_production_watchers(&self, epoch: u64, found: Arc<ManaProductionWatchers>) {
         *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
+    }
+
+    /// Open a walk whose frames will be stored at the current epoch.
+    pub(crate) fn open_walk(&self) -> OpenWalk<'_> {
+        self.walks_open.set(self.walks_open.get() + 1);
+        OpenWalk(self)
+    }
+
+    /// Inside a walk at `epoch`, note that it read `input`.
+    pub(crate) fn note_gated_read(&self, input: GatedWalkInput, epoch: u64) {
+        if self.walks_open.get() == 0 {
+            return;
+        }
+        let (at, read) = self.gated_reads.get();
+        let read = if at == epoch { read | input.bit() } else { input.bit() };
+        self.gated_reads.set((epoch, read));
+    }
+
+    /// Whether a frame stored at `epoch` read `input`.
+    pub(crate) fn gated_read_at(&self, input: GatedWalkInput, epoch: u64) -> bool {
+        let (at, read) = self.gated_reads.get();
+        at == epoch && read & input.bit() != 0
     }
 }
 

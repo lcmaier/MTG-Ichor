@@ -24,10 +24,9 @@ use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
-use crate::types::replacement::{EntryAttackCandidates, EventPattern, ReplacementDef, Rewrite};
+use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::bound_reads::BoundReads;
-use crate::types::triggers::DefenderFilter;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
@@ -1192,7 +1191,7 @@ impl GameState {
                     return Ok(());
                 }
                 let defs = vec![token_def.clone(); count as usize];
-                let attacking = token_def.enters_attacking.as_ref().map(|word| self.entry_attack_candidates(word, ctx)).transpose()?;
+                let attacking = token_def.enters_attacking.as_ref().map(|word| self.enters_attacking_candidates(word, ctx)).transpose()?;
                 self.execute_action(
                     GameAction::CreateTokens { defs, controller, attacking },
                     &ActionContext::resolving(dp, ctx),
@@ -1628,7 +1627,7 @@ impl GameState {
             // Each object from where it is now, as one event (CR 608.2f),
             // under its owner's control or the effect's controller's.
             Primitive::ReturnToBattlefield { under, counters, tapped, attacking } => {
-                let attacking = attacking.as_ref().map(|word| self.entry_attack_candidates(word, ctx)).transpose()?;
+                let attacking = attacking.as_ref().map(|word| self.enters_attacking_candidates(word, ctx)).transpose()?;
                 let mut returns = Vec::new();
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
@@ -2620,15 +2619,25 @@ impl GameState {
     /// the named player's that `among` matches; or what the other creature is
     /// attacking, or was as it left (CR 702.49c). The entry's performer
     /// checks the candidate again as the creature enters (CR 508.4a).
-    fn entry_attack_candidates(&self, word: &EntersAttacking, ctx: &ResolutionContext) -> Result<EntryAttackCandidates, String> {
+    fn enters_attacking_candidates(&self, word: &EntersAttacking, ctx: &ResolutionContext) -> Result<EntersAttackingCandidates, String> {
         let candidates = match word {
             EntersAttacking::Chosen => self.what_can_be_attacked(),
+            // "That player or a planeswalker they control": the named player's
+            // defenses that `among` admits, with "you" the controller's and
+            // each filter read from the source.
             EntersAttacking::Player { player, among } => match self.named_player(player, ctx)? {
-                Some(named) => self
-                    .what_can_be_attacked()
-                    .into_iter()
-                    .filter(|&target| defending_player_for(self, target) == Some(named) && self.admits_as_this_resolution(among, target, ctx))
-                    .collect(),
+                Some(named) => {
+                    let names_player = |who: &PlayerRef, player: PlayerId| self.resolve_player_ref(who, &[], ctx).ok() == Some(player);
+                    let matches_permanent = |filter: &ObjectFilter, id: ObjectId| {
+                        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+                    };
+                    self.what_can_be_attacked()
+                        .into_iter()
+                        .filter(|&target| {
+                            defending_player_for(self, target) == Some(named) && among.admits(target, &names_player, &matches_permanent)
+                        })
+                        .collect()
+                }
                 None => Vec::new(),
             },
             EntersAttacking::SameAs(creature) => {
@@ -2636,7 +2645,7 @@ impl GameState {
                 objects.object_for(*creature, ctx.effect_source()).and_then(|it| it.attacking(self)).into_iter().collect()
             }
         };
-        Ok(EntryAttackCandidates { candidates })
+        Ok(EntersAttackingCandidates { candidates })
     }
 
     /// The one player `recipient` names as this resolution reads it, for an
@@ -2679,17 +2688,6 @@ impl GameState {
             | EffectRecipient::Host
             | EffectRecipient::ChosenBy(_) => return Ok(None),
         }))
-    }
-
-    /// Whether `among` admits `target`, read as this resolution reads "you"
-    /// and its filters: for "attacking that player or a planeswalker they
-    /// control", whether `target` is the player itself or a planeswalker the
-    /// filter matches. Which player's is `defending_player_for`'s question,
-    /// asked beside this one.
-    fn admits_as_this_resolution(&self, among: &DefenderFilter, target: AttackTarget, ctx: &ResolutionContext) -> bool {
-        among.admits(target, &|who, player| self.resolve_player_ref(who, &[], ctx).ok() == Some(player), &|filter, id| {
-            self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
-        })
     }
 
     /// "Defending player" for `creature` (CR 508.5), read as `attacked_by`

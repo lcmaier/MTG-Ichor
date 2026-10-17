@@ -10,7 +10,7 @@ use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
-use crate::types::replacement::{EnterMods, EntryAttackCandidates, EntryCounters};
+use crate::types::replacement::{EnterMods, EntersAttackingCandidates, EntryCounters};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
@@ -28,7 +28,7 @@ pub(crate) struct ReturningObject {
     /// "Return it to the battlefield tapped".
     pub tapped: bool,
     /// "Tapped and attacking" (CR 508.4), as the returning effect read it.
-    pub attacking: Option<EntryAttackCandidates>,
+    pub attacking: Option<EntersAttackingCandidates>,
     pub cause: EventCause,
 }
 

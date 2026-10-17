@@ -3075,17 +3075,21 @@ the four kinds that have one. Renamed for their call sites: `EntryAttack` to
 `EntryAttackCandidates`, `engine/settlement.rs` to
 `engine/layer_settlement.rs`. The CR-general tests of CR 506.5 and 508.8 run
 over both doors, a token and a card from a hand. The review's question on "as
-long as" found item 273: three condition leaves read inputs no write moves
-the layer epoch for, so the memo, and the settlement with it, can serve a
-stale frame.
+long as" found the memo serving stale frames for four inputs no write moved
+the layer epoch for: life totals and the tapped status (items 199 and 187),
+combat and the histories. At the owner's word they are fixed here, as
+`GatedWalkInput`s: the walk notes the read, and the write moves the epoch only
+when a frame valid now read it (`layers-architecture.md` §12, 7a). The
+settlement, gated on the same epoch, sees an "as long as" flip with them.
 
 **What it leaves.** Item 272, "for each opponent, … attacking that player"
 (6 cards), needs a players `Selector`. CR 506.4c–e, an attacked
 planeswalker or battle that stops being one, join the settlement's combat
 part with `backlog.md` §2.23. Item 11's blockers half is TR-5c's.
 
-**Size.** +2,266/−270 in code and tests (code +1,204/−231, tests
-+1,059/−35, the dev GUI +3/−4), against 1,770–1,995. Thirty-one integration
+**Size.** +2,507/−281 in code and tests (code +1,334/−242, tests
++1,170/−35, the dev GUI +3/−4), against 1,770–1,995, past the band by
+the review's fixes. Thirty-six integration
 tests in
 `phase_tr5f_integration_test` and three unit tests in `state::history`,
 each fix shown to fail with its piece taken out.

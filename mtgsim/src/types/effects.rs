@@ -1162,7 +1162,7 @@ pub struct TokenDef {
 /// What an effect that puts a creature onto the battlefield attacking says it
 /// attacks (CR 508.4): the controller's choice, unless the effect specifies.
 /// Read by the resolution, which holds the binding a specified defender
-/// names, into the entry's [`crate::types::replacement::EntryAttackCandidates`].
+/// names, into the entry's [`crate::types::replacement::EntersAttackingCandidates`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntersAttacking {
     /// CR 508.4: its controller chooses among everything that can be

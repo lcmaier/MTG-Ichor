@@ -10,11 +10,12 @@ use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
-use crate::types::replacement::{EnterMods, EntryAttackCandidates};
+use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_entering_defender, ask_scry};
 use crate::ui::decision::DecisionProvider;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// Re-exported for every existing reader of `engine::actions::ZoneChangeAct`.
 ///
@@ -414,7 +415,7 @@ pub enum GameAction {
         /// 508.4), as the creating effect's resolution read it. `None` for a
         /// creation no resolution read, where "its controller chooses" is
         /// everything that can be attacked.
-        attacking: Option<EntryAttackCandidates>,
+        attacking: Option<EntersAttackingCandidates>,
     },
 
     /// A token is created in a zone that is not the battlefield — the
@@ -1491,6 +1492,7 @@ impl GameState {
                 let p = self.get_player_mut(player)?;
                 p.life_total += amount as i64;
                 let new_life = p.life_total;
+                self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
                 self.emit_event(GameEvent::LifeChanged {
                     player_id: player,
@@ -1513,6 +1515,7 @@ impl GameState {
                 let p = self.get_player_mut(player)?;
                 p.life_total -= amount as i64;
                 let new_life = p.life_total;
+                self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
                 self.emit_event(GameEvent::LifeChanged {
                     player_id: player,
@@ -1554,6 +1557,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
+                self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
                 self.emit_event(GameEvent::Untapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
@@ -1611,6 +1615,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
+                self.bump_layer_epoch_if_read(GatedWalkInput::TappedStatus);
                 self.emit_event(GameEvent::Tapped { object_id: object }, ctx.cause)?;
                 Ok(())
             }
@@ -2189,7 +2194,7 @@ impl GameState {
         &mut self,
         defs: &[TokenDef],
         controller: PlayerId,
-        attacking: Option<&EntryAttackCandidates>,
+        attacking: Option<&EntersAttackingCandidates>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         // One `Arc<CardData>` per run of equal defs: a doubled creation
@@ -2231,7 +2236,7 @@ impl GameState {
                         (None, EntersAttacking::Chosen) => self.what_can_be_attacked(),
                         (None, EntersAttacking::Player { .. } | EntersAttacking::SameAs(_)) => Vec::new(),
                     };
-                    mods.merge(&EnterMods { attacking: Some(Box::new(EntryAttackCandidates { candidates })), ..EnterMods::NONE });
+                    mods.merge(&EnterMods { attacking: Some(Box::new(EntersAttackingCandidates { candidates })), ..EnterMods::NONE });
                 }
                 entries.push(entry);
             }

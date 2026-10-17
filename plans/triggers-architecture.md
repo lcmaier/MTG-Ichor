@@ -3440,17 +3440,17 @@ settlement answers what the layers' output changes, control and a
 combatant that stops being a creature, at each outermost batch's close as
 well as TR-4d's points. The log leaves a rule's sweep implicit unless a
 trigger reads it. Hanweir Garrison (pooled) and Relentless Assault are
-registered (201 → 203, 112 → 113). Thirty-one integration tests and three unit
+registered (201 → 203, 112 → 113). Thirty-six integration tests and three unit
 tests.
 
 **What moved on the way in.** The design's probe found the type-change
 cause in today's games, so it was built rather than deferred. The build
-found the settlement's gate must read the registry's mutations as well
-as the layer epoch, and that RE-10's extra phases ignored "after this main
-phase" (Relentless Assault's first ruling); both fixed. Item 272 carries
-"for each opponent, … attacking that player". +2,266/−270 in code and
-tests (code +1,204/−231, tests +1,059/−35, the dev GUI +3/−4), against
-1,770–1,995.
+found the settlement's gate reading too little and RE-10 ignoring "after
+this main phase"; the review, the return door missing "tapped" and the memo
+serving stale frames to a static over a life total, a tapped status, combat
+or the histories (items 187 and 199, closed). All fixed; item 272 carries
+"for each opponent". +2,507/−281 in code and tests (code +1,334/−242, tests
++1,170/−35, the dev GUI +3/−4), against 1,770–1,995: past it by the review.
 
 **Measured** (`fuzz-record.md`, TR-5f's block). The engine arm plays
 `main`'s games but the one predicted, a Mirrorweave whose attackers become a
@@ -3477,9 +3477,9 @@ TR-5c, TR-5d.
 |---|---|---|---|---|---|
 | **TR-5a — the binding's roles** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5a" | | | | +1,454 |
 | **TR-5e — the attack declaration** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5e" | | | | +1,286 |
-| **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,266 |
+| **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,507 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
-| **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
+| **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | one history struct, `PlayerHistory` moved into `GameHistory` (the owner, at #257's review); item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
 | **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
 | **TR-5d — prevention, the multiplier, tokens and scry** (CR 615.13, 603.2d, 701.7, 701.22) | item 16's `DamagePrevented { target, amount, by }`, emitted as the batch decides; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~460 (690–920) | ~780 | 1,470–1,700 |
 

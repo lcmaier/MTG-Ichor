@@ -114,6 +114,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
     let frames_before = game.diagnostics.layer_frames();
+    let _walk = game.layer_memo.open_walk();
 
     let membership = pass_membership(game, id);
     let asked = match membership {
@@ -154,6 +155,7 @@ fn pass_into_memo(
     asked: Option<ObjectId>,
     wanted: Option<ObjectId>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
+    let _walk = game.layer_memo.open_walk();
     let (frames, notes) = compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames_and_notes();
     if let Some(notes) = notes {
         game.layer_memo.insert_notes(epoch, notes.into());

@@ -8076,25 +8076,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by RG — the entry state (2026-09-28)
 
-187. **A tap or an untap bumps no layer epoch, and a layer row can read the
-     tapped status.** `Condition::SourceUntapped` and, since RG,
-     `Condition::SourceTapped` can condition a static ability, and on a layer
-     row the board pass reads them in the walk. `perform_action`'s `Tap` and
-     `Untap` arms move no epoch, so the memo can answer with a frame computed
-     before the tap: "as long as ~ is untapped, …" would keep or drop its
-     effect one question late.
-
-     **Reachability (2026-09-28):** unreachable. Archelos's conditions are on
-     replacement effects, read at the entry and never memoized, and no
-     registered card conditions a layer row on the status. The memo's debug
-     audit would catch the stale frame on the first such board.
-
-     **Sized:** ~20 lines and a fixture: a registry summary bit for "a row
-     reads the tapped status", beside `RegistryScopeSummary`'s others, and
-     the two arms bump the epoch when it is set. **Slotted: CV-6**
-     (`roadmap-v2.md` B6), whose face-down status is the first status the
-     walk reads by design and needs the same bump when a permanent turns face
-     up; or with the first registered card of the shape, if one comes first.
+187. **~~A tap or an untap bumps no layer epoch, and a layer row can read the tapped status.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f's review).** — archived.
+     A `GatedWalkInput`: the walk notes the read, and the write moves the
+     layer epoch only when a frame valid now read it.
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 187".
 
 ### Found by RG's review (2026-09-29)
 
@@ -8360,28 +8346,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by A6g's review practices (2026-10-01)
 
-199. **A life change bumps no layer epoch, and a layer condition can read a
-     life total.** `Condition::Player` reads `PlayerFact::LifeAtLeast` and
-     `LifeAtMost` in the walk when a static ability carries it (Bloodghast's
-     "as long as an opponent has 10 or less life"), and `perform_action`'s
-     `GainLife` and `LoseLife` arms move no epoch, so the memo can answer
-     with a frame from before the change. The condition's other player
-     input, whether a player is still in the game, bumps since A6g's review
-     PR: the dev GUI's random-click games found it (`a_loss_bumps`).
-
-     **Reachability (2026-10-01):** unreachable — no registered static
-     ability's condition reads a life total. Felidar Sovereign's is a
-     trigger's intervening "if", read when the trigger is checked and never
-     memoized. The memo's debug audit would catch the stale frame on the
-     first such board.
-
-     **Sized:** ~20 lines and a fixture, item 187's shape: a registry
-     summary bit for "a row's condition reads a life total", and the two
-     arms bump when it is set, since a bump at every life change would cost
-     a walk per queried object after each combat damage step. **Slotted:**
-     with the first registered card whose static ability reads a life total,
-     in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
-     whose summary bit it shares, if that comes first.
+199. **~~A life change bumps no layer epoch, and a layer condition can read a life total.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f's review).** — archived.
+     A `GatedWalkInput`: the walk notes the read, and the write moves the
+     layer epoch only when a frame valid now read it.
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 199".
 
 200. **~~The dev GUI's start is read once, and a decision log it cannot open
      reads as an engine panic.~~ — ✅ CLOSED 2026-10-04 (SU-5's PR).** —
@@ -9384,7 +9353,12 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      `Effect::ForEach` is unbuilt: its resolution refuses every instruction
      ("not yet implemented"), and its `Selector` has no players. TR-5f's
      `EntersAttacking::Player` names one player in the instruction's player
-     vocabulary, which is what the iteration would bind. A missing facility,
+     vocabulary, which is what the iteration would bind. The same iteration
+     is CR 702.141a's encore (26 cards, `keyword:encore`): "for each
+     opponent, create a token that's a copy of this card that attacks that
+     opponent this turn if able", where the binding feeds an attack
+     requirement (`cant-effects-architecture.md`'s RS-3a) rather than the
+     entry, since the tokens are created before combat. A missing facility,
      not a deferral of TR-5f's: every other way to say the defender is built.
      **Reachability (2026-10-17):** unreachable — no registered card runs an
      instruction once for each player.
@@ -9394,32 +9368,3 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Slotted:** with the first registered card that runs an instruction
      once for each opponent naming that player; Adeline, Resplendent Cathar,
      a Commander staple, is the likely one.
-
-273. **A static's condition that reads a life total, a tapped status or a
-     defending player is served a stale frame.** The layer memo keys on the
-     layer epoch, which moves at every write `GameState::bump_layer_epoch`
-     lists. A life change, a tap or untap and a creature's attack are not on
-     the list ("status the walk never reads"), but three `Condition` leaves
-     the walk evaluates read them: `PlayerFact::LifeAtLeast` and
-     `LifeAtMost`, `SourceTapped` and `SourceUntapped`, and
-     `Condition::DefendingPlayer` (`engine/layers/condition.rs`). A static's
-     "as long as" over one of them keeps its old answer until an unrelated
-     write moves the epoch, and TR-5f's settlement, gated on the same epoch,
-     misses what the flip does to a controller or a type. Shown at TR-5f's
-     review (2026-10-17): a fixture that gets +1/+2 "as long as you have 10
-     or less life", queried at 20 life and again after a loss of 15, panics
-     the debug memo audit ("layer memo served a stale frame … skipped
-     `GameState::bump_layer_epoch`"). Printed statics that read a life total:
-     Bloodghast's haste, Serra Ascendant's +5/+5 and flying, the fateful hour
-     cycle (Thraben Doomsayer).
-     **Reachability (2026-10-17):** unreachable — no registered card's static
-     reads a life total, a tapped status or a defending player in a layer
-     condition (Felidar Sovereign's is an intervening "if", Archelos's a
-     replacement's, the Orbs' a cost's).
-     **Sized:** a bump at each of the three writes is a few lines, but a walk
-     per queried object after every life change and every tap, which the
-     budget would see; gated instead on the registry holding a row whose
-     condition reads the input, ~60 lines of code and ~80 of tests, owned by
-     `layers-architecture.md` §12's memo.
-     **Slotted:** ahead of TR-5b, the next engine phase on the route, as a PR
-     of its own (proposed at #257's review).

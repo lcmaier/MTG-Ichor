@@ -1522,7 +1522,7 @@ pub struct EnterMods {
     /// the entry's performer writes the attack when CR 506.3 allows it.
     /// Boxed: every proposal and batch member carries an entry's mods, and
     /// the few that enter attacking pay for the room.
-    pub attacking: Option<Box<EntryAttackCandidates>>,
+    pub attacking: Option<Box<EntersAttackingCandidates>>,
 }
 
 /// What a permanent put onto the battlefield attacking may attack (CR 508.4),
@@ -1530,7 +1530,7 @@ pub struct EnterMods {
 /// effect specified. One candidate is settled; with two or more its
 /// controller chooses as it enters.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EntryAttackCandidates {
+pub struct EntersAttackingCandidates {
     pub candidates: Vec<crate::state::battlefield::AttackTarget>,
 }
 
