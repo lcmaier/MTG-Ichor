@@ -666,7 +666,7 @@ pub enum Antecedent {
     /// "It": the object with this event role in the triggering event, a
     /// triggered ability's alone. A static ability has none, and the leaf
     /// answers no.
-    InEvent(crate::types::triggers::EventRole),
+    Triggering(crate::types::triggers::EventRole),
 }
 
 impl Condition {

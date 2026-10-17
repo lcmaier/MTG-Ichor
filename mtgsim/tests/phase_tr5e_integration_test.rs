@@ -437,7 +437,7 @@ fn defending_player_of(creature: Antecedent) -> PlayerRef {
 }
 
 fn its_attacker() -> Antecedent {
-    Antecedent::InEvent(EventRole::Attacker)
+    Antecedent::Triggering(EventRole::Attacker)
 }
 
 fn loses_one(creature: Antecedent) -> Effect {

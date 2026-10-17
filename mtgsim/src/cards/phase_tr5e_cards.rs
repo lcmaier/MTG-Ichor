@@ -48,7 +48,7 @@ pub fn hellrider() -> Arc<CardData> {
     );
     let one_damage = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::Fixed(1), unpreventable: false },
-        EffectRecipient::AttackedBy(Antecedent::InEvent(EventRole::Attacker)),
+        EffectRecipient::AttackedBy(Antecedent::Triggering(EventRole::Attacker)),
     );
     CardDataBuilder::new("Hellrider")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))

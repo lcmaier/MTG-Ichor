@@ -2579,9 +2579,10 @@ The owner's code review of #256, twelve comments.
   `participants_needing_one`, and `TriggerEvent::may_have_several`.
   `ConditionReferents::object` is `object_for`, with a doc that says what
   comes back. Two older names were renamed at the owner's choice:
-  `Participant` is `EventRole`, and `ConditionObject` is `Antecedent`, whose
-  `Triggering` variant is `InEvent` (`TextObject` was offered and declined as
-  no clearer). Prose says "event role", never a bare "role", which the Role
+  `Participant` is `EventRole`, and `ConditionObject` is `Antecedent`
+  (`TextObject` was offered and declined as no clearer). Its `Triggering`
+  variant keeps its name: renamed `InEvent` for a commit, it dropped the word
+  `EffectRecipient::Triggering` and `TriggeringEvent` use for the same event. Prose says "event role", never a bare "role", which the Role
   tokens own (CR 111.10); the glossary's entries follow.
 - **`GameEvent::for_each_object_named`** replaces
   `objects_named_as_announced`. That function packed each variant into three

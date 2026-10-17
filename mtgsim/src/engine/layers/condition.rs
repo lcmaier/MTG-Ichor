@@ -68,7 +68,7 @@ impl ConditionReferents<'_> {
 
 impl<'a> ConditionReferents<'a> {
     /// Finds the object a text's word for one means. `ThisObject` is
-    /// `source`, the object whose ability it is; `InEvent(role)` is
+    /// `source`, the object whose ability it is; `Triggering(role)` is
     /// the object that played that part in the triggering event. Either comes
     /// back as `CurrentOrLastKnown`: the object as it is now, or as it last
     /// existed once it has left (CR 608.2h). `None` when the triggering event
@@ -76,7 +76,7 @@ impl<'a> ConditionReferents<'a> {
     pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
         match word {
             Antecedent::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
-            Antecedent::InEvent(role) => self.triggering_event.object(role),
+            Antecedent::Triggering(role) => self.triggering_event.object(role),
         }
     }
 }

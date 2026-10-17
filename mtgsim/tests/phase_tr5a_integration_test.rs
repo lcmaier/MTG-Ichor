@@ -467,7 +467,7 @@ fn a_look_back_filter_counts_the_counters_it_died_with() {
 fn an_intervening_if_counts_every_kind_of_counter_it_had() {
     let mut game = stocked(2);
     let had_counters = Condition::CounterCount {
-        object: Antecedent::InEvent(EventRole::Object),
+        object: Antecedent::Triggering(EventRole::Object),
         kind: None,
         count: CountIs::AtLeast(1),
     };

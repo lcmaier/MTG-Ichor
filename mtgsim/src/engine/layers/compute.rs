@@ -701,7 +701,7 @@ impl FilterReferents for FilterPlayers<'_, '_> {
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
             Antecedent::ThisObject => CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game),
-            Antecedent::InEvent(_) => None,
+            Antecedent::Triggering(_) => None,
         }
     }
 
@@ -781,7 +781,7 @@ fn resolve_set_controller(
         PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
             CurrentOrLastKnown { id: effect.source, lki: None }.defending_player(game).filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(Antecedent::InEvent(_)) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // CR 102.2 — exactly one opponent, so nothing was ever chosen.

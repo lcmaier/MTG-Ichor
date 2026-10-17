@@ -895,7 +895,7 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     let def = TriggerDef {
         condition: TriggerCondition::Event(attacks(TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You))).into()),
         intervening_if: Some(Condition::CounterCount {
-            object: Antecedent::InEvent(EventRole::Attacker),
+            object: Antecedent::Triggering(EventRole::Attacker),
             kind: Some(CounterType::PlusOnePlusOne),
             count: CountIs::AtMost(0),
         }),

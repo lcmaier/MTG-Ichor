@@ -218,7 +218,7 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     };
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
-        intervening_if: Some(Condition::CounterCount { object: Antecedent::InEvent(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
+        intervening_if: Some(Condition::CounterCount { object: Antecedent::Triggering(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
         limit: None,
         effect: Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)),
     })

@@ -172,7 +172,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
 fn creature_read(creature: Antecedent) -> BoundReads {
     match creature {
         Antecedent::ThisObject => BoundReads::SOURCE,
-        Antecedent::InEvent(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::needs_one(p),
+        Antecedent::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::needs_one(p),
     }
 }
 
@@ -244,7 +244,7 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::CounterCount { object: Antecedent::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         // "It had": the object, as the record it left with framed it.
-        Condition::CounterCount { object: Antecedent::InEvent(p), .. } => {
+        Condition::CounterCount { object: Antecedent::Triggering(p), .. } => {
             BoundReads::CHARACTERISTICS | BoundReads::needs_one(*p)
         }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
