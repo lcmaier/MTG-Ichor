@@ -2623,10 +2623,14 @@ fn substitute(
 
         (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
             match subject_object(subject) {
+                // CR 122.1c, 122.1d word the removal with no player, and
+                // the event it replaces (a destruction, an untap, damage)
+                // names none.
                 Some(object) => Ok(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
                     n: *n,
+                    by: None,
                 }),
                 None => Err(format!(
                     "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \

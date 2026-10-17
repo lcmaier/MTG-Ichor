@@ -774,7 +774,7 @@ fn a_dies_trigger_puts_as_many_counters_as_its_source_had() {
     resolve_all(&mut game, &test_dp());
     assert_eq!(counters(&game, b, CounterType::PlusOnePlusOne), 6, "three new counters, put and so doubled");
     let put_on_b = game.recorded_events().events().any(|event| {
-        matches!(event, GameEvent::CountersChanged { subject: CounterSubject::Object(id), added: 6, .. } if *id == b)
+        matches!(event, GameEvent::CountersPutOn { subject: CounterSubject::Object(id), n: 6, .. } if *id == b)
     });
     assert!(put_on_b, "put, not moved: A's ceased to exist as it left (CR 122.2)");
 }

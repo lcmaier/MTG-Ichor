@@ -82,7 +82,7 @@ fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Optio
             let kind = match &r.event {
                 GameEvent::ZoneChange { .. } => "zone-change",
                 GameEvent::PermanentEnteredBattlefield { .. } => "entered",
-                GameEvent::CountersChanged { .. } => "counters",
+                GameEvent::CountersPutOn { .. } | GameEvent::CountersRemovedFrom { .. } => "counters",
                 _ => return None,
             };
             Some((kind, r.batch()))

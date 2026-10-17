@@ -424,7 +424,8 @@ impl EventKind {
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::BlockersDeclared { .. }
             | GameEvent::CountersAnnihilated { .. }
-            | GameEvent::CountersChanged { .. }
+            | GameEvent::CountersPutOn { .. }
+            | GameEvent::CountersRemovedFrom { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::RemovedFromCombat { .. }

@@ -1630,6 +1630,20 @@ impl GameState {
         removed
     }
 
+    /// How many counters of `counter_type` `subject` has: a permanent's, or a
+    /// player's. 0 for an object off the battlefield, whose counters ceased
+    /// to exist as it left (CR 122.2).
+    pub fn counter_count_of(&self, subject: crate::events::event::CounterSubject, counter_type: CounterType) -> u32 {
+        match subject {
+            crate::events::event::CounterSubject::Object(id) => {
+                self.battlefield.get(&id).map_or(0, |entry| entry.counter_count(counter_type))
+            }
+            crate::events::event::CounterSubject::Player(player) => {
+                self.players.get(player).map_or(0, |state| state.counter_count(counter_type))
+            }
+        }
+    }
+
     /// Attach a permanent to a host (CR 301.5, 303.4): writes the attachment's
     /// `attached_to` and the host's `attached_by`, the two fields that together
     /// record one attachment.

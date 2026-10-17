@@ -2243,12 +2243,14 @@ impl GameState {
                     by: self.resolve_player_ref(by, targets, ctx)?,
                 }),
             },
+            // CR 608.2c: the resolution's controller removes them.
             Primitive::RemoveCounters(counter, amount) => match is_permanent {
                 false => None,
                 true => Some(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx)? as u32,
+                    by: Some(ctx.controller),
                 }),
             },
             other => return Err(format!("{:?} acts on no object, so it has no event for {}", other, object)),

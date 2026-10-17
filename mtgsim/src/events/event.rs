@@ -325,19 +325,47 @@ pub enum GameEvent {
     LibraryShuffled { player_id: PlayerId },
 
     // --- Counters ---
-    /// Counters were put on or taken off a permanent or a player (CR 122.1).
+    /// Counters were put on a permanent or given to a player (CR 122.1,
+    /// 122.6).
     ///
-    /// One event for both directions rather than two, because `added` is a
-    /// signed count and a reader that cares about the direction reads its sign.
-    /// It is emitted only on an actual change: `RemoveCounters` reports how
-    /// many were really there (CR 701.2's "as much as it can"), and removing
-    /// none announces nothing — the same transition rule CR 603.2e gives
-    /// tapping. One event for both subjects too: "whenever one or more
-    /// counters are put on a permanent" and "whenever you get one or more
-    /// counters" read the same line and branch on the subject. Counters a
-    /// permanent is *given as it enters* are part of the entry (CR 122.6) and
-    /// announce nothing here.
-    CountersChanged { subject: CounterSubject, counter: CounterType, added: i32 },
+    /// One record kind per direction, as the proposals are (`AddCounters`,
+    /// `RemoveCounters`), because the two carry different facts: a put always
+    /// has a putter, and CR 122.7's "the Nth counter" compares the counts
+    /// around one. One kind for both subjects: "whenever one or more counters
+    /// are put on a permanent" and "whenever you get one or more counters"
+    /// read the same record and differ in the subject they ask for.
+    CountersPutOn {
+        subject: CounterSubject,
+        counter_type: CounterType,
+        /// How many were put on: never 0, since putting none announces
+        /// nothing.
+        n: u32,
+        /// The player who put them on: the instruction's controller (CR
+        /// 608.2c), an entry's named player or its controller (CR 122.6a),
+        /// a damage source's controller (CR 120.3d).
+        by: PlayerId,
+        /// The subject's count of `counter_type` after them, which CR 122.7
+        /// compares with the count before (`now - n`).
+        now: u32,
+    },
+
+    /// Counters were taken off a permanent or away from a player (CR 122.1).
+    /// Emitted only on an actual change: `RemoveCounters` reports how many
+    /// were really there (CR 701.2's "as much as it can"), and removing none
+    /// announces nothing, the same transition rule CR 603.2e gives tapping.
+    CountersRemovedFrom {
+        subject: CounterSubject,
+        counter_type: CounterType,
+        /// How many were removed, never 0.
+        n: u32,
+        /// The player who removed them, where an instruction or a cost did
+        /// (CR 608.2c). `None` where a rule removes them and names no player:
+        /// CR 704.5q, damage to a planeswalker (CR 120.3c), a counter's own
+        /// replacement (CR 122.1c, 122.1d).
+        by: Option<PlayerId>,
+        /// The subject's count of `counter_type` after them.
+        now: u32,
+    },
 
     /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
     ///
@@ -498,7 +526,8 @@ impl GameEvent {
             | Untapped { object_id: id }
             | PermanentEnteredBattlefield { object_id: id, .. }
             | CountersAnnihilated { object_id: id, .. }
-            | CountersChanged { subject: CounterSubject::Object(id), .. }
+            | CountersPutOn { subject: CounterSubject::Object(id), .. }
+            | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }
             | SameZoneMove { object_id: id, .. }
             | ControlChanged { object_id: id, .. }
@@ -579,7 +608,8 @@ impl GameEvent {
             }
             ZoneChange { .. }
             | LeftTheGame { .. }
-            | CountersChanged { .. }
+            | CountersPutOn { .. }
+            | CountersRemovedFrom { .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }

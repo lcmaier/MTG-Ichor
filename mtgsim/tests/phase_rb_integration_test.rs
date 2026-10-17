@@ -356,11 +356,12 @@ fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
     game.recorded_events()
         .events()
         .filter_map(|e| match e {
-            GameEvent::CountersChanged {
-                subject: CounterSubject::Object(object_id),
-                counter,
-                added,
-            } => Some((*object_id, *counter, *added)),
+            GameEvent::CountersPutOn { subject: CounterSubject::Object(object_id), counter_type, n, .. } => {
+                Some((*object_id, *counter_type, *n as i32))
+            }
+            GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(object_id), counter_type, n, .. } => {
+                Some((*object_id, *counter_type, -(*n as i32)))
+            }
             _ => None,
         })
         .collect()
@@ -581,7 +582,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     let after: Vec<String> =
         game.recorded_events().events().skip(before).map(|e| format!("{e:?}")).collect();
     assert_eq!(after.len(), 1, "one event: the rider's counter removal, got {after:?}");
-    assert!(after[0].starts_with("CountersChanged"), "got {:?}", after[0]);
+    assert!(after[0].starts_with("CountersRemovedFrom"), "got {:?}", after[0]);
 }
 
 // COVERS-PARTIAL: ATOM-122.1h-001

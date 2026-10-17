@@ -322,12 +322,18 @@ pub enum GameAction {
     /// removes counters — paying {E}, a loyalty ability's minus — is validated
     /// against the count before it proposes anything, where `Cost::Sacrifice`
     /// counts its candidates (`engine::costs`; `Cost::RemoveCounters` is the
-    /// unimplemented arm there). No `by`: nothing printed asks who *removes* a
-    /// counter.
+    /// unimplemented arm there).
+    ///
+    /// `by` is the player removing them, where an instruction or a cost does
+    /// (CR 608.2c: Vampire Hexmage's "remove all counters" is its
+    /// controller's), and `None` where a rule does and names no player: CR
+    /// 704.5q, damage to a planeswalker (CR 120.3c), and a counter's own
+    /// replacement (CR 122.1c, 122.1d), whose replaced event names none.
     RemoveCounters {
         subject: CounterSubject,
         counter: CounterType,
         n: u32,
+        by: Option<PlayerId>,
     },
 
     /// Destroy a permanent (CR 701.8).
@@ -1457,6 +1463,7 @@ impl GameState {
                             subject: CounterSubject::Object(*id),
                             counter: CounterType::Loyalty,
                             n: amount as u32,
+                            by: None,
                         },
                         ctx,
                     )?;
@@ -1624,7 +1631,7 @@ impl GameState {
             // CR 614.7a is about damage and life gain, and "one or more" is asked by
             // the pattern (`gather::pattern_watches`), so a count a halving took to
             // zero matches nothing further and arrives here.
-            GameAction::AddCounters { subject, counter, n, by: _ } => {
+            GameAction::AddCounters { subject, counter, n, by } => {
                 if n == 0 {
                     return Ok(());
                 }
@@ -1644,11 +1651,12 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause)?;
+                let now = self.counter_count_of(subject, counter);
+                self.emit_event(GameEvent::CountersPutOn { subject, counter_type: counter, n, by, now }, ctx.cause)?;
                 Ok(())
             }
 
-            GameAction::RemoveCounters { subject, counter, n } => {
+            GameAction::RemoveCounters { subject, counter, n, by } => {
                 if n == 0 {
                     return Ok(());
                 }
@@ -1672,11 +1680,8 @@ impl GameState {
                 if removed == 0 {
                     return Ok(());
                 }
-                self.emit_event(GameEvent::CountersChanged {
-                    subject,
-                    counter,
-                    added: -(removed as i32),
-                }, ctx.cause)?;
+                let now = self.counter_count_of(subject, counter);
+                self.emit_event(GameEvent::CountersRemovedFrom { subject, counter_type: counter, n: removed, by, now }, ctx.cause)?;
                 Ok(())
             }
 

@@ -217,8 +217,9 @@ fn counter_changes(game: &GameState, start: usize) -> Vec<(CounterSubject, Count
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::CountersChanged { subject, counter, added } => {
-                Some((*subject, *counter, *added))
+            GameEvent::CountersPutOn { subject, counter_type, n, .. } => Some((*subject, *counter_type, *n as i32)),
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, .. } => {
+                Some((*subject, *counter_type, -(*n as i32)))
             }
             _ => None,
         })
@@ -525,6 +526,7 @@ fn a_player_removal_takes_as_much_as_it_can() {
         subject: CounterSubject::Player(0),
         counter: CounterType::Energy,
         n,
+        by: None,
     };
 
     game.execute_action(remove(5), &test_ctx()).expect("it performs");
