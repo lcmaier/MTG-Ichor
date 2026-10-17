@@ -24,6 +24,6 @@ pub mod triggers;
 pub use triggers::{
     an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_defender, becomes_attached,
     becomes_unattached, dies, draws_a_card, enters, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,
-    player_attacks, player_attacks_player, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
+    player_attacks, player_attacks_player, player_or_their_planeswalker, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_you_do,
     when_you_dont, whenever, you_lose_control_of, CountableEvent, Whose,
 };

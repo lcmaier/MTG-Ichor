@@ -354,6 +354,16 @@ pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
     attack_event(creature_controlled_by(whose), Some(defender), AttackEventPer::Defender)
 }
 
+/// "[A player] or a planeswalker [that player] controls", as what is
+/// attacked: "whenever a creature attacks you or a planeswalker you control".
+pub fn player_or_their_planeswalker(who: PlayerRef) -> DefenderFilter {
+    let their_planeswalker = ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
+        Box::new(ObjectFilter::ByController(who.clone())),
+    );
+    DefenderFilter::Or(Box::new(DefenderFilter::Player(Some(who))), Box::new(DefenderFilter::Permanent(their_planeswalker)))
+}
+
 fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, per: AttackEventPer) -> TriggerEvent {
     TriggerEvent::Attacks { attacker, defender, per, alone: false, multiplicity: Multiplicity::PerOccurrence }
 }

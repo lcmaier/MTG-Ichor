@@ -2597,7 +2597,7 @@ impl GameState {
     /// left with (Fathom Fleet Swordjack's ruling).
     fn attacked_by(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Vec<ResolvedTarget> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        let attack = objects.object(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
+        let attack = objects.object_for(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
         match attack {
             Some(AttackTarget::Player(player)) => vec![ResolvedTarget::Player(player)],
             Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
@@ -2609,7 +2609,7 @@ impl GameState {
     /// reads it.
     fn defending_player_of(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Option<PlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        objects.object(creature, ctx.effect_source())?.defending_player(self)
+        objects.object_for(creature, ctx.effect_source())?.defending_player(self)
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,

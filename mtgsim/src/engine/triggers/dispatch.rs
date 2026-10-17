@@ -35,7 +35,7 @@ use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
-use crate::oracle::characteristics::{controller_or_owner, get_effective_controller};
+use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
@@ -1943,15 +1943,11 @@ impl GameState {
             (DefenderFilter::Permanent(among), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
                 self.subject_matches(&TriggerSubject::Filter(among.clone()), Some(id), referents, seq, SubjectRead::Now)
             }
-            (DefenderFilter::PlayerOrTheirPlaneswalker(who), AttackTarget::Player(player)) => {
-                self.player_ref_is(who, player, referents)
-            }
-            (DefenderFilter::PlayerOrTheirPlaneswalker(who), AttackTarget::Planeswalker(id)) => {
-                get_effective_controller(self, id).is_some_and(|player| self.player_ref_is(who, player, referents))
+            (DefenderFilter::Or(either, or), _) => {
+                self.defender_matches(either, target, referents, seq) || self.defender_matches(or, target, referents, seq)
             }
             (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
-            | (DefenderFilter::Permanent(_), AttackTarget::Player(_))
-            | (DefenderFilter::PlayerOrTheirPlaneswalker(_), AttackTarget::Battle(_)) => false,
+            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
         }
     }
 

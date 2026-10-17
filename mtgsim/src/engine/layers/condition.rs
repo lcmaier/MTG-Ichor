@@ -67,11 +67,14 @@ impl ConditionReferents<'_> {
 }
 
 impl<'a> ConditionReferents<'a> {
-    /// The object `which` names, `source` being "this": as it last existed
-    /// once it has left, and as `TriggeringEventView` reads a triggering
-    /// event's. `None` for a participant the event does not have.
-    pub fn object(&self, which: ConditionObject, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
-        match which {
+    /// Finds the object a text's word for one means. `ThisObject` is
+    /// `source`, the object whose ability it is; `Triggering(participant)` is
+    /// the object that played that part in the triggering event. Either comes
+    /// back as `CurrentOrLastKnown`: the object as it is now, or as it last
+    /// existed once it has left (CR 608.2h). `None` when the triggering event
+    /// has no such object.
+    pub fn object_for(&self, word: ConditionObject, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+        match word {
             ConditionObject::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
             ConditionObject::Triggering(participant) => self.triggering_event.object(participant),
         }
@@ -115,7 +118,7 @@ pub(super) fn holds(
             player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
         // CR 508.5: the fact about one player, the creature's defending player.
-        Condition::DefendingPlayer { of, fact } => match referents.object(*of, source).and_then(|it| it.defending_player(game)) {
+        Condition::DefendingPlayer { of, fact } => match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
             Some(defending) => {
                 let players = PlayerSet::Fixed(vec![defending]);
                 player_fact_holds(&players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
@@ -154,7 +157,7 @@ pub(super) fn holds(
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
         Condition::CounterCount { object, kind, count } => {
-            let Some(asked) = referents.object(*object, source) else { return false };
+            let Some(asked) = referents.object_for(*object, source) else { return false };
             let n = match asked.lki {
                 Some(lki) => lki.counters_of(*kind),
                 None => match board.entity(game, asked.id) {

@@ -3445,7 +3445,11 @@ nothing (CR 508.5's second sentence).
    more. That never happens at two seats, so no fixture moves. There is no
    declaration record, so no attack trigger and no attack row in the
    history (CR 508.3a, 508.3b, 508.4). The 23 literals of `TokenDef` each
-   gain the field.
+   gain the field. CR 506.5 beside it, since "attacks alone" counts the
+   creatures declared, not the creatures attacking: a creature declared
+   alone attacks alone though another was put onto the battlefield
+   attacking before the declaration, and the one put onto the battlefield
+   attacking never attacks alone (TR-5e's review, 2026-10-16).
 2. **Removal from combat is a record**, `RemovedFromCombat`, announced by
    each caller of `remove_from_combat` (TR-5e's decision 9).
 3. **The combat's history**, advanced by `advance_history` from the

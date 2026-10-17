@@ -479,15 +479,14 @@ impl GameEvent {
         }
     }
 
-    /// The objects this event names as they are when it is announced, whose
-    /// names its record keeps where a copy makes one other than its card's
-    /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
-    /// zone it left instead, off its look-back frame or its card.
-    pub fn objects_named_as_announced(&self) -> impl Iterator<Item = ObjectId> + '_ {
+    /// Calls `each` with every object this event names, as it is when the
+    /// event is announced: the objects whose names its record keeps where a
+    /// copy makes one other than its card's ([`NamesAsAnnounced`]). A zone
+    /// change names its object as it was in the zone it left instead, off its
+    /// look-back frame or its card, so it calls nothing here.
+    pub fn for_each_object_named(&self, mut each: impl FnMut(ObjectId)) {
         use GameEvent::*;
-        // Up to three objects named one by one, then the lists three variants
-        // hold.
-        let (named, listed, paired): ([Option<ObjectId>; 3], &[ObjectId], &[(ObjectId, ObjectId)]) = match self {
+        match self {
             Tapped { object_id: id }
             | Untapped { object_id: id }
             | PermanentEnteredBattlefield { object_id: id, .. }
@@ -501,28 +500,64 @@ impl GameEvent {
             | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id, .. } => ([Some(*id), None, None], &[], &[]),
+            | SpellFizzled { spell_id: id, .. } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
-                ([Some(identity.source.id), None, None], &[], &[])
+                each(identity.source.id)
             }
-            AbilityCountered { identity, countered_by, .. } => ([Some(identity.source.id), Some(*countered_by), None], &[], &[]),
+            AbilityCountered { identity, countered_by, .. } => {
+                each(identity.source.id);
+                each(*countered_by);
+            }
             Targeted { target, by, ability_source, .. } => {
-                let target = match target {
-                    TargetRef::Object(object) => Some(object.id),
-                    TargetRef::Player(_) => None,
-                };
-                ([target, Some(ability_source.unwrap_or(*by)), None], &[], &[])
+                if let TargetRef::Object(object) = target {
+                    each(object.id);
+                }
+                each(ability_source.unwrap_or(*by));
             }
-            AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
-            DelayedTriggerCreated { source, .. } => ([Some(*source), None, None], &[], &[]),
-            UntilReturnMade { source, returns, .. } => ([Some(*source), None, None], returns, &[]),
-            LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
+            AbilityTriggered { origin, .. } => each(origin.source()),
+            DelayedTriggerCreated { source, .. } => each(*source),
+            UntilReturnMade { source, returns, .. } => {
+                each(*source);
+                for &returned in returns {
+                    each(returned);
+                }
+            }
+            LifeChanged { source, .. } => {
+                if let Some(source) = source {
+                    each(*source);
+                }
+            }
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
-            | SpellCountered { spell_id: a, countered_by: b, .. } => ([Some(*a), Some(*b), None], &[], &[]),
-            Unattached { attachment, former_host, .. } => ([Some(attachment.id), Some(former_host.id), None], &[], &[]),
-            Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
-            AttackersDeclared { .. } => ([None; 3], &[], &[]),
-            BlockersDeclared { blockers } => ([None; 3], &[], blockers),
+            | SpellCountered { spell_id: a, countered_by: b, .. } => {
+                each(*a);
+                each(*b);
+            }
+            Unattached { attachment, former_host, .. } => {
+                each(attachment.id);
+                each(former_host.id);
+            }
+            Attached { attachment, host, former_host } => {
+                each(*attachment);
+                each(*host);
+                if let Some(former_host) = former_host {
+                    each(*former_host);
+                }
+            }
+            // Each attacker, and the planeswalker or battle it attacks.
+            AttackersDeclared { attackers } => {
+                for &(attacker, target) in attackers {
+                    each(attacker);
+                    if let Some(attacked) = target.permanent() {
+                        each(attacked);
+                    }
+                }
+            }
+            BlockersDeclared { blockers } => {
+                for &(blocker, attacker) in blockers {
+                    each(blocker);
+                    each(attacker);
+                }
+            }
             ZoneChange { .. }
             | LeftTheGame { .. }
             | CountersChanged { .. }
@@ -533,16 +568,8 @@ impl GameEvent {
             | PlayerWon { .. }
             | Scried { .. }
             | LibraryShuffled { .. }
-            | StateBasedActionPerformed => ([None; 3], &[], &[]),
-        };
-        // Each attacker, and the permanent it attacks.
-        let attacks: &[(ObjectId, AttackTarget)] = if let AttackersDeclared { attackers } = self { attackers } else { &[] };
-        named
-            .into_iter()
-            .flatten()
-            .chain(listed.iter().copied())
-            .chain(paired.iter().flat_map(|&(a, b)| [a, b]))
-            .chain(attacks.iter().flat_map(|&(attacker, target)| [Some(attacker), target.permanent()]).flatten())
+            | StateBasedActionPerformed => {}
+        }
     }
 }
 

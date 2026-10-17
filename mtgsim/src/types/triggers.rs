@@ -151,9 +151,10 @@ pub enum DefenderFilter {
     Player(Option<PlayerRef>),
     /// A planeswalker or a battle: "attacks a planeswalker you control".
     Permanent(ObjectFilter),
-    /// "Attacks you or a planeswalker you control": the player, or a
-    /// planeswalker that player controls.
-    PlayerOrTheirPlaneswalker(PlayerRef),
+    /// Either: "attacks you or a planeswalker you control" (17 cards) is a
+    /// player or a permanent, which the authoring word
+    /// `player_or_their_planeswalker` writes.
+    Or(Box<DefenderFilter>, Box<DefenderFilter>),
 }
 
 /// What one triggering event of an attack trigger is (CR 603.2c): each
@@ -808,10 +809,10 @@ impl TriggerEvent {
         }
     }
 
-    /// Whether one triggering event of this arm can have several objects play
-    /// `participant`: a defender's attackers (CR 508.3b). A reader of one
-    /// object, "its power", cannot name such a participant.
-    pub fn has_several(&self, participant: Participant) -> bool {
+    /// Whether one triggering event of this arm may have several objects in
+    /// `participant`'s part: a defender's attackers (CR 508.3b). An
+    /// instruction that needs exactly one, "its power", cannot name it.
+    pub fn may_have_several(&self, participant: Participant) -> bool {
         matches!(
             (self, participant),
             (TriggerEvent::Attacks { per: AttackEventPer::Defender, .. }, Participant::Attacker)

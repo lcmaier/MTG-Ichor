@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    attacks, attacks_alone, attacks_defender, is_attacked, player_attacks, player_attacks_player, triggered_ability, whenever,
-    Whose,
+    attacks, attacks_alone, attacks_defender, is_attacked, player_attacks, player_attacks_player, player_or_their_planeswalker,
+    triggered_ability, whenever, Whose,
 };
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
@@ -192,20 +192,22 @@ fn a_creature_attacks_triggers_for_each_attacker() {
     assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
 }
 
-/// CR 508.3a's second sentence: "whenever a creature attacks you" triggers
-/// for the attacker attacking its controller and not the one attacking
-/// another player.
+/// CR 508.3a's second sentence: "whenever a creature attacks you", and
+/// "attacks you or a planeswalker you control", trigger for the attacker
+/// attacking its controller and not the one attacking another player.
 #[test]
 fn a_creature_attacks_you_triggers_for_your_attacker_only() {
-    let mut game = stocked(4);
-    let attacks_you = attacks_defender(TriggerSubject::Any, DefenderFilter::Player(Some(PlayerRef::You)));
-    put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
-    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
-    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+    for you in [DefenderFilter::Player(Some(PlayerRef::You)), player_or_their_planeswalker(PlayerRef::You)] {
+        let mut game = stocked(4);
+        let attacks_you = attacks_defender(TriggerSubject::Any, you);
+        put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
+        let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+        declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
 
-    assert_eq!(attackers_per_trigger(&game), vec![1]);
-    resolve_all(&mut game, &test_dp());
-    assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 0));
+        assert_eq!(attackers_per_trigger(&game), vec![1]);
+        resolve_all(&mut game, &test_dp());
+        assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 0));
+    }
 }
 
 /// CR 508.3b: "whenever a player is attacked" triggers once for each player
@@ -448,28 +450,40 @@ fn tap_target_creature_of(defending: PlayerRef) -> Effect {
     Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Permanent(theirs), TargetCount::Exactly(1)))
 }
 
-/// CR 508.5's two clauses can disagree at four seats: the source attacks
-/// player 1 and Grizzly Bears attack player 3. "Defending player" for the
-/// trigger's attacker is each attacker's own; for the source, player 1 both
-/// times. The text names which (CR 608.2c).
-#[test]
-fn defending_player_is_the_creature_the_text_names() {
-    let each_attackers = whenever(attacks(creature_you_control()), loses_one(its_attacker()));
-    let the_sources = whenever(attacks(creature_you_control()), loses_one(ConditionObject::ThisObject));
-    for (def, lost) in [(each_attackers, [1, 0, 1]), (the_sources, [2, 0, 0])] {
-        let mut game = stocked(4);
-        let source = put_on_battlefield(&mut game, attacking_watcher("Fixture Warcaller", def), 0);
-        let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-        let before = [1, 2, 3].map(|p| life(&game, p));
-        declare(&mut game, &[source, bears], &[(source, 1), (bears, 3)]);
+/// Player 0's Fixture Warcaller, a 2/2 with haste, carries "whenever a
+/// creature you control attacks, defending player loses 1 life", with
+/// "defending player" read for `creature`. The Warcaller attacks player 1 and
+/// Grizzly Bears attack player 3, so the trigger fires twice, once for each.
+/// Returns how much life players 1, 2 and 3 lost once both resolve.
+fn warcaller_and_bears_attack(creature: ConditionObject, dp: &dyn DecisionProvider) -> [i64; 3] {
+    let mut game = stocked(4);
+    let def = whenever(attacks(creature_you_control()), loses_one(creature));
+    let warcaller = put_on_battlefield(&mut game, attacking_watcher("Fixture Warcaller", def), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let before = [1, 2, 3].map(|p| life(&game, p));
+    declare(&mut game, &[warcaller, bears], &[(warcaller, 1), (bears, 3)]);
+    assert_eq!(game.pending_triggers.len(), 2);
+    resolve_all(&mut game, dp);
+    [1, 2, 3].map(|p| before[p - 1] - life(&game, p))
+}
 
-        let dp = ScriptedDecisionProvider::new();
-        if lost == [1, 0, 1] {
-            dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
-        }
-        resolve_all(&mut game, &dp);
-        assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), lost);
-    }
+/// CR 508.5's two clauses can disagree at four seats, and the text says which
+/// creature it means (CR 608.2c). "Defending player" for the trigger's
+/// attacker: the Warcaller's trigger makes player 1 lose life, and the Bears'
+/// makes player 3. The two triggers read different creatures, so player 0
+/// orders them.
+#[test]
+fn defending_player_of_the_attacker_is_each_attackers_defender() {
+    assert_eq!(warcaller_and_bears_attack(its_attacker(), &ordered_by(0)), [1, 0, 1]);
+}
+
+/// The same board with "defending player" for the source, "an ability of an
+/// attacking creature": both triggers ask about the Warcaller, which attacks
+/// player 1, so player 1 loses 2. The triggers read the same creature, so
+/// nothing asks their order.
+#[test]
+fn defending_player_of_the_source_is_one_player_for_every_trigger() {
+    assert_eq!(warcaller_and_bears_attack(ConditionObject::ThisObject, &test_dp()), [2, 0, 0]);
 }
 
 /// "Whenever this creature attacks, tap target creature defending player

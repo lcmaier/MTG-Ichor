@@ -91,7 +91,7 @@ impl FilterReferents for TextReferents<'_, '_> {
     }
 
     fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId> {
-        self.identity.named_objects.object(creature, self.identity.source?)?.defending_player(game)
+        self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game)
     }
 }
 

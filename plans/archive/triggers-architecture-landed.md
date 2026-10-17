@@ -2569,3 +2569,31 @@ Item 128 is TR-5f's.
 **Size.** +1,286 in code and tests (code +727, tests +559), against
 1,465–1,680. Seventeen tests in `phase_tr5e_integration_test`, each new
 reading shown to bite by breaking the engine and restoring it.
+
+### Review round (2026-10-16)
+
+The owner's code review of #256, twelve comments.
+- **Names.** The check that refuses "its power" over a defender's
+  attackers reads in its own words now: `BoundReads::needs_one` (the
+  instruction needs exactly one object in that part),
+  `participants_needing_one`, and `TriggerEvent::may_have_several`.
+  `ConditionReferents::object` is `object_for`, with a doc that says what
+  comes back. `Participant` and `ConditionObject` were put to the owner, with
+  `EventRole` and `TextObject` proposed.
+- **`GameEvent::for_each_object_named`** replaces
+  `objects_named_as_announced`. That function packed each variant into three
+  slots and chained them, and TR-5e's attackers had been bolted on as a
+  fourth with a second dispatch on the variant. Each arm now calls `each` on
+  its own objects, with no allocation on an event's emission.
+- **`DefenderFilter::Or`** replaces `PlayerOrTheirPlaneswalker`. One
+  combinator answers every "X or Y" defender phrase, and the authoring word
+  `player_or_their_planeswalker` keeps the 17-card phrase readable. The
+  "attacks you" test runs both spellings.
+- **The "defending player" test** is two tests, one for each of CR 508.5's
+  clauses, over a shared board.
+- **Answered without a change:** `alone` is the card's question and is
+  answered off the declaration's record, since CR 506.5 counts the creatures
+  declared; "one or more" attack triggers are `multiplicity`, independent of
+  `per`; `BoundReads` is a `u32` because the needs-one bits took it past 16.
+  The "attacks alone" tests beside a creature put onto the battlefield
+  attacking need item 128, so they are TR-5f's pieces.
