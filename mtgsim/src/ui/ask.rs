@@ -475,12 +475,12 @@ pub fn ask_choose_attackers(
     }
     let options: Vec<ChoiceOption> = legal
         .iter()
-        .map(|(id, t)| ChoiceOption::AttackerTarget(*id, t.clone()))
+        .map(|&(id, t)| ChoiceOption::AttackerTarget(id, t))
         .collect();
     let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_attackers", game, player, &ctx);
-    indices.iter().map(|&i| (legal[i].0, legal[i].1.clone())).collect()
+    indices.iter().map(|&i| legal[i]).collect()
 }
 
 /// Choose which creatures to declare as blockers.

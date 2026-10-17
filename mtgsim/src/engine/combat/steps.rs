@@ -75,7 +75,7 @@ impl GameState {
             }
             if let Some(entry) = self.battlefield.get_mut(creature_id) {
                 entry.attacking = Some(AttackingInfo {
-                    target: target.clone(),
+                    target: *target,
                     is_blocked: false,
                     blocked_by: Vec::new(),
                 });
