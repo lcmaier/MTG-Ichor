@@ -18,7 +18,7 @@ use crate::types::effects::{
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
-use crate::oracle::characteristics::{controls, get_effective_controller};
+use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
@@ -2634,7 +2634,7 @@ impl GameState {
                 Some(named) => self
                     .what_can_be_attacked()
                     .into_iter()
-                    .filter(|&target| self.defender_of(target) == Some(named) && self.among_matches(among, target, ctx))
+                    .filter(|&target| defending_player_for(self, target) == Some(named) && self.among_matches(among, target, ctx))
                     .collect(),
                 None => Vec::new(),
             },
@@ -2661,17 +2661,6 @@ impl GameState {
             }
             other => return Err(format!("{other:?} names no one player to attack, on {:?}", ctx.source)),
         })
-    }
-
-    /// The player `target` is, or controls it: whose defenses it is (CR
-    /// 508.5's defending player). A battle's protector waits for `backlog.md`
-    /// §2.23.
-    fn defender_of(&self, target: AttackTarget) -> Option<PlayerId> {
-        match target {
-            AttackTarget::Player(player) => Some(player),
-            AttackTarget::Planeswalker(id) => get_effective_controller(self, id),
-            AttackTarget::Battle(_) => None,
-        }
     }
 
     /// Whether `target` is among what `among` names of one player's: the

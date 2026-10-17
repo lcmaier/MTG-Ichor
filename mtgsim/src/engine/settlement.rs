@@ -17,10 +17,9 @@
 //! of their own.
 
 use crate::engine::actions::ActionContext;
-use crate::engine::layers::compute::compute_characteristics;
 use crate::events::cause::{EventCause, GameRule};
+use crate::oracle::characteristics::is_nonbattle_creature;
 use crate::state::game_state::GameState;
-use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, Timestamp};
 
 impl GameState {
@@ -61,10 +60,7 @@ impl GameState {
         let changed: Vec<ObjectId> = combatants
             .into_iter()
             .map(|(_, id)| id)
-            .filter(|&id| {
-                compute_characteristics(self, id)
-                    .is_none_or(|chars| !chars.types.contains(&CardType::Creature) || chars.types.contains(&CardType::Battle))
-            })
+            .filter(|&id| !is_nonbattle_creature(self, id))
             .collect();
         // NOT AN EVENT: CR 506.4's removal, a consequence of the type change
         // rather than a replaceable event (`replacement-architecture.md` §8a),

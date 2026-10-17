@@ -22,7 +22,6 @@ use crate::types::ids::{
     AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
-use crate::types::card_types::CardType;
 use crate::types::replacement::{EnterMods, EntryAttack, ReplacementDef};
 use crate::types::triggers::EventKindMask;
 
@@ -1531,8 +1530,7 @@ impl GameState {
         if self.phase.phase_type != PhaseType::Combat || controller != self.active_player {
             return None;
         }
-        let chars = crate::engine::layers::compute::compute_characteristics(self, id)?;
-        let can_attack = chars.types.contains(&CardType::Creature) && !chars.types.contains(&CardType::Battle);
+        let can_attack = crate::oracle::characteristics::is_nonbattle_creature(self, id);
         (can_attack && self.what_can_be_attacked().contains(&target)).then_some(target)
     }
 
