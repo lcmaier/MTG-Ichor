@@ -3424,10 +3424,9 @@ average turns by +0.7 at two seats and −1.9 at four.
 ### TR-5f — creatures put onto the battlefield attacking, and removal from combat
 
 *Split from TR-5e at its review (2026-10-16, decision 9). Designed
-2026-10-16 against the tree at `1e20410`. Reviewed 2026-10-17 (the owner,
-nine comments on the design PR): decisions 14 and 15 decided, decisions 11–13
-revised and back for review, and the entry, the specified defender and the
-record reshaped below. Nothing built.*
+2026-10-16 against the tree at `1e20410`, and reviewed twice on 2026-10-17
+(the owner, on the design PR): decisions 11, 14 and 15 decided; 12, 13 and
+16 open, at the end of this section. Nothing built.*
 
 **Where it sits.** TR-5e's arm reads only the declaration (CR 508.1). Two
 ways a creature's part in combat changes write nothing. A creature put onto
@@ -3523,41 +3522,42 @@ phase keeps.
    `Primitive::ReturnToBattlefield`'s new `attacking` (12 literals):
    ```rust
    pub enum EntersAttacking {
-       /// CR 508.4: its controller chooses what it attacks.
+       /// CR 508.4: its controller chooses among everything that can be
+       /// attacked.
        Chosen,
        /// "Attacking that player": a player the instruction names, in the
-       /// vocabulary its other player instructions use. With
-       /// `or_their_planeswalkers`, "that player or a planeswalker they
-       /// control", the controller choosing.
-       Player { player: EffectRecipient, or_their_planeswalkers: bool },
+       /// vocabulary its other player instructions use, and `among`, what
+       /// of theirs it may attack, which the controller chooses between.
+       Player { player: EffectRecipient, among: DefenderFilter },
        /// CR 702.49c: what another creature is attacking, or was as it left.
        SameAs(Antecedent),
    }
    ```
-   The resolution reads it as it resolves (CR 508.4a), since only the
-   resolution holds the binding, and writes the answer into the entry,
-   `EnterMods.attacking: Option<EntryAttack>`:
-   ```rust
-   pub enum EntryAttack {
-       /// Asked as it enters, among what can be attacked, or among one
-       /// player and their planeswalkers and battles.
-       Chosen { among: Option<PlayerId> },
-       /// Settled: "that player", or the same as another creature.
-       At(AttackTarget),
-   }
-   ```
-   A player who has left or is no defending player drops the word, and the
-   card or token still enters (CR 506.3c, 508.4a). Then the one door does
-   the rest, for every instruction alike:
+   `among` is TR-5e's `DefenderFilter`, read over the three kinds CR 508.4
+   lists for one player: the player, a planeswalker they control, a battle
+   they protect. "That player" is `Player(None)`; Adeline's and Zara's "that
+   player or a planeswalker they control" is `Or` of it and a planeswalker
+   filter; "that player, a planeswalker they control, or a battle they
+   protect" is the `Or` of all three, and a filter can narrow a kind further
+   (review, 2026-10-17: no kind is keyed to the printed cards). The
+   resolution reads the word as it resolves (CR 508.4a), since only the
+   resolution holds the binding, and writes what the creature may attack
+   into the entry, `EnterMods.attacking: Option<EntryAttack>`, with
+   `EntryAttack { candidates: Vec<AttackTarget> }`. `Chosen` gives every
+   candidate, `Player` the named player's that `among` matches, and `SameAs`
+   one. With none, because the player has left or is no defending player,
+   the word is dropped and the card or token still enters (CR 506.3c,
+   508.4a). Then the one door does the rest, for every instruction alike:
    - **The batch decides it.** After CR 616.1 settles each entry in the
      batch's decide phase, so its controller is known, the batch asks that
      controller `ChoiceKind::ChooseEnteringDefender { object }` for each
-     `Chosen` entry, in the batch's APNAP order (CR 101.4). It asks only
-     when there is a choice: during combat (CR 506.2), for an attacking
-     player (506.3b), with two or more candidates. The candidates are what
-     the declaration could attack (`process_declare_attackers`'s list,
-     today the opponents, CR 802.2), so `backlog.md` §2.23's planeswalkers
-     and battles widen both at once. Asked per entry, so each of Parallel
+     entry with two or more candidates, in the batch's APNAP order (CR
+     101.4), and takes the one when there is one. It asks only when the
+     creature could attack: during combat (CR 506.2), for an attacking
+     player (506.3b). Everything that can be attacked is the declaration's
+     own list (`process_declare_attackers`'s, today the opponents, CR
+     802.2), so `backlog.md` §2.23's planeswalkers and battles widen both at
+     once. Asked per entry, so each of Parallel
      Lives' copies is asked (Hanweir Garrison's first ruling). At two seats
      nothing is asked, so no fixture moves.
    - **`perform_entry` performs it.** It writes `AttackingInfo` after the
@@ -3578,7 +3578,7 @@ phase keeps.
    Option<AttackTarget>, blocking: Vec<ObjectId> }`, what each was attacking
    or blocking as it was removed. One removal, one record, as one
    declaration is one `AttackersDeclared`: the end of combat removing six
-   creatures is one record and one log line. `remove_from_combat` performs
+   creatures is one record, and no log line (decision 12). `remove_from_combat` performs
    and announces nothing, as now; each caller reads every member's part
    first, removes them all, then announces.
 
@@ -3705,9 +3705,10 @@ phase keeps.
 | The game-wide history struct (decision 11): the three loose "this turn" fields moved in | ~45 at 33 sites, mechanical | — |
 | The settlement and the type-change cause | ~55 | ~140: ATOM-506.4-003 for an attacker and a blocker, which stays blocking nothing while its attacker stays blocked (CR 509.1h); the two boards the probe found, a player leaving with March of the Machines at four seats and Mirrorweave's copy of an animated land |
 | The save's report | ~5 | ~10 |
+| Which records are a log line: one predicate beside `format_record`, read by the dev GUI's log and `cli_play`'s (decisions 12 and 16) | ~10 | ~15 |
 | Hanweir Garrison | ~20 | in item 128's row, and ruling #3, ~40 |
 | Relentless Assault | ~35 | ~100: untaps what attacked and not a token put onto the battlefield attacking; Hellrider triggers in the second combat (its fourth ruling) |
-| **Whole: 1,655–1,865** | ~470 (685–895) | ~970 |
+| **Whole: 1,690–1,910** | ~485 (705–925) | ~985 |
 
 Against TR-5e's 945–1,065: the type-change cause and its settlement,
 Hanweir Garrison, Relentless Assault and the return door are new, CR 511.3's
@@ -3727,76 +3728,91 @@ two seats.
 **Predictions for the close-out** (to be re-stated before `close_out.py`).
 Engine arm against `main`: gameplay rows identical at both seat counts
 except the games where a combatant stops being a creature, which the probe
-counts (1 of 200 at four seats in `performance`). Every combat's event dump
-gains one `RemovedFromCombat` line at its end, and the dispatch counters
-move by one window a combat. Shipped arm: every dealt game moves once
+counts (1 of 200 at four seats in `performance`). Every combat's fuzz event
+dump, which prints every record, gains one `RemovedFromCombat` line at its
+end, and the dispatch counters move by one window a combat. Shipped arm: every dealt game moves once
 Hanweir Garrison is pooled, and its `stress` distortion is reported.
+
+**Decided at review (2026-10-17)**
+
+- **11. The combat history lives in a game-wide history struct**, with the
+    three loose "this turn" fields moved into it. There was none:
+    `state::history`'s `PlayerHistory` is per player and holds only counts,
+    a slot per `TurnFact` (item 179), and what is game-wide sat in
+    `action_taken_this_turn`, `triggered_this_turn` and
+    `resolutions_this_turn` on `GameState`, each cleared by `begin_turn`.
+    `state::history::GameHistory`, beside `PlayerHistory`, holds the three
+    sets and `CombatHistory`, with one `begin_turn` that clears the sets and
+    prunes the rows to the round. 33 sites move, mechanically, and the
+    save's exhaustive destructure names one field instead of three.
+
+    **The rows are shared, and why that is not a trick on the floor.** Floor
+    2 prices one clone because an AI search clones the board at every
+    checkpoint (item 143) and throws most of the forks away. With the rows
+    behind an `Arc`, a clone copies a pointer: no allocation and 8 bytes,
+    against floor 2's 39 of 64 and floor 3's 100 KB of 128. The rows are
+    copied only by a fork that writes one: `Arc::make_mut` copies while
+    another holder shares them, so a fork's first combat record copies the
+    rows once, about 1.5 KB at most, and its later writes are free. The cost
+    moves from every clone to the forks that play through a declaration or a
+    removal, once each, and floor 1 (decisions per core-second) still
+    measures it. The one writer is the history's arm in `advance_history`,
+    so it is one site, with nothing else to do. Item 180 fixed the
+    registry's rows the same way: 68 allocations a clone with every fork
+    copying their payloads, 34 with them shared.
+- **14. The save reports the history.** The owner: a board that tests a
+    multi-combat interaction is played through its turn, not saved with
+    each object's part in it, and the words would cost about 40 lines for a
+    feature no one uses. The report is about 5.
+- **15. Relentless Assault comes in.** It is the printed reader of the
+    `Attacked` rows, and it tests them.
 
 **Decisions, for review**
 
-11. **Where the combat history lives.** The shared problem: the rows are
-    per existence and belong to no one player, since the attacking player's
-    creatures attack and every player's cards ask about them, and they must
-    cost a clone nothing on a Commander board. There is no game-wide history
-    struct today: `state::history`'s `PlayerHistory` is per player and
-    holds only counts, a slot per `TurnFact`, sized by the table and never
-    by the game (item 179). What is game-wide lives in three loose fields on
-    `GameState` (`action_taken_this_turn`, `triggered_this_turn`,
-    `resolutions_this_turn`), each cleared by `begin_turn`.
-    - **A game-wide history struct, the three fields moved into it
-      (recommended).** `state::history::GameHistory`, beside
-      `PlayerHistory`: the three "this turn" sets and `CombatHistory`, with
-      one `begin_turn` that clears the sets and prunes the rows to the
-      round. 33 sites move, mechanically, and the save's exhaustive
-      destructure names one field instead of three. The rows sit behind an
-      `Arc`, as the registry's payloads have since item 180, so a clone
-      copies a pointer: no allocation and 8 bytes, against floor 2's 39 of
-      64 and floor 3's 100 KB of 128, which therefore do not move. A write
-      copies the rows only while a clone still shares them, a few times a
-      combat.
-    - **A new `combat_history` field beside the three.** The same struct and
-      the same `Arc`, without the move: about 45 lines fewer, and a fourth
-      loose field.
-    - **Rows inline, unshared.** One allocation and about 48 bytes a row per
-      clone while any row is kept: on a four-seat round's 30 or so rows,
-      about 1.5 KB and floor 2's 40th allocation.
-12. **What CR 511.3 writes.** The shared problem: CR 508.5 reads the
+- **12. What CR 511.3 writes.** The shared problem: CR 508.5 reads the
     defender a creature had "before it was removed from combat", and the end
     of combat removes every creature at once. Today that writes nothing
     (`// NOT AN EVENT: CR 511.3's removal from combat.`).
-    - **One `RemovedFromCombat` for the end of combat (recommended).** Every
-      removal is a record, so the history needs two kinds of row and the
-      reader one rule: the last `Removed` row in the latest combat. A
-      creature put onto the battlefield attacking is answered like any
-      other. Cost: one record and one window a combat. **The log** prints
-      every record today; the untap step's untaps are 86 of the 995 lines of
-      one seeded game (`performance` seed 12345, two seats). One record a
-      removal makes the end of combat one line, "removed from combat (end of
-      combat): …". A view that folds a rule's sweep, the untap step's
-      untaps included, into one line, with a verbose view beside it, is a
-      dev GUI question for the next GUI PR, and needs no engine change: the
-      record's cause names the rule.
+    - **One `RemovedFromCombat` for the end of combat, and no log line
+      (recommended).** Every removal is a record, so the history needs two
+      kinds of row and the reader one rule: the last `Removed` row in the
+      latest combat. A creature put onto the battlefield attacking is
+      answered like any other. Cost: one record and one window a combat.
+      The record is the history's input; whether a log shows it is a
+      separate rule, and the end of combat is a rule removing everything
+      with no choice in it, so it is implicit: the logs skip a record caused
+      by `GameRule::CombatEnds`, through one predicate beside
+      `format_record`, and the fuzz event dump keeps every record. A removal
+      by an effect, a steal or a type change is a line, since a reader asks
+      why a creature stopped attacking.
     - **CR 511.3 stays silent, and the entry carries the attack.**
       `PermanentEnteredBattlefield` gains `attacking: Option<AttackTarget>`
       (about 20 sites), the history a third row, and the reader falls back
-      from a `Removed` row to the latest attack or entry row. The stream and
-      the log stay as `main` has them at the end of combat; one reader holds
-      two kinds of fallback, and an entry's record carries a combat fact.
+      from a `Removed` row to the latest attack or entry row. The stream
+      stays as `main` has it at the end of combat; one reader holds two
+      kinds of fallback, and an entry's record carries a combat fact.
     - **Nothing after combat.** The reader answers only within its combat,
       as decision 9 wrote it. CR 508.5 is then wrong for a delayed trigger an
       attack trigger creates (CR 603.7e), which a new set or a custom card
       can print.
-13. **The settlement, and whether it is one function.** The shared problem:
-    the layer system's output can change with nothing performed (CR
-    613.1b, 613.1d), and the CR makes some consequences of that immediate.
-    Three are named: a change of control (built, TR-4d), a combatant that
-    stops being a creature (here, reached today), and an attacked
-    planeswalker or battle that stops being one (§2.23). CR 704's
-    state-based actions are the CR's own sweep and stay in their loop, and
-    TR-6's state triggers (CR 603.8, §4.5) are not a member: they read more
-    than the layers (life totals, graveyards), so the epoch cannot gate
-    them, and their first schedule is after every dispatch rather than at a
-    batch's head.
+- **13. The settlement, and whether it is one function.** The shared problem:
+    something is always performed first. A spell resolves and starts an
+    effect, a permanent leaves and takes its static ability with it, a
+    player leaves the game and takes their permanents, an "until end of
+    turn" effect ends at cleanup. But what that does to *another*
+    permanent's controller or types is not an event of its own: it is what
+    the layer walk answers afterwards (CR 613.1b, 613.1d), and the
+    performer that moved March of the Machines does not know which artifacts
+    stop being creatures. So something must look after the event and
+    compare, as TR-4d's sweep compares each permanent's controller with the
+    last one announced. The CR makes three such consequences immediate: a
+    change of control (built, TR-4d), a combatant that stops being a
+    creature (here, reached today), and an attacked planeswalker or battle
+    that stops being one (§2.23). CR 704's state-based actions are the CR's
+    own sweep and stay in their loop, and TR-6's state triggers (CR 603.8,
+    §4.5) are not a member: they read more than the layers (life totals,
+    graveyards), so the epoch cannot gate them, and their first schedule is
+    after every dispatch rather than at a batch's head.
     - **One settlement, each consequence a part with its own gate
       (recommended).** The control sweep's function, renamed for both and
       called at its three points, runs the parts in a fixed order: control
@@ -3807,15 +3823,17 @@ Hanweir Garrison is pooled, and its `stress` distortion is reported.
     - **The type-change check as a second call beside the control sweep's,
       at each of its points.** About 10 lines fewer, and §2.23 adds a third
       call at every point.
-    - **A debt item.** No longer on offer: the probe found the cause in
-      games with registered cards, and the answer it gives today (a land or
-      an Equipment "attacking") is wrong.
-14. **The save reports the history** (decided at review, 2026-10-17). The
-    owner: a board that tests a multi-combat interaction is played through
-    its turn, not saved with each object's part in it; the words would cost
-    about 40 lines for a feature no one uses. The report is about 5.
-15. **Relentless Assault comes in** (decided at review, 2026-10-17). It is
-    the printed reader of the `Attacked` rows, and it tests them.
+- **16. Whether the untap step's untaps leave the log too.** They print
+    today, one line for each permanent the untap step untaps (a permanent
+    already untapped announces nothing, CR 603.2e): 86 of the 995 lines of
+    one seeded game (`performance` seed 12345, two seats), and the last two
+    lines of the owner's example at review. The untap step is a rule's sweep
+    with no choice in it, as the end of combat is.
+    - **Hide them by the same predicate (recommended).** One more cause on
+      it, `TurnBasedAction::Untap`, and the log reads as the owner expected.
+      A trigger on an untap still fires and still prints its own lines.
+    - **Keep them.** The log stays a line per record, but for the end of
+      combat.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
 
@@ -3833,7 +3851,7 @@ TR-5c, TR-5d.
 |---|---|---|---|---|---|
 | **TR-5a — the binding's roles** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5a" | | | | +1,454 |
 | **TR-5e — the attack declaration** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5e" | | | | +1,286 |
-| **TR-5f — creatures put onto the battlefield attacking, and removal from combat** (CR 506.3, 506.4, 508.4, 508.5), split from TR-5e at its review | item 128, with CR 508.4's defender, chosen or specified, on both entry doors; CR 508.8's second leg; removal from combat as a record at four causes, CR 511.3's among them, and the combat's history (TR-5e's decision 9, decisions 11 and 12); one settlement for what the layers' output changes, with CR 506.4's type-change cause (decision 13); a game-wide history struct (decision 11); "defending player" once its creature has left combat | Hanweir Garrison and Relentless Assault; fixtures: never "attacked", by 508.3a, 508.3b and 508.3d; the four-seat choice; Parallel Lives' extra tokens; the former defender after a steal; ATOM-506.4-003 and the probe's two boards | ~470 (685–895) | ~970 | 1,655–1,865 (re-counted at review, 2026-10-17, above) |
+| **TR-5f — creatures put onto the battlefield attacking, and removal from combat** (CR 506.3, 506.4, 508.4, 508.5), split from TR-5e at its review | item 128, with CR 508.4's defender, chosen or specified, on both entry doors; CR 508.8's second leg; removal from combat as a record at four causes, CR 511.3's among them, and the combat's history (TR-5e's decision 9, decisions 11 and 12); one settlement for what the layers' output changes, with CR 506.4's type-change cause (decision 13); a game-wide history struct (decision 11); "defending player" once its creature has left combat | Hanweir Garrison and Relentless Assault; fixtures: never "attacked", by 508.3a, 508.3b and 508.3d; the four-seat choice; Parallel Lives' extra tokens; the former defender after a steal; ATOM-506.4-003 and the probe's two boards | ~485 (705–925) | ~985 | 1,690–1,910 (re-counted at review, 2026-10-17, above) |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
 | **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
