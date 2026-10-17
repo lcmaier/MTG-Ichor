@@ -1,5 +1,5 @@
-//! Every player's history, materialized and bounded (`triggers-architecture.md`
-//! §3.10; `codebase-state.md` item 179).
+//! Every player's history, and the game's, materialized and bounded
+//! (`triggers-architecture.md` §3.10; `codebase-state.md` item 179).
 //!
 //! Four views, each sized by the table and never by the turn count: this
 //! turn's row and last turn's, the game's running total, and, for "since your
@@ -8,9 +8,16 @@
 //! no turn row can hold: a turn can have two draw steps (CR 500.8). One writer,
 //! `engine::triggers::history`, as each event ends; nothing derives these from
 //! the event stream.
+//!
+//! What belongs to no one player is [`GameHistory`]'s: each ability's "this
+//! turn" facts, and what each creature did in combat.
 
+use std::sync::Arc;
+
+use crate::state::battlefield::AttackTarget;
+use crate::state::game_state::AbilityIdentity;
 use crate::types::history::TurnFact;
-use crate::types::ids::PlayerId;
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
 /// A count for each [`TurnFact`], in the fact's slot: one player's side of one
 /// turn, or of a span of turns. The fact is the key and the row holds nothing
@@ -161,10 +168,129 @@ impl PlayerHistory {
         self.this_draw_step = n;
     }
 
-    /// Count a card drawn in this player's draw step, and return its place.
-    pub(crate) fn drew_in_draw_step(&mut self) -> u64 {
+    /// Count a card drawn in this player's draw step.
+    pub(crate) fn drew_in_draw_step(&mut self) {
         self.this_draw_step = self.this_draw_step.saturating_add(1);
-        self.this_draw_step
+    }
+}
+
+/// What the game remembers that belongs to no one player.
+#[derive(Debug, Clone, Default)]
+pub struct GameHistory {
+    /// CR 603.2h — "do this only once each turn": each ability whose action
+    /// its controller has taken this turn, with that controller, since the
+    /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
+    /// Written by the resolution that takes the action; read at the trigger
+    /// and at resolution.
+    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
+    /// "This ability triggers only once each turn" (Elvish Warmaster's
+    /// ruling): each ability that has triggered this turn. Written by the
+    /// dispatcher as it queues; read at the trigger.
+    pub triggered_this_turn: IdSet<AbilityIdentity>,
+    /// CR 603.7h — how many times each ability has resolved this turn, keyed
+    /// by the ability rather than by who controlled it (Ashling the Pilgrim's
+    /// ruling), so a control change does not restart it. Advanced off
+    /// `AbilityResolved` by the dispatcher.
+    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
+    /// What each creature did in this round's combats.
+    pub combat: CombatHistory,
+}
+
+impl GameHistory {
+    /// A turn has begun. "Each turn" is the game's turn, not a controller's
+    /// (§3.5), so the abilities' facts start over; the combat's rows keep the
+    /// turns from `keep_from` on.
+    pub(crate) fn turn_began(&mut self, keep_from: u32) {
+        self.action_taken_this_turn.clear();
+        self.triggered_this_turn.clear();
+        self.resolutions_this_turn.clear();
+        self.combat.turn_began(keep_from);
+    }
+}
+
+/// What each creature did in combat: a row for each attacker declared (CR
+/// 508.1) and for each creature removed from combat (CR 506.4, 511.3).
+///
+/// Kept for a round, from the earliest turn any player's "your last turn"
+/// can still name (Giant Turtle's "if it attacked during your last turn").
+/// The rows are shared, so a clone copies a pointer, and a write copies them
+/// only while a clone still shares them.
+#[derive(Debug, Clone, Default)]
+pub struct CombatHistory {
+    /// The combat phases begun this turn, which CR 500.8 can add to.
+    combats_this_turn: u32,
+    rows: Arc<Vec<CombatRow>>,
+}
+
+/// One thing a creature did in one combat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CombatRow {
+    /// The existence that did it (CR 400.7).
+    pub object: ObjectRef,
+    pub turn: u32,
+    /// Which of the turn's combats, from 1.
+    pub combat: u32,
+    pub fact: CombatFact,
+}
+
+/// What a [`CombatRow`] says the creature did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CombatFact {
+    /// CR 508.1: declared as an attacker, attacking this. A creature put onto
+    /// the battlefield attacking never "attacked" (CR 508.4) and has none.
+    Attacked(AttackTarget),
+    /// CR 506.4, 511.3: removed from combat, attacking this as it was, or
+    /// nothing.
+    Removed { attacking: Option<AttackTarget> },
+}
+
+impl CombatHistory {
+    /// A combat phase of this turn has begun.
+    pub(crate) fn combat_began(&mut self) {
+        self.combats_this_turn += 1;
+    }
+
+    /// `object` did `fact` in turn `turn`'s latest combat.
+    pub(crate) fn record(&mut self, object: ObjectRef, turn: u32, fact: CombatFact) {
+        let row = CombatRow { object, turn, combat: self.combats_this_turn, fact };
+        Arc::make_mut(&mut self.rows).push(row);
+    }
+
+    /// A turn has begun, and nothing reads a row from before `keep_from`.
+    fn turn_began(&mut self, keep_from: u32) {
+        self.combats_this_turn = 0;
+        if self.rows.iter().any(|row| row.turn < keep_from) {
+            Arc::make_mut(&mut self.rows).retain(|row| row.turn >= keep_from);
+        }
+    }
+
+    /// Every row, oldest first.
+    pub fn rows(&self) -> &[CombatRow] {
+        &self.rows
+    }
+
+    /// Was `object` declared as an attacker in turn `turn`, the turn in
+    /// progress? A creature put onto the battlefield attacking never was (CR
+    /// 508.4).
+    pub fn attacked_this_turn(&self, object: ObjectRef, turn: u32) -> bool {
+        self.rows.iter().any(|row| row.object == object && row.turn == turn && matches!(row.fact, CombatFact::Attacked(_)))
+    }
+
+    /// What `object` was attacking as it was last removed from combat in the
+    /// latest combat of turn `turn`, the turn in progress (CR 508.5's second
+    /// sentence): `None` when it was not removed in that combat, or was
+    /// attacking nothing.
+    pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
+        let removed = self.rows.iter().rev().find(|row| {
+            row.object == object
+                && row.turn == turn
+                && row.combat == self.combats_this_turn
+                && matches!(row.fact, CombatFact::Removed { .. })
+        })?;
+        match removed.fact {
+            CombatFact::Removed { attacking } => attacking,
+            CombatFact::Attacked(_) => None,
+        }
     }
 }
 
@@ -221,13 +347,71 @@ mod tests {
         assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);
     }
 
+    /// Object `id` as the existence its `zone_change_epoch` names (CR
+    /// 400.7): the same id with another epoch is another object.
+    fn object_ref(id: u64, zone_change_epoch: u64) -> ObjectRef {
+        ObjectRef { id: crate::types::ids::ObjectId::from_trace(id), zone_change_epoch }
+    }
+
+    /// Two combats in one turn: "defending player" reads the latest combat's
+    /// removal only, and "attacked this turn" each combat's declaration. The
+    /// same object after a zone change is a new one (CR 400.7) and did
+    /// neither.
+    #[test]
+    fn the_rows_tell_combats_and_existences_apart() {
+        let mut combat = CombatHistory::default();
+        let (bears, after_a_flicker) = (object_ref(7, 1), object_ref(7, 2));
+        let player_1 = AttackTarget::Player(1);
+        combat.combat_began();
+        combat.record(bears, 3, CombatFact::Attacked(player_1));
+        combat.record(bears, 3, CombatFact::Removed { attacking: Some(player_1) });
+        assert_eq!(combat.attacking_when_removed(bears, 3), Some(player_1));
+
+        combat.combat_began();
+        assert_eq!(combat.attacking_when_removed(bears, 3), None, "not removed in the second combat");
+        assert!(combat.attacked_this_turn(bears, 3), "it attacked in the first");
+        assert!(!combat.attacked_this_turn(after_a_flicker, 3));
+        assert!(!combat.attacked_this_turn(bears, 4));
+    }
+
+    /// The rows keep a round: from the earliest turn any player's "your last
+    /// turn" can name. On turn 3 player 0's last turn is turn 1, so its row
+    /// stays; on turn 4 both players' last turns are 2 and 3, so it goes.
+    #[test]
+    fn the_rows_keep_a_round() {
+        let mut game = GameState::new(2, 20);
+        game.history.combat.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        let turns = |game: &GameState| game.history.combat.rows().iter().map(|row| row.turn).collect::<Vec<_>>();
+        game.begin_turn(2, 1);
+        game.begin_turn(3, 0);
+        assert_eq!(turns(&game), [1], "player 0's last turn, on its own turn");
+        game.begin_turn(4, 1);
+        assert!(turns(&game).is_empty());
+    }
+
+    /// A clone shares the rows until one of the two writes, so a fork that
+    /// plays through a combat copies them once.
+    #[test]
+    fn a_clone_shares_the_rows_until_it_writes() {
+        let mut first = CombatHistory::default();
+        first.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        let second = first.clone();
+        assert!(Arc::ptr_eq(&first.rows, &second.rows));
+        first.record(object_ref(8, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        assert!(!Arc::ptr_eq(&first.rows, &second.rows));
+        assert_eq!((first.rows().len(), second.rows().len()), (2, 1));
+    }
+
     /// The draw step's count is not a turn row: it starts over when a draw
     /// step begins, and a turn can have two (CR 500.8).
     #[test]
     fn the_draw_steps_count_starts_over_with_each_draw_step() {
         let mut history = PlayerHistory::before_any_turn();
-        assert_eq!((history.drew_in_draw_step(), history.drew_in_draw_step()), (1, 2));
+        history.drew_in_draw_step();
+        history.drew_in_draw_step();
+        assert_eq!(history.this_draw_step(), 2);
         history.draw_step_drawn(0);
-        assert_eq!(history.drew_in_draw_step(), 1, "a second draw step in the same turn");
+        history.drew_in_draw_step();
+        assert_eq!(history.this_draw_step(), 1, "a second draw step in the same turn");
     }
 }

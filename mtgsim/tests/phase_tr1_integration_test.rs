@@ -262,7 +262,7 @@ fn soul_warden_entering_beside_two_creatures_triggers_for_each_of_them() {
     warden_token.abilities = soul_warden().abilities.to_vec();
     let bear = saproling_token();
     game.execute_action(
-        GameAction::CreateTokens { defs: vec![warden_token, bear.clone(), bear], controller: 0 },
+        GameAction::CreateTokens { defs: vec![warden_token, bear.clone(), bear], controller: 0, attacking: None },
         &test_ctx(),
     )
     .unwrap();

@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-10-16",
+  "fetched": "2026-10-17",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -595,6 +595,15 @@
         {"n": 2, "published_at": "2015-06-22", "comment": "Hallowed Moonlight won’t affect any creature that was cast, no matter which zone it was cast from and whether or not its mana cost was paid."}
       ]
     },
+    "Hanweir Garrison": {
+      "first_seen": "2026-10-17",
+      "rulings": [
+        {"n": 1, "published_at": "2025-01-24", "comment": "You choose which player, planeswalker, or battle each token is attacking as you create the tokens. It doesn’t have to be the same one that Hanweir Garrison (or Hanweir, the Writhing Township) is attacking, and the tokens don’t both have to attack the same player, planeswalker, or battle."},
+        {"n": 2, "published_at": "2025-01-24", "comment": "Although the tokens created by the triggered ability are attacking, they were never declared as attacking creatures (for the purposes of abilities that trigger whenever a creature attacks, for example)."},
+        {"n": 3, "published_at": "2025-01-24", "comment": "If another ability of a source you control triggers when attackers are declared, such as that of Hamlet Captain, you may have it resolve before or after that of Hanweir Garrison (or Hanweir, the Writhing Township). If that ability has targets, it won’t be able to target the tokens."},
+        {"n": 4, "published_at": "2016-07-13", "comment": "For more information on meld cards, see the Eldritch Moon mechanics article (https://magic.wizards.com/en/articles/archive/feature/eldritch-moon-mechanics-2016-06-27).", "disposition": {"kind": "no-board", "why": "a pointer to the Eldritch Moon mechanics article, which names no board."}}
+      ]
+    },
     "Hardened Scales": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1011,6 +1020,15 @@
     "Reflect Damage": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Relentless Assault": {
+      "first_seen": "2026-10-17",
+      "rulings": [
+        {"n": 1, "published_at": "2025-09-19", "comment": "Relentless Assault creates an additional combat and main phase only if it resolves during a main phase."},
+        {"n": 2, "published_at": "2025-09-19", "comment": "A creature that attacks each turn if able must attack only once that turn. It is not forced into each attack that turn. However, a creature that attacks each combat if able must attack again if it can.", "disposition": {"kind": "not-expressible", "facility": "attack requirements, 'attacks each turn if able' against 'each combat' (CR 508.1d)", "owner": "cant-effects-architecture.md"}},
+        {"n": 3, "published_at": "2025-09-19", "comment": "If you manage to cast this during a main phase of your opponent's turn, that opponent's creatures will untap and that opponent will be able to attack again. It will not allow you to attack during their turn."},
+        {"n": 4, "published_at": "2025-09-19", "comment": "Abilities that trigger when a creature attacks, blocks, or is blocked will trigger during each combat that turn."}
+      ]
     },
     "Rescue from the Underworld": {
       "first_seen": "2026-10-16",

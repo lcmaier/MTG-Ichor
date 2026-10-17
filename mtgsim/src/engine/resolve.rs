@@ -12,20 +12,22 @@ use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, Ta
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
-use crate::state::game_state::{GameState, PlannedPhase};
+use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
-use crate::oracle::characteristics::{controls, get_effective_controller};
+use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
-use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
+use crate::types::replacement::{EntryAttackCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::bound_reads::BoundReads;
+use crate::types::triggers::DefenderFilter;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
@@ -864,10 +866,14 @@ impl GameState {
             // resolution outside a phase splices nothing: the cursor is `None` only
             // between a turn beginning and its first phase, when nothing can be
             // resolving, and a `Vec` insert past its end would panic.
-            Primitive::ExtraPhases(phases) => {
+            Primitive::ExtraPhases { phases, after } => {
                 let Some(cursor) = self.turn_plan.cursor else {
                     return Ok(());
                 };
+                let in_a_main_phase = matches!(self.phase.phase_type, PhaseType::Precombat | PhaseType::Postcombat);
+                if *after == ExtraPhasesAfter::ThisMainPhase && !in_a_main_phase {
+                    return Ok(());
+                }
                 let at = cursor + 1;
                 self.turn_plan.phases.splice(
                     at..at,
@@ -1186,8 +1192,9 @@ impl GameState {
                     return Ok(());
                 }
                 let defs = vec![token_def.clone(); count as usize];
+                let attacking = token_def.enters_attacking.as_ref().map(|word| self.entry_attack_candidates(word, ctx)).transpose()?;
                 self.execute_action(
-                    GameAction::CreateTokens { defs, controller },
+                    GameAction::CreateTokens { defs, controller, attacking },
                     &ActionContext::resolving(dp, ctx),
                 )
             }
@@ -1469,12 +1476,12 @@ impl GameState {
             // does not forbid "can't be removed from combat"; it puts that card's
             // enforcement at all seven causes, which makes it a `RestrictionDef`
             // consulted by each (`cant-effects-architecture.md`) and not a
-            // replaceable event here → `replacement-architecture.md` §8a.
+            // replaceable event here → `replacement-architecture.md` §8a. It is
+            // announced, as every cause announces it.
             Primitive::RemoveFromCombat => {
-                for object in self.affected_permanents(recipient, targets, ctx) {
-                    self.remove_from_combat(object);
-                }
-                Ok(())
+                let objects = self.affected_permanents(recipient, targets, ctx);
+                let removed = self.remove_from_combat(&objects);
+                self.announce_removal_from_combat(removed, ctx.cause())
             }
 
             // NOT AN EVENT: a direct write because nothing replaces *this* removal — Pyramids, the
@@ -1620,12 +1627,21 @@ impl GameState {
 
             // Each object from where it is now, as one event (CR 608.2f),
             // under its owner's control or the effect's controller's.
-            Primitive::ReturnToBattlefield { under, counters } => {
+            Primitive::ReturnToBattlefield { under, counters, tapped, attacking } => {
+                let attacking = attacking.as_ref().map(|word| self.entry_attack_candidates(word, ctx)).transpose()?;
                 let mut returns = Vec::new();
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
                     let controller = self.return_controller(object, *under, ctx.controller)?;
-                    returns.push(ReturningObject { object, to: Zone::Battlefield, controller, counters: counters.clone(), cause: actx.cause });
+                    returns.push(ReturningObject {
+                        object,
+                        to: Zone::Battlefield,
+                        controller,
+                        counters: counters.clone(),
+                        tapped: *tapped,
+                        attacking: attacking.clone(),
+                        cause: actx.cause,
+                    });
                 }
                 self.return_objects(&returns, &actx)
             }
@@ -2133,16 +2149,6 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ResolvedTarget>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
-            EffectRecipient::Controller => vec![ctx.controller],
-            EffectRecipient::EachOf(group) => self.players_in(group, ctx),
-            EffectRecipient::TriggeringPlayer => self
-                .bound_targets(&choice.chooser, ctx)?
-                .into_iter()
-                .filter_map(|t| match t {
-                    ResolvedTarget::Player(pid) => Some(pid),
-                    ResolvedTarget::Object(_) => None,
-                })
-                .collect(),
             chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
                 match instance_of(chooser, declared, &mut walk.instance_cursor) {
                     Some((ix, _)) => ctx
@@ -2157,7 +2163,9 @@ impl GameState {
                     None => Vec::new(),
                 }
             }
-            other => return Err(format!("{:?} names no player to make a choice", other)),
+            chooser => self
+                .players_named_by(chooser, ctx)?
+                .ok_or_else(|| format!("{:?} names no player to make a choice", chooser))?,
         };
         let mut chosen = Vec::new();
         for player in choosers {
@@ -2603,6 +2611,85 @@ impl GameState {
             Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
             None => Vec::new(),
         }
+    }
+
+    /// CR 508.4: what a creature this resolution puts onto the battlefield
+    /// attacking may attack, read as it resolves, since only the resolution
+    /// holds the binding that "that player" and "the same as that creature"
+    /// name: everything that can be attacked, for its controller's choice;
+    /// the named player's that `among` matches; or what the other creature is
+    /// attacking, or was as it left (CR 702.49c). The entry's performer
+    /// checks the candidate again as the creature enters (CR 508.4a).
+    fn entry_attack_candidates(&self, word: &EntersAttacking, ctx: &ResolutionContext) -> Result<EntryAttackCandidates, String> {
+        let candidates = match word {
+            EntersAttacking::Chosen => self.what_can_be_attacked(),
+            EntersAttacking::Player { player, among } => match self.named_player(player, ctx)? {
+                Some(named) => self
+                    .what_can_be_attacked()
+                    .into_iter()
+                    .filter(|&target| defending_player_for(self, target) == Some(named) && self.admits_as_this_resolution(among, target, ctx))
+                    .collect(),
+                None => Vec::new(),
+            },
+            EntersAttacking::SameAs(creature) => {
+                let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+                objects.object_for(*creature, ctx.effect_source()).and_then(|it| it.attacking(self)).into_iter().collect()
+            }
+        };
+        Ok(EntryAttackCandidates { candidates })
+    }
+
+    /// The one player `recipient` names as this resolution reads it, for an
+    /// instruction that names a player beside its own recipient ("attacking
+    /// that player"). Loud for a recipient that names no one player: "each
+    /// opponent" names several, and an instance of "target" is the atom's own.
+    fn named_player(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<Option<PlayerId>, String> {
+        match (recipient, self.players_named_by(recipient, ctx)?) {
+            (EffectRecipient::EachOf(_), _) | (_, None) => {
+                Err(format!("{recipient:?} names no one player to attack, on {:?}", ctx.source))
+            }
+            (_, Some(players)) => Ok(players.first().copied()),
+        }
+    }
+
+    /// The players `recipient` names from the resolution's context alone:
+    /// "you", "each opponent" in APNAP order (CR 101.4), "defending player",
+    /// "that player". `None` for a recipient that names objects, or players
+    /// only through an instance of "target", which the walk reads.
+    fn players_named_by(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<Option<Vec<PlayerId>>, String> {
+        Ok(Some(match recipient {
+            EffectRecipient::Implicit | EffectRecipient::Controller => vec![ctx.controller],
+            EffectRecipient::EachOf(group) => self.players_in(group, ctx),
+            EffectRecipient::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx).into_iter().collect(),
+            EffectRecipient::TriggeringPlayer | EffectRecipient::Triggering(_) | EffectRecipient::Referred => self
+                .bound_targets(recipient, ctx)?
+                .into_iter()
+                .filter_map(|target| match target {
+                    ResolvedTarget::Player(player) => Some(player),
+                    ResolvedTarget::Object(_) => None,
+                })
+                .collect(),
+            EffectRecipient::ThisObject
+            | EffectRecipient::Target(..)
+            | EffectRecipient::Choose(..)
+            | EffectRecipient::SameInstanceAs(_)
+            | EffectRecipient::AttackedBy(_)
+            | EffectRecipient::FilteredPermanents(_)
+            | EffectRecipient::FilteredObjectsIn(..)
+            | EffectRecipient::Host
+            | EffectRecipient::ChosenBy(_) => return Ok(None),
+        }))
+    }
+
+    /// Whether `among` admits `target`, read as this resolution reads "you"
+    /// and its filters: for "attacking that player or a planeswalker they
+    /// control", whether `target` is the player itself or a planeswalker the
+    /// filter matches. Which player's is `defending_player_for`'s question,
+    /// asked beside this one.
+    fn admits_as_this_resolution(&self, among: &DefenderFilter, target: AttackTarget, ctx: &ResolutionContext) -> bool {
+        among.admits(target, &|who, player| self.resolve_player_ref(who, &[], ctx).ok() == Some(player), &|filter, id| {
+            self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+        })
     }
 
     /// "Defending player" for `creature` (CR 508.5), read as `attacked_by`

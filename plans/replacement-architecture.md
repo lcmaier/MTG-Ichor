@@ -2701,7 +2701,10 @@ leaves-the-battlefield cause it would have to mean something for a permanent
 that is no longer there, which is the kind of rules problem WotC avoids by
 construction. The card pool is unanimous today: 25 cards print "from combat"
 (`o:"from combat"`) and **all 25 cause removal**; `o:"removed from combat"` as a
-phrase returns zero, so nothing replaces it, forbids it, or triggers on it.
+phrase returns zero, so nothing replaces it, forbids it, or triggers on it. Since
+TR-5f each cause announces the removal as `GameEvent::RemovedFromCombat`,
+a record of what happened and still no replaceable event: none of this
+changes.
 
 **Damage removal: the on-demand half is sound; the half the comment leaned on
 was not.** The primitive itself is fine — the only printed card that removes all

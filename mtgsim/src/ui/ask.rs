@@ -1128,6 +1128,36 @@ pub fn ask_choose_entering_controller(
     candidates[index[0]]
 }
 
+/// CR 508.4 — choose what a permanent put onto the battlefield attacking
+/// attacks, as it enters, among `candidates`.
+///
+/// **Two or more candidates**, as [`ask_choose_entering_controller`]: with
+/// one the effect has settled it, and the caller does not ask.
+pub fn ask_choose_entering_defender(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    object: ObjectId,
+    candidates: &[AttackTarget],
+) -> AttackTarget {
+    assert!(
+        candidates.len() >= 2,
+        "ask_choose_entering_defender: a choice needs two or more candidates; called with {}",
+        candidates.len(),
+    );
+    let options: Vec<ChoiceOption> = candidates
+        .iter()
+        .map(|&target| match target {
+            AttackTarget::Player(player) => ChoiceOption::Player(player),
+            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => ChoiceOption::Object(id),
+        })
+        .collect();
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringDefender { object });
+    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
+    validate_pick_n(&index, &options, (1, 1), "choose_entering_defender", game, chooser, &ctx);
+    candidates[index[0]]
+}
+
 /// CR 707.4 — choose the permanent a copy effect captures its values from.
 ///
 /// **Two or more candidates, always.** With one the choice is forced and the

@@ -12,7 +12,7 @@ use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
-use crate::events::cause::EventCause;
+use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::events::event::{DamageTarget, EventRecord, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
@@ -459,6 +459,9 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         }
         ChoiceKind::ChooseEnteringController { object } => {
             format!("Choose the opponent who controls {} as it enters", n(object))
+        }
+        ChoiceKind::ChooseEnteringDefender { object } => {
+            format!("Choose what {} attacks as it enters", n(object))
         }
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
             format!("Choose what goes to the {to:?} as {} changes how {} enters", n(source), n(entering))
@@ -1042,6 +1045,26 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 .collect();
             format!("AttackersDeclared: [{}]", attacks.join(", "))
         }
+        RemovedFromCombat { removed } => {
+            let exits: Vec<String> = removed
+                .iter()
+                .map(|exit| {
+                    let name = obj_name(game, exit.object.id);
+                    match (exit.attacking, exit.blocking.as_slice()) {
+                        (Some(AttackTarget::Player(pid)), _) => format!("{name} attacking P{pid}"),
+                        (Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)), _) => {
+                            format!("{name} attacking {}", obj_name(game, id))
+                        }
+                        (None, []) => name,
+                        (None, blocked) => {
+                            let blocked: Vec<String> = blocked.iter().map(|&id| obj_name(game, id)).collect();
+                            format!("{name} blocking {}", blocked.join(" and "))
+                        }
+                    }
+                })
+                .collect();
+            format!("RemovedFromCombat: [{}]", exits.join(", "))
+        }
         BlockersDeclared { blockers } => {
             let pairs: Vec<String> = blockers.iter()
                 .map(|(b, a)| format!("{} blocks {}", obj_name(game, *b), obj_name(game, *a)))
@@ -1101,6 +1124,44 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         }
         StateBasedActionPerformed => "StateBasedActionPerformed".to_string(),
     }
+}
+
+/// Which of `records` are lines in a game's log: every record but a rule's
+/// sweep with no choice in it, which the log leaves implicit, the end of
+/// combat's removal (CR 511.3) and the untap step's untaps (CR 502.3). A
+/// sweep a triggered ability read is a line: each `AbilityTriggered` names
+/// the record it matched, and that record's whole event shows, every record
+/// of it for a "one or more" trigger (CR 603.2c). The triggers are read off
+/// `game`'s whole recorded stream, since they come after the event they
+/// read. The full event log (`format_event_log`) keeps every record.
+pub fn log_lines<'a>(game: &GameState, records: &'a [EventRecord]) -> Vec<&'a EventRecord> {
+    let recorded = game.recorded_events();
+    let all = recorded.records();
+    let read: Vec<_> = all
+        .iter()
+        .filter_map(|record| match record.event {
+            GameEvent::AbilityTriggered { caused_by, .. } => Some(caused_by),
+            _ => None,
+        })
+        .collect();
+    let read_events: Vec<_> = all.iter().filter(|record| read.contains(&record.seq)).filter_map(|record| record.stamp.batch).collect();
+    records
+        .iter()
+        .filter(|record| {
+            !is_a_rules_sweep(record)
+                || read.contains(&record.seq)
+                || record.stamp.batch.is_some_and(|batch| read_events.contains(&batch))
+        })
+        .collect()
+}
+
+/// A rule's sweep over many permanents with no choice in it.
+fn is_a_rules_sweep(record: &EventRecord) -> bool {
+    matches!(
+        (&record.event, record.stamp.cause),
+        (GameEvent::RemovedFromCombat { .. }, EventCause::GameRule(GameRule::CombatEnds))
+            | (GameEvent::Untapped { .. }, EventCause::TurnBasedAction(TurnBasedAction::Untap))
+    )
 }
 
 /// Format every recorded event with resolved card names. The game must be

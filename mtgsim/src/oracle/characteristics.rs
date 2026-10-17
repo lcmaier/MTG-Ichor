@@ -68,14 +68,16 @@ impl CurrentOrLastKnown<'_> {
 
     /// "Defending player" for this creature (CR 508.5, 802.2a): the player it
     /// is attacking, or the controller of the planeswalker it is attacking.
-    /// `None` while it attacks nothing, and for a battle, whose protector
-    /// waits for `backlog.md` §2.23's attack path.
+    /// Once it is no longer attacking, the one it was attacking before it was
+    /// removed from combat (the combat's history). `None` while it attacks
+    /// nothing, and for a battle, whose protector waits for `backlog.md`
+    /// §2.23's attack path.
     pub fn defending_player(&self, game: &GameState) -> Option<PlayerId> {
-        match self.attacking(game)? {
-            AttackTarget::Player(player) => Some(player),
-            AttackTarget::Planeswalker(id) => get_effective_controller(game, id),
-            AttackTarget::Battle(_) => None,
-        }
+        let attack = match self.attacking(game) {
+            Some(attack) => attack,
+            None => game.history.combat.attacking_when_removed(self.existence(game)?, game.turn_number)?,
+        };
+        defending_player_for(game, attack)
     }
 
     /// Its controller (CR 109.5), or its owner while it has none.
@@ -126,6 +128,25 @@ pub fn is_creature(game: &GameState, id: ObjectId) -> bool {
     compute_characteristics(game, id)
         .map(|chars| chars.types.contains(&CardType::Creature))
         .unwrap_or(false)
+}
+
+/// Whether `id` is a creature and not a battle: what can enter attacking
+/// (CR 506.3a, 506.3f), and what a combatant stops being when CR 506.4
+/// removes it from combat.
+pub fn is_nonbattle_creature(game: &GameState, id: ObjectId) -> bool {
+    compute_characteristics(game, id)
+        .is_some_and(|chars| chars.types.contains(&CardType::Creature) && !chars.types.contains(&CardType::Battle))
+}
+
+/// The defending player for an attack on `target` (CR 508.5, 802.2a): the
+/// player, or the controller of the planeswalker. `None` for a battle, whose
+/// protector waits for `backlog.md` §2.23's attack path.
+pub fn defending_player_for(game: &GameState, target: AttackTarget) -> Option<PlayerId> {
+    match target {
+        AttackTarget::Player(player) => Some(player),
+        AttackTarget::Planeswalker(id) => get_effective_controller(game, id),
+        AttackTarget::Battle(_) => None,
+    }
 }
 
 /// The effective controller of a game object after Layer 2 (CR 613.1b).

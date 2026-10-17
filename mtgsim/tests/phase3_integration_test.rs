@@ -460,7 +460,7 @@ fn test_combat_state_cleared_after_combat() {
 
     // Verify attacking state is set
     assert!(game.state.battlefield.get(&bears_id).unwrap().attacking.is_some());
-    assert!(game.state.attacks_declared);
+    assert!(game.state.combat_had_attackers);
 
     // Advance through rest of combat to postcombat
     // DeclareBlockers
@@ -478,7 +478,7 @@ fn test_combat_state_cleared_after_combat() {
 
     // Combat state should be cleared
     assert!(game.state.battlefield.get(&bears_id).unwrap().attacking.is_none());
-    assert!(!game.state.attacks_declared);
+    assert!(!game.state.combat_had_attackers);
     assert!(!game.state.blockers_declared);
     assert!(game.state.blocker_damage_divisions.is_empty());
 }
@@ -666,7 +666,7 @@ fn steps_after_blocks(keywords: &[KeywordFlag]) -> Vec<StepType> {
     let mut game: GameState = setup_two_player_game();
     let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, keywords), 0);
     set_attacking(&mut game, attacker, 1);
-    game.attacks_declared = true;
+    game.combat_had_attackers = true;
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareBlockers) });
     let before = game.recorded_events().len();
     game.advance_turn(&test_dp()).unwrap();

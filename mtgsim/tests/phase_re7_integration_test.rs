@@ -227,6 +227,7 @@ fn bear_token() -> TokenDef {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 

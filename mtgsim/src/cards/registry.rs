@@ -32,6 +32,7 @@ use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
 use super::phase_tr5e_cards;
+use super::phase_tr5f_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -63,7 +64,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 112] = [
+const PERFORMANCE_POOL: [&str; 113] = [
     "Plains",
     "Island",
     "Swamp",
@@ -524,6 +525,11 @@ const PERFORMANCE_POOL: [&str; 112] = [
     // attacker shortens games; how much it moves `stress` is read at the
     // close-out and reported (`triggers-architecture.md` §12, decision 7).
     "Hellrider",
+    // TR-5f's: tokens put onto the battlefield attacking, each defender chosen
+    // as it enters at four seats, and every removal from combat the end of
+    // combat announces. Two more attackers shorten games; how much it moves
+    // `stress` is read at the close-out and reported.
+    "Hanweir Garrison",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -935,6 +941,13 @@ impl CardRegistry {
         // TR-5e: the attack declaration. Hellrider triggers for each attacker
         // and deals its damage to what that attacker is attacking (CR 506.3).
         registry.register("Hellrider", phase_tr5e_cards::hellrider);
+
+        // TR-5f: creatures put onto the battlefield attacking, and the combat's
+        // history. Hanweir Garrison's tokens are attacking and never attacked
+        // (CR 508.4); Relentless Assault untaps the creatures that attacked this
+        // turn, read off the history's rows, for a second combat.
+        registry.register("Hanweir Garrison", phase_tr5f_cards::hanweir_garrison);
+        registry.register("Relentless Assault", phase_tr5f_cards::relentless_assault);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

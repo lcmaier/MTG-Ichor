@@ -10,7 +10,7 @@ use crate::oracle::characteristics::has_subtype;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::effects::{EffectRecipient, ReturnUnder, SelectionFilter, TargetCount};
-use crate::types::replacement::{EnterMods, EntryCounters};
+use crate::types::replacement::{EnterMods, EntryAttackCandidates, EntryCounters};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
@@ -25,6 +25,10 @@ pub(crate) struct ReturningObject {
     pub to: Zone,
     pub controller: PlayerId,
     pub counters: Vec<EntryCounters>,
+    /// "Return it to the battlefield tapped".
+    pub tapped: bool,
+    /// "Tapped and attacking" (CR 508.4), as the returning effect read it.
+    pub attacking: Option<EntryAttackCandidates>,
     pub cause: EventCause,
 }
 
@@ -47,7 +51,7 @@ impl GameState {
     /// effect, and the event is `ctx`'s.
     pub(crate) fn return_objects(&mut self, returns: &[ReturningObject], ctx: &ActionContext) -> Result<(), String> {
         let mut batch = Vec::new();
-        for ReturningObject { object, to, controller, counters, cause } in returns {
+        for ReturningObject { object, to, controller, counters, tapped, attacking, cause } in returns {
             let (object, to, controller, cause) = (*object, *to, *controller, *cause);
             let from = self.get_object(object)?.zone;
             if from == to || from == Zone::Stack {
@@ -68,11 +72,15 @@ impl GameState {
             let Some(mut entry) = self.entry_proposal(object, Some(from), controller, Some(ZoneChangeAct::Put)) else {
                 continue;
             };
-            // "With a +1/+1 counter on it" and the Aura's host are the returning
-            // effect's own word on how it enters, joining what the rules give
-            // the entry, ahead of any replacement (CR 122.6, 303.4f, 614.1c).
+            // "Tapped", "with a +1/+1 counter on it" and the Aura's host are the
+            // returning effect's own word on how it enters, joining what the
+            // rules give the entry, ahead of any replacement (CR 122.6, 303.4f,
+            // 614.1c).
             if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
-                mods.merge(&EnterMods { counters: counters.clone(), attached_to, ..EnterMods::NONE });
+                if *tapped {
+                    mods.merge(&EnterMods::tapped());
+                }
+                mods.merge(&EnterMods { counters: counters.clone(), attached_to, attacking: attacking.clone().map(Box::new), ..EnterMods::NONE });
             }
             batch.push((entry, cause));
         }
@@ -226,7 +234,7 @@ impl GameState {
             for (object, to) in until.returns {
                 let Some(object) = RememberedObject::now(object).found(self) else { continue };
                 let controller = self.return_controller(object, until.under, until.controller)?;
-                returns.push(ReturningObject { object, to, controller, counters: Vec::new(), cause: until.cause });
+                returns.push(ReturningObject { object, to, controller, counters: Vec::new(), tapped: false, attacking: None, cause: until.cause });
             }
         }
         let Some(first) = returns.first().map(|r| r.cause) else { return Ok(()) };

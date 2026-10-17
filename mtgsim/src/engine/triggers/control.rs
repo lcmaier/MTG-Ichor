@@ -129,13 +129,13 @@ impl GameState {
                 frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki });
             }
         }
+        let changed: Vec<ObjectId> = changes.iter().map(|change| change.object).collect();
         // NOT AN EVENT: CR 506.4 removes a permanent whose controller changed
         // from combat, as part of the change, so the change's triggers read
         // the board without it. An attacker it blocked stays blocked (CR
-        // 509.1h), which `remove_from_combat` keeps.
-        for change in &changes {
-            self.remove_from_combat(change.object);
-        }
+        // 509.1h), which `remove_from_combat` keeps. Announced in the change's
+        // window, after the change.
+        let removed = self.remove_from_combat(&changed);
         let mut records: Vec<GameEvent> = Vec::new();
         for change in changes {
             let lki = match frames.iter().find(|frame| frame.lki.object().id == change.object) {
@@ -151,16 +151,23 @@ impl GameState {
         }
         let audit = self.audit_frames_before_control_change(&frames);
 
+        // Inside an outermost batch's close the records join its window, and
+        // its close dispatches them.
         let previous = self.events.open_batch();
+        let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         for record in records {
             self.emit_event(record, EventCause::GameRule(GameRule::ControlChanges))?;
         }
+        self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::ControlChanges))?;
         let performed = mark.0..self.events.next_seq().0;
         self.events.close_batch(previous);
         self.look_back_snapshots.push(LookBackSnapshot { window, performed: performed.clone(), frames });
         if let Some(frames) = audit {
             self.file_audit_snapshot(LookBackSnapshot { window, performed, frames });
+        }
+        if joined {
+            return Ok(());
         }
         self.dispatch_batch(mark, window, ctx)
     }

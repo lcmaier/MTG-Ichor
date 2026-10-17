@@ -158,6 +158,7 @@ fn token(name: &str, power: i32) -> TokenDef {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 
@@ -480,6 +481,8 @@ fn an_object_a_replacement_sent_elsewhere_is_still_referred_to() {
                 at_the_next_end_step(on_referred(Primitive::ReturnToBattlefield {
                     under: ReturnUnder::Owner,
                     counters: Vec::new(),
+                    tapped: false,
+                    attacking: None,
                 })),
             ]),
         ),
@@ -630,7 +633,7 @@ fn flickerwisps_card_returns_as_a_new_object() {
 #[test]
 fn a_token_flickerwisp_exiles_does_not_return() {
     let mut game = setup_two_player_game();
-    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1 }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1, attacking: None }, &test_ctx()).unwrap();
     let soldier = tokens_named(&game, "Soldier")[0];
     flicker(&mut game, 0, &test_dp());
     assert!(game.get_object(soldier).is_err(), "it ceased to exist in exile (CR 704.5d)");
@@ -965,7 +968,7 @@ fn banishing_lights_card_returns_as_a_new_object() {
 #[test]
 fn a_token_banishing_light_exiles_does_not_return() {
     let mut game = setup_two_player_game();
-    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1 }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 1, attacking: None }, &test_ctx()).unwrap();
     let soldier = tokens_named(&game, "Soldier")[0];
     let light = banish(&mut game, 0, &test_dp());
     assert!(game.get_object(soldier).is_err(), "it ceased to exist in exile (CR 704.5d)");
@@ -1048,7 +1051,7 @@ fn cloudshift_shape() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
                 Effect::Atom(Primitive::Exile, target_your_creature()),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new() }, EffectRecipient::SameInstanceAs(0)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::SameInstanceAs(0)),
             ]),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
@@ -1078,7 +1081,7 @@ fn an_exile_then_a_return_in_one_resolution_brings_the_card_back_under_your_cont
 #[test]
 fn a_token_that_has_left_the_battlefield_does_not_come_back() {
     let mut game = setup_two_player_game();
-    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 0 }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::CreateTokens { defs: vec![token("Soldier", 1)], controller: 0, attacking: None }, &test_ctx()).unwrap();
     let soldier = tokens_named(&game, "Soldier")[0];
     cast_for_white(&mut game, 0, cloudshift_shape());
     game.resolve_top_of_stack(&test_dp()).unwrap();

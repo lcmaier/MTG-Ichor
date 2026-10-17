@@ -237,11 +237,11 @@ fn this_turns_abilities() {
          this turn: Elvish Warmaster | triggered, ability 2 resolved 2, took its once-each-turn action",
     );
     let state = &game.state;
-    assert_eq!(state.triggered_this_turn.len(), 1);
+    assert_eq!(state.history.triggered_this_turn.len(), 1);
     // ORDER-FREE: one entry.
-    assert_eq!(state.resolutions_this_turn.values().copied().collect::<Vec<_>>(), [2]);
+    assert_eq!(state.history.resolutions_this_turn.values().copied().collect::<Vec<_>>(), [2]);
     // ORDER-FREE: one entry.
-    assert_eq!(state.action_taken_this_turn.iter().map(|(_, player)| *player).collect::<Vec<_>>(), [0]);
+    assert_eq!(state.history.action_taken_this_turn.iter().map(|(_, player)| *player).collect::<Vec<_>>(), [0]);
     assert!(refused("battlefield: Elvish Warmaster | controller 0\nthis turn: Elvish Warmaster | resolved 1").message.contains("ability N"));
 }
 
@@ -321,7 +321,7 @@ fn attacking_blocked_and_blocking() {
     assert!(matches!(attack.target, AttackTarget::Player(1)));
     assert_eq!((attack.is_blocked, attack.blocked_by), (true, vec![wall]));
     assert_eq!(game.state.battlefield[&wall].blocking.as_ref().map(|b| b.blocking.clone()), Some(vec![bears]));
-    assert!(game.state.attacks_declared && game.state.blockers_declared);
+    assert!(game.state.combat_had_attackers && game.state.blockers_declared);
 
     let at_a_walker = load(include_str!("../scenarios/planeswalker.scenario"));
     let lions = at_a_walker.state.battlefield[&one(&at_a_walker, "Savannah Lions")].attacking.clone().unwrap();

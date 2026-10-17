@@ -4,9 +4,9 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use crate::events::cause::EventCause;
-use crate::events::event::EventWindow;
+use crate::events::event::{CombatExit, EventWindow, GameEvent};
 use crate::objects::object::GameObject;
-use crate::state::battlefield::PermanentState;
+use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState};
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::diagnostics::Diagnostics;
 use crate::state::layer_memo::LayerMemo;
@@ -22,7 +22,7 @@ use crate::types::ids::{
     AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
-use crate::types::replacement::{EnterMods, ReplacementDef};
+use crate::types::replacement::{EnterMods, EntryAttackCandidates, ReplacementDef};
 use crate::types::triggers::EventKindMask;
 
 /// The outcome of a game that has ended (CR 104).
@@ -420,7 +420,10 @@ pub struct GameState {
     pub turn_rotation: PlayerId,
 
     // --- Combat tracking ---
-    pub attacks_declared: bool,
+    /// CR 508.8: whether a creature was declared as an attacker or put onto
+    /// the battlefield attacking in this combat, which the declare blockers
+    /// and combat damage steps need to begin.
+    pub combat_had_attackers: bool,
     pub blockers_declared: bool,
     /// Damage division for blockers blocking 2+ attackers (rule 510.1d).
     /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
@@ -668,21 +671,10 @@ pub struct GameState {
     pub(crate) next_delayed_trigger_id: u64,
     /// The next `UntilReturnId` to mint; ids start at one.
     pub(crate) next_until_return_id: u64,
-    /// CR 603.2h — "do this only once each turn": each ability whose action
-    /// its controller has taken this turn, with that controller, since the
-    /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
-    /// Written by the resolution that takes the action; read at the trigger
-    /// and at resolution.
-    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
-    /// "This ability triggers only once each turn" (Elvish Warmaster's
-    /// ruling): each ability that has triggered this turn. Written by the
-    /// dispatcher as it queues; read at the trigger.
-    pub triggered_this_turn: IdSet<AbilityIdentity>,
-    /// CR 603.7h — how many times each ability has resolved this turn, keyed
-    /// by the ability rather than by who controlled it (Ashling the Pilgrim's
-    /// ruling), so a control change does not restart it. Advanced off
-    /// `AbilityResolved` by the dispatcher.
-    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
+    /// What the game remembers that belongs to no one player: each ability's
+    /// "this turn" facts and the combat's rows. Each player's own counts are
+    /// on `PlayerState::history`.
+    pub history: crate::state::history::GameHistory,
     /// Permanents that entered with a triggered ability, printed or the copy's
     /// they entered as (CR 707.5), each against the record kinds those defs
     /// read — the dispatcher's fast-path gate,
@@ -721,6 +713,10 @@ pub struct GameState {
     /// (`settle_announced_controllers`). If one did, the next sweep runs with
     /// none left, so control going back as the last one ends is announced.
     pub(crate) control_effects_at_last_sweep: bool,
+    /// The layer epoch the last settlement of the layers' consequences read
+    /// (`engine::layer_settlement`): with the epoch still there, no frame has
+    /// changed and there is nothing to settle. `u64::MAX` before the first.
+    pub(crate) settled_layer_epoch: u64,
     /// The CR 603.10a frames of the permanents the open batches decided to
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
@@ -981,7 +977,7 @@ impl GameState {
                 ..TurnPlan::natural()
             },
             turn_rotation: 0,
-            attacks_declared: false,
+            combat_had_attackers: false,
             blockers_declared: false,
             blocker_damage_divisions: IdMap::default(),
             dealt_first_strike_damage: IdSet::default(),
@@ -1010,14 +1006,13 @@ impl GameState {
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
             next_until_return_id: 1,
-            action_taken_this_turn: IdSet::default(),
-            triggered_this_turn: IdSet::default(),
-            resolutions_this_turn: IdMap::default(),
+            history: crate::state::history::GameHistory::default(),
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
+            settled_layer_epoch: u64::MAX,
             lki_captures: Vec::new(),
             dispatch_audit: None,
             events: EventWindow::new(),
@@ -1063,13 +1058,12 @@ impl GameState {
     /// on its own leaves the clock stale and every summoning-sickness question
     /// answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
+        // Each player's "your last turn" is their latest turn before this one.
+        let keep_from = self.players_in_game().map(|p| self.last_turn_began[p]).min().unwrap_or(turn);
         self.turn_number = turn;
         self.active_player = player;
         self.last_turn_began[player] = turn;
-        // "Each turn" is the game's turn, not the controller's (§3.5).
-        self.action_taken_this_turn.clear();
-        self.triggered_this_turn.clear();
-        self.resolutions_this_turn.clear();
+        self.history.turn_began(keep_from);
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then
@@ -1506,12 +1500,39 @@ impl GameState {
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.announced_controller = effective;
         }
+        // CR 508.4: put onto the battlefield attacking, when CR 506.3 lets it
+        // be an attacking creature at all.
+        if let Some(target) = mods.attacking.as_ref().and_then(|attack| self.entering_attack(id, effective, attack)) {
+            if let Some(entry) = self.battlefield.get_mut(&id) {
+                entry.attacking = Some(AttackingInfo { target, is_blocked: false, blocked_by: Vec::new() });
+            }
+            // CR 508.8: the declare blockers and damage steps begin.
+            self.combat_had_attackers = true;
+        }
         self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
         )?;
 
         self.battlefield.get_mut(&id).ok_or_else(|| format!("{id:?} entered the battlefield and is not on it"))
+    }
+
+    /// What `id`, entering under `controller` with `attack`'s one candidate,
+    /// attacks, or `None` where it is never an attacking creature: outside
+    /// the combat phase, which alone has an attacking player (CR 506.2);
+    /// under a player other than the attacking player (506.3b); not a
+    /// creature as it enters, or a battle (506.3a, 506.3f); or with what it
+    /// would attack gone (506.3c, 508.4a). A
+    /// requirement or restriction on the declaration is not asked (508.4c),
+    /// and one entering after blockers are declared is unblocked (508.4d),
+    /// as `is_blocked` starts.
+    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntryAttackCandidates) -> Option<AttackTarget> {
+        let [target] = attack.candidates[..] else { return None };
+        if self.phase.phase_type != PhaseType::Combat || controller != self.active_player {
+            return None;
+        }
+        let can_attack = crate::oracle::characteristics::is_nonbattle_creature(self, id);
+        (can_attack && self.what_can_be_attacked().contains(&target)).then_some(target)
     }
 
     /// The state half of an entry: `id` becomes a permanent under
@@ -1666,7 +1687,43 @@ impl GameState {
     /// the sense that matters for damage — "a creature remains blocked even if
     /// all the creatures blocking it are removed from combat" — so
     /// `is_blocked` is deliberately left alone.
-    pub(crate) fn remove_from_combat(&mut self, id: ObjectId) {
+    ///
+    /// Every member's part is read before any is removed, since removing an
+    /// attacker edits its blockers' lists: the members leave combat at once,
+    /// read against one board (CR 704.3's shape). Returns each permanent that
+    /// was in combat, as it was, which its caller announces
+    /// ([`Self::announce_removal_from_combat`]).
+    pub(crate) fn remove_from_combat(&mut self, ids: &[ObjectId]) -> Vec<CombatExit> {
+        let exits: Vec<CombatExit> = ids
+            .iter()
+            .filter_map(|&id| {
+                let entry = self.battlefield.get(&id)?;
+                if entry.attacking.is_none() && entry.blocking.is_none() {
+                    return None;
+                }
+                Some(CombatExit {
+                    object: self.object_ref(id)?,
+                    attacking: entry.attacking.as_ref().map(|attack| attack.target),
+                    blocking: entry.blocking.as_ref().map(|block| block.blocking.clone()).unwrap_or_default(),
+                })
+            })
+            .collect();
+        for exit in &exits {
+            self.remove_one_from_combat(exit.object.id);
+        }
+        exits
+    }
+
+    /// Announce what [`Self::remove_from_combat`] removed, as one event, or
+    /// nothing when it removed nothing.
+    pub(crate) fn announce_removal_from_combat(&mut self, removed: Vec<CombatExit>, cause: EventCause) -> Result<(), String> {
+        if removed.is_empty() {
+            return Ok(());
+        }
+        self.emit_event(GameEvent::RemovedFromCombat { removed }, cause)
+    }
+
+    fn remove_one_from_combat(&mut self, id: ObjectId) {
         let Some(entry) = self.battlefield.get(&id) else {
             return;
         };

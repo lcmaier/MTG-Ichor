@@ -1615,6 +1615,7 @@ fn vanilla_token(
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 
@@ -1833,6 +1834,7 @@ pub fn angel_token() -> TokenDef {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 

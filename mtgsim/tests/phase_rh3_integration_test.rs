@@ -100,7 +100,7 @@ fn returns_when_it_dies() -> Arc<CardData> {
             "",
             whenever(
                 dies(TriggerSubject::ThisObject),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new() }, EffectRecipient::Triggering(EventRole::Object)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Triggering(EventRole::Object)),
             ),
         ),
     )
@@ -416,6 +416,7 @@ fn token_with(abilities: Vec<AbilityDef>) -> TokenDef {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 

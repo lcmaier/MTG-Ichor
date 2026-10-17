@@ -5735,32 +5735,18 @@ with its customer named:**
      **Slotted:** with the first registered card that offers a choice of token
      definitions in a replacement, Jinnie Fay, Jetmir's Second.
 
-128. **"Create … tapped and attacking" has the first half and not the
-     second.** `TokenDef::enters_tapped` is CR 110.5b's word on the entry;
-     "attacking" is CR 508.4's — a permanent put onto the battlefield
-     attacking is attacking without having been declared, which is a
-     combat-state write the entry performer does not have and combat's
-     validation has never been asked about. 121 printed cards say it
-     (Scryfall, `o:"tapped and attacking"`, 2026-09-13), every one a trigger.
-
-     **Reachability (2026-09-13):** unreachable — no registered def says
-     "attacking", and nothing could until CR 603.
-
-     **Sized:** a field beside `enters_tapped` and a write into the combat
-     state in `place_on_battlefield`'s wake, ~30 lines, with the first
-     trigger that creates one — combat's phase to size, not this one's.
+128. **~~"Create … tapped and attacking" has the first half and not the second.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
+     "Tapped and attacking" is the creating effect's word, on `TokenDef` and
+     `ReturnToBattlefield`, read into the one entry, which asks the
+     defender and writes the attack (CR 508.4, 506.3).
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 128".
 
 What is *not* a ledger line, and where each waits: Xorn's and Chatterfang's
 Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
-     **Slotted:** TR-5f, whose tests put a token onto the battlefield attacking
-     over this field, never declared as an attacker (CR 508.4), the defender
-     chosen or specified (re-slotted from TR-5a at its design, then from
-     TR-5e at its review, which split TR-5f off, 2026-10-16,
-     `triggers-architecture.md` §12).
-
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
 
 **Shipped:** `CounterSubject { Object, Player }` on `GameAction::AddCounters`
@@ -9359,23 +9345,11 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      TR-5e's review) and TR-5e's `AttackedBy`.
      **Slotted:** A6e, the naming sweep beside item 6's close audit.
 
-270. **"Defending player" for a creature that left combat and stayed on the
-     battlefield names nobody.** CR 508.5's second sentence makes it the
-     player the creature was attacking before it was removed from combat.
-     TR-5e reads the creature's attack now, and its last known information
-     once it has left the battlefield; a creature stolen in response (item
-     267's removal), regenerated, or removed by an effect has neither, so
-     `CurrentOrLastKnown::defending_player` answers `None`, an instruction
-     acting on that player does nothing, and an intervening "if" about that
-     player is false. Found at TR-5e's review (`triggers-architecture.md` §12,
-     decision 9).
-     **Reachability (2026-10-16):** unreachable — no registered card reads
-     "defending player".
-     **Sized:** TR-5e's decision 9: removal from combat as a record, the
-     combat's history, and the one read off it, ~125 lines of code and ~270
-     of tests.
-     **Slotted:** TR-5f, whose combat history keeps what each creature
-     removed from combat was attacking.
+270. **~~"Defending player" for a creature that left combat and stayed on the battlefield names nobody.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
+     Removal from combat is a record, and the combat's history keeps what
+     each creature was attacking as it left (CR 508.5's second sentence).
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 270".
 
 271. **CR 802.2a's choice where nothing the controller picks settles it.**
      TR-5e's `PlayerRef::AnyDefendingPlayer` is "any defending player",
@@ -9395,3 +9369,57 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      costing); the activation's condition is RS-2's own check.
      **Slotted:** RS-2, the read-side choice points, whose cast, activation
      and target checks the choice is asked in.
+
+### Found by TR-5f (2026-10-17)
+
+272. **"For each opponent, create a token … tapped and attacking that player"
+     has no player to name.** Six printed cards create one token per opponent,
+     each attacking *that* opponent (Adeline, Resplendent Cathar; Ainok Strike
+     Leader; Endless Foot Assault; Shredder, Shadow Master; Stampede Surfer;
+     Veteran Soldier: `o:"tapped and attacking that"`, 2026-10-17). "Not you"
+     (`PlayerSet::Opponents`) names the set and not the pairing: a candidate
+     list of every opponent lets the controller send every token at one of
+     them, which the card forbids at three seats or more. The pairing is an
+     iteration that binds "that player" to each opponent in turn, and
+     `Effect::ForEach` is unbuilt: its resolution refuses every instruction
+     ("not yet implemented"), and its `Selector` has no players. TR-5f's
+     `EntersAttacking::Player` names one player in the instruction's player
+     vocabulary, which is what the iteration would bind. A missing facility,
+     not a deferral of TR-5f's: every other way to say the defender is built.
+     **Reachability (2026-10-17):** unreachable — no registered card runs an
+     instruction once for each player.
+     **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
+     each player as the instruction's named player, ~60 lines of code and ~80
+     of tests.
+     **Slotted:** with the first registered card that runs an instruction
+     once for each opponent naming that player; Adeline, Resplendent Cathar,
+     a Commander staple, is the likely one.
+
+273. **A static's condition that reads a life total, a tapped status or a
+     defending player is served a stale frame.** The layer memo keys on the
+     layer epoch, which moves at every write `GameState::bump_layer_epoch`
+     lists. A life change, a tap or untap and a creature's attack are not on
+     the list ("status the walk never reads"), but three `Condition` leaves
+     the walk evaluates read them: `PlayerFact::LifeAtLeast` and
+     `LifeAtMost`, `SourceTapped` and `SourceUntapped`, and
+     `Condition::DefendingPlayer` (`engine/layers/condition.rs`). A static's
+     "as long as" over one of them keeps its old answer until an unrelated
+     write moves the epoch, and TR-5f's settlement, gated on the same epoch,
+     misses what the flip does to a controller or a type. Shown at TR-5f's
+     review (2026-10-17): a fixture that gets +1/+2 "as long as you have 10
+     or less life", queried at 20 life and again after a loss of 15, panics
+     the debug memo audit ("layer memo served a stale frame … skipped
+     `GameState::bump_layer_epoch`"). Printed statics that read a life total:
+     Bloodghast's haste, Serra Ascendant's +5/+5 and flying, the fateful hour
+     cycle (Thraben Doomsayer).
+     **Reachability (2026-10-17):** unreachable — no registered card's static
+     reads a life total, a tapped status or a defending player in a layer
+     condition (Felidar Sovereign's is an intervening "if", Archelos's a
+     replacement's, the Orbs' a cost's).
+     **Sized:** a bump at each of the three writes is a few lines, but a walk
+     per queried object after every life change and every tap, which the
+     budget would see; gated instead on the registry holding a row whose
+     condition reads the input, ~60 lines of code and ~80 of tests, owned by
+     `layers-architecture.md` §12's memo.
+     **Slotted:** ahead of TR-5b, the next engine phase on the route, as a PR
+     of its own (proposed at #257's review).

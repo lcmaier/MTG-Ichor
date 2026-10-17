@@ -157,6 +157,13 @@ pub enum GameEvent {
     /// record: it never "attacked" (CR 508.4).
     AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
     BlockersDeclared { blockers: Vec<(ObjectId, ObjectId)> },
+    /// CR 506.4, 511.3: permanents removed from combat at once, each with
+    /// what it was attacking or blocking as it was removed, which CR 508.5
+    /// reads once its creature has left combat. No replaceable event
+    /// (`replacement-architecture.md` §8a): announced by each cause after it
+    /// removes them. A permanent that leaves the battlefield is removed by its
+    /// zone change, whose frame keeps the attack, and has no record here.
+    RemovedFromCombat { removed: Vec<CombatExit> },
 
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
@@ -558,6 +565,18 @@ impl GameEvent {
                     each(attacker);
                 }
             }
+            // Each permanent removed, and what it attacked or blocked.
+            RemovedFromCombat { removed } => {
+                for exit in removed {
+                    each(exit.object.id);
+                    if let Some(attacked) = exit.attacking.and_then(AttackTarget::permanent) {
+                        each(attacked);
+                    }
+                    for &attacker in &exit.blocking {
+                        each(attacker);
+                    }
+                }
+            }
             ZoneChange { .. }
             | LeftTheGame { .. }
             | CountersChanged { .. }
@@ -571,6 +590,19 @@ impl GameEvent {
             | StateBasedActionPerformed => {}
         }
     }
+}
+
+/// One permanent a [`GameEvent::RemovedFromCombat`] removed, as it was in
+/// combat.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CombatExit {
+    /// The existence removed (CR 400.7).
+    pub object: ObjectRef,
+    /// What it was attacking, or `None` for a blocker, or for an attacker
+    /// whose planeswalker or battle had left combat first (CR 506.4c).
+    pub attacking: Option<AttackTarget>,
+    /// The attackers it was blocking.
+    pub blocking: Vec<ObjectId>,
 }
 
 /// Which of CR 701.3d's ways an attachment stopped being attached to its

@@ -326,6 +326,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
             | ChoiceKind::ChooseEnteringController { .. }
+            | ChoiceKind::ChooseEnteringDefender { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
             | ChoiceKind::ChooseCopySource { .. }
             | ChoiceKind::CommanderToCommandZoneSba { .. }
@@ -401,6 +402,9 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ChooseEnteringController { object } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
+        }
+        ChoiceKind::ChooseEnteringDefender { object } => {
+            (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
             (format!("the objects {}'s effect may move as {} enters", n(source), n(entering)), Some("614.13a"))

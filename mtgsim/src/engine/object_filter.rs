@@ -252,6 +252,14 @@ fn answer_or_refuse<'f>(
         // its characteristics: a copy effect does not make a nontoken
         // permanent a token.
         ObjectFilter::Token => Ok(object()?.is_token),
+        // The existence it is, or the one its frame kept (CR 400.7).
+        ObjectFilter::AttackedThisTurn => {
+            let existence = match last_known {
+                Some(lki) => lki.object(),
+                None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))?,
+            };
+            Ok(game.history.combat.attacked_this_turn(existence, game.turn_number))
+        }
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.
         ObjectFilter::ByOwner(who) => {
             let owner = match last_known {

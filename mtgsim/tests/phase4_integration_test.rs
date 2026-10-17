@@ -61,7 +61,7 @@ fn set_attacking(game: &mut GameState, id: ObjectId, target_player: PlayerId) {
             blocked_by: Vec::new(),
         });
     }
-    game.attacks_declared = true;
+    game.combat_had_attackers = true;
 }
 
 fn set_blocked_by(game: &mut GameState, attacker: ObjectId, blockers: Vec<ObjectId>) {
