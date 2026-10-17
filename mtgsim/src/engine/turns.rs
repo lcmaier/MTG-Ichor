@@ -1,9 +1,9 @@
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::events::cause::{GameRule, TurnBasedAction};
+use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
-use crate::types::ids::{ExtraTurnId, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::ui::decision::DecisionProvider;
 
@@ -263,7 +263,7 @@ impl GameState {
         // of the pipeline like CR 101.2's "can't"s: there is no event here for
         // a replacement effect to see, and a step that does not begin runs no
         // turn-based action and grants no priority.
-        if !self.attacks_declared
+        if !self.combat_had_attackers
             && matches!(
                 step,
                 StepType::DeclareBlockers | StepType::FirstStrikeDamage | StepType::CombatDamage
@@ -361,12 +361,16 @@ impl GameState {
         }
 
         if phase_type == PhaseType::Combat {
-            // NOT AN EVENT: CR 511.3's removal from combat.
-            // ORDER-FREE: each entry is cleared alone, and nothing is announced.
-            for entry in self.battlefield.values_mut() {
-                entry.clear_combat_state();
-            }
-            self.attacks_declared = false;
+            let combatants: Vec<ObjectId> = self
+                .battlefield_ids_ordered()
+                .into_iter()
+                .filter(|id| self.battlefield.get(id).is_some_and(|e| e.attacking.is_some() || e.blocking.is_some()))
+                .collect();
+            // NOT AN EVENT: CR 511.3's removal from combat, of everything in it at
+            // once, announced as one record that CR 508.5 reads after combat.
+            let removed = self.remove_from_combat(&combatants);
+            self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::CombatEnds))?;
+            self.combat_had_attackers = false;
             self.blockers_declared = false;
             self.blocker_damage_divisions.clear();
             self.dealt_first_strike_damage.clear();
@@ -442,7 +446,7 @@ impl GameState {
                 // A steal that ended returns its permanent, an event in this
                 // step (Ray of Command's third ruling), so CR 514.3a's check
                 // finds its triggers waiting and the step grants priority.
-                self.announce_control_changes(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
+                self.settle_layer_consequences(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
 
                 // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
                 // `Game::run_turn`'s loop, one level up with 514.1's discard.

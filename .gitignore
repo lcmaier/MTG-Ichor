@@ -16,6 +16,7 @@ MTG-Rules/
 
 # log files
 *.log
+*.log.save
 
 # The dev GUI's boards, a folder each with its games' logs (`setup-architecture.md`
 # §7b, decision 3): a person's work, which a sample becomes only by a reviewed copy.

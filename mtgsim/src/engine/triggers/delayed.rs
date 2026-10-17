@@ -490,7 +490,7 @@ impl GameState {
     ) {
         let identity = pending.origin.identity();
         if pending.binding.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn)
-            && !self.triggered_this_turn.insert(identity)
+            && !self.history.triggered_this_turn.insert(identity)
         {
             return;
         }

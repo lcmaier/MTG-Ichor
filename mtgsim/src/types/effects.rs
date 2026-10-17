@@ -240,6 +240,12 @@ pub enum ObjectFilter {
     /// It is a leaf rather than a `Not`-only helper because `Not` already
     /// composes; adding `Nontoken` as well would give one quality two spellings.
     Token,
+    /// "Creatures that attacked this turn" (Relentless Assault): declared as
+    /// an attacker this turn (CR 508.1), read off the combat's history, so a
+    /// creature put onto the battlefield attacking never did (CR 508.4) and a
+    /// creature that left and came back is a new object that did not (CR
+    /// 400.7). Like `Token`, a fact about the object that no layer touches.
+    AttackedThisTurn,
     /// CR 108.3 — the player who started the game with the card in their deck.
     ///
     /// **Not `ByController` with extra steps.** A card put into a graveyard goes
@@ -1006,6 +1012,19 @@ pub enum SelectionFilter {
     DamageSource,
 }
 
+/// Which phase a [`Primitive::ExtraPhases`] run follows (CR 500.8's
+/// "directly after the specified phase").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtraPhasesAfter {
+    /// "After this phase" (26 cards, `o:"after this phase, there is an
+    /// additional"`): the phase the effect resolves in, whichever it is.
+    ThisPhase,
+    /// "After this main phase" (7 cards; Relentless Assault, Aggravated
+    /// Assault): only when the effect resolves in a main phase, and nothing
+    /// otherwise (Relentless Assault's first ruling).
+    ThisMainPhase,
+}
+
 /// What a [`Primitive::CreateReplacement`] fills into the def's **pattern** at
 /// resolution, beside what the recipient fills into its affected set.
 ///
@@ -1132,10 +1151,32 @@ pub struct TokenDef {
     /// "Create a tapped Treasure token" — how the creating effect says the
     /// token enters. Merged into the entry's seed mods ahead of any
     /// replacement, the way CR 110.5b's "enters tapped" on a printed card is
-    /// the card's own before anything else modifies the entry. "Tapped and
-    /// attacking" is CR 508.4's and needs a combat-state write this does not
-    /// carry (`codebase-state.md`).
+    /// the card's own before anything else modifies the entry.
     pub enters_tapped: bool,
+    /// "Tapped and attacking": the creating effect's word that the token is
+    /// put onto the battlefield attacking (CR 508.4). The resolution reads it
+    /// into the entry, which decides and performs it.
+    pub enters_attacking: Option<EntersAttacking>,
+}
+
+/// What an effect that puts a creature onto the battlefield attacking says it
+/// attacks (CR 508.4): the controller's choice, unless the effect specifies.
+/// Read by the resolution, which holds the binding a specified defender
+/// names, into the entry's [`crate::types::replacement::EntersAttackingCandidates`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntersAttacking {
+    /// CR 508.4: its controller chooses among everything that can be
+    /// attacked.
+    Chosen,
+    /// "Attacking that player": a player the instruction names, in the
+    /// vocabulary its other player instructions use, and `among`, what of
+    /// theirs it may attack (the player, a planeswalker they control, a battle
+    /// they protect), which the controller chooses between: "that player" is
+    /// `DefenderFilter::Player(None)`, and "that player or a planeswalker they
+    /// control" is the `Or` of it and a planeswalker filter.
+    Player { player: EffectRecipient, among: crate::types::triggers::DefenderFilter },
+    /// CR 702.49c: what another creature is attacking, or was as it left.
+    SameAs(Antecedent),
 }
 
 impl TokenDef {
@@ -1668,7 +1709,16 @@ pub enum Primitive {
     /// 122.6, persist's and undying's return). Every object one resolution
     /// returns enters as one event, and an Aura chooses what it enchants as it
     /// enters (CR 303.4f).
-    ReturnToBattlefield { under: ReturnUnder, counters: Vec<crate::types::replacement::EntryCounters> },
+    ReturnToBattlefield {
+        under: ReturnUnder,
+        counters: Vec<crate::types::replacement::EntryCounters>,
+        /// "Return it to the battlefield tapped": the returning effect's own
+        /// word on how it enters, as a token's `enters_tapped` is.
+        tapped: bool,
+        /// "Tapped and attacking" (CR 508.4): Phoenix Chick's "return this card
+        /// from your graveyard to the battlefield tapped and attacking".
+        attacking: Option<EntersAttacking>,
+    },
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library
@@ -1784,7 +1834,7 @@ pub enum Primitive {
     /// Scheduling and not a board mutation, as [`Self::ExtraTurn`] is: each
     /// spliced phase becomes a `GameAction::BeginPhase` proposal when the
     /// drainer reaches it, which is what a skip replaces (CR 614.10).
-    ExtraPhases(Vec<PhaseType>),
+    ExtraPhases { phases: Vec<PhaseType>, after: ExtraPhasesAfter },
 
     // === Delayed triggered abilities (rule 603.7) ===
     /// Create a delayed triggered ability (CR 603.7, 610.2): "at the
@@ -2073,7 +2123,7 @@ impl Primitive {
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
             | Primitive::ExtraTurn
-            | Primitive::ExtraPhases(_)
+            | Primitive::ExtraPhases { .. }
             | Primitive::CreateDelayedTrigger(_)
             | Primitive::ProduceMana(_)
             | Primitive::AddCounters { .. }

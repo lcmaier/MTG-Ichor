@@ -313,7 +313,7 @@ impl Game {
             (PhaseType::Combat, Some(StepType::DeclareAttackers)) => {
                 self.state.process_declare_attackers(decisions)?;
             }
-            // No `attacks_declared` guard on these three: CR 508.8 refuses
+            // No `combat_had_attackers` guard on these three: CR 508.8 refuses
             // the *step* when nothing attacked (`GameState::begin_step`), so
             // reaching them at all means attackers were declared.
             (PhaseType::Combat, Some(StepType::DeclareBlockers)) => {

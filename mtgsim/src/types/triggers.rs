@@ -157,6 +157,36 @@ pub enum DefenderFilter {
     Or(Box<DefenderFilter>, Box<DefenderFilter>),
 }
 
+impl DefenderFilter {
+    /// Whether `target`, a player, planeswalker or battle, is one this names.
+    /// The asker answers the two leaves, since who "you" is and what a filter
+    /// reads are the asker's: `names_player` whether a `PlayerRef` names that
+    /// player, `matches_permanent` whether a planeswalker or battle matches a
+    /// filter. A trigger asks with its referents (CR 508.3a, 508.3b, 508.3e),
+    /// a resolution putting a creature onto the battlefield attacking with
+    /// its controller (CR 508.4).
+    pub fn admits(
+        &self,
+        target: AttackTarget,
+        names_player: &dyn Fn(&PlayerRef, PlayerId) -> bool,
+        matches_permanent: &dyn Fn(&ObjectFilter, ObjectId) -> bool,
+    ) -> bool {
+        match (self, target) {
+            (DefenderFilter::Player(who), AttackTarget::Player(player)) => {
+                who.as_ref().is_none_or(|who| names_player(who, player))
+            }
+            (DefenderFilter::Permanent(filter), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+                matches_permanent(filter, id)
+            }
+            (DefenderFilter::Or(either, or), _) => {
+                either.admits(target, names_player, matches_permanent) || or.admits(target, names_player, matches_permanent)
+            }
+            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
+            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
+        }
+    }
+}
+
 /// What one triggering event of an attack trigger is (CR 603.2c): each
 /// creature declared as an attacker (CR 508.3a, 508.3c, 508.3d), or each
 /// player, planeswalker or battle it is declared attacking (CR 508.3b,
@@ -397,6 +427,7 @@ impl EventKind {
             | GameEvent::CountersChanged { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
+            | GameEvent::RemovedFromCombat { .. }
             | GameEvent::Scried { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed

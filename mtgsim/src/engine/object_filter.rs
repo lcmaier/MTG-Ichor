@@ -20,6 +20,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// What a filter's words for its own text mean where it is asked: CR 109.5's
 /// "you", CR 113.7a's "this" and its owner (CR 108.3), and the instances of
@@ -46,6 +47,10 @@ pub(crate) trait FilterReferents {
     fn counters_on(&self, game: &GameState, id: ObjectId, kind: Option<CounterType>) -> u32 {
         game.battlefield.get(&id).map_or(0, |entity| entity.counters_of(kind))
     }
+    /// That the asker read `input` (`GatedWalkInput`). The layer walk keeps
+    /// it with the frames it stores; every other asker's answer is never
+    /// kept, so it has nothing to note.
+    fn note_gated_read(&self, _input: GatedWalkInput) {}
 }
 
 /// The referents of an asker outside the layer walk, given as plain values:
@@ -252,6 +257,15 @@ fn answer_or_refuse<'f>(
         // its characteristics: a copy effect does not make a nontoken
         // permanent a token.
         ObjectFilter::Token => Ok(object()?.is_token),
+        // The existence it is, or the one its frame kept (CR 400.7).
+        ObjectFilter::AttackedThisTurn => {
+            referents.note_gated_read(GatedWalkInput::Histories);
+            let existence = match last_known {
+                Some(lki) => lki.object(),
+                None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))?,
+            };
+            Ok(game.history.combat.attacked_this_turn(existence, game.turn_number))
+        }
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.
         ObjectFilter::ByOwner(who) => {
             let owner = match last_known {

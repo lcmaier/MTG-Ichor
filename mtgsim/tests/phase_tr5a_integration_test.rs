@@ -193,6 +193,7 @@ fn static_ability(effect: Effect) -> AbilityDef {
 /// Player 1's Grizzly Bears attack player 0, who takes them with Ray of
 /// Command. CR 506.4 removes them from combat, so they deal no combat damage,
 /// and least of all to the player who now controls them.
+// COVERS: ATOM-506.4-002
 #[test]
 fn a_stolen_attacker_is_removed_from_combat() {
     let mut game = stocked(2);

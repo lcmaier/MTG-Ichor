@@ -194,6 +194,13 @@ pub enum ChoiceKind {
     /// asked (CR 102.2), and the choice is made before the permanent enters.
     ChooseEnteringController { object: ObjectId },
 
+    /// CR 508.4 — `object` is put onto the battlefield attacking, and its
+    /// controller chooses what it attacks as it enters, among two or more of
+    /// what can be attacked. The options are players, and with `backlog.md`
+    /// §2.23 the planeswalkers and battles among them. With one candidate
+    /// nothing is asked.
+    ChooseEnteringDefender { object: ObjectId },
+
     /// CR 614.13/13a — an entry replacement is being applied and it moves other
     /// objects: devour's "you may sacrifice any number of creatures", Sutured
     /// Ghoul's "exile any number of creature cards from your graveyard". The
@@ -347,6 +354,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),
+            ChoiceKind::ChooseEnteringDefender { object } => Some(*object),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
             ChoiceKind::ChooseCopySource { source } => Some(*source),
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
@@ -385,6 +393,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
             ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
+            ChoiceKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
             ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
             ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
             ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",

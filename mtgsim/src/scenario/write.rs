@@ -92,7 +92,7 @@ impl<'g> Writer<'g> {
             next_extra_turn_id: _, // a counter
             turn_plan,
             turn_rotation,
-            attacks_declared,
+            combat_had_attackers,
             blockers_declared,
             blocker_damage_divisions,
             dealt_first_strike_damage: _, // on each permanent's line
@@ -121,14 +121,13 @@ impl<'g> Writer<'g> {
             until_returns,
             next_delayed_trigger_id: _, // a counter
             next_until_return_id: _,
-            action_taken_this_turn: _, // `this turn:` lines, in `cards`
-            triggered_this_turn: _,
-            resolutions_this_turn: _,
+            history,                // the abilities' `this turn:` lines are in `cards`; the combat's is a report
             trigger_sources: _,     // the dispatcher's gates
             zone_trigger_sources: _,
             newcomer_trigger_sources: _,
             look_back_snapshots: _, // a window's, empty outside one
             control_effects_at_last_sweep: _, // the control sweep's, settled at load
+            settled_layer_epoch: _,           // the settlement's gate
             lki_captures: _,
             dispatch_audit: _,
             events: _,
@@ -182,13 +181,18 @@ impl<'g> Writer<'g> {
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
             || players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
-        if *attacks_declared != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
+        if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
             || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
         {
             self.report("whether attackers or blockers were declared, which the board does not show (CR 508.8)");
         }
         if !blocker_damage_divisions.is_empty() {
             self.report("a blocker's division of combat damage (CR 510.1d)");
+        }
+        // A board is played through its turn rather than saved with each
+        // creature's part in the turn's combats.
+        if history.combat.rows().iter().any(|row| row.turn == turn) {
+            self.report("what creatures did in combat this turn (CR 508.4, 508.5)");
         }
         let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);
         if *skip_first_draw != first_draw {
@@ -569,7 +573,7 @@ impl<'g> Writer<'g> {
             (state.object_timestamp(source.id), source.zone_change_epoch, format!("{ability:?}"))
         };
         // ORDER-FREE: sorted next.
-        let mut triggered: Vec<_> = state.triggered_this_turn.iter().collect();
+        let mut triggered: Vec<_> = state.history.triggered_this_turn.iter().collect();
         triggered.sort_by_key(|identity| board_order(identity.source, identity.ability));
         for identity in triggered {
             if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {
@@ -577,7 +581,7 @@ impl<'g> Writer<'g> {
             }
         }
         // ORDER-FREE: sorted next.
-        let mut resolved: Vec<_> = state.resolutions_this_turn.iter().collect();
+        let mut resolved: Vec<_> = state.history.resolutions_this_turn.iter().collect();
         resolved.sort_by_key(|entry| board_order(entry.0.0, entry.0.1));
         for (&(source, ability), &times) in resolved {
             if let Some((id, n)) = ability_of(self, source, ability) {
@@ -585,7 +589,7 @@ impl<'g> Writer<'g> {
             }
         }
         // ORDER-FREE: sorted next.
-        let mut taken: Vec<_> = state.action_taken_this_turn.iter().collect();
+        let mut taken: Vec<_> = state.history.action_taken_this_turn.iter().collect();
         taken.sort_by_key(|entry| (board_order(entry.0.source, entry.0.ability), entry.1));
         for (identity, player) in taken {
             if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {

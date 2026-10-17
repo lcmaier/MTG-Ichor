@@ -492,7 +492,7 @@ is derivable; where each name was read is not, and the gate needs the names.
   first table and the remainder it dispositioned: `objects`, `players`,
   `stack`, `stack_entries`, `resolving`, `battlefield`, `exile`, `command`,
   `turn_number`, `last_turn_began`, `active_player`, `priority_player`,
-  `phase`, `attacks_declared`, `blockers_declared`,
+  `phase`, `combat_had_attackers`, `blockers_declared`,
   `blocker_damage_divisions`, `dealt_first_strike_damage`, `next_timestamp`,
   `player_lost`, `skip_first_draw`, `continuous_effects`,
   `replacement_effects`, `replacement_ability_sources`,
@@ -581,6 +581,19 @@ is derivable; where each name was read is not, and the gate needs the names.
     game: what changed hands is per permanent, on
     `PermanentState.announced_controller` (CR 603.10d's "from")
     (`triggers-architecture.md` §12, TR-4d).
+- **Changed by TR-5f (2026-10-17)**:
+  - `history`, the game's own: TR-2a's three "this turn" sets,
+    `action_taken_this_turn`, `triggered_this_turn` and
+    `resolutions_this_turn`, moved from `GameState` into
+    `state::history::GameHistory`, with the combat's rows beside them: what
+    each existence did in each combat of a round, a declaration's attack or
+    a removal from combat, which "attacked this turn" and CR 508.5's
+    "defending player" read (`triggers-architecture.md` §12, TR-5f).
+  - `combat_had_attackers`, renamed from `attacks_declared`: CR 508.8's
+    "declared as attackers or put onto the battlefield attacking".
+  - `settled_layer_epoch`: the layer epoch the last settlement of the
+    layers' consequences read (`engine::layer_settlement`), its gate. A fact
+    about the settlement, not the game, like `control_effects_at_last_sweep`.
 
 ---
 

@@ -9,12 +9,14 @@
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
-use crate::state::game_state::{AbilityIdentity, GameState, StepType};
-use crate::state::history::TurnSummary;
+use crate::state::battlefield::AttackTarget;
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::history::{CombatFact, PlayerHistory, TurnSummary};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
-use crate::types::ids::PlayerId;
+use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::zones::Zone;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
@@ -28,23 +30,32 @@ enum HistoryUpdate {
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
     CreatureDied { controller: PlayerId },
-    AttackersDeclared { player: PlayerId, count: u64 },
+    /// The count is the attacking player's; the attacks are the combat's
+    /// rows.
+    AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
+    CombatBegan,
+    RemovedFromCombat { exits: Vec<(ObjectRef, Option<AttackTarget>)> },
 }
 
 impl HistoryUpdate {
-    /// Whose row it is counted on; `None` for a count that is the game's.
-    fn whose_row(&self) -> Option<PlayerId> {
+    /// The player and the count a record has a place among: "the first spell
+    /// you cast each turn", "the second card you draw", "the first time you
+    /// gain life each turn" (`triggers-architecture.md` §3.5). `None` for a
+    /// kind no trigger reads by place.
+    fn placed_among(&self) -> Option<(PlayerId, TurnFact)> {
         Some(match self {
-            HistoryUpdate::AbilityResolved { .. } => return None,
-            HistoryUpdate::TurnBegan { player, .. }
-            | HistoryUpdate::SpellCast { caster: player, .. }
-            | HistoryUpdate::CardDrawn { player }
-            | HistoryUpdate::DrawStepBegan { player }
-            | HistoryUpdate::LifeGained { player, .. }
-            | HistoryUpdate::LifeLost { player, .. }
-            | HistoryUpdate::DamageTaken { player, .. }
-            | HistoryUpdate::CreatureDied { controller: player }
-            | HistoryUpdate::AttackersDeclared { player, .. } => *player,
+            HistoryUpdate::SpellCast { caster, .. } => (*caster, TurnFact::SpellsCast),
+            HistoryUpdate::CardDrawn { player } => (*player, TurnFact::CardsDrawn),
+            HistoryUpdate::LifeGained { player, .. } => (*player, TurnFact::LifeGainEvents),
+            HistoryUpdate::LifeLost { player, .. } => (*player, TurnFact::LifeLossEvents),
+            HistoryUpdate::TurnBegan { .. }
+            | HistoryUpdate::AbilityResolved { .. }
+            | HistoryUpdate::DrawStepBegan { .. }
+            | HistoryUpdate::DamageTaken { .. }
+            | HistoryUpdate::CreatureDied { .. }
+            | HistoryUpdate::AttackersDeclared { .. }
+            | HistoryUpdate::CombatBegan
+            | HistoryUpdate::RemovedFromCombat { .. } => return None,
         })
     }
 }
@@ -59,71 +70,120 @@ impl GameState {
             .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
             .map(|&seq| (seq, self.history_update(seq)))
             .collect();
+        let mut wrote = false;
         for (seq, update) in updates {
-            let (in_turn, in_draw_step) = update.map_or((None, None), |update| self.count(update));
+            let (mut in_turn, mut in_draw_step) = (None, None);
+            if let Some(update) = update {
+                self.count(&update);
+                in_turn = self.place_in_turn(&update);
+                in_draw_step = self.place_in_draw_step(&update);
+                wrote = true;
+            }
             self.events.note_counted(seq, in_turn, in_draw_step);
+        }
+        if wrote {
+            self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
         }
     }
 
-    /// Count one record's update, and return its place in its turn and in its
-    /// player's draw step.
-    fn count(&mut self, update: HistoryUpdate) -> (Option<u64>, Option<u64>) {
+    /// Write one record's update: the game's history, a player's row, or
+    /// both.
+    fn count(&mut self, update: &HistoryUpdate) {
         let turn = self.turn_number;
         match update {
+            HistoryUpdate::TurnBegan { player, turn: began } => self.begin_turn_history(*began, *player),
             HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
-                *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
-                return (None, None);
+                *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
             }
-            HistoryUpdate::TurnBegan { player, turn: began } => {
-                self.begin_turn_history(began, player);
-                return (None, None);
-            }
-            _ => {}
-        }
-        // CR 103: the opening hands are drawn before any turn, on no row.
-        if turn == 0 {
-            return (None, None);
-        }
-        let in_draw_step = matches!(update, HistoryUpdate::CardDrawn { player } if self.in_own_draw_step(player));
-        let Some(history) = update.whose_row().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history) else {
-            return (None, None);
-        };
-        match update {
-            HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => (None, None),
-            HistoryUpdate::SpellCast { types, .. } => {
-                for card_type in types {
-                    history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
+            HistoryUpdate::SpellCast { caster, types } => {
+                if let Some(row) = self.row_to_count_on(*caster) {
+                    for &card_type in types {
+                        row.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
+                    }
+                    row.add(turn, TurnFact::SpellsCast, 1);
                 }
-                (Some(history.add(turn, TurnFact::SpellsCast, 1)), None)
             }
-            HistoryUpdate::CardDrawn { .. } => {
-                (Some(history.add(turn, TurnFact::CardsDrawn, 1)), in_draw_step.then(|| history.drew_in_draw_step()))
+            HistoryUpdate::CardDrawn { player } => {
+                let in_draw_step = self.in_own_draw_step(*player);
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.add(turn, TurnFact::CardsDrawn, 1);
+                    if in_draw_step {
+                        row.drew_in_draw_step();
+                    }
+                }
             }
-            HistoryUpdate::DrawStepBegan { .. } => {
-                history.draw_step_drawn(0);
-                (None, None)
+            // CR 504: the draw step's count starts over.
+            HistoryUpdate::DrawStepBegan { player } => {
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.draw_step_drawn(0);
+                }
             }
-            HistoryUpdate::LifeGained { amount, .. } => {
-                history.add(turn, TurnFact::LifeGained, amount);
-                (Some(history.add(turn, TurnFact::LifeGainEvents, 1)), None)
+            HistoryUpdate::LifeGained { player, amount } => {
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.add(turn, TurnFact::LifeGained, *amount);
+                    row.add(turn, TurnFact::LifeGainEvents, 1);
+                }
             }
-            HistoryUpdate::LifeLost { amount, .. } => {
-                history.add(turn, TurnFact::LifeLost, amount);
-                (Some(history.add(turn, TurnFact::LifeLossEvents, 1)), None)
+            HistoryUpdate::LifeLost { player, amount } => {
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.add(turn, TurnFact::LifeLost, *amount);
+                    row.add(turn, TurnFact::LifeLossEvents, 1);
+                }
             }
-            HistoryUpdate::DamageTaken { amount, .. } => {
-                history.add(turn, TurnFact::DamageTaken, amount);
-                (None, None)
+            HistoryUpdate::DamageTaken { player, amount } => {
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.add(turn, TurnFact::DamageTaken, *amount);
+                }
             }
-            HistoryUpdate::CreatureDied { .. } => {
-                history.add(turn, TurnFact::ControlledCreaturesDied, 1);
-                (None, None)
+            HistoryUpdate::CreatureDied { controller } => {
+                if let Some(row) = self.row_to_count_on(*controller) {
+                    row.add(turn, TurnFact::ControlledCreaturesDied, 1);
+                }
             }
-            HistoryUpdate::AttackersDeclared { count, .. } => {
-                history.add(turn, TurnFact::AttackersDeclared, count);
-                (None, None)
+            HistoryUpdate::AttackersDeclared { player, count, attacks } => {
+                for &(attacker, target) in attacks {
+                    self.history.combat.record(attacker, turn, CombatFact::Attacked(target));
+                }
+                if let Some(row) = self.row_to_count_on(*player) {
+                    row.add(turn, TurnFact::AttackersDeclared, *count);
+                }
             }
+            HistoryUpdate::CombatBegan => self.history.combat.combat_began(),
+            HistoryUpdate::RemovedFromCombat { exits } => {
+                for &(object, attacking) in exits {
+                    self.history.combat.record(object, turn, CombatFact::Removed { attacking });
+                }
+            }
+        }
+    }
+
+    /// `player`'s row of the turn in progress, or `None` before the first
+    /// turn: the opening hands are drawn before any turn, on no row (CR 103).
+    fn row_to_count_on(&mut self, player: PlayerId) -> Option<&mut PlayerHistory> {
+        if self.turn_number == 0 {
+            return None;
+        }
+        self.players.get_mut(player).map(|state| &mut state.history)
+    }
+
+    /// The counted record's place among its player's records of its kind this
+    /// turn, 1 for the first, for the kinds a trigger reads by place.
+    fn place_in_turn(&self, update: &HistoryUpdate) -> Option<u64> {
+        let (player, fact) = update.placed_among()?;
+        if self.turn_number == 0 {
+            return None;
+        }
+        Some(self.players.get(player)?.history.this_turn(self.turn_number).count(fact))
+    }
+
+    /// A counted draw's place in its player's own draw step (CR 504).
+    fn place_in_draw_step(&self, update: &HistoryUpdate) -> Option<u64> {
+        match update {
+            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+                Some(self.players.get(*player)?.history.this_draw_step())
+            }
+            _ => None,
         }
     }
 
@@ -144,7 +204,7 @@ impl GameState {
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
-        self.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
+        self.history.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
     }
 
     /// What `seq` adds, or `None` for a record no summary counts.
@@ -179,10 +239,19 @@ impl GameState {
             {
                 HistoryUpdate::CreatureDied { controller: lki.chars().controller }
             }
-            // CR 508.1: the active player declares attackers.
+            // CR 508.1: the active player declares attackers, each as the
+            // existence it is now, since the record's dispatch is the
+            // declaration's own instant.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
+                let attacks =
+                    attackers.iter().filter_map(|&(attacker, target)| Some((self.object_ref(attacker)?, target))).collect();
+                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64, attacks }
             }
+            GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
+            // CR 506.4, 511.3: what each was attacking as it left combat.
+            GameEvent::RemovedFromCombat { removed } => HistoryUpdate::RemovedFromCombat {
+                exits: removed.iter().map(|exit| (exit.object, exit.attacking)).collect(),
+            },
             _ => return None,
         })
     }

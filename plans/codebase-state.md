@@ -5735,32 +5735,18 @@ with its customer named:**
      **Slotted:** with the first registered card that offers a choice of token
      definitions in a replacement, Jinnie Fay, Jetmir's Second.
 
-128. **"Create … tapped and attacking" has the first half and not the
-     second.** `TokenDef::enters_tapped` is CR 110.5b's word on the entry;
-     "attacking" is CR 508.4's — a permanent put onto the battlefield
-     attacking is attacking without having been declared, which is a
-     combat-state write the entry performer does not have and combat's
-     validation has never been asked about. 121 printed cards say it
-     (Scryfall, `o:"tapped and attacking"`, 2026-09-13), every one a trigger.
-
-     **Reachability (2026-09-13):** unreachable — no registered def says
-     "attacking", and nothing could until CR 603.
-
-     **Sized:** a field beside `enters_tapped` and a write into the combat
-     state in `place_on_battlefield`'s wake, ~30 lines, with the first
-     trigger that creates one — combat's phase to size, not this one's.
+128. **~~"Create … tapped and attacking" has the first half and not the second.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
+     "Tapped and attacking" is the creating effect's word, on `TokenDef` and
+     `ReturnToBattlefield`, read into the one entry, which asks the
+     defender and writes the attack (CR 508.4, 506.3).
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 128".
 
 What is *not* a ledger line, and where each waits: Xorn's and Chatterfang's
 Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
-     **Slotted:** TR-5f, whose tests put a token onto the battlefield attacking
-     over this field, never declared as an attacker (CR 508.4), the defender
-     chosen or specified (re-slotted from TR-5a at its design, then from
-     TR-5e at its review, which split TR-5f off, 2026-10-16,
-     `triggers-architecture.md` §12).
-
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
 
 **Shipped:** `CounterSubject { Object, Player }` on `GameAction::AddCounters`
@@ -8090,25 +8076,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by RG — the entry state (2026-09-28)
 
-187. **A tap or an untap bumps no layer epoch, and a layer row can read the
-     tapped status.** `Condition::SourceUntapped` and, since RG,
-     `Condition::SourceTapped` can condition a static ability, and on a layer
-     row the board pass reads them in the walk. `perform_action`'s `Tap` and
-     `Untap` arms move no epoch, so the memo can answer with a frame computed
-     before the tap: "as long as ~ is untapped, …" would keep or drop its
-     effect one question late.
-
-     **Reachability (2026-09-28):** unreachable. Archelos's conditions are on
-     replacement effects, read at the entry and never memoized, and no
-     registered card conditions a layer row on the status. The memo's debug
-     audit would catch the stale frame on the first such board.
-
-     **Sized:** ~20 lines and a fixture: a registry summary bit for "a row
-     reads the tapped status", beside `RegistryScopeSummary`'s others, and
-     the two arms bump the epoch when it is set. **Slotted: CV-6**
-     (`roadmap-v2.md` B6), whose face-down status is the first status the
-     walk reads by design and needs the same bump when a permanent turns face
-     up; or with the first registered card of the shape, if one comes first.
+187. **~~A tap or an untap bumps no layer epoch, and a layer row can read the tapped status.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f's review).** — archived.
+     A `GatedWalkInput`: the walk notes the read, and the write moves the
+     layer epoch only when a frame valid now read it.
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 187".
 
 ### Found by RG's review (2026-09-29)
 
@@ -8374,28 +8346,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by A6g's review practices (2026-10-01)
 
-199. **A life change bumps no layer epoch, and a layer condition can read a
-     life total.** `Condition::Player` reads `PlayerFact::LifeAtLeast` and
-     `LifeAtMost` in the walk when a static ability carries it (Bloodghast's
-     "as long as an opponent has 10 or less life"), and `perform_action`'s
-     `GainLife` and `LoseLife` arms move no epoch, so the memo can answer
-     with a frame from before the change. The condition's other player
-     input, whether a player is still in the game, bumps since A6g's review
-     PR: the dev GUI's random-click games found it (`a_loss_bumps`).
-
-     **Reachability (2026-10-01):** unreachable — no registered static
-     ability's condition reads a life total. Felidar Sovereign's is a
-     trigger's intervening "if", read when the trigger is checked and never
-     memoized. The memo's debug audit would catch the stale frame on the
-     first such board.
-
-     **Sized:** ~20 lines and a fixture, item 187's shape: a registry
-     summary bit for "a row's condition reads a life total", and the two
-     arms bump when it is set, since a bump at every life change would cost
-     a walk per queried object after each combat damage step. **Slotted:**
-     with the first registered card whose static ability reads a life total,
-     in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
-     whose summary bit it shares, if that comes first.
+199. **~~A life change bumps no layer epoch, and a layer condition can read a life total.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f's review).** — archived.
+     A `GatedWalkInput`: the walk notes the read, and the write moves the
+     layer epoch only when a frame valid now read it.
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 199".
 
 200. **~~The dev GUI's start is read once, and a decision log it cannot open
      reads as an engine panic.~~ — ✅ CLOSED 2026-10-04 (SU-5's PR).** —
@@ -9359,23 +9314,11 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      TR-5e's review) and TR-5e's `AttackedBy`.
      **Slotted:** A6e, the naming sweep beside item 6's close audit.
 
-270. **"Defending player" for a creature that left combat and stayed on the
-     battlefield names nobody.** CR 508.5's second sentence makes it the
-     player the creature was attacking before it was removed from combat.
-     TR-5e reads the creature's attack now, and its last known information
-     once it has left the battlefield; a creature stolen in response (item
-     267's removal), regenerated, or removed by an effect has neither, so
-     `CurrentOrLastKnown::defending_player` answers `None`, an instruction
-     acting on that player does nothing, and an intervening "if" about that
-     player is false. Found at TR-5e's review (`triggers-architecture.md` §12,
-     decision 9).
-     **Reachability (2026-10-16):** unreachable — no registered card reads
-     "defending player".
-     **Sized:** TR-5e's decision 9: removal from combat as a record, the
-     combat's history, and the one read off it, ~125 lines of code and ~270
-     of tests.
-     **Slotted:** TR-5f, whose combat history keeps what each creature
-     removed from combat was attacking.
+270. **~~"Defending player" for a creature that left combat and stayed on the battlefield names nobody.~~ — ✅ CLOSED 2026-10-17 (PR #257, TR-5f).** — archived.
+     Removal from combat is a record, and the combat's history keeps what
+     each creature was attacking as it left (CR 508.5's second sentence).
+     **Reachability (2026-10-17):** closed — PR #257.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 270".
 
 271. **CR 802.2a's choice where nothing the controller picks settles it.**
      TR-5e's `PlayerRef::AnyDefendingPlayer` is "any defending player",
@@ -9395,3 +9338,33 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      costing); the activation's condition is RS-2's own check.
      **Slotted:** RS-2, the read-side choice points, whose cast, activation
      and target checks the choice is asked in.
+
+### Found by TR-5f (2026-10-17)
+
+272. **"For each opponent, create a token … tapped and attacking that player"
+     has no player to name.** Six printed cards create one token per opponent,
+     each attacking *that* opponent (Adeline, Resplendent Cathar; Ainok Strike
+     Leader; Endless Foot Assault; Shredder, Shadow Master; Stampede Surfer;
+     Veteran Soldier: `o:"tapped and attacking that"`, 2026-10-17). "Not you"
+     (`PlayerSet::Opponents`) names the set and not the pairing: a candidate
+     list of every opponent lets the controller send every token at one of
+     them, which the card forbids at three seats or more. The pairing is an
+     iteration that binds "that player" to each opponent in turn, and
+     `Effect::ForEach` is unbuilt: its resolution refuses every instruction
+     ("not yet implemented"), and its `Selector` has no players. TR-5f's
+     `EntersAttacking::Player` names one player in the instruction's player
+     vocabulary, which is what the iteration would bind. The same iteration
+     is CR 702.141a's encore (26 cards, `keyword:encore`): "for each
+     opponent, create a token that's a copy of this card that attacks that
+     opponent this turn if able", where the binding feeds an attack
+     requirement (`cant-effects-architecture.md`'s RS-3a) rather than the
+     entry, since the tokens are created before combat. A missing facility,
+     not a deferral of TR-5f's: every other way to say the defender is built.
+     **Reachability (2026-10-17):** unreachable — no registered card runs an
+     instruction once for each player.
+     **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
+     each player as the instruction's named player, ~60 lines of code and ~80
+     of tests.
+     **Slotted:** with the first registered card that runs an instruction
+     once for each opponent naming that player; Adeline, Resplendent Cathar,
+     a Commander staple, is the likely one.

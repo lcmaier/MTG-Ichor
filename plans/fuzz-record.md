@@ -37,6 +37,94 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-17 for TR-5f** (#257: creatures put onto the
+battlefield attacking, and removal from combat; items 128 and 270). Hanweir
+Garrison joins the registry and the pool, Relentless Assault the registry
+(201 → 203 registered, 112 → 113 pooled), so both §3 columns are new
+baselines. `close_out.py --fixtures` against **main** `1e20410` (#256's
+merge), with **engine** `e5ff2e1` (the branch with both cards unregistered, a
+close-out commit never pushed) and **shipped** `66c7b08`.
+
+**Predictions, before any arm ran** (in the PR body):
+- engine vs `main`, every gameplay row the same in `performance`, and in
+  `stress` except the games where a combatant stops being a creature before
+  blocks or damage, which now leaves combat (Mirrorweave's copies of a land).
+- `Windows past gate` and `Candidate visits` a little apart, from a control
+  change a batch causes now sharing its cause's window; the audit agreeing.
+- Instructions per decision +0.1 to +0.5%: the settlement's epoch check at
+  each outermost batch's close, and its frame reads all memo hits.
+- shipped moving every dealt game; both cards reached; Hanweir Garrison's
+  distortion of `stress` reported, not gated.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ (Mirrorweave) |
+| games apart, game by game, `stress` | | 1 of 200, seed 12497 |
+| `Layer walks`, `main` → engine, performance / stress | 313 → 315 / 375 → 376 | 697 → 702 / 882 → 885 |
+| `Layer frames`, `main` → engine, performance / stress | 3,492 → 3,555 / 4,580 → 4,617 | 12,275 → 12,437 / 14,271 → 14,344 |
+| `Memo hits`, `main` → engine, performance / stress | 48,569 → 48,477 / 62,809 → 62,759 | 159,199 → 158,773 / 182,586 → 182,025 |
+| `Windows past gate`, `main` → engine, performance / stress | 50.1 → 50.1 / 61.5 → 61.5 | 134.9 → 134.9 / 159.1 → 158.9 |
+| audit, engine, performance / stress, dispatches agreed | 154,696 / 159,372 | 322,383 / 333,292 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Windows past gate`, `main` → shipped, performance / stress | 50.1 → 51.3 / 61.5 → 44.9 | 134.9 → 143.3 / 159.1 → 163.9 |
+| audit, shipped, performance / stress, dispatches agreed | 156,528 / 143,472 | 311,743 / 316,878 |
+| `stress` avg turns, engine → shipped | 25.6 → 23.5 | 50.9 → 49.4 |
+| `stress` total damage, engine → shipped | 50.5 → 46.5 | 139.4 → 132.9 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6125 M → 0.6172 M, **+0.77%** |
+
+**Seed 12497 is the predicted game.** Mirrorweave resolves in the declare
+attackers step and five attackers become copies of Everywhere, a land; on the
+engine arm they leave combat (`CombatantTypeChanged`) and deal no damage, on
+`main` they stayed attacking. The dispatch counters moved only with it.
+
+**Not predicted: the instructions, and the frame rows with them.** The first
+sitting, with `EnterMods.attacking` inline, read +0.94%: `GameAction` had grown
+from 128 bytes to 152. Boxing it (`66c7b08`, 136 bytes) took the second
+sitting to +0.77% at identical counters. The rest is the type half's frame
+reads, which the design's probe had found to be memo hits because it read the
+layer epoch's field alone. Probed on the budget's board (20 games): the
+settlement passed its epoch gate 9,829 times and walked 34,395 frames, 31,506
+of them in the type half; the arm's total rose 6,750 frames (+1.7%) over
+`main`, the rest being frames a later reader would have walked anyway. Within
+the 2.5-point budget; no narrowing in this PR.
+
+**Hanweir Garrison's distortion**: both seat counts shorter, by 2.1 and 1.5
+turns, with Relentless Assault's extra combats beside it. Reported, not gated.
+
+**Reachability**, shipped, 200 games forced: Hanweir Garrison cast 124 times in
+97 games at two seats and 129 in 121 at four; Relentless Assault 95 in 77 and
+65 in 61.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors and 0 panics everywhere, and every dispatch agreed
+(799,665 / 855,094 at two seats, 1,547,231 / 1,725,609 at four). One
+two-seat `stress` game hit the turn limit: game 34 (seed 810), a standoff in
+which both players replace their draws with life through Words of Worship,
+past 300 each by turn 200. Neither card was cast in it. The engine arm reads
+`main`'s 0 on the same smoke, with the same 3,741 triggers agreed, so the
+registry's new decks reached it.
+
+**§3 fixture rows, shipped `66c7b08`, two seats, 50 games / seed 12345.**
+Both columns are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 31 (62.0%) / 19 (38.0%) | 25 (50.0%) / 25 (50.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 27.3 | 23.6 |
+| Spells cast | 21.7 | 18.2 |
+| Lands played | 15.7 | 15.1 |
+| Combat w/ atk | 10.4 | 7.5 |
+| Creatures died | 7.8 | 3.9 |
+| Damage events | 24.8 | 16.1 |
+| Total damage | 61.0 | 49.6 |
+| Life changes | 18.2 | 11.6 |
+| **Layer walks** | **323** | **344** |
+| **Board walks** | **199** | **200** |
+| **Memo hits** | **47,663** | **51,090** |
+| **Layer frames** | **3,568** | **3,588** |
+| **Frames/walk** | **11.03** | **10.44** |
+
 **Re-recorded 2026-10-16 for TR-5e** (#256: the attack declaration; item
 11's attackers half). Hellrider joins the registry and the pool (200 → 201
 registered, 111 → 112 pooled), so both §3 columns are new baselines.

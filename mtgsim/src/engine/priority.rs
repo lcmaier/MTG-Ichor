@@ -272,10 +272,10 @@ impl GameState {
                 break;
             }
 
-            // A change of control the check made, as an Aura that left takes
-            // its creature back, or a player's leaving (CR 800.4a), is an
-            // event before anything is placed.
-            self.announce_control_changes(&ActionContext::game_rule(decisions, GameRule::ControlChanges))?;
+            // A change the check made in the layers' output, as an Aura that
+            // left takes its creature back, or a player's leaving (CR 800.4a),
+            // is settled before anything is placed.
+            self.settle_layer_consequences(&ActionContext::game_rule(decisions, GameRule::ControlChanges))?;
 
             // Step 2: Place triggered abilities on the stack (rule 603.3)
             let triggers_placed = self.place_pending_triggers(decisions)?;

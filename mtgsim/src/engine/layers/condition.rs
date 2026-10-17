@@ -34,6 +34,7 @@ use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::engine::triggers::binding::TriggeringEventView;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
+use crate::state::layer_memo::GatedWalkInput;
 
 /// What a condition's words "this" and "it" refer to, when the caller knows
 /// more than the board does.
@@ -114,17 +115,22 @@ pub(super) fn holds(
     match condition {
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
-        Condition::Player { players, fact } => {
-            player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
+        Condition::Player { players, fact: player_fact } => {
+            player_fact_holds(players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
         // CR 508.5: the fact about one player, the creature's defending player.
-        Condition::DefendingPlayer { of, fact } => match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
-            Some(defending) => {
-                let players = PlayerSet::Fixed(vec![defending]);
-                player_fact_holds(&players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
+        // It attacks what the battlefield says, or what the history kept.
+        Condition::DefendingPlayer { of, fact: player_fact } => {
+            board.note_gated_read(GatedWalkInput::Combat);
+            board.note_gated_read(GatedWalkInput::Histories);
+            match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
+                Some(defending) => {
+                    let players = PlayerSet::Fixed(vec![defending]);
+                    player_fact_holds(&players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
+                }
+                None => false,
             }
-            None => false,
-        },
+        }
 
         // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
         // layer, so an exiled Wonder stops granting on the next walk with nothing
@@ -148,11 +154,17 @@ pub(super) fn holds(
         // and so is not untapped either; one that left reads as it left.
         Condition::SourceUntapped => match referents.source_lki {
             Some(lki) => lki.was_tapped() == Some(false),
-            None => board.entity(game, source).is_some_and(|entity| !entity.tapped),
+            None => {
+                board.note_gated_read(GatedWalkInput::TappedStatus);
+                board.entity(game, source).is_some_and(|entity| !entity.tapped)
+            }
         },
         Condition::SourceTapped => match referents.source_lki {
             Some(lki) => lki.was_tapped() == Some(true),
-            None => board.entity(game, source).is_some_and(|entity| entity.tapped),
+            None => {
+                board.note_gated_read(GatedWalkInput::TappedStatus);
+                board.entity(game, source).is_some_and(|entity| entity.tapped)
+            }
         },
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
@@ -197,15 +209,19 @@ pub(super) fn holds(
         // A turn summary's count (§3.10), for "you" as every leaf here reads it:
         // the source's controller. The counts are off `GameState`.
         Condition::ThisTurn(count) => {
+            board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index, locked_you)
         }
         Condition::LastTurn(count) => {
+            board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::SinceYourLastTurn(count) => {
+            board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::ThisGame(count) => {
+            board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
         }
         // CR 603.7h: the resolving ability's count, which its own resolution
@@ -364,6 +380,7 @@ fn player_fact_holds(
         // The threshold is resolved against the source's own frame, which is
         // where a static ability's dynamic number is read everywhere else.
         PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => {
+            board.note_gated_read(GatedWalkInput::LifeTotals);
             let Some(chars) = board.frame_of(game, source, layer_index) else {
                 return false;
             };

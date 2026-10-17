@@ -424,6 +424,7 @@ fn two_biomancer_tokens_entering_together_give_each_other_nothing() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
 
     create(&mut game, 0, biomancer_token, 2, &test_dp());
@@ -513,6 +514,7 @@ fn two_devour_tokens_created_together_are_each_asked_and_never_offered_each_othe
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
     let dp = RecordingDecisionProvider::picking_all();
 
@@ -703,7 +705,7 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
     );
     let start = game.recorded_events().records().len();
     let objects_before = game.objects.len();
-    let proposed = GameAction::CreateTokens { defs: vec![soldier_token(); 2], controller: 0 };
+    let proposed = GameAction::CreateTokens { defs: vec![soldier_token(); 2], controller: 0, attacking: None };
 
     let performed = game
         .execute_actions(vec![proposed.clone()], &ActionContext::new(&dp))
@@ -780,6 +782,7 @@ fn a_legendary_token_created_twice_meets_the_legend_rule() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
 
     create(&mut game, 0, boo, 2, &test_dp());
@@ -818,6 +821,7 @@ fn an_artifact_token_enters_tapped_under_root_maze() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
 
     create(&mut game, 0, trinket, 1, &test_dp());
@@ -850,6 +854,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
     assert_eq!(dwarves.effective_name(), "Dwarf Berserker Token", "CR 111.4's example");
     let data = dwarves.card_data();
@@ -877,6 +882,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         rules_text: "Enchanted creature has base power and toughness 1/1.".to_string(),
         enchant_filter: Some(SelectionFilter::Creature),
         enters_tapped: false,
+        enters_attacking: None,
     };
     let data = role.card_data();
     assert_eq!(data.name, "Cursed", "CR 111.9 / 111.10j: the name the rule gives");
@@ -981,6 +987,7 @@ fn trinket() -> TokenDef {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     }
 }
 
@@ -988,7 +995,7 @@ fn trinket() -> TokenDef {
 /// Manufactor's shape, which no registered card produces yet.
 fn create_mixed(game: &mut GameState, player: PlayerId, defs: Vec<TokenDef>, dp: &dyn DecisionProvider) {
     game.execute_actions(
-        vec![GameAction::CreateTokens { defs, controller: player }],
+        vec![GameAction::CreateTokens { defs, controller: player, attacking: None }],
         &ActionContext::new(dp),
     )
     .expect("the creation performs");

@@ -6739,3 +6739,130 @@ the fix.
      blocked (CR 509.1h), as part of the event the sweep announces.
      **Slotted:** TR-5a, which owns the attack declaration and the defender
      each attacker is attacking.
+
+### Item 128 — closed 2026-10-17 by PR #257 (TR-5f)
+
+Closed by TR-5f. "Tapped and attacking" is `TokenDef.enters_attacking` and
+`ReturnToBattlefield`'s `attacking`, read by the resolution into the
+entry's candidates (`EnterMods.attacking`). The batch asks the entry's
+controller with two or more, and `perform_entry` writes the attack when CR
+506.2, 506.3a–c and 506.3f allow, setting CR 508.8's flag. Such a creature
+never "attacked" (CR 508.4). Hanweir Garrison is the registered consumer.
+
+*Original entry:*
+
+128. **"Create … tapped and attacking" has the first half and not the
+     second.** `TokenDef::enters_tapped` is CR 110.5b's word on the entry;
+     "attacking" is CR 508.4's — a permanent put onto the battlefield
+     attacking is attacking without having been declared, which is a
+     combat-state write the entry performer does not have and combat's
+     validation has never been asked about. 121 printed cards say it
+     (Scryfall, `o:"tapped and attacking"`, 2026-09-13), every one a trigger.
+
+     **Reachability (2026-09-13):** unreachable — no registered def says
+     "attacking", and nothing could until CR 603.
+
+     **Sized:** a field beside `enters_tapped` and a write into the combat
+     state in `place_on_battlefield`'s wake, ~30 lines, with the first
+     trigger that creates one — combat's phase to size, not this one's.
+     **Slotted:** TR-5f, whose tests put a token onto the battlefield attacking
+     over this field, never declared as an attacker (CR 508.4), the defender
+     chosen or specified (re-slotted from TR-5a at its design, then from
+     TR-5e at its review, which split TR-5f off, 2026-10-16,
+     `triggers-architecture.md` §12).
+
+### Item 270 — closed 2026-10-17 by PR #257 (TR-5f)
+
+Closed by TR-5f. `GameEvent::RemovedFromCombat` names what each permanent
+was attacking as it left combat, at each cause that leaves it on the
+battlefield, and the combat's history keeps a row for it.
+`CurrentOrLastKnown::defending_player` reads the latest combat's row once
+its creature has stopped attacking, through its frame's existence once it
+has left. Both tests failed with the read taken out.
+
+*Original entry:*
+
+270. **"Defending player" for a creature that left combat and stayed on the
+     battlefield names nobody.** CR 508.5's second sentence makes it the
+     player the creature was attacking before it was removed from combat.
+     TR-5e reads the creature's attack now, and its last known information
+     once it has left the battlefield; a creature stolen in response (item
+     267's removal), regenerated, or removed by an effect has neither, so
+     `CurrentOrLastKnown::defending_player` answers `None`, an instruction
+     acting on that player does nothing, and an intervening "if" about that
+     player is false. Found at TR-5e's review (`triggers-architecture.md` §12,
+     decision 9).
+     **Reachability (2026-10-16):** unreachable — no registered card reads
+     "defending player".
+     **Sized:** TR-5e's decision 9: removal from combat as a record, the
+     combat's history, and the one read off it, ~125 lines of code and ~270
+     of tests.
+     **Slotted:** TR-5f, whose combat history keeps what each creature
+     removed from combat was attacking.
+
+### Item 187 — closed 2026-10-17 by PR #257 (TR-5f's review)
+
+Closed at TR-5f's review. The tapped status is one of four `GatedWalkInput`s:
+a walk that reads one notes it against the epoch, and the `Tap` and `Untap`
+arms move the epoch only when a frame valid now read it. Built as the
+walk's note rather than the registry bit sketched below, since a note
+covers every route to the read, a filter and a CDA as well as a row's
+condition. CV-6's face-down status joins the same enum.
+
+*Original entry:*
+
+187. **A tap or an untap bumps no layer epoch, and a layer row can read the
+     tapped status.** `Condition::SourceUntapped` and, since RG,
+     `Condition::SourceTapped` can condition a static ability, and on a layer
+     row the board pass reads them in the walk. `perform_action`'s `Tap` and
+     `Untap` arms move no epoch, so the memo can answer with a frame computed
+     before the tap: "as long as ~ is untapped, …" would keep or drop its
+     effect one question late.
+
+     **Reachability (2026-09-28):** unreachable. Archelos's conditions are on
+     replacement effects, read at the entry and never memoized, and no
+     registered card conditions a layer row on the status. The memo's debug
+     audit would catch the stale frame on the first such board.
+
+     **Sized:** ~20 lines and a fixture: a registry summary bit for "a row
+     reads the tapped status", beside `RegistryScopeSummary`'s others, and
+     the two arms bump the epoch when it is set. **Slotted: CV-6**
+     (`roadmap-v2.md` B6), whose face-down status is the first status the
+     walk reads by design and needs the same bump when a permanent turns face
+     up; or with the first registered card of the shape, if one comes first.
+
+### Item 199 — closed 2026-10-17 by PR #257 (TR-5f's review)
+
+Closed at TR-5f's review, with item 187. Life totals are a
+`GatedWalkInput`, and the `GainLife` and `LoseLife` arms move the epoch only
+when a frame valid now read one. The same review found two more inputs
+no item named: combat, which `Condition::DefendingPlayer` reads, and the
+histories with the turn number, which the turn-summary conditions and
+`ObjectFilter::AttackedThisTurn` read. Both are gated the same way.
+Five integration tests, one per input and one through the settlement,
+each failing on the tree before.
+
+*Original entry:*
+
+199. **A life change bumps no layer epoch, and a layer condition can read a
+     life total.** `Condition::Player` reads `PlayerFact::LifeAtLeast` and
+     `LifeAtMost` in the walk when a static ability carries it (Bloodghast's
+     "as long as an opponent has 10 or less life"), and `perform_action`'s
+     `GainLife` and `LoseLife` arms move no epoch, so the memo can answer
+     with a frame from before the change. The condition's other player
+     input, whether a player is still in the game, bumps since A6g's review
+     PR: the dev GUI's random-click games found it (`a_loss_bumps`).
+
+     **Reachability (2026-10-01):** unreachable — no registered static
+     ability's condition reads a life total. Felidar Sovereign's is a
+     trigger's intervening "if", read when the trigger is checked and never
+     memoized. The memo's debug audit would catch the stale frame on the
+     first such board.
+
+     **Sized:** ~20 lines and a fixture, item 187's shape: a registry
+     summary bit for "a row's condition reads a life total", and the two
+     arms bump when it is set, since a bump at every life change would cost
+     a walk per queried object after each combat damage step. **Slotted:**
+     with the first registered card whose static ability reads a life total,
+     in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
+     whose summary bit it shares, if that comes first.

@@ -22,7 +22,7 @@ use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::waiting::{Waiting, what_is_waiting};
 use mtgsim::ui::display::{
     TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_record, format_permanent, format_phase,
-    keyword_words, named, player_name, printed_faces,
+    keyword_words, log_lines, named, player_name, printed_faces,
 };
 
 #[derive(Clone, Debug)]
@@ -164,9 +164,8 @@ impl Snapshot {
     /// The board now, with the log from event `events_logged` on.
     pub fn build(game: &GameState, events_logged: usize) -> Snapshot {
         let recorded = game.recorded_events();
-        let log = recorded
-            .records_from(events_logged)
-            .iter()
+        let log = log_lines(game, recorded.records_from(events_logged))
+            .into_iter()
             .map(|record| LogLine { event: record.seq, text: format_record(game, record) })
             .collect();
         let lines = TypeLines::new(game);

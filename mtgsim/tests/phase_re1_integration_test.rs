@@ -813,7 +813,7 @@ fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
-    assert!(!game.attacks_declared);
+    assert!(!game.combat_had_attackers);
 
     let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_dp()).unwrap();

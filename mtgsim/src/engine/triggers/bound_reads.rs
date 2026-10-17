@@ -225,6 +225,7 @@ fn filter(f: &ObjectFilter) -> BoundReads {
         | ObjectFilter::PowerLE(_)
         | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token
+        | ObjectFilter::AttackedThisTurn
         | ObjectFilter::OtherThanInstance(_) => BoundReads::NOTHING,
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),
         ObjectFilter::NotSource => BoundReads::SOURCE,
@@ -285,7 +286,7 @@ fn primitive(p: &Primitive) -> BoundReads {
         | Primitive::LoseGame
         | Primitive::WinGame
         | Primitive::ExtraTurn
-        | Primitive::ExtraPhases(_)
+        | Primitive::ExtraPhases { .. }
         | Primitive::Regenerate
         | Primitive::RemoveFromCombat
         | Primitive::RemoveAllDamage
