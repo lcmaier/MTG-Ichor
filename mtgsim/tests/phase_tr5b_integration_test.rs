@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::phase_rc_cards::chainbreaker;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
@@ -17,15 +18,16 @@ use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
-    vanilla_creature,
+    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx,
+    test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount,
+    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 
@@ -96,6 +98,16 @@ fn counter_records(game: &GameState, start: usize) -> Vec<GameEvent> {
         .map(|record| record.event.clone())
         .filter(|event| matches!(event, GameEvent::CountersPutOn { .. } | GameEvent::CountersRemovedFrom { .. }))
         .collect()
+}
+
+/// Whether every counter record since `start` is about `object`.
+fn records_name_only(game: &GameState, start: usize, object: ObjectId) -> bool {
+    counter_records(game, start).iter().all(|event| match event {
+        GameEvent::CountersPutOn { subject, .. } | GameEvent::CountersRemovedFrom { subject, .. } => {
+            *subject == CounterSubject::Object(object)
+        }
+        _ => false,
+    })
 }
 
 /// A planeswalker with printed loyalty 3 and nothing else.
@@ -187,9 +199,10 @@ fn damage_to_a_planeswalker_removes_loyalty_that_no_player_removed() {
 }
 
 /// CR 122.1d's replacement removes a stun counter in place of an untap, and
-/// neither the rule nor the untap it replaces names a player.
+/// the effect's controller removes it, as a shield's rider does: the
+/// permanent's controller.
 #[test]
-fn a_stun_counters_own_replacement_removes_it_with_no_player() {
+fn a_stun_counters_own_replacement_is_its_permanents_controllers_removal() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     counters_on_target(&mut game, 0, bears, put(CounterType::Stun, 1));
@@ -204,8 +217,120 @@ fn a_stun_counters_own_replacement_removes_it_with_no_player() {
             subject: CounterSubject::Object(bears),
             counter_type: CounterType::Stun,
             n: 1,
-            by: None,
+            by: Some(0),
             now: 0,
         }],
     );
+}
+
+// ---------------------------------------------------------------------------
+// An entry's counters (CR 122.6)
+// ---------------------------------------------------------------------------
+
+/// A fixture enchantment carrying one static replacement.
+fn fixture_static(name: &str, def: ReplacementDef) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .build()
+}
+
+/// A 2/2 that "enters with a +1/+1 counter on it".
+fn enters_with_a_counter() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Grower")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::SourceOnly,
+            Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
+        )))))
+        .build()
+}
+
+/// CR 122.6: a permanent that enters with counters had them put on it, so
+/// the entry announces them after itself and in its own batch, put on by the
+/// controller it entered under (CR 122.6a).
+#[test]
+fn an_entry_announces_its_counters_after_itself_in_its_batch() {
+    let mut game = setup_two_player_game();
+    let start = game.recorded_events().records().len();
+
+    let chained = reanimate(&mut game, chainbreaker(), 1);
+
+    let log = game.recorded_events();
+    let records = log.records_from(start);
+    let entered = records
+        .iter()
+        .position(|r| matches!(r.event, GameEvent::PermanentEnteredBattlefield { object_id, .. } if object_id == chained))
+        .expect("it entered");
+    let put = records.iter().position(|r| matches!(r.event, GameEvent::CountersPutOn { .. })).expect("its counters were announced");
+    assert!(entered < put, "the entry first, then what it entered with");
+    assert_eq!(records[entered].batch(), records[put].batch(), "one event");
+    assert_eq!(
+        records[put].event,
+        GameEvent::CountersPutOn {
+            subject: CounterSubject::Object(chained),
+            counter_type: CounterType::MinusOneMinusOne,
+            n: 2,
+            by: 1,
+            now: 2,
+        },
+    );
+}
+
+/// The anthem's row, put on by `putter` where it names one (CR 122.6a).
+fn your_creatures_enter_with_a_counter_put_by(putter: Option<PlayerRef>) -> Arc<CardData> {
+    let mut template = EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1);
+    template.counters[0].by = putter;
+    fixture_static(
+        "Fixture Anthem of Counters",
+        ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::battlefield_filter(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::ByController(PlayerRef::You)),
+            )),
+            Rewrite::EnterWith(template),
+        ),
+    )
+}
+
+/// The entry's rows of one kind and putter are one row (`EnterMods`'s merge),
+/// so the card's own counter and the anthem's are one record of two. A row
+/// another player puts on is a record of its own, and each says the count it
+/// left.
+#[test]
+fn an_entrys_rows_are_one_record_per_kind_and_putter_each_with_its_count() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter_put_by(None), 0);
+    let start = game.recorded_events().records().len();
+    let grower = reanimate(&mut game, enters_with_a_counter(), 0);
+    let put = |object, n, by, now| GameEvent::CountersPutOn {
+        subject: CounterSubject::Object(object),
+        counter_type: CounterType::PlusOnePlusOne,
+        n,
+        by,
+        now,
+    };
+    assert_eq!(counter_records(&game, start), vec![put(grower, 2, 0, 2)], "one putter, one row");
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter_put_by(Some(PlayerRef::Opponent)), 0);
+    let start = game.recorded_events().records().len();
+    let grower = reanimate(&mut game, enters_with_a_counter(), 0);
+    assert!(records_name_only(&game, start, grower));
+    // Both effects are CR 616.1e's, and their order changes nothing the
+    // records answer, so nobody is asked it: the counts run 1 then 2 in
+    // whichever order they applied.
+    let records = counter_records(&game, start);
+    let (putters, counts): (Vec<PlayerId>, Vec<u32>) = records
+        .iter()
+        .map(|event| match event {
+            GameEvent::CountersPutOn { by, now, .. } => (*by, *now),
+            other => panic!("not a put: {other:?}"),
+        })
+        .unzip();
+    assert_eq!(counts, [1, 2], "two putters, two rows: {records:?}");
+    assert!(putters.contains(&0) && putters.contains(&1), "{records:?}");
 }

@@ -1527,8 +1527,48 @@ impl GameState {
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
         )?;
+        self.announce_entry_counters(id, effective, mods, cause)?;
 
         self.battlefield.get_mut(&id).ok_or_else(|| format!("{id:?} entered the battlefield and is not on it"))
+    }
+
+    /// CR 122.6: counters a permanent is given as it enters are put on it, so
+    /// each row of the entry's counters is announced, after the entry and in
+    /// its batch. Announced and never proposed: CR 614.16's effects applied
+    /// to the entry already. The putter is the row's named player, or else
+    /// the controller it entered under (CR 122.6a), and `now` counts the
+    /// rows of its kind so far, since a new object had none before them.
+    fn announce_entry_counters(
+        &mut self,
+        id: ObjectId,
+        controller: PlayerId,
+        mods: &EnterMods,
+        cause: EventCause,
+    ) -> Result<(), String> {
+        let mut so_far: Vec<(CounterType, u32)> = Vec::new();
+        for row in mods.counters.iter().filter(|row| row.n > 0) {
+            let now = match so_far.iter_mut().find(|(kind, _)| *kind == row.counter) {
+                Some((_, count)) => {
+                    *count += row.n;
+                    *count
+                }
+                None => {
+                    so_far.push((row.counter, row.n));
+                    row.n
+                }
+            };
+            self.emit_event(
+                crate::events::event::GameEvent::CountersPutOn {
+                    subject: crate::events::event::CounterSubject::Object(id),
+                    counter_type: row.counter,
+                    n: row.n,
+                    by: row.by.unwrap_or(controller),
+                    now,
+                },
+                cause,
+            )?;
+        }
+        Ok(())
     }
 
     /// What `id`, entering under `controller` with `attack`'s one candidate,

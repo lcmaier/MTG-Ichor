@@ -358,10 +358,9 @@ pub enum GameEvent {
         counter_type: CounterType,
         /// How many were removed, never 0.
         n: u32,
-        /// The player who removed them, where an instruction or a cost did
-        /// (CR 608.2c). `None` where a rule removes them and names no player:
-        /// CR 704.5q, damage to a planeswalker (CR 120.3c), a counter's own
-        /// replacement (CR 122.1c, 122.1d).
+        /// The player who removed them, where an instruction, an effect or a
+        /// cost did (CR 608.2c). `None` where a rule removes them and names no
+        /// player: CR 704.5q, and damage to a planeswalker (CR 120.3c).
         by: Option<PlayerId>,
         /// The subject's count of `counter_type` after them.
         now: u32,

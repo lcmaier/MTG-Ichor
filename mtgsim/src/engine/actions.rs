@@ -324,11 +324,11 @@ pub enum GameAction {
     /// counts its candidates (`engine::costs`; `Cost::RemoveCounters` is the
     /// unimplemented arm there).
     ///
-    /// `by` is the player removing them, where an instruction or a cost does
-    /// (CR 608.2c: Vampire Hexmage's "remove all counters" is its
+    /// `by` is the player removing them, where an instruction, an effect or a
+    /// cost does (CR 608.2c: Vampire Hexmage's "remove all counters" is its
+    /// controller's; a shield counter's replacement is its effect's
     /// controller's), and `None` where a rule does and names no player: CR
-    /// 704.5q, damage to a planeswalker (CR 120.3c), and a counter's own
-    /// replacement (CR 122.1c, 122.1d), whose replaced event names none.
+    /// 704.5q, and damage to a planeswalker (CR 120.3c).
     RemoveCounters {
         subject: CounterSubject,
         counter: CounterType,

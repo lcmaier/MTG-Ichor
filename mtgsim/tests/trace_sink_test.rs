@@ -171,7 +171,7 @@ fn rd_2_trace_a_comes_out_of_the_five_emit_points() {
     assert!(batches.iter().any(|b| b.contains(r#""depth":2"#) && b.contains("RemoveCounters")), "{batches:?}");
     let events = trace.of_kind("event");
     assert_eq!(count(&events.join("\n"), "DamageDealt"), 2, "{events:?}");
-    assert!(events.iter().any(|e| e.contains("Shield")), "{events:?}");
+    assert!(events.iter().any(|e| e.contains("shield counter")), "{events:?}");
 
     // The names table closes it, one row per object, by id.
     let objects = trace.of_kind("object");

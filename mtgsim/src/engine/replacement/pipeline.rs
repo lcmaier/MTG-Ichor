@@ -2623,14 +2623,14 @@ fn substitute(
 
         (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
             match subject_object(subject) {
-                // CR 122.1c, 122.1d word the removal with no player, and
-                // the event it replaces (a destruction, an untap, damage)
-                // names none.
+                // The effect's controller removes them, as its CR 615.5
+                // rider does: for a shield or stun counter's own effect (CR
+                // 122.1c, 122.1d), the protected permanent's controller.
                 Some(object) => Ok(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
                     n: *n,
-                    by: None,
+                    by: Some(chosen.controller),
                 }),
                 None => Err(format!(
                     "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \
