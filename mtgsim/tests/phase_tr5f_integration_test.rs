@@ -16,7 +16,7 @@ use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_re_cards::{divine_visitation, parallel_lives};
 use mtgsim::cards::phase_tr5e_cards::hellrider;
-use mtgsim::cards::phase_tr5f_cards::{attacking_human_token, hanweir_garrison};
+use mtgsim::cards::phase_tr5f_cards::{attacking_human_token, hanweir_garrison, relentless_assault};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
@@ -344,7 +344,7 @@ fn destroy_target_enchantment() -> Effect {
 }
 
 /// The first record in `window` that `is`, and the batch it was performed in.
-fn first_in<'a>(window: &'a [EventRecord], is: impl Fn(&GameEvent) -> bool) -> &'a EventRecord {
+fn first_in(window: &[EventRecord], is: impl Fn(&GameEvent) -> bool) -> &EventRecord {
     window.iter().find(|record| is(&record.event)).expect("the record")
 }
 
@@ -504,6 +504,7 @@ fn entering_defender_prompts(dp: &RecordingDecisionProvider) -> usize {
 /// and attacking player 1, with no prompt at two seats, but they were never
 /// declared (CR 508.4): Hellrider triggers for the two creatures declared and
 /// not for them (CR 508.3a), and neither token has an `Attacked` row.
+// RULING: Hanweir Garrison #2 - the tokens are attacking, and were never declared as attacking creatures.
 // COVERS: ATOM-508.4-001
 #[test]
 fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
@@ -565,6 +566,7 @@ fn attacks_alone_counts_the_declared_and_never_a_token() {
 /// Hanweir Garrison's first ruling, at four seats: each token's defender is
 /// chosen as the tokens are created, and needn't be the Garrison's or the
 /// other token's.
+// RULING: Hanweir Garrison #1 - each token's defender is chosen as it is created, and needn't match.
 #[test]
 fn each_token_chooses_what_it_attacks_at_four_seats() {
     let mut game = stocked(4);
@@ -764,6 +766,7 @@ fn a_card_returned_tapped_and_attacking_is_attacking() {
 /// beside its trigger, in either order, and a targeted one chooses its
 /// target as it goes, before the tokens exist (CR 603.3d), so it cannot
 /// choose them.
+// RULING: Hanweir Garrison #3 - another attack trigger in either order, and it can't target the tokens.
 #[test]
 fn an_attack_trigger_beside_it_cannot_target_the_tokens() {
     for order in [0, 1] {
@@ -842,4 +845,100 @@ fn a_sweep_a_trigger_reads_is_a_line() {
     let shown = lines_in(&game, &log_lines(&game, recorded.records()));
     assert_eq!(shown.iter().filter(|line| line.starts_with("Untapped")).count(), 2, "{shown:#?}");
     assert!(!shown.iter().any(|line| line.starts_with("RemovedFromCombat")));
+}
+
+// ---------------------------------------------------------------------------
+// 6. Relentless Assault: "creatures that attacked this turn"
+// ---------------------------------------------------------------------------
+
+/// Relentless Assault's effect resolving as `player`'s spell.
+fn relentless_assault_resolves(game: &mut GameState, player: PlayerId) {
+    let card = relentless_assault();
+    let source = put_in_graveyard(game, card.clone(), player);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: player,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
+}
+
+/// Advance the turn until a main phase is the one in progress.
+fn walk_to_postcombat_main(game: &mut GameState) {
+    let dp = test_dp();
+    while game.phase.phase_type != PhaseType::Postcombat {
+        game.advance_turn(&dp).unwrap();
+    }
+}
+
+/// Hellrider and Hanweir Garrison attack, and the Garrison's tokens join them
+/// tapped. In the postcombat main phase Relentless Assault untaps the two
+/// that attacked, and not the tokens, which never attacked (CR 508.4). In the
+/// second combat Hellrider attacks again and its trigger fires again
+/// (Relentless Assault's fourth ruling).
+// RULING: Relentless Assault #4 - attack triggers trigger during each combat that turn.
+#[test]
+fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
+    let mut game = stocked(2);
+    let hellrider = put_on_battlefield(&mut game, hellrider(), 0);
+    let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
+    declare(&mut game, &[hellrider, garrison], &[(hellrider, 1), (garrison, 1)]);
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    let humans = tokens(&game);
+    assert_eq!(life(&game, 1), 18);
+
+    walk_to_postcombat_main(&mut game);
+    relentless_assault_resolves(&mut game, 0);
+    assert!(!game.battlefield[&hellrider].tapped && !game.battlefield[&garrison].tapped);
+    assert!(humans.iter().all(|human| game.battlefield[human].tapped), "the tokens never attacked");
+
+    let dp = test_dp();
+    while !(game.phase.phase_type == PhaseType::Combat && game.phase.step == Some(StepType::DeclareAttackers)) {
+        game.advance_turn(&dp).unwrap();
+    }
+    let attack = ScriptedDecisionProvider::new();
+    attack.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    game.process_declare_attackers(&attack).unwrap();
+    assert_eq!(game.pending_triggers.len(), 1, "Hellrider's, in the second combat");
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 17);
+    let attacks = game.history.combat.rows().iter().filter(|row| row.object == existence(&game, hellrider)).count();
+    assert!(attacks >= 2, "an `Attacked` row in each combat");
+}
+
+/// Relentless Assault's first ruling: resolving outside a main phase, it
+/// still untaps, and creates no combat or main phase.
+// RULING: Relentless Assault #1 - the phases only if it resolves during a main phase.
+#[test]
+fn relentless_assault_adds_no_phase_outside_a_main_phase() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    declare(&mut game, &[bears], &[(bears, 1)]);
+    let phases = game.turn_plan.phases.len();
+    relentless_assault_resolves(&mut game, 0);
+    assert!(!game.battlefield[&bears].tapped, "it attacked, so it untaps");
+    assert_eq!(game.turn_plan.phases.len(), phases, "no phase created in the combat phase");
+}
+
+/// Relentless Assault's third ruling: cast in a main phase of an opponent's
+/// turn, it untaps that opponent's creatures that attacked, and the combat it
+/// adds is that opponent's turn's.
+// RULING: Relentless Assault #3 - on an opponent's turn, that opponent's creatures untap and that opponent attacks again.
+#[test]
+fn relentless_assault_on_an_opponents_turn_is_that_players_combat() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    declare(&mut game, &[bears], &[(bears, 1)]);
+    walk_to_postcombat_main(&mut game);
+    let phases = game.turn_plan.phases.len();
+
+    relentless_assault_resolves(&mut game, 1);
+    assert!(!game.battlefield[&bears].tapped, "player 0's creature attacked this turn");
+    assert_eq!(game.turn_plan.phases.len(), phases + 2);
+    assert_eq!(game.active_player, 0, "the additional combat is player 0's turn's");
 }

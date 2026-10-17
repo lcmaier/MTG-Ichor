@@ -12,7 +12,7 @@ use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, Ta
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
-use crate::state::game_state::{GameState, PlannedPhase};
+use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
@@ -23,7 +23,7 @@ use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
-use crate::types::effects::EntersAttacking;
+use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntryAttack, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::bound_reads::BoundReads;
@@ -866,10 +866,14 @@ impl GameState {
             // resolution outside a phase splices nothing: the cursor is `None` only
             // between a turn beginning and its first phase, when nothing can be
             // resolving, and a `Vec` insert past its end would panic.
-            Primitive::ExtraPhases(phases) => {
+            Primitive::ExtraPhases { phases, after } => {
                 let Some(cursor) = self.turn_plan.cursor else {
                     return Ok(());
                 };
+                let in_a_main_phase = matches!(self.phase.phase_type, PhaseType::Precombat | PhaseType::Postcombat);
+                if *after == ExtraPhasesAfter::ThisMainPhase && !in_a_main_phase {
+                    return Ok(());
+                }
                 let at = cursor + 1;
                 self.turn_plan.phases.splice(
                     at..at,

@@ -47,7 +47,7 @@ use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    Effect, EffectRecipient, ExtraPhasesAfter, ObjectFilter, PlayerRef, Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -132,7 +132,10 @@ pub fn aggravated_assault() -> Arc<CardData> {
                     EffectRecipient::FilteredPermanents(creatures_you_control()),
                 ),
                 Effect::Atom(
-                    Primitive::ExtraPhases(vec![PhaseType::Combat, PhaseType::Postcombat]),
+                    Primitive::ExtraPhases {
+                        phases: vec![PhaseType::Combat, PhaseType::Postcombat],
+                        after: ExtraPhasesAfter::ThisMainPhase,
+                    },
                     EffectRecipient::Controller,
                 ),
             ]),

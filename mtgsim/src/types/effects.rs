@@ -240,6 +240,12 @@ pub enum ObjectFilter {
     /// It is a leaf rather than a `Not`-only helper because `Not` already
     /// composes; adding `Nontoken` as well would give one quality two spellings.
     Token,
+    /// "Creatures that attacked this turn" (Relentless Assault): declared as
+    /// an attacker this turn (CR 508.1), read off the combat's history, so a
+    /// creature put onto the battlefield attacking never did (CR 508.4) and a
+    /// creature that left and came back is a new object that did not (CR
+    /// 400.7). Like `Token`, a fact about the object that no layer touches.
+    AttackedThisTurn,
     /// CR 108.3 — the player who started the game with the card in their deck.
     ///
     /// **Not `ByController` with extra steps.** A card put into a graveyard goes
@@ -1004,6 +1010,19 @@ pub enum SelectionFilter {
     /// B2's (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
     /// `COVERS-PARTIAL` for it.
     DamageSource,
+}
+
+/// Which phase a [`Primitive::ExtraPhases`] run follows (CR 500.8's
+/// "directly after the specified phase").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtraPhasesAfter {
+    /// "After this phase" (26 cards, `o:"after this phase, there is an
+    /// additional"`): the phase the effect resolves in, whichever it is.
+    ThisPhase,
+    /// "After this main phase" (7 cards; Relentless Assault, Aggravated
+    /// Assault): only when the effect resolves in a main phase, and nothing
+    /// otherwise (Relentless Assault's first ruling).
+    ThisMainPhase,
 }
 
 /// What a [`Primitive::CreateReplacement`] fills into the def's **pattern** at
@@ -1812,7 +1831,7 @@ pub enum Primitive {
     /// Scheduling and not a board mutation, as [`Self::ExtraTurn`] is: each
     /// spliced phase becomes a `GameAction::BeginPhase` proposal when the
     /// drainer reaches it, which is what a skip replaces (CR 614.10).
-    ExtraPhases(Vec<PhaseType>),
+    ExtraPhases { phases: Vec<PhaseType>, after: ExtraPhasesAfter },
 
     // === Delayed triggered abilities (rule 603.7) ===
     /// Create a delayed triggered ability (CR 603.7, 610.2): "at the
@@ -2101,7 +2120,7 @@ impl Primitive {
             | Primitive::Scry(_)
             | Primitive::Surveil(_)
             | Primitive::ExtraTurn
-            | Primitive::ExtraPhases(_)
+            | Primitive::ExtraPhases { .. }
             | Primitive::CreateDelayedTrigger(_)
             | Primitive::ProduceMana(_)
             | Primitive::AddCounters { .. }

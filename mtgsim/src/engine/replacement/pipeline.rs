@@ -1643,6 +1643,7 @@ impl EntryWrites {
             // Identity, and control and ownership, which no 616.1e member writes.
             ObjectFilter::All
             | ObjectFilter::Token
+            | ObjectFilter::AttackedThisTurn
             | ObjectFilter::NotSource
             | ObjectFilter::OtherThanInstance(_)
             | ObjectFilter::ByController(_)
