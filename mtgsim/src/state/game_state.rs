@@ -671,9 +671,11 @@ pub struct GameState {
     pub(crate) next_delayed_trigger_id: u64,
     /// The next `UntilReturnId` to mint; ids start at one.
     pub(crate) next_until_return_id: u64,
-    /// What the game remembers that belongs to no one player: each ability's
-    /// "this turn" facts and the combat's rows. Each player's own counts are
-    /// on `PlayerState::history`.
+    /// What the game remembers (`triggers-architecture.md` §3.10): what "this
+    /// turn", "last turn", "since your last turn" and "this game" read for
+    /// each player, bounded by the table, each ability's "this turn" facts and
+    /// the combat's rows. A player's counts are advanced record by record as
+    /// each event ends, by `engine::triggers::history` and nothing else.
     pub history: crate::state::history::GameHistory,
     /// Permanents that entered with a triggered ability, printed or the copy's
     /// they entered as (CR 707.5), each against the record kinds those defs
@@ -935,12 +937,13 @@ impl TurnPlan {
 impl GameState {
     /// Create a new game with the given number of players
     pub fn new(num_players: usize, starting_life: i64) -> Self {
-        let mut players: Vec<PlayerState> = (0..num_players)
+        let players: Vec<PlayerState> = (0..num_players)
             .map(|id| PlayerState::new(id, starting_life))
             .collect();
+        let mut history = crate::state::history::GameHistory::new(num_players);
         // Turn 1 has begun for the starting player, as `last_turn_began` says.
-        if let Some(first) = players.first_mut() {
-            first.history.record_own_turn(1);
+        if let Some(first) = history.players.first_mut() {
+            first.record_own_turn(1);
         }
 
         GameState {
@@ -1006,7 +1009,7 @@ impl GameState {
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
             next_until_return_id: 1,
-            history: crate::state::history::GameHistory::default(),
+            history,
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),

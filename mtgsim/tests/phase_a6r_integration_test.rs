@@ -275,7 +275,7 @@ fn the_draw_steps_count_is_a_word_of_the_save() {
     let game = load("turn 3\nstep draw\nplayer 0: cards drawn this draw step 1\nplayer 0 this turn: cards drawn 2")
         .map(|built| built.game)
         .unwrap_or_else(|refusal| panic!("{refusal}"));
-    let history = &game.state.players[0].history;
+    let history = &game.state.history.players[0];
     assert_eq!((history.this_turn(3).count(TurnFact::CardsDrawn), history.this_draw_step()), (2, 1));
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains("cards drawn this draw step 1"), "{written}");

@@ -11,7 +11,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history::{CombatFact, PlayerHistory, TurnSummary};
+use crate::state::history::{CombatFact, PlayerHistory};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectRef, PlayerId};
@@ -91,7 +91,7 @@ impl GameState {
     fn count(&mut self, update: &HistoryUpdate) {
         let turn = self.turn_number;
         match update {
-            HistoryUpdate::TurnBegan { player, turn: began } => self.begin_turn_history(*began, *player),
+            HistoryUpdate::TurnBegan { player, turn: began } => self.history.count_turn_began(*began, *player),
             HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
                 *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
@@ -164,7 +164,7 @@ impl GameState {
         if self.turn_number == 0 {
             return None;
         }
-        self.players.get_mut(player).map(|state| &mut state.history)
+        self.history.players.get_mut(player)
     }
 
     /// The counted record's place among its player's records of its kind this
@@ -174,31 +174,16 @@ impl GameState {
         if self.turn_number == 0 {
             return None;
         }
-        Some(self.players.get(player)?.history.this_turn(self.turn_number).count(fact))
+        Some(self.history.players.get(player)?.this_turn(self.turn_number).count(fact))
     }
 
     /// A counted draw's place in its player's own draw step (CR 504).
     fn place_in_draw_step(&self, update: &HistoryUpdate) -> Option<u64> {
         match update {
             HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
-                Some(self.players.get(*player)?.history.this_draw_step())
+                Some(self.history.players.get(*player)?.this_draw_step())
             }
             _ => None,
-        }
-    }
-
-    /// Turn `turn` has begun, `active` taking it. Whoever took the turn
-    /// before it has just had their last turn end, so their "since your last
-    /// turn" starts from every player's count now (item 179's snapshot). The
-    /// counts exclude the new turn's own, which a record earlier in the same
-    /// window may already have added.
-    pub(crate) fn begin_turn_history(&mut self, turn: u32, active: PlayerId) {
-        if let Some(previous) = self.players.iter().position(|p| p.history.took_the_turn_before(turn)) {
-            let totals: Vec<TurnSummary> = self.players.iter().map(|p| p.history.before(turn)).collect();
-            self.players[previous].history.last_turn_ended(totals);
-        }
-        if let Some(player) = self.players.get_mut(active) {
-            player.history.record_own_turn(turn);
         }
     }
 

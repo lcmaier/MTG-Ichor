@@ -168,7 +168,7 @@ fn history_rows_and_since_your_last_turn() {
          player 0 this game: life gained 10\nplayer 1 this turn: creature spells cast 1, spells cast 1",
     );
     let (state, now) = (&game.state, 4);
-    let history = |p: usize| &state.players[p].history;
+    let history = |p: usize| &state.history.players[p];
     assert_eq!(history(0).this_turn(now).count(TurnFact::LifeGained), 2);
     assert_eq!(history(0).last_turn(now).count(TurnFact::LifeGained), 3);
     assert_eq!(history(0).this_game().count(TurnFact::LifeGained), 10);
@@ -176,8 +176,8 @@ fn history_rows_and_since_your_last_turn() {
     assert_eq!(history(1).this_turn(now).count(TurnFact::SpellsCastOfType(mtgsim::types::card_types::CardType::Creature)), 1);
     // Player 0 took turn 3, which ended as turn 4 began; player 1's last
     // turn, turn 2, ended as turn 3 began.
-    assert_eq!(history(0).since_your_last_turn(0, history(0)).count(TurnFact::LifeGained), 2);
-    assert_eq!(history(1).since_your_last_turn(0, history(0)).count(TurnFact::LifeGained), 5);
+    assert_eq!(state.history.since_your_last_turn(0, 0).count(TurnFact::LifeGained), 2);
+    assert_eq!(state.history.since_your_last_turn(1, 0).count(TurnFact::LifeGained), 5);
     assert!(refused("player 0 last turn: cards drawn 1").message.contains("turn 1 has no last turn"));
     assert!(refused("turn 2\nplayer 0 this game: cards drawn 1").message.contains("no turn before last"));
 }
@@ -198,7 +198,7 @@ fn history_counts_past_what_a_row_holds_stay_at_the_most() {
         "turn 3\nplayer 0 this turn: spells cast {most}, spells cast 1\n\
          player 0 last turn: spells cast {most}, spells cast 1\nplayer 0 this game: spells cast {most}"
     ));
-    let history = &game.state.players[0].history;
+    let history = &game.state.history.players[0];
     assert_eq!((history.this_turn(3).count(TurnFact::SpellsCast), history.this_game().count(TurnFact::SpellsCast)), (most, most));
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains(&format!("player 0 this turn: spells cast {most}")), "{written}");
@@ -218,11 +218,11 @@ fn a_turn_in_the_billions_reads_as_a_small_one() {
         ))
     };
     let reads = |game: &Game, turn: u32| {
-        let history = |p: usize| &game.state.players[p].history;
+        let history = |p: usize| &game.state.history.players[p];
         let mut counts = Vec::new();
         for (p, fact) in (0..4).flat_map(|p| [(p, TurnFact::CardsDrawn), (p, TurnFact::LifeLost)]) {
             counts.push([history(p).this_turn(turn).count(fact), history(p).last_turn(turn).count(fact), history(p).this_game().count(fact)]);
-            counts.extend((0..4).map(|q| [history(p).since_your_last_turn(q, history(q)).count(fact), 0, 0]));
+            counts.extend((0..4).map(|q| [game.state.history.since_your_last_turn(p, q).count(fact), 0, 0]));
         }
         let sick: Vec<bool> = game.state.battlefield_ids_ordered().into_iter().map(|id| has_summoning_sickness(&game.state, id)).collect();
         (counts, sick)

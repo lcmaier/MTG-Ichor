@@ -121,7 +121,7 @@ impl<'g> Writer<'g> {
             until_returns,
             next_delayed_trigger_id: _, // a counter
             next_until_return_id: _,
-            history,                // the abilities' `this turn:` lines are in `cards`; the combat's is a report
+            history,                // the players' rows in `write_players`, the abilities' `this turn:` lines in `cards`; the combat's is a report
             trigger_sources: _,     // the dispatcher's gates
             zone_trigger_sources: _,
             newcomer_trigger_sources: _,
@@ -180,7 +180,7 @@ impl<'g> Writer<'g> {
         }
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
         if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
             || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
         {
@@ -213,7 +213,7 @@ impl<'g> Writer<'g> {
     fn write_players(&mut self) {
         let state = self.state;
         let turn = state.turn_number;
-        for (p, player) in state.players.iter().enumerate() {
+        for (p, (player, history)) in state.players.iter().zip(&state.history.players).enumerate() {
             let PlayerState {
                 id: _,              // the seat
                 life_total,
@@ -227,7 +227,6 @@ impl<'g> Writer<'g> {
                 counters,
                 commander_damage_taken,
                 has_drawn_from_empty_library,
-                history,
             } = player;
             let mut facts = Vec::new();
             if *life_total != state.starting_life {
@@ -291,16 +290,16 @@ impl<'g> Writer<'g> {
             began if player == state.active_player => (began as usize).saturating_sub(in_game) as u32,
             began => began,
         };
-        let mine = &state.players[player].history;
-        state.players.iter().enumerate().any(|(q, theirs)| {
+        let histories = &state.history;
+        histories.players.iter().enumerate().any(|(q, theirs)| {
             every_turn_fact().any(|fact| {
-                let (this, last) = (theirs.history.this_turn(turn).count(fact), theirs.history.last_turn(turn).count(fact));
+                let (this, last) = (theirs.this_turn(turn).count(fact), theirs.last_turn(turn).count(fact));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
                     Some(2) if ended > 0 => this.saturating_add(last),
-                    _ => theirs.history.this_game().count(fact),
+                    _ => theirs.this_game().count(fact),
                 };
-                mine.since_your_last_turn(q, &theirs.history).count(fact) != derived
+                histories.since_your_last_turn(player, q).count(fact) != derived
             })
         })
     }

@@ -313,18 +313,18 @@ fn history_holds(
         return false;
     };
     let now = game.turn_number;
-    let yours = game.players.get(you).map(|p| &p.history);
+    let yours = game.history.players.get(you);
     let total: u64 = game
+        .history
         .players
         .iter()
         .enumerate()
         .filter(|(player, _)| count.players.contains(you, *player))
-        .map(|(player, state)| {
-            let theirs = &state.history;
+        .map(|(player, theirs)| {
             let counts = match (span, yours) {
                 (HistorySpan::ThisTurn, _) => theirs.this_turn(now),
                 (HistorySpan::LastTurn, _) => theirs.last_turn(now),
-                (HistorySpan::SinceYourLastTurn, Some(yours)) => yours.since_your_last_turn(player, theirs),
+                (HistorySpan::SinceYourLastTurn, Some(_)) => game.history.since_your_last_turn(you, player),
                 (HistorySpan::ThisGame, _) | (HistorySpan::SinceYourLastTurn, None) => theirs.this_game(),
             };
             counts.count(count.fact)
