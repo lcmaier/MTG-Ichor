@@ -3424,10 +3424,9 @@ average turns by +0.7 at two seats and −1.9 at four.
 ### TR-5f — creatures put onto the battlefield attacking, and removal from combat
 
 *Split from TR-5e at its review (2026-10-16, decision 9). Designed
-2026-10-16 against the tree at `1e20410`, and reviewed three times on
-2026-10-17 (the owner, on the design PR): decisions 11, 12, 14, 15 and 16
-decided; 13 verified against the frozen and the current CR, with one
-question left, at the end of this section. Nothing built.*
+2026-10-16 against the tree at `1e20410`, and reviewed four times on
+2026-10-17 (the owner, on the design PR): decisions 11–16 decided, at the
+end of this section. Nothing built.*
 
 **Where it sits.** TR-5e's arm reads only the declaration (CR 508.1). Two
 ways a creature's part in combat changes write nothing. A creature put onto
@@ -3740,26 +3739,6 @@ control change's window where a batch causes one. Shipped arm: every dealt
 game moves once Hanweir Garrison is pooled, and its `stress` distortion is
 reported.
 
-**Under the current CR** (2026-09-25, read from Wizards' site on 2026-10-17
-against the frozen `tmnt.txt`, effective 2026-02-27; 239 rules changed or
-added between them). The engine targets the frozen CR, so this is what
-flips when the baseline moves, written down as `cost-architecture.md` does:
-- **CR 506.4 adds "or protector changes":** a battle whose protector
-  changes leaves combat. It joins the settlement's combat part with §2.23's
-  battles.
-- **CR 508.4a checks at entry, for any defender**, where the frozen text
-  checked a specified defender "when the effect resolves". The performer
-  checks every word as the creature enters, so nothing here flips.
-- **CR 506.6 is new, "attacks a player alone"** (Jiang Yanggu, Alone;
-  Yuriko, Blade of the Mighty). TR-5e's `alone` counts every declared
-  attacker; the new reading counts those attacking the same player.
-- **CR 800.4i** lets "your last turn" find a player who has left the game
-  only until their next turn would have begun: a rule for the round span's
-  readers, when one is built.
-- **CR 603.10a** adds "when a player sacrifices a permanent" to the
-  look-back triggers, and **CR 310 and 704.5v–y** restructure battles'
-  protectors. Neither is this phase's.
-
 **Decided at review (2026-10-17)**
 
 - **11. The combat history lives in a game-wide history struct**, with the
@@ -3787,13 +3766,6 @@ flips when the baseline moves, written down as `cost-architecture.md` does:
     so it is one site, with nothing else to do. Item 180 fixed the
     registry's rows the same way: 68 allocations a clone with every fork
     copying their payloads, 34 with them shared.
-- **14. The save reports the history.** The owner: a board that tests a
-    multi-combat interaction is played through its turn, not saved with
-    each object's part in it, and the words would cost about 40 lines for a
-    feature no one uses. The report is about 5.
-- **15. Relentless Assault comes in.** It is the printed reader of the
-    `Attacked` rows, and it tests them.
-
 - **12. CR 511.3 writes one `RemovedFromCombat`, which the logs show only
   when a trigger reads it.** Every removal is a record, so the history
   needs two kinds of row and the reader one rule: the last `Removed` row in
@@ -3809,24 +3781,16 @@ flips when the baseline moves, written down as `cost-architecture.md` does:
   removal by an effect, a steal or a type change is always a line. Nothing
   triggers on a removal today (`EventKind::from_record` answers none), so
   the caveat matters first for decision 16.
-- **16. The untap step's untaps leave the log too**, by the same predicate,
-  with `TurnBasedAction::Untap` its second hidden cause, and show when a
-  trigger reads one. They print today, one line for each permanent the
-  untap step untaps (a permanent already untapped announces nothing, CR
-  603.2e): 86 of the 995 lines of one seeded game (`performance` seed
-  12345, two seats), and the last two lines of the owner's example at
-  review.
+- **13. One settlement, at TR-4d's three points and at each outermost
+  batch's close** (decided at review, 2026-10-17, after the check below).
+  The owner: a phase moving a later A/B is no cost; only performance and
+  the floors are.
 
-**Decision, for review**
-
-- **13. One settlement: verified, with one point added and one question
-  left.** Checked on 2026-10-17: the rules each part reads, in the frozen
-  CR and the current one (above); the printed cards that read combat
-  membership or end creature-ness; and every point where a layer input is
-  written, against every reader that could run before the next settlement.
-
-  **Sound as designed.**
-  - *The order.* Control first, then combat membership. A removal is
+  **Checked** (2026-10-17): the rules each part reads, the printed cards
+  that read combat membership or end creature-ness, and every point where
+  a layer input is written, against every reader that could run before the
+  next settlement.
+  - *The order holds.* Control first, then combat membership. A removal is
     idempotent, so a permanent stolen and made a noncreature at once is
     removed once, by its control change. CR 506.4d and 506.4e make the
     combat part read a permanent's roles and types together (a blocking
@@ -3835,50 +3799,55 @@ flips when the baseline moves, written down as `cost-architecture.md` does:
     §2.23's checks join this phase's part rather than make a third. The
     controller they read is derived, so it is current whichever part runs
     first.
-  - *The epoch gate.* A frame changes only when a layer input is written,
-    and every such write bumps the epoch (`bump_layer_epoch`'s list), so a
-    pass with the epoch unmoved finds nothing.
-  - *Simultaneity.* One settlement's removals are one event and one record:
-    CR 506.4 removes a permanent as its cause happens, and everything one
-    cause ends, it ends at once.
+  - *The epoch gate holds.* A frame changes only when a layer input is
+    written, and every such write bumps the epoch (`bump_layer_epoch`'s
+    list), so a pass with the epoch unmoved finds nothing.
+  - *Simultaneity holds.* One settlement's removals are one event and one
+    record: CR 506.4 removes a permanent as its cause happens, and
+    everything one cause ends, it ends at once.
+  - *TR-4d's points alone left a gap, which TR-4d has too, and the batch's
+    close closes it.* The layers always answer a permanent's current
+    controller, so TR-4d could announce a change at the next point and
+    every reader in between still saw the right controller. Combat
+    membership is stored: `AttackingInfo` stays until something writes it.
+    A batch that ends March of the Machines dispatches its own window before
+    the next point, and CR 603.10 checks triggers against "objects that
+    exist immediately after an event", by which time CR 506.4 has removed
+    the artifact. So that window's triggers, and static abilities that read
+    the attack continuously, would read a combatant that is not one: "as
+    long as ~ is attacking" is 7 printed cards (`o:"as long as ~ is
+    attacking"`; Wardscale Dragon's "defending player can't cast spells",
+    Gaea's Liege's power and toughness). TR-4d's own removal (item 267) had
+    the same gap: a creature a batch returns to its owner stayed in combat
+    through that batch's window. Nothing registered read either: Hellrider
+    reads the declaration's record, and the 5 cards that say "if ~ is
+    attacking" are activation restrictions, read at priority.
 
-  **One gap, which TR-4d has too: the points suit derived state, not
-  stored state.** The layers always answer a permanent's current
-  controller, so TR-4d could announce a change at the next point and every
-  reader in between still saw the right controller. Combat membership is
-  stored: `AttackingInfo` stays until something writes it. A batch that
-  ends March of the Machines dispatches its own window before the next
-  point, and CR 603.10 checks triggers against "objects that exist
-  immediately after an event", by which time CR 506.4 has removed the
-  artifact. So that window's triggers, and static abilities that read the
-  attack continuously, would read a combatant that is not one: "as long as
-  ~ is attacking" is 7 printed cards (`o:"as long as ~ is attacking"`;
-  Wardscale Dragon's "defending player can't cast spells", Gaea's Liege's
-  power and toughness). TR-4d's own removal (item 267) has the same gap: a
-  creature that a batch returns to its owner stays in combat through that
-  batch's window. Nothing registered reads either today. Hellrider reads
-  the declaration's record, and the 5 cards that say "if ~ is attacking"
-  are activation restrictions, read at priority, after the next point.
-  - **Settle at each outermost batch's close too, the whole settlement
-    (recommended).** Before its window is dispatched, so the records join
-    the window of the event that caused them and its triggers read the
-    board without the removed permanents, as `control.rs` already removes a
-    stolen permanent "as part of the change, so the change's triggers read
-    the board without it". A control change a batch causes is then
-    announced in that batch's window, one event with its cause, rather than
-    in the next: TR-4d's landed timing moves for that case, and the engine
-    arm's dispatch counters will show it. Its look-back frames are the ones
-    the batch's head kept, as now. The triggers either window queues are
-    placed together at the next priority, so no gameplay row should move.
-    With the epoch gate, the head after a close finds nothing new, so the
-    reads move earlier rather than adding up. About 10 lines.
-  - **Combat membership at the close, control's announcement where TR-4d
-    put it.** The combat part reads a changed controller as a cause too.
-    TR-4d's records keep their windows, but a removal by a control change
-    is then announced a window before the change it is part of, and two
-    places know a controller changed.
-  - **TR-4d's points only, as first proposed.** The gap stays: nothing
-    registered reads it, and 7 printed statics would.
+  **What it changes.** The whole settlement also runs at each outermost
+  batch's close, before its window is dispatched, so its records join the
+  window of the event that caused them, and that window's triggers read the
+  board without the removed permanents, as `control.rs` already removes a
+  stolen permanent "as part of the change, so the change's triggers read
+  the board without it". A control change a batch causes is announced in
+  that batch's window, one event with its cause, rather than in the next.
+  Its look-back frames are the ones the batch's head kept, as now. The
+  triggers either window queues are placed together at the next priority,
+  so no gameplay row should move. With the epoch gate, the head after a
+  close finds nothing new, so the reads move earlier rather than adding up.
+  About 10 lines.
+- **14. The save reports the history.** The owner: a board that tests a
+    multi-combat interaction is played through its turn, not saved with
+    each object's part in it, and the words would cost about 40 lines for a
+    feature no one uses. The report is about 5.
+- **15. Relentless Assault comes in.** It is the printed reader of the
+    `Attacked` rows, and it tests them.
+- **16. The untap step's untaps leave the log too**, by the same predicate,
+  with `TurnBasedAction::Untap` its second hidden cause, and show when a
+  trigger reads one. They print today, one line for each permanent the
+  untap step untaps (a permanent already untapped announces nothing, CR
+  603.2e): 86 of the 995 lines of one seeded game (`performance` seed
+  12345, two seats), and the last two lines of the owner's example at
+  review.
 
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
 
