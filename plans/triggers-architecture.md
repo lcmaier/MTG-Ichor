@@ -3467,7 +3467,8 @@ board), and `GameAction`'s 8 bytes once the entry's attack was boxed.
 and #257's review follow-ups on this branch). Reviewed once the same day
 (the owner, on the design PR): decisions 2, 3 and 4 decided, and 1 put
 again with its clone counts, at the end of this section. A second round
-gave the removal its remover. Nothing built.*
+gave the removal its remover, and a third shared decision 1's snapshot.
+Nothing built.*
 
 **Where it sits.** Counters reach the chokepoint since RB:
 `GameAction::AddCounters` and `RemoveCounters` each announce
@@ -3549,10 +3550,10 @@ game's.
 1. **One history struct** (decision 1), its own first commit, with no
    behavior change. `PlayerState.history` becomes `GameHistory.players:
    Vec<PlayerHistory>`, indexed by `PlayerId` as `GameState.players` is, and
-   built for the seats by `GameHistory::new(seats)`. The totals "since your
-   last turn" subtracts become one list beside it,
-   `totals_at_last_turn`, which costs the clone two allocations fewer than
-   today (decision 1's (a′), not yet decided). `begin_turn_history`
+   built for the seats by `GameHistory::new(seats)`. Each player's snapshot
+   for "since your last turn" is shared between clones behind an `Arc`,
+   since one writer replaces it once a turn (decision 1's (a″), not yet
+   decided). `begin_turn_history`
    reads every player's row at once, so it becomes a `GameHistory` method
    beside `turn_began`. `since_your_last_turn` takes the two players. 36
    reads and writes move in 11 files, plus the field in `player.rs`:
@@ -3747,26 +3748,26 @@ game's.
 
 | Piece | Code | Tests |
 |---|---|---|
-| 1. The history move: 36 sites, `GameHistory::new`, the turn snapshot moved, `totals_at_last_turn` (decision 1's (a′)) | ~70 | ~30, the sites in four test files and the struct's own tests |
+| 1. The history move: 36 sites, `GameHistory::new`, the turn snapshot moved, the snapshot behind an `Arc` (decision 1's (a″)) | ~60 | ~30, the sites in four test files and the struct's own tests, and a clone sharing the snapshot |
 | 2–3. The two records, `by` and `now`, `CountersChanged` at 14 lines; the entry's announcement; the remover on `RemoveCounters` at five producers | ~75 | ~150: each putter (an instruction, an entry's default and its named player, CR 122.6a); each remover (an instruction, a replacement's, none for damage and CR 704.5q); `now` after two rows of one kind |
 | 4. The two arms, three multiplicities, CR 122.7's condition and its read of the trigger's records, the player leg, the registry's two refusals | ~155 | ~280: per counter (Fathom Mage's #7–#9 on a fixture), per object (Enduring Scalelord #2 on a fixture), per event (Cloaked Cadet #1 on a fixture), `by` (Hapatra #2 on a fixture), the player leg (Territorial Gorger on a fixture), ATOM-122.7-001, two records on one creature in one event, a newcomer's own entry counters, both refusals |
 | 5. CR 704.5q in the batch | ~35 | ~140: ATOM-704.5q-001 and -002; ATOM-704.8-001 with Strangleroot Geist; persist's #7; the collapse keeps both removals beside a death; the state-based test helper moved to the removals |
 | 6. X in an entry template | ~15 | ~50: ATOM-107.3m-001; 0 when not cast, so a Hydra put onto the battlefield dies; X beside Master Biomancer's counters |
 | 7–8. The growth counter, Simic Ascendancy | ~45 | ~140, its four rulings |
 | 9. Protean Hydra | ~50 | ~190, its six rulings |
-| **Whole: 1,645–1,870** | ~445 (665–890) | ~980 |
+| **Whole: 1,630–1,850** | ~435 (650–870) | ~980 |
 
 Against the 2026-10-12 row's 1,510–1,715: the history move, the player leg,
-the remover and `now` are new. Under decision 1's (c′) piece 1 is about 30 code and 15
-tests; under (c), nothing. Docs at the close-out, about 350 more: the stub
+the remover and `now` are new. Under decision 1's (c″) piece 1 is the `Arc` alone,
+about 10 code and 10 tests. Docs at the close-out, about 350 more: the stub
 and the archive, `fuzz-record.md`'s block, §3.3, §3.10, §4.4, the glossary's
 multiplicity entry and `engine-map.md`'s history row.
 
 **Predictions for the close-out** (to be re-stated before `close_out.py`)
 - *The history commit.* An A/B against `main` reads IDENTICAL on every row,
-  both pools, two seats and four. Under (a′), clone floor 2 reads two
-  allocations fewer at four seats (39 to 37 of 64), and floor 3 does not
-  move.
+  both pools, two seats and four. Under (a″), clone floor 2 reads three
+  allocations fewer at four seats (39 to 36 of 64), and floor 3 about 3 KB
+  less.
 - *The engine arm against `main`*, with no new card registered. Gameplay
   rows identical: CR 704.5q decides against the board it read before, and
   no registered card reads a counter record. The event dumps move:
@@ -3781,11 +3782,12 @@ multiplicity entry and `engine-map.md`'s history row.
 
 **Decisions** (reviewed 2026-10-17: 2, 3 and 4 decided, 1 put again)
 
-- **1. The history's shape — put again at review.** The owner asked
-  whether one history struct costs the clone floor, and would keep the rows
-  on `PlayerState` if it does (option (c)). As first written it did, by one
-  allocation a clone, but the cost belongs to that shape and not to the
-  merge.
+- **1. The history's shape — put again at review, twice.** The owner asked
+  first whether one history struct costs the clone floor, and would keep
+  the rows on `PlayerState` if it does (option (c)). Then, whether "since
+  your last turn"'s snapshot, seats × seats summaries, grows past the floor
+  as `TurnSummary` gains facts. As stored today it would. The fix is the
+  same whichever struct holds the rows: share the snapshot between clones.
 
   **What "since your last turn" keeps.** It asks what a player did between
   the end of your last turn and now (CR 730's day and night, Arboria). The
@@ -3793,52 +3795,52 @@ multiplicity entry and `engine-map.md`'s history row.
   player's totals for the game so far: a `TurnSummary` each, 192 bytes, with
   cards drawn, life lost and the rest. Later, "since your last turn" is
   their totals now less what was written down. So each player keeps one
-  written-down summary per player: at four seats, 4 × 4 = 16 summaries.
-  Today each player keeps its four in its own `Vec`
-  (`PlayerHistory::at_your_last_turn`), so the 16 are in four heap
-  allocations, and every clone makes four allocations to copy them. The
-  rest of a player's history, 624 bytes, sits inside `PlayerState`, in
-  `GameState.players`' one allocation.
+  written-down summary per player, its snapshot: at four seats, 4 × 4 = 16
+  summaries. Today each player keeps its snapshot in its own `Vec`
+  (`PlayerHistory::at_your_last_turn`), four heap allocations a clone. The
+  rest of a player's history is its rows, three summaries (this turn, last
+  turn, this game) inside `PlayerState`, in `GameState.players`' one
+  allocation.
 
-  **What (a′) does with them.** It keeps the same 16 summaries in one `Vec`
-  on `GameHistory`, player by player:
+  **It grows two ways, and today a clone copies all of it.** Each new
+  `TurnFact` is 8 bytes in every summary, and the snapshots are seats²
+  summaries: 64, or 12 KB, at eight seats. With the rows, each new fact adds
+  224 bytes to every four-seat clone today, and floor 3 has 28 KB of room.
 
-  ```rust
-  pub struct GameHistory {
-      /// Each player's rows: this turn, last turn, this game.
-      pub players: Vec<PlayerHistory>,
-      /// What "since your last turn" subtracts: as player `you`'s last turn
-      /// ended, player `them`'s totals for the game, at `you * seats +
-      /// them`. Zeros until `you`'s first turn has ended.
-      totals_at_last_turn: Vec<TurnSummary>,
-      // the ability sets and `combat`, as now
-  }
-  ```
+  **Shared, a snapshot costs a clone nothing.** One writer replaces a
+  player's snapshot, once a turn, as the next turn begins
+  (`last_turn_ended`), and nothing edits one in place. So it can sit behind
+  an `Arc<[TurnSummary]>`, as TR-5f's combat rows sit behind theirs. A
+  clone copies the pointer, with no allocation and no bytes counted
+  (`clone_bound_test` counts what a clone allocates). A new turn builds the
+  next snapshot, one allocation, as today's `Vec` does. No fork ever copies
+  one, since a write replaces it rather than editing it. An empty snapshot
+  reads as zeros, as today's empty `Vec` does, so the commit's A/B still
+  reads IDENTICAL. What a clone still copies is the rows, three summaries a
+  player: linear in the seats, and 96 bytes a new fact at four seats.
 
   Counted from the code for `clone_bound_test`'s board, four seats, where
   floor 2 reads 39 of 64:
 
-  | Option | Where the rows are | Where the 16 summaries are | Allocations a clone, four seats (two) | Bytes on the state |
+  | Option | The rows | The snapshots | Allocations a clone, four seats (two) | The history's bytes in a four-seat clone |
   |---|---|---|---|---|
-  | Today, and (c) | `PlayerState` | one `Vec` per player | 4 (2) | — |
-  | (a), as first written | `GameHistory.players` | one `Vec` per player, moved with the rows | 5 (3) | +24 |
-  | **(a′), recommended** | `GameHistory.players` | one `Vec` on `GameHistory` | 2 (2) | −48 |
-  | (c′) | `PlayerState` | one `Vec` on `GameHistory` | 1 (1) | −72 |
+  | Today | `PlayerState` | a `Vec` per player | 4 (2) | 5.4 KB |
+  | (a′), round one | `GameHistory.players` | one `Vec` on `GameHistory` | 2 (2) | 5.3 KB |
+  | **(a″), recommended** | `GameHistory.players` | an `Arc` per player | 1 (1) | 2.4 KB |
+  | (c″) | `PlayerState` | an `Arc` per player | 0 (0) | 2.4 KB |
 
-  - *(a′)* is the one struct #257's review asked for, at two allocations
-    fewer than today at four seats: floor 2 reads 37. Its summaries start as
-    zeros, which is what today's empty `Vec` reads as before a player's
-    first turn ends, so the commit's A/B still reads IDENTICAL. Floor 3 does
-    not move: the new `Vec` holds all 16 summaries (3 KB) from the first
-    turn, where today's four fill in over the first round, but the floor
-    reads a game's largest clone, which comes after the first round, when
-    today's are full too. Writing the summaries down at each turn's start
-    also stops building a new `Vec` every turn.
-  - *(c′)* is the floor's minimum, one allocation fewer than (a′), and keeps
-    the two structs. Every read of "since your last turn" still reaches into
-    both.
-  - *(b)*, the rows flattened into a list per view, costs an allocation per
-    view and rewrites the writer's row rolling. Dropped.
+  - *(a″)* is the one struct #257's review asked for, at one allocation,
+    three fewer than today: floor 2 reads 36, and floor 3 about 3 KB less.
+    The one allocation is the rows' `Vec`, the same whatever the seats or
+    the facts.
+  - *(c″)* is the floor's minimum, no allocation at all, and keeps the two
+    structs: every read of "since your last turn" still reaches into both.
+  - Round one's (a′), the 16 summaries in one `Vec`, is dropped: sharing
+    beats it on both counts. So is (b), the rows flattened into a list per
+    view.
+
+  If the rows ever weigh on floor 3, the next lever is `SpellsCastOfType`:
+  one slot per card type, 15 of a summary's 24.
 - **2. The counter records — split by direction** (the owner, at review).
   `CountersPutOn` and `CountersRemovedFrom` (piece 2) mirror their
   proposals, `AddCounters` and `RemoveCounters`, as their `EventPattern`
@@ -3886,7 +3888,7 @@ TR-5c, TR-5d.
 | **TR-5e — the attack declaration** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5e" | | | | +1,286 |
 | **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,547 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
-| **TR-5b — counters, and one history struct** (CR 122.6, 122.7, 704.5q) — designed 2026-10-17, above | → the design above, decisions 1–4; as sized on 2026-10-12, before the history move: ~410 code (615–820), ~895 tests, 1,510–1,715 | Simic Ascendancy, Protean Hydra; ATOM-122.7-001, with ATOM-107.3m-001, ATOM-704.5q-001 and -002 and ATOM-704.8-001 in reach | ~445 (665–890) | ~980 | 1,645–1,870 |
+| **TR-5b — counters, and one history struct** (CR 122.6, 122.7, 704.5q) — designed 2026-10-17, above | → the design above, decisions 1–4; as sized on 2026-10-12, before the history move: ~410 code (615–820), ~895 tests, 1,510–1,715 | Simic Ascendancy, Protean Hydra; ATOM-122.7-001, with ATOM-107.3m-001, ATOM-704.5q-001 and -002 and ATOM-704.8-001 in reach | ~435 (650–870) | ~980 | 1,630–1,850 |
 | **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | the "this turn" object filters as one `ObjectFilter` leaf read off the history, `AttackedThisTurn` folded in as "blocked this turn" joins it (the owner, at #257's review: 234 cards say "blocked this turn", 83 "attacked this turn", 50 "dealt damage this turn", 48 "entered this turn"); item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
 | **TR-5d — prevention, the multiplier, tokens and scry** (CR 615.13, 603.2d, 701.7, 701.22) | item 16's `DamagePrevented { target, amount, by }`, emitted as the batch decides; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~460 (690–920) | ~780 | 1,470–1,700 |
 
