@@ -3899,7 +3899,8 @@ the binding's roles, then TR-5e, the attack declaration. **TR-5e split in
 two at its review (2026-10-16, decision 9)**: the declaration, then TR-5f,
 creatures put onto the battlefield attacking and removal from combat, whose
 rows TR-5c's block triggers read. The route is TR-5a, TR-5e, TR-5f, TR-5b,
-TR-5c, TR-5d.
+then MA-2 (`mana-architecture.md` §6, for TR-5b's Protean Hydra), then TR-5c,
+TR-5d.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|

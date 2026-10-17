@@ -65,7 +65,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 114] = [
+const PERFORMANCE_POOL: [&str; 115] = [
     "Plains",
     "Island",
     "Swamp",
@@ -534,9 +534,14 @@ const PERFORMANCE_POOL: [&str; 114] = [
     // TR-5b's: a removal of counters read once per counter, CR 704.5q's
     // annihilation in the state-based batch among them, each making a
     // delayed trigger; an entry's X (CR 107.3m); and a prevention whose rider
-    // removes counters. A creature no damage hurts lengthens games; how much
-    // it moves `stress` is read at the close-out and reported.
+    // removes counters. No player can cast it until MA-2, the next PR, offers
+    // an X spell at the gate.
     "Protean Hydra",
+    // TR-5b's other: a put of counters read once for each creature, that many
+    // counters of a kind no rule reads, and a win behind an intervening "if"
+    // over them. It ends some games (2.5 points of four-seat `stress` games,
+    // natural decks), kept for the variety of ways a game ends.
+    "Simic Ascendancy",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
