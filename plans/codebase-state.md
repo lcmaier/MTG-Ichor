@@ -5201,10 +5201,11 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** its blockers half is TR-5c's, which
     writes one record per declaration step, also when nobody blocks: today
     none is written then, and CR 509.3g's "attacks and isn't blocked" reads it.
-    **Slotted:** TR-5e, whose attack readings read each attacker's defender
-    off the declaration record (CR 508.3a, 508.3b, 508.3e; re-slotted from
-    TR-5a at its design, 2026-10-16, `triggers-architecture.md` §12); the
-    blockers half TR-5c.
+    **Re-checked 2026-10-16 (TR-5e, PR #256):** the attackers half shipped:
+    `AttackersDeclared` names what each attacker attacks, and the attack
+    readings read it. What is left is the blockers half.
+    **Slotted:** TR-5c, which writes one record per declaration step, also
+    when nobody blocks (CR 509.3g).
 
 12. **No event announces a target being chosen (the trigger survey,
     2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities

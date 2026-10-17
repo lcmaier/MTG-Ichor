@@ -125,6 +125,7 @@ is derived.
 | 2026-10-15 | The other two look-back classes and the zone statement | `TR-4c` | `triggers-architecture.md` |
 | 2026-10-15 | Control, countering, loss, and the records' missing facts | `TR-4d` | `triggers-architecture.md` |
 | 2026-10-16 | The binding's roles | `TR-5a` | `triggers-architecture.md` |
+| 2026-10-16 | The attack declaration | `TR-5e` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -152,7 +153,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| The attack declaration | `TR-5e` | `triggers-architecture.md` |
 | Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | Counters | `TR-5b` | `triggers-architecture.md` |
@@ -165,8 +165,8 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 200 |
-| …of them in `PERFORMANCE_POOL` | 111 |
+| Cards registered | 201 |
+| …of them in `PERFORMANCE_POOL` | 112 |
 | `#[test]` functions | 2450 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
