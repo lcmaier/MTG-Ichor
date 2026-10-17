@@ -159,7 +159,6 @@ PERFORMERS = {
 #: Known violations, by `codebase-state.md` item: (check, file, name) -> (item, owner).
 KNOWN = {
     ("write", "engine/sba.rs", "result"): (263, "TR-6: CR 104.4b's draw, set directly"),
-    ("write", "engine/sba.rs", "remove_counters"): (6, "TR-5b: CR 704.5q's annihilation, outside the chokepoint"),
 }
 
 
