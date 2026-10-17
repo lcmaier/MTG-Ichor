@@ -41,7 +41,7 @@ use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::ui::display::{format_event_log, format_record, log_lines};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -782,4 +782,64 @@ fn an_attack_trigger_beside_it_cannot_target_the_tokens() {
         assert!(humans.iter().all(|&human| counters(human) == 0), "order {order}");
         assert_eq!(counters(captain) + counters(garrison), 1);
     }
+}
+
+// ---------------------------------------------------------------------------
+// 5. The log leaves a rule's sweep implicit (decisions 12 and 16)
+// ---------------------------------------------------------------------------
+
+/// Player 0's tapped Grizzly Bears attack in turn 1 and are removed from
+/// combat as it ends (CR 511.3), and player 0's next untap step, in turn 3,
+/// untaps them and a tapped Forest-like fixture (CR 502.3). Returns the game
+/// at turn 3's upkeep.
+fn a_combat_then_an_untap_step(watching: Option<Arc<CardData>>) -> GameState {
+    let mut game = stocked(2);
+    if let Some(watching) = watching {
+        put_on_battlefield(&mut game, watching, 0);
+    }
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let land = put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Grove").card_type(CardType::Land).build(), 0);
+    walk_to(&mut game, StepType::EndCombat);
+    set_attacking(&mut game, bears, 1);
+    for id in [bears, land] {
+        game.battlefield.get_mut(&id).unwrap().tapped = true;
+    }
+    let dp = test_dp();
+    while !(game.turn_number == 3 && game.phase.step == Some(StepType::Upkeep)) {
+        game.advance_turn(&dp).unwrap();
+    }
+    game
+}
+
+fn lines_in(game: &GameState, records: &[&EventRecord]) -> Vec<String> {
+    records.iter().map(|record| format_record(game, record)).collect()
+}
+
+/// The end of combat's removal and the untap step's untaps are records, which
+/// the full event log keeps, and no line in the game's log.
+#[test]
+fn the_log_leaves_a_rules_sweep_implicit() {
+    let game = a_combat_then_an_untap_step(None);
+    let recorded = game.recorded_events();
+    let all: Vec<&EventRecord> = recorded.records().iter().collect();
+    let everything = lines_in(&game, &all);
+    let shown = lines_in(&game, &log_lines(&game, recorded.records()));
+    let is_sweep = |line: &String| line.starts_with("RemovedFromCombat") || line.starts_with("Untapped");
+    assert_eq!(everything.iter().filter(|line| is_sweep(line)).count(), 3, "the removal and two untaps: {everything:#?}");
+    assert!(!shown.iter().any(is_sweep), "{shown:#?}");
+    assert_eq!(shown.len(), everything.len() - 3);
+}
+
+/// A sweep a triggered ability read is a line: "whenever a permanent you
+/// control becomes untapped" reads each untap, and the untap step's event
+/// shows whole, while the end of combat, which nothing read, stays implicit.
+#[test]
+fn a_sweep_a_trigger_reads_is_a_line() {
+    let yours = TriggerSubject::Filter(ObjectFilter::ByController(PlayerRef::You));
+    let watching = watcher("Fixture Dawn Bell", TriggerEvent::BecomesUntapped { subject: yours }, gain_one());
+    let game = a_combat_then_an_untap_step(Some(watching));
+    let recorded = game.recorded_events();
+    let shown = lines_in(&game, &log_lines(&game, recorded.records()));
+    assert_eq!(shown.iter().filter(|line| line.starts_with("Untapped")).count(), 2, "{shown:#?}");
+    assert!(!shown.iter().any(|line| line.starts_with("RemovedFromCombat")));
 }
