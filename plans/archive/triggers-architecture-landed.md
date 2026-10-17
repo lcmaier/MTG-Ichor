@@ -3084,8 +3084,8 @@ stale frame.
 planeswalker or battle that stops being one, join the settlement's combat
 part with `backlog.md` §2.23. Item 11's blockers half is TR-5c's.
 
-**Size.** +2,036/−179 in code and tests (code +1,036/−140, tests
-+997/−35, the dev GUI +3/−4), against 1,770–1,995. Thirty integration
+**Size.** +2,266/−270 in code and tests (code +1,204/−231, tests
++1,059/−35, the dev GUI +3/−4), against 1,770–1,995. Thirty-one integration
 tests in
 `phase_tr5f_integration_test` and three unit tests in `state::history`,
 each fix shown to fail with its piece taken out.
