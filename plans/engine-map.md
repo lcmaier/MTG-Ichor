@@ -35,6 +35,8 @@ PERFORM   phase 2 → perform_action → perform_zone_change, perform_entry     
             register_static_effects ─── files the gates' printed legs             [layers, triggers]
             emit_event ─── records in the batch's window                          [events]
 RIDERS    phase 3 → resolve_rider (CR 615.5)                                      [replacement]
+SETTLE    the outermost close → settle_layer_consequences: control, then combat  [triggers, combat]
+            membership (CR 506.4) ─── its records join the window, before DETECT    [events]
 DETECT    the outermost close → dispatch_batch → detect → find_matches            [triggers]
             ─── reads effective ability lists (a copy's at layer 1)               [layers]
 QUEUE     queue_matches → pending_triggers, AbilityTriggered (tier 2)             [triggers]
