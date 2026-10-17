@@ -46,7 +46,13 @@ impl BoundReads {
     /// whatever its participants are, and a participant named inside a
     /// delayed trigger's or a static ability's body is that body's own.
     const EVERYTHING: BoundReads = BoundReads(0x007F);
+    /// The bit for the first participant the def names: after the seven
+    /// facts, one bit per `Participant`.
     const FIRST_PARTICIPANT: u32 = 7;
+    /// The bit for the first participant the def needs exactly one object
+    /// of: after the named-participant bits, one bit per `Participant`.
+    /// Counted from `Participant::ALL`, so a new participant moves it and
+    /// the two runs of bits never overlap.
     const FIRST_NEEDS_ONE: u32 = Self::FIRST_PARTICIPANT + Participant::ALL.len() as u32;
 
     /// The def names `participant` of its event.
