@@ -3565,6 +3565,6 @@ with the first registered card that reads it. A remover on
 `EventPattern::RemoveCounters`, with the first replacement or restriction
 that reads one. Counts over the whole game, `backlog.md` §2.47.
 
-**Size.** +2,098 in code and tests (code +941, tests +1,157), against
+**Size.** +2,103 in code and tests (code +946, tests +1,157), against
 1,630–1,850, over by tests. Thirty-seven integration tests in
 `phase_tr5b_integration_test`.
