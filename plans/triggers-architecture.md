@@ -3465,10 +3465,10 @@ board), and `GameAction`'s 8 bytes once the entry's attack was boxed.
 
 *Designed 2026-10-17 against the tree at `9f265c3` (`main` at `65d33bc`,
 and #257's review follow-ups on this branch). Reviewed once the same day
-(the owner, on the design PR): decisions 2, 3 and 4 decided, and 1 put
-again with its clone counts, at the end of this section. A second round
-gave the removal its remover, and a third shared decision 1's snapshot.
-Nothing built.*
+(the owner, on the design PR) in four rounds: decisions 2, 3 and 4 in the
+first, the removal's remover in the second, and decision 1 in the fourth,
+once the third had shared its snapshot. All four are decided, at the end of
+this section. Nothing built.*
 
 **Where it sits.** Counters reach the chokepoint since RB:
 `GameAction::AddCounters` and `RemoveCounters` each announce
@@ -3552,8 +3552,7 @@ game's.
    Vec<PlayerHistory>`, indexed by `PlayerId` as `GameState.players` is, and
    built for the seats by `GameHistory::new(seats)`. Each player's snapshot
    for "since your last turn" is shared between clones behind an `Arc`,
-   since one writer replaces it once a turn (decision 1's (a″), not yet
-   decided). `begin_turn_history`
+   since one writer replaces it once a turn (decision 1). `begin_turn_history`
    reads every player's row at once, so it becomes a `GameHistory` method
    beside `turn_began`. `since_your_last_turn` takes the two players. 36
    reads and writes move in 11 files, plus the field in `player.rs`:
@@ -3758,16 +3757,14 @@ game's.
 | **Whole: 1,630–1,850** | ~435 (650–870) | ~980 |
 
 Against the 2026-10-12 row's 1,510–1,715: the history move, the player leg,
-the remover and `now` are new. Under decision 1's (c″) piece 1 is the `Arc` alone,
-about 10 code and 10 tests. Docs at the close-out, about 350 more: the stub
+the remover and `now` are new. Docs at the close-out, about 350 more: the stub
 and the archive, `fuzz-record.md`'s block, §3.3, §3.10, §4.4, the glossary's
 multiplicity entry and `engine-map.md`'s history row.
 
 **Predictions for the close-out** (to be re-stated before `close_out.py`)
 - *The history commit.* An A/B against `main` reads IDENTICAL on every row,
-  both pools, two seats and four. Under (a″), clone floor 2 reads three
-  allocations fewer at four seats (39 to 36 of 64), and floor 3 about 3 KB
-  less.
+  both pools, two seats and four. Clone floor 2 reads three allocations
+  fewer at four seats (39 to 36 of 64), and floor 3 about 3 KB less.
 - *The engine arm against `main`*, with no new card registered. Gameplay
   rows identical: CR 704.5q decides against the board it read before, and
   no registered card reads a counter record. The event dumps move:
@@ -3780,9 +3777,11 @@ multiplicity entry and `engine-map.md`'s history row.
   and Simic Ascendancy's share of `stress` games won is reported (decision
   4).
 
-**Decisions** (reviewed 2026-10-17: 2, 3 and 4 decided, 1 put again)
+**Decisions** (reviewed 2026-10-17, all four decided)
 
-- **1. The history's shape — put again at review, twice.** The owner asked
+- **1. The history's shape — (a″), the rows in `GameHistory` and each
+  snapshot shared** (the owner, at review's fourth round, after it was put
+  again twice). The owner asked
   first whether one history struct costs the clone floor, and would keep
   the rows on `PlayerState` if it does (option (c)). Then, whether "since
   your last turn"'s snapshot, seats × seats summaries, grows past the floor
@@ -3826,7 +3825,7 @@ multiplicity entry and `engine-map.md`'s history row.
   |---|---|---|---|---|
   | Today | `PlayerState` | a `Vec` per player | 4 (2) | 5.4 KB |
   | (a′), round one | `GameHistory.players` | one `Vec` on `GameHistory` | 2 (2) | 5.3 KB |
-  | **(a″), recommended** | `GameHistory.players` | an `Arc` per player | 1 (1) | 2.4 KB |
+  | **(a″), decided** | `GameHistory.players` | an `Arc` per player | 1 (1) | 2.4 KB |
   | (c″) | `PlayerState` | an `Arc` per player | 0 (0) | 2.4 KB |
 
   - *(a″)* is the one struct #257's review asked for, at one allocation,
@@ -3841,6 +3840,26 @@ multiplicity entry and `engine-map.md`'s history row.
 
   If the rows ever weigh on floor 3, the next lever is `SpellsCastOfType`:
   one slot per card type, 15 of a summary's 24.
+
+  **Asked at review: what "this game" asks of the history** (Approach of
+  the Second Sun, Echogoyfs). 37 cards say "this game" (`o:"this game"`,
+  2026-10-17), five of them with no paper printing. Each kind of count has
+  a home, and none is closed off by this shape:
+
+  | What it counts | Cards | Where it lives |
+  |---|---|---|
+  | A player's count of one fact over the game | Flourishing Forces (life gained); First Contact and Once Upon a Time (the first spell this game); the two Frodos (the Ring tempting you); Captain Vargus Wrath and sixteen more (casting a commander from the command zone) | a `TurnFact` slot, read off the rows' `this_game` view, which is a running total rather than a window. A slot is 8 bytes in each of a player's three summaries, 96 bytes a four-seat clone, and is authored with its card (§3.10's rule) |
+  | The same, about where the spell's card came from | Echogoyfs and Etali, Primal Garden: spells cast this game "that weren't from your starting deck" | a slot as above, beside one fact each card keeps: the starting deck it began the game in. CR 103.2a defines a starting deck, so this is not digital-only in the rules: a card brought in from outside the game, or cast from an opponent's library, was not from yours. Echogoyfs's power is then a CDA over the history, which the layer memo's `Histories` input already gates. Its double team is an Arena mechanic the CR does not define, which is the post-v1 custom-card question, not this one |
+  | A count by card name | Approach of the Second Sun (spells cast with its name), Yidaro, Wandering Monster (cards cycled with its name), Gollum, Obsessed Stalker (opponents a creature with its name dealt combat damage) | not a slot, since names are unbounded: a per-player map from a name some registered card watches to its count, kept for the game. Bounded by the names watched, not the turns, and a store of its own, built with its first card |
+  | A count for one object | Rampaging Ursaguana (the times it attacked); The Fallen (whom it has damaged); CR 903.8's commander tax, and the four cards that read one commander's casts (Liesa, Myth Unbound, Opal Palace, Study Hall) | on the object: a permanent's own count, which CR 400.7 starts over for a new object, or for a commander B2's designation, which keeps it across zones (CR 903.8 counts "each previous time the player casting it has cast it") |
+  | Un-cards | Bureaucracy, Goblin Cruciverbalist, Pietra, Crafter of Clowns, Time Machine | out of scope |
+
+  One cost to watch is the first kind's: most of its facts are read only
+  over the game, so their this-turn and last-turn slots are spent for
+  nothing. If those facts pile up, a game-only row beside the summaries
+  takes each at 8 bytes a player. And §3.10's sketch of the commander tax
+  as one slot on the summary is a player's total, which those seventeen
+  cards read; the tax itself is per commander.
 - **2. The counter records — split by direction** (the owner, at review).
   `CountersPutOn` and `CountersRemovedFrom` (piece 2) mirror their
   proposals, `AddCounters` and `RemoveCounters`, as their `EventPattern`
