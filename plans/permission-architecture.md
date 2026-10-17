@@ -42,6 +42,7 @@ census beside its number):
 |---|---:|---|
 | a commander, cast from the command zone (CR 903.8) | 3,497 | §7, `is:commander` |
 | an ability that works in a hand: cycling, channel, ninjutsu, … | 516 keyword + 95 printed | §7, §4 |
+| an ability that works in the command zone: commander ninjutsu (CR 702.49d), which puts its card onto the battlefield attacking through the same entry as ninjutsu (`triggers-architecture.md` §12, TR-5f) | 1, Yuriko, the Tiger's Shadow (`o:"commander ninjutsu"`, added at TR-5f's review, 2026-10-17) | — |
 | cast or play a card from exile | 450 + 160 after a special action (foretell, plot, suspend) | §6, §7 |
 | an activation limit: once each turn, during a step, if a condition holds, once | 489 abilities + 92 keyword | §4, §7 |
 | cast from a graveyard: flashback, escape, … | 355 keyword + 241 + 39 printed | §7, §6 |
