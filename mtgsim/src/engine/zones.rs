@@ -525,8 +525,9 @@ impl GameState {
             // CR 506.4 — "a permanent is removed from combat if it leaves the
             // battlefield", and both ends of each pairing go with it: an attacker
             // no longer lists a blocker that died, and a blocker no longer
-            // blocks an attacker that did.
-            self.remove_from_combat(id);
+            // blocks an attacker that did. The zone change announces it, its
+            // frame keeping the attack.
+            self.remove_from_combat(&[id]);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {

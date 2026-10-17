@@ -1,9 +1,9 @@
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::events::cause::{GameRule, TurnBasedAction};
+use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
-use crate::types::ids::{ExtraTurnId, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::ui::decision::DecisionProvider;
 
@@ -361,11 +361,15 @@ impl GameState {
         }
 
         if phase_type == PhaseType::Combat {
-            // NOT AN EVENT: CR 511.3's removal from combat.
-            // ORDER-FREE: each entry is cleared alone, and nothing is announced.
-            for entry in self.battlefield.values_mut() {
-                entry.clear_combat_state();
-            }
+            let combatants: Vec<ObjectId> = self
+                .battlefield_ids_ordered()
+                .into_iter()
+                .filter(|id| self.battlefield.get(id).is_some_and(|e| e.attacking.is_some() || e.blocking.is_some()))
+                .collect();
+            // NOT AN EVENT: CR 511.3's removal from combat, of everything in it at
+            // once, announced as one record that CR 508.5 reads after combat.
+            let removed = self.remove_from_combat(&combatants);
+            self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::CombatEnds))?;
             self.combat_had_attackers = false;
             self.blockers_declared = false;
             self.blocker_damage_divisions.clear();

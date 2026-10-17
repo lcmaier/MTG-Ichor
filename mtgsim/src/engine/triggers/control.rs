@@ -129,13 +129,13 @@ impl GameState {
                 frames.push(ObjectSnapshot { zone: Zone::Battlefield, lki });
             }
         }
+        let changed: Vec<ObjectId> = changes.iter().map(|change| change.object).collect();
         // NOT AN EVENT: CR 506.4 removes a permanent whose controller changed
         // from combat, as part of the change, so the change's triggers read
         // the board without it. An attacker it blocked stays blocked (CR
-        // 509.1h), which `remove_from_combat` keeps.
-        for change in &changes {
-            self.remove_from_combat(change.object);
-        }
+        // 509.1h), which `remove_from_combat` keeps. Announced in the change's
+        // window, after the change.
+        let removed = self.remove_from_combat(&changed);
         let mut records: Vec<GameEvent> = Vec::new();
         for change in changes {
             let lki = match frames.iter().find(|frame| frame.lki.object().id == change.object) {
@@ -156,6 +156,7 @@ impl GameState {
         for record in records {
             self.emit_event(record, EventCause::GameRule(GameRule::ControlChanges))?;
         }
+        self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::ControlChanges))?;
         let performed = mark.0..self.events.next_seq().0;
         self.events.close_batch(previous);
         self.look_back_snapshots.push(LookBackSnapshot { window, performed: performed.clone(), frames });

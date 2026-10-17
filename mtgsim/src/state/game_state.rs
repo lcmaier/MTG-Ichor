@@ -4,7 +4,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use crate::events::cause::EventCause;
-use crate::events::event::EventWindow;
+use crate::events::event::{CombatExit, EventWindow, GameEvent};
 use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
@@ -1058,7 +1058,7 @@ impl GameState {
         self.turn_number = turn;
         self.active_player = player;
         self.last_turn_began[player] = turn;
-        self.history.turn_began(turn, keep_from);
+        self.history.turn_began(keep_from);
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then
@@ -1655,7 +1655,43 @@ impl GameState {
     /// the sense that matters for damage — "a creature remains blocked even if
     /// all the creatures blocking it are removed from combat" — so
     /// `is_blocked` is deliberately left alone.
-    pub(crate) fn remove_from_combat(&mut self, id: ObjectId) {
+    ///
+    /// Every member's part is read before any is removed, since removing an
+    /// attacker edits its blockers' lists: the members leave combat at once,
+    /// read against one board (CR 704.3's shape). Returns each permanent that
+    /// was in combat, as it was, which its caller announces
+    /// ([`Self::announce_removal_from_combat`]).
+    pub(crate) fn remove_from_combat(&mut self, ids: &[ObjectId]) -> Vec<CombatExit> {
+        let exits: Vec<CombatExit> = ids
+            .iter()
+            .filter_map(|&id| {
+                let entry = self.battlefield.get(&id)?;
+                if entry.attacking.is_none() && entry.blocking.is_none() {
+                    return None;
+                }
+                Some(CombatExit {
+                    object: self.object_ref(id)?,
+                    attacking: entry.attacking.as_ref().map(|attack| attack.target),
+                    blocking: entry.blocking.as_ref().map(|block| block.blocking.clone()).unwrap_or_default(),
+                })
+            })
+            .collect();
+        for exit in &exits {
+            self.remove_one_from_combat(exit.object.id);
+        }
+        exits
+    }
+
+    /// Announce what [`Self::remove_from_combat`] removed, as one event, or
+    /// nothing when it removed nothing.
+    pub(crate) fn announce_removal_from_combat(&mut self, removed: Vec<CombatExit>, cause: EventCause) -> Result<(), String> {
+        if removed.is_empty() {
+            return Ok(());
+        }
+        self.emit_event(GameEvent::RemovedFromCombat { removed }, cause)
+    }
+
+    fn remove_one_from_combat(&mut self, id: ObjectId) {
         let Some(entry) = self.battlefield.get(&id) else {
             return;
         };

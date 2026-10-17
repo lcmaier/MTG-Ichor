@@ -1469,12 +1469,12 @@ impl GameState {
             // does not forbid "can't be removed from combat"; it puts that card's
             // enforcement at all seven causes, which makes it a `RestrictionDef`
             // consulted by each (`cant-effects-architecture.md`) and not a
-            // replaceable event here → `replacement-architecture.md` §8a.
+            // replaceable event here → `replacement-architecture.md` §8a. It is
+            // announced, as every cause announces it.
             Primitive::RemoveFromCombat => {
-                for object in self.affected_permanents(recipient, targets, ctx) {
-                    self.remove_from_combat(object);
-                }
-                Ok(())
+                let objects = self.affected_permanents(recipient, targets, ctx);
+                let removed = self.remove_from_combat(&objects);
+                self.announce_removal_from_combat(removed, ctx.cause())
             }
 
             // NOT AN EVENT: a direct write because nothing replaces *this* removal — Pyramids, the

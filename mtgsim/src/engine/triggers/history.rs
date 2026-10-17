@@ -33,13 +33,16 @@ enum HistoryUpdate {
     /// rows.
     AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
     CombatBegan,
+    RemovedFromCombat { exits: Vec<(ObjectRef, Option<AttackTarget>)> },
 }
 
 impl HistoryUpdate {
     /// Whose row it is counted on; `None` for a count that is the game's.
     fn whose_row(&self) -> Option<PlayerId> {
         Some(match self {
-            HistoryUpdate::AbilityResolved { .. } | HistoryUpdate::CombatBegan => return None,
+            HistoryUpdate::AbilityResolved { .. }
+            | HistoryUpdate::CombatBegan
+            | HistoryUpdate::RemovedFromCombat { .. } => return None,
             HistoryUpdate::TurnBegan { player, .. }
             | HistoryUpdate::SpellCast { caster: player, .. }
             | HistoryUpdate::CardDrawn { player }
@@ -87,9 +90,15 @@ impl GameState {
                 self.history.combat.combat_began();
                 return (None, None);
             }
+            HistoryUpdate::RemovedFromCombat { exits } => {
+                for (object, attacking) in exits {
+                    self.history.combat.record(object, turn, CombatFact::Removed { attacking });
+                }
+                return (None, None);
+            }
             HistoryUpdate::AttackersDeclared { ref attacks, .. } => {
                 for &(attacker, target) in attacks {
-                    self.history.combat.record(attacker, CombatFact::Attacked(target));
+                    self.history.combat.record(attacker, turn, CombatFact::Attacked(target));
                 }
             }
             _ => {}
@@ -103,7 +112,10 @@ impl GameState {
             return (None, None);
         };
         match update {
-            HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } | HistoryUpdate::CombatBegan => (None, None),
+            HistoryUpdate::TurnBegan { .. }
+            | HistoryUpdate::AbilityResolved { .. }
+            | HistoryUpdate::CombatBegan
+            | HistoryUpdate::RemovedFromCombat { .. } => (None, None),
             HistoryUpdate::SpellCast { types, .. } => {
                 for card_type in types {
                     history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
@@ -201,6 +213,10 @@ impl GameState {
                 HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64, attacks }
             }
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
+            // CR 506.4, 511.3: what each was attacking as it left combat.
+            GameEvent::RemovedFromCombat { removed } => HistoryUpdate::RemovedFromCombat {
+                exits: removed.iter().map(|exit| (exit.object, exit.attacking)).collect(),
+            },
             _ => return None,
         })
     }

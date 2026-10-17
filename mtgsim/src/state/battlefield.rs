@@ -290,11 +290,6 @@ impl PermanentState {
     }
 
     /// Clear combat state (called at end of combat step)
-    pub fn clear_combat_state(&mut self) {
-        self.attacking = None;
-        self.blocking = None;
-    }
-
     /// Add `n` counters of the given type, timestamped per CR 613.7c.
     ///
     /// Prefer `GameState::add_counters`, which allocates the timestamp for you.

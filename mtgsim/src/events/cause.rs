@@ -219,4 +219,7 @@ pub enum GameRule {
     /// did by starting or ending, and which no performer proposes. The sweep
     /// that announces it cannot tell which effect it was.
     ControlChanges,
+    /// CR 511.3: the end of combat step ended, removing everything from
+    /// combat.
+    CombatEnds,
 }

@@ -198,14 +198,14 @@ pub struct GameHistory {
 }
 
 impl GameHistory {
-    /// Turn `turn` has begun. "Each turn" is the game's turn, not a
-    /// controller's (§3.5), so the abilities' facts start over; the combat's
-    /// rows keep the turns from `keep_from` on.
-    pub(crate) fn turn_began(&mut self, turn: u32, keep_from: u32) {
+    /// A turn has begun. "Each turn" is the game's turn, not a controller's
+    /// (§3.5), so the abilities' facts start over; the combat's rows keep the
+    /// turns from `keep_from` on.
+    pub(crate) fn turn_began(&mut self, keep_from: u32) {
         self.action_taken_this_turn.clear();
         self.triggered_this_turn.clear();
         self.resolutions_this_turn.clear();
-        self.combat.turn_began(turn, keep_from);
+        self.combat.turn_began(keep_from);
     }
 }
 
@@ -218,8 +218,6 @@ impl GameHistory {
 /// only while a clone still shares them.
 #[derive(Debug, Clone, Default)]
 pub struct CombatHistory {
-    /// The turn `combats_this_turn` counts.
-    turn: u32,
     /// The combat phases begun this turn, which CR 500.8 can add to.
     combats_this_turn: u32,
     rows: Arc<Vec<CombatRow>>,
@@ -253,15 +251,14 @@ impl CombatHistory {
         self.combats_this_turn += 1;
     }
 
-    /// `object` did `fact` in this turn's latest combat.
-    pub(crate) fn record(&mut self, object: ObjectRef, fact: CombatFact) {
-        let row = CombatRow { object, turn: self.turn, combat: self.combats_this_turn, fact };
+    /// `object` did `fact` in turn `turn`'s latest combat.
+    pub(crate) fn record(&mut self, object: ObjectRef, turn: u32, fact: CombatFact) {
+        let row = CombatRow { object, turn, combat: self.combats_this_turn, fact };
         Arc::make_mut(&mut self.rows).push(row);
     }
 
-    /// Turn `turn` has begun, and nothing reads a row from before `keep_from`.
-    fn turn_began(&mut self, turn: u32, keep_from: u32) {
-        self.turn = turn;
+    /// A turn has begun, and nothing reads a row from before `keep_from`.
+    fn turn_began(&mut self, keep_from: u32) {
         self.combats_this_turn = 0;
         if self.rows.iter().any(|row| row.turn < keep_from) {
             Arc::make_mut(&mut self.rows).retain(|row| row.turn >= keep_from);
@@ -273,19 +270,21 @@ impl CombatHistory {
         &self.rows
     }
 
-    /// Was `object` declared as an attacker this turn? A creature put onto
-    /// the battlefield attacking never was (CR 508.4).
-    pub fn attacked_this_turn(&self, object: ObjectRef) -> bool {
-        self.rows.iter().any(|row| row.object == object && row.turn == self.turn && matches!(row.fact, CombatFact::Attacked(_)))
+    /// Was `object` declared as an attacker in turn `turn`, the turn in
+    /// progress? A creature put onto the battlefield attacking never was (CR
+    /// 508.4).
+    pub fn attacked_this_turn(&self, object: ObjectRef, turn: u32) -> bool {
+        self.rows.iter().any(|row| row.object == object && row.turn == turn && matches!(row.fact, CombatFact::Attacked(_)))
     }
 
-    /// What `object` was attacking as it was last removed from combat in this
-    /// turn's latest combat (CR 508.5's second sentence): `None` when it was
-    /// not removed in that combat, or was attacking nothing.
-    pub fn attacking_when_removed(&self, object: ObjectRef) -> Option<AttackTarget> {
+    /// What `object` was attacking as it was last removed from combat in the
+    /// latest combat of turn `turn`, the turn in progress (CR 508.5's second
+    /// sentence): `None` when it was not removed in that combat, or was
+    /// attacking nothing.
+    pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
         let removed = self.rows.iter().rev().find(|row| {
             row.object == object
-                && row.turn == self.turn
+                && row.turn == turn
                 && row.combat == self.combats_this_turn
                 && matches!(row.fact, CombatFact::Removed { .. })
         })?;
@@ -347,6 +346,59 @@ mod tests {
         game.players[0].history.add(2, DRAWN, 1);
         let mine = &game.players[0].history;
         assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);
+    }
+
+    fn existence(raw: u64, epoch: u64) -> ObjectRef {
+        ObjectRef { id: crate::types::ids::ObjectId::from_trace(raw), zone_change_epoch: epoch }
+    }
+
+    /// Two combats in one turn: "defending player" reads the latest combat's
+    /// removal only, and "attacked this turn" each combat's declaration. The
+    /// same object after a zone change is a new one (CR 400.7) and did
+    /// neither.
+    #[test]
+    fn the_rows_tell_combats_and_existences_apart() {
+        let mut combat = CombatHistory::default();
+        let (bears, after_a_flicker) = (existence(7, 1), existence(7, 2));
+        let player_1 = AttackTarget::Player(1);
+        combat.combat_began();
+        combat.record(bears, 3, CombatFact::Attacked(player_1));
+        combat.record(bears, 3, CombatFact::Removed { attacking: Some(player_1) });
+        assert_eq!(combat.attacking_when_removed(bears, 3), Some(player_1));
+
+        combat.combat_began();
+        assert_eq!(combat.attacking_when_removed(bears, 3), None, "not removed in the second combat");
+        assert!(combat.attacked_this_turn(bears, 3), "it attacked in the first");
+        assert!(!combat.attacked_this_turn(after_a_flicker, 3));
+        assert!(!combat.attacked_this_turn(bears, 4));
+    }
+
+    /// The rows keep a round: from the earliest turn any player's "your last
+    /// turn" can name. On turn 3 player 0's last turn is turn 1, so its row
+    /// stays; on turn 4 both players' last turns are 2 and 3, so it goes.
+    #[test]
+    fn the_rows_keep_a_round() {
+        let mut game = GameState::new(2, 20);
+        game.history.combat.record(existence(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        let turns = |game: &GameState| game.history.combat.rows().iter().map(|row| row.turn).collect::<Vec<_>>();
+        game.begin_turn(2, 1);
+        game.begin_turn(3, 0);
+        assert_eq!(turns(&game), [1], "player 0's last turn, on its own turn");
+        game.begin_turn(4, 1);
+        assert!(turns(&game).is_empty());
+    }
+
+    /// A clone shares the rows until one of the two writes, so a fork that
+    /// plays through a combat copies them once.
+    #[test]
+    fn a_clone_shares_the_rows_until_it_writes() {
+        let mut first = CombatHistory::default();
+        first.record(existence(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        let second = first.clone();
+        assert!(Arc::ptr_eq(&first.rows, &second.rows));
+        first.record(existence(8, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        assert!(!Arc::ptr_eq(&first.rows, &second.rows));
+        assert_eq!((first.rows().len(), second.rows().len()), (2, 1));
     }
 
     /// The draw step's count is not a turn row: it starts over when a draw

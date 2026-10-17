@@ -1042,6 +1042,26 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 .collect();
             format!("AttackersDeclared: [{}]", attacks.join(", "))
         }
+        RemovedFromCombat { removed } => {
+            let exits: Vec<String> = removed
+                .iter()
+                .map(|exit| {
+                    let name = obj_name(game, exit.object.id);
+                    match (exit.attacking, exit.blocking.as_slice()) {
+                        (Some(AttackTarget::Player(pid)), _) => format!("{name} attacking P{pid}"),
+                        (Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)), _) => {
+                            format!("{name} attacking {}", obj_name(game, id))
+                        }
+                        (None, []) => name,
+                        (None, blocked) => {
+                            let blocked: Vec<String> = blocked.iter().map(|&id| obj_name(game, id)).collect();
+                            format!("{name} blocking {}", blocked.join(" and "))
+                        }
+                    }
+                })
+                .collect();
+            format!("RemovedFromCombat: [{}]", exits.join(", "))
+        }
         BlockersDeclared { blockers } => {
             let pairs: Vec<String> = blockers.iter()
                 .map(|(b, a)| format!("{} blocks {}", obj_name(game, *b), obj_name(game, *a)))

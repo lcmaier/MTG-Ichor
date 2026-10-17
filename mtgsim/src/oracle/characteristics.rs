@@ -68,10 +68,16 @@ impl CurrentOrLastKnown<'_> {
 
     /// "Defending player" for this creature (CR 508.5, 802.2a): the player it
     /// is attacking, or the controller of the planeswalker it is attacking.
-    /// `None` while it attacks nothing, and for a battle, whose protector
-    /// waits for `backlog.md` §2.23's attack path.
+    /// Once it is no longer attacking, the one it was attacking before it was
+    /// removed from combat (the combat's history). `None` while it attacks
+    /// nothing, and for a battle, whose protector waits for `backlog.md`
+    /// §2.23's attack path.
     pub fn defending_player(&self, game: &GameState) -> Option<PlayerId> {
-        match self.attacking(game)? {
+        let attack = match self.attacking(game) {
+            Some(attack) => attack,
+            None => game.history.combat.attacking_when_removed(self.existence(game)?, game.turn_number)?,
+        };
+        match attack {
             AttackTarget::Player(player) => Some(player),
             AttackTarget::Planeswalker(id) => get_effective_controller(game, id),
             AttackTarget::Battle(_) => None,

@@ -397,6 +397,7 @@ impl EventKind {
             | GameEvent::CountersChanged { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
+            | GameEvent::RemovedFromCombat { .. }
             | GameEvent::Scried { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
