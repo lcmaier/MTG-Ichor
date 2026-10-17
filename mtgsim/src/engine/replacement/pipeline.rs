@@ -3115,6 +3115,15 @@ pub(super) fn evaluate_enter_template(
     for row in &template.counters {
         let n = match &row.amount {
             AmountExpr::Fixed(n) => *n as i64,
+            // CR 107.3m: the X chosen for the spell becoming the entering
+            // object as it resolves. Any other entry reads 0, as the
+            // permanent's own X is (107.3m's last clause).
+            AmountExpr::X => game
+                .resolving
+                .as_ref()
+                .filter(|resolving| resolving.id == entering)
+                .and_then(|resolving| resolving.x_value)
+                .unwrap_or(0) as i64,
             AmountExpr::SourcePower => match frame.frame_of(source) {
                 Some(chars) => chars.power.unwrap_or(0) as i64,
                 None => get_effective_power(game, source).unwrap_or(0) as i64,
@@ -3124,7 +3133,8 @@ pub(super) fn evaluate_enter_template(
                     "an entry replacement on {} gives counters with amount {:?}, which \
                      `evaluate_enter_template` cannot read. CR 614.12 asks this question \
                      of a permanent that does not exist yet, so an amount here has to \
-                     name either a constant or the effect's own source.",
+                     name a constant, the effect's own source, or the X of the spell \
+                     becoming the permanent (CR 107.3m).",
                     source, other
                 ))
             }

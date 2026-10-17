@@ -30,10 +30,12 @@ use mtgsim::types::effects::{
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{CountersOn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -733,4 +735,58 @@ fn persist_reads_the_counters_a_creature_died_with_beside_its_annihilation() {
     resolve_all(&mut game);
 
     assert_eq!(game.get_object(finks).expect("its card").zone, Zone::Graveyard, "persist did not return it");
+}
+
+// ---------------------------------------------------------------------------
+// X in an entry template (CR 107.3m)
+// ---------------------------------------------------------------------------
+
+/// A {X}{G} 0/0 that "enters with X +1/+1 counters on it".
+fn enters_with_x_counters() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture X Grower")
+        .card_type(CardType::Creature)
+        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]))
+        .power_toughness(0, 0)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::SourceOnly,
+            Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::X)),
+        )))))
+        .build()
+}
+
+/// Cast `card` from `player`'s hand with X = `x`, paying from a pool of
+/// green mana, and resolve it.
+fn cast_with_x(game: &mut GameState, player: PlayerId, card: Arc<CardData>, x: u64) -> ObjectId {
+    let id = put_in_hand(game, card, player);
+    game.players[player].mana_pool.add(ManaType::Green, x + 1);
+    let decisions = ScriptedDecisionProvider::new();
+    decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: id, x_count: 1 }, x);
+    game.cast_spell(player, id, &decisions).expect("it is castable");
+    game.resolve_top_of_stack(&decisions).expect("it resolves");
+    id
+}
+
+// COVERS: ATOM-107.3m-001
+#[test]
+fn an_entry_template_reads_the_x_of_the_spell_becoming_the_permanent() {
+    let mut game = setup_two_player_game();
+
+    let grower = cast_with_x(&mut game, 0, enters_with_x_counters(), 3);
+    game.check_state_based_actions(&test_dp()).expect("the check");
+
+    assert_eq!(game.battlefield[&grower].counter_count(CounterType::PlusOnePlusOne), 3);
+}
+
+/// CR 107.3m reads the X of the spell that became the permanent; one put onto
+/// the battlefield another way had none, and enters with none.
+#[test]
+fn an_entry_no_spell_became_reads_x_as_zero() {
+    let mut game = setup_two_player_game();
+
+    let grower = reanimate(&mut game, enters_with_x_counters(), 0);
+    assert_eq!(game.battlefield[&grower].counter_count(CounterType::PlusOnePlusOne), 0);
+
+    game.check_state_based_actions(&test_dp()).expect("the check");
+    assert_eq!(game.get_object(grower).expect("its card").zone, Zone::Graveyard, "a 0/0 (CR 704.5f)");
 }
