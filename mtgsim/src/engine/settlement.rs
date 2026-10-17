@@ -1,0 +1,75 @@
+//! What the layers' output changes, settled (`triggers-architecture.md` §12,
+//! TR-5f, decision 13).
+//!
+//! Something performed starts or ends a continuous effect, and what that does
+//! to another permanent's controller or types is the layer walk's answer
+//! afterwards, not an event of its own (CR 613.1b, 613.1d). The CR makes two
+//! consequences of that immediate: a change of control is an event that
+//! removes the permanent from combat (CR 603.10d, 506.4), and a combatant
+//! that stops being a creature, or becomes a battle, leaves combat (CR
+//! 506.4). One settlement answers both, in that order, at the head of an
+//! outermost batch, at its close before its window is dispatched, at each
+//! pass of the state-based check, and in the cleanup step.
+//!
+//! At a batch's close the settlement's records join the batch's window, so
+//! the batch's own triggers read the board after them (CR 603.10's "objects
+//! that exist immediately after an event"); anywhere else they are a window
+//! of their own.
+
+use crate::engine::actions::ActionContext;
+use crate::engine::layers::compute::compute_characteristics;
+use crate::events::cause::{EventCause, GameRule};
+use crate::state::game_state::GameState;
+use crate::types::card_types::CardType;
+use crate::types::ids::{ObjectId, Timestamp};
+
+impl GameState {
+    /// Settle what the layers' output changed since the last settlement:
+    /// announce each change of control, then remove from combat each
+    /// combatant that can no longer be in it.
+    ///
+    /// A frame changes only when a layer input is written, and every such
+    /// write moves the layer epoch, so with the epoch where the last
+    /// settlement left it there is nothing to find.
+    pub(crate) fn settle_layer_consequences(&mut self, ctx: &ActionContext) -> Result<(), String> {
+        let epoch = self.layer_epoch();
+        if epoch == self.settled_layer_epoch {
+            return Ok(());
+        }
+        self.settled_layer_epoch = epoch;
+        self.announce_control_changes(ctx)?;
+        self.remove_combatants_that_changed_type()
+    }
+
+    /// CR 506.4: "an attacking or blocking creature that ... stops being a
+    /// creature, or becomes a battle" is removed from combat, everything one
+    /// change ends at once. CR 506.4d and 506.4e, an attacked planeswalker or
+    /// battle that stops being one, join this check with `backlog.md` §2.23's
+    /// attack path.
+    fn remove_combatants_that_changed_type(&mut self) -> Result<(), String> {
+        if !self.combat_had_attackers {
+            return Ok(());
+        }
+        // ORDER-FREE: the combatants are sorted by timestamp next.
+        let mut combatants: Vec<(Timestamp, ObjectId)> = self
+            .battlefield
+            .iter()
+            .filter(|(_, entry)| entry.attacking.is_some() || entry.blocking.is_some())
+            .map(|(&id, entry)| (entry.timestamp, id))
+            .collect();
+        combatants.sort_by_key(|&(timestamp, _)| timestamp);
+        let changed: Vec<ObjectId> = combatants
+            .into_iter()
+            .map(|(_, id)| id)
+            .filter(|&id| {
+                compute_characteristics(self, id)
+                    .is_none_or(|chars| !chars.types.contains(&CardType::Creature) || chars.types.contains(&CardType::Battle))
+            })
+            .collect();
+        // NOT AN EVENT: CR 506.4's removal, a consequence of the type change
+        // rather than a replaceable event (`replacement-architecture.md` §8a),
+        // announced as one record.
+        let removed = self.remove_from_combat(&changed);
+        self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::CombatantTypeChanged))
+    }
+}

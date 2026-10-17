@@ -222,4 +222,8 @@ pub enum GameRule {
     /// CR 511.3: the end of combat step ended, removing everything from
     /// combat.
     CombatEnds,
+    /// CR 506.4: an attacking or blocking creature stopped being a creature,
+    /// or became a battle, which a continuous effect did by starting or
+    /// ending.
+    CombatantTypeChanged,
 }

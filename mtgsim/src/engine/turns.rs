@@ -446,7 +446,7 @@ impl GameState {
                 // A steal that ended returns its permanent, an event in this
                 // step (Ray of Command's third ruling), so CR 514.3a's check
                 // finds its triggers waiting and the step grants priority.
-                self.announce_control_changes(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
+                self.settle_layer_consequences(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
 
                 // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
                 // `Game::run_turn`'s loop, one level up with 514.1's discard.

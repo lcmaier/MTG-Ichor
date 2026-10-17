@@ -763,11 +763,12 @@ impl GameState {
         // The outermost batch dispatches its window at its close. A nested one
         // joined an enclosing window and dispatches nothing of its own.
         let outermost = self.nesting.batch_depth == 0;
-        // A change of control the board made since the last proposal, as a
-        // resolution's earlier instruction did, is announced before this one
-        // (CR 603.4's instant): Act of Treason's, before its untap.
+        // A change the layers' output made since the last proposal, as a
+        // resolution's earlier instruction did, is settled before this one
+        // (CR 603.4's instant): Act of Treason's change of control, before its
+        // untap.
         if outermost && self.nesting.dispatch_depth == 0 {
-            self.announce_control_changes(ctx)?;
+            self.settle_layer_consequences(ctx)?;
         }
         let previous = self.events.open_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
@@ -792,7 +793,16 @@ impl GameState {
         self.nesting.batch_depth -= 1;
         self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
+        // What the batch did to other permanents' controllers and types is
+        // part of it, so its own triggers read the board after that (CR
+        // 603.10, 506.4): settled while its window is open.
+        let settled = if outermost && self.nesting.dispatch_depth == 0 && result.is_ok() {
+            self.settle_layer_consequences(ctx)
+        } else {
+            Ok(())
+        };
         self.events.close_batch(previous);
+        settled?;
         let (performed, riders) = result?;
         if outermost {
             // CR 603.2, at the batch's close: the window is the event. Every

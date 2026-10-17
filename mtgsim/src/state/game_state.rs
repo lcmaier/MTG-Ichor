@@ -713,6 +713,10 @@ pub struct GameState {
     /// (`settle_announced_controllers`). If one did, the next sweep runs with
     /// none left, so control going back as the last one ends is announced.
     pub(crate) control_effects_at_last_sweep: bool,
+    /// The layer epoch the last settlement of the layers' consequences read
+    /// (`engine::settlement`): with the epoch still there, no frame has
+    /// changed and there is nothing to settle. `u64::MAX` before the first.
+    pub(crate) settled_layer_epoch: u64,
     /// The CR 603.10a frames of the permanents the open batches decided to
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
@@ -1008,6 +1012,7 @@ impl GameState {
             newcomer_trigger_sources: IdSet::default(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
+            settled_layer_epoch: u64::MAX,
             lki_captures: Vec::new(),
             dispatch_audit: None,
             events: EventWindow::new(),

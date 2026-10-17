@@ -151,7 +151,10 @@ impl GameState {
         }
         let audit = self.audit_frames_before_control_change(&frames);
 
+        // Inside an outermost batch's close the records join its window, and
+        // its close dispatches them.
         let previous = self.events.open_batch();
+        let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         for record in records {
             self.emit_event(record, EventCause::GameRule(GameRule::ControlChanges))?;
@@ -162,6 +165,9 @@ impl GameState {
         self.look_back_snapshots.push(LookBackSnapshot { window, performed: performed.clone(), frames });
         if let Some(frames) = audit {
             self.file_audit_snapshot(LookBackSnapshot { window, performed, frames });
+        }
+        if joined {
+            return Ok(());
         }
         self.dispatch_batch(mark, window, ctx)
     }

@@ -11,11 +11,13 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{attacks, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::cause::GeneratedBy;
-use mtgsim::events::event::{CombatExit, GameEvent};
+use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
+use mtgsim::events::event::{CombatExit, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -25,7 +27,10 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, Antecedent, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
+use mtgsim::oracle::characteristics::get_effective_controller;
+use mtgsim::types::effects::{
+    AmountExpr, Antecedent, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount,
+};
 use mtgsim::types::ids::{ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::TriggerSubject;
@@ -318,4 +323,123 @@ fn a_creature_stolen_then_killed_still_names_its_former_defender() {
         assert_eq!(game.objects[&warcaller].zone, Zone::Graveyard);
     });
     assert_eq!(lost, [0, 0, 1]);
+}
+
+// ---------------------------------------------------------------------------
+// 3. The settlement: a combatant that stops being a creature
+// ---------------------------------------------------------------------------
+
+fn destroy_target_enchantment() -> Effect {
+    let enchantment = SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Enchantment));
+    Effect::Atom(Primitive::Destroy, EffectRecipient::Target(enchantment, TargetCount::Exactly(1)))
+}
+
+/// The first record in `window` that `is`, and the batch it was performed in.
+fn first_in<'a>(window: &'a [EventRecord], is: impl Fn(&GameEvent) -> bool) -> &'a EventRecord {
+    window.iter().find(|record| is(&record.event)).expect("the record")
+}
+
+/// March of the Machines makes Sol Ring a 1/1 artifact creature, which
+/// attacks. Destroying March ends that, and CR 506.4 removes the artifact from
+/// combat as it stops being a creature: in the destruction's window, as part
+/// of the event that caused it, so the window's triggers read the board
+/// without it. It deals no combat damage.
+// COVERS: ATOM-506.4-003
+#[test]
+fn an_attacker_that_stops_being_a_creature_leaves_combat() {
+    let mut game = stocked(2);
+    let march = put_on_battlefield(&mut game, march_of_the_machines(), 0);
+    let ring = put_on_battlefield(&mut game, sol_ring(), 0);
+    declare(&mut game, &[ring], &[(ring, 1)]);
+    let before = game.recorded_events().len();
+
+    resolve_as(&mut game, 1, &destroy_target_enchantment(), march);
+    assert!(game.battlefield[&ring].attacking.is_none(), "CR 506.4: it stopped being a creature");
+    let records = game.recorded_events();
+    let window = records.records_from(before);
+    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { object_id, .. } if *object_id == march));
+    let removal = first_in(window, |event| matches!(event, GameEvent::RemovedFromCombat { .. }));
+    assert_eq!(removal.stamp.batch, destroyed.stamp.batch, "one event with its cause");
+    assert_eq!(removal.stamp.cause, EventCause::GameRule(GameRule::CombatantTypeChanged));
+    assert_eq!(removal.event, GameEvent::RemovedFromCombat { removed: vec![attacking(&game, ring, 1)] });
+
+    game.process_combat_damage(&test_dp(), false).unwrap();
+    assert_eq!(life(&game, 1), 20);
+}
+
+/// The same for a blocker: the animated Sol Ring blocking Grizzly Bears
+/// leaves combat when March goes, and the Bears stay blocked by nothing (CR
+/// 509.1h), so they deal no damage.
+#[test]
+fn a_blocker_that_stops_being_a_creature_leaves_and_its_attacker_stays_blocked() {
+    let mut game = stocked(2);
+    let march = put_on_battlefield(&mut game, march_of_the_machines(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let ring = put_on_battlefield(&mut game, sol_ring(), 1);
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareBlockers) });
+    game.combat_had_attackers = true;
+    set_attacking(&mut game, bears, 1);
+    set_blocked_by(&mut game, bears, vec![ring]);
+    set_blocking(&mut game, ring, vec![bears]);
+
+    resolve_as(&mut game, 0, &destroy_target_enchantment(), march);
+    assert!(game.battlefield[&ring].blocking.is_none());
+    let info = game.battlefield[&bears].attacking.as_ref().expect("still attacking");
+    assert!(info.is_blocked && info.blocked_by.is_empty(), "CR 509.1h: blocked, by nothing");
+    let exit = CombatExit { object: existence(&game, ring), attacking: None, blocking: vec![bears] };
+    assert_eq!(removals(&game), vec![vec![exit]]);
+    game.process_combat_damage(&test_dp(), false).unwrap();
+    assert_eq!(life(&game, 1), 20);
+}
+
+/// The board the fuzz probe found at four seats (`performance` seed 12525):
+/// the player whose March of the Machines animates the attacking player's
+/// artifact loses, and leaves the game (CR 800.4a) with March, so the
+/// artifact stops being a creature and leaves combat.
+#[test]
+fn a_player_leaving_with_the_animator_takes_the_attacker_out_of_combat() {
+    let mut game = stocked(4);
+    put_on_battlefield(&mut game, march_of_the_machines(), 2);
+    let ring = put_on_battlefield(&mut game, sol_ring(), 0);
+    declare(&mut game, &[ring], &[(ring, 1)]);
+
+    game.players[2].life_total = 0;
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert!(!game.in_game(2));
+    assert!(game.battlefield[&ring].attacking.is_none());
+    assert_eq!(removals(&game), vec![vec![attacking(&game, ring, 1)]]);
+}
+
+/// Decision 13's other half: a control change a batch causes is settled at
+/// the batch's close, so it is announced in the batch's window. Player 0
+/// takes the Bears for as long as its Fixture Sower remains; destroying the
+/// Sower gives them back in the destruction's window.
+#[test]
+fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
+    let mut game = stocked(2);
+    let sower = put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Sower").card_type(CardType::Creature).power_toughness(1, 1).build(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let ctx = ResolutionContext {
+        source: sower,
+        ability_source: game.object_ref(sower),
+        controller: 0,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bears)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    let take = at_target_creature(Primitive::GainControl(Duration::WhileSourceOnBattlefield));
+    game.resolve_effect(&take, &ctx, &test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(get_effective_controller(&game, bears), Some(0));
+    let before = game.recorded_events().len();
+
+    resolve_as(&mut game, 1, &at_target_creature(Primitive::Destroy), sower);
+    assert_eq!(get_effective_controller(&game, bears), Some(1));
+    let records = game.recorded_events();
+    let window = records.records_from(before);
+    let destroyed = first_in(window, |event| matches!(event, GameEvent::ZoneChange { object_id, .. } if *object_id == sower));
+    let back = first_in(window, |event| matches!(event, GameEvent::ControlChanged { object_id, .. } if *object_id == bears));
+    assert_eq!(back.stamp.batch, destroyed.stamp.batch);
 }

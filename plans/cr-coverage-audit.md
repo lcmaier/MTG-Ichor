@@ -591,6 +591,9 @@ is derivable; where each name was read is not, and the gate needs the names.
     "defending player" read (`triggers-architecture.md` §12, TR-5f).
   - `combat_had_attackers`, renamed from `attacks_declared`: CR 508.8's
     "declared as attackers or put onto the battlefield attacking".
+  - `settled_layer_epoch`: the layer epoch the last settlement of the
+    layers' consequences read (`engine::settlement`), its gate. A fact
+    about the settlement, not the game, like `control_effects_at_last_sweep`.
 
 ---
 
