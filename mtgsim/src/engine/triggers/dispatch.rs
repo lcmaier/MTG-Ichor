@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use crate::oracle::characteristics::CurrentOrLastKnown;
-use crate::types::effects::ConditionObject;
+use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -251,10 +251,10 @@ impl FilterReferents for TriggerReferents<'_> {
     }
 
     /// The candidate, now: an arm's own words have no triggering event yet.
-    fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId> {
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            ConditionObject::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
-            ConditionObject::Triggering(_) => None,
+            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
+            Antecedent::InEvent(_) => None,
         }
     }
 }
@@ -1996,7 +1996,7 @@ impl GameState {
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
     /// the existence the trigger remembers (`subject_after`). The arm says
-    /// which participants the event has, grouped as `participants()` groups
+    /// which event roles the event has, grouped as `event_roles()` groups
     /// them; its record is one `triggering_events_in` matched to it. An
     /// object the store no longer holds leaves the event about none. An
     /// attack record holds one event per attacker, which

@@ -18,7 +18,7 @@ use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef};
-use crate::types::triggers::{Participant, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -110,10 +110,10 @@ impl GameState {
     pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
-        // The participants the def names, each triggering event's: one it
+        // The event roles the def names, each triggering event's: one it
         // does not name may differ, as each Wargear's own attachment does.
-        let named: Vec<Participant> = reads.participants().collect();
-        let objects = |binding: &TriggerBinding| -> Vec<(Participant, ObjectRef)> {
+        let named: Vec<EventRole> = reads.event_roles().collect();
+        let objects = |binding: &TriggerBinding| -> Vec<(EventRole, ObjectRef)> {
             binding
                 .triggering_events
                 .iter()

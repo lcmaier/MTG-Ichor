@@ -9355,8 +9355,8 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      registered card's pairing has its variant; the cost is the next one.
      **Sized:** ~60 lines of code and ~40 of tests, most of them the card
      files' literals: one `AmountExpr::ValueOf(which object, which value)`,
-     the object word shared with `ConditionObject` and TR-5e's
-     `AttackedBy`.
+     the object word shared with `Antecedent` (`ConditionObject` until
+     TR-5e's review) and TR-5e's `AttackedBy`.
      **Slotted:** A6e, the naming sweep beside item 6's close audit.
 
 270. **"Defending player" for a creature that left combat and stayed on the

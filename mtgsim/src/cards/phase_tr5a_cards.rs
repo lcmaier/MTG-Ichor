@@ -21,7 +21,7 @@ use crate::types::history::CountIs;
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{DamageRecipient, Multiplicity, Participant, TriggerEvent, TriggerSubject};
+use crate::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 
 /// Sphere Grid — {1}{G}
 /// Enchantment
@@ -32,7 +32,7 @@ use crate::types::triggers::{DamageRecipient, Multiplicity, Participant, Trigger
 /// > reach and trample.
 ///
 /// "That creature" is the creature the condition names, the damage's source
-/// (`Participant::DamageSource`). "Unlock Ability" is a flavor word (CR 207.2d).
+/// (`EventRole::DamageSource`). "Unlock Ability" is a flavor word (CR 207.2d).
 ///
 /// # The ruling, and where it is tested
 ///
@@ -63,7 +63,7 @@ pub fn sphere_grid() -> Arc<CardData> {
     };
     let counter_on_that_creature = Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(Participant::DamageSource),
+        EffectRecipient::Triggering(EventRole::DamageSource),
     );
     let grant = |keyword: KeywordFlag| {
         Effect::Atom(

@@ -31,12 +31,12 @@ use mtgsim::test_support::{fill_library, put_in_graveyard, put_on_battlefield, s
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Condition, ConditionObject, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact,
+    AmountExpr, Antecedent, ColorChange, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact,
     PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::triggers::{DefenderFilter, Participant, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::triggers::{DefenderFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
@@ -103,7 +103,7 @@ fn watcher(name: &str, arm: impl Into<TriggerEvent>, effect: Effect) -> Arc<Card
 fn a_counter_on_the_attackers() -> Effect {
     Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Triggering(Participant::Attacker),
+        EffectRecipient::Triggering(EventRole::Attacker),
     )
 }
 
@@ -152,7 +152,7 @@ fn bears(game: &mut GameState, n: usize) -> Vec<ObjectId> {
 /// How many attackers each waiting trigger's triggering events name, in the
 /// order they triggered.
 fn attackers_per_trigger(game: &GameState) -> Vec<usize> {
-    game.pending_triggers.iter().map(|t| t.binding.triggering_objects(Participant::Attacker).len()).collect()
+    game.pending_triggers.iter().map(|t| t.binding.triggering_objects(EventRole::Attacker).len()).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +274,7 @@ fn you_attack_a_player_triggers_for_each_player_attacked() {
     let mut by_controller: Vec<(PlayerId, usize)> = game
         .pending_triggers
         .iter()
-        .map(|t| (t.controller, t.binding.triggering_objects(Participant::Attacker).len()))
+        .map(|t| (t.controller, t.binding.triggering_objects(EventRole::Attacker).len()))
         .collect();
     by_controller.sort();
     assert_eq!(by_controller, vec![(0, 1), (0, 2), (3, 1)], "player 0 for players 1 and 3; player 3, attacked; not player 2");
@@ -300,12 +300,12 @@ fn attacks_alone_triggers_only_for_a_lone_attacker() {
 #[test]
 fn its_power_over_a_defenders_attackers_is_refused() {
     let gain = |amount| Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Controller);
-    let its_power = whenever(is_attacked(DefenderFilter::Player(None)), gain(AmountExpr::TriggeringPower(Participant::Attacker)));
-    assert_eq!(its_power.participants_its_arms_lack(), vec![Participant::Attacker]);
+    let its_power = whenever(is_attacked(DefenderFilter::Player(None)), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
+    assert_eq!(its_power.event_roles_its_arms_lack(), vec![EventRole::Attacker]);
     let them = whenever(is_attacked(DefenderFilter::Player(None)), a_counter_on_the_attackers());
-    assert!(them.participants_its_arms_lack().is_empty());
-    let each = whenever(attacks(TriggerSubject::Any), gain(AmountExpr::TriggeringPower(Participant::Attacker)));
-    assert!(each.participants_its_arms_lack().is_empty(), "an attacker's own triggering event has one");
+    assert!(them.event_roles_its_arms_lack().is_empty());
+    let each = whenever(attacks(TriggerSubject::Any), gain(AmountExpr::TriggeringPower(EventRole::Attacker)));
+    assert!(each.event_roles_its_arms_lack().is_empty(), "an attacker's own triggering event has one");
 }
 
 // COVERS: ATOM-508.2a-001
@@ -432,15 +432,15 @@ fn attacking_watcher(name: &str, def: TriggerDef) -> Arc<CardData> {
         .build()
 }
 
-fn defending_player_of(creature: ConditionObject) -> PlayerRef {
+fn defending_player_of(creature: Antecedent) -> PlayerRef {
     PlayerRef::DefendingPlayer(creature)
 }
 
-fn its_attacker() -> ConditionObject {
-    ConditionObject::Triggering(Participant::Attacker)
+fn its_attacker() -> Antecedent {
+    Antecedent::InEvent(EventRole::Attacker)
 }
 
-fn loses_one(creature: ConditionObject) -> Effect {
+fn loses_one(creature: Antecedent) -> Effect {
     Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::DefendingPlayer(creature))
 }
 
@@ -455,7 +455,7 @@ fn tap_target_creature_of(defending: PlayerRef) -> Effect {
 /// "defending player" read for `creature`. The Warcaller attacks player 1 and
 /// Grizzly Bears attack player 3, so the trigger fires twice, once for each.
 /// Returns how much life players 1, 2 and 3 lost once both resolve.
-fn warcaller_and_bears_attack(creature: ConditionObject, dp: &dyn DecisionProvider) -> [i64; 3] {
+fn warcaller_and_bears_attack(creature: Antecedent, dp: &dyn DecisionProvider) -> [i64; 3] {
     let mut game = stocked(4);
     let def = whenever(attacks(creature_you_control()), loses_one(creature));
     let warcaller = put_on_battlefield(&mut game, attacking_watcher("Fixture Warcaller", def), 0);
@@ -483,7 +483,7 @@ fn defending_player_of_the_attacker_is_each_attackers_defender() {
 /// nothing asks their order.
 #[test]
 fn defending_player_of_the_source_is_one_player_for_every_trigger() {
-    assert_eq!(warcaller_and_bears_attack(ConditionObject::ThisObject, &test_dp()), [2, 0, 0]);
+    assert_eq!(warcaller_and_bears_attack(Antecedent::ThisObject, &test_dp()), [2, 0, 0]);
 }
 
 /// "Whenever this creature attacks, tap target creature defending player
@@ -493,7 +493,7 @@ fn defending_player_of_the_source_is_one_player_for_every_trigger() {
 /// chosen, at the trigger's placement.
 #[test]
 fn a_targets_defending_player_is_read_at_placement() {
-    let this_creatures = whenever(attacks(TriggerSubject::ThisObject), tap_target_creature_of(defending_player_of(ConditionObject::ThisObject)));
+    let this_creatures = whenever(attacks(TriggerSubject::ThisObject), tap_target_creature_of(defending_player_of(Antecedent::ThisObject)));
     let its_attackers = whenever(attacks(creature_you_control()), tap_target_creature_of(defending_player_of(its_attacker())));
     for (def, attacked) in [(this_creatures, 2), (its_attackers, 3)] {
         let mut game = stocked(4);
@@ -516,7 +516,7 @@ fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
     let mut def = whenever(attacks(TriggerSubject::ThisObject), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller));
     let creature = ObjectFilter::ByType(CardType::Creature);
     def.intervening_if =
-        Some(Condition::DefendingPlayer { of: ConditionObject::ThisObject, fact: PlayerFact::ControlsPermanent(creature) });
+        Some(Condition::DefendingPlayer { of: Antecedent::ThisObject, fact: PlayerFact::ControlsPermanent(creature) });
     let mut game = stocked(4);
     put_on_battlefield(&mut game, grizzly_bears(), 3);
     let source = put_on_battlefield(&mut game, attacking_watcher("Fixture Raider", def), 0);

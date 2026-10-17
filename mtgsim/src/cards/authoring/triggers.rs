@@ -13,14 +13,14 @@
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
-    Condition, ConditionObject, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder,
+    Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, ReturnUnder,
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackEventPer, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, Participant, ReflexiveForm,
+    AttackEventPer, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, ReflexiveForm,
     TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -218,9 +218,9 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     };
     triggered_ability(keyword, TriggerDef {
         condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
-        intervening_if: Some(Condition::CounterCount { object: ConditionObject::Triggering(Participant::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
+        intervening_if: Some(Condition::CounterCount { object: Antecedent::InEvent(EventRole::Object), kind: Some(counter), count: CountIs::AtMost(0) }),
         limit: None,
-        effect: Effect::Atom(returns, EffectRecipient::Triggering(Participant::Object)),
+        effect: Effect::Atom(returns, EffectRecipient::Triggering(EventRole::Object)),
     })
 }
 

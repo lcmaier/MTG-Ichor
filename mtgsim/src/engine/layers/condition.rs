@@ -28,7 +28,7 @@ use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
-use crate::types::effects::{Condition, ConditionObject, ObjectFilter, PlayerFact, PlayerSet};
+use crate::types::effects::{Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::engine::triggers::binding::TriggeringEventView;
@@ -68,15 +68,15 @@ impl ConditionReferents<'_> {
 
 impl<'a> ConditionReferents<'a> {
     /// Finds the object a text's word for one means. `ThisObject` is
-    /// `source`, the object whose ability it is; `Triggering(participant)` is
+    /// `source`, the object whose ability it is; `InEvent(role)` is
     /// the object that played that part in the triggering event. Either comes
     /// back as `CurrentOrLastKnown`: the object as it is now, or as it last
     /// existed once it has left (CR 608.2h). `None` when the triggering event
     /// has no such object.
-    pub fn object_for(&self, word: ConditionObject, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+    pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
         match word {
-            ConditionObject::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
-            ConditionObject::Triggering(participant) => self.triggering_event.object(participant),
+            Antecedent::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
+            Antecedent::InEvent(role) => self.triggering_event.object(role),
         }
     }
 }

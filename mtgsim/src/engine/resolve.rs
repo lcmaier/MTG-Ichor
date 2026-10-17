@@ -14,7 +14,7 @@ use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, Condition, ConditionObject, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
+    AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
@@ -2401,11 +2401,11 @@ impl GameState {
             // "Its power", "its toughness" (CR 608.2h). A negative value is
             // no amount: Paladin of Atonement's ruling gains nothing, and
             // loses nothing, for toughness below 0.
-            AmountExpr::TriggeringPower(participant) | AmountExpr::TriggeringToughness(participant) => {
+            AmountExpr::TriggeringPower(role) | AmountExpr::TriggeringToughness(role) => {
                 let binding = _ctx.trigger.as_ref().ok_or_else(|| {
                     format!("{:?} has no meaning outside a triggered ability's resolution", expr)
                 })?;
-                let chars = self.bound_characteristics(binding, *participant).ok_or_else(|| {
+                let chars = self.bound_characteristics(binding, *role).ok_or_else(|| {
                     format!(
                         "{:?}: the bound object has left since the event and no last known information answers for it, which is a missed capture",
                         expr
@@ -2595,7 +2595,7 @@ impl GameState {
     /// on the battlefield answers with its attack now, and nothing once it has
     /// left combat; one that left the battlefield answers with the attack it
     /// left with (Fathom Fleet Swordjack's ruling).
-    fn attacked_by(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Vec<ResolvedTarget> {
+    fn attacked_by(&self, creature: Antecedent, ctx: &ResolutionContext) -> Vec<ResolvedTarget> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         let attack = objects.object_for(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
         match attack {
@@ -2607,7 +2607,7 @@ impl GameState {
 
     /// "Defending player" for `creature` (CR 508.5), read as `attacked_by`
     /// reads it.
-    fn defending_player_of(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Option<PlayerId> {
+    fn defending_player_of(&self, creature: Antecedent, ctx: &ResolutionContext) -> Option<PlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         objects.object_for(creature, ctx.effect_source())?.defending_player(self)
     }

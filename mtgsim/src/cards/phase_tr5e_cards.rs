@@ -14,10 +14,10 @@ use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, ConditionObject, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use crate::types::effects::{AmountExpr, Antecedent, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::Participant;
+use crate::types::triggers::EventRole;
 
 /// Hellrider — {2}{R}{R}
 /// Creature — Devil 3/3
@@ -48,7 +48,7 @@ pub fn hellrider() -> Arc<CardData> {
     );
     let one_damage = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::Fixed(1), unpreventable: false },
-        EffectRecipient::AttackedBy(ConditionObject::Triggering(Participant::Attacker)),
+        EffectRecipient::AttackedBy(Antecedent::InEvent(EventRole::Attacker)),
     );
     CardDataBuilder::new("Hellrider")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))

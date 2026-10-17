@@ -44,8 +44,8 @@ use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{
-    DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, IdentityRef, TriggerEvent, TriggerOrigin,
-    Referred, TriggerSubject, TriggerTurn, Participant,
+    DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, EventRole, IdentityRef, Referred,
+    TriggerEvent, TriggerOrigin, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -525,7 +525,7 @@ fn next_death() -> Arc<CardData> {
         ManaCost::build(&[ManaType::Black], 0),
         create(template(
             dies(you_control),
-            Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::Object)), EffectRecipient::Controller),
+            Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller),
             DelayedDuration::Once,
         )),
     )
@@ -556,7 +556,7 @@ fn simultaneous_events_trigger_a_once_delayed_trigger_once_by_its_controllers_ch
     destroy_together(&mut game, &[small, big], &dp);
     assert!(dp.is_empty(), "the controller chose, at the trigger");
     let pending = the_delayed_pending(&game);
-    assert_eq!(pending.binding.triggering_object(Participant::Object).map(|s| s.id), Some(big), "the 3/3's death caused it");
+    assert_eq!(pending.binding.triggering_object(EventRole::Object).map(|s| s.id), Some(big), "the 3/3's death caused it");
     assert!(game.delayed_triggers.is_empty());
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 23);
@@ -580,7 +580,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
             ManaCost::build(&[ManaType::Red], 0),
             create(template(
                 attacks(TriggerSubject::Filter(you_control)),
-                Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::Attacker)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Attacker)), EffectRecipient::Controller),
                 DelayedDuration::Once,
             )),
         ),
@@ -593,7 +593,7 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
     dp.expect_choice(ChoiceKind::ChooseDelayedTriggerEvent { source: spell }, vec![ChoiceOption::Object(big)]);
     game.process_declare_attackers(&dp).unwrap();
     assert!(dp.is_empty(), "both attacked, and the controller chose");
-    assert_eq!(the_delayed_pending(&game).binding.triggering_object(Participant::Attacker).map(|s| s.id), Some(big));
+    assert_eq!(the_delayed_pending(&game).binding.triggering_object(EventRole::Attacker).map(|s| s.id), Some(big));
     let _ = small;
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 23);

@@ -12,7 +12,7 @@
 //! and that refusal stays inside this module: `Not` and the connectives need
 //! it, and every asker outside wants a yes or a no.
 
-use crate::types::effects::ConditionObject;
+use crate::types::effects::Antecedent;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
@@ -38,7 +38,7 @@ pub(crate) trait FilterReferents {
     /// "Defending player" for the attacking creature `creature` names (CR
     /// 508.5): `None` where the text names no such creature, or it attacks
     /// nothing.
-    fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId>;
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId>;
     /// How many counters of `kind`, or of every kind for `None`, the
     /// permanent `id` has: off the battlefield here, and off the entity the
     /// layer walk is building there, which under a look-ahead is the entering
@@ -90,7 +90,7 @@ impl FilterReferents for TextReferents<'_, '_> {
         self.identity.earlier_targets
     }
 
-    fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId> {
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game)
     }
 }

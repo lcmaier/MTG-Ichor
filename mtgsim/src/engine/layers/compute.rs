@@ -15,7 +15,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::oracle::characteristics::CurrentOrLastKnown;
-use crate::types::effects::ConditionObject;
+use crate::types::effects::Antecedent;
 use crate::engine::layers::board::{
     compute_board, compute_board_to, is_dynamic, pass_membership, record_intrinsic, Board, PassMembership, RowNote,
     AffectedSet,
@@ -698,10 +698,10 @@ impl FilterReferents for FilterPlayers<'_, '_> {
     }
 
     /// The source, now: a static ability has no triggering event.
-    fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId> {
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            ConditionObject::ThisObject => CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game),
-            ConditionObject::Triggering(_) => None,
+            Antecedent::ThisObject => CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game),
+            Antecedent::InEvent(_) => None,
         }
     }
 
@@ -778,10 +778,10 @@ fn resolve_set_controller(
         // CR 508.5: an attacking source's defending player. A static has no
         // triggering event, and "defending player" with no creature names no
         // one player.
-        PlayerRef::DefendingPlayer(ConditionObject::ThisObject) => {
+        PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
             CurrentOrLastKnown { id: effect.source, lki: None }.defending_player(game).filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(ConditionObject::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::InEvent(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // CR 102.2 — exactly one opponent, so nothing was ever chosen.

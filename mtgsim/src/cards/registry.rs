@@ -1232,22 +1232,22 @@ mod tests {
         }
     }
 
-    /// Every participant a registered trigger names is one every arm of its
+    /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A
     /// delayed trigger's def, which its creating instruction carries, is
     /// checked against its own arms.
     #[test]
-    fn every_trigger_names_participants_its_arms_have() {
+    fn every_trigger_names_event_roles_its_arms_have() {
         use crate::objects::card_data::AbilityDef;
         use crate::types::effects::{Effect, Primitive};
         use crate::types::triggers::TriggerDef;
 
         fn check(what: &str, def: &TriggerDef) {
             assert!(
-                def.participants_its_arms_lack().is_empty(),
+                def.event_roles_its_arms_lack().is_empty(),
                 "{what}: names {:?}, which an arm of its condition does not have",
-                def.participants_its_arms_lack()
+                def.event_roles_its_arms_lack()
             );
         }
         fn walk(what: &str, effect: &Effect) {

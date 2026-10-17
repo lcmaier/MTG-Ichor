@@ -20,7 +20,7 @@ use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Participant, TriggerSubject};
+use crate::types::triggers::{EventRole, TriggerSubject};
 
 /// Grafted Wargear — {3}
 /// Artifact — Equipment
@@ -88,7 +88,7 @@ pub fn grafted_wargear() -> Arc<CardData> {
             text,
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(Participant::Host)),
+                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(EventRole::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))

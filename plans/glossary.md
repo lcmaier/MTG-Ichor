@@ -663,14 +663,22 @@ through that event's projections at resolution, so there is one copy of every
 fact and the frame comes with the record. → `TriggerBinding`,
 `engine::triggers::binding`.
 
-**participant** — an object a triggering event is about, by the part it
-played: a damage record's source and recipient, an attack's attacker,
-an attach's attachment and host, or the one object of a record about one. Each
-instruction that reads a triggering object names the participant it means,
+**event role** — the part an object played in a triggering event: a damage
+record's source and recipient, an attack's attacker and what it attacks, an
+attach's attachment and host, or the one object of a record about one. Each
+instruction that reads a triggering object names the event role it means,
 since CR 608.2c leaves the antecedent of "that creature" to the text. The
-project's word; it avoids CR 700.8's *party* and the Role tokens. →
-`Participant`, `TriggeringEventObjects`, `triggers-architecture.md` §12
-(TR-5a).
+project's words, always both: a bare "role" is the Role tokens' (CR 111.10),
+and "party" is CR 700.8's. Called *participant* until TR-5e's review
+(2026-10-16). → `EventRole`, `TriggeringEventObjects`,
+`triggers-architecture.md` §12 (TR-5a).
+
+**antecedent** — which object a word in an ability's text means: "this", the
+object whose ability it is, or the object with an event role in the
+triggering event. A condition, a recipient and "defending player" each name
+one, read as CR 608.2h reads the object. Called *ConditionObject* until
+TR-5e's review (2026-10-16). → `Antecedent`,
+`ConditionReferents::object_for`.
 
 **triggering event** — one event that triggered an ability: one occurrence of
 its trigger event (CR 603.2c), with the record that holds it and the objects

@@ -2578,8 +2578,11 @@ The owner's code review of #256, twelve comments.
   instruction needs exactly one object in that part),
   `participants_needing_one`, and `TriggerEvent::may_have_several`.
   `ConditionReferents::object` is `object_for`, with a doc that says what
-  comes back. `Participant` and `ConditionObject` were put to the owner, with
-  `EventRole` and `TextObject` proposed.
+  comes back. Two older names were renamed at the owner's choice:
+  `Participant` is `EventRole`, and `ConditionObject` is `Antecedent`, whose
+  `Triggering` variant is `InEvent` (`TextObject` was offered and declined as
+  no clearer). Prose says "event role", never a bare "role", which the Role
+  tokens own (CR 111.10); the glossary's entries follow.
 - **`GameEvent::for_each_object_named`** replaces
   `objects_named_as_announced`. That function packed each variant into three
   slots and chained them, and TR-5e's attackers had been bolted on as a

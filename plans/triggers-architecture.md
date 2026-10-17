@@ -298,7 +298,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2b |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
-| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and each instruction names the one it reads, `Participant::DamageSource` or `Participant::DamageRecipient` (§3.12a, `codebase-state.md` item 255; TR-5a, §12) | no | TR-1 |
+| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field. The record names two objects, and "that creature" means either: the source in "put a +1/+1 counter on that creature", the recipient in "destroy that creature". The binding keeps both, and each instruction names the one it reads, `EventRole::DamageSource` or `EventRole::DamageRecipient` (§3.12a, `codebase-state.md` item 255; TR-5a, §12) | no | TR-1 |
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
 | `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, was_cast: Option<bool>, multiplicity }` — `from` and `was_cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
 | `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3). `cause` waits for its one customer, CR 727's rad counters | no | TR-1, TR-2a |
@@ -3355,10 +3355,10 @@ item 173's 113.6b statement).
 **What shipped.** The binding keeps its triggering events
 (`TriggeringEvent`), each its record and its `TriggeringEventObjects`: every
 object the event is about, by the part it played, as the existence the
-dispatch found (§3.4's amendment). Each reader names its `Participant`, as
-`EffectRecipient::Triggering(Participant::DamageSource)`,
+dispatch found (§3.4's amendment). Each reader names its `EventRole` (then
+`Participant`), as `EffectRecipient::Triggering(EventRole::DamageSource)`,
 since CR 608.2c leaves the antecedent of "that creature" to the text, and a
-registry test checks each named participant against its condition's arms.
+registry test checks each named event role against its condition's arms.
 One `record_frame` reads a departure's frame and a damage source that left
 before dealing its damage (CR 608.2h), at the trigger and at resolution.
 `ObjectFilter::WithCounters`, and `Condition::CounterCount`, count one kind

@@ -177,13 +177,15 @@ pub enum DamageRecipient {
     Object(Option<ObjectFilter>),
 }
 
-/// The part an object played in the event that triggered an ability, which an
-/// instruction names to say which object it reads. "That creature" after
-/// "[a creature] deals damage" is the damage's source, and after "[a creature]
-/// is dealt damage" its recipient: CR 608.2c leaves the antecedent to the
-/// text, so the card states it (`triggers-architecture.md` §12, TR-5a).
+/// An object's event role: the part it played in the event that triggered
+/// an ability, which an instruction names to say which object it reads. "That
+/// creature" after "[a creature] deals damage" is the damage's source, and
+/// after "[a creature] is dealt damage" its recipient: CR 608.2c leaves the
+/// antecedent to the text, so the card states it (`triggers-architecture.md`
+/// §12, TR-5a). Always "event role", never a bare "role", which the Role
+/// tokens own (CR 111.10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Participant {
+pub enum EventRole {
     /// The one object an event about one object names: the card a zone change
     /// moved, the permanent tapped or that entered, the card drawn, the spell
     /// cast or countered, the source of mana, the permanent whose control
@@ -204,15 +206,15 @@ pub enum Participant {
     Host,
 }
 
-impl Participant {
-    pub const ALL: [Participant; 7] = [
-        Participant::Object,
-        Participant::DamageSource,
-        Participant::DamageRecipient,
-        Participant::Attacker,
-        Participant::Attacked,
-        Participant::Attachment,
-        Participant::Host,
+impl EventRole {
+    pub const ALL: [EventRole; 7] = [
+        EventRole::Object,
+        EventRole::DamageSource,
+        EventRole::DamageRecipient,
+        EventRole::Attacker,
+        EventRole::Attacked,
+        EventRole::Attachment,
+        EventRole::Host,
     ];
 }
 
@@ -241,7 +243,7 @@ impl ObjectOrPlayer {
 pub enum TriggeringEventObjects {
     /// A step beginning, a life change, a player losing.
     NoObject,
-    /// [`Participant::Object`].
+    /// [`EventRole::Object`].
     Object(ObjectRef),
     /// CR 120.1: the damage's source, as the existence that dealt it, and what
     /// it was dealt to.
@@ -256,18 +258,18 @@ pub enum TriggeringEventObjects {
 }
 
 impl TriggeringEventObjects {
-    /// The object that played `participant`, if this event has exactly one:
+    /// The object that played `role`, if this event has exactly one:
     /// a defender's attackers are several, and [`Self::objects`] has them.
-    pub fn get(&self, participant: Participant) -> Option<ObjectRef> {
-        match (self, participant) {
-            (TriggeringEventObjects::Object(object), Participant::Object)
-            | (TriggeringEventObjects::Damage { source: object, .. }, Participant::DamageSource)
-            | (TriggeringEventObjects::Attack { attacker: object, .. }, Participant::Attacker)
-            | (TriggeringEventObjects::Attach { attachment: object, .. }, Participant::Attachment)
-            | (TriggeringEventObjects::Attach { host: object, .. }, Participant::Host) => Some(*object),
-            (TriggeringEventObjects::Damage { recipient: object, .. }, Participant::DamageRecipient)
-            | (TriggeringEventObjects::Attack { defender: object, .. }, Participant::Attacked)
-            | (TriggeringEventObjects::Defense { defender: object, .. }, Participant::Attacked) => object.object(),
+    pub fn get(&self, role: EventRole) -> Option<ObjectRef> {
+        match (self, role) {
+            (TriggeringEventObjects::Object(object), EventRole::Object)
+            | (TriggeringEventObjects::Damage { source: object, .. }, EventRole::DamageSource)
+            | (TriggeringEventObjects::Attack { attacker: object, .. }, EventRole::Attacker)
+            | (TriggeringEventObjects::Attach { attachment: object, .. }, EventRole::Attachment)
+            | (TriggeringEventObjects::Attach { host: object, .. }, EventRole::Host) => Some(*object),
+            (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
+            | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
+            | (TriggeringEventObjects::Defense { defender: object, .. }, EventRole::Attacked) => object.object(),
             (
                 TriggeringEventObjects::NoObject
                 | TriggeringEventObjects::Object(_)
@@ -281,26 +283,26 @@ impl TriggeringEventObjects {
     }
 
     /// Each object, with the part it played.
-    pub fn objects(&self) -> impl Iterator<Item = (Participant, ObjectRef)> + '_ {
+    pub fn objects(&self) -> impl Iterator<Item = (EventRole, ObjectRef)> + '_ {
         // Up to two objects, then a defender's attackers.
-        let (pairs, attackers): ([Option<(Participant, ObjectRef)>; 2], &[ObjectRef]) = match self {
+        let (pairs, attackers): ([Option<(EventRole, ObjectRef)>; 2], &[ObjectRef]) = match self {
             TriggeringEventObjects::NoObject => ([None, None], &[]),
-            TriggeringEventObjects::Object(object) => ([Some((Participant::Object, *object)), None], &[]),
+            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], &[]),
             TriggeringEventObjects::Damage { source, recipient } => (
-                [Some((Participant::DamageSource, *source)), recipient.object().map(|o| (Participant::DamageRecipient, o))],
+                [Some((EventRole::DamageSource, *source)), recipient.object().map(|o| (EventRole::DamageRecipient, o))],
                 &[],
             ),
             TriggeringEventObjects::Attack { attacker, defender } => {
-                ([Some((Participant::Attacker, *attacker)), defender.object().map(|o| (Participant::Attacked, o))], &[])
+                ([Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))], &[])
             }
             TriggeringEventObjects::Defense { defender, attackers } => {
-                ([defender.object().map(|o| (Participant::Attacked, o)), None], attackers)
+                ([defender.object().map(|o| (EventRole::Attacked, o)), None], attackers)
             }
             TriggeringEventObjects::Attach { attachment, host } => {
-                ([Some((Participant::Attachment, *attachment)), Some((Participant::Host, *host))], &[])
+                ([Some((EventRole::Attachment, *attachment)), Some((EventRole::Host, *host))], &[])
             }
         };
-        pairs.into_iter().flatten().chain(attackers.iter().map(|&attacker| (Participant::Attacker, attacker)))
+        pairs.into_iter().flatten().chain(attackers.iter().map(|&attacker| (EventRole::Attacker, attacker)))
     }
 }
 
@@ -810,19 +812,19 @@ impl TriggerEvent {
     }
 
     /// Whether one triggering event of this arm may have several objects in
-    /// `participant`'s part: a defender's attackers (CR 508.3b). An
+    /// `role`'s part: a defender's attackers (CR 508.3b). An
     /// instruction that needs exactly one, "its power", cannot name it.
-    pub fn may_have_several(&self, participant: Participant) -> bool {
+    pub fn may_have_several(&self, role: EventRole) -> bool {
         matches!(
-            (self, participant),
-            (TriggerEvent::Attacks { per: AttackEventPer::Defender, .. }, Participant::Attacker)
+            (self, role),
+            (TriggerEvent::Attacks { per: AttackEventPer::Defender, .. }, EventRole::Attacker)
         )
     }
 
     /// The parts an object can play in this arm's triggering events: what an
     /// instruction may name, which a registry test checks every registered
     /// card against (TR-5a).
-    pub fn participants(&self) -> &'static [Participant] {
+    pub fn event_roles(&self) -> &'static [EventRole] {
         match self {
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
@@ -832,11 +834,11 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::ControlChanges { .. } => &[Participant::Object],
-            TriggerEvent::DamageDealt { .. } => &[Participant::DamageSource, Participant::DamageRecipient],
-            TriggerEvent::Attacks { .. } => &[Participant::Attacker, Participant::Attacked],
+            | TriggerEvent::ControlChanges { .. } => &[EventRole::Object],
+            TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
+            TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
-                &[Participant::Attachment, Participant::Host]
+                &[EventRole::Attachment, EventRole::Host]
             }
             TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -1058,20 +1060,20 @@ impl TriggerBinding {
         }
     }
 
-    /// "Its power", "if it had": the object that played `participant` in the
+    /// "Its power", "if it had": the object that played `role` in the
     /// one triggering event, as the existence the dispatch found. `None` for a
     /// "one or more" trigger, which has no single object.
-    pub fn triggering_object(&self, participant: Participant) -> Option<ObjectRef> {
-        self.triggering_event()?.objects.get(participant)
+    pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
+        self.triggering_event()?.objects.get(role)
     }
 
-    /// "That creature", "them": each object that played `participant` in each
+    /// "That creature", "them": each object that played `role` in each
     /// triggering event. One for a `PerOccurrence` trigger, but for a
     /// defender's attackers.
-    pub fn triggering_objects(&self, participant: Participant) -> Vec<ObjectRef> {
+    pub fn triggering_objects(&self, role: EventRole) -> Vec<ObjectRef> {
         self.triggering_events
             .iter()
-            .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == participant))
+            .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == role))
             .map(|(_, object)| object)
             .collect()
     }

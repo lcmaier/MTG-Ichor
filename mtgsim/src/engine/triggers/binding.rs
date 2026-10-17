@@ -3,7 +3,7 @@
 //! A [`TriggerBinding`] holds its triggering events, each with the record it
 //! matched, copied at dispatch, and the objects that event is about. Every
 //! read here is of the binding's own records through the matched arm's
-//! projection, and each instruction names the participant it reads (TR-5a).
+//! projection, and each instruction names the event role it reads (TR-5a).
 
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
-use crate::types::triggers::{Lki, Participant, TriggerBinding, TriggerEvent, TriggeringEventObjects};
+use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
 /// departure's CR 603.10a frame for an arm that looks back, and a damage
@@ -92,35 +92,35 @@ pub enum TriggeringEventView<'a> {
 }
 
 impl<'a> TriggeringEventView<'a> {
-    /// The object that played `participant`, as it is read here.
-    pub fn object(self, participant: Participant) -> Option<CurrentOrLastKnown<'a>> {
+    /// The object that played `role`, as it is read here.
+    pub fn object(self, role: EventRole) -> Option<CurrentOrLastKnown<'a>> {
         match self {
             TriggeringEventView::None => None,
             TriggeringEventView::AtTrigger { arm, record, objects } => {
-                objects.get(participant).map(|object| read_at_trigger(arm, record, object.id))
+                objects.get(role).map(|object| read_at_trigger(arm, record, object.id))
             }
-            TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, participant),
+            TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, role),
         }
     }
 
     /// The one of its objects that is `id`, as `object` reads it.
     pub fn object_with_id(self, id: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
-        Participant::ALL.into_iter().filter_map(|participant| self.object(participant)).find(|object| object.id == id)
+        EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id == id)
     }
 }
 
 impl GameState {
-    /// "That creature", "them": the object that played `participant` in each
+    /// "That creature", "them": the object that played `role` in each
     /// triggering event that is still the object the event was about. CR
     /// 603.6's "unable to be found in the zone it went to" and CR 400.7's new
     /// object are one comparison: the id is in the store and its
     /// `zone_change_epoch` is the one the dispatcher saw. A zone change's
     /// trigger finds the object it moved only in a public zone (CR 400.7e), so
     /// not in the hand or library it went to.
-    pub fn bound_objects(&self, binding: &TriggerBinding, participant: Participant) -> Vec<ObjectId> {
+    pub fn bound_objects(&self, binding: &TriggerBinding, role: EventRole) -> Vec<ObjectId> {
         let zone_change = matches!(binding.event(), TriggerEvent::ZoneChange { .. });
         binding
-            .triggering_objects(participant)
+            .triggering_objects(role)
             .into_iter()
             .filter(|&reference| self.find(reference).is_some_and(|object| !zone_change || object.zone.is_public()))
             .map(|reference| reference.id)
@@ -146,7 +146,7 @@ impl GameState {
     }
 
     /// "Its power", "its toughness": the characteristics of the object that
-    /// played `participant`, as CR 608.2h reads them. When its record framed
+    /// played `role`, as CR 608.2h reads them. When its record framed
     /// it (`record_frame`), it is expected where it was, so the frame answers
     /// (Paladin of Atonement's ruling: its toughness "as it last existed on the
     /// battlefield"). Otherwise it is the object now, while it is still where
@@ -156,12 +156,12 @@ impl GameState {
     pub fn bound_characteristics(
         &self,
         binding: &TriggerBinding,
-        participant: Participant,
+        role: EventRole,
     ) -> Option<Arc<EffectiveCharacteristics>> {
-        self.triggering_object(binding, participant)?.characteristics(self)
+        self.triggering_object(binding, role)?.characteristics(self)
     }
 
-    /// "It", the object that played `participant` in a resolving trigger's
+    /// "It", the object that played `role` in a resolving trigger's
     /// event, in the form CR 608.2h reads it: the object itself while it is
     /// still where the event left it, and otherwise how it last existed.
     ///
@@ -175,10 +175,10 @@ impl GameState {
     pub(crate) fn triggering_object<'a>(
         &'a self,
         binding: &'a TriggerBinding,
-        participant: Participant,
+        role: EventRole,
     ) -> Option<CurrentOrLastKnown<'a>> {
         let event = binding.triggering_event()?;
-        let object = event.objects.get(participant)?;
+        let object = event.objects.get(role)?;
         let lki = match record_frame(binding.event(), &event.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
@@ -232,8 +232,8 @@ impl GameState {
             )
         })?;
         Ok(match recipient {
-            EffectRecipient::Triggering(participant) => {
-                self.bound_objects(binding, *participant).into_iter().map(ResolvedTarget::Object).collect()
+            EffectRecipient::Triggering(role) => {
+                self.bound_objects(binding, *role).into_iter().map(ResolvedTarget::Object).collect()
             }
             EffectRecipient::TriggeringPlayer => {
                 self.bound_player(binding).map(ResolvedTarget::Player).into_iter().collect()

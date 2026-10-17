@@ -12,15 +12,15 @@
 use std::ops::BitOr;
 
 use crate::types::effects::{
-    AmountExpr, Condition, ConditionObject, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
+    AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{Participant, TriggerDef, TriggerLimit};
+use crate::types::triggers::{EventRole, TriggerDef, TriggerLimit};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
-/// compares, and the participants of its event it names. Built like
-/// `Channels`: a bit per fact, then a bit per [`Participant`] it names, then a
-/// bit per participant it needs exactly one object of.
+/// compares, and the event roles of its event it names. Built like
+/// `Channels`: a bit per fact, then a bit per [`EventRole`] it names, then a
+/// bit per event role it needs exactly one object of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BoundReads(u32);
 
@@ -42,41 +42,41 @@ impl BoundReads {
     /// "That card", "that token": what a delayed trigger refers to (CR
     /// 603.7c).
     pub const REFERRED: BoundReads = BoundReads(1 << 6);
-    /// Every fact, and no participant: a def that reads everything is asked
-    /// whatever its participants are, and a participant named inside a
+    /// Every fact, and no event role: a def that reads everything is asked
+    /// whatever its event roles are, and an event role named inside a
     /// delayed trigger's or a static ability's body is that body's own.
     const EVERYTHING: BoundReads = BoundReads(0x007F);
-    /// The bit for the first participant the def names: after the seven
-    /// facts, one bit per `Participant`.
-    const FIRST_PARTICIPANT: u32 = 7;
-    /// The bit for the first participant the def needs exactly one object
-    /// of: after the named-participant bits, one bit per `Participant`.
-    /// Counted from `Participant::ALL`, so a new participant moves it and
+    /// The bit for the first event role the def names: after the seven
+    /// facts, one bit per `EventRole`.
+    const FIRST_EVENT_ROLE: u32 = 7;
+    /// The bit for the first event role the def needs exactly one object
+    /// of: after the bits for the event roles it names, one bit per `EventRole`.
+    /// Counted from `EventRole::ALL`, so a new event role moves it and
     /// the two runs of bits never overlap.
-    const FIRST_NEEDS_ONE: u32 = Self::FIRST_PARTICIPANT + Participant::ALL.len() as u32;
+    const FIRST_NEEDS_ONE: u32 = Self::FIRST_EVENT_ROLE + EventRole::ALL.len() as u32;
 
-    /// The def names `participant` of its event.
-    pub fn participant(participant: Participant) -> BoundReads {
-        BoundReads(1 << (Self::FIRST_PARTICIPANT + participant as u32))
+    /// The def names `role` of its event.
+    pub fn event_role(role: EventRole) -> BoundReads {
+        BoundReads(1 << (Self::FIRST_EVENT_ROLE + role as u32))
     }
 
-    /// The def needs exactly one object in `participant`'s part, and names
+    /// The def needs exactly one object in `role`'s part, and names
     /// it: "its power", "if it had", "the player it's attacking". "Them"
     /// takes every object in the part, and needs none in particular.
-    fn needs_one(participant: Participant) -> BoundReads {
-        BoundReads::participant(participant) | BoundReads(1 << (Self::FIRST_NEEDS_ONE + participant as u32))
+    fn needs_one(role: EventRole) -> BoundReads {
+        BoundReads::event_role(role) | BoundReads(1 << (Self::FIRST_NEEDS_ONE + role as u32))
     }
 
-    /// Each participant of its event the def names, which every arm of its
-    /// condition must have (`TriggerEvent::participants`).
-    pub fn participants(self) -> impl Iterator<Item = Participant> {
-        Participant::ALL.into_iter().filter(move |&p| self.contains(BoundReads::participant(p)))
+    /// Each event role of its event the def names, which every arm of its
+    /// condition must have (`TriggerEvent::event_roles`).
+    pub fn event_roles(self) -> impl Iterator<Item = EventRole> {
+        EventRole::ALL.into_iter().filter(move |&p| self.contains(BoundReads::event_role(p)))
     }
 
-    /// Each participant the def needs exactly one object of, which no arm of
+    /// Each event role the def needs exactly one object of, which no arm of
     /// its condition may have several of (`TriggerEvent::may_have_several`).
-    pub fn participants_needing_one(self) -> impl Iterator<Item = Participant> {
-        Participant::ALL.into_iter().filter(move |&p| self.contains(BoundReads::needs_one(p)))
+    pub fn event_roles_needing_one(self) -> impl Iterator<Item = EventRole> {
+        EventRole::ALL.into_iter().filter(move |&p| self.contains(BoundReads::needs_one(p)))
     }
 
     pub fn contains(self, fact: BoundReads) -> bool {
@@ -102,18 +102,18 @@ impl TriggerDef {
         effect(&self.effect) | self.intervening_if.as_ref().map_or(BoundReads::NOTHING, condition) | gate
     }
 
-    /// Each participant the def names that some arm of its condition does not
-    /// have (`TriggerEvent::participants`), or needs exactly one object of
+    /// Each event role the def names that some arm of its condition does not
+    /// have (`TriggerEvent::event_roles`), or needs exactly one object of
     /// where an arm may have several (`TriggerEvent::may_have_several`): an
     /// instruction that could only ever find nothing there, which is a card
     /// written wrong. Empty for every registered card (`cards::registry`'s
     /// test).
-    pub fn participants_its_arms_lack(&self) -> Vec<Participant> {
+    pub fn event_roles_its_arms_lack(&self) -> Vec<EventRole> {
         let arms = self.condition.events();
         let reads = self.bound_reads();
-        let mut lacking: Vec<Participant> =
-            reads.participants().filter(|p| arms.iter().any(|arm| !arm.participants().contains(p))).collect();
-        for several in reads.participants_needing_one().filter(|&p| arms.iter().any(|arm| arm.may_have_several(p))) {
+        let mut lacking: Vec<EventRole> =
+            reads.event_roles().filter(|p| arms.iter().any(|arm| !arm.event_roles().contains(p))).collect();
+        for several in reads.event_roles_needing_one().filter(|&p| arms.iter().any(|arm| arm.may_have_several(p))) {
             if !lacking.contains(&several) {
                 lacking.push(several);
             }
@@ -132,7 +132,7 @@ fn effect(e: &Effect) -> BoundReads {
         Effect::ForEach(over, inner) => selector(over) | effect(inner),
         Effect::Repeat(times, inner) => amount(times) | effect(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
-        // elided, and each mode's participants are the def's. The other four
+        // elided, and each mode's event roles are the def's. The other four
         // are static abilities' bodies.
         Effect::Modal { modes, .. } => modes.iter().fold(BoundReads::EVERYTHING, |reads, e| reads | effect(e)),
         Effect::Replacement(_)
@@ -153,7 +153,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         | EffectRecipient::SameInstanceAs(_)
         | EffectRecipient::EachOf(_) => BoundReads::NOTHING,
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
-        EffectRecipient::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(*p),
+        EffectRecipient::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::event_role(*p),
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
         EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_read(*creature),
         EffectRecipient::Referred => BoundReads::REFERRED,
@@ -167,12 +167,12 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
     }
 }
 
-/// A creature the def names by `ConditionObject` and reads a fact of as it
+/// A creature the def names by `Antecedent` and reads a fact of as it
 /// is now: its attack.
-fn creature_read(creature: ConditionObject) -> BoundReads {
+fn creature_read(creature: Antecedent) -> BoundReads {
     match creature {
-        ConditionObject::ThisObject => BoundReads::SOURCE,
-        ConditionObject::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::needs_one(p),
+        Antecedent::ThisObject => BoundReads::SOURCE,
+        Antecedent::InEvent(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::needs_one(p),
     }
 }
 
@@ -241,10 +241,10 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
-        | Condition::CounterCount { object: ConditionObject::ThisObject, .. } => BoundReads::SOURCE,
+        | Condition::CounterCount { object: Antecedent::ThisObject, .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         // "It had": the object, as the record it left with framed it.
-        Condition::CounterCount { object: ConditionObject::Triggering(p), .. } => {
+        Condition::CounterCount { object: Antecedent::InEvent(p), .. } => {
             BoundReads::CHARACTERISTICS | BoundReads::needs_one(*p)
         }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
@@ -343,7 +343,7 @@ mod tests {
     use crate::cards::authoring::{enters, leaves_the_battlefield, whenever};
     use crate::types::card_types::CardType;
     use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, Primitive, ReturnUnder};
-    use crate::types::triggers::{Participant, TriggerDef, TriggerSubject};
+    use crate::types::triggers::{EventRole, TriggerDef, TriggerSubject};
 
     /// "Whenever a creature enters, exile it until this leaves the
     /// battlefield": the exile reads the entering creature, and its return
@@ -359,7 +359,7 @@ mod tests {
                     refers_to: None,
                     under: ReturnUnder::Owner,
                 },
-                EffectRecipient::Triggering(Participant::Object),
+                EffectRecipient::Triggering(EventRole::Object),
             ),
         )
     }
@@ -374,13 +374,13 @@ mod tests {
     /// "Whenever a creature dies, destroy the creature it dealt damage to": a
     /// dies record has no damage recipient, and the def says so.
     #[test]
-    fn a_participant_the_arm_lacks_is_named() {
+    fn an_event_role_the_arm_lacks_is_named() {
         let def = whenever(
             crate::cards::authoring::dies(TriggerSubject::Any),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(Participant::DamageRecipient)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient)),
         );
-        assert_eq!(def.participants_its_arms_lack(), vec![Participant::DamageRecipient]);
-        assert!(exile_that_creature_until_this_leaves().participants_its_arms_lack().is_empty());
+        assert_eq!(def.event_roles_its_arms_lack(), vec![EventRole::DamageRecipient]);
+        assert!(exile_that_creature_until_this_leaves().event_roles_its_arms_lack().is_empty());
     }
 
     /// The control: a plain exile of the same creature reads only it.
@@ -388,8 +388,8 @@ mod tests {
     fn a_plain_exile_reads_only_its_object() {
         let def = whenever(
             enters(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature))),
-            Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(Participant::Object)),
+            Effect::Atom(Primitive::Exile, EffectRecipient::Triggering(EventRole::Object)),
         );
-        assert_eq!(def.bound_reads(), BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(Participant::Object));
+        assert_eq!(def.bound_reads(), BoundReads::TRIGGERING_OBJECTS | BoundReads::event_role(EventRole::Object));
     }
 }
