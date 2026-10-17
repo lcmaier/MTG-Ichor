@@ -47,6 +47,10 @@ pub(crate) trait FilterReferents {
     fn counters_on(&self, game: &GameState, id: ObjectId, kind: Option<CounterType>) -> u32 {
         game.battlefield.get(&id).map_or(0, |entity| entity.counters_of(kind))
     }
+    /// That the asker read `input` (`GatedWalkInput`). The layer walk keeps
+    /// it with the frames it stores; every other asker's answer is never
+    /// kept, so it has nothing to note.
+    fn note_gated_read(&self, _input: GatedWalkInput) {}
 }
 
 /// The referents of an asker outside the layer walk, given as plain values:
@@ -255,7 +259,7 @@ fn answer_or_refuse<'f>(
         ObjectFilter::Token => Ok(object()?.is_token),
         // The existence it is, or the one its frame kept (CR 400.7).
         ObjectFilter::AttackedThisTurn => {
-            game.note_gated_read(GatedWalkInput::Histories);
+            referents.note_gated_read(GatedWalkInput::Histories);
             let existence = match last_known {
                 Some(lki) => lki.object(),
                 None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))?,

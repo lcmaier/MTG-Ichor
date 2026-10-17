@@ -1024,10 +1024,10 @@ residual rather than in advance.
   PR; and four inputs whose writes are too frequent to bump at each, life
   totals (`codebase-state.md` item 199), the tapped status (item 187), combat
   and the histories with the turn number. **Since TR-5f's review those four are
-  `GatedWalkInput`s**: a walk whose frames will be stored notes each one it
-  reads against the epoch, and each writer moves the epoch only when a frame
-  valid now read it. A walk with no such read costs nothing, and a write
-  costs a compare. The note rather than items 187 and 199's registry bit,
+  `GatedWalkInput`s**: a pass notes each one it reads on its `Board`, the
+  memo keeps those notes with the pass's frames at their epoch, and each
+  writer moves the epoch only when a frame stored at the current epoch read
+  it. A walk with no such read costs nothing, and a write costs a compare. The note rather than items 187 and 199's registry bit,
   because a note covers every route to the read: a row's condition, a
   filter (`ObjectFilter::AttackedThisTurn`) and a CDA alike.
 - **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical

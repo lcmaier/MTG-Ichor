@@ -40,7 +40,7 @@
 //! frame from the live board when nested inside a pass, or from the memo
 //! otherwise (`compute::compute_non_member`).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
@@ -64,6 +64,7 @@ use crate::types::effects::{
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::{Zone, ZoneSet};
+use crate::state::layer_memo::{GatedInputs, GatedWalkInput};
 
 /// One pass's state: the working set and its live frames.
 ///
@@ -121,6 +122,9 @@ pub(super) struct Board<'l> {
     /// the seed off the entity it already reads, so a board with none pays
     /// for an empty list.
     entered_as: Vec<EnteredAsNote>,
+    /// The gated inputs this pass read (`GatedWalkInput`), which the memo
+    /// keeps with its frames when it stores them.
+    gated_reads: Cell<GatedInputs>,
 }
 
 /// One member's `PermanentState::entered_as`, as the layers apply it: the
@@ -217,6 +221,7 @@ impl<'l> Board<'l> {
             left_out: ZoneSet::EMPTY,
             notes: Vec::new(),
             entered_as: Vec::new(),
+            gated_reads: Cell::new(GatedInputs::NONE),
         }
     }
 
@@ -303,6 +308,7 @@ impl<'l> Board<'l> {
             left_out,
             notes: Vec::new(),
             entered_as: Vec::new(),
+            gated_reads: Cell::new(GatedInputs::NONE),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
@@ -437,6 +443,16 @@ impl<'l> Board<'l> {
         let frame = Arc::new(frame);
         self.sub.borrow_mut().insert((id, ceiling), Arc::clone(&frame));
         Some(FrameRef::Shared(frame))
+    }
+
+    /// That this pass read `input`.
+    pub(super) fn note_gated_read(&self, input: GatedWalkInput) {
+        self.gated_reads.set(self.gated_reads.get().with(input));
+    }
+
+    /// The gated inputs this pass read.
+    pub(super) fn gated_reads(&self) -> GatedInputs {
+        self.gated_reads.get()
     }
 
     /// Hand the frames over, for the memo, and the notes when this pass left

@@ -3087,7 +3087,7 @@ settlement, gated on the same epoch, sees an "as long as" flip with them.
 planeswalker or battle that stops being one, join the settlement's combat
 part with `backlog.md` §2.23. Item 11's blockers half is TR-5c's.
 
-**Size.** +2,507/−281 in code and tests (code +1,334/−242, tests
+**Size.** +2,547/−286 in code and tests (code +1,374/−247, tests
 +1,170/−35, the dev GUI +3/−4), against 1,770–1,995, past the band by
 the review's fixes. Thirty-six integration
 tests in

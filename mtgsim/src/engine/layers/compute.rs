@@ -31,6 +31,7 @@ use crate::state::game_state::GameState;
 use crate::state::layer_memo::AuditOwed;
 use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::state::layer_memo::GatedWalkInput;
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" a non-member walk stops at: ceiling `n` means layers
@@ -114,7 +115,6 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
     let frames_before = game.diagnostics.layer_frames();
-    let _walk = game.layer_memo.open_walk();
 
     let membership = pass_membership(game, id);
     let asked = match membership {
@@ -124,12 +124,14 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
             let is_left_out = matches!(membership, PassMembership::LeftOut);
             let notes = is_left_out.then(|| pass_notes(game));
             let notes: &[RowNote] = notes.as_deref().unwrap_or(&[]);
-            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), notes)?);
+            let board = Board::settled();
+            let frame = Arc::new(compute_non_member(game, &board, id, LAYER_ORDER.len(), notes)?);
             #[cfg(debug_assertions)]
             if is_left_out && game.layer_memo.audited() {
                 audit_left_out(game, id, &frame);
             }
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
+            game.layer_memo.insert_gated_reads(epoch, board.gated_reads());
             let kind = if is_left_out { WalkKind::LeftOut } else { WalkKind::NonMember };
             game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, &frame));
             return Some(frame);
@@ -155,8 +157,9 @@ fn pass_into_memo(
     asked: Option<ObjectId>,
     wanted: Option<ObjectId>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
-    let _walk = game.layer_memo.open_walk();
-    let (frames, notes) = compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames_and_notes();
+    let board = compute_board_to(game, None, asked, LAYER_ORDER.len());
+    game.layer_memo.insert_gated_reads(epoch, board.gated_reads());
+    let (frames, notes) = board.into_frames_and_notes();
     if let Some(notes) = notes {
         game.layer_memo.insert_notes(epoch, notes.into());
     }
@@ -697,6 +700,10 @@ impl FilterReferents for FilterPlayers<'_, '_> {
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {
         EarlierTargets::None
+    }
+
+    fn note_gated_read(&self, input: GatedWalkInput) {
+        self.board.note_gated_read(input);
     }
 
     /// The source, now: a static ability has no triggering event.

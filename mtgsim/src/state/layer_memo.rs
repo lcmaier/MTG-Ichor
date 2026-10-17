@@ -51,12 +51,9 @@ pub struct LayerMemo {
     /// one scan per epoch for every player's inventory. Shared, so a fork
     /// copies nothing for it.
     mana_production_watchers: RefCell<Option<(u64, Arc<ManaProductionWatchers>)>>,
-    /// The gated inputs the frames stored at an epoch read, with that epoch
-    /// (`GatedWalkInput`): what a write to one asks before it moves the epoch.
-    gated_reads: Cell<(u64, u8)>,
-    /// How many walks whose frames will be stored are open: a read notes a
-    /// gated input only inside one, since a read outside one is never kept.
-    walks_open: Cell<u32>,
+    /// What the frames stored at the latest epoch read of the gated inputs:
+    /// what a write to one asks before it moves the epoch.
+    gated_reads: Cell<GatedReadsAt>,
     /// The debug audits' pause (`GameState::pause_layer_audit`).
     #[cfg(debug_assertions)]
     audit_paused: std::cell::Cell<bool>,
@@ -66,13 +63,14 @@ pub struct LayerMemo {
     audit_scope: AuditScope,
 }
 
-/// A walk input whose write moves the layer epoch only when a frame valid now
-/// read it. A write to one is frequent and nearly every walk ignores it: a
-/// tap for mana, a life change, an attack, a record counted. A bump at each
-/// would cost a walk per queried object after every one, for statics few
-/// boards have, so the walk notes what it read
-/// (`GameState::note_gated_read`) and the write asks
-/// (`GameState::bump_layer_epoch_if_read`).
+/// A walk input whose write moves the layer epoch only when a frame stored at
+/// the current epoch read it. Writes to these are frequent and nearly every
+/// walk ignores them: a tap for mana, a life change, an attack, a record
+/// counted. A bump at each would throw away every stored frame each time,
+/// for statics few boards have. So a walk keeps what it read with the frames
+/// it stores, and a write asks (`GameState::bump_layer_epoch_if_read`): when
+/// no stored frame read the input, no stored answer depends on it, and the
+/// next walk reads the new value anyway.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GatedWalkInput {
     /// Each player's life total (CR 119): "as long as you have 30 or more
@@ -89,18 +87,44 @@ pub(crate) enum GatedWalkInput {
     Histories,
 }
 
-impl GatedWalkInput {
-    fn bit(self) -> u8 {
-        1 << self as u8
+/// A set of [`GatedWalkInput`]s: what one walk read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct GatedInputs(u8);
+
+impl GatedInputs {
+    pub(crate) const NONE: GatedInputs = GatedInputs(0);
+
+    /// This set and `input`.
+    pub(crate) fn with(self, input: GatedWalkInput) -> GatedInputs {
+        GatedInputs(self.0 | 1 << input as u8)
+    }
+
+    fn union(self, other: GatedInputs) -> GatedInputs {
+        GatedInputs(self.0 | other.0)
+    }
+
+    fn contains(self, input: GatedWalkInput) -> bool {
+        self.0 & 1 << input as u8 != 0
     }
 }
 
-/// Closes the walk [`LayerMemo::open_walk`] opened when it drops.
-pub(crate) struct OpenWalk<'m>(&'m LayerMemo);
+/// What the walks stored at `epoch` read. A later epoch starts it over, since
+/// every frame stored before it is stale.
+#[derive(Debug, Clone, Copy, Default)]
+struct GatedReadsAt {
+    epoch: u64,
+    read: GatedInputs,
+}
 
-impl Drop for OpenWalk<'_> {
-    fn drop(&mut self) {
-        self.0.walks_open.set(self.0.walks_open.get() - 1);
+impl GatedReadsAt {
+    /// These reads, and a walk's stored at `epoch` that read `read`.
+    fn and(self, epoch: u64, read: GatedInputs) -> GatedReadsAt {
+        let kept = if self.epoch == epoch { self.read } else { GatedInputs::NONE };
+        GatedReadsAt { epoch, read: kept.union(read) }
+    }
+
+    fn read_at(self, epoch: u64, input: GatedWalkInput) -> bool {
+        self.epoch == epoch && self.read.contains(input)
     }
 }
 
@@ -235,26 +259,16 @@ impl LayerMemo {
         *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
     }
 
-    /// Open a walk whose frames will be stored at the current epoch.
-    pub(crate) fn open_walk(&self) -> OpenWalk<'_> {
-        self.walks_open.set(self.walks_open.get() + 1);
-        OpenWalk(self)
-    }
-
-    /// Inside a walk at `epoch`, note that it read `input`.
-    pub(crate) fn note_gated_read(&self, input: GatedWalkInput, epoch: u64) {
-        if self.walks_open.get() == 0 {
-            return;
+    /// Keep what a walk whose frames are stored at `epoch` read, beside them.
+    pub(crate) fn insert_gated_reads(&self, epoch: u64, read: GatedInputs) {
+        if read != GatedInputs::NONE {
+            self.gated_reads.set(self.gated_reads.get().and(epoch, read));
         }
-        let (at, read) = self.gated_reads.get();
-        let read = if at == epoch { read | input.bit() } else { input.bit() };
-        self.gated_reads.set((epoch, read));
     }
 
     /// Whether a frame stored at `epoch` read `input`.
     pub(crate) fn gated_read_at(&self, input: GatedWalkInput, epoch: u64) -> bool {
-        let (at, read) = self.gated_reads.get();
-        at == epoch && read & input.bit() != 0
+        self.gated_reads.get().read_at(epoch, input)
     }
 }
 

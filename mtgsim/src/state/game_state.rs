@@ -1460,12 +1460,6 @@ impl GameState {
         self.layer_epoch += 1;
     }
 
-    /// Inside a walk, note that it read `input`, so a write to it moves the
-    /// epoch while the walk's frames are valid.
-    pub(crate) fn note_gated_read(&self, input: GatedWalkInput) {
-        self.layer_memo.note_gated_read(input, self.layer_epoch());
-    }
-
     /// `input` was written: move the layer epoch if a frame valid now read
     /// it. After the write, as every bump is.
     pub(crate) fn bump_layer_epoch_if_read(&mut self, input: GatedWalkInput) {
