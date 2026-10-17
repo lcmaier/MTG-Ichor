@@ -22,7 +22,7 @@ use crate::types::ids::{
     AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
-use crate::types::replacement::{EnterMods, EntryAttack, ReplacementDef};
+use crate::types::replacement::{EnterMods, EntryAttackCandidates, ReplacementDef};
 use crate::types::triggers::EventKindMask;
 
 /// The outcome of a game that has ended (CR 104).
@@ -714,7 +714,7 @@ pub struct GameState {
     /// none left, so control going back as the last one ends is announced.
     pub(crate) control_effects_at_last_sweep: bool,
     /// The layer epoch the last settlement of the layers' consequences read
-    /// (`engine::settlement`): with the epoch still there, no frame has
+    /// (`engine::layer_settlement`): with the epoch still there, no frame has
     /// changed and there is nothing to settle. `u64::MAX` before the first.
     pub(crate) settled_layer_epoch: u64,
     /// The CR 603.10a frames of the permanents the open batches decided to
@@ -1519,13 +1519,14 @@ impl GameState {
 
     /// What `id`, entering under `controller` with `attack`'s one candidate,
     /// attacks, or `None` where it is never an attacking creature: outside
-    /// combat, with no defending player (CR 506.2); under a player who is not
-    /// attacking (506.3b); not a creature as it enters, or a battle (506.3a,
-    /// 506.3f); or with what it would attack gone (506.3c, 508.4a). A
+    /// the combat phase, which alone has an attacking player (CR 506.2);
+    /// under a player other than the attacking player (506.3b); not a
+    /// creature as it enters, or a battle (506.3a, 506.3f); or with what it
+    /// would attack gone (506.3c, 508.4a). A
     /// requirement or restriction on the declaration is not asked (508.4c),
     /// and one entering after blockers are declared is unblocked (508.4d),
     /// as `is_blocked` starts.
-    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntryAttack) -> Option<AttackTarget> {
+    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntryAttackCandidates) -> Option<AttackTarget> {
         let [target] = attack.candidates[..] else { return None };
         if self.phase.phase_type != PhaseType::Combat || controller != self.active_player {
             return None;

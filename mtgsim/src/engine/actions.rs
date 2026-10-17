@@ -10,7 +10,7 @@ use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
-use crate::types::replacement::{EnterMods, EntryAttack};
+use crate::types::replacement::{EnterMods, EntryAttackCandidates};
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_entering_defender, ask_scry};
@@ -414,7 +414,7 @@ pub enum GameAction {
         /// 508.4), as the creating effect's resolution read it. `None` for a
         /// creation no resolution read, where "its controller chooses" is
         /// everything that can be attacked.
-        attacking: Option<EntryAttack>,
+        attacking: Option<EntryAttackCandidates>,
     },
 
     /// A token is created in a zone that is not the battlefield — the
@@ -2189,7 +2189,7 @@ impl GameState {
         &mut self,
         defs: &[TokenDef],
         controller: PlayerId,
-        attacking: Option<&EntryAttack>,
+        attacking: Option<&EntryAttackCandidates>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         // One `Arc<CardData>` per run of equal defs: a doubled creation
@@ -2231,7 +2231,7 @@ impl GameState {
                         (None, EntersAttacking::Chosen) => self.what_can_be_attacked(),
                         (None, EntersAttacking::Player { .. } | EntersAttacking::SameAs(_)) => Vec::new(),
                     };
-                    mods.merge(&EnterMods { attacking: Some(Box::new(EntryAttack { candidates })), ..EnterMods::NONE });
+                    mods.merge(&EnterMods { attacking: Some(Box::new(EntryAttackCandidates { candidates })), ..EnterMods::NONE });
                 }
                 entries.push(entry);
             }

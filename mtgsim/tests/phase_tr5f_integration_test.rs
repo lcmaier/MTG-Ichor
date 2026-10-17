@@ -25,7 +25,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
-    fill_library, put_in_graveyard, put_on_battlefield, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
     setup_two_player_game, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -496,6 +496,50 @@ fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
 }
 
+/// How a creature is put onto the battlefield attacking: a token an effect
+/// creates, or a card an effect puts there from a hand through the return
+/// door, Preeminent Captain's "put a Soldier creature card from your hand
+/// onto the battlefield tapped and attacking". CR 508.4 is written about any
+/// creature, so the rules that follow it are tested over both.
+#[derive(Clone, Copy, Debug)]
+enum Entering {
+    Token,
+    CardFromHand,
+}
+
+const BOTH_DOORS: [Entering; 2] = [Entering::Token, Entering::CardFromHand];
+
+/// A 1/1 put onto the battlefield tapped and attacking under `player`, as
+/// `how` says, and its id.
+fn put_attacking(game: &mut GameState, player: PlayerId, how: Entering) -> ObjectId {
+    match how {
+        Entering::Token => {
+            create(game, player, a_human(EntersAttacking::Chosen), 1, &test_dp());
+            tokens(game).last().copied().unwrap()
+        }
+        Entering::CardFromHand => {
+            let soldier = CardDataBuilder::new("Fixture Hand Soldier")
+                .card_type(CardType::Creature)
+                .color(Color::White)
+                .power_toughness(1, 1)
+                .build();
+            let card = put_in_hand(game, soldier, player);
+            let puts = Effect::Atom(
+                Primitive::ReturnToBattlefield {
+                    under: ReturnUnder::Owner,
+                    counters: Vec::new(),
+                    tapped: true,
+                    attacking: Some(EntersAttacking::Chosen),
+                },
+                EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            );
+            resolve_as(game, player, &puts, card);
+            assert_eq!(game.objects[&card].zone, Zone::Battlefield);
+            card
+        }
+    }
+}
+
 fn entering_defender_prompts(dp: &RecordingDecisionProvider) -> usize {
     dp.kinds().iter().filter(|kind| kind.as_str() == "ChooseEnteringDefender").count()
 }
@@ -529,6 +573,18 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
     assert!(humans.iter().all(|&human| !attacked(human)), "no declaration, no `Attacked` row");
 }
 
+/// A card put onto the battlefield tapped and attacking is attacking and
+/// tapped, and was never declared: no `Attacked` row (CR 508.4).
+#[test]
+fn a_card_put_onto_the_battlefield_attacking_never_attacked() {
+    let mut game = stocked(2);
+    at(&mut game, StepType::DeclareAttackers);
+    let soldier = put_attacking(&mut game, 0, Entering::CardFromHand);
+    assert_eq!(attack_of(&game, soldier), Some(AttackTarget::Player(1)));
+    assert!(game.battlefield[&soldier].tapped);
+    assert!(!game.history.combat.attacked_this_turn(existence(&game, soldier), game.turn_number));
+}
+
 /// CR 508.3b and 508.3d read the declaration too: "whenever a player is
 /// attacked" and "whenever you attack" trigger once each, for the Garrison,
 /// and the tokens joining the attack trigger neither again.
@@ -546,21 +602,23 @@ fn a_token_put_onto_the_battlefield_attacking_triggers_no_defender_or_player() {
 }
 
 /// CR 506.5 counts the creatures declared. A creature declared alone attacks
-/// alone though a token was put onto the battlefield attacking before the
-/// declaration, and a token put onto the battlefield attacking never attacks,
-/// alone or otherwise.
+/// alone though a creature was put onto the battlefield attacking before the
+/// declaration, and one put onto the battlefield attacking never attacks,
+/// alone or otherwise: a token or a card.
 #[test]
-fn attacks_alone_counts_the_declared_and_never_a_token() {
-    let mut game = stocked(2);
-    put_on_battlefield(&mut game, watcher("Fixture Lone Banner", attacks_alone(TriggerSubject::Any), gain_one()), 0);
-    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    at(&mut game, StepType::BeginCombat);
-    create(&mut game, 0, a_human(EntersAttacking::Chosen), 1, &test_dp());
-    assert_eq!(attack_of(&game, tokens(&game)[0]), Some(AttackTarget::Player(1)));
+fn attacks_alone_counts_only_the_declared() {
+    for how in BOTH_DOORS {
+        let mut game = stocked(2);
+        put_on_battlefield(&mut game, watcher("Fixture Lone Banner", attacks_alone(TriggerSubject::Any), gain_one()), 0);
+        let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+        at(&mut game, StepType::BeginCombat);
+        let entered = put_attacking(&mut game, 0, how);
+        assert_eq!(attack_of(&game, entered), Some(AttackTarget::Player(1)), "{how:?}");
 
-    declare(&mut game, &[bears], &[(bears, 1)]);
-    resolve_all(&mut game, &test_dp());
-    assert_eq!(life(&game, 0), 21, "the Bears attacked alone, and the token did not attack");
+        declare(&mut game, &[bears], &[(bears, 1)]);
+        resolve_all(&mut game, &test_dp());
+        assert_eq!(life(&game, 0), 21, "{how:?}: the Bears attacked alone, and the other did not attack");
+    }
 }
 
 /// Hanweir Garrison's first ruling, at four seats: each token's defender is
@@ -671,19 +729,22 @@ fn a_token_put_onto_the_battlefield_attacking_after_blocks_is_unblocked() {
 
 /// CR 508.8's second leg: with nothing declared, a creature put onto the
 /// battlefield attacking in the beginning of combat step still makes the
-/// declare blockers and combat damage steps begin, and it deals its damage.
+/// declare blockers and combat damage steps begin, and it deals its damage,
+/// a token or a card.
 #[test]
-fn a_token_put_onto_the_battlefield_attacking_makes_combat_happen() {
-    let mut game = stocked(2);
-    walk_to(&mut game, StepType::BeginCombat);
-    create(&mut game, 0, a_human(EntersAttacking::Chosen), 1, &test_dp());
-    assert!(game.combat_had_attackers);
-    walk_to(&mut game, StepType::CombatDamage);
-    let records = game.recorded_events();
-    let began = |step| records.events().any(|event| matches!(event, GameEvent::StepBegin { step: s, .. } if *s == step));
-    assert!(began(StepType::DeclareBlockers) && began(StepType::CombatDamage));
-    game.process_combat_damage(&test_dp(), false).unwrap();
-    assert_eq!(life(&game, 1), 19);
+fn a_creature_put_onto_the_battlefield_attacking_makes_combat_happen() {
+    for how in BOTH_DOORS {
+        let mut game = stocked(2);
+        walk_to(&mut game, StepType::BeginCombat);
+        put_attacking(&mut game, 0, how);
+        assert!(game.combat_had_attackers, "{how:?}");
+        walk_to(&mut game, StepType::CombatDamage);
+        let records = game.recorded_events();
+        let began = |step| records.events().any(|event| matches!(event, GameEvent::StepBegin { step: s, .. } if *s == step));
+        assert!(began(StepType::DeclareBlockers) && began(StepType::CombatDamage), "{how:?}");
+        game.process_combat_damage(&test_dp(), false).unwrap();
+        assert_eq!(life(&game, 1), 19, "{how:?}");
+    }
 }
 
 /// "Attacking that player", read as the instruction resolves: "whenever this
@@ -749,17 +810,17 @@ fn divine_visitations_angels_are_tapped_and_attacking() {
 /// graveyard to the battlefield tapped and attacking" (Phoenix Chick's
 /// shape), during combat.
 #[test]
-fn a_card_returned_tapped_and_attacking_is_attacking() {
+fn a_card_returned_tapped_and_attacking_is_tapped_and_attacking() {
     let mut game = stocked(2);
     let bears = put_in_graveyard(&mut game, grizzly_bears(), 0);
     at(&mut game, StepType::DeclareAttackers);
     let returns = Effect::Atom(
-        Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), attacking: Some(EntersAttacking::Chosen) },
+        Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: true, attacking: Some(EntersAttacking::Chosen) },
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve_as(&mut game, 0, &returns, bears);
-    let returned = game.battlefield_ids_ordered().into_iter().find(|id| game.objects[id].card_data.name == "Grizzly Bears");
-    assert_eq!(returned.and_then(|bears| attack_of(&game, bears)), Some(AttackTarget::Player(1)));
+    assert_eq!(attack_of(&game, bears), Some(AttackTarget::Player(1)));
+    assert!(game.battlefield[&bears].tapped);
 }
 
 /// Hanweir Garrison's third ruling: another attack trigger goes on the stack

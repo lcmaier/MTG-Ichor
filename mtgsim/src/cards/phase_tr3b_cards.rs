@@ -63,7 +63,7 @@ pub fn flickerwisp() -> Arc<CardData> {
     let return_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             at_beginning_of(StepType::End, Whose::Each),
-            Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), attacking: None }, EffectRecipient::Referred),
+            Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Referred),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::Any,

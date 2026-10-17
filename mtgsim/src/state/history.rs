@@ -168,10 +168,9 @@ impl PlayerHistory {
         self.this_draw_step = n;
     }
 
-    /// Count a card drawn in this player's draw step, and return its place.
-    pub(crate) fn drew_in_draw_step(&mut self) -> u64 {
+    /// Count a card drawn in this player's draw step.
+    pub(crate) fn drew_in_draw_step(&mut self) {
         self.this_draw_step = self.this_draw_step.saturating_add(1);
-        self.this_draw_step
     }
 }
 
@@ -348,8 +347,10 @@ mod tests {
         assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);
     }
 
-    fn existence(raw: u64, epoch: u64) -> ObjectRef {
-        ObjectRef { id: crate::types::ids::ObjectId::from_trace(raw), zone_change_epoch: epoch }
+    /// Object `id` as the existence its `zone_change_epoch` names (CR
+    /// 400.7): the same id with another epoch is another object.
+    fn object_ref(id: u64, zone_change_epoch: u64) -> ObjectRef {
+        ObjectRef { id: crate::types::ids::ObjectId::from_trace(id), zone_change_epoch }
     }
 
     /// Two combats in one turn: "defending player" reads the latest combat's
@@ -359,7 +360,7 @@ mod tests {
     #[test]
     fn the_rows_tell_combats_and_existences_apart() {
         let mut combat = CombatHistory::default();
-        let (bears, after_a_flicker) = (existence(7, 1), existence(7, 2));
+        let (bears, after_a_flicker) = (object_ref(7, 1), object_ref(7, 2));
         let player_1 = AttackTarget::Player(1);
         combat.combat_began();
         combat.record(bears, 3, CombatFact::Attacked(player_1));
@@ -379,7 +380,7 @@ mod tests {
     #[test]
     fn the_rows_keep_a_round() {
         let mut game = GameState::new(2, 20);
-        game.history.combat.record(existence(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        game.history.combat.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
         let turns = |game: &GameState| game.history.combat.rows().iter().map(|row| row.turn).collect::<Vec<_>>();
         game.begin_turn(2, 1);
         game.begin_turn(3, 0);
@@ -393,10 +394,10 @@ mod tests {
     #[test]
     fn a_clone_shares_the_rows_until_it_writes() {
         let mut first = CombatHistory::default();
-        first.record(existence(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        first.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
         let second = first.clone();
         assert!(Arc::ptr_eq(&first.rows, &second.rows));
-        first.record(existence(8, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
+        first.record(object_ref(8, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
         assert!(!Arc::ptr_eq(&first.rows, &second.rows));
         assert_eq!((first.rows().len(), second.rows().len()), (2, 1));
     }
@@ -406,8 +407,11 @@ mod tests {
     #[test]
     fn the_draw_steps_count_starts_over_with_each_draw_step() {
         let mut history = PlayerHistory::before_any_turn();
-        assert_eq!((history.drew_in_draw_step(), history.drew_in_draw_step()), (1, 2));
+        history.drew_in_draw_step();
+        history.drew_in_draw_step();
+        assert_eq!(history.this_draw_step(), 2);
         history.draw_step_drawn(0);
-        assert_eq!(history.drew_in_draw_step(), 1, "a second draw step in the same turn");
+        history.drew_in_draw_step();
+        assert_eq!(history.this_draw_step(), 1, "a second draw step in the same turn");
     }
 }

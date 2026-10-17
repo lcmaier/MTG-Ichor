@@ -5,7 +5,7 @@ pub mod leaving;
 pub mod costs;
 pub mod mana;
 pub mod sba;
-pub mod settlement;
+pub mod layer_settlement;
 pub mod resolve;
 pub mod returns;
 pub mod targeting;

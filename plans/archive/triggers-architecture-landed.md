@@ -3063,6 +3063,22 @@ found `GameAction` grown by 24 bytes.
   Hanweir Garrison's "(Melds with Hanweir Battlements.)" stays in its doc
   comment.
 
+**At the build's review (2026-10-17).** The return door had no "tapped"
+word, so Phoenix Chick's "return this card … tapped and attacking" entered
+untapped; `ReturnToBattlefield.tapped` carries it, as `TokenDef.enters_tapped`
+does a token's (156 cards return something to the battlefield tapped). Two
+more copies merged: `DefenderFilter::admits` is the trigger matcher's and the
+entry's one reading of an attack target, and `players_named_by` the
+resolution's one reading of the players a recipient names. The history's
+writer writes and returns nothing; a record's place is read after it, off
+the four kinds that have one. Renamed for their call sites: `EntryAttack` to
+`EntryAttackCandidates`, `engine/settlement.rs` to
+`engine/layer_settlement.rs`. The CR-general tests of CR 506.5 and 508.8 run
+over both doors, a token and a card from a hand. The review's question on "as
+long as" found item 273: three condition leaves read inputs no write moves
+the layer epoch for, so the memo, and the settlement with it, can serve a
+stale frame.
+
 **What it leaves.** Item 272, "for each opponent, … attacking that player"
 (6 cards), needs a players `Selector`. CR 506.4c–e, an attacked
 planeswalker or battle that stops being one, join the settlement's combat

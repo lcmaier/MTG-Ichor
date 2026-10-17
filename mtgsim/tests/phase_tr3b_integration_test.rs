@@ -481,6 +481,7 @@ fn an_object_a_replacement_sent_elsewhere_is_still_referred_to() {
                 at_the_next_end_step(on_referred(Primitive::ReturnToBattlefield {
                     under: ReturnUnder::Owner,
                     counters: Vec::new(),
+                    tapped: false,
                     attacking: None,
                 })),
             ]),
@@ -1050,7 +1051,7 @@ fn cloudshift_shape() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
                 Effect::Atom(Primitive::Exile, target_your_creature()),
-                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new(), attacking: None }, EffectRecipient::SameInstanceAs(0)),
+                Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::You, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::SameInstanceAs(0)),
             ]),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,

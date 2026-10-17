@@ -99,7 +99,7 @@ fn darkest_hour() -> Arc<CardData> {
 /// fixture Aura with nothing else.
 fn abduction_fixture() -> Arc<CardData> {
     let text = "When enchanted creature dies, return that card to the battlefield under its owner's control.";
-    let returns = Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), attacking: None };
+    let returns = Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None };
     CardDataBuilder::new("Abduction Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
         .color(Color::Blue)

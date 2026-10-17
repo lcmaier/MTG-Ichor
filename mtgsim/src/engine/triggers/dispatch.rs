@@ -1936,19 +1936,9 @@ impl GameState {
     /// Whether `target`, what a creature was declared attacking, is what
     /// `asked` names (CR 508.3a, 508.3b, 508.3e).
     fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
-        match (asked, target) {
-            (DefenderFilter::Player(who), AttackTarget::Player(player)) => {
-                who.as_ref().is_none_or(|who| self.player_ref_is(who, player, referents))
-            }
-            (DefenderFilter::Permanent(among), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
-                self.subject_matches(&TriggerSubject::Filter(among.clone()), Some(id), referents, seq, SubjectRead::Now)
-            }
-            (DefenderFilter::Or(either, or), _) => {
-                self.defender_matches(either, target, referents, seq) || self.defender_matches(or, target, referents, seq)
-            }
-            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
-            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
-        }
+        asked.admits(target, &|who, player| self.player_ref_is(who, player, referents), &|filter, id| {
+            self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(id), referents, seq, SubjectRead::Now)
+        })
     }
 
     /// What `target` names, a permanent as the existence it is now (CR

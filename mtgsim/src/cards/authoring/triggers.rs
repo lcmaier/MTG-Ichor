@@ -215,6 +215,7 @@ fn returns_unless_it_had(keyword: &'static str, counter: CounterType) -> Ability
     let returns = Primitive::ReturnToBattlefield {
         under: ReturnUnder::Owner,
         counters: vec![EntryCounters { counter, n: 1, by: None }],
+        tapped: false,
         attacking: None,
     };
     triggered_ability(keyword, TriggerDef {

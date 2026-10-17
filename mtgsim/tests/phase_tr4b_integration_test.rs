@@ -432,7 +432,7 @@ fn an_aura_returned_to_the_battlefield_announces_that_it_became_attached() {
         ..ResolutionContext::untargeted(source, 0, GeneratedBy::Spell)
     };
     let back = Effect::Atom(
-        Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), attacking: None },
+        Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None },
         EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
     );
     game.record_events();
@@ -890,7 +890,7 @@ fn grafted_wargear_does_not_sacrifice_its_creature_after_it_returned() {
     let flicker = Effect::Sequence(vec![
         Effect::Atom(Primitive::Exile, exile_it.clone()),
         Effect::Atom(
-            Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), attacking: None },
+            Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None },
             EffectRecipient::SameInstanceAs(0),
         ),
     ]);

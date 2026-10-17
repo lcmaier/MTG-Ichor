@@ -1162,7 +1162,7 @@ pub struct TokenDef {
 /// What an effect that puts a creature onto the battlefield attacking says it
 /// attacks (CR 508.4): the controller's choice, unless the effect specifies.
 /// Read by the resolution, which holds the binding a specified defender
-/// names, into the entry's [`crate::types::replacement::EntryAttack`].
+/// names, into the entry's [`crate::types::replacement::EntryAttackCandidates`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntersAttacking {
     /// CR 508.4: its controller chooses among everything that can be
@@ -1712,6 +1712,9 @@ pub enum Primitive {
     ReturnToBattlefield {
         under: ReturnUnder,
         counters: Vec<crate::types::replacement::EntryCounters>,
+        /// "Return it to the battlefield tapped": the returning effect's own
+        /// word on how it enters, as a token's `enters_tapped` is.
+        tapped: bool,
         /// "Tapped and attacking" (CR 508.4): Phoenix Chick's "return this card
         /// from your graveyard to the battlefield tapped and attacking".
         attacking: Option<EntersAttacking>,

@@ -9373,21 +9373,53 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 ### Found by TR-5f (2026-10-17)
 
 272. **"For each opponent, create a token … tapped and attacking that player"
-     has no player to name.** TR-5f's `EntersAttacking::Player` names a
-     player in the instruction's player vocabulary, and the resolution reads
-     a triggering, defending or controlling one. Six printed cards create a
-     token "for each opponent" that attacks "that player" (Adeline,
-     Resplendent Cathar; Ainok Strike Leader; Endless Foot Assault; Shredder,
-     Shadow Master; Stampede Surfer; Veteran Soldier: `o:"tapped and
-     attacking that"`, 2026-10-17), and the player is the one the iteration
-     names: `Effect::ForEach`'s `Selector` has no players, so no instruction
-     runs once for each opponent with "that player" bound to each, and the
-     resolution refuses the word loudly. A missing facility, not a deferral
-     of TR-5f's: every other way to say the defender is built.
+     has no player to name.** Six printed cards create one token per opponent,
+     each attacking *that* opponent (Adeline, Resplendent Cathar; Ainok Strike
+     Leader; Endless Foot Assault; Shredder, Shadow Master; Stampede Surfer;
+     Veteran Soldier: `o:"tapped and attacking that"`, 2026-10-17). "Not you"
+     (`PlayerSet::Opponents`) names the set and not the pairing: a candidate
+     list of every opponent lets the controller send every token at one of
+     them, which the card forbids at three seats or more. The pairing is an
+     iteration that binds "that player" to each opponent in turn, and
+     `Effect::ForEach` is unbuilt: its resolution refuses every instruction
+     ("not yet implemented"), and its `Selector` has no players. TR-5f's
+     `EntersAttacking::Player` names one player in the instruction's player
+     vocabulary, which is what the iteration would bind. A missing facility,
+     not a deferral of TR-5f's: every other way to say the defender is built.
      **Reachability (2026-10-17):** unreachable — no registered card runs an
      instruction once for each player.
-     **Sized:** a players `Selector` for `Effect::ForEach`, each player bound
-     as the instruction's named player, ~40 lines of code and ~60 of tests.
+     **Sized:** `Effect::ForEach` built, with a players `Selector` that binds
+     each player as the instruction's named player, ~60 lines of code and ~80
+     of tests.
      **Slotted:** with the first registered card that runs an instruction
      once for each opponent naming that player; Adeline, Resplendent Cathar,
      a Commander staple, is the likely one.
+
+273. **A static's condition that reads a life total, a tapped status or a
+     defending player is served a stale frame.** The layer memo keys on the
+     layer epoch, which moves at every write `GameState::bump_layer_epoch`
+     lists. A life change, a tap or untap and a creature's attack are not on
+     the list ("status the walk never reads"), but three `Condition` leaves
+     the walk evaluates read them: `PlayerFact::LifeAtLeast` and
+     `LifeAtMost`, `SourceTapped` and `SourceUntapped`, and
+     `Condition::DefendingPlayer` (`engine/layers/condition.rs`). A static's
+     "as long as" over one of them keeps its old answer until an unrelated
+     write moves the epoch, and TR-5f's settlement, gated on the same epoch,
+     misses what the flip does to a controller or a type. Shown at TR-5f's
+     review (2026-10-17): a fixture that gets +1/+2 "as long as you have 10
+     or less life", queried at 20 life and again after a loss of 15, panics
+     the debug memo audit ("layer memo served a stale frame … skipped
+     `GameState::bump_layer_epoch`"). Printed statics that read a life total:
+     Bloodghast's haste, Serra Ascendant's +5/+5 and flying, the fateful hour
+     cycle (Thraben Doomsayer).
+     **Reachability (2026-10-17):** unreachable — no registered card's static
+     reads a life total, a tapped status or a defending player in a layer
+     condition (Felidar Sovereign's is an intervening "if", Archelos's a
+     replacement's, the Orbs' a cost's).
+     **Sized:** a bump at each of the three writes is a few lines, but a walk
+     per queried object after every life change and every tap, which the
+     budget would see; gated instead on the registry holding a row whose
+     condition reads the input, ~60 lines of code and ~80 of tests, owned by
+     `layers-architecture.md` §12's memo.
+     **Slotted:** ahead of TR-5b, the next engine phase on the route, as a PR
+     of its own (proposed at #257's review).
