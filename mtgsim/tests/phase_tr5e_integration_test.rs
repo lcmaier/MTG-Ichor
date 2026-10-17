@@ -7,6 +7,9 @@
 //! 3. "The player or planeswalker it's attacking", read as CR 608.2h reads
 //!    the creature: Hellrider, and both halves of Fathom Fleet Swordjack's
 //!    ruling.
+//! 4. "Defending player" (CR 508.5, 802.2a): for the creature the text names,
+//!    as the player acted on, in a target's filter and in an intervening
+//!    "if"; and with no creature named, in a target's filter.
 
 use std::sync::Arc;
 
@@ -18,7 +21,7 @@ use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_tr5e_cards::hellrider;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -28,11 +31,12 @@ use mtgsim::test_support::{fill_library, put_in_graveyard, put_on_battlefield, s
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount,
+    AmountExpr, ColorChange, Condition, ConditionObject, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact,
+    PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::triggers::{DefenderFilter, Participant, TriggerEvent, TriggerSubject, TriggerTier};
+use mtgsim::types::triggers::{DefenderFilter, Participant, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
@@ -409,4 +413,130 @@ fn an_attacker_that_left_combat_names_nothing() {
     let before = [0, 1].map(|p| life(&game, p));
     resolve_all(&mut game, &test_dp());
     assert_eq!([0, 1].map(|p| life(&game, p)), before);
+}
+
+// ---------------------------------------------------------------------------
+// 4. "Defending player"
+// ---------------------------------------------------------------------------
+
+/// A 2/2 creature with haste and one triggered ability.
+fn attacking_watcher(name: &str, def: TriggerDef) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .color(Color::Red)
+        .power_toughness(2, 2)
+        .keyword_flag(KeywordFlag::Haste)
+        .ability(triggered_ability("", def))
+        .build()
+}
+
+fn defending_player_of(creature: ConditionObject) -> PlayerRef {
+    PlayerRef::DefendingPlayer(creature)
+}
+
+fn its_attacker() -> ConditionObject {
+    ConditionObject::Triggering(Participant::Attacker)
+}
+
+fn loses_one(creature: ConditionObject) -> Effect {
+    Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(1)), EffectRecipient::DefendingPlayer(creature))
+}
+
+/// "Tap target creature [defending player] controls".
+fn tap_target_creature_of(defending: PlayerRef) -> Effect {
+    let theirs = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(defending)));
+    Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Permanent(theirs), TargetCount::Exactly(1)))
+}
+
+/// CR 508.5's two clauses can disagree at four seats: the source attacks
+/// player 1 and Grizzly Bears attack player 3. "Defending player" for the
+/// trigger's attacker is each attacker's own; for the source, player 1 both
+/// times. The text names which (CR 608.2c).
+#[test]
+fn defending_player_is_the_creature_the_text_names() {
+    let each_attackers = whenever(attacks(creature_you_control()), loses_one(its_attacker()));
+    let the_sources = whenever(attacks(creature_you_control()), loses_one(ConditionObject::ThisObject));
+    for (def, lost) in [(each_attackers, [1, 0, 1]), (the_sources, [2, 0, 0])] {
+        let mut game = stocked(4);
+        let source = put_on_battlefield(&mut game, attacking_watcher("Fixture Warcaller", def), 0);
+        let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+        let before = [1, 2, 3].map(|p| life(&game, p));
+        declare(&mut game, &[source, bears], &[(source, 1), (bears, 3)]);
+
+        let dp = ScriptedDecisionProvider::new();
+        if lost == [1, 0, 1] {
+            dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
+        }
+        resolve_all(&mut game, &dp);
+        assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), lost);
+    }
+}
+
+/// "Whenever this creature attacks, tap target creature defending player
+/// controls" (60 cards), and the same with the trigger's attacker (9 cards,
+/// equipment and "a creature you control attacks"): at four seats only the
+/// creature of the player attacked is a legal target, so it is the one
+/// chosen, at the trigger's placement.
+#[test]
+fn a_targets_defending_player_is_read_at_placement() {
+    let this_creatures = whenever(attacks(TriggerSubject::ThisObject), tap_target_creature_of(defending_player_of(ConditionObject::ThisObject)));
+    let its_attackers = whenever(attacks(creature_you_control()), tap_target_creature_of(defending_player_of(its_attacker())));
+    for (def, attacked) in [(this_creatures, 2), (its_attackers, 3)] {
+        let mut game = stocked(4);
+        let theirs: Vec<ObjectId> = (1..4).map(|p| put_on_battlefield(&mut game, grizzly_bears(), p)).collect();
+        let attacker = put_on_battlefield(&mut game, attacking_watcher("Fixture Binder", def), 0);
+        declare(&mut game, &[attacker], &[(attacker, attacked)]);
+        resolve_all(&mut game, &test_dp());
+        let tapped: Vec<bool> = theirs.iter().map(|id| game.battlefield[id].tapped).collect();
+        let expected: Vec<bool> = (1..4).map(|p| p == attacked).collect();
+        assert_eq!(tapped, expected, "player {attacked}'s creature, the one defending player controls");
+    }
+}
+
+/// "Whenever this creature attacks, if defending player controls a creature,
+/// you gain 2 life", the source destroyed in response: CR 603.4 asks again at
+/// resolution, and "defending player" is still the player it was attacking,
+/// off its last known information (CR 508.5, 608.2h).
+#[test]
+fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
+    let mut def = whenever(attacks(TriggerSubject::ThisObject), Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller));
+    let creature = ObjectFilter::ByType(CardType::Creature);
+    def.intervening_if =
+        Some(Condition::DefendingPlayer { of: ConditionObject::ThisObject, fact: PlayerFact::ControlsPermanent(creature) });
+    let mut game = stocked(4);
+    put_on_battlefield(&mut game, grizzly_bears(), 3);
+    let source = put_on_battlefield(&mut game, attacking_watcher("Fixture Raider", def), 0);
+    declare(&mut game, &[source], &[(source, 3)]);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "player 3 controls a creature as it attacks");
+
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    resolve_as(&mut game, 1, &destroy, source);
+    let before = life(&game, 0);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(life(&game, 0) - before, 2);
+}
+
+// "Defending player" with no creature to settle which (CR 802.2a): Yare's
+// "target creature defending player controls". During player 0's combat
+// every opponent is a defending player (CR 802.2), so a creature any of them
+// controls is a legal target and player 0's is not; outside combat, nobody is
+// a defending player.
+#[test]
+fn any_defending_player_is_each_opponent_of_the_attacking_player_in_combat() {
+    let mut game = stocked(4);
+    let creatures: Vec<ObjectId> = (0..4).map(|p| put_on_battlefield(&mut game, grizzly_bears(), p)).collect();
+    let theirs =
+        ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::AnyDefendingPlayer)));
+    let target = EffectRecipient::Target(SelectionFilter::Permanent(theirs), TargetCount::Exactly(1));
+    let legal = |game: &GameState| -> Vec<bool> {
+        creatures
+            .iter()
+            .map(|&id| game.validate_targets(&target, &[ResolvedTarget::Object(id)], 1, FilterIdentity::NONE).is_ok())
+            .collect()
+    };
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
+    assert_eq!(legal(&game), vec![false, true, true, true], "before anything attacks");
+    game.set_turn_position(Phase { phase_type: PhaseType::Postcombat, step: None });
+    assert_eq!(legal(&game), vec![false; 4]);
 }

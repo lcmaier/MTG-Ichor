@@ -20,6 +20,8 @@
 
 use std::sync::Arc;
 
+use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::types::effects::ConditionObject;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -246,6 +248,14 @@ impl FilterReferents for TriggerReferents<'_> {
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {
         EarlierTargets::None
+    }
+
+    /// The candidate, now: an arm's own words have no triggering event yet.
+    fn defending_player(&self, game: &GameState, creature: ConditionObject) -> Option<PlayerId> {
+        match creature {
+            ConditionObject::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
+            ConditionObject::Triggering(_) => None,
+        }
     }
 }
 
@@ -1550,7 +1560,7 @@ impl GameState {
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
             ),
@@ -1579,7 +1589,7 @@ impl GameState {
             ) => triggering_event_if(
                 change.act.is_some()
                     && change.matches(Some(*zone), *zone, Some(*act))
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
@@ -1920,7 +1930,7 @@ impl GameState {
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
     fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
-        player_ref_names(who, player, &mut { *referents }) == Some(true)
+        player_ref_names(self, who, player, &mut { *referents }) == Some(true)
     }
 
     /// Whether `target`, what a creature was declared attacking, is what

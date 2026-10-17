@@ -12,6 +12,7 @@
 
 use std::sync::Arc;
 
+use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::events::cause::EventCause;
 use crate::engine::cost_determination::determine_total_cost;
@@ -177,7 +178,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let targets = match self.announce_targets(
-            player_id, card_id, card_id, instances, decisions,
+            player_id, card_id, card_id, instances, ConditionReferents::NONE, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -322,11 +323,12 @@ impl GameState {
     /// 113.7a), which "another target" excludes — the spell itself, or the
     /// permanent whose ability is announced.
     pub(crate) fn announce_targets(
-        &mut self,
+        &self,
         player_id: PlayerId,
         source_id: ObjectId,
         this_object: ObjectId,
         instances: &[EffectRecipient],
+        named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         decisions: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
@@ -345,7 +347,8 @@ impl GameState {
             let identity = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
                 crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
-            );
+            )
+            .naming(named_objects);
             let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
@@ -448,7 +451,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2c, so an ability
         // announces its instances exactly as a spell does.
         let targets = match self.announce_targets(
-            player_id, ability_obj_id, source_id, instances, decisions,
+            player_id, ability_obj_id, source_id, instances, ConditionReferents::NONE, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {

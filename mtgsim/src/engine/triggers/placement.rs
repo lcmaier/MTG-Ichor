@@ -10,6 +10,8 @@
 
 use std::sync::Arc;
 
+use crate::engine::layers::condition::ConditionReferents;
+use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::engine::triggers::bound_reads::BoundReads;
@@ -166,7 +168,13 @@ impl GameState {
         self.stack.push(id);
 
         let identity = pending.origin.identity();
-        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, dp) {
+        // A target's "defending player" reads the trigger's attacker off its
+        // binding, as it will at resolution.
+        let named = ConditionReferents {
+            source_lki: None,
+            triggering_event: TriggeringEventView::Resolving { game: self, binding: &pending.binding },
+        };
+        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, named, dp) {
             Ok(targets) => targets,
             Err(_) => {
                 self.ability_leaves_the_stack(id);

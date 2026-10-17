@@ -66,6 +66,18 @@ impl CurrentOrLastKnown<'_> {
         }
     }
 
+    /// "Defending player" for this creature (CR 508.5, 802.2a): the player it
+    /// is attacking, or the controller of the planeswalker it is attacking.
+    /// `None` while it attacks nothing, and for a battle, whose protector
+    /// waits for `backlog.md` §2.23's attack path.
+    pub fn defending_player(&self, game: &GameState) -> Option<PlayerId> {
+        match self.attacking(game)? {
+            AttackTarget::Player(player) => Some(player),
+            AttackTarget::Planeswalker(id) => get_effective_controller(game, id),
+            AttackTarget::Battle(_) => None,
+        }
+    }
+
     /// Its controller (CR 109.5), or its owner while it has none.
     pub fn controller(&self, game: &GameState) -> Option<PlayerId> {
         match self.lki {

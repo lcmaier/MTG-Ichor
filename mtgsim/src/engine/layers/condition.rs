@@ -114,6 +114,14 @@ pub(super) fn holds(
         Condition::Player { players, fact } => {
             player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
+        // CR 508.5: the fact about one player, the creature's defending player.
+        Condition::DefendingPlayer { of, fact } => match referents.object(*of, source).and_then(|it| it.defending_player(game)) {
+            Some(defending) => {
+                let players = PlayerSet::Fixed(vec![defending]);
+                player_fact_holds(&players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
+            }
+            None => false,
+        },
 
         // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
         // layer, so an exiled Wonder stops granting on the next walk with nothing

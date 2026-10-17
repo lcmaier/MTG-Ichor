@@ -147,7 +147,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
         EffectRecipient::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(*p),
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
-        EffectRecipient::AttackedBy(creature) => creature_read(*creature),
+        EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_read(*creature),
         EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
@@ -201,8 +201,9 @@ fn selector(s: &Selector) -> BoundReads {
 
 fn player_ref(p: &PlayerRef) -> BoundReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) => BoundReads::NOTHING,
+        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => BoundReads::NOTHING,
         PlayerRef::Owner => BoundReads::SOURCE,
+        PlayerRef::DefendingPlayer(creature) => creature_read(*creature),
     }
 }
 
@@ -226,11 +227,8 @@ fn filter(f: &ObjectFilter) -> BoundReads {
 
 fn condition(c: &Condition) -> BoundReads {
     match c {
-        Condition::Player { fact, .. } => match fact {
-            PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter(among),
-            PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount(n),
-            PlayerFact::LibraryEmpty => BoundReads::NOTHING,
-        },
+        Condition::Player { fact, .. } => player_fact(fact),
+        Condition::DefendingPlayer { of, fact } => creature_read(*of) | player_fact(fact),
         Condition::SpellWasKicked
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
@@ -251,6 +249,14 @@ fn condition(c: &Condition) -> BoundReads {
         | Condition::SinceYourLastTurn(_)
         | Condition::ThisGame(_)
         | Condition::CostAnswer(_) => BoundReads::NOTHING,
+    }
+}
+
+fn player_fact(f: &PlayerFact) -> BoundReads {
+    match f {
+        PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter(among),
+        PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount(n),
+        PlayerFact::LibraryEmpty => BoundReads::NOTHING,
     }
 }
 

@@ -2959,6 +2959,13 @@ fn entering_controller(
                 many => ask_choose_entering_controller(ctx.dp, game, you, object, many),
             }
         }
+        PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
+            return Err(format!(
+                "replacement {:?} puts {} under \"defending player\"'s control, which an entering \
+                 object's replacement has no attacking creature to name",
+                chosen.id, object
+            ))
+        }
     })
 }
 
@@ -3164,6 +3171,13 @@ fn putter_of(
                 ))
             }
         },
+        PlayerRef::DefendingPlayer(_) | PlayerRef::AnyDefendingPlayer => {
+            return Err(format!(
+                "replacement {:?} names \"defending player\" as the player putting counters on {}, \
+                 which an entering object's replacement has no attacking creature to name",
+                chosen.id, entering
+            ))
+        }
     })
 }
 

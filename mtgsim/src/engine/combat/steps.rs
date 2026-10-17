@@ -2,6 +2,7 @@
 // declare blockers, and combat damage steps.
 // See rules 508, 509, 510.
 
+use crate::state::game_state::PhaseType;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
@@ -243,6 +244,13 @@ impl GameState {
         }
 
         Ok(())
+    }
+
+    /// Whether `player` is a defending player (CR 506.2, 802.2): during the
+    /// combat phase, an opponent of the attacking player, each one from the
+    /// phase's start whatever is declared.
+    pub fn is_defending_player(&self, player: PlayerId) -> bool {
+        self.phase.phase_type == PhaseType::Combat && self.opponents_of(self.active_player).contains(&player)
     }
 
     /// Get the list of defending players (players being attacked).

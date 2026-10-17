@@ -681,7 +681,7 @@ fn def_applies(
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    def.by.as_ref().is_none_or(|by| by.matches(&p.cause, &mut TextReferents::for_effect(game, controller, source)))
+    def.by.as_ref().is_none_or(|by| by.matches(game, &p.cause, &mut TextReferents::for_effect(game, controller, source)))
         && pattern_watches(game, &def.pattern, p.action, &p.cause, source, controller)
         && set_affects(
             game,

@@ -168,6 +168,16 @@ pub enum PlayerRef {
     Owner,
     /// A specific player
     Player(PlayerId),
+    /// "Defending player" for the attacking creature the text names (CR
+    /// 508.5, 802.2a): its source ("an ability of an attacking creature"), or
+    /// a trigger's attacker. The player it is attacking, or the controller of
+    /// the planeswalker it is attacking.
+    DefendingPlayer(ConditionObject),
+    /// "Defending player" where no creature settles which (CR 802.2a's last
+    /// sentence): any of the attacking player's opponents during combat (CR
+    /// 506.2, 802.2), for one target's filter or an activation's restriction,
+    /// where what the controller picks is the choice. Nobody outside combat.
+    AnyDefendingPlayer,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -551,6 +561,10 @@ pub enum Condition {
     /// died this turn" is every row added up, while a life total is not a
     /// count and "an opponent controls three artifacts" is one opponent's three.
     Player { players: PlayerSet, fact: PlayerFact },
+    /// "If defending player controls an artifact" (CR 508.5): the fact about
+    /// the defending player of the creature `of` names, and false while it
+    /// attacks nothing.
+    DefendingPlayer { of: ConditionObject, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -669,6 +683,7 @@ impl Condition {
             // no entry moves the zone `SourceInZone` reads; the rest read
             // players, histories, the host, a trigger, or a resolution.
             Condition::Player { .. }
+            | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
             | Condition::SourceInZone(_)
@@ -835,6 +850,10 @@ pub enum EffectRecipient {
     /// it has left combat; once it has left the battlefield, the attack its
     /// last known information kept (Fathom Fleet Swordjack's ruling).
     AttackedBy(ConditionObject),
+    /// "Defending player" as the player acted on: "defending player loses 2
+    /// life" (CR 508.5), for the creature named, read as `AttackedBy` reads
+    /// it. Nobody while it attacks nothing.
+    DefendingPlayer(ConditionObject),
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is

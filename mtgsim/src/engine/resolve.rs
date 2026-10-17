@@ -1,3 +1,5 @@
+use crate::engine::object_filter::{EarlierTargets, TextReferents};
+use crate::engine::targeting::FilterIdentity;
 use crate::engine::actions::{
     ActionContext, GameAction, ZoneChangeAct,
 };
@@ -291,12 +293,20 @@ impl GameState {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
             }
-            // "The player or planeswalker it's attacking": read as the
-            // instruction applies, and nothing once its creature has left
-            // combat.
+            // "The player or planeswalker it's attacking", "defending player":
+            // read as the instruction applies. Once its creature attacks
+            // nothing, there is nothing to act on, and the instruction does
+            // nothing rather than reaching a primitive's default player.
             Effect::Atom(primitive, recipient @ EffectRecipient::AttackedBy(creature)) => {
                 let attacked = self.attacked_by(*creature, ctx);
+                if attacked.is_empty() {
+                    return Ok(());
+                }
                 self.resolve_primitive(primitive, recipient, &attacked, ctx, dp, walk)
+            }
+            Effect::Atom(primitive, recipient @ EffectRecipient::DefendingPlayer(creature)) => {
+                let Some(defending) = self.defending_player_of(*creature, ctx) else { return Ok(()) };
+                self.resolve_primitive(primitive, recipient, &[ResolvedTarget::Player(defending)], ctx, dp, walk)
             }
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
@@ -1262,7 +1272,8 @@ impl GameState {
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
-                    | EffectRecipient::AttackedBy(_) => {
+                    | EffectRecipient::AttackedBy(_)
+                    | EffectRecipient::DefendingPlayer(_) => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
@@ -1567,7 +1578,8 @@ impl GameState {
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
-                    | EffectRecipient::AttackedBy(_) => targets
+                    | EffectRecipient::AttackedBy(_)
+                    | EffectRecipient::DefendingPlayer(_) => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -2280,7 +2292,9 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
+        self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved
@@ -2515,6 +2529,26 @@ impl GameState {
                     }
                 }
             }
+            PlayerRef::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx).ok_or_else(|| {
+                format!("{:?} on {:?} names \"defending player\", and its creature attacks nothing", by, ctx.source)
+            })?,
+            // CR 802.2a: with two or more, which one is the controller's choice.
+            PlayerRef::AnyDefendingPlayer => {
+                let defending: Vec<PlayerId> =
+                    self.players_in_game_apnap().into_iter().filter(|&player| self.is_defending_player(player)).collect();
+                match defending.as_slice() {
+                    [only] => *only,
+                    others => {
+                        return Err(format!(
+                            "{:?} on {:?} names \"defending player\" with no creature to settle which, and \
+                             there are {} defending players: the controller's choice (CR 802.2a) is not asked here",
+                            by,
+                            ctx.source,
+                            others.len()
+                        ))
+                    }
+                }
+            }
         })
     }
 
@@ -2569,6 +2603,13 @@ impl GameState {
             Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
             None => Vec::new(),
         }
+    }
+
+    /// "Defending player" for `creature` (CR 508.5), read as `attacked_by`
+    /// reads it.
+    fn defending_player_of(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Option<PlayerId> {
+        let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        objects.object(creature, ctx.effect_source())?.defending_player(self)
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,
@@ -2706,7 +2747,8 @@ impl GameState {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
             EffectRecipient::Target(SelectionFilter::Player, _)
             | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred => {
+            | EffectRecipient::Referred
+            | EffectRecipient::DefendingPlayer(_) => {
                 for t in targets {
                     if let ResolvedTarget::Player(pid) = t {
                         return *pid;
