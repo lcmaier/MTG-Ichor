@@ -2231,7 +2231,7 @@ impl GameState {
                         (None, EntersAttacking::Chosen) => self.what_can_be_attacked(),
                         (None, EntersAttacking::Player { .. } | EntersAttacking::SameAs(_)) => Vec::new(),
                     };
-                    mods.merge(&EnterMods { attacking: Some(EntryAttack { candidates }), ..EnterMods::NONE });
+                    mods.merge(&EnterMods { attacking: Some(Box::new(EntryAttack { candidates })), ..EnterMods::NONE });
                 }
                 entries.push(entry);
             }

@@ -1520,7 +1520,9 @@ pub struct EnterMods {
     /// never a replacement, so no merge of a replacement's mods writes it.
     /// The batch asks the controller when two or more candidates remain, and
     /// the entry's performer writes the attack when CR 506.3 allows it.
-    pub attacking: Option<EntryAttack>,
+    /// Boxed: every proposal and batch member carries an entry's mods, and
+    /// the few that enter attacking pay for the room.
+    pub attacking: Option<Box<EntryAttack>>,
 }
 
 /// What a permanent put onto the battlefield attacking may attack (CR 508.4),
