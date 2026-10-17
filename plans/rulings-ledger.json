@@ -447,6 +447,19 @@
         {"n": 8, "published_at": "2017-02-09", "comment": "In a Two-Headed Giant game, Exquisite Archangel’s ability causes the team’s life total to become the team’s starting life total (normally 30), but only you actually gain or lose life."}
       ]
     },
+    "Fathom Fleet Swordjack": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2023-07-28", "comment": "If an effect stops a token from attacking a specific player, that token can attack any player, planeswalker, or battle, or not attack at all. If the effect stops the token from attacking a specific player unless a cost is paid, you don't have to pay that cost unless you want to attack that player."},
+        {"n": 2, "published_at": "2020-11-10", "comment": "Exiling the card with encore is a cost to activate the ability. Once you announce that you're activating it, no player may take actions until you've finished. They can't try to remove the card from your graveyard to stop you from paying the cost."},
+        {"n": 3, "published_at": "2020-11-10", "comment": "Opponents who have left the game aren't counted when determining how many tokens to create."},
+        {"n": 4, "published_at": "2020-11-10", "comment": "The tokens copy only what's on the original card. Effects that modified that creature when it was previously on the battlefield won't be copied."},
+        {"n": 5, "published_at": "2020-11-10", "comment": "If Fathom Fleet Swordjack leaves the battlefield after its triggered ability triggers but before it resolves, the ability will resolve as normal. The player or planeswalker it was attacking will be dealt damage. On the other hand, if it remains on the battlefield but leaves combat before its triggered ability resolves, no player or planeswalker is dealt damage."},
+        {"n": 6, "published_at": "2020-11-10", "comment": "If one of the tokens can't attack for any reason (such as being tapped), then it doesn't attack. If there's a cost associated with having it attack, you aren't forced to pay that cost, so it doesn't have to attack in that case either."},
+        {"n": 7, "published_at": "2020-11-10", "comment": "If one of the tokens somehow is under another player's control as the delayed triggered ability resolves, you can't sacrifice that token. It remains on the battlefield indefinitely, even if you regain control of it later."},
+        {"n": 8, "published_at": "2020-11-10", "comment": "Each token must attack the appropriate player if able."}
+      ]
+    },
     "Felidar Sovereign": {
       "first_seen": "2026-09-19",
       "read": "2026-09-19",
@@ -588,6 +601,12 @@
         {"n": 1, "published_at": "2023-09-01", "comment": "If a creature you control would enter the battlefield with a number of +1/+1 counters on it, it enters with that many plus one instead."},
         {"n": 2, "published_at": "2023-09-01", "comment": "If two or more effects attempt to modify how many counters would be put on a creature you control, you choose the order to apply those effects, no matter who controls the sources of those effects."},
         {"n": 3, "published_at": "2023-09-01", "comment": "Each additional Hardened Scales you control will increase the number of +1/+1 counters placed on a creature you control by one."}
+      ]
+    },
+    "Hellrider": {
+      "first_seen": "2026-10-16",
+      "rulings": [
+        {"n": 1, "published_at": "2017-03-14", "comment": "Creatures you control may attack multiple players and/or planeswalkers. For each attacking creature, Hellrider will deal damage to the corresponding player or planeswalker."}
       ]
     },
     "Hill Giant": {

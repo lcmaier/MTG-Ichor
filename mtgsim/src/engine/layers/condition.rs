@@ -66,6 +66,18 @@ impl ConditionReferents<'_> {
         ConditionReferents { source_lki: None, triggering_event: TriggeringEventView::None };
 }
 
+impl<'a> ConditionReferents<'a> {
+    /// The object `which` names, `source` being "this": as it last existed
+    /// once it has left, and as `TriggeringEventView` reads a triggering
+    /// event's. `None` for a participant the event does not have.
+    pub fn object(&self, which: ConditionObject, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+        match which {
+            ConditionObject::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
+            ConditionObject::Triggering(participant) => self.triggering_event.object(participant),
+        }
+    }
+}
+
 /// Does `source`'s "as long as" clause hold against the board as the pass has
 /// it right now?
 ///
@@ -134,13 +146,7 @@ pub(super) fn holds(
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
         Condition::CounterCount { object, kind, count } => {
-            let asked = match object {
-                ConditionObject::ThisObject => CurrentOrLastKnown { id: source, lki: referents.source_lki },
-                ConditionObject::Triggering(participant) => match referents.triggering_event.object(*participant) {
-                    Some(it) => it,
-                    None => return false,
-                },
-            };
+            let Some(asked) = referents.object(*object, source) else { return false };
             let n = match asked.lki {
                 Some(lki) => lki.counters_of(*kind),
                 None => match board.entity(game, asked.id) {

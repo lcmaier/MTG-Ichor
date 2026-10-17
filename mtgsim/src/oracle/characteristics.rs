@@ -10,6 +10,7 @@ use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::HeldFrame;
 use crate::objects::card_data::AbilityDef;
+use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::effects::ObjectFilter;
@@ -53,6 +54,15 @@ impl CurrentOrLastKnown<'_> {
         match self.lki {
             Some(lki) => Some(Arc::clone(lki.frame())),
             None => compute_characteristics(game, self.id),
+        }
+    }
+
+    /// What it is attacking (CR 506.3), as it is now, or as it left the
+    /// battlefield. `None` for a creature not attacking.
+    pub fn attacking(&self, game: &GameState) -> Option<AttackTarget> {
+        match self.lki {
+            Some(lki) => lki.attacking(),
+            None => game.battlefield.get(&self.id)?.attacking.as_ref().map(|attack| attack.target),
         }
     }
 

@@ -147,6 +147,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
         EffectRecipient::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::participant(*p),
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
+        EffectRecipient::AttackedBy(creature) => creature_read(*creature),
         EffectRecipient::Referred => BoundReads::REFERRED,
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
@@ -155,6 +156,15 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
             };
             reads | filter(&pick.filter) | count
         }),
+    }
+}
+
+/// A creature the def names by `ConditionObject` and reads a fact of as it
+/// is now: its attack.
+fn creature_read(creature: ConditionObject) -> BoundReads {
+    match creature {
+        ConditionObject::ThisObject => BoundReads::SOURCE,
+        ConditionObject::Triggering(p) => BoundReads::TRIGGERING_OBJECTS | BoundReads::participant_as_one(p),
     }
 }
 

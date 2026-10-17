@@ -829,6 +829,12 @@ pub enum EffectRecipient {
     /// remembered acted on ([`Effect::Remember`]), each object found only
     /// while it is the same object (CR 400.7). Never an instance of "target".
     Referred,
+    /// "The player or planeswalker it's attacking" (CR 506.3): what the
+    /// creature named is attacking, read as CR 608.2h reads that creature.
+    /// While it is on the battlefield it is its attack now, and nothing once
+    /// it has left combat; once it has left the battlefield, the attack its
+    /// last known information kept (Fathom Fleet Swordjack's ruling).
+    AttackedBy(ConditionObject),
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is

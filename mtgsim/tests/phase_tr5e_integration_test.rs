@@ -4,6 +4,9 @@
 //! 2. The readings of CR 508.3a–e and 506.5 over that record: a triggering
 //!    event for each attacker, or for each player attacked with its
 //!    attackers, and CR 508.2a's moment.
+//! 3. "The player or planeswalker it's attacking", read as CR 608.2h reads
+//!    the creature: Hellrider, and both halves of Fathom Fleet Swordjack's
+//!    ruling.
 
 use std::sync::Arc;
 
@@ -12,6 +15,8 @@ use mtgsim::cards::authoring::{
     Whose,
 };
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_lg_cards::act_of_treason;
+use mtgsim::cards::phase_tr5e_cards::hellrider;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -19,7 +24,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
-use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
+use mtgsim::test_support::{fill_library, put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
@@ -44,9 +49,10 @@ fn stocked(players: usize) -> GameState {
     game
 }
 
-/// Player 0 declares `attacks`, each attacker against its player. The
-/// declaration's options are each attacker against each opponent, the
-/// attackers in the order they entered and the opponents in seat order.
+/// Player 0 declares `attacks`, each attacker against its player.
+/// `attackers` is every creature that can attack, in the order they entered:
+/// the declaration's options are each of them against each opponent, the
+/// opponents in seat order.
 fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, PlayerId)]) {
     let opponents = game.players.len() - 1;
     let picks = attacks
@@ -107,6 +113,27 @@ fn ordered_by(player: PlayerId) -> ScriptedDecisionProvider {
 
 fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
     game.battlefield[&id].counter_count(CounterType::PlusOnePlusOne)
+}
+
+fn life(game: &GameState, player: PlayerId) -> i64 {
+    game.players[player].life_total
+}
+
+/// `effect` resolving as `player`'s sorcery aimed at `target`.
+fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, target: ObjectId) {
+    let source = put_in_graveyard(game, act_of_treason(), player);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: player,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(effect, &ctx, &test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
 }
 
 fn creature_you_control() -> ObjectFilter {
@@ -315,4 +342,71 @@ fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
     declare(&mut game, &[bear], &[(bear, 1)]);
     resolve_all(&mut game, &test_dp());
     assert_eq!(plus_ones(&game, bear), 1);
+}
+
+// ---------------------------------------------------------------------------
+// 3. The player or planeswalker it's attacking
+// ---------------------------------------------------------------------------
+
+// RULING: Hellrider #1 - "For each attacking creature, Hellrider will deal
+//   damage to the corresponding player or planeswalker."
+/// Hellrider and two Grizzly Bears attack three players: each trigger deals
+/// its 1 damage to the player its own creature attacks.
+#[test]
+fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
+    let mut game = stocked(4);
+    let rider = put_on_battlefield(&mut game, hellrider(), 0);
+    let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
+    let before = [1, 2, 3].map(|p| life(&game, p));
+    declare(&mut game, &[rider, first, second], &[(rider, 2), (first, 1), (second, 3)]);
+    assert_eq!(game.pending_triggers.len(), 3, "one for each creature its controller attacks with");
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1, 2]);
+    resolve_all(&mut game, &dp);
+    assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), [1, 1, 1]);
+}
+
+/// Hellrider's trigger waiting for Grizzly Bears, which attack player 1.
+fn bears_attack_beside_hellrider() -> (GameState, ObjectId) {
+    let mut game = stocked(2);
+    let rider = put_on_battlefield(&mut game, hellrider(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    declare(&mut game, &[rider, bears], &[(bears, 1)]);
+    assert_eq!(declared(&game), vec![(bears, AttackTarget::Player(1))], "Hellrider stays home");
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1, "the trigger is on the stack");
+    (game, bears)
+}
+
+// RULING: Fathom Fleet Swordjack #5 - "If Fathom Fleet Swordjack leaves the
+//   battlefield after its triggered ability triggers but before it resolves,
+//   the ability will resolve as normal. The player or planeswalker it was
+//   attacking will be dealt damage."
+/// The attacker destroyed in response: the player it was attacking, as it
+/// last existed, is dealt the damage.
+#[test]
+fn an_attacker_that_left_the_battlefield_still_names_what_it_attacked() {
+    let (mut game, bears) = bears_attack_beside_hellrider();
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    resolve_as(&mut game, 1, &destroy, bears);
+    assert!(!game.battlefield.contains_key(&bears));
+    let before = life(&game, 1);
+    resolve_all(&mut game, &test_dp());
+    assert_eq!(before - life(&game, 1), 1);
+}
+
+// RULING: Fathom Fleet Swordjack #5 - "On the other hand, if it remains on
+//   the battlefield but leaves combat before its triggered ability resolves,
+//   no player or planeswalker is dealt damage."
+/// The attacker stolen in response: a change of control removes it from
+/// combat (CR 506.4), so it attacks nothing and nobody is dealt damage.
+#[test]
+fn an_attacker_that_left_combat_names_nothing() {
+    let (mut game, bears) = bears_attack_beside_hellrider();
+    resolve_as(&mut game, 1, &act_of_treason().abilities[0].effect, bears);
+    assert!(game.battlefield[&bears].attacking.is_none(), "removed from combat");
+    let before = [0, 1].map(|p| life(&game, p));
+    resolve_all(&mut game, &test_dp());
+    assert_eq!([0, 1].map(|p| life(&game, p)), before);
 }

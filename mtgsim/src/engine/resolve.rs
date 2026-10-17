@@ -9,9 +9,10 @@ use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, Re
 use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
+use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
+    AmountExpr, Choice, ChoiceScope, Condition, ConditionObject, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
     EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
@@ -289,6 +290,13 @@ impl GameState {
             ) => {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
+            }
+            // "The player or planeswalker it's attacking": read as the
+            // instruction applies, and nothing once its creature has left
+            // combat.
+            Effect::Atom(primitive, recipient @ EffectRecipient::AttackedBy(creature)) => {
+                let attacked = self.attacked_by(*creature, ctx);
+                self.resolve_primitive(primitive, recipient, &attacked, ctx, dp, walk)
             }
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
@@ -1253,7 +1261,8 @@ impl GameState {
                     | EffectRecipient::ThisObject
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
-                    | EffectRecipient::Referred => {
+                    | EffectRecipient::Referred
+                    | EffectRecipient::AttackedBy(_) => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
@@ -1557,7 +1566,8 @@ impl GameState {
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
-                    | EffectRecipient::Referred => targets
+                    | EffectRecipient::Referred
+                    | EffectRecipient::AttackedBy(_) => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -2543,6 +2553,21 @@ impl GameState {
                 let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
                 crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller), objects)
             }
+        }
+    }
+
+    /// "The player or planeswalker it's attacking" (CR 506.3): what
+    /// `creature` is attacking, read as CR 608.2h reads it. A creature still
+    /// on the battlefield answers with its attack now, and nothing once it has
+    /// left combat; one that left the battlefield answers with the attack it
+    /// left with (Fathom Fleet Swordjack's ruling).
+    fn attacked_by(&self, creature: ConditionObject, ctx: &ResolutionContext) -> Vec<ResolvedTarget> {
+        let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        let attack = objects.object(creature, ctx.effect_source()).and_then(|it| it.attacking(self));
+        match attack {
+            Some(AttackTarget::Player(player)) => vec![ResolvedTarget::Player(player)],
+            Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
+            None => Vec::new(),
         }
     }
 

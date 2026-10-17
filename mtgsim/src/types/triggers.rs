@@ -20,7 +20,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
-use crate::state::battlefield::{CostChoices, PermanentState};
+use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
@@ -1360,11 +1360,12 @@ struct LkiBody {
 }
 
 /// What a permanent had that its characteristics do not carry: its tapped
-/// status (CR 110.5), its counters (CR 122) and its attachments both ways
-/// (CR 301.5, 303.4).
+/// status (CR 110.5), its counters (CR 122), its attachments both ways (CR
+/// 301.5, 303.4) and what it was attacking (CR 506.3).
 #[derive(Debug, PartialEq)]
 struct PermanentFacts {
     tapped: bool,
+    attacking: Option<AttackTarget>,
     /// By kind, in `CounterType`'s order.
     counters: Vec<(CounterType, u32)>,
     attached_to: Option<ObjectId>,
@@ -1390,6 +1391,7 @@ impl Lki {
             counters.sort_unstable_by_key(|&(kind, _)| kind);
             PermanentFacts {
                 tapped: entry.tapped,
+                attacking: entry.attacking.as_ref().map(|attack| attack.target),
                 counters,
                 attached_to: entry.attached_to,
                 attached_by: entry.attached_by.clone(),
@@ -1441,6 +1443,12 @@ impl Lki {
             (None, Some(permanent)) => permanent.counters.iter().map(|&(_, n)| n).sum(),
             (None, None) => 0,
         }
+    }
+
+    /// What it was attacking as it left (CR 506.4's removal comes with the
+    /// move); `None` for an object that was not an attacking permanent.
+    pub fn attacking(&self) -> Option<AttackTarget> {
+        self.0.permanent.as_ref().and_then(|p| p.attacking)
     }
 
     /// What it was attached to.
@@ -1506,7 +1514,6 @@ mod tests {
     use super::*;
     use crate::events::event::EventSeq;
     use crate::types::zones::ZoneChangeAct;
-    use crate::state::battlefield::AttackTarget;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
