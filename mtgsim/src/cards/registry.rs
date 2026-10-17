@@ -31,6 +31,7 @@ use super::phase_tr4b_cards;
 use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
+use super::phase_tr5e_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -62,7 +63,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 111] = [
+const PERFORMANCE_POOL: [&str; 112] = [
     "Plains",
     "Island",
     "Swamp",
@@ -518,6 +519,11 @@ const PERFORMANCE_POOL: [&str; 111] = [
     // and a grant over a filter that counts counters. A counter after combat
     // damage, and reach and trample, end no game.
     "Sphere Grid",
+    // TR-5e's: an attack trigger for each creature its controller attacks
+    // with, and damage to what that creature is attacking. A point for each
+    // attacker shortens games; how much it moves `stress` is read at the
+    // close-out and reported (`triggers-architecture.md` §12, decision 7).
+    "Hellrider",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -925,6 +931,10 @@ impl CardRegistry {
         // damage's source, which its instruction names (CR 608.2c), and its
         // grant counts the counters on each creature.
         registry.register("Sphere Grid", phase_tr5a_cards::sphere_grid);
+
+        // TR-5e: the attack declaration. Hellrider triggers for each attacker
+        // and deals its damage to what that attacker is attacking (CR 506.3).
+        registry.register("Hellrider", phase_tr5e_cards::hellrider);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
