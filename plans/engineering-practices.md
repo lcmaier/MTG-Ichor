@@ -716,9 +716,9 @@ and the dated record of every reading stays in `fuzz-record.md`. The
 | Floor | Limit | Reading | Read on | Where |
 |---|---|---|---|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | ≤ 64 | 39 | 2026-10-05 | `clone_bound_test` in release, 207 checkpoints over 24 Commander games |
+| 2. Allocations per clone | ≤ 64 | 42 | 2026-10-17 | `clone_bound_test` in release, 183 checkpoints over 24 Commander games, TR-5b's tree (`stress` 12351 under Teferi's clause, turn 30) |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 2026-10-06 | the same checkpoints, the median of nine clones at each, the worst checkpoint of three runs |
-| 3. Kilobytes per clone | ≤ 128 | 100.0 | 2026-10-05 | the same checkpoints, `performance` 12347 at turn 150 |
+| 3. Kilobytes per clone | ≤ 128 | 93.3 | 2026-10-17 | the same checkpoints, `performance` 12345 at turn 80 |
 <!-- floors: end -->
 
 **Floor 1 is read under a named stack, as it is read on a named board.** Its

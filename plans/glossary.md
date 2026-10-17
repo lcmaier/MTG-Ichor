@@ -629,7 +629,10 @@ is "an ability triggers only once each time its trigger event occurs. However,
 it can trigger repeatedly if one event contains multiple occurrences", so a
 wipe of three lands is three triggers for "whenever a land is put into a
 graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
-(`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
+(`OncePerEvent`). A third answer, `OncePerSubject`, is "one or more ... on a
+creature": one trigger for each object or player the window's records are
+about, which only the counter arms can carry (TR-5b). Distinct from the
+**occurrence** it counts, which is what the
 arm says one of its events is (one **triggering event** that
 `triggering_events_in` returns: a record for most kinds, an attacker for
 the attack shape, a counter for the counter arms).

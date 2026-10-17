@@ -37,6 +37,89 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-17 for TR-5b** (#258: counters, and one history
+struct; items 6 and 'Before Triggered abilities' 17). Simic Ascendancy and
+Protean Hydra join the registry and the pool (203 → 205 registered, 113 →
+115 pooled), so both §3 columns are new baselines. `close_out.py` against
+**main** `65d33bc` (#257's merge), with **engine** `1d0f99c` (everything
+built, both cards written and unregistered) and **shipped** `2cdc54e`.
+
+**Predictions, before any arm ran** (in the PR body):
+- the history commit `309cac0` IDENTICAL against `main`, and the worst
+  clone three allocations fewer at four seats;
+- engine vs `main`, every gameplay row the same, both pools, both seat
+  counts; the event dumps moved (the two records, an entry's counters);
+  the audited dispatch counts up, since counter records reach the gate;
+- instructions per decision +0.1 to +0.3%;
+- shipped moving every dealt game; Simic Ascendancy's share of the games
+  it wins reported.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, history commit vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Replacement gathers`, `main` → engine, performance / stress | 956 → 956 / 830 → 830 | 1,938 → 1,939 / 1,893 → 1,893 |
+| audit, engine, performance / stress, dispatches agreed | 156,528 / 143,472 | 311,743 / 316,878 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Windows past gate`, `main` → shipped, performance / stress | 51.3 → 70.4 / 44.9 → 85.1 | 143.3 → 194.4 / 163.9 → 218.3 |
+| audit, shipped, performance / stress, dispatches agreed | 154,440 / 167,410 | 308,471 / 330,137 |
+| `stress` avg turns, engine → shipped | 23.5 → 26.1 | 49.4 → 50.7 |
+| `stress` total damage, engine → shipped | 46.5 → 52.8 | 132.9 → 137.4 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6997 M → 0.7005 M, **+0.11%** |
+
+**One prediction missed: the audited dispatch counts did not move.** A
+counter record joins a window its event already dispatched (an entry's,
+an instruction's, the state-based check's), so no window was added.
+`Replacement gathers`' +1 at four seats is CR 704.5q's removals, which are
+proposals now.
+
+**The clone floors.** Like for like, on `main`'s pool, the history commit
+took `clone_bound_test`'s worst checkpoint from 41 allocations to 38 and
+from 96.4 KB to 93.4 (162 checkpoints −3, 24 at turn 1, before any
+snapshot, +1). The shipped tree plays other games, with two cards in the
+registry: its worst is 42 allocations, `stress` 12351 under Teferi's clause
+at turn 30, and 93.3 KB.
+
+**Protean Hydra was cast 0 times** in the reachability pass (200 games
+forced, both seat counts): MA-1's gate refuses an `{X}` symbol, which
+`mana-architecture.md` §3.7 gives to MA-2. Its six rulings are tests that
+cast it directly. MA-2 moved up to the next PR.
+
+**Simic Ascendancy's distortion**, 200 `stress` games: wins by effect 0.5%
+→ 0.5% at two seats and 1.5% → 4.0% at four in natural decks (`main` →
+shipped); with a copy forced into every deck, 3.5% and 10.5%. Cast 157
+times in 123 games at two seats and 117 in 97 at four, forced. Pooled, at
+the owner's word, for the variety of ways a game ends.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts):
+0 errors and 0 panics everywhere, and every dispatch agreed (809,925 /
+817,721 at two seats, 1,543,541 / 1,666,209 at four).
+
+**Copies.** `phase_tr5b_cards::static_replacement` is the per-file helper
+three earlier card files carry; kept, as they are, until the hoist
+`codebase-state.md`'s "Before card breadth" item 10 records.
+
+**§3 fixture rows, shipped `2cdc54e`, two seats, 50 games / seed 12345.**
+Both columns are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 25 (50.0%) | 24 (48.0%) / 26 (52.0%) |
+| Wins by effect | 1 | 0 |
+| Avg turns | 25.8 | 26.3 |
+| Spells cast | 19.5 | 20.4 |
+| Lands played | 15.7 | 16.0 |
+| Combat w/ atk | 9.3 | 8.4 |
+| Creatures died | 6.4 | 5.2 |
+| Damage events | 21.6 | 18.2 |
+| Total damage | 55.1 | 53.4 |
+| Life changes | 14.9 | 13.0 |
+| **Layer walks** | **328** | **413** |
+| **Board walks** | **205** | **244** |
+| **Memo hits** | **45,898** | **63,012** |
+| **Layer frames** | **3,625** | **4,668** |
+| **Frames/walk** | **11.05** | **11.31** |
+
 **Re-recorded 2026-10-17 for TR-5f** (#257: creatures put onto the
 battlefield attacking, and removal from combat; items 128 and 270). Hanweir
 Garrison joins the registry and the pool, Relentless Assault the registry
