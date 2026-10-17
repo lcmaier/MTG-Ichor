@@ -70,10 +70,10 @@ pub enum AmountExpr {
     /// when the event was its departure or it had left before the event, and
     /// live when it is still where the event left it
     /// (`triggers-architecture.md` §3.4, §6.3).
-    TriggeringPower(crate::types::triggers::Participant),
+    TriggeringPower(crate::types::triggers::EventRole),
     /// "Its toughness", read the same way: Paladin of Atonement's "you gain
     /// life equal to its toughness" as it last existed on the battlefield.
-    TriggeringToughness(crate::types::triggers::Participant),
+    TriggeringToughness(crate::types::triggers::EventRole),
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
@@ -168,6 +168,16 @@ pub enum PlayerRef {
     Owner,
     /// A specific player
     Player(PlayerId),
+    /// "Defending player" for the attacking creature the text names (CR
+    /// 508.5, 802.2a): its source ("an ability of an attacking creature"), or
+    /// a trigger's attacker. The player it is attacking, or the controller of
+    /// the planeswalker it is attacking.
+    DefendingPlayer(Antecedent),
+    /// "Defending player" where no creature settles which (CR 802.2a's last
+    /// sentence): any of the attacking player's opponents during combat (CR
+    /// 506.2, 802.2), for one target's filter or an activation's restriction,
+    /// where what the controller picks is the choice. Nobody outside combat.
+    AnyDefendingPlayer,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -551,6 +561,10 @@ pub enum Condition {
     /// died this turn" is every row added up, while a life total is not a
     /// count and "an opponent controls three artifacts" is one opponent's three.
     Player { players: PlayerSet, fact: PlayerFact },
+    /// "If defending player controls an artifact" (CR 508.5): the fact about
+    /// the defending player of the creature `of` names, and false while it
+    /// attacks nothing.
+    DefendingPlayer { of: Antecedent, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -613,7 +627,7 @@ pub enum Condition {
     /// left (CR 113.7a), which is how persist reads a creature that died. No
     /// layer writes a counter, so it is never a CR 613.8 dependency; a
     /// counter write bumps the layer epoch.
-    CounterCount { object: ConditionObject, kind: Option<CounterType>, count: crate::types::history::CountIs },
+    CounterCount { object: Antecedent, kind: Option<CounterType>, count: crate::types::history::CountIs },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -641,15 +655,18 @@ pub enum Condition {
     CostAnswer(CostAnswer),
 }
 
-/// Which object a condition's leaf asks about, in the words of its text.
+/// The antecedent of a word in an ability's text that means an object: which
+/// object "this", "it" or "that creature" refers to. A condition, a recipient
+/// and "defending player" each name one (`ConditionReferents::object_for`
+/// finds it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConditionObject {
+pub enum Antecedent {
     /// "This": the object whose ability it is (CR 113.7a).
     ThisObject,
-    /// "It": the object that played the named part in the triggering event, a
+    /// "It": the object with this event role in the triggering event, a
     /// triggered ability's alone. A static ability has none, and the leaf
     /// answers no.
-    Triggering(crate::types::triggers::Participant),
+    Triggering(crate::types::triggers::EventRole),
 }
 
 impl Condition {
@@ -663,12 +680,13 @@ impl Condition {
     pub fn reads_entry_state(&self) -> bool {
         match self {
             Condition::SourceUntapped | Condition::SourceTapped => true,
-            Condition::CounterCount { object, .. } => *object == ConditionObject::ThisObject,
+            Condition::CounterCount { object, .. } => *object == Antecedent::ThisObject,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read
             // players, histories, the host, a trigger, or a resolution.
             Condition::Player { .. }
+            | Condition::DefendingPlayer { .. }
             | Condition::SpellWasKicked
             | Condition::ModeChosen(_)
             | Condition::SourceInZone(_)
@@ -820,7 +838,7 @@ pub enum EffectRecipient {
     /// is found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7
     /// in one comparison): a creature that died and was returned before the
     /// trigger resolves is a new object, and is not found.
-    Triggering(crate::types::triggers::Participant),
+    Triggering(crate::types::triggers::EventRole),
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
@@ -829,6 +847,16 @@ pub enum EffectRecipient {
     /// remembered acted on ([`Effect::Remember`]), each object found only
     /// while it is the same object (CR 400.7). Never an instance of "target".
     Referred,
+    /// "The player or planeswalker it's attacking" (CR 506.3): what the
+    /// creature named is attacking, read as CR 608.2h reads that creature.
+    /// While it is on the battlefield it is its attack now, and nothing once
+    /// it has left combat; once it has left the battlefield, the attack its
+    /// last known information kept (Fathom Fleet Swordjack's ruling).
+    AttackedBy(Antecedent),
+    /// "Defending player" as the player acted on: "defending player loses 2
+    /// life" (CR 508.5), for the creature named, read as `AttackedBy` reads
+    /// it. Nobody while it attacks nothing.
+    DefendingPlayer(Antecedent),
     /// "Each player", "each opponent", "you and that player": every player the
     /// group names, over the seats still in the game, each once, in CR 101.4's
     /// APNAP order at resolution. A draw instruction to several players is

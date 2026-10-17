@@ -37,6 +37,66 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-16 for TR-5e** (#256: the attack declaration; item
+11's attackers half). Hellrider joins the registry and the pool (200 → 201
+registered, 111 → 112 pooled), so both §3 columns are new baselines.
+`close_out.py --fixtures` against **main** `7fec5d7` (#255's merge), with
+**engine** `6a90cd4` (the branch with Hellrider unregistered) and **shipped**
+`ed7434e`.
+
+**Predictions, before any arm ran** (in the PR body):
+- engine vs `main`, every gameplay and cost row the same, both pools, two
+  seats and four: no registered card has an attack trigger, reads
+  "defending player", or attacks a planeswalker.
+- Instructions per decision +0.0 to +0.3%.
+- shipped moving every dealt game; Hellrider reached at both seat counts; its
+  distortion of `stress` reported, not gated (decision 7).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 158,957 / 152,086 | 328,606 / 335,275 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| `Windows past gate`, `main` → shipped, performance / stress | 52.5 → 50.1 / 60.9 → 61.5 | 143.5 → 134.9 / 158.9 → 159.1 |
+| `Candidate visits`, `main` → shipped, performance / stress | 86.7 → 78.1 / 84.1 → 86.0 | 282.4 → 270.1 / 281.8 → 266.5 |
+| audit, shipped, performance / stress, dispatches agreed | 152,944 / 157,974 | 317,789 / 329,751 |
+| `stress` avg turns, engine → shipped | 24.9 → 25.6 | 52.9 → 51.0 |
+| `stress` total damage, engine → shipped | 47.5 → 50.5 | 142.9 → 139.5 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6577 M → 0.6580 M, **+0.05%** |
+
+Every prediction held on the first sitting. **Hellrider's distortion is within
+the deal's noise**: every dealt deck changes with the pool, and the two seat
+counts moved average turns in opposite directions, by under two turns.
+
+**Reachability**, shipped, 200 games forced: Hellrider cast 158 times in 115
+games at two seats and 123 in 103 at four.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts), on
+the tree after `e5113a6`, which plays as shipped: 0 errors, 0 panics, no game
+at the turn limit, and no disagreement (812,381 / 829,375 dispatches at two
+seats, 1,583,674 / 1,705,681 at four).
+
+**§3 fixture rows, shipped `ed7434e`, two seats, 50 games / seed 12345.**
+Both columns are new baselines.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 28 (56.0%) / 22 (44.0%) | 29 (58.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.0 | 25.0 |
+| Spells cast | 22.4 | 19.0 |
+| Lands played | 16.8 | 15.8 |
+| Combat w/ atk | 11.1 | 7.2 |
+| Creatures died | 7.1 | 3.9 |
+| Damage events | 24.3 | 14.6 |
+| Total damage | 64.7 | 46.8 |
+| Life changes | 18.8 | 11.4 |
+| **Layer walks** | **331** | **363** |
+| **Board walks** | **200** | **207** |
+| **Memo hits** | **54,773** | **52,961** |
+| **Layer frames** | **3,811** | **3,883** |
+| **Frames/walk** | **11.53** | **10.70** |
+
 **Re-recorded 2026-10-16 for TR-5a** (#255: the binding's roles; items 250,
 255 and 267). Sphere Grid joins the registry and the pool (199 → 200
 registered, 110 → 111 pooled), so both §3 columns are new baselines.

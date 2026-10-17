@@ -12,6 +12,7 @@
 //! and that refusal stays inside this module: `Not` and the connectives need
 //! it, and every asker outside wants a yes or a no.
 
+use crate::types::effects::Antecedent;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
@@ -34,6 +35,10 @@ pub(crate) trait FilterReferents {
     fn source(&self) -> Option<ObjectId>;
     fn source_owner(&mut self) -> Option<PlayerId>;
     fn earlier_targets(&self) -> EarlierTargets<'_>;
+    /// "Defending player" for the attacking creature `creature` names (CR
+    /// 508.5): `None` where the text names no such creature, or it attacks
+    /// nothing.
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId>;
     /// How many counters of `kind`, or of every kind for `None`, the
     /// permanent `id` has: off the battlefield here, and off the entity the
     /// layer walk is building there, which under a look-ahead is the entering
@@ -83,6 +88,10 @@ impl FilterReferents for TextReferents<'_, '_> {
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {
         self.identity.earlier_targets
+    }
+
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
+        self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game)
     }
 }
 
@@ -237,7 +246,7 @@ fn answer_or_refuse<'f>(
         ObjectFilter::ByColor(color) => Ok(chars()?.colors.contains(color)),
         ObjectFilter::ByController(who) => {
             let controller = chars()?.controller;
-            player_ref_names(who, controller, referents).ok_or(FilterRefusal::NoSource(id))
+            player_ref_names(game, who, controller, referents).ok_or(FilterRefusal::NoSource(id))
         }
         // CR 111.1 / 707.2 — being a token is a property of the object, not of
         // its characteristics: a copy effect does not make a nontoken
@@ -249,7 +258,7 @@ fn answer_or_refuse<'f>(
                 Some(lki) => lki.owner(),
                 None => object()?.owner,
             };
-            player_ref_names(who, owner, referents).ok_or(FilterRefusal::NoSource(id))
+            player_ref_names(game, who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
         ObjectFilter::PowerLE(max_power) => {
             chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
@@ -300,11 +309,18 @@ fn answer_or_refuse<'f>(
 /// a predicate (Xantcha's "planeswalkers its owner controls"); an action's
 /// `Owner` is the owner of the object acted on, and its readers' own
 /// (`compute::resolve_set_controller`).
-pub(crate) fn player_ref_names(who: &PlayerRef, player: PlayerId, referents: &mut impl FilterReferents) -> Option<bool> {
+pub(crate) fn player_ref_names(
+    game: &GameState,
+    who: &PlayerRef,
+    player: PlayerId,
+    referents: &mut impl FilterReferents,
+) -> Option<bool> {
     Some(match who {
         PlayerRef::You => player == referents.you(),
         PlayerRef::Opponent => player != referents.you(),
         PlayerRef::Owner => player == referents.source_owner()?,
         PlayerRef::Player(pid) => player == *pid,
+        PlayerRef::DefendingPlayer(creature) => referents.defending_player(game, *creature) == Some(player),
+        PlayerRef::AnyDefendingPlayer => game.is_defending_player(player),
     })
 }

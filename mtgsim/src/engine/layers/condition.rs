@@ -28,7 +28,7 @@ use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
-use crate::types::effects::{Condition, ConditionObject, ObjectFilter, PlayerFact, PlayerSet};
+use crate::types::effects::{Antecedent, Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::{HistoryCount, HistorySpan};
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::engine::triggers::binding::TriggeringEventView;
@@ -64,6 +64,21 @@ impl ConditionReferents<'_> {
     /// Nothing beyond the board: every static ability's condition.
     pub const NONE: ConditionReferents<'static> =
         ConditionReferents { source_lki: None, triggering_event: TriggeringEventView::None };
+}
+
+impl<'a> ConditionReferents<'a> {
+    /// Finds the object a text's word for one means. `ThisObject` is
+    /// `source`, the object whose ability it is; `Triggering(role)` is
+    /// the object that played that part in the triggering event. Either comes
+    /// back as `CurrentOrLastKnown`: the object as it is now, or as it last
+    /// existed once it has left (CR 608.2h). `None` when the triggering event
+    /// has no such object.
+    pub fn object_for(&self, word: Antecedent, source: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
+        match word {
+            Antecedent::ThisObject => Some(CurrentOrLastKnown { id: source, lki: self.source_lki }),
+            Antecedent::Triggering(role) => self.triggering_event.object(role),
+        }
+    }
 }
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -102,6 +117,14 @@ pub(super) fn holds(
         Condition::Player { players, fact } => {
             player_fact_holds(players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
         }
+        // CR 508.5: the fact about one player, the creature's defending player.
+        Condition::DefendingPlayer { of, fact } => match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
+            Some(defending) => {
+                let players = PlayerSet::Fixed(vec![defending]);
+                player_fact_holds(&players, fact, game, board, source, layer_index, locked_you, owner_if_gone)
+            }
+            None => false,
+        },
 
         // CR 113.6b's clause, **the leg that retires Wonder's row**: asked at every
         // layer, so an exiled Wonder stops granting on the next walk with nothing
@@ -134,13 +157,7 @@ pub(super) fn holds(
         // "This" or "it", as it last existed once it has left (persist's
         // creature, which died), and off the entity otherwise.
         Condition::CounterCount { object, kind, count } => {
-            let asked = match object {
-                ConditionObject::ThisObject => CurrentOrLastKnown { id: source, lki: referents.source_lki },
-                ConditionObject::Triggering(participant) => match referents.triggering_event.object(*participant) {
-                    Some(it) => it,
-                    None => return false,
-                },
-            };
+            let Some(asked) = referents.object_for(*object, source) else { return false };
             let n = match asked.lki {
                 Some(lki) => lki.counters_of(*kind),
                 None => match board.entity(game, asked.id) {

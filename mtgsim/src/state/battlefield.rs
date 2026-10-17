@@ -198,11 +198,23 @@ pub struct BlockingInfo {
     pub blocking: Vec<ObjectId>,
 }
 
-#[derive(Debug, Clone)]
+/// What a creature attacks: CR 506.3, "only a player, a planeswalker, or a
+/// battle can be attacked".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttackTarget {
     Player(PlayerId),
     Planeswalker(ObjectId),
     Battle(ObjectId),
+}
+
+impl AttackTarget {
+    /// The permanent attacked; `None` for a player.
+    pub fn permanent(self) -> Option<ObjectId> {
+        match self {
+            AttackTarget::Player(_) => None,
+            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => Some(id),
+        }
+    }
 }
 
 impl PermanentState {

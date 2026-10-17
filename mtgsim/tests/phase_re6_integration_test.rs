@@ -403,7 +403,7 @@ fn a_departed_player_is_not_offered_as_an_attack_target() {
     let dp = RecordingDecisionProvider::picking(0);
     game.process_declare_attackers(&dp).unwrap();
 
-    let target = game.battlefield[&attacker].attacking.as_ref().map(|a| a.target.clone());
+    let target = game.battlefield[&attacker].attacking.as_ref().map(|a| a.target);
     assert!(
         matches!(target, Some(AttackTarget::Player(3))),
         "the only opponent still in the game, not {target:?}"

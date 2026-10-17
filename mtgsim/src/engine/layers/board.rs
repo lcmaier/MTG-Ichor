@@ -801,22 +801,13 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
 /// static conditioned on controlling a Forest).
 fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels) {
     match condition {
-        Condition::Player { fact, .. } => match fact {
-            // The controller test is the fact's, not the filter's, so it
-            // reads CONTROLLER on every candidate whatever the filter says.
-            PlayerFact::ControlsPermanent(filter) => {
-                out.members |= Channels::CONTROLLER;
-                out.source |= you_channel;
-                filter_reads(filter, out, you_channel);
-            }
-            // Life totals are off `GameState`, not off any frame — only a
-            // dynamic threshold reads one.
-            PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
-            // A library's card count is off `GameState` too. A graveyard card
-            // is a non-member, which no application reaches — `amount_reads`'
-            // `CardTypesAmong` arm is kept exact for the same reason.
-            PlayerFact::LibraryEmpty | PlayerFact::CardInGraveyard(_) => {}
-        },
+        Condition::Player { fact, .. } => player_fact_reads(fact, out, you_channel),
+        // Which player is off combat state, which no layer writes, but a
+        // planeswalker attacked is answered by its controller.
+        Condition::DefendingPlayer { fact, .. } => {
+            out.members |= Channels::CONTROLLER;
+            player_fact_reads(fact, out, you_channel);
+        }
         // The host is read through the filter; *which* object is the host is
         // `attached_to`, which no layer writes.
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
@@ -845,6 +836,26 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
                 condition_reads(clause, out, you_channel);
             }
         }
+    }
+}
+
+/// What a fact about a player reads, for `condition_reads`.
+fn player_fact_reads(fact: &PlayerFact, out: &mut Reads, you_channel: Channels) {
+    match fact {
+        // The controller test is the fact's, not the filter's, so it
+        // reads CONTROLLER on every candidate whatever the filter says.
+        PlayerFact::ControlsPermanent(filter) => {
+            out.members |= Channels::CONTROLLER;
+            out.source |= you_channel;
+            filter_reads(filter, out, you_channel);
+        }
+        // Life totals are off `GameState`, not off any frame — only a
+        // dynamic threshold reads one.
+        PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
+        // A library's card count is off `GameState` too. A graveyard card
+        // is a non-member, which no application reaches — `amount_reads`'
+        // `CardTypesAmong` arm is kept exact for the same reason.
+        PlayerFact::LibraryEmpty | PlayerFact::CardInGraveyard(_) => {}
     }
 }
 

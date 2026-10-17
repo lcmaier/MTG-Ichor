@@ -1,3 +1,4 @@
+use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::object_filter::{self, EarlierTargets, FilterReferents, TextReferents};
@@ -261,6 +262,11 @@ pub struct FilterIdentity<'a> {
     /// [`ObjectFilter::OtherThanInstance`] reads. `None` outside CR 601.2c's
     /// loop and CR 608.2b's re-check, where that leaf is likewise refused.
     pub earlier_targets: EarlierTargets<'a>,
+    /// The other objects the text names, as CR 608.2h reads them: "this" once
+    /// it has left, and a trigger's triggering event. A target's "defending
+    /// player" reads its creature here. Nothing outside a trigger's placement
+    /// and resolution.
+    pub named_objects: ConditionReferents<'a>,
 }
 
 impl FilterIdentity<'static> {
@@ -268,6 +274,7 @@ impl FilterIdentity<'static> {
     pub const NONE: FilterIdentity<'static> = FilterIdentity {
         source: None,
         earlier_targets: EarlierTargets::None,
+        named_objects: ConditionReferents::NONE,
     };
 }
 
@@ -275,7 +282,12 @@ impl<'a> FilterIdentity<'a> {
     /// The text of `this_object` being announced, with the instances of
     /// "target" it has announced so far.
     pub fn for_text_of(this_object: ObjectId, earlier_targets: EarlierTargets<'a>) -> Self {
-        FilterIdentity { source: Some(this_object), earlier_targets }
+        FilterIdentity { source: Some(this_object), earlier_targets, named_objects: ConditionReferents::NONE }
+    }
+
+    /// The same, with the other objects the text names.
+    pub fn naming(self, named_objects: ConditionReferents<'a>) -> Self {
+        FilterIdentity { named_objects, ..self }
     }
 }
 
@@ -392,6 +404,11 @@ impl GameState {
             | EffectRecipient::TriggeringPlayer
             | EffectRecipient::Referred => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
+            )),
+            // What a creature attacks, and whom, is read as the instruction
+            // applies.
+            EffectRecipient::AttackedBy(_) | EffectRecipient::DefendingPlayer(_) => Err(format!(
+                "{recipient:?} is read as the effect applies, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its
             // chooser can be an instance, and `Effect::instances` lists that.
@@ -762,11 +779,13 @@ impl GameState {
         instances: &[TargetInstance],
         you: PlayerId,
         this_object: ObjectId,
+        named_objects: ConditionReferents<'_>,
     ) -> Option<ChosenTargets> {
         // The announcement, unfiltered: "another target" was a criterion of
         // CR 601.2c's announcement, and re-asking it against a half-filtered list
         // would let one instance's fizzle legalize another's. Borrowed, not copied.
-        let announced_targets = FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances));
+        let announced_targets =
+            FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances)).naming(named_objects);
 
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
@@ -920,14 +939,14 @@ mod tests {
 
         // Target is legal while on battlefield
         let survivors = game
-            .surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED)
+            .surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
             .expect("a legal target resolves");
         assert_eq!(survivors.instance(0), &[ResolvedTarget::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.
         game.battlefield.remove(&land_id);
-        assert!(game.surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED).is_none());
+        assert!(game.surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
     }
 }
 

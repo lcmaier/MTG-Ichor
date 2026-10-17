@@ -293,6 +293,7 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         // your graveyard" is about some *other* card's zone, so it says nothing
         // about where this ability functions.
         Condition::Player { .. }
+        | Condition::DefendingPlayer { .. }
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped

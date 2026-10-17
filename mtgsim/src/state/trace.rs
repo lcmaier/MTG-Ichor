@@ -892,10 +892,12 @@ impl GameState {
     /// The names `event`'s objects are announced under, where one is not its
     /// card's; `None` on nearly every event.
     fn names_as_announced(&mut self, event: &GameEvent) -> NamesAsAnnounced {
-        let names: Vec<(ObjectId, String)> = event
-            .objects_named_as_announced()
-            .filter_map(|id| self.name_unless_printed(id).map(|name| (id, name)))
-            .collect();
+        let mut names: Vec<(ObjectId, String)> = Vec::new();
+        event.for_each_object_named(|id| {
+            if let Some(name) = self.name_unless_printed(id) {
+                names.push((id, name));
+            }
+        });
         (!names.is_empty()).then(|| Arc::new(names))
     }
 

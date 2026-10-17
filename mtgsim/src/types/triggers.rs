@@ -20,7 +20,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::cause::EventCause;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
-use crate::state::battlefield::{CostChoices, PermanentState};
+use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectRef, PlayerId};
@@ -142,6 +142,31 @@ pub enum TriggerSubject {
     Referred,
 }
 
+/// What an attack trigger asks of the player, planeswalker or battle
+/// attacked: CR 508.3a's "attacks [a player, planeswalker, or battle]",
+/// 508.3b's "is attacked" and 508.3e's "attacks [another player]".
+#[derive(Debug, Clone, PartialEq)]
+pub enum DefenderFilter {
+    /// A player; `None` is any player, `Some(You)` the ability's controller.
+    Player(Option<PlayerRef>),
+    /// A planeswalker or a battle: "attacks a planeswalker you control".
+    Permanent(ObjectFilter),
+    /// Either: "attacks you or a planeswalker you control" (17 cards) is a
+    /// player or a permanent, which the authoring word
+    /// `player_or_their_planeswalker` writes.
+    Or(Box<DefenderFilter>, Box<DefenderFilter>),
+}
+
+/// What one triggering event of an attack trigger is (CR 603.2c): each
+/// creature declared as an attacker (CR 508.3a, 508.3c, 508.3d), or each
+/// player, planeswalker or battle it is declared attacking (CR 508.3b,
+/// 508.3e).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttackEventPer {
+    Attacker,
+    Defender,
+}
+
 /// Whom damage was dealt to, for "is dealt damage" and "deals damage to".
 #[derive(Debug, Clone, PartialEq)]
 pub enum DamageRecipient {
@@ -152,13 +177,15 @@ pub enum DamageRecipient {
     Object(Option<ObjectFilter>),
 }
 
-/// The part an object played in the event that triggered an ability, which an
-/// instruction names to say which object it reads. "That creature" after
-/// "[a creature] deals damage" is the damage's source, and after "[a creature]
-/// is dealt damage" its recipient: CR 608.2c leaves the antecedent to the
-/// text, so the card states it (`triggers-architecture.md` §12, TR-5a).
+/// An object's event role: the part it played in the event that triggered
+/// an ability, which an instruction names to say which object it reads. "That
+/// creature" after "[a creature] deals damage" is the damage's source, and
+/// after "[a creature] is dealt damage" its recipient: CR 608.2c leaves the
+/// antecedent to the text, so the card states it (`triggers-architecture.md`
+/// §12, TR-5a). Always "event role", never a bare "role", which the Role
+/// tokens own (CR 111.10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Participant {
+pub enum EventRole {
     /// The one object an event about one object names: the card a zone change
     /// moved, the permanent tapped or that entered, the card drawn, the spell
     /// cast or countered, the source of mana, the permanent whose control
@@ -170,66 +197,85 @@ pub enum Participant {
     DamageRecipient,
     /// CR 508.1: a creature declared as an attacker.
     Attacker,
+    /// CR 506.3: the planeswalker or battle a creature was declared
+    /// attacking. A player attacked is no object.
+    Attacked,
     /// CR 701.3: the Aura, Equipment or Fortification.
     Attachment,
     /// CR 701.3: the object it became attached to, or was attached to.
     Host,
 }
 
-impl Participant {
-    pub const ALL: [Participant; 6] = [
-        Participant::Object,
-        Participant::DamageSource,
-        Participant::DamageRecipient,
-        Participant::Attacker,
-        Participant::Attachment,
-        Participant::Host,
+impl EventRole {
+    pub const ALL: [EventRole; 7] = [
+        EventRole::Object,
+        EventRole::DamageSource,
+        EventRole::DamageRecipient,
+        EventRole::Attacker,
+        EventRole::Attacked,
+        EventRole::Attachment,
+        EventRole::Host,
     ];
 }
 
-/// What damage is dealt to (CR 120.1): an object, or a player.
+/// What damage is dealt to (CR 120.1), or what is attacked (CR 506.3): an
+/// object, or a player.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectOrPlayer {
     Object(ObjectRef),
     Player(PlayerId),
 }
 
+impl ObjectOrPlayer {
+    /// The object; `None` for a player.
+    pub fn object(self) -> Option<ObjectRef> {
+        match self {
+            ObjectOrPlayer::Object(object) => Some(object),
+            ObjectOrPlayer::Player(_) => None,
+        }
+    }
+}
+
 /// The objects a triggering event is about, each by the part it played, as the
 /// existence the dispatch found (CR 400.7): the one fact a record, which names
 /// its objects by id, does not carry. One variant per shape of event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TriggeringEventObjects {
     /// A step beginning, a life change, a player losing.
     NoObject,
-    /// [`Participant::Object`].
+    /// [`EventRole::Object`].
     Object(ObjectRef),
     /// CR 120.1: the damage's source, as the existence that dealt it, and what
     /// it was dealt to.
     Damage { source: ObjectRef, recipient: ObjectOrPlayer },
-    /// CR 508.1: one creature declared as an attacker.
-    Attack { attacker: ObjectRef },
+    /// CR 508.1: one creature declared as an attacker, and what it attacks.
+    Attack { attacker: ObjectRef, defender: ObjectOrPlayer },
+    /// CR 508.3b: one player, planeswalker or battle attacked, and every
+    /// creature declared attacking it.
+    Defense { defender: ObjectOrPlayer, attackers: Vec<ObjectRef> },
     /// CR 701.3: an attachment and the object it became, or was, attached to.
     Attach { attachment: ObjectRef, host: ObjectRef },
 }
 
 impl TriggeringEventObjects {
-    /// The object that played `participant`, if this event has one.
-    pub fn get(&self, participant: Participant) -> Option<ObjectRef> {
-        match (*self, participant) {
-            (TriggeringEventObjects::Object(object), Participant::Object)
-            | (TriggeringEventObjects::Damage { source: object, .. }, Participant::DamageSource)
-            | (
-                TriggeringEventObjects::Damage { recipient: ObjectOrPlayer::Object(object), .. },
-                Participant::DamageRecipient,
-            )
-            | (TriggeringEventObjects::Attack { attacker: object }, Participant::Attacker)
-            | (TriggeringEventObjects::Attach { attachment: object, .. }, Participant::Attachment)
-            | (TriggeringEventObjects::Attach { host: object, .. }, Participant::Host) => Some(object),
+    /// The object that played `role`, if this event has exactly one:
+    /// a defender's attackers are several, and [`Self::objects`] has them.
+    pub fn get(&self, role: EventRole) -> Option<ObjectRef> {
+        match (self, role) {
+            (TriggeringEventObjects::Object(object), EventRole::Object)
+            | (TriggeringEventObjects::Damage { source: object, .. }, EventRole::DamageSource)
+            | (TriggeringEventObjects::Attack { attacker: object, .. }, EventRole::Attacker)
+            | (TriggeringEventObjects::Attach { attachment: object, .. }, EventRole::Attachment)
+            | (TriggeringEventObjects::Attach { host: object, .. }, EventRole::Host) => Some(*object),
+            (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
+            | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
+            | (TriggeringEventObjects::Defense { defender: object, .. }, EventRole::Attacked) => object.object(),
             (
                 TriggeringEventObjects::NoObject
                 | TriggeringEventObjects::Object(_)
                 | TriggeringEventObjects::Damage { .. }
                 | TriggeringEventObjects::Attack { .. }
+                | TriggeringEventObjects::Defense { .. }
                 | TriggeringEventObjects::Attach { .. },
                 _,
             ) => None,
@@ -237,24 +283,26 @@ impl TriggeringEventObjects {
     }
 
     /// Each object, with the part it played.
-    pub fn objects(&self) -> impl Iterator<Item = (Participant, ObjectRef)> {
-        // No shape names more than two objects.
-        let pairs: [Option<(Participant, ObjectRef)>; 2] = match *self {
-            TriggeringEventObjects::NoObject => [None, None],
-            TriggeringEventObjects::Object(object) => [Some((Participant::Object, object)), None],
-            TriggeringEventObjects::Damage { source, recipient } => [
-                Some((Participant::DamageSource, source)),
-                match recipient {
-                    ObjectOrPlayer::Object(object) => Some((Participant::DamageRecipient, object)),
-                    ObjectOrPlayer::Player(_) => None,
-                },
-            ],
-            TriggeringEventObjects::Attack { attacker } => [Some((Participant::Attacker, attacker)), None],
+    pub fn objects(&self) -> impl Iterator<Item = (EventRole, ObjectRef)> + '_ {
+        // Up to two objects, then a defender's attackers.
+        let (pairs, attackers): ([Option<(EventRole, ObjectRef)>; 2], &[ObjectRef]) = match self {
+            TriggeringEventObjects::NoObject => ([None, None], &[]),
+            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], &[]),
+            TriggeringEventObjects::Damage { source, recipient } => (
+                [Some((EventRole::DamageSource, *source)), recipient.object().map(|o| (EventRole::DamageRecipient, o))],
+                &[],
+            ),
+            TriggeringEventObjects::Attack { attacker, defender } => {
+                ([Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))], &[])
+            }
+            TriggeringEventObjects::Defense { defender, attackers } => {
+                ([defender.object().map(|o| (EventRole::Attacked, o)), None], attackers)
+            }
             TriggeringEventObjects::Attach { attachment, host } => {
-                [Some((Participant::Attachment, attachment)), Some((Participant::Host, host))]
+                ([Some((EventRole::Attachment, *attachment)), Some((EventRole::Host, *host))], &[])
             }
         };
-        pairs.into_iter().flatten()
+        pairs.into_iter().flatten().chain(attackers.iter().map(|&attacker| (EventRole::Attacker, attacker)))
     }
 }
 
@@ -506,10 +554,18 @@ pub enum TriggerEvent {
         was_cast: Option<bool>,
         multiplicity: Multiplicity,
     },
-    /// CR 508.3a's plain shape, "whenever a creature attacks" — one attacker
-    /// is one occurrence. TR-5 widens this to the five shapes with item 11's
-    /// defender on the record.
-    Attacks { attacker: TriggerSubject, multiplicity: Multiplicity },
+    /// CR 508.3a–e and 506.5, read off the declaration's record only: a
+    /// creature put onto the battlefield attacking never "attacked" (CR
+    /// 508.4). "Whenever [a player] attacks" (CR 508.3d) is `OncePerEvent`
+    /// over a creature that player controls.
+    Attacks {
+        attacker: TriggerSubject,
+        defender: Option<DefenderFilter>,
+        per: AttackEventPer,
+        /// CR 506.5: the only creature declared as an attacker.
+        alone: bool,
+        multiplicity: Multiplicity,
+    },
     /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
@@ -755,10 +811,20 @@ impl TriggerEvent {
         }
     }
 
+    /// Whether one triggering event of this arm may have several objects in
+    /// `role`'s part: a defender's attackers (CR 508.3b). An
+    /// instruction that needs exactly one, "its power", cannot name it.
+    pub fn may_have_several(&self, role: EventRole) -> bool {
+        matches!(
+            (self, role),
+            (TriggerEvent::Attacks { per: AttackEventPer::Defender, .. }, EventRole::Attacker)
+        )
+    }
+
     /// The parts an object can play in this arm's triggering events: what an
     /// instruction may name, which a registry test checks every registered
     /// card against (TR-5a).
-    pub fn participants(&self) -> &'static [Participant] {
+    pub fn event_roles(&self) -> &'static [EventRole] {
         match self {
             TriggerEvent::ZoneChange { .. }
             | TriggerEvent::BecomesTapped { .. }
@@ -768,11 +834,11 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::ControlChanges { .. } => &[Participant::Object],
-            TriggerEvent::DamageDealt { .. } => &[Participant::DamageSource, Participant::DamageRecipient],
-            TriggerEvent::Attacks { .. } => &[Participant::Attacker],
+            | TriggerEvent::ControlChanges { .. } => &[EventRole::Object],
+            TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
+            TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
-                &[Participant::Attachment, Participant::Host]
+                &[EventRole::Attachment, EventRole::Host]
             }
             TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -994,17 +1060,22 @@ impl TriggerBinding {
         }
     }
 
-    /// "Its power", "if it had": the object that played `participant` in the
+    /// "Its power", "if it had": the object that played `role` in the
     /// one triggering event, as the existence the dispatch found. `None` for a
     /// "one or more" trigger, which has no single object.
-    pub fn triggering_object(&self, participant: Participant) -> Option<ObjectRef> {
-        self.triggering_event()?.objects.get(participant)
+    pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
+        self.triggering_event()?.objects.get(role)
     }
 
-    /// "That creature", "them": the object that played `participant` in each
-    /// triggering event, one for a `PerOccurrence` trigger.
-    pub fn triggering_objects(&self, participant: Participant) -> Vec<ObjectRef> {
-        self.triggering_events.iter().filter_map(|event| event.objects.get(participant)).collect()
+    /// "That creature", "them": each object that played `role` in each
+    /// triggering event. One for a `PerOccurrence` trigger, but for a
+    /// defender's attackers.
+    pub fn triggering_objects(&self, role: EventRole) -> Vec<ObjectRef> {
+        self.triggering_events
+            .iter()
+            .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == role))
+            .map(|(_, object)| object)
+            .collect()
     }
 }
 
@@ -1292,11 +1363,12 @@ struct LkiBody {
 }
 
 /// What a permanent had that its characteristics do not carry: its tapped
-/// status (CR 110.5), its counters (CR 122) and its attachments both ways
-/// (CR 301.5, 303.4).
+/// status (CR 110.5), its counters (CR 122), its attachments both ways (CR
+/// 301.5, 303.4) and what it was attacking (CR 506.3).
 #[derive(Debug, PartialEq)]
 struct PermanentFacts {
     tapped: bool,
+    attacking: Option<AttackTarget>,
     /// By kind, in `CounterType`'s order.
     counters: Vec<(CounterType, u32)>,
     attached_to: Option<ObjectId>,
@@ -1322,6 +1394,7 @@ impl Lki {
             counters.sort_unstable_by_key(|&(kind, _)| kind);
             PermanentFacts {
                 tapped: entry.tapped,
+                attacking: entry.attacking.as_ref().map(|attack| attack.target),
                 counters,
                 attached_to: entry.attached_to,
                 attached_by: entry.attached_by.clone(),
@@ -1373,6 +1446,12 @@ impl Lki {
             (None, Some(permanent)) => permanent.counters.iter().map(|&(_, n)| n).sum(),
             (None, None) => 0,
         }
+    }
+
+    /// What it was attacking as it left (CR 506.4's removal comes with the
+    /// move); `None` for an object that was not an attacking permanent.
+    pub fn attacking(&self) -> Option<AttackTarget> {
+        self.0.permanent.as_ref().and_then(|p| p.attacking)
     }
 
     /// What it was attached to.
@@ -1476,7 +1555,7 @@ mod tests {
             ("TurnBegin", GameEvent::TurnBegin { player: 0, turn_number: 1 }),
             ("LifeChanged", GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None }),
             ("PermanentEnteredBattlefield", GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 }),
-            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![id] }),
+            ("AttackersDeclared", GameEvent::AttackersDeclared { attackers: vec![(id, AttackTarget::Player(1))] }),
             ("AbilityTriggered", GameEvent::AbilityTriggered {
                 seq: TriggerSeq(0),
                 origin: TriggerOrigin::Object(identity),
@@ -1530,7 +1609,10 @@ mod tests {
                 TriggerEvent::EntersBattlefield { subject: this.clone(), controller: None, from: None, was_cast: None, multiplicity: each },
                 &["PermanentEnteredBattlefield"],
             ),
-            (TriggerEvent::Attacks { attacker: this, multiplicity: each }, &["AttackersDeclared"]),
+            (
+                TriggerEvent::Attacks { attacker: this, defender: None, per: AttackEventPer::Attacker, alone: false, multiplicity: each },
+                &["AttackersDeclared"],
+            ),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
             (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),

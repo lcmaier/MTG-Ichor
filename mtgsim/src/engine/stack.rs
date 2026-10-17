@@ -126,7 +126,8 @@ impl GameState {
         // after. `None` is "doesn't resolve". "Another target" is other than the
         // text's "this": the spell, or the permanent with the ability (CR 113.7a).
         let this_object = entry.this_object();
-        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object) else {
+        let named = self.condition_objects(entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref());
+        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller, this_object, named) else {
             // Every target of every instance is illegal — the spell or ability
             // doesn't resolve (CR 608.2b).
             self.handle_fizzle(object_id, &entry, controller, dp)?;

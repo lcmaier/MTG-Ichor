@@ -10,13 +10,15 @@
 
 use std::sync::Arc;
 
+use crate::engine::layers::condition::ConditionReferents;
+use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef};
-use crate::types::triggers::{Participant, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
+use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerSeq, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
@@ -108,11 +110,15 @@ impl GameState {
     pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
-        // The participants the def names, each triggering event's: one it
+        // The event roles the def names, each triggering event's: one it
         // does not name may differ, as each Wargear's own attachment does.
-        let named: Vec<Participant> = reads.participants().collect();
-        let objects = |binding: &TriggerBinding| -> Vec<Option<ObjectRef>> {
-            binding.triggering_events.iter().flat_map(|e| named.iter().map(move |&p| e.objects.get(p))).collect()
+        let named: Vec<EventRole> = reads.event_roles().collect();
+        let objects = |binding: &TriggerBinding| -> Vec<(EventRole, ObjectRef)> {
+            binding
+                .triggering_events
+                .iter()
+                .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)))
+                .collect()
         };
         (unread(BoundReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
             && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
@@ -162,7 +168,13 @@ impl GameState {
         self.stack.push(id);
 
         let identity = pending.origin.identity();
-        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, dp) {
+        // A target's "defending player" reads the trigger's attacker off its
+        // binding, as it will at resolution.
+        let named = ConditionReferents {
+            source_lki: None,
+            triggering_event: TriggeringEventView::Resolving { game: self, binding: &pending.binding },
+        };
+        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, named, dp) {
             Ok(targets) => targets,
             Err(_) => {
                 self.ability_leaves_the_stack(id);

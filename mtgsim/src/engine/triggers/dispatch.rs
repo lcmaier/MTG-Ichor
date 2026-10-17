@@ -20,6 +20,8 @@
 
 use std::sync::Arc;
 
+use crate::oracle::characteristics::CurrentOrLastKnown;
+use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -34,14 +36,14 @@ use crate::events::cause::{EventCause, GameRule, GeneratedBy};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
-use crate::state::battlefield::CostChoices;
+use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, DamageRecipient, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackEventPer, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -246,6 +248,14 @@ impl FilterReferents for TriggerReferents<'_> {
 
     fn earlier_targets(&self) -> EarlierTargets<'_> {
         EarlierTargets::None
+    }
+
+    /// The candidate, now: an arm's own words have no triggering event yet.
+    fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
+        match creature {
+            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
+            Antecedent::Triggering(_) => None,
+        }
     }
 }
 
@@ -1485,7 +1495,7 @@ impl GameState {
         let Some(condition) = &def.intervening_if else { return Ok(triggering_events) };
         let holding: Vec<TriggeringEventObjects> = triggering_events
             .into_iter()
-            .filter(|&objects| {
+            .filter(|objects| {
                 let triggering_event = match arm.multiplicity() {
                     Multiplicity::PerOccurrence => TriggeringEventView::AtTrigger { arm, record, objects },
                     Multiplicity::OncePerEvent => TriggeringEventView::None,
@@ -1550,7 +1560,7 @@ impl GameState {
                 change.matches(Some(*from), *to, Some(*act))
                     // The resolving spell or ability caused the move, also where a
                     // replacement redirected it (`replacement-architecture.md` §2b.4).
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::of_departure(arm, lki)),
             ),
@@ -1579,7 +1589,7 @@ impl GameState {
             ) => triggering_event_if(
                 change.act.is_some()
                     && change.matches(Some(*zone), *zone, Some(*act))
-                    && by.as_ref().is_none_or(|by| by.matches(&record.stamp.cause, &mut { *referents }))
+                    && by.as_ref().is_none_or(|by| by.matches(self, &record.stamp.cause, &mut { *referents }))
                     && owner.as_ref().is_none_or(|p| self.player_ref_is(p, *moved_owner, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
@@ -1696,12 +1706,43 @@ impl GameState {
                         && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::Now),
                 )
             }
-            (TriggerEvent::Attacks { attacker, .. }, GameEvent::AttackersDeclared { attackers }) => attackers
-                .iter()
-                .filter(|id| self.subject_matches(attacker, Some(**id), referents, seq, SubjectRead::Now))
-                .filter_map(|&id| self.subject_after(event, id))
-                .map(|attacker| TriggeringEventObjects::Attack { attacker })
-                .collect(),
+            // The declaration's attackers that match, each with what it
+            // attacks, in the record's order: a triggering event each, or one
+            // for each player, planeswalker or battle they attack.
+            (
+                TriggerEvent::Attacks { attacker, defender, per, alone, .. },
+                GameEvent::AttackersDeclared { attackers },
+            ) => {
+                // CR 506.5: the only creature declared as an attacker.
+                if *alone && attackers.len() != 1 {
+                    return Vec::new();
+                }
+                let attacks = attackers
+                    .iter()
+                    .filter(|&&(id, target)| {
+                        self.subject_matches(attacker, Some(id), referents, seq, SubjectRead::Now)
+                            && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
+                    })
+                    .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
+                match per {
+                    AttackEventPer::Attacker => {
+                        attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
+                    }
+                    AttackEventPer::Defender => {
+                        let mut defenses: Vec<(ObjectOrPlayer, Vec<ObjectRef>)> = Vec::new();
+                        for (attacker, defender) in attacks {
+                            match defenses.iter_mut().find(|(attacked, _)| *attacked == defender) {
+                                Some((_, its_attackers)) => its_attackers.push(attacker),
+                                None => defenses.push((defender, vec![attacker])),
+                            }
+                        }
+                        defenses
+                            .into_iter()
+                            .map(|(defender, attackers)| TriggeringEventObjects::Defense { defender, attackers })
+                            .collect()
+                    }
+                }
+            }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
                     None => true,
@@ -1889,7 +1930,34 @@ impl GameState {
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// trigger's referents (CR 109.5's "you" is its controller).
     fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, referents: &TriggerReferents<'_>) -> bool {
-        player_ref_names(who, player, &mut { *referents }) == Some(true)
+        player_ref_names(self, who, player, &mut { *referents }) == Some(true)
+    }
+
+    /// Whether `target`, what a creature was declared attacking, is what
+    /// `asked` names (CR 508.3a, 508.3b, 508.3e).
+    fn defender_matches(&self, asked: &DefenderFilter, target: AttackTarget, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+        match (asked, target) {
+            (DefenderFilter::Player(who), AttackTarget::Player(player)) => {
+                who.as_ref().is_none_or(|who| self.player_ref_is(who, player, referents))
+            }
+            (DefenderFilter::Permanent(among), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+                self.subject_matches(&TriggerSubject::Filter(among.clone()), Some(id), referents, seq, SubjectRead::Now)
+            }
+            (DefenderFilter::Or(either, or), _) => {
+                self.defender_matches(either, target, referents, seq) || self.defender_matches(or, target, referents, seq)
+            }
+            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
+            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
+        }
+    }
+
+    /// What `target` names, a permanent as the existence it is now (CR
+    /// 400.7). `None` for a permanent the store no longer holds.
+    fn attacked(&self, target: AttackTarget) -> Option<ObjectOrPlayer> {
+        Some(match target {
+            AttackTarget::Player(player) => ObjectOrPlayer::Player(player),
+            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => ObjectOrPlayer::Object(self.object_ref(id)?),
+        })
     }
 
     /// `object` as it was just before the window's event (CR 603.10): where it
@@ -1928,7 +1996,7 @@ impl GameState {
 
     /// The objects `record`'s one triggering event is about (§3.4), each as
     /// the existence the trigger remembers (`subject_after`). The arm says
-    /// which participants the event has, grouped as `participants()` groups
+    /// which event roles the event has, grouped as `event_roles()` groups
     /// them; its record is one `triggering_events_in` matched to it. An
     /// object the store no longer holds leaves the event about none. An
     /// attack record holds one event per attacker, which

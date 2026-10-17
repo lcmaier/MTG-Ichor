@@ -271,7 +271,7 @@ fn matches(
 /// `None` means "however caused" and matches everything, including the events
 /// no [`SourceFilter`] matches (a cost, a turn-based or state-based action).
 fn cause_matches(by: Option<&SourceFilter>, cause: &EventCause, referents: &mut TextReferents<'_, '_>) -> bool {
-    by.is_none_or(|by| by.matches(cause, referents))
+    by.is_none_or(|by| by.matches(referents.game, cause, referents))
 }
 
 /// Source 3 — the restrictions an object's *keywords* create.

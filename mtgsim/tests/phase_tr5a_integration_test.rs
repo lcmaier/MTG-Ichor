@@ -3,7 +3,7 @@
 //! 1. Item 267: a permanent whose controller changes is removed from combat
 //!    (CR 506.4), and an attacker whose blocker is taken stays blocked (CR
 //!    509.1h).
-//! 2. Item 255: a damage record's two participants, the source and the
+//! 2. Item 255: a damage record's two event roles, the source and the
 //!    recipient, and the instruction names the one its "that creature" means
 //!    (CR 608.2c). A source that left before dealing the damage is the
 //!    existence that dealt it (CR 608.2h).
@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{attacks, dies, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::phase_re_cards::soldier_token;
@@ -33,7 +33,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, ConditionObject, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    AmountExpr, Antecedent, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::CountIs;
@@ -41,7 +41,7 @@ use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
-    DamageRecipient, Multiplicity, Participant, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+    DamageRecipient, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -229,7 +229,7 @@ fn an_attacker_whose_blocker_is_taken_stays_blocked() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Item 255: the damage record's two participants
+// 2. Item 255: the damage record's two event roles
 // ---------------------------------------------------------------------------
 
 /// Sphere Grid's "that creature" is the creature that dealt the combat
@@ -253,7 +253,7 @@ fn sphere_grid_puts_its_counter_on_the_creature_that_dealt_the_damage() {
 #[test]
 fn that_creature_is_the_recipient_when_the_instruction_names_it() {
     let mut game = stocked(2);
-    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(Participant::DamageRecipient));
+    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient));
     let dealt_damage = TriggerEvent::DamageDealt {
         source: TriggerSubject::Any,
         recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
@@ -277,7 +277,7 @@ fn that_creature_is_the_recipient_when_the_instruction_names_it() {
 /// power to each opponent." Its damage is dealt by a source that has left.
 fn martyr() -> Arc<CardData> {
     let deals = Effect::Atom(
-        Primitive::DealDamage { amount: AmountExpr::TriggeringPower(Participant::Object), unpreventable: false },
+        Primitive::DealDamage { amount: AmountExpr::TriggeringPower(EventRole::Object), unpreventable: false },
         EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
     );
     CardDataBuilder::new("Fixture Martyr")
@@ -295,8 +295,8 @@ fn martyr() -> Arc<CardData> {
 fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     let mut game = stocked(2);
     let gains_its_power = Effect::Sequence(vec![
-        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(Participant::DamageSource)), EffectRecipient::Controller),
-        a_counter_on(EffectRecipient::Triggering(Participant::DamageSource)),
+        Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::DamageSource)), EffectRecipient::Controller),
+        a_counter_on(EffectRecipient::Triggering(EventRole::DamageSource)),
     ]);
     let dealt_damage_by_a_creature = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
@@ -313,9 +313,9 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let top = *game.stack.last().expect("the leech's trigger");
     let binding = game.stack_entries[&top].trigger.as_ref().expect("a triggered ability");
-    let dealt_by = binding.triggering_object(Participant::DamageSource).expect("the damage's source");
+    let dealt_by = binding.triggering_object(EventRole::DamageSource).expect("the damage's source");
     assert_ne!(Some(dealt_by), game.object_ref(martyr), "the existence that dealt it, not the card it became");
-    assert!(game.bound_objects(binding, Participant::DamageSource).is_empty(), "which nothing finds");
+    assert!(game.bound_objects(binding, EventRole::DamageSource).is_empty(), "which nothing finds");
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 20, "dealt 2, then gained its power as it last existed, 2");
 }
@@ -330,7 +330,7 @@ fn a_source_that_left_before_dealing_damage_is_read_as_it_left() {
 #[test]
 fn them_over_combat_damage_is_each_creature_that_dealt_it() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::DamageSource));
+    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::DamageSource));
     put_on_battlefield(&mut game, watcher("Fixture Bloodied Banner", combat_damage_to_a_player(Multiplicity::OncePerEvent), on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -349,8 +349,8 @@ fn them_over_combat_damage_is_each_creature_that_dealt_it() {
 #[test]
 fn them_over_an_attack_is_each_attacker() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::Attacker));
-    let attack = TriggerEvent::Attacks { attacker: TriggerSubject::Filter(creature_you_control()), multiplicity: Multiplicity::OncePerEvent };
+    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::Attacker));
+    let attack = attacks(TriggerSubject::Filter(creature_you_control())).once_per_event();
     put_on_battlefield(&mut game, watcher("Fixture War Drum", attack, on_each), 0);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
@@ -369,7 +369,7 @@ fn them_over_an_attack_is_each_attacker() {
 #[test]
 fn them_over_entries_is_each_creature_still_there() {
     let mut game = stocked(2);
-    let on_each = a_counter_on(EffectRecipient::Triggering(Participant::Object));
+    let on_each = a_counter_on(EffectRecipient::Triggering(EventRole::Object));
     let enters = TriggerEvent::EntersBattlefield {
         subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
         controller: Some(PlayerRef::You),
@@ -467,7 +467,7 @@ fn a_look_back_filter_counts_the_counters_it_died_with() {
 fn an_intervening_if_counts_every_kind_of_counter_it_had() {
     let mut game = stocked(2);
     let had_counters = Condition::CounterCount {
-        object: ConditionObject::Triggering(Participant::Object),
+        object: Antecedent::Triggering(EventRole::Object),
         kind: None,
         count: CountIs::AtLeast(1),
     };
@@ -548,16 +548,16 @@ fn a_sphere_grid_blocker_keeps_blocking_once_the_grid_leaves() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. The elision compares the participants a def reads, and no others
+// 5. The elision compares the event roles a def reads, and no others
 // ---------------------------------------------------------------------------
 
 /// Two Grafted Wargears on one creature, which dies: each becomes unattached,
 /// and each trigger sacrifices "that permanent", the host they share. The def
 /// reads the host and not the attachment, so the two entries agree on every
-/// participant it reads and go on the stack unasked (§5.2's elision), as
-/// before the binding kept every participant.
+/// event role it reads and go on the stack unasked (§5.2's elision), as
+/// before the binding kept every event role.
 #[test]
-fn entries_differing_only_in_a_participant_the_def_does_not_read_are_not_ordered() {
+fn entries_differing_only_in_an_event_role_the_def_does_not_read_are_not_ordered() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let first = put_on_battlefield(&mut game, grafted_wargear(), 0);

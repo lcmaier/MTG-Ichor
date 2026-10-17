@@ -31,6 +31,7 @@
 //! that silently does nothing, and a normal diff fails to compile at every
 //! reader instead.
 
+use crate::state::game_state::GameState;
 use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::events::cause::EventCause;
 use crate::types::effects::{ObjectSet, PlayerRef, PlayerSet};
@@ -192,7 +193,7 @@ impl SourceFilter {
     /// it: `engine::restriction`'s `cause_matches` for a "can't" and
     /// `replacement::gather`'s `applies_to` for a replacement effect. A copy
     /// in each would be two answers to CR 101.2's one question.
-    pub(crate) fn matches(&self, cause: &EventCause, referents: &mut impl FilterReferents) -> bool {
+    pub(crate) fn matches(&self, game: &GameState, cause: &EventCause, referents: &mut impl FilterReferents) -> bool {
         // Only an effect a spell or ability generated has a controller to
         // match. The right answer rather than an omission: Sigarda does not
         // stop CR 704.5's sacrifices, Nephalia Academy does not redirect a
@@ -205,7 +206,7 @@ impl SourceFilter {
             // Relative to the *asking* effect, whose "you" is CR 109.5's for a
             // static ability: Sigarda's "your opponents" is an opponent of
             // whoever currently controls Sigarda.
-            SourceFilter::ControlledBy(player_ref) => player_ref_names(player_ref, cause, referents) == Some(true),
+            SourceFilter::ControlledBy(player_ref) => player_ref_names(game, player_ref, cause, referents) == Some(true),
         }
     }
 }

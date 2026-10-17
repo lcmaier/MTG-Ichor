@@ -5201,10 +5201,11 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** its blockers half is TR-5c's, which
     writes one record per declaration step, also when nobody blocks: today
     none is written then, and CR 509.3g's "attacks and isn't blocked" reads it.
-    **Slotted:** TR-5e, whose attack readings read each attacker's defender
-    off the declaration record (CR 508.3a, 508.3b, 508.3e; re-slotted from
-    TR-5a at its design, 2026-10-16, `triggers-architecture.md` §12); the
-    blockers half TR-5c.
+    **Re-checked 2026-10-16 (TR-5e, PR #256):** the attackers half shipped:
+    `AttackersDeclared` names what each attacker attacks, and the attack
+    readings read it. What is left is the blockers half.
+    **Slotted:** TR-5c, which writes one record per declaration step, also
+    when nobody blocks (CR 509.3g).
 
 12. **No event announces a target being chosen (the trigger survey,
     2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
@@ -5754,9 +5755,10 @@ Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
-     **Slotted:** TR-5e, whose tests put a token onto the battlefield attacking
+     **Slotted:** TR-5f, whose tests put a token onto the battlefield attacking
      over this field, never declared as an attacker (CR 508.4), the defender
-     chosen or specified (re-slotted from TR-5a at its design, 2026-10-16,
+     chosen or specified (re-slotted from TR-5a at its design, then from
+     TR-5e at its review, which split TR-5f off, 2026-10-16,
      `triggers-architecture.md` §12).
 
 ### Found by RE-5 — counters, on permanents and players (2026-09-13)
@@ -9324,8 +9326,19 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      participant as the object readers do, a player the record names or an
      object participant's owner or controller, and the existing
      `TriggeringPlayer` uses migrate.
+     **Re-checked 2026-10-16 (TR-5e's re-count, `triggers-architecture.md`
+     §12):** the attack arm's "that player" is this item's too. One
+     declaration holds a triggering event for each attacker or each
+     defender, each with its own player, and `player_of` reads only the
+     record.
+     Found the same day, in TR-5e's build: "that player" that finds nobody
+     reaches `resolve_player_for_self`, whose default is the controller, so
+     "that player loses 2 life" with no player costs the controller 2. TR-5e's
+     two new player readers skip the instruction instead; this item's
+     participant reader does the same.
      **Slotted:** with the first registered card whose "that player" has two
-     candidates.
+     candidates, or the first registered attack trigger that reads "that
+     player".
 
 269. **A value of an object is seven `AmountExpr` variants, one per object and
      value.** `SourcePower`, `SourceCounters`, `TargetPower`, `TargetToughness`,
@@ -9342,6 +9355,43 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      registered card's pairing has its variant; the cost is the next one.
      **Sized:** ~60 lines of code and ~40 of tests, most of them the card
      files' literals: one `AmountExpr::ValueOf(which object, which value)`,
-     the object word shared with `ConditionObject` and TR-5e's
-     `AttackedBy`.
+     the object word shared with `Antecedent` (`ConditionObject` until
+     TR-5e's review) and TR-5e's `AttackedBy`.
      **Slotted:** A6e, the naming sweep beside item 6's close audit.
+
+270. **"Defending player" for a creature that left combat and stayed on the
+     battlefield names nobody.** CR 508.5's second sentence makes it the
+     player the creature was attacking before it was removed from combat.
+     TR-5e reads the creature's attack now, and its last known information
+     once it has left the battlefield; a creature stolen in response (item
+     267's removal), regenerated, or removed by an effect has neither, so
+     `CurrentOrLastKnown::defending_player` answers `None`, an instruction
+     acting on that player does nothing, and an intervening "if" about that
+     player is false. Found at TR-5e's review (`triggers-architecture.md` §12,
+     decision 9).
+     **Reachability (2026-10-16):** unreachable — no registered card reads
+     "defending player".
+     **Sized:** TR-5e's decision 9: removal from combat as a record, the
+     combat's history, and the one read off it, ~125 lines of code and ~270
+     of tests.
+     **Slotted:** TR-5f, whose combat history keeps what each creature
+     removed from combat was attacking.
+
+271. **CR 802.2a's choice where nothing the controller picks settles it.**
+     TR-5e's `PlayerRef::AnyDefendingPlayer` is "any defending player",
+     which is the choice exactly where the controller's pick settles it: one
+     target's filter (Yare, Blaze of Glory, False Orders). Three shapes need
+     the choice made and kept: the same player read twice (two targets, or a
+     target and then "that player loses 2 life"), every creature that player
+     controls, and the player acted on, which `resolve_player_ref` refuses
+     loudly with two or more. And "activate only if defending player
+     controls …" (Arcum's Sleigh, Kjeldoran Guard) cannot be written at all:
+     `ActivationRestriction` has no condition form. Found at TR-5e's review
+     (`triggers-architecture.md` §12, decision 10).
+     **Reachability (2026-10-16):** unreachable — no registered card names a
+     defending player with no creature.
+     **Sized:** the kept choice, asked as the stack object is made and kept
+     on its entry, ~90 lines of code and ~150 of tests (decision 10's
+     costing); the activation's condition is RS-2's own check.
+     **Slotted:** RS-2, the read-side choice points, whose cast, activation
+     and target checks the choice is asked in.

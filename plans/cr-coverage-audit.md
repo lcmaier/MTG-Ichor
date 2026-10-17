@@ -424,10 +424,11 @@ names something an object or a player keeps, as 702.82b's "it devoured" and
 
 **Combat (508, 509) was re-read rather than swept**, since RS-3 owns its
 restrictions. `AttackingInfo.target` records 508.1b's choice, and `is_blocked`
-keeps 509.1h's "remains blocked". TR-5's item 11 puts each declared attacker's
-defender on the `AttackersDeclared` record, and that record is what 508.7a's
-"still considered to have attacked" and 802.2a's "before it was removed from
-combat" read. A creature put onto the battlefield attacking (508.4) has no
+keeps 509.1h's "remains blocked". TR-5e put each declared attacker's
+defender on the `AttackersDeclared` record (item 11). What 508.7a's "still
+considered to have attacked" and 802.2a's "before it was removed from combat"
+read is TR-5f's combat history, fed by that record and by removal from
+combat's own (`triggers-architecture.md` §12, TR-5e's decision 9). A creature put onto the battlefield attacking (508.4) has no
 record, and no card reads its target after it leaves combat (`o:"onto the
 battlefield attacking" o:"defending player"` 0, `o:"removed from combat"
 o:"defending player"` 0).

@@ -165,7 +165,10 @@ impl GameState {
                             get_effective_controller(self, effect.source)
                         }
                     },
-                    PlayerRef::Owner | PlayerRef::Opponent => None,
+                    PlayerRef::Owner
+                    | PlayerRef::Opponent
+                    | PlayerRef::DefendingPlayer(_)
+                    | PlayerRef::AnyDefendingPlayer => None,
                 };
                 beneficiary == Some(player)
             })
