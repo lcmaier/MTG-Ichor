@@ -1106,9 +1106,6 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("Scried: P{} scry {} (looked at {})", player_id, n, looked_at)
         }
         LibraryShuffled { player_id } => format!("LibraryShuffled: P{}", player_id),
-        CountersAnnihilated { object_id, pairs_removed } => {
-            format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
-        }
         Attached { attachment, host, former_host } => match former_host {
             Some(former) => format!(
                 "Attached: {} to {} (from {})",

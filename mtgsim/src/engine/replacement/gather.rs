@@ -961,12 +961,11 @@ const REPLACEMENT_COUNTERS: [CounterType; 3] =
 /// Is any permanent carrying a counter that generates a replacement effect?
 ///
 /// Part of `gather`'s fast path, and *computed* rather than cached: counters
-/// have three chokepoints — `GameState::add_counters`, `perform_action`'s
-/// `RemoveCounters` arm, and CR 704.5q's annihilation, which writes
-/// `PermanentState` directly (`sba.rs`, `codebase-state.md` Deferred
-/// Migrations item 6) — so a set maintained at two of them drifts, and drift
-/// reads as a card that silently does nothing. The scan skips immediately on
-/// the empty-counters case, which is almost every permanent.
+/// are written by `GameState::add_counters`, `perform_action`'s
+/// `RemoveCounters` arm and an entry's own counters, so a set maintained at
+/// some of them drifts, and drift reads as a card that silently does nothing.
+/// The scan skips immediately on the empty-counters case, which is almost
+/// every permanent.
 fn any_replacement_counter(game: &GameState) -> bool {
     // ORDER-FREE: whether any has one.
     game.battlefield.values().any(|entry| {

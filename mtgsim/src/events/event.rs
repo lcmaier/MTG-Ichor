@@ -366,14 +366,6 @@ pub enum GameEvent {
         now: u32,
     },
 
-    /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
-    ///
-    /// Distinct from [`Self::CountersChanged`] because CR 704.5q is a
-    /// state-based action that removes both kinds at once and still writes
-    /// `PermanentState` directly — it has no `GameAction` to propose through
-    /// (`codebase-state.md` Deferred Migrations item 6).
-    CountersAnnihilated { object_id: ObjectId, pairs_removed: u32 },
-
     // --- Attachment ---
     /// An Aura, Equipment or Fortification became attached to `host`
     /// (CR 701.3a), leaving `former_host` if it was attached before. Emitted
@@ -524,7 +516,6 @@ impl GameEvent {
             Tapped { object_id: id }
             | Untapped { object_id: id }
             | PermanentEnteredBattlefield { object_id: id, .. }
-            | CountersAnnihilated { object_id: id, .. }
             | CountersPutOn { subject: CounterSubject::Object(id), .. }
             | CountersRemovedFrom { subject: CounterSubject::Object(id), .. }
             | TokenCreated { object_id: id, .. }

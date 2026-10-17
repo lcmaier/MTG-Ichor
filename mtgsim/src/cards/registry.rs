@@ -142,7 +142,7 @@ const PERFORMANCE_POOL: [&str; 113] = [
     "Root Maze",
     // The first card in the crate to propose a `GameAction::AddCounters`.
     // Chainbreaker is already here and enters with -1/-1 counters, so this is
-    // also what makes CR 704.5q's annihilation sweep run in a measured game
+    // also what makes CR 704.5q's annihilation happen in a measured game
     // rather than only in a fixture.
     "Battlegrowth",
     // The `AmountExpr::CountOf` in the layer walk: a CDA that enumerates the
@@ -765,7 +765,7 @@ impl CardRegistry {
         registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
-        // and until this card the annihilation sweep had never run in a fuzz
+        // and until this card the annihilation had never happened in a fuzz
         // game — `engineering-practices.md` §3.3.
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 

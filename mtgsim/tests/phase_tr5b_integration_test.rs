@@ -10,11 +10,13 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::triggers::{counters_put_on, counters_removed_from, triggered_ability, whenever};
+use mtgsim::cards::authoring::triggers::{counters_put_on, counters_removed_from, persist, triggered_ability, whenever};
 use mtgsim::cards::phase_rc_cards::chainbreaker;
+use mtgsim::cards::phase_tr4a_cards::strangleroot_geist;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
@@ -623,4 +625,112 @@ fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
         Effect::Triggered(def) => def.readings_its_arms_cannot_give().is_empty(),
         _ => true,
     }));
+}
+
+// ---------------------------------------------------------------------------
+// CR 704.5q's two removals, in the state-based batch
+// ---------------------------------------------------------------------------
+
+/// The records CR 704.5q's annihilation wrote since `start`, each with its
+/// batch.
+fn annihilations_since(game: &GameState, start: usize) -> Vec<(GameEvent, Option<mtgsim::events::event::BatchId>)> {
+    let annihilating = EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate);
+    game.recorded_events()
+        .records_from(start)
+        .iter()
+        .filter(|record| record.stamp.cause == annihilating)
+        .map(|record| (record.event.clone(), record.batch()))
+        .collect()
+}
+
+fn removed(object: ObjectId, counter_type: CounterType, n: u32, now: u32) -> GameEvent {
+    GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(object), counter_type, n, by: None, now }
+}
+
+// COVERS: ATOM-704.5q-001
+#[test]
+fn the_annihilation_is_two_removals_of_one_event_that_no_player_made() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
+    counters_on_target(&mut game, 0, bears, put(CounterType::PlusOnePlusOne, 3));
+    counters_on_target(&mut game, 0, bears, put(CounterType::MinusOneMinusOne, 2));
+    let start = game.recorded_events().records().len();
+
+    assert!(game.check_state_based_actions(&test_dp()).expect("the check"));
+
+    let records = annihilations_since(&game, start);
+    let events: Vec<GameEvent> = records.iter().map(|(event, _)| event.clone()).collect();
+    assert_eq!(
+        events,
+        vec![removed(bears, CounterType::PlusOnePlusOne, 2, 1), removed(bears, CounterType::MinusOneMinusOne, 2, 0)]
+    );
+    assert_eq!(records[0].1, records[1].1, "CR 704.3: one event");
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1);
+}
+
+// COVERS: ATOM-704.5q-002
+#[test]
+fn equal_counts_annihilate_to_none_of_either() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 0);
+    counters_on_target(&mut game, 0, bears, put(CounterType::PlusOnePlusOne, 3));
+    counters_on_target(&mut game, 0, bears, put(CounterType::MinusOneMinusOne, 3));
+    let start = game.recorded_events().records().len();
+
+    game.check_state_based_actions(&test_dp()).expect("the check");
+
+    let events: Vec<GameEvent> = annihilations_since(&game, start).into_iter().map(|(event, _)| event).collect();
+    assert_eq!(
+        events,
+        vec![removed(bears, CounterType::PlusOnePlusOne, 3, 0), removed(bears, CounterType::MinusOneMinusOne, 3, 0)]
+    );
+    let left = |kind| game.battlefield[&bears].counter_count(kind);
+    assert_eq!((left(CounterType::PlusOnePlusOne), left(CounterType::MinusOneMinusOne)), (0, 0));
+}
+
+/// CR 704.8, on ATOM-704.8-001's board: Strangleroot Geist with a +1/+1
+/// counter takes three -1/-1 counters. One check removes a pair and puts it
+/// into the graveyard, and its last known information is from before
+/// either, with its +1/+1 counter, so undying does not return it.
+/// Annihilating first would leave it none, and it would.
+// COVERS: ATOM-704.8-001
+#[test]
+fn a_creature_the_check_kills_is_framed_before_its_annihilation() {
+    let mut game = setup_two_player_game();
+    let geist = put_on_battlefield(&mut game, strangleroot_geist(), 0);
+    counters_on_target(&mut game, 0, geist, put(CounterType::PlusOnePlusOne, 1));
+    counters_on_target(&mut game, 1, geist, put(CounterType::MinusOneMinusOne, 3));
+    let start = game.recorded_events().records().len();
+
+    resolve_all(&mut game);
+
+    let events: Vec<GameEvent> = annihilations_since(&game, start).into_iter().map(|(event, _)| event).collect();
+    assert_eq!(
+        events,
+        vec![removed(geist, CounterType::PlusOnePlusOne, 1, 0), removed(geist, CounterType::MinusOneMinusOne, 1, 2)],
+        "both removals are performed, the death beside them"
+    );
+    assert_eq!(game.get_object(geist).expect("its card").zone, Zone::Graveyard, "undying did not return it");
+}
+
+/// Persist's seventh ruling (Kitchen Finks, Wingrattle Scarecrow), where the
+/// order shows: a 2/2 with a +1/+1 and a -1/-1 counter and lethal damage is
+/// destroyed in the check that removes the pair, and persist reads the -1/-1
+/// counter it had as it died.
+#[test]
+fn persist_reads_the_counters_a_creature_died_with_beside_its_annihilation() {
+    let mut game = setup_two_player_game();
+    let finks = CardDataBuilder::new("Fixture Finks")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(persist())
+        .build();
+    let finks = put_on_battlefield(&mut game, finks, 0);
+    counters_on_target(&mut game, 0, finks, put(CounterType::PlusOnePlusOne, 1));
+    counters_on_target(&mut game, 0, finks, put(CounterType::MinusOneMinusOne, 1));
+    game.battlefield.get_mut(&finks).expect("on the battlefield").damage_marked = 2;
+
+    resolve_all(&mut game);
+
+    assert_eq!(game.get_object(finks).expect("its card").zone, Zone::Graveyard, "persist did not return it");
 }
