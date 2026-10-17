@@ -2818,6 +2818,23 @@ any zone but the stack). The walk is not.
 | **Atoms** | none of its own: CR 701.20's atoms are the information model's |
 | **Owner** | — ; after A6f's design, with B4 |
 
+### 2.47 Counts over the whole game — a game-only row, and counts by name
+
+**Raised at TR-5b's design review (2026-10-17, PR #258)**: "this game" is a
+popular custom-card genre (the owner), and the 37 printed cards that say it
+(`o:"this game"`, 2026-10-17) count four kinds of thing
+(`triggers-architecture.md` §12, TR-5b's decision 1). Two of the four have
+no store today.
+
+| Field | |
+|---|---|
+| **Rules** | none of its own: each count is its fact's own rule, read over the whole game rather than a turn, as `PlayerHistory`'s `this_game` view reads the facts it keeps (`triggers-architecture.md` §3.10) |
+| **Verdict** | **A game-only fact pays for two rows it never reads.** A player's count of one fact over the game is a `TurnFact` slot, and a slot is in each of a player's three summaries: this turn, last turn, this game. A fact read only over the game spends the other two, copied by every clone (8 bytes a slot, 96 bytes a fact at four seats). A game-only row beside the summaries, which only `this_game` reads, holds such a fact at 8 bytes a player. **A count by card name fits no slot**, since names are unbounded: Approach of the Second Sun counts spells cast with its name, Yidaro, Wandering Monster cards cycled with its name, Gollum, Obsessed Stalker the opponents a creature with its name dealt combat damage. The store is a per-player map from a name some registered card's text watches to its count, kept for the game, so it is bounded by the names watched, not the turns |
+| **Size** | the row, ~40 lines and a test, with the first game-only fact; the map, ~80 lines with Approach of the Second Sun, whose six rulings are its tests |
+| **Blocks** | the 17 printed cards that count a player's casts of a commander from the command zone (Captain Vargus Wrath, Commander's Insignia, the Storm cycle), with B2's designation; the two Frodos' count of the Ring tempting you; Approach, Yidaro and Gollum by name; and the custom "this game" cards the owner expects |
+| **Atoms** | none |
+| **Owner** | — ; the row with the first game-only fact registered, the map with Approach of the Second Sun |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
