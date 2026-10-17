@@ -480,7 +480,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `starting life L` | 103.4 | `starting_life` and each life total | 20 |
 | `seed S` | — | §6's two streams | 0 |
 | `turn T`, `active A` | 500.1, 102.1 | `begin_turn` and `begin_turn_history` for the turns the natural rotation over the players in the game gives, ending with A's turn T; `turn_rotation`; `priority_player` | 1, player 0 |
-| `step …` | 500.1, 117.3a | `set_turn_position`; `attacks_declared` from the combatants | precombat main |
+| `step …` | 500.1, 117.3a | `set_turn_position`; `combat_had_attackers` from the combatants | precombat main |
 | *(who has priority)* | 117.3a | the active player, at the round's start | not a word: §5.3 |
 | *(the first draw)* | 103.8 | `skip_first_draw`, from `starting_player_skips_first_draw` (§1) | derived |
 | `player p: life N` | 119 | `life_total` | starting life |

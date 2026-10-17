@@ -449,7 +449,7 @@ impl<'s> Loader<'s> {
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
             || self.state.players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
-        self.state.attacks_declared = self.in_combat_from(StepType::DeclareAttackers) && attacked;
+        self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
         let skipped_without_attackers = matches!(
             self.scenario.step.step,
@@ -573,14 +573,14 @@ impl<'s> Loader<'s> {
                 let identity = AbilityIdentity { source: reference, ability: ability.id };
                 match word {
                     CardWord::Triggered { .. } => {
-                        self.state.triggered_this_turn.insert(identity);
+                        self.state.history.triggered_this_turn.insert(identity);
                     }
                     CardWord::Resolved { times, .. } => {
-                        self.state.resolutions_this_turn.insert((reference, ability.id.definition()), *times);
+                        self.state.history.resolutions_this_turn.insert((reference, ability.id.definition()), *times);
                     }
                     _ => {
                         let controller = get_effective_controller(&self.state, source).unwrap_or(self.state.objects[&source].owner);
-                        self.state.action_taken_this_turn.insert((identity, controller));
+                        self.state.history.action_taken_this_turn.insert((identity, controller));
                     }
                 }
             }

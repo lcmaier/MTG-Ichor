@@ -9,11 +9,12 @@
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
-use crate::state::game_state::{AbilityIdentity, GameState, StepType};
-use crate::state::history::TurnSummary;
+use crate::state::battlefield::AttackTarget;
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::history::{CombatFact, TurnSummary};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
-use crate::types::ids::PlayerId;
+use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::zones::Zone;
 
 /// What one record adds to whose row, read before anything is written so the
@@ -28,14 +29,17 @@ enum HistoryUpdate {
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
     CreatureDied { controller: PlayerId },
-    AttackersDeclared { player: PlayerId, count: u64 },
+    /// The count is the attacking player's; the attacks are the combat's
+    /// rows.
+    AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
+    CombatBegan,
 }
 
 impl HistoryUpdate {
     /// Whose row it is counted on; `None` for a count that is the game's.
     fn whose_row(&self) -> Option<PlayerId> {
         Some(match self {
-            HistoryUpdate::AbilityResolved { .. } => return None,
+            HistoryUpdate::AbilityResolved { .. } | HistoryUpdate::CombatBegan => return None,
             HistoryUpdate::TurnBegan { player, .. }
             | HistoryUpdate::SpellCast { caster: player, .. }
             | HistoryUpdate::CardDrawn { player }
@@ -72,12 +76,21 @@ impl GameState {
         match update {
             HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
-                *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
+                *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
                 return (None, None);
             }
             HistoryUpdate::TurnBegan { player, turn: began } => {
                 self.begin_turn_history(began, player);
                 return (None, None);
+            }
+            HistoryUpdate::CombatBegan => {
+                self.history.combat.combat_began();
+                return (None, None);
+            }
+            HistoryUpdate::AttackersDeclared { ref attacks, .. } => {
+                for &(attacker, target) in attacks {
+                    self.history.combat.record(attacker, CombatFact::Attacked(target));
+                }
             }
             _ => {}
         }
@@ -90,7 +103,7 @@ impl GameState {
             return (None, None);
         };
         match update {
-            HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => (None, None),
+            HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } | HistoryUpdate::CombatBegan => (None, None),
             HistoryUpdate::SpellCast { types, .. } => {
                 for card_type in types {
                     history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
@@ -144,7 +157,7 @@ impl GameState {
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
-        self.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
+        self.history.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
     }
 
     /// What `seq` adds, or `None` for a record no summary counts.
@@ -179,10 +192,15 @@ impl GameState {
             {
                 HistoryUpdate::CreatureDied { controller: lki.chars().controller }
             }
-            // CR 508.1: the active player declares attackers.
+            // CR 508.1: the active player declares attackers, each as the
+            // existence it is now, since the record's dispatch is the
+            // declaration's own instant.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
+                let attacks =
+                    attackers.iter().filter_map(|&(attacker, target)| Some((self.object_ref(attacker)?, target))).collect();
+                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64, attacks }
             }
+            GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             _ => return None,
         })
     }

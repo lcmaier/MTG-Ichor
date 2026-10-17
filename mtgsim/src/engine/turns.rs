@@ -263,7 +263,7 @@ impl GameState {
         // of the pipeline like CR 101.2's "can't"s: there is no event here for
         // a replacement effect to see, and a step that does not begin runs no
         // turn-based action and grants no priority.
-        if !self.attacks_declared
+        if !self.combat_had_attackers
             && matches!(
                 step,
                 StepType::DeclareBlockers | StepType::FirstStrikeDamage | StepType::CombatDamage
@@ -366,7 +366,7 @@ impl GameState {
             for entry in self.battlefield.values_mut() {
                 entry.clear_combat_state();
             }
-            self.attacks_declared = false;
+            self.combat_had_attackers = false;
             self.blockers_declared = false;
             self.blocker_damage_divisions.clear();
             self.dealt_first_strike_damage.clear();

@@ -134,7 +134,7 @@ impl GameState {
     fn ability_state(&self, entry: &PendingTrigger) -> (bool, u32) {
         let identity = entry.origin.identity();
         (
-            self.action_taken_this_turn.contains(&(identity, entry.controller)),
+            self.history.action_taken_this_turn.contains(&(identity, entry.controller)),
             self.resolutions_this_turn_of(identity),
         )
     }

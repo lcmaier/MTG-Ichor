@@ -1,5 +1,5 @@
-//! Every player's history, materialized and bounded (`triggers-architecture.md`
-//! §3.10; `codebase-state.md` item 179).
+//! Every player's history, and the game's, materialized and bounded
+//! (`triggers-architecture.md` §3.10; `codebase-state.md` item 179).
 //!
 //! Four views, each sized by the table and never by the turn count: this
 //! turn's row and last turn's, the game's running total, and, for "since your
@@ -8,9 +8,16 @@
 //! no turn row can hold: a turn can have two draw steps (CR 500.8). One writer,
 //! `engine::triggers::history`, as each event ends; nothing derives these from
 //! the event stream.
+//!
+//! What belongs to no one player is [`GameHistory`]'s: each ability's "this
+//! turn" facts, and what each creature did in combat.
 
+use std::sync::Arc;
+
+use crate::state::battlefield::AttackTarget;
+use crate::state::game_state::AbilityIdentity;
 use crate::types::history::TurnFact;
-use crate::types::ids::PlayerId;
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
 /// A count for each [`TurnFact`], in the fact's slot: one player's side of one
 /// turn, or of a span of turns. The fact is the key and the row holds nothing
@@ -165,6 +172,127 @@ impl PlayerHistory {
     pub(crate) fn drew_in_draw_step(&mut self) -> u64 {
         self.this_draw_step = self.this_draw_step.saturating_add(1);
         self.this_draw_step
+    }
+}
+
+/// What the game remembers that belongs to no one player.
+#[derive(Debug, Clone, Default)]
+pub struct GameHistory {
+    /// CR 603.2h — "do this only once each turn": each ability whose action
+    /// its controller has taken this turn, with that controller, since the
+    /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
+    /// Written by the resolution that takes the action; read at the trigger
+    /// and at resolution.
+    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
+    /// "This ability triggers only once each turn" (Elvish Warmaster's
+    /// ruling): each ability that has triggered this turn. Written by the
+    /// dispatcher as it queues; read at the trigger.
+    pub triggered_this_turn: IdSet<AbilityIdentity>,
+    /// CR 603.7h — how many times each ability has resolved this turn, keyed
+    /// by the ability rather than by who controlled it (Ashling the Pilgrim's
+    /// ruling), so a control change does not restart it. Advanced off
+    /// `AbilityResolved` by the dispatcher.
+    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
+    /// What each creature did in this round's combats.
+    pub combat: CombatHistory,
+}
+
+impl GameHistory {
+    /// Turn `turn` has begun. "Each turn" is the game's turn, not a
+    /// controller's (§3.5), so the abilities' facts start over; the combat's
+    /// rows keep the turns from `keep_from` on.
+    pub(crate) fn turn_began(&mut self, turn: u32, keep_from: u32) {
+        self.action_taken_this_turn.clear();
+        self.triggered_this_turn.clear();
+        self.resolutions_this_turn.clear();
+        self.combat.turn_began(turn, keep_from);
+    }
+}
+
+/// What each creature did in combat: a row for each attacker declared (CR
+/// 508.1) and for each creature removed from combat (CR 506.4, 511.3).
+///
+/// Kept for a round, from the earliest turn any player's "your last turn"
+/// can still name (Giant Turtle's "if it attacked during your last turn").
+/// The rows are shared, so a clone copies a pointer, and a write copies them
+/// only while a clone still shares them.
+#[derive(Debug, Clone, Default)]
+pub struct CombatHistory {
+    /// The turn `combats_this_turn` counts.
+    turn: u32,
+    /// The combat phases begun this turn, which CR 500.8 can add to.
+    combats_this_turn: u32,
+    rows: Arc<Vec<CombatRow>>,
+}
+
+/// One thing a creature did in one combat.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CombatRow {
+    /// The existence that did it (CR 400.7).
+    pub object: ObjectRef,
+    pub turn: u32,
+    /// Which of the turn's combats, from 1.
+    pub combat: u32,
+    pub fact: CombatFact,
+}
+
+/// What a [`CombatRow`] says the creature did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CombatFact {
+    /// CR 508.1: declared as an attacker, attacking this. A creature put onto
+    /// the battlefield attacking never "attacked" (CR 508.4) and has none.
+    Attacked(AttackTarget),
+    /// CR 506.4, 511.3: removed from combat, attacking this as it was, or
+    /// nothing.
+    Removed { attacking: Option<AttackTarget> },
+}
+
+impl CombatHistory {
+    /// A combat phase of this turn has begun.
+    pub(crate) fn combat_began(&mut self) {
+        self.combats_this_turn += 1;
+    }
+
+    /// `object` did `fact` in this turn's latest combat.
+    pub(crate) fn record(&mut self, object: ObjectRef, fact: CombatFact) {
+        let row = CombatRow { object, turn: self.turn, combat: self.combats_this_turn, fact };
+        Arc::make_mut(&mut self.rows).push(row);
+    }
+
+    /// Turn `turn` has begun, and nothing reads a row from before `keep_from`.
+    fn turn_began(&mut self, turn: u32, keep_from: u32) {
+        self.turn = turn;
+        self.combats_this_turn = 0;
+        if self.rows.iter().any(|row| row.turn < keep_from) {
+            Arc::make_mut(&mut self.rows).retain(|row| row.turn >= keep_from);
+        }
+    }
+
+    /// Every row, oldest first.
+    pub fn rows(&self) -> &[CombatRow] {
+        &self.rows
+    }
+
+    /// Was `object` declared as an attacker this turn? A creature put onto
+    /// the battlefield attacking never was (CR 508.4).
+    pub fn attacked_this_turn(&self, object: ObjectRef) -> bool {
+        self.rows.iter().any(|row| row.object == object && row.turn == self.turn && matches!(row.fact, CombatFact::Attacked(_)))
+    }
+
+    /// What `object` was attacking as it was last removed from combat in this
+    /// turn's latest combat (CR 508.5's second sentence): `None` when it was
+    /// not removed in that combat, or was attacking nothing.
+    pub fn attacking_when_removed(&self, object: ObjectRef) -> Option<AttackTarget> {
+        let removed = self.rows.iter().rev().find(|row| {
+            row.object == object
+                && row.turn == self.turn
+                && row.combat == self.combats_this_turn
+                && matches!(row.fact, CombatFact::Removed { .. })
+        })?;
+        match removed.fact {
+            CombatFact::Removed { attacking } => attacking,
+            CombatFact::Attacked(_) => None,
+        }
     }
 }
 

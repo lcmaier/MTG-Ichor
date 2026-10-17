@@ -82,7 +82,7 @@ impl GameState {
             }
         }
 
-        self.attacks_declared = true;
+        self.combat_had_attackers = true;
 
         // With the step's provider: the one unbatched record that can carry
         // two triggering events of one arm, which CR 603.7b's choice asks

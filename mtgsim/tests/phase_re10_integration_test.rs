@@ -314,7 +314,7 @@ fn combat_state_is_clear_at_the_start_of_the_second_combat_phase() {
     {
         game.advance_turn(ctx.dp).expect("advancing");
     }
-    game.attacks_declared = true;
+    game.combat_had_attackers = true;
     set_attacking(&mut game, attacker, 1);
 
     // Walk into the second combat phase.
@@ -328,7 +328,7 @@ fn combat_state_is_clear_at_the_start_of_the_second_combat_phase() {
         }
     }
 
-    assert!(!game.attacks_declared, "CR 511.3 — the first combat's state is gone");
+    assert!(!game.combat_had_attackers, "CR 511.3 — the first combat's state is gone");
     assert!(
         game.battlefield[&attacker].attacking.is_none(),
         "and the creature is not still attacking"

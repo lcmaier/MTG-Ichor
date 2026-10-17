@@ -699,7 +699,7 @@ impl GameState {
             let caused_by = m.triggering_events[0].record.seq;
             // "Triggers only once each turn" is written as the ability
             // queues, so a second match in this same window finds it taken.
-            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.triggered_this_turn.insert(m.identity) {
+            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.history.triggered_this_turn.insert(m.identity) {
                 continue;
             }
             let seq = TriggerSeq(self.next_trigger_seq);
@@ -1520,8 +1520,8 @@ impl GameState {
     ) -> bool {
         match def.limit {
             None => true,
-            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.action_taken_this_turn.contains(&(identity, controller)),
-            Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
+            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.history.action_taken_this_turn.contains(&(identity, controller)),
+            Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
             Some(TriggerLimit::FirstTimeEachTurn) => place_in_turn == Some(1),
         }
     }

@@ -420,7 +420,10 @@ pub struct GameState {
     pub turn_rotation: PlayerId,
 
     // --- Combat tracking ---
-    pub attacks_declared: bool,
+    /// CR 508.8: whether a creature was declared as an attacker or put onto
+    /// the battlefield attacking in this combat, which the declare blockers
+    /// and combat damage steps need to begin.
+    pub combat_had_attackers: bool,
     pub blockers_declared: bool,
     /// Damage division for blockers blocking 2+ attackers (rule 510.1d).
     /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
@@ -668,21 +671,10 @@ pub struct GameState {
     pub(crate) next_delayed_trigger_id: u64,
     /// The next `UntilReturnId` to mint; ids start at one.
     pub(crate) next_until_return_id: u64,
-    /// CR 603.2h — "do this only once each turn": each ability whose action
-    /// its controller has taken this turn, with that controller, since the
-    /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
-    /// Written by the resolution that takes the action; read at the trigger
-    /// and at resolution.
-    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
-    /// "This ability triggers only once each turn" (Elvish Warmaster's
-    /// ruling): each ability that has triggered this turn. Written by the
-    /// dispatcher as it queues; read at the trigger.
-    pub triggered_this_turn: IdSet<AbilityIdentity>,
-    /// CR 603.7h — how many times each ability has resolved this turn, keyed
-    /// by the ability rather than by who controlled it (Ashling the Pilgrim's
-    /// ruling), so a control change does not restart it. Advanced off
-    /// `AbilityResolved` by the dispatcher.
-    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
+    /// What the game remembers that belongs to no one player: each ability's
+    /// "this turn" facts and the combat's rows. Each player's own counts are
+    /// on `PlayerState::history`.
+    pub history: crate::state::history::GameHistory,
     /// Permanents that entered with a triggered ability, printed or the copy's
     /// they entered as (CR 707.5), each against the record kinds those defs
     /// read — the dispatcher's fast-path gate,
@@ -981,7 +973,7 @@ impl GameState {
                 ..TurnPlan::natural()
             },
             turn_rotation: 0,
-            attacks_declared: false,
+            combat_had_attackers: false,
             blockers_declared: false,
             blocker_damage_divisions: IdMap::default(),
             dealt_first_strike_damage: IdSet::default(),
@@ -1010,9 +1002,7 @@ impl GameState {
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
             next_until_return_id: 1,
-            action_taken_this_turn: IdSet::default(),
-            triggered_this_turn: IdSet::default(),
-            resolutions_this_turn: IdMap::default(),
+            history: crate::state::history::GameHistory::default(),
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             newcomer_trigger_sources: IdSet::default(),
@@ -1063,13 +1053,12 @@ impl GameState {
     /// on its own leaves the clock stale and every summoning-sickness question
     /// answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
+        // Each player's "your last turn" is their latest turn before this one.
+        let keep_from = self.players_in_game().map(|p| self.last_turn_began[p]).min().unwrap_or(turn);
         self.turn_number = turn;
         self.active_player = player;
         self.last_turn_began[player] = turn;
-        // "Each turn" is the game's turn, not the controller's (§3.5).
-        self.action_taken_this_turn.clear();
-        self.triggered_this_turn.clear();
-        self.resolutions_this_turn.clear();
+        self.history.turn_began(turn, keep_from);
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then
