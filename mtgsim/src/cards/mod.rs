@@ -45,3 +45,4 @@ pub mod phase_tr4c_cards;
 pub mod phase_tr4d_cards;
 pub mod phase_tr5a_cards;
 pub mod phase_tr5e_cards;
+pub mod phase_tr5f_cards;

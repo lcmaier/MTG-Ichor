@@ -805,6 +805,7 @@ fn spark_double_copying_a_token_is_not_a_token() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);

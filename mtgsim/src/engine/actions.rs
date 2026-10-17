@@ -7,13 +7,13 @@ use crate::events::cause::{EventCause, GameRule, SpecialAction, StateBasedAction
 use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, EventSeq, GameEvent, UnattachRoute};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
-use crate::types::effects::{CounterType, TokenDef};
+use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
 use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
-use crate::types::replacement::EnterMods;
+use crate::types::replacement::{EnterMods, EntryAttack};
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
-use crate::ui::ask::ask_scry;
+use crate::ui::ask::{ask_choose_entering_defender, ask_scry};
 use crate::ui::decision::DecisionProvider;
 
 /// Re-exported for every existing reader of `engine::actions::ZoneChangeAct`.
@@ -410,6 +410,11 @@ pub enum GameAction {
     CreateTokens {
         defs: Vec<TokenDef>,
         controller: PlayerId,
+        /// What a token whose definition enters attacking may attack (CR
+        /// 508.4), as the creating effect's resolution read it. `None` for a
+        /// creation no resolution read, where "its controller chooses" is
+        /// everything that can be attacked.
+        attacking: Option<EntryAttack>,
     },
 
     /// A token is created in a zone that is not the battlefield — the
@@ -1054,7 +1059,8 @@ impl GameState {
             // is its member's. No group is empty; `ctx.cause` only spares an index.
             let group_ctx = ctx.caused_by(group.first().map_or(ctx.cause, |m| m.cause));
             let decided = apply_replacements(self, group, later, &group_ctx, inherited, &mut riders)
-                .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders));
+                .and_then(|()| self.decide_destruction_moves(group, later, ctx, &mut riders))
+                .map(|()| self.decide_entry_attacks(group, ctx));
             if let Err(e) = decided {
                 decided_ok = Err(e);
                 break;
@@ -1731,8 +1737,8 @@ impl GameState {
 
             // CR 111 / 701.7a — the outer event. The objects, then every
             // entry as one contained batch; `create_tokens` says why.
-            GameAction::CreateTokens { defs, controller } => {
-                self.create_tokens(&defs, controller, ctx)
+            GameAction::CreateTokens { defs, controller, attacking } => {
+                self.create_tokens(&defs, controller, attacking.as_ref(), ctx)
             }
 
             // The substituted form of a token's entry: an appearance in a
@@ -2133,6 +2139,23 @@ impl GameState {
         Ok(!performed.is_empty())
     }
 
+    /// CR 508.4: a permanent put onto the battlefield attacking attacks what
+    /// its controller chooses as it enters, once CR 616.1 has settled who
+    /// that is. Asked only with two or more candidates, and only of an
+    /// attacking player during combat, since nothing else ever attacks (CR
+    /// 506.2, 506.3b); the entry's performer checks the rest.
+    fn decide_entry_attacks(&self, group: &mut [BatchMember], ctx: &ActionContext) {
+        for member in group.iter_mut() {
+            let Some(GameAction::EnterBattlefield { object, controller, mods, .. }) = &mut member.event else { continue };
+            let Some(attack) = &mut mods.attacking else { continue };
+            if attack.candidates.len() < 2 || self.phase.phase_type != PhaseType::Combat || *controller != self.active_player {
+                continue;
+            }
+            let chosen = ask_choose_entering_defender(ctx.dp, self, *controller, *object, &attack.candidates);
+            attack.candidates = vec![chosen];
+        }
+    }
+
     /// The `CreateTokens` performer: the objects, then their entries as **one
     /// batch**.
     ///
@@ -2166,6 +2189,7 @@ impl GameState {
         &mut self,
         defs: &[TokenDef],
         controller: PlayerId,
+        attacking: Option<&EntryAttack>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         // One `Arc<CardData>` per run of equal defs: a doubled creation
@@ -2198,6 +2222,16 @@ impl GameState {
                 if def.enters_tapped
                     && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
                     mods.merge(&EnterMods::tapped());
+                }
+                // "... and attacking" is its word too (CR 508.4).
+                if let Some(word) = &def.enters_attacking
+                    && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+                    let candidates = match (attacking, word) {
+                        (Some(read), _) => read.candidates.clone(),
+                        (None, EntersAttacking::Chosen) => self.what_can_be_attacked(),
+                        (None, EntersAttacking::Player { .. } | EntersAttacking::SameAs(_)) => Vec::new(),
+                    };
+                    mods.merge(&EnterMods { attacking: Some(EntryAttack { candidates }), ..EnterMods::NONE });
                 }
                 entries.push(entry);
             }

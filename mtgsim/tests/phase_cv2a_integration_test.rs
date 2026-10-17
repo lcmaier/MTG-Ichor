@@ -643,6 +643,7 @@ fn a_clone_of_a_token_is_not_a_token() {
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);

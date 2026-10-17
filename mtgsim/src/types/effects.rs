@@ -1132,10 +1132,32 @@ pub struct TokenDef {
     /// "Create a tapped Treasure token" — how the creating effect says the
     /// token enters. Merged into the entry's seed mods ahead of any
     /// replacement, the way CR 110.5b's "enters tapped" on a printed card is
-    /// the card's own before anything else modifies the entry. "Tapped and
-    /// attacking" is CR 508.4's and needs a combat-state write this does not
-    /// carry (`codebase-state.md`).
+    /// the card's own before anything else modifies the entry.
     pub enters_tapped: bool,
+    /// "Tapped and attacking": the creating effect's word that the token is
+    /// put onto the battlefield attacking (CR 508.4). The resolution reads it
+    /// into the entry, which decides and performs it.
+    pub enters_attacking: Option<EntersAttacking>,
+}
+
+/// What an effect that puts a creature onto the battlefield attacking says it
+/// attacks (CR 508.4): the controller's choice, unless the effect specifies.
+/// Read by the resolution, which holds the binding a specified defender
+/// names, into the entry's [`crate::types::replacement::EntryAttack`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntersAttacking {
+    /// CR 508.4: its controller chooses among everything that can be
+    /// attacked.
+    Chosen,
+    /// "Attacking that player": a player the instruction names, in the
+    /// vocabulary its other player instructions use, and `among`, what of
+    /// theirs it may attack (the player, a planeswalker they control, a battle
+    /// they protect), which the controller chooses between: "that player" is
+    /// `DefenderFilter::Player(None)`, and "that player or a planeswalker they
+    /// control" is the `Or` of it and a planeswalker filter.
+    Player { player: EffectRecipient, among: crate::types::triggers::DefenderFilter },
+    /// CR 702.49c: what another creature is attacking, or was as it left.
+    SameAs(Antecedent),
 }
 
 impl TokenDef {
@@ -1668,7 +1690,13 @@ pub enum Primitive {
     /// 122.6, persist's and undying's return). Every object one resolution
     /// returns enters as one event, and an Aura chooses what it enchants as it
     /// enters (CR 303.4f).
-    ReturnToBattlefield { under: ReturnUnder, counters: Vec<crate::types::replacement::EntryCounters> },
+    ReturnToBattlefield {
+        under: ReturnUnder,
+        counters: Vec<crate::types::replacement::EntryCounters>,
+        /// "Tapped and attacking" (CR 508.4): Phoenix Chick's "return this card
+        /// from your graveyard to the battlefield tapped and attacking".
+        attacking: Option<EntersAttacking>,
+    },
     /// Put on top of owner's library
     PutOnTopOfLibrary,
     /// Put on bottom of owner's library

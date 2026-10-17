@@ -23,9 +23,11 @@ use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
-use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+use crate::types::effects::EntersAttacking;
+use crate::types::replacement::{EntryAttack, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::bound_reads::BoundReads;
+use crate::types::triggers::DefenderFilter;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
@@ -1186,8 +1188,9 @@ impl GameState {
                     return Ok(());
                 }
                 let defs = vec![token_def.clone(); count as usize];
+                let attacking = token_def.enters_attacking.as_ref().map(|word| self.entry_attack(word, ctx)).transpose()?;
                 self.execute_action(
-                    GameAction::CreateTokens { defs, controller },
+                    GameAction::CreateTokens { defs, controller, attacking },
                     &ActionContext::resolving(dp, ctx),
                 )
             }
@@ -1620,12 +1623,20 @@ impl GameState {
 
             // Each object from where it is now, as one event (CR 608.2f),
             // under its owner's control or the effect's controller's.
-            Primitive::ReturnToBattlefield { under, counters } => {
+            Primitive::ReturnToBattlefield { under, counters, attacking } => {
+                let attacking = attacking.as_ref().map(|word| self.entry_attack(word, ctx)).transpose()?;
                 let mut returns = Vec::new();
                 for target in targets {
                     let ResolvedTarget::Object(object) = *target else { continue };
                     let controller = self.return_controller(object, *under, ctx.controller)?;
-                    returns.push(ReturningObject { object, to: Zone::Battlefield, controller, counters: counters.clone(), cause: actx.cause });
+                    returns.push(ReturningObject {
+                        object,
+                        to: Zone::Battlefield,
+                        controller,
+                        counters: counters.clone(),
+                        attacking: attacking.clone(),
+                        cause: actx.cause,
+                    });
                 }
                 self.return_objects(&returns, &actx)
             }
@@ -2602,6 +2613,77 @@ impl GameState {
             Some(AttackTarget::Player(player)) => vec![ResolvedTarget::Player(player)],
             Some(AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => vec![ResolvedTarget::Object(id)],
             None => Vec::new(),
+        }
+    }
+
+    /// CR 508.4: what a creature this resolution puts onto the battlefield
+    /// attacking may attack, read as it resolves, since only the resolution
+    /// holds the binding that "that player" and "the same as that creature"
+    /// name: everything that can be attacked, for its controller's choice;
+    /// the named player's that `among` matches; or what the other creature is
+    /// attacking, or was as it left (CR 702.49c). The entry's performer
+    /// checks the candidate again as the creature enters (CR 508.4a).
+    fn entry_attack(&self, word: &EntersAttacking, ctx: &ResolutionContext) -> Result<EntryAttack, String> {
+        let candidates = match word {
+            EntersAttacking::Chosen => self.what_can_be_attacked(),
+            EntersAttacking::Player { player, among } => match self.named_player(player, ctx)? {
+                Some(named) => self
+                    .what_can_be_attacked()
+                    .into_iter()
+                    .filter(|&target| self.defender_of(target) == Some(named) && self.among_matches(among, target, ctx))
+                    .collect(),
+                None => Vec::new(),
+            },
+            EntersAttacking::SameAs(creature) => {
+                let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+                objects.object_for(*creature, ctx.effect_source()).and_then(|it| it.attacking(self)).into_iter().collect()
+            }
+        };
+        Ok(EntryAttack { candidates })
+    }
+
+    /// The one player `recipient` names as this resolution reads it, for an
+    /// instruction that names a player beside its own recipient ("attacking
+    /// that player"). Loud for a recipient that names no one player.
+    fn named_player(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<Option<PlayerId>, String> {
+        Ok(match recipient {
+            EffectRecipient::Implicit | EffectRecipient::Controller => Some(ctx.controller),
+            EffectRecipient::DefendingPlayer(creature) => self.defending_player_of(*creature, ctx),
+            EffectRecipient::TriggeringPlayer | EffectRecipient::Triggering(_) | EffectRecipient::Referred => {
+                self.bound_targets(recipient, ctx)?.into_iter().find_map(|target| match target {
+                    ResolvedTarget::Player(player) => Some(player),
+                    ResolvedTarget::Object(_) => None,
+                })
+            }
+            other => return Err(format!("{other:?} names no one player to attack, on {:?}", ctx.source)),
+        })
+    }
+
+    /// The player `target` is, or controls it: whose defenses it is (CR
+    /// 508.5's defending player). A battle's protector waits for `backlog.md`
+    /// §2.23.
+    fn defender_of(&self, target: AttackTarget) -> Option<PlayerId> {
+        match target {
+            AttackTarget::Player(player) => Some(player),
+            AttackTarget::Planeswalker(id) => get_effective_controller(self, id),
+            AttackTarget::Battle(_) => None,
+        }
+    }
+
+    /// Whether `target` is among what `among` names of one player's: the
+    /// player, or a planeswalker or battle matching its filter.
+    fn among_matches(&self, among: &DefenderFilter, target: AttackTarget, ctx: &ResolutionContext) -> bool {
+        match (among, target) {
+            (DefenderFilter::Player(None), AttackTarget::Player(_)) => true,
+            (DefenderFilter::Player(Some(who)), AttackTarget::Player(player)) => {
+                self.resolve_player_ref(who, &[], ctx).ok() == Some(player)
+            }
+            (DefenderFilter::Permanent(filter), AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+                self.object_matches_filter_of_source(id, filter, ctx.controller, ctx.effect_source(), None)
+            }
+            (DefenderFilter::Or(either, or), _) => self.among_matches(either, target, ctx) || self.among_matches(or, target, ctx),
+            (DefenderFilter::Player(_), AttackTarget::Planeswalker(_) | AttackTarget::Battle(_))
+            | (DefenderFilter::Permanent(_), AttackTarget::Player(_)) => false,
         }
     }
 

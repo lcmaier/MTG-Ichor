@@ -1288,7 +1288,7 @@ fn warmaster_makes_one_token_however_many_elves_enter() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, elvish_warmaster(), 0);
     let elves = vec![elf_warrior_token(), elf_warrior_token(), elf_warrior_token()];
-    game.execute_action(GameAction::CreateTokens { defs: elves, controller: 0 }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::CreateTokens { defs: elves, controller: 0, attacking: None }, &test_ctx()).unwrap();
     assert_eq!(pending_triggers(&game), 1);
     let before = game.battlefield.len();
     resolve_all(&mut game);
@@ -1303,7 +1303,7 @@ fn warmaster_makes_one_token_however_many_elves_enter() {
 fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, elvish_warmaster(), 0);
-    let one_elf = || GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 };
+    let one_elf = || GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0, attacking: None };
     game.execute_action(one_elf(), &test_ctx()).unwrap();
     place_triggers(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(game.stack.len(), 1);
@@ -1353,7 +1353,7 @@ fn warmasters_pump_is_fixed_as_it_resolves() {
     game.activate_ability(0, warmaster, 1, &dp).expect("{5}{G}{G} from an exact pool");
     resolve_all(&mut game);
     let late = {
-        game.execute_action(GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 }, &test_ctx())
+        game.execute_action(GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0, attacking: None }, &test_ctx())
             .unwrap();
         resolve_all(&mut game);
         *game.battlefield_ids_ordered().last().unwrap()

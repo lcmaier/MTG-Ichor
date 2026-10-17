@@ -214,6 +214,7 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
         rules_text: String::new(),
         enchant_filter: None,
         enters_tapped: false,
+        enters_attacking: None,
     };
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),

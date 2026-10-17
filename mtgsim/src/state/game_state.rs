@@ -6,7 +6,7 @@ use rand::SeedableRng;
 use crate::events::cause::EventCause;
 use crate::events::event::{CombatExit, EventWindow, GameEvent};
 use crate::objects::object::GameObject;
-use crate::state::battlefield::PermanentState;
+use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState};
 use crate::state::continuous_effects::ContinuousEffectRegistry;
 use crate::state::diagnostics::Diagnostics;
 use crate::state::layer_memo::LayerMemo;
@@ -22,7 +22,8 @@ use crate::types::ids::{
     AbilityId, ExtraTurnId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
-use crate::types::replacement::{EnterMods, ReplacementDef};
+use crate::types::card_types::CardType;
+use crate::types::replacement::{EnterMods, EntryAttack, ReplacementDef};
 use crate::types::triggers::EventKindMask;
 
 /// The outcome of a game that has ended (CR 104).
@@ -1500,12 +1501,39 @@ impl GameState {
         if let Some(entry) = self.battlefield.get_mut(&id) {
             entry.announced_controller = effective;
         }
+        // CR 508.4: put onto the battlefield attacking, when CR 506.3 lets it
+        // be an attacking creature at all.
+        if let Some(target) = mods.attacking.as_ref().and_then(|attack| self.entering_attack(id, effective, attack)) {
+            if let Some(entry) = self.battlefield.get_mut(&id) {
+                entry.attacking = Some(AttackingInfo { target, is_blocked: false, blocked_by: Vec::new() });
+            }
+            // CR 508.8: the declare blockers and damage steps begin.
+            self.combat_had_attackers = true;
+        }
         self.emit_event(
             crate::events::event::GameEvent::PermanentEnteredBattlefield { object_id: id, controller: effective },
             cause,
         )?;
 
         self.battlefield.get_mut(&id).ok_or_else(|| format!("{id:?} entered the battlefield and is not on it"))
+    }
+
+    /// What `id`, entering under `controller` with `attack`'s one candidate,
+    /// attacks, or `None` where it is never an attacking creature: outside
+    /// combat, with no defending player (CR 506.2); under a player who is not
+    /// attacking (506.3b); not a creature as it enters, or a battle (506.3a,
+    /// 506.3f); or with what it would attack gone (506.3c, 508.4a). A
+    /// requirement or restriction on the declaration is not asked (508.4c),
+    /// and one entering after blockers are declared is unblocked (508.4d),
+    /// as `is_blocked` starts.
+    fn entering_attack(&self, id: ObjectId, controller: PlayerId, attack: &EntryAttack) -> Option<AttackTarget> {
+        let [target] = attack.candidates[..] else { return None };
+        if self.phase.phase_type != PhaseType::Combat || controller != self.active_player {
+            return None;
+        }
+        let chars = crate::engine::layers::compute::compute_characteristics(self, id)?;
+        let can_attack = chars.types.contains(&CardType::Creature) && !chars.types.contains(&CardType::Battle);
+        (can_attack && self.what_can_be_attacked().contains(&target)).then_some(target)
     }
 
     /// The state half of an entry: `id` becomes a permanent under

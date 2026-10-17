@@ -2243,7 +2243,7 @@ fn apply_rewrite(
             // Procession's ruling), which keeps the creation's batch order and so its
             // CR 613.7 timestamps; an unmatched def is left alone. Every other arm is an
             // authoring error — a printed "plus" is `CreateTokens { mode: Append }`.
-            GameAction::CreateTokens { defs, controller } => match amount_rewrite {
+            GameAction::CreateTokens { defs, controller, attacking } => match amount_rewrite {
                 AmountRewrite::Multiplier(n) => {
                     let n = usize::try_from(*n).map_err(|_| {
                         format!(
@@ -2263,7 +2263,7 @@ fn apply_rewrite(
                         .collect();
                     let took_effect = defs.len() != before;
                     Ok((
-                        Some(GameAction::CreateTokens { defs, controller }),
+                        Some(GameAction::CreateTokens { defs, controller, attacking }),
                         Applied { took_effect, prevented: 0 },
                     ))
                 }
@@ -2667,7 +2667,7 @@ fn substitute(
         // last, so a creation's timestamps stay its own.
         (
             GameActionTemplate::CreateTokens { def, count, mode },
-            GameAction::CreateTokens { defs, controller },
+            GameAction::CreateTokens { defs, controller, attacking },
         ) => {
             let kind = pattern_kind(&chosen.def.pattern);
             let matched = defs.iter().filter(|d| kind_matches(kind, d)).count();
@@ -2681,12 +2681,12 @@ fn substitute(
             let out: Vec<TokenDef> = match (mode, count) {
                 // Each matched def becomes one of the template's, in place, keeping how the
                 // creating effect said it enters — Divine Visitation's ruling ("anything
-                // else specified … such as tapped … still applies").
+                // else specified … such as tapped, attacking … still applies").
                 (TokenSubstitution::Replace, TemplateAmount::ReplacedAmount) => defs
                     .into_iter()
                     .map(|d| {
                         if kind_matches(kind, &d) {
-                            TokenDef { enters_tapped: d.enters_tapped, ..def.clone() }
+                            TokenDef { enters_tapped: d.enters_tapped, enters_attacking: d.enters_attacking, ..def.clone() }
                         } else {
                             d
                         }
@@ -2701,7 +2701,7 @@ fn substitute(
                     defs.into_iter().chain(std::iter::repeat_n(def.clone(), n)).collect()
                 }
             };
-            Ok(GameAction::CreateTokens { defs: out, controller })
+            Ok(GameAction::CreateTokens { defs: out, controller, attacking })
         }
 
         // CR 614.1a's kind changes: a draw becomes a gain (Words of Worship), a gain
@@ -3049,6 +3049,7 @@ pub(super) fn strip_prohibited_counters(
         copy: extra.copy.clone(),
         edits: extra.edits.clone(),
         attached_to: extra.attached_to,
+        attacking: extra.attacking.clone(),
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {

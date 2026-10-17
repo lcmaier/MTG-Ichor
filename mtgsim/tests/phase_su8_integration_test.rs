@@ -221,6 +221,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { source: object },
         ChoiceKind::ChooseDelayedTriggerEvent { source: object },
         ChoiceKind::ChooseEnteringController { object },
+        ChoiceKind::ChooseEnteringDefender { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
         ChoiceKind::ChooseCopySource { source: object },
         ChoiceKind::CommanderToCommandZoneSba { commander: object },
@@ -251,16 +252,17 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
         ChoiceKind::ChooseEnteringController { .. } => 20,
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 21,
-        ChoiceKind::ChooseCopySource { .. } => 22,
-        ChoiceKind::CommanderToCommandZoneSba { .. } => 23,
-        ChoiceKind::Discard { .. } => 24,
-        ChoiceKind::Scry { .. } => 25,
-        ChoiceKind::ScryOrder { .. } => 26,
-        ChoiceKind::LegendRule { .. } => 27,
+        ChoiceKind::ChooseEnteringDefender { .. } => 21,
+        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 22,
+        ChoiceKind::ChooseCopySource { .. } => 23,
+        ChoiceKind::CommanderToCommandZoneSba { .. } => 24,
+        ChoiceKind::Discard { .. } => 25,
+        ChoiceKind::Scry { .. } => 26,
+        ChoiceKind::ScryOrder { .. } => 27,
+        ChoiceKind::LegendRule { .. } => 28,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..28).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..29).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

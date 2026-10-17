@@ -460,6 +460,9 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseEnteringController { object } => {
             format!("Choose the opponent who controls {} as it enters", n(object))
         }
+        ChoiceKind::ChooseEnteringDefender { object } => {
+            format!("Choose what {} attacks as it enters", n(object))
+        }
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
             format!("Choose what goes to the {to:?} as {} changes how {} enters", n(source), n(entering))
         }

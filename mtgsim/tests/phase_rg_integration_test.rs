@@ -557,7 +557,7 @@ fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped()
     let archelos = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
     let tapped_token = TokenDef { enters_tapped: true, ..soldier_token() };
     let dp = ScriptedReplacementChoices::new(&[]);
-    game.execute_actions(vec![GameAction::CreateTokens { defs: vec![tapped_token], controller: 1 }], &ActionContext::new(&dp))
+    game.execute_actions(vec![GameAction::CreateTokens { defs: vec![tapped_token], controller: 1, attacking: None }], &ActionContext::new(&dp))
         .expect("the creation performs");
     let token = *game.battlefield_ids_ordered().last().expect("the token entered");
     assert!(game.objects[&token].is_token);

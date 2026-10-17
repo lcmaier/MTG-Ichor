@@ -217,6 +217,7 @@ mod tests {
             }),
             edits: Some(Arc::from(vec![mutant])),
             attached_to: None,
+            attacking: None,
         };
         game.resolving = Some(ResolvingObject {
             id: card,

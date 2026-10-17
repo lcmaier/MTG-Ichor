@@ -182,6 +182,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
         | ChoiceKind::ChooseEnteringController { .. }
+        | ChoiceKind::ChooseEnteringDefender { .. }
         | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
         | ChoiceKind::ChooseCopySource { .. } => LineAnswer::Unanswered,
     }

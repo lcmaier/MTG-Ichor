@@ -38,13 +38,10 @@ impl GameState {
         // becomes two-step — which creatures attack, then each one's target —
         // is a `DecisionProvider` choice-shape question, `backlog.md` §2.4's.
         let attacker_ids = legal_attackers(self, active);
-        // CR 506.2 — the defending players are the active player's
-        // *opponents*, and a player who has left the game (CR 104.5, 800.4a)
-        // is nobody's opponent.
-        let defenders = self.opponents_of(active);
+        let attackable = self.what_can_be_attacked();
         let legal_pairs: Vec<(ObjectId, AttackTarget)> = attacker_ids
             .into_iter()
-            .flat_map(|id| defenders.iter().map(move |&pid| (id, AttackTarget::Player(pid))))
+            .flat_map(|id| attackable.iter().map(move |&target| (id, target)))
             .collect();
         let proposed = ask_choose_attackers(decisions, self, active, &legal_pairs);
 
@@ -244,6 +241,16 @@ impl GameState {
         }
 
         Ok(())
+    }
+
+    /// What can be attacked this combat: each defending player, the active
+    /// player's *opponents* (CR 506.2, 802.2), a player who has left the game
+    /// being nobody's opponent (CR 104.5, 800.4a). The planeswalkers they
+    /// control and the battles they protect join with `backlog.md` §2.23. The
+    /// declaration's options and an entering attacker's candidates (CR 508.4)
+    /// are both this list.
+    pub(crate) fn what_can_be_attacked(&self) -> Vec<AttackTarget> {
+        self.opponents_of(self.active_player).into_iter().map(AttackTarget::Player).collect()
     }
 
     /// Whether `player` is a defending player (CR 506.2, 802.2): during the

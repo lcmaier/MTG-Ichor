@@ -1514,6 +1514,22 @@ pub struct EnterMods {
     /// entered as no Aura, Equipment or Fortification (CR 303.4h) or the
     /// object has gone.
     pub attached_to: Option<ObjectId>,
+
+    /// CR 508.4 — what the permanent may attack as it enters, when the
+    /// effect putting it there says it enters attacking. The effect says,
+    /// never a replacement, so no merge of a replacement's mods writes it.
+    /// The batch asks the controller when two or more candidates remain, and
+    /// the entry's performer writes the attack when CR 506.3 allows it.
+    pub attacking: Option<EntryAttack>,
+}
+
+/// What a permanent put onto the battlefield attacking may attack (CR 508.4),
+/// as its effect read it: everything that can be attacked, or what the
+/// effect specified. One candidate is settled; with two or more its
+/// controller chooses as it enters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryAttack {
+    pub candidates: Vec<crate::state::battlefield::AttackTarget>,
 }
 
 /// CR 110.5's tapped/untapped category, as an entry replacement sets it.
@@ -1556,7 +1572,8 @@ impl EntryCounters {
 
 impl EnterMods {
     /// Nothing modifies how this permanent enters — CR 110.5b's default.
-    pub const NONE: EnterMods = EnterMods { status: None, counters: Vec::new(), copy: None, edits: None, attached_to: None };
+    pub const NONE: EnterMods =
+        EnterMods { status: None, counters: Vec::new(), copy: None, edits: None, attached_to: None, attacking: None };
 
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
@@ -1582,6 +1599,7 @@ impl EnterMods {
             && self.copy.is_none()
             && self.edits.is_none()
             && self.attached_to.is_none()
+            && self.attacking.is_none()
     }
 
     /// Fold `other`'s modifications into this one — CR 616.1f's accumulation.
@@ -1608,6 +1626,10 @@ impl EnterMods {
         if other.attached_to.is_some() {
             // NOT AN EVENT: the proposal's seed; the entry's performer attaches.
             self.attached_to = other.attached_to;
+        }
+        if other.attacking.is_some() {
+            // NOT AN EVENT: the proposal's seed; the entry's performer writes it.
+            self.attacking.clone_from(&other.attacking);
         }
         if let Some(more) = &other.edits {
             self.edits = Some(match self.edits.take() {
