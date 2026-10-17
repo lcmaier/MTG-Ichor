@@ -1267,6 +1267,9 @@ pub enum CounterType {
     MinusOneMinusOne,
     Loyalty,
     Charge,
+    /// Simic Ascendancy's: no rule gives it a meaning, so only the cards
+    /// that count it read it.
+    Growth,
     // --- Counters a player has (CR 122.1's "or player") ---
     /// CR 122.1f — ten or more and the player loses (CR 704.5c). Read off
     /// `PlayerState::counter_count`; infect's poison half (CR 120.3b) is the
@@ -1318,6 +1321,7 @@ impl CounterType {
             CounterType::MinusOneMinusOne => "-1/-1",
             CounterType::Loyalty => "loyalty",
             CounterType::Charge => "charge",
+            CounterType::Growth => "growth",
             CounterType::Poison => "poison",
             CounterType::Energy => "energy",
             CounterType::Flying => "flying",
@@ -1386,6 +1390,7 @@ impl CounterType {
             | CounterType::MinusOneMinusOne
             | CounterType::Loyalty
             | CounterType::Charge
+            | CounterType::Growth
             | CounterType::Poison
             | CounterType::Energy
             | CounterType::Shield

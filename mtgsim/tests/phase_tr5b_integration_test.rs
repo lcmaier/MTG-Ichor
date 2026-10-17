@@ -11,7 +11,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_put_on, counters_removed_from, persist, triggered_ability, whenever};
-use mtgsim::cards::phase_rc_cards::chainbreaker;
+use mtgsim::cards::phase_rc_cards::{chainbreaker, master_biomancer};
+use mtgsim::cards::phase_tr5b_cards::{protean_hydra, simic_ascendancy};
 use mtgsim::cards::phase_tr4a_cards::strangleroot_geist;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -19,9 +20,9 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, StateBasedAction};
 use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameResult, GameState, StepType};
 use mtgsim::test_support::{
-    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, RecordingDecisionProvider, setup_two_player_game, static_ability, test_ctx,
     test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -384,11 +385,16 @@ fn waiting_from(game: &GameState, source: ObjectId) -> usize {
 }
 
 fn resolve_all(game: &mut GameState) {
-    let dp = test_dp();
-    game.perform_sba_and_triggers(&dp).expect("SBAs and triggers");
+    resolve_all_with(game, &test_dp());
+}
+
+/// [`resolve_all`] under `dp`, for a board whose simultaneous triggers ask
+/// their order (CR 603.3b).
+fn resolve_all_with(game: &mut GameState, dp: &dyn DecisionProvider) {
+    game.perform_sba_and_triggers(dp).expect("SBAs and triggers");
     while !game.stack.is_empty() {
-        game.resolve_top_of_stack(&dp).expect("it resolves");
-        game.perform_sba_and_triggers(&dp).expect("SBAs and triggers");
+        game.resolve_top_of_stack(dp).expect("it resolves");
+        game.perform_sba_and_triggers(dp).expect("SBAs and triggers");
     }
 }
 
@@ -758,13 +764,30 @@ fn enters_with_x_counters() -> Arc<CardData> {
 /// Cast `card` from `player`'s hand with X = `x`, paying from a pool of
 /// green mana, and resolve it.
 fn cast_with_x(game: &mut GameState, player: PlayerId, card: Arc<CardData>, x: u64) -> ObjectId {
+    cast_with_x_answering(game, player, card, x, |_, _| {})
+}
+
+/// [`cast_with_x`], with `script` adding the answers the resolution asks.
+fn cast_with_x_answering(
+    game: &mut GameState,
+    player: PlayerId,
+    card: Arc<CardData>,
+    x: u64,
+    script: impl Fn(&ScriptedDecisionProvider, ObjectId),
+) -> ObjectId {
     let id = put_in_hand(game, card, player);
+    cast_from_hand(game, player, id, x, script);
+    id
+}
+
+/// Cast the card `id` in `player`'s hand with X = `x`, and resolve it.
+fn cast_from_hand(game: &mut GameState, player: PlayerId, id: ObjectId, x: u64, script: impl Fn(&ScriptedDecisionProvider, ObjectId)) {
     game.players[player].mana_pool.add(ManaType::Green, x + 1);
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: id, x_count: 1 }, x);
+    script(&decisions, id);
     game.cast_spell(player, id, &decisions).expect("it is castable");
     game.resolve_top_of_stack(&decisions).expect("it resolves");
-    id
 }
 
 // COVERS: ATOM-107.3m-001
@@ -789,4 +812,298 @@ fn an_entry_no_spell_became_reads_x_as_zero() {
 
     game.check_state_based_actions(&test_dp()).expect("the check");
     assert_eq!(game.get_object(grower).expect("its card").zone, Zone::Graveyard, "a 0/0 (CR 704.5f)");
+}
+
+// ---------------------------------------------------------------------------
+// Simic Ascendancy
+// ---------------------------------------------------------------------------
+
+fn begin_step(game: &mut GameState, step: StepType, player: PlayerId) {
+    game.execute_action(GameAction::BeginStep { step, player }, &test_ctx()).expect("the step begins");
+}
+
+fn growth(game: &GameState, ascendancy: ObjectId) -> u32 {
+    game.battlefield.get(&ascendancy).map_or(0, |entry| entry.counter_count(CounterType::Growth))
+}
+
+/// Simic Ascendancy with `n` growth counters, under player 0.
+fn ascendancy_with(game: &mut GameState, n: u64) -> ObjectId {
+    let ascendancy = put_on_battlefield(game, simic_ascendancy(), 0);
+    if n > 0 {
+        counters_on_target(game, 0, ascendancy, put(CounterType::Growth, n));
+    }
+    ascendancy
+}
+
+// RULING: Simic Ascendancy #1 - "An ability that triggers when counters are put
+//   on a permanent will trigger if that permanent somehow enters the
+//   battlefield with those counters."
+#[test]
+fn simic_ascendancy_counts_the_counters_a_creature_enters_with() {
+    let mut game = setup_two_player_game();
+    let ascendancy = ascendancy_with(&mut game, 0);
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter_put_by(None), 0);
+
+    reanimate(&mut game, enters_with_a_counter(), 0);
+    resolve_all(&mut game);
+
+    assert_eq!(growth(&game, ascendancy), 2, "that many: its own counter and the anthem's");
+}
+
+/// The growth counters are its own, so its activated ability and the put it
+/// watches meet: one growth counter for each +1/+1 counter, creature by
+/// creature, and none for a counter on an opponent's creature.
+#[test]
+fn simic_ascendancy_puts_that_many_growth_counters_for_each_creature() {
+    let mut game = setup_two_player_game();
+    let ascendancy = ascendancy_with(&mut game, 0);
+    let (ours, theirs) = (put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0), put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1));
+
+    counters_on_target(&mut game, 0, ours, put(CounterType::PlusOnePlusOne, 3));
+    counters_on_target(&mut game, 1, theirs, put(CounterType::PlusOnePlusOne, 2));
+    resolve_all(&mut game);
+
+    assert_eq!(growth(&game, ascendancy), 3);
+}
+
+/// Twenty growth counters as your upkeep begins wins the game (CR 603.4).
+#[test]
+fn simic_ascendancy_wins_at_your_upkeep_with_twenty_growth_counters() {
+    let mut game = setup_two_player_game();
+    ascendancy_with(&mut game, 20);
+
+    begin_step(&mut game, StepType::Upkeep, 0);
+    resolve_all(&mut game);
+
+    assert_eq!(game.result, Some(GameResult::Winner(0)));
+}
+
+// RULING: Simic Ascendancy #2 - "If Simic Ascendancy doesn't have twenty or
+//   more growth counters on it as your upkeep begins, its last ability won't
+//   trigger."
+#[test]
+fn simic_ascendancy_asks_for_twenty_as_the_upkeep_begins() {
+    let mut game = setup_two_player_game();
+    let ascendancy = ascendancy_with(&mut game, 19);
+
+    begin_step(&mut game, StepType::Upkeep, 0);
+    assert_eq!(waiting_from(&game, ascendancy), 0, "nineteen as the upkeep begins");
+    counters_on_target(&mut game, 0, ascendancy, put(CounterType::Growth, 1));
+    resolve_all(&mut game);
+
+    assert_eq!(game.result, None, "the twentieth arrived after the upkeep began");
+}
+
+// RULING: Simic Ascendancy #3 - "If the last ability does trigger, but
+//   counters are removed from Simic Ascendancy so it has fewer than twenty
+//   remaining on it, you won't win the game."
+#[test]
+fn simic_ascendancy_does_not_win_once_its_counters_fall_below_twenty() {
+    let mut game = setup_two_player_game();
+    let ascendancy = ascendancy_with(&mut game, 20);
+
+    begin_step(&mut game, StepType::Upkeep, 0);
+    assert_eq!(waiting_from(&game, ascendancy), 1);
+    counters_on_target(&mut game, 1, ascendancy, remove(CounterType::Growth, 1));
+    resolve_all(&mut game);
+
+    assert_eq!(game.result, None);
+}
+
+// RULING: Simic Ascendancy #4 - "If the last ability does trigger, but Simic
+//   Ascendancy leaves the battlefield, use the number of counters it had on it
+//   immediately before it left the battlefield to determine whether you win
+//   the game."
+#[test]
+fn simic_ascendancy_wins_off_the_count_it_had_as_it_left() {
+    let mut game = setup_two_player_game();
+    let ascendancy = ascendancy_with(&mut game, 20);
+
+    begin_step(&mut game, StepType::Upkeep, 0);
+    assert_eq!(waiting_from(&game, ascendancy), 1);
+    game.perform_sba_and_triggers(&test_dp()).expect("the trigger is put on the stack");
+    game.change_zone(ascendancy, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("it is exiled");
+    resolve_all(&mut game);
+
+    assert_eq!(game.result, Some(GameResult::Winner(0)));
+}
+
+// ---------------------------------------------------------------------------
+// Protean Hydra
+// ---------------------------------------------------------------------------
+
+fn plus_counters(game: &GameState, id: ObjectId) -> u32 {
+    game.battlefield.get(&id).map_or(0, |entry| entry.counter_count(CounterType::PlusOnePlusOne))
+}
+
+/// Protean Hydra under player 0 with `n` +1/+1 counters, cast with X = `n`.
+fn hydra_with(game: &mut GameState, n: u64) -> ObjectId {
+    let hydra = cast_with_x(game, 0, protean_hydra(), n);
+    game.check_state_based_actions(&test_dp()).expect("the check");
+    hydra
+}
+
+fn damage(game: &mut GameState, source: ObjectId, target: ObjectId, amount: u64, unpreventable: bool) {
+    game.execute_action(
+        GameAction::DealDamage { source, target: DamageTarget::Object(target), amount, is_combat: false, unpreventable, source_lki: None },
+        &test_ctx(),
+    )
+    .expect("the damage event");
+}
+
+/// CR 107.3m on the printed card: it enters with X counters, X beside Master
+/// Biomancer's counters, and one no spell became has none.
+#[test]
+fn protean_hydra_enters_with_x_counters_and_none_put_onto_the_battlefield() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 3);
+    assert_eq!(plus_counters(&game, hydra), 3);
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+    // Two entry effects, so CR 616.1e asks its controller which first.
+    let hydra = cast_with_x_answering(&mut game, 0, protean_hydra(), 2, |decisions, id| {
+        decisions.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![0]);
+    });
+    assert_eq!(plus_counters(&game, hydra), 4, "X and the Biomancer's power");
+
+    let mut game = setup_two_player_game();
+    let hydra = reanimate(&mut game, protean_hydra(), 0);
+    game.check_state_based_actions(&test_dp()).expect("the check");
+    assert_eq!(game.get_object(hydra).expect("its card").zone, Zone::Graveyard);
+}
+
+// RULING: Protean Hydra #1 - "All damage that would be dealt to Protean Hydra
+//   is prevented, even if it doesn't have that many +1/+1 counters on it. ...
+//   all the +1/+1 counters on Protean Hydra are removed from it."
+#[test]
+fn protean_hydra_prevents_all_damage_and_loses_the_counters_it_has() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 2);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let start = game.recorded_events().records().len();
+
+    damage(&mut game, bears, hydra, 3, false);
+
+    assert_eq!(game.battlefield[&hydra].damage_marked, 0, "prevented, all of it");
+    assert_eq!(plus_counters(&game, hydra), 0);
+    let removals: Vec<GameEvent> = counter_records(&game, start);
+    assert_eq!(
+        removals,
+        vec![GameEvent::CountersRemovedFrom {
+            subject: CounterSubject::Object(hydra),
+            counter_type: CounterType::PlusOnePlusOne,
+            n: 2,
+            by: Some(0),
+            now: 0,
+        }],
+        "three would have been removed, and two were there"
+    );
+    assert!(!game.recorded_events().records_from(start).iter().any(|r| matches!(r.event, GameEvent::DamageDealt { .. })));
+}
+
+// RULING: Protean Hydra #2 - "If unpreventable damage is dealt to Protean
+//   Hydra, the Hydra's second ability will try to prevent it and fail ... and
+//   it will also remove that many +1/+1 counters from Protean Hydra."
+#[test]
+fn protean_hydra_loses_counters_to_damage_that_cannot_be_prevented() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 3);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    damage(&mut game, bears, hydra, 2, true);
+
+    assert_eq!(game.battlefield[&hydra].damage_marked, 2, "dealt");
+    assert_eq!(plus_counters(&game, hydra), 1, "and two counters removed");
+}
+
+// RULING: Protean Hydra #3 - "Protean Hydra's last ability triggers whenever a
+//   +1/+1 counter is removed from it for any reason, not just when a +1/+1
+//   counter is removed by its second ability."
+#[test]
+fn protean_hydra_grows_back_from_any_removal() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 3);
+
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 1));
+    resolve_all(&mut game);
+    assert_eq!((plus_counters(&game, hydra), game.delayed_triggers.len()), (2, 1), "one delayed trigger waits");
+
+    begin_step(&mut game, StepType::End, 0);
+    resolve_all(&mut game);
+    assert_eq!(plus_counters(&game, hydra), 4, "two back at the next end step");
+}
+
+// RULING: Protean Hydra #4 - "If multiple +1/+1 counters are removed from
+//   Protean Hydra at once, its last ability will trigger that many times."
+#[test]
+fn protean_hydra_triggers_once_for_each_counter_removed() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 4);
+
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 3));
+    assert_eq!(waiting_from(&game, hydra), 3);
+    // Three delayed triggers from three resolutions, each its own, so their
+    // order is asked (CR 603.3b).
+    let in_order = RecordingDecisionProvider::picking(0);
+    resolve_all_with(&mut game, &in_order);
+
+    begin_step(&mut game, StepType::End, 0);
+    resolve_all_with(&mut game, &in_order);
+    assert_eq!(plus_counters(&game, hydra), 1 + 6);
+}
+
+// RULING: Protean Hydra #5 - "If a -1/-1 counter is put on Protean Hydra while
+//   it has +1/+1 counters on it, that -1/-1 counter and a +1/+1 counter will be
+//   removed from it as a state-based action. This will cause Protean Hydra's
+//   last ability to trigger."
+#[test]
+fn protean_hydra_triggers_on_counter_annihilation() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 2);
+
+    counters_on_target(&mut game, 1, hydra, put(CounterType::MinusOneMinusOne, 1));
+    game.check_state_based_actions(&test_dp()).expect("the check");
+
+    assert_eq!(plus_counters(&game, hydra), 1);
+    assert_eq!(waiting_from(&game, hydra), 1, "CR 704.5q removed a +1/+1 counter");
+}
+
+/// A Hydra that left and came back is a new object (CR 400.7): the delayed
+/// trigger its old self made finds no "it".
+#[test]
+fn protean_hydras_delayed_trigger_finds_nothing_once_the_hydra_is_a_new_object() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 2);
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 1));
+    resolve_all(&mut game);
+
+    game.change_zone(hydra, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).expect("it is returned");
+    cast_from_hand(&mut game, 0, hydra, 1, |_, _| {});
+    resolve_all(&mut game);
+    assert_eq!(game.delayed_triggers.len(), 1, "the old existence's trigger still waits");
+    begin_step(&mut game, StepType::End, 0);
+    resolve_all(&mut game);
+
+    assert_eq!(plus_counters(&game, hydra), 1, "the same card, a new object (CR 400.7): it got nothing");
+}
+
+// RULING: Protean Hydra #6 - "If any +1/+1 counters are removed from Protean
+//   Hydra during the end step, its last ability will trigger and set up a
+//   delayed triggered ability that will trigger at the beginning of the next
+//   end step (which is near the end of the following turn)."
+#[test]
+fn protean_hydra_removed_during_an_end_step_grows_at_the_next_turns() {
+    let mut game = setup_two_player_game();
+    let hydra = hydra_with(&mut game, 2);
+    begin_step(&mut game, StepType::End, 0);
+
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 1));
+    resolve_all(&mut game);
+    assert_eq!((plus_counters(&game, hydra), game.delayed_triggers.len()), (1, 1), "this end step has begun already");
+
+    game.begin_turn(game.turn_number + 1, 1);
+    begin_step(&mut game, StepType::End, 1);
+    resolve_all(&mut game);
+    assert_eq!(plus_counters(&game, hydra), 3, "the next turn's end step");
 }
