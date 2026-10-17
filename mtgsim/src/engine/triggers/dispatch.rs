@@ -33,7 +33,7 @@ use crate::engine::targeting::HeldFrame;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
-use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
+use crate::events::event::{BatchId, CounterSubject, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
@@ -43,7 +43,7 @@ use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primi
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, AttackEventPer, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackEventPer, CountersOn, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -1285,8 +1285,9 @@ impl GameState {
         snapshots: &[LookBackSnapshot],
     ) -> Vec<MatchedTrigger> {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
-        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
+        // "One or more" accumulates across the window: (identity, event, and
+        // for a once-per-subject arm the subject) -> index into `matches`.
+        let mut once: Vec<((AbilityIdentity, EventIndex, Option<CounterSubject>), usize)> = Vec::new();
 
         // The window's newcomers: a window is one event (§4.1), so each was
         // somewhere else immediately before every record of it.
@@ -1376,13 +1377,18 @@ impl GameState {
                         }
                     }
                     // CR 603.2c's boundary is the window: one trigger, every
-                    // matching event in its binding, no one object.
-                    Multiplicity::OncePerEvent => {
+                    // matching event in its binding, no one object; or one for
+                    // each subject the window's records are about (§4.4).
+                    how @ (Multiplicity::OncePerEvent | Multiplicity::OncePerSubject) => {
+                        let subject = match how {
+                            Multiplicity::OncePerSubject => arm.occurrence_subject(&record.event),
+                            Multiplicity::PerOccurrence | Multiplicity::OncePerEvent => None,
+                        };
                         let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: (*record).clone(), objects });
-                        match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
+                        match once.iter().find(|((i, e, s), _)| *i == identity && *e == matched && *s == subject) {
                             Some((_, at)) => matches[*at].triggering_events.extend(these),
                             None => {
-                                once.push(((identity, matched), matches.len()));
+                                once.push(((identity, matched, subject), matches.len()));
                                 matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
@@ -1497,7 +1503,9 @@ impl GameState {
             .into_iter()
             .filter(|objects| {
                 let triggering_event = match arm.multiplicity() {
-                    Multiplicity::PerOccurrence => TriggeringEventView::AtTrigger { arm, record, objects },
+                    Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => {
+                        TriggeringEventView::AtTrigger { arm, record, objects }
+                    }
                     Multiplicity::OncePerEvent => TriggeringEventView::None,
                 };
                 let referents = ConditionReferents { source_lki: source.lki, triggering_event };
@@ -1808,6 +1816,34 @@ impl GameState {
                 from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
+            // A counter is an occurrence of a per-counter arm, so a record of
+            // three holds three events (Protean Hydra's fourth ruling); the
+            // other readings fold the records whole. A rule's removal names no
+            // player, and matches no `by`.
+            (
+                TriggerEvent::CountersPutOn { subject, counter_type, by, multiplicity },
+                GameEvent::CountersPutOn { subject: on, counter_type: kind, n, by: putter, .. },
+            ) => self.counter_events(
+                arm,
+                record,
+                *multiplicity,
+                *n,
+                counter_type.is_none_or(|k| k == *kind)
+                    && by.as_ref().is_none_or(|p| self.player_ref_is(p, *putter, referents))
+                    && self.counters_on_matches(subject, *on, referents, seq),
+            ),
+            (
+                TriggerEvent::CountersRemovedFrom { subject, counter_type, by, multiplicity },
+                GameEvent::CountersRemovedFrom { subject: on, counter_type: kind, n, by: remover, .. },
+            ) => self.counter_events(
+                arm,
+                record,
+                *multiplicity,
+                *n,
+                counter_type.is_none_or(|k| k == *kind)
+                    && by.as_ref().is_none_or(|p| remover.is_some_and(|r| self.player_ref_is(p, r, referents)))
+                    && self.counters_on_matches(subject, *on, referents, seq),
+            ),
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no event of it.
             (
@@ -1828,6 +1864,8 @@ impl GameState {
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::CountersPutOn { .. }
+                | TriggerEvent::CountersRemovedFrom { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
@@ -1835,6 +1873,41 @@ impl GameState {
                 | TriggerEvent::AbilityResolves { .. },
                 _,
             ) => Vec::new(),
+        }
+    }
+
+    /// A counter record's events for `arm`, or none when `matched` is false:
+    /// one per counter for a per-counter arm, and one for the record
+    /// otherwise, which the "one or more" readings fold.
+    fn counter_events(
+        &self,
+        arm: &TriggerEvent,
+        record: &EventRecord,
+        multiplicity: Multiplicity,
+        n: u32,
+        matched: bool,
+    ) -> Vec<TriggeringEventObjects> {
+        if !matched {
+            return Vec::new();
+        }
+        let objects = self.triggering_event_objects(arm, record);
+        match multiplicity {
+            Multiplicity::PerOccurrence => vec![objects; n as usize],
+            Multiplicity::OncePerEvent | Multiplicity::OncePerSubject => vec![objects],
+        }
+    }
+
+    /// Whether counters on `on` are on what `subject` names: an object the
+    /// subject's filter reads after the event (CR 603.10), or a player.
+    fn counters_on_matches(&self, subject: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+        match (subject, on) {
+            (CountersOn::Object(subject), CounterSubject::Object(id)) => {
+                self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now)
+            }
+            (CountersOn::Player(who), CounterSubject::Player(player)) => {
+                who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))
+            }
+            (CountersOn::Object(_), CounterSubject::Player(_)) | (CountersOn::Player(_), CounterSubject::Object(_)) => false,
         }
     }
 
@@ -2003,6 +2076,15 @@ impl GameState {
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ControlChanges { .. } => self.single_object(&record.event),
             TriggerEvent::DamageDealt { .. } => self.damage_objects(&record.event),
+            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => {
+                match &record.event {
+                    GameEvent::CountersPutOn { subject: CounterSubject::Object(id), .. }
+                    | GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id), .. } => self
+                        .subject_after(&record.event, *id)
+                        .map_or(TriggeringEventObjects::NoObject, TriggeringEventObjects::Object),
+                    _ => TriggeringEventObjects::NoObject,
+                }
+            }
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 self.attachment_objects(&record.event)
             }

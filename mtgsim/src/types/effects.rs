@@ -648,6 +648,17 @@ pub enum Condition {
     /// "If this spell is the first spell you've cast this game" (First
     /// Contact): every turn so far.
     ThisGame(crate::types::history::HistoryCount),
+    /// CR 122.7's "when the Nth [kind] counter is put on [it]", and CR
+    /// 714.2b's Saga chapter, which words it as this "if": the count was less
+    /// than `n` before the triggering event's counters and at least `n`
+    /// after. Read off the records the trigger holds, each of which keeps
+    /// the count it left (`now`) and how many it put (`n`), so it answers
+    /// the same at the trigger and at resolution (CR 603.4) with no board
+    /// read. One record of the event crossing `n` is the event crossing it,
+    /// since one event's puts on one object chain their counts. Only a
+    /// counter-put arm read once per subject has those records
+    /// (`TriggerDef::readings_its_arms_cannot_give`).
+    CounterCountReached { counter_type: CounterType, n: u32 },
     /// "If this is the [Nth] time this ability has resolved this turn"
     /// (Ashling the Pilgrim; Omnath, Locus of Creation): CR 603.7h's count, read
     /// inside the resolution. The count advances off `AbilityResolved`, the
@@ -702,6 +713,7 @@ impl Condition {
             | Condition::SinceYourLastTurn(_)
             | Condition::ThisGame(_)
             | Condition::ResolvedThisTurn(_)
+            | Condition::CounterCountReached { .. }
             | Condition::CostAnswer(_) => false,
         }
     }

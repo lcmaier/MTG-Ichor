@@ -224,6 +224,17 @@ pub(super) fn holds(
             board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
         }
+        // CR 122.7, 714.2b: some record of the trigger's left the count at
+        // least `n` from below it. Off the records, never the board, so it
+        // answers alike at both instants; false outside a trigger.
+        Condition::CounterCountReached { counter_type, n } => referents.triggering_event.any_record(|record| {
+            matches!(
+                record.event,
+                crate::events::event::GameEvent::CountersPutOn { counter_type: kind, n: put, now, .. }
+                    if kind == *counter_type && now.saturating_sub(put) < *n && *n <= now
+            )
+        }),
+
         // CR 603.7h: the resolving ability's count, which its own resolution
         // has not advanced yet. False outside a resolution, where nothing is
         // resolving to be counted.

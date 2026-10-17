@@ -20,8 +20,8 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackEventPer, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, ReflexiveForm,
-    TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+    AttackEventPer, CountersOn, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 
@@ -95,6 +95,81 @@ impl Whose {
     }
 }
 
+/// A counter arm, one trigger per counter until told otherwise: "whenever a
+/// +1/+1 counter is put on this creature" triggers once for each (Fathom
+/// Mage's ninth ruling). Built by [`counters_put_on`] and
+/// [`counters_removed_from`] only, so the three readings of how many
+/// triggers an event makes are its methods' and no other arm's.
+pub struct CounterEvent {
+    direction: CounterDirection,
+    subject: CountersOn,
+    counter_type: Option<CounterType>,
+    by: Option<PlayerRef>,
+}
+
+/// Which of the two counter records a [`CounterEvent`] reads.
+enum CounterDirection {
+    PutOn,
+    RemovedFrom,
+}
+
+impl CounterEvent {
+    /// "One or more [kind] counters are put on [a creature]": once for each
+    /// object the counters are on (Enduring Scalelord's second ruling).
+    pub fn once_per_object(self) -> TriggerEvent {
+        self.counted(Multiplicity::OncePerSubject)
+    }
+
+    /// "One or more ... on one or more [creatures]": once for the event.
+    pub fn once_per_event(self) -> TriggerEvent {
+        self.counted(Multiplicity::OncePerEvent)
+    }
+
+    /// "Whenever [who] put[s]" or "remove[s]": the record's player (CR
+    /// 122.6a for a put).
+    pub fn by(self, who: PlayerRef) -> CounterEvent {
+        CounterEvent { by: Some(who), ..self }
+    }
+
+    fn counted(self, multiplicity: Multiplicity) -> TriggerEvent {
+        let CounterEvent { direction, subject, counter_type, by } = self;
+        match direction {
+            CounterDirection::PutOn => TriggerEvent::CountersPutOn { subject, counter_type, by, multiplicity },
+            CounterDirection::RemovedFrom => TriggerEvent::CountersRemovedFrom { subject, counter_type, by, multiplicity },
+        }
+    }
+}
+
+impl From<CounterEvent> for TriggerEvent {
+    fn from(event: CounterEvent) -> Self {
+        event.counted(Multiplicity::PerOccurrence)
+    }
+}
+
+/// "Whenever a [kind] counter is put on [subject]"; `None` is any kind.
+/// Counters it enters with are put on it too (CR 122.6).
+pub fn counters_put_on(subject: impl Into<TriggerSubject>, counter_type: impl Into<Option<CounterType>>) -> CounterEvent {
+    CounterEvent {
+        direction: CounterDirection::PutOn,
+        subject: CountersOn::Object(subject.into()),
+        counter_type: counter_type.into(),
+        by: None,
+    }
+}
+
+/// "Whenever a [kind] counter is removed from [subject]"; `None` is any kind.
+pub fn counters_removed_from(
+    subject: impl Into<TriggerSubject>,
+    counter_type: impl Into<Option<CounterType>>,
+) -> CounterEvent {
+    CounterEvent {
+        direction: CounterDirection::RemovedFrom,
+        subject: CountersOn::Object(subject.into()),
+        counter_type: counter_type.into(),
+        by: None,
+    }
+}
+
 /// "At the beginning of [whose] [step]".
 pub fn at_beginning_of(step: StepType, whose: Whose) -> TriggerEvent {
     TriggerEvent::StepBegins { step, whose: whose.player_ref() }
@@ -123,7 +198,9 @@ impl CountableEvent {
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
-            | TriggerEvent::Attacks { multiplicity, .. } => {
+            | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::CountersPutOn { multiplicity, .. }
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => {
                 *multiplicity = Multiplicity::OncePerEvent
             }
             TriggerEvent::BecomesTapped { .. }

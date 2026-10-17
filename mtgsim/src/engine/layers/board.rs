@@ -842,8 +842,9 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
             out.source |= you_channel;
         }
-        // A resolution's count, off `GameState`.
-        Condition::ResolvedThisTurn(_) => {}
+        // A resolution's count, off `GameState`, and a trigger's counts, off
+        // its records.
+        Condition::ResolvedThisTurn(_) | Condition::CounterCountReached { .. } => {}
         // A conjunction reads what its clauses read, with no wildcard inside. Most
         // printed "or" is inside a clause (Abzan Kin-Guard's "white **or** black
         // permanent" is an `ObjectFilter::Or`); `Condition::Or` lands with the

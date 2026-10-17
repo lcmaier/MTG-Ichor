@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::triggers::{counters_put_on, counters_removed_from, triggered_ability, whenever};
 use mtgsim::cards::phase_rc_cards::chainbreaker;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -18,17 +19,18 @@ use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx,
     test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
+    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::triggers::{CountersOn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::decision::DecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -333,4 +335,292 @@ fn an_entrys_rows_are_one_record_per_kind_and_putter_each_with_its_count() {
         .unzip();
     assert_eq!(counts, [1, 2], "two putters, two rows: {records:?}");
     assert!(putters.contains(&0) && putters.contains(&1), "{records:?}");
+}
+
+// ---------------------------------------------------------------------------
+// The two arms: per counter, per object, per event (CR 603.2c)
+// ---------------------------------------------------------------------------
+
+fn gain(amount: AmountExpr) -> Effect {
+    Effect::Atom(Primitive::GainLife(amount), EffectRecipient::Controller)
+}
+
+/// A 2/2 with one triggered ability, `event` gaining its controller `amount`.
+fn creature_that_gains(name: &'static str, event: impl Into<TriggerEvent>, amount: AmountExpr) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability("", whenever(event, gain(amount))))
+        .build()
+}
+
+/// An enchantment with one triggered ability, `event` gaining its controller
+/// `amount`.
+fn enchantment_that_gains(name: &'static str, event: impl Into<TriggerEvent>, amount: AmountExpr) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(event, gain(amount))))
+        .build()
+}
+
+/// "A creature you control".
+fn a_creature_you_control() -> ObjectFilter {
+    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+}
+
+/// Resolve "put `n` `kind` counters on each creature you control" for `player`.
+fn counters_on_each_creature(game: &mut GameState, player: PlayerId, kind: CounterType, n: u64) {
+    let effect = Effect::Atom(put(kind, n), EffectRecipient::FilteredPermanents(a_creature_you_control()));
+    resolve_targeting(game, player, Vec::new(), &effect, &test_dp());
+}
+
+/// The triggers `source` has waiting to be put on the stack.
+fn waiting_from(game: &GameState, source: ObjectId) -> usize {
+    game.pending_triggers.iter().filter(|p| p.origin.source() == source).count()
+}
+
+fn resolve_all(game: &mut GameState) {
+    let dp = test_dp();
+    game.perform_sba_and_triggers(&dp).expect("SBAs and triggers");
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&dp).expect("it resolves");
+        game.perform_sba_and_triggers(&dp).expect("SBAs and triggers");
+    }
+}
+
+/// Fathom Mage's seventh and ninth rulings: "a +1/+1 counter" triggers for
+/// each counter put on at once, whatever put it there.
+#[test]
+fn a_per_counter_arm_triggers_once_for_each_counter_put_on_at_once() {
+    let mut game = setup_two_player_game();
+    let arm = counters_put_on(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let mage = put_on_battlefield(&mut game, creature_that_gains("Fixture Mage", arm, AmountExpr::Fixed(1)), 0);
+
+    counters_on_target(&mut game, 1, mage, put(CounterType::PlusOnePlusOne, 3));
+    assert_eq!(waiting_from(&game, mage), 3);
+
+    resolve_all(&mut game);
+    assert_eq!(game.players[0].life_total, 23, "\"that many\" of one counter is one");
+}
+
+/// Fathom Mage's eighth ruling and CR 122.6: a creature that enters with
+/// counters triggers once for each, its own arm answering as it arrives.
+#[test]
+fn a_creature_entering_with_counters_triggers_its_own_per_counter_arm() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter_put_by(None), 0);
+    let grower = CardDataBuilder::new("Fixture Mage")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::SourceOnly,
+            Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
+        )))))
+        .ability(triggered_ability(
+            "",
+            whenever(counters_put_on(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne), gain(AmountExpr::Fixed(1))),
+        ))
+        .build();
+
+    let mage = reanimate(&mut game, grower, 0);
+
+    assert_eq!(waiting_from(&game, mage), 2, "its own counter and the anthem's");
+}
+
+/// The fixture Scalelord: "whenever one or more +1/+1 counters are put on a
+/// creature you control, you gain that much life".
+fn scalelord() -> Arc<CardData> {
+    let arm = counters_put_on(a_creature_you_control(), CounterType::PlusOnePlusOne).once_per_object();
+    enchantment_that_gains("Fixture Scalelord", arm, AmountExpr::TriggeringAmount)
+}
+
+/// Enduring Scalelord's second ruling: "one or more ... on another creature
+/// you control" triggers once for each creature, and "that many" is that
+/// creature's.
+#[test]
+fn a_once_per_object_arm_triggers_once_for_each_creature() {
+    let mut game = setup_two_player_game();
+    let scalelord = put_on_battlefield(&mut game, scalelord(), 0);
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    }
+
+    counters_on_each_creature(&mut game, 0, CounterType::PlusOnePlusOne, 2);
+    assert_eq!(waiting_from(&game, scalelord), 3);
+
+    resolve_all(&mut game);
+    assert_eq!(game.players[0].life_total, 26, "two each, three times");
+}
+
+/// Two records on one creature in one event are one trigger of the
+/// once-per-object arm, and "that many" sums them.
+#[test]
+fn a_once_per_object_arm_folds_one_creatures_records_and_sums_them() {
+    let mut game = setup_two_player_game();
+    let scalelord = put_on_battlefield(&mut game, scalelord(), 0);
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter_put_by(Some(PlayerRef::Opponent)), 0);
+
+    reanimate(&mut game, enters_with_a_counter(), 0);
+    assert_eq!(waiting_from(&game, scalelord), 1, "two putters' records, one creature");
+
+    resolve_all(&mut game);
+    assert_eq!(game.players[0].life_total, 22);
+}
+
+/// Invisible Woman's and Cloaked Cadet's "on one or more [creatures]" is one
+/// event, so one trigger however many creatures.
+#[test]
+fn a_once_per_event_arm_triggers_once_for_the_event() {
+    let mut game = setup_two_player_game();
+    let arm = counters_put_on(a_creature_you_control(), CounterType::PlusOnePlusOne).once_per_event();
+    let cadet = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Cadet", arm, AmountExpr::TriggeringAmount), 0);
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    }
+
+    counters_on_each_creature(&mut game, 0, CounterType::PlusOnePlusOne, 1);
+    assert_eq!(waiting_from(&game, cadet), 1);
+}
+
+/// Hapatra's second ruling: "whenever you put one or more -1/-1 counters on
+/// a creature" is the putter's, once for each creature, and another
+/// player's put is not yours.
+#[test]
+fn a_put_arms_by_reads_who_put_the_counters_on() {
+    let mut game = setup_two_player_game();
+    let arm = counters_put_on(ObjectFilter::ByType(CardType::Creature), CounterType::MinusOneMinusOne)
+        .by(PlayerRef::You)
+        .once_per_object();
+    let hapatra = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Hapatra", arm, AmountExpr::Fixed(1)), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 1);
+    let other = put_on_battlefield(&mut game, vanilla_creature(4, 4, &[]), 1);
+
+    counters_on_target(&mut game, 1, bears, put(CounterType::MinusOneMinusOne, 1));
+    assert_eq!(waiting_from(&game, hapatra), 0, "an opponent put them on");
+
+    counters_on_target(&mut game, 0, bears, put(CounterType::MinusOneMinusOne, 1));
+    counters_on_target(&mut game, 0, other, put(CounterType::MinusOneMinusOne, 2));
+    assert_eq!(waiting_from(&game, hapatra), 2);
+}
+
+/// Territorial Gorger's "whenever you get one or more {E}": counters on a
+/// player, the subject a player rather than an object.
+#[test]
+fn a_put_arm_reads_counters_a_player_gets() {
+    let mut game = setup_two_player_game();
+    let arm = TriggerEvent::CountersPutOn {
+        subject: CountersOn::Player(Some(PlayerRef::You)),
+        counter_type: Some(CounterType::Energy),
+        by: None,
+        multiplicity: Multiplicity::OncePerSubject,
+    };
+    let gorger = put_on_battlefield(&mut game, enchantment_that_gains("Fixture Gorger", arm, AmountExpr::TriggeringAmount), 0);
+    let energy = |player| GameAction::AddCounters { subject: CounterSubject::Player(player), counter: CounterType::Energy, n: 2, by: player };
+
+    game.execute_action(energy(1), &test_ctx()).expect("an opponent gets energy");
+    assert_eq!(waiting_from(&game, gorger), 0);
+
+    game.execute_action(energy(0), &test_ctx()).expect("you get energy");
+    assert_eq!(waiting_from(&game, gorger), 1);
+    resolve_all(&mut game);
+    assert_eq!(game.players[0].life_total, 22);
+}
+
+/// Protean Hydra's fourth ruling, on a fixture: several counters removed at
+/// once trigger "whenever a +1/+1 counter is removed" that many times.
+#[test]
+fn a_per_counter_removal_arm_triggers_once_for_each_counter_removed() {
+    let mut game = setup_two_player_game();
+    let arm = counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let hydra = put_on_battlefield(&mut game, creature_that_gains("Fixture Hydra", arm, AmountExpr::Fixed(1)), 0);
+    counters_on_target(&mut game, 0, hydra, put(CounterType::PlusOnePlusOne, 3));
+
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 2));
+
+    assert_eq!(waiting_from(&game, hydra), 2);
+}
+
+// ---------------------------------------------------------------------------
+// CR 122.7's threshold, the ability's own "if"
+// ---------------------------------------------------------------------------
+
+/// "When the third charge counter is put on this, draw a card."
+fn third_charge_counter() -> Arc<CardData> {
+    let arm = counters_put_on(TriggerSubject::ThisObject, CounterType::Charge).once_per_object();
+    CardDataBuilder::new("Fixture Countdown")
+        .card_type(CardType::Artifact)
+        .ability(triggered_ability(
+            "When the third charge counter is put on this artifact, draw a card.",
+            TriggerDef {
+                condition: TriggerCondition::Event(arm),
+                intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
+                limit: None,
+                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            },
+        ))
+        .build()
+}
+
+// COVERS: ATOM-122.7-001
+#[test]
+fn the_nth_counter_triggers_when_the_count_crosses_n() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    let countdown = put_on_battlefield(&mut game, third_charge_counter(), 0);
+    counters_on_target(&mut game, 0, countdown, put(CounterType::Charge, 2));
+    assert_eq!(waiting_from(&game, countdown), 0, "two is not three");
+
+    counters_on_target(&mut game, 0, countdown, put(CounterType::Charge, 1));
+    assert_eq!(waiting_from(&game, countdown), 1, "two to three crosses three");
+
+    let hand = game.players[0].hand.len();
+    resolve_all(&mut game);
+    assert_eq!(game.players[0].hand.len(), hand + 1, "the \"if\" still holds as it resolves, off the record");
+}
+
+/// One put that jumps past N crosses it; a put that starts at N does not.
+#[test]
+fn the_nth_counter_reads_the_count_before_and_after_one_event() {
+    let mut game = setup_two_player_game();
+    let countdown = put_on_battlefield(&mut game, third_charge_counter(), 0);
+
+    counters_on_target(&mut game, 0, countdown, put(CounterType::Charge, 5));
+    assert_eq!(waiting_from(&game, countdown), 1, "zero to five crosses three");
+    game.pending_triggers.clear();
+
+    counters_on_target(&mut game, 0, countdown, put(CounterType::Charge, 1));
+    assert_eq!(waiting_from(&game, countdown), 0, "five to six does not");
+}
+
+/// The registry's check: a reading its arm cannot give is refused.
+#[test]
+fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
+    let once_per_subject_dies = TriggerDef {
+        condition: TriggerCondition::Event(TriggerEvent::ZoneChange {
+            subject: TriggerSubject::Any,
+            change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+            by: None,
+            owner: None,
+            multiplicity: Multiplicity::OncePerSubject,
+        }),
+        intervening_if: None,
+        limit: None,
+        effect: gain(AmountExpr::Fixed(1)),
+    };
+    assert_eq!(once_per_subject_dies.readings_its_arms_cannot_give().len(), 1);
+
+    let per_counter_threshold = TriggerDef {
+        condition: TriggerCondition::Event(counters_put_on(TriggerSubject::ThisObject, CounterType::Charge).into()),
+        intervening_if: Some(Condition::CounterCountReached { counter_type: CounterType::Charge, n: 3 }),
+        limit: None,
+        effect: gain(AmountExpr::Fixed(1)),
+    };
+    assert_eq!(per_counter_threshold.readings_its_arms_cannot_give().len(), 1, "a counter each would trigger once per counter");
+
+    let countdown = third_charge_counter();
+    assert!(countdown.abilities.iter().all(|ability| match &ability.effect {
+        Effect::Triggered(def) => def.readings_its_arms_cannot_give().is_empty(),
+        _ => true,
+    }));
 }

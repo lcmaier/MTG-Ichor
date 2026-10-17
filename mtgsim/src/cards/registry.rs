@@ -1262,6 +1262,11 @@ mod tests {
                 "{what}: names {:?}, which an arm of its condition does not have",
                 def.event_roles_its_arms_lack()
             );
+            assert!(
+                def.readings_its_arms_cannot_give().is_empty(),
+                "{what}: asks {:?}",
+                def.readings_its_arms_cannot_give()
+            );
         }
         fn walk(what: &str, effect: &Effect) {
             match effect {

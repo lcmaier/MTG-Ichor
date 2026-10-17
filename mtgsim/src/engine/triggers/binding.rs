@@ -103,6 +103,16 @@ impl<'a> TriggeringEventView<'a> {
         }
     }
 
+    /// Whether any record it holds passes `test`: the one being matched, as
+    /// the ability triggers, or one of the binding's, as it resolves.
+    pub fn any_record(self, test: impl FnMut(&EventRecord) -> bool) -> bool {
+        match self {
+            TriggeringEventView::None => false,
+            TriggeringEventView::AtTrigger { record, .. } => std::iter::once(record).any(test),
+            TriggeringEventView::Resolving { binding, .. } => binding.records().any(test),
+        }
+    }
+
     /// The one of its objects that is `id`, as `object` reads it.
     pub fn object_with_id(self, id: ObjectId) -> Option<CurrentOrLastKnown<'a>> {
         EventRole::ALL.into_iter().filter_map(|role| self.object(role)).find(|object| object.id == id)
