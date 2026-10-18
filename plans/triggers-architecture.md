@@ -1854,7 +1854,13 @@ gives. The *occurrence* it counts is one triggering event
   creature, not the creatures: counters put on three creatures at once are
   three occurrences (CR 603.2c). Added 2026-09-24; built in TR-5b as
   `Multiplicity::OncePerSubject`, which only an arm whose records name one
-  subject may carry (`TriggerDef::readings_its_arms_cannot_give`).
+  subject may carry (`TriggerDef::readings_its_arms_cannot_give`). The
+  damage arm is the next to need it: "whenever one or more creatures you
+  control deal combat damage to a player" triggers once for each player
+  dealt combat damage at once (Pyrewild Shaman's and Frostcliff Siege's
+  rulings; 32 cards, Scryfall `o:"one or more creatures you control deal
+  combat damage to a player"`), its subject the player. No registered card
+  reads it yet; the first one does.
 - **The join** for `EntersBattlefield { from, cast }`: the entry record and
   the same object's `ZoneChange` or `TokenCreated` are both in the window;
   the matcher reads `from` off the zone change and "cast" off
@@ -3493,9 +3499,9 @@ abilities' 17 closed. ATOM-122.7-001, ATOM-107.3m-001, ATOM-704.5q-001 and
 
 **What moved on the way in.** Review moved CR 122.7's threshold off the arm,
 gave a removal its remover (Vampire Hexmage), and shared the snapshot so the
-history costs a clone fewer allocations than before. The build found a
-counter's own replacement to be its effect's controller's removal, as its
-rider already was. The close-out found Protean Hydra uncastable: the gate
+history costs a clone fewer allocations than before. The build found
+that a permanent's controller removes its shield and stun counters, as the
+shield's damage half already said. The close-out found Protean Hydra uncastable: the gate
 refuses `{X}` until MA-2, which moved up to the next PR. +2,103 in code and
 tests (code +946, tests +1,157), against 1,630–1,850.
 

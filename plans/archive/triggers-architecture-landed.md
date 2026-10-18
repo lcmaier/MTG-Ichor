@@ -3535,12 +3535,16 @@ in an entry template; the two cards; their registration; the dev GUI's two
 pictures; the pool.
 
 **What the build corrected.**
-- **A counter's own replacement is its effect's controller's removal.** The
-  design gave a shield's or a stun counter's "instead remove" no remover.
-  The shield's prevention half removes through a CR 615.5 rider, which
-  already resolved under the effect's controller, so the two halves of CR
-  122.1c disagreed; both are the controller's now. Only CR 704.5q and
-  damage's loyalty loss (CR 120.3c) name no remover.
+- **The permanent's controller removes its shield and stun counters.** A
+  shield counter's effects (CR 122.1c) and a stun counter's (CR 122.1d)
+  each say "instead remove a [shield/stun] counter from it", and the design
+  had those removals name no player. But a shield counter has two effects,
+  and the damage one already removed its counter through a CR 615.5 rider,
+  which names the controller of the effect: the permanent's controller. So
+  a destroyed permanent's shield removal said "no one" and a damaged one's
+  said "its controller". Both name the controller now, and so does a stun
+  counter's. The removals that name no player are the ones a rule makes:
+  CR 704.5q's, and the loyalty damage takes off a planeswalker (CR 120.3c).
 - **An entry's rows merge by kind and putter** (`EnterMods`'s
   `same_kind_and_putter`), so "Protean Hydra's X counters and Master
   Biomancer's are two records" was wrong: they are one row and one record.
