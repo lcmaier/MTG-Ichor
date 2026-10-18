@@ -36,6 +36,7 @@ use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef
 use mtgsim::types::triggers::{CountersOn, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -821,7 +822,7 @@ fn cast_with_x_answering(
 fn cast_from_hand(game: &mut GameState, player: PlayerId, id: ObjectId, x: u64, script: impl Fn(&ScriptedDecisionProvider, ObjectId)) {
     game.players[player].mana_pool.add(ManaType::Green, x + 1);
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: id, x_count: 1 }, x);
+    decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: id, x_count: 1, values: Box::new(LegalXValues::up_to(x)) }, x);
     script(&decisions, id);
     game.cast_spell(player, id, &decisions).expect("it is castable");
     game.resolve_top_of_stack(&decisions).expect("it resolves");

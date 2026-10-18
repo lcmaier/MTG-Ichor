@@ -150,6 +150,16 @@ fn can_cast_with(
     let Some(printed) = &obj.card_data.mana_cost else {
         return Ok(());
     };
+    // A spell with X is offered when some legal X is payable, and a larger X
+    // never costs less (`oracle::x_values`), so the least is the one asked:
+    // 0, or 1 under "X can't be 0" (CR 107.3a, 601.2b).
+    let at_the_least_x;
+    let printed = if printed.x_count() > 0 {
+        at_the_least_x = printed.with_x_as(u64::from(obj.card_data.x_cannot_be_zero));
+        &at_the_least_x
+    } else {
+        printed
+    };
     let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
     // The mandatory sacrifices are paid at 601.2h, after the window, so what
     // they take is not there to make mana with.

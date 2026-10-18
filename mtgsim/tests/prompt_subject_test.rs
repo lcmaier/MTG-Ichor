@@ -26,6 +26,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -219,7 +220,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::DeclareBlockers,
         ChoiceKind::AssignCombatDamage { attacker_id: id },
         ChoiceKind::AssignTrampleDamage { attacker_id: id, defending_target: DamageTarget::Player(1) },
-        ChoiceKind::ChooseXValue { spell_id: id, x_count: 2 },
+        ChoiceKind::ChooseXValue { spell_id: id, x_count: 2, values: Box::new(LegalXValues::up_to(2)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: id },
         ChoiceKind::ChooseAdditionalCosts { spell_id: id },
         ChoiceKind::SelectRecipients {

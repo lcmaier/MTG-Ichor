@@ -26,6 +26,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
 use mtgsim::ui::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
@@ -205,7 +206,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DeclareBlockers,
         ChoiceKind::AssignCombatDamage { attacker_id: object },
         ChoiceKind::AssignTrampleDamage { attacker_id: object, defending_target: DamageTarget::Player(1) },
-        ChoiceKind::ChooseXValue { spell_id: object, x_count: 1 },
+        ChoiceKind::ChooseXValue { spell_id: object, x_count: 1, values: Box::new(LegalXValues::up_to(1)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: object },
         ChoiceKind::ChooseAdditionalCosts { spell_id: object },
         ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Controller, spell_id: object },

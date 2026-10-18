@@ -361,40 +361,16 @@ impl DecisionProvider for RandomDecisionProvider {
 
     fn pick_number(
         &self,
-        game: &GameState,
-        player: PlayerId,
-        context: &ChoiceContext,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
         min: u64,
         max: u64,
     ) -> u64 {
         let mut rng = self.rng.borrow_mut();
 
-        // For ChooseXValue, self-limit based on available mana to avoid
-        // degenerate rollback loops in fuzz testing. The ask function passes
-        // (0, u64::MAX) — we inspect game state for a reasonable upper bound.
-        if let ChoiceKind::ChooseXValue { .. } = &context.kind {
-            let pool_total: u64 = game.players.get(player)
-                .map(|p| p.mana_pool.total())
-                .unwrap_or(0);
-            // Count untapped lands as potential mana sources
-            // Ordered although a count: `has_type` walks the layers, and a walk
-            // writes a trace record.
-            let untapped_lands: u64 = crate::oracle::board::permanents_controlled_by(game, player).into_iter()
-                .filter(|id| game.battlefield.get(id).is_some_and(|e| !e.tapped))
-                .filter(|&id| {
-                    crate::oracle::characteristics::has_type(
-                        game, id, crate::types::card_types::CardType::Land)
-                })
-                .count() as u64;
-            let reasonable_max = pool_total + untapped_lands;
-            let effective_max = reasonable_max.min(max);
-            if effective_max <= min {
-                return min;
-            }
-            return rng.random_range(min..=effective_max);
-        }
-
-        // General case: pick in the given range
+        // Uniform over the range, which the engine bounds: CR 601.2b's X is
+        // offered only as far as the payment can go (`oracle::x_values`).
         // Guard against u64::MAX range causing overflow
         if max == u64::MAX && min == 0 {
             // Pick a small reasonable number to avoid degenerate behavior
@@ -664,7 +640,8 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
         let spell_id = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1 });
+        let values = Box::new(crate::oracle::x_values::LegalXValues::up_to(10));
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1, values });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
     }

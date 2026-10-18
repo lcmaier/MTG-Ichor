@@ -27,6 +27,19 @@ pub struct LegalXValues {
     pub most: MostX,
 }
 
+impl LegalXValues {
+    /// Every X from 0 to `max`, the plain interval a board paying `max`
+    /// generic mana beside the rest of a one-X cost offers: what a provider
+    /// asked outside a cast, a test's, is handed.
+    pub fn up_to(max: u64) -> LegalXValues {
+        LegalXValues {
+            offered: XOffer::Range { min: 0, max },
+            least: LeastX::Zero,
+            most: MostX::Payable { generic_budget: max, generic_besides_x: 0, per_x: 1, beside: ManaCost::zero() },
+        }
+    }
+}
+
 /// What `ChooseXValue` offers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XOffer {

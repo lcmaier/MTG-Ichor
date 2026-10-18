@@ -415,6 +415,12 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 }
                 picked
             }
+            // A number answers a pick over numbers by value: CR 601.2b's X as
+            // a set with a gap (`ChoiceKind::ChooseXValue`).
+            ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, ChoiceOption::Number(offered) if *offered == n)) {
+                Some(index) => vec![index],
+                None => panic!("ScriptedDecisionProvider: number {n} is not offered: {options:?}"),
+            },
             other => panic!(
                 "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
                 other

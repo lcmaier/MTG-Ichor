@@ -30,6 +30,7 @@ use crate::oracle::mana_helpers::{
     can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, remaining_cost_after_pool, CannotActivate,
 };
 use crate::oracle::mana_supply::ManaAbilityWindowOffer;
+use crate::oracle::x_values::{legal_x_values, XAnnouncement};
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
@@ -162,12 +163,50 @@ impl GameState {
             }
         }
 
-        // Choose X value if the cost has X symbols (rule 107.3a)
+        let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
+        // Printed order, mandatory costs included whether or not anything was
+        // offered — `additional_costs_paid` is what was paid, not what was
+        // announced.
+        let announced: std::collections::HashSet<usize> = chosen_offered_indices
+            .iter()
+            .map(|&idx| offered_positions[idx])
+            .collect();
+        let chosen_additional: Vec<_> = card_data.additional_costs.iter()
+            .enumerate()
+            .filter(|(i, c)| !c.is_optional() || announced.contains(i))
+            .map(|(_, c)| c.clone())
+            .collect();
+        let additional_refs: Vec<_> = chosen_additional.iter().collect();
+
+        // The value of X, last of 601.2b's announcements, from the values the
+        // costs announced before it leave payable (CR 107.3a; `oracle::x_values`).
+        // The X the chosen base pays: an alternative cost's own, or the mana
+        // cost's; one with none holds X at 0.
         let base_mana_cost = card_data.mana_cost.clone()
             .unwrap_or_else(ManaCost::zero);
-        let x_count = base_mana_cost.x_count();
-        let x_value = if x_count > 0 {
-            ask_choose_x_value(decisions, self, player_id, card_id, x_count as u64)
+        let x_count = match &chosen_alt {
+            Some(alt) => alt.costs().iter().map(|cost| match cost {
+                Cost::Mana(mana) => mana.x_count(),
+                _ => 0,
+            }).sum(),
+            None => base_mana_cost.x_count(),
+        };
+        let has_x = base_mana_cost.x_count() > 0 || x_count > 0;
+        let x_value = if has_x {
+            let announcement = XAnnouncement {
+                base_mana_cost: &base_mana_cost,
+                chosen_alt_cost: chosen_alt.as_ref(),
+                chosen_additional_costs: &additional_refs,
+                x_cannot_be_zero: card_data.x_cannot_be_zero,
+            };
+            match legal_x_values(self, player_id, card_id, &announcement) {
+                Ok(values) => ask_choose_x_value(decisions, self, player_id, card_id, u64::from(x_count), values),
+                // The 601.2h failure, found before a window opens for it.
+                Err(no_legal_x) => {
+                    self.rollback_cast_to_hand(card_id)?;
+                    return Err(no_legal_x.to_string());
+                }
+            }
         } else {
             0
         };
@@ -189,26 +228,12 @@ impl GameState {
 
         // --- 601.2d: division among targets is not asked — `backlog.md` §2.20 ---
 
-        let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
-        // Printed order, mandatory costs included whether or not anything was
-        // offered — `additional_costs_paid` is what was paid, not what was
-        // announced.
-        let announced: std::collections::HashSet<usize> = chosen_offered_indices
-            .iter()
-            .map(|&idx| offered_positions[idx])
-            .collect();
-        let chosen_additional: Vec<_> = card_data.additional_costs.iter()
-            .enumerate()
-            .filter(|(i, c)| !c.is_optional() || announced.contains(i))
-            .map(|(_, c)| c.clone())
-            .collect();
-
         let entry = StackEntry {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
             chosen_modes: Vec::new(),
-            x_value: if x_count > 0 { Some(x_value) } else { None },
+            x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
@@ -229,7 +254,6 @@ impl GameState {
         // one 601.2h already uses.
 
         // --- 601.2f: Assemble total cost ---
-        let additional_refs: Vec<_> = chosen_additional.iter().collect();
         let total_costs = determine_total_cost(
             self,
             player_id,
@@ -959,7 +983,7 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 3);
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1, values: Box::new(crate::oracle::x_values::LegalXValues::up_to(3)) }, 3);
         // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
         decisions.expect_pick_n(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
@@ -992,8 +1016,9 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
+        // X = 0 is the one value `{R}` pays, so it is announced without a
+        // prompt (`backlog.md` §2.22's rule 1): nothing is scripted for it.
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 0);
         // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
         decisions.expect_pick_n(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
@@ -1007,35 +1032,96 @@ mod tests {
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }
 
+    /// A seat that answers X with the most it is offered, and remembers the
+    /// range it was offered.
+    struct AnswersTheMostX {
+        offered: std::cell::Cell<Option<(u64, u64)>>,
+        then: ScriptedDecisionProvider,
+    }
+
+    impl DecisionProvider for AnswersTheMostX {
+        fn pick_n(&self, game: &GameState, player: PlayerId, context: &crate::ui::choice_types::ChoiceContext, options: &[crate::ui::choice_types::ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+            self.then.pick_n(game, player, context, options, bounds)
+        }
+
+        fn pick_number(&self, _: &GameState, _: PlayerId, _: &crate::ui::choice_types::ChoiceContext, min: u64, max: u64) -> u64 {
+            self.offered.set(Some((min, max)));
+            max
+        }
+
+        fn allocate(
+            &self,
+            game: &GameState,
+            player: PlayerId,
+            context: &crate::ui::choice_types::ChoiceContext,
+            total: u64,
+            buckets: &[crate::ui::choice_types::ChoiceOption],
+            mins: &[u64],
+            maxs: Option<&[u64]>,
+        ) -> Vec<u64> {
+            self.then.allocate(game, player, context, total, buckets, mins, maxs)
+        }
+
+        fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &crate::ui::choice_types::ChoiceContext, items: &[crate::ui::choice_types::ChoiceOption]) -> Vec<usize> {
+            self.then.choose_ordering(game, player, context, items)
+        }
+    }
+
+    /// Two red pay `{X}{R}` up to X = 1, and no further X is offered: the
+    /// prompt's range is what CR 601.2h can pay (`oracle::x_values`). Before
+    /// MA-2 the range ran to `u64::MAX`, and an X of 3 from two red was
+    /// offered, then reversed at the payment.
     #[test]
-    fn test_cast_x_spell_insufficient_mana_rollback() {
+    fn test_cast_x_spell_offers_only_the_x_the_mana_pays() {
         let mut game = GameState::new(2, 20);
         let blaze = make_x_spell();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
-        // Only 2 Red, but X=3 needs 4 total
+        game.players[0].mana_pool.add(ManaType::Red, 2);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        game.active_player = 0;
+
+        let decisions = AnswersTheMostX { offered: std::cell::Cell::new(None), then: ScriptedDecisionProvider::new() };
+        decisions.then.expect_pick_n(ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: card_id,
+        }, vec![1]);
+
+        game.cast_spell(0, card_id, &decisions).unwrap();
+
+        assert_eq!(decisions.offered.get(), Some((0, 1)));
+        assert_eq!(game.stack_entries[&card_id].x_value, Some(1));
+        assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
+    }
+
+    /// A kicker announced at 601.2b can leave no payable X at all, and the
+    /// cast is reversed there, before a window opens for a payment that cannot
+    /// happen (CR 601.2e, 732.1): the card back in hand, the mana unspent.
+    #[test]
+    fn test_cast_x_spell_with_no_payable_x_is_reversed_at_the_announcement() {
+        use crate::types::costs::AdditionalCost;
+        let mut game = GameState::new(2, 20);
+        let kicked = std::sync::Arc::new(crate::objects::card_data::CardData {
+            additional_costs: vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])],
+            ..(*make_x_spell()).clone()
+        });
+        let obj = GameObject::new(kicked, 0, Zone::Hand);
+        let card_id = game.add_object(obj);
+        game.players[0].hand.push(card_id);
         game.players[0].mana_pool.add(ManaType::Red, 2);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1 }, 3);
-        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-            spell_id: card_id,
-        }, vec![1]);
+        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![0]);
 
         let result = game.cast_spell(0, card_id, &decisions);
         assert!(result.is_err());
-
-        // Card should be back in hand (rollback)
+        assert!(decisions.is_empty(), "no X and no target was asked");
         assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Hand);
         assert!(game.players[0].hand.contains(&card_id));
         assert!(!game.stack.contains(&card_id));
-        assert!(!game.stack_entries.contains_key(&card_id));
-        // Mana should not have been spent
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 2);
     }
 

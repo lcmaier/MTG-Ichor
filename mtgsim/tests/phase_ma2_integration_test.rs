@@ -65,3 +65,40 @@ fn the_agent_activates_the_cube_last() {
         assert!(the_agent_casts(&game, card, seed), "seed {seed}");
     }
 }
+
+/// Lightning Bolt costing `{X}{R}`, registered nowhere: what the gate reads
+/// of an X spell before Blaze is in the registry.
+fn ember_lesson(x_cannot_be_zero: bool) -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
+    use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
+    let bolt = mtgsim::test_support::lightning_bolt();
+    std::sync::Arc::new(mtgsim::objects::card_data::CardData {
+        name: "Ember Lesson".to_string(),
+        mana_cost: Some(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)])),
+        x_cannot_be_zero,
+        ..(*bolt).clone()
+    })
+}
+
+/// The gate asks whether the least legal X is payable (CR 107.3a): `{X}{R}`
+/// is offered from one Mountain, at X = 0, and not from none. Before MA-2 a
+/// cost with `{X}` had no demand and was never offered.
+#[test]
+fn a_spell_with_x_is_offered_when_its_least_x_is_payable() {
+    let mut game = main_phase();
+    let card = put_in_hand(&mut game, ember_lesson(false), 0);
+    assert!(can_cast(&game, 0, card).is_err(), "no red, no X");
+    put_on_battlefield(&mut game, mountain(), 0);
+    assert!(can_cast(&game, 0, card).is_ok(), "{{R}} pays X = 0");
+}
+
+/// "X can't be 0" makes the least X 1, so one Mountain does not offer the
+/// spell and two do.
+#[test]
+fn x_cannot_be_zero_asks_the_gate_for_one_x() {
+    let mut game = main_phase();
+    put_on_battlefield(&mut game, mountain(), 0);
+    let card = put_in_hand(&mut game, ember_lesson(true), 0);
+    assert!(can_cast(&game, 0, card).is_err(), "{{R}} does not pay X = 1");
+    put_on_battlefield(&mut game, mountain(), 0);
+    assert!(can_cast(&game, 0, card).is_ok(), "{{1}}{{R}} does");
+}

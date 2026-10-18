@@ -162,7 +162,9 @@ impl ManaCost {
     }
 
     /// What the cost asks of mana, or `None` for a symbol no payment path
-    /// pays yet: hybrid and its kin are CP-1's, {S} item 33's, {X} MA-2's.
+    /// pays yet: hybrid and its kin are CP-1's, {S} item 33's. An {X} is
+    /// refused too: a spell's is expanded before the check asks
+    /// ([`Self::with_x_as`]), and an activated ability's is CP-1's.
     pub fn demand(&self) -> Option<ManaDemand> {
         let (demand, every_symbol) = self.tally();
         every_symbol.then_some(demand)
@@ -203,6 +205,15 @@ impl ManaCost {
     /// Count how many X symbols appear.
     pub fn x_count(&self) -> u8 {
         self.symbols.iter().filter(|s| matches!(s, ManaSymbol::X)).count() as u8
+    }
+
+    /// The cost with each X as `x` generic mana, generic first: what CR
+    /// 601.2f's first step makes of an announced X (CR 107.3a).
+    pub fn with_x_as(&self, x: u64) -> ManaCost {
+        let generic = self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u64 + x * u64::from(self.x_count());
+        let mut symbols = vec![ManaSymbol::Generic; generic as usize];
+        symbols.extend(self.symbols.iter().copied().filter(|s| !matches!(s, ManaSymbol::Generic | ManaSymbol::X)));
+        ManaCost { symbols }
     }
 
     /// Whether any symbol requires player choice (hybrid, Phyrexian, X, generic).

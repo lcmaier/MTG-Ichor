@@ -43,6 +43,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use std::sync::Arc;
 
@@ -1163,7 +1164,7 @@ fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
     let trinket = put_in_hand(&mut game, x_trinket(), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: trinket, x_count: 1 }, 4);
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: trinket, x_count: 1, values: Box::new(LegalXValues::up_to(4)) }, 4);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced (CR 102.2) and no prompt is made.
 
