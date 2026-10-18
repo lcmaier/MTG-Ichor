@@ -6,36 +6,46 @@
 //! closed form, never searched: X adds only generic mana and no cost change
 //! reads it, so CR 601.2f's total is the same pips beside a generic part
 //! linear in X (`ManaComponent`), and the inventory says once how much
-//! generic mana it can pay beside those pips
-//! ([`ManaSupply::most_generic_beside`]). Rules that cut a gap, a loyalty
-//! ability's −X or a target with mana value X, arrive with their surfaces and
-//! offer the set form, [`XOffer::Values`].
+//! generic mana it can pay alongside those pips
+//! ([`ManaSupply::most_generic_payable_alongside`]). Rules that cut a gap, a
+//! loyalty ability's −X or a target with mana value X, arrive with their
+//! surfaces and offer the set form, [`XOffer::Set`].
 
-use crate::engine::cost_determination::total_in_x;
+use std::num::NonZeroU64;
+
+use crate::engine::cost_determination::TotalCostInX;
 use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
-use crate::types::costs::{AdditionalCost, AlternativeCost};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::PlayerId;
 use crate::types::mana::ManaCost;
 
-/// The values of X a caster may announce for a spell, and why they are
-/// these.
+/// The values of X a caster may announce for a spell, and the facts the why
+/// panel says they stop at.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalXValues {
     pub offered: XOffer,
-    pub least: LeastX,
-    pub most: MostX,
+    /// The card says "X can't be 0", which is why the least is 1.
+    pub x_cant_be_zero: bool,
+    /// Why a larger X is not offered; `None` when the cost being paid has no
+    /// X, so X is 0 (CR 601.2b announces "a variable cost that will be
+    /// paid", and 107.3b says the same of an effect's free cast).
+    pub bound: Option<XBound>,
 }
 
 impl LegalXValues {
-    /// Every X from 0 to `max`, the plain interval a board paying `max`
-    /// generic mana beside the rest of a one-X cost offers: what a provider
-    /// asked outside a cast, a test's, is handed.
-    pub fn up_to(max: u64) -> LegalXValues {
+    /// Every X from 0 through `at_most`: what a one-X cost with no other
+    /// generic mana offers when `at_most` generic mana is payable beside its
+    /// pips. A provider asked outside a cast, a test's, is handed it.
+    pub fn zero_through(at_most: u64) -> LegalXValues {
         LegalXValues {
-            offered: XOffer::Range { min: 0, max },
-            least: LeastX::Zero,
-            most: MostX::Payable { generic_budget: max, generic_besides_x: 0, per_x: 1, beside: ManaCost::zero() },
+            offered: XOffer::Interval { at_least: 0, at_most },
+            x_cant_be_zero: false,
+            bound: Some(XBound {
+                pips: ManaCost::zero(),
+                most_generic_payable: at_most,
+                generic_besides_x: 0,
+                x_symbol_count: 1,
+            }),
         }
     }
 }
@@ -43,132 +53,88 @@ impl LegalXValues {
 /// What `ChooseXValue` offers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum XOffer {
-    /// Every X from `min` to `max`.
-    Range { min: u64, max: u64 },
+    /// Every X from `at_least` through `at_most`.
+    Interval { at_least: u64, at_most: u64 },
     /// These, ascending, when a rule cuts a gap: Tamiyo, Compleated Sage's −X
     /// over cards of mana value 0, 1, 4, 6 and 7 offers those.
-    Values(Vec<u64>),
+    Set(Vec<u64>),
 }
 
 impl XOffer {
-    /// The one value offered, when there is only one: then nothing is asked
-    /// (`backlog.md` §2.22's rule 1).
-    pub fn only(&self) -> Option<u64> {
+    /// Whether exactly one value is offered: then it is announced without
+    /// asking (`backlog.md` §2.22's rule 1).
+    pub fn has_one_value(&self) -> bool {
         match self {
-            XOffer::Range { min, max } => (min == max).then_some(*min),
-            XOffer::Values(values) => match values.as_slice() {
-                [only] => Some(*only),
-                _ => None,
-            },
+            XOffer::Interval { at_least, at_most } => at_least == at_most,
+            XOffer::Set(values) => values.len() == 1,
         }
     }
 
-    /// Whether `x` is offered.
-    pub fn offers(&self, x: u64) -> bool {
+    /// The least value offered.
+    pub fn at_least(&self) -> u64 {
         match self {
-            XOffer::Range { min, max } => (*min..=*max).contains(&x),
-            XOffer::Values(values) => values.contains(&x),
+            XOffer::Interval { at_least, .. } => *at_least,
+            XOffer::Set(values) => values.first().copied().unwrap_or(0),
+        }
+    }
+
+    /// The most value offered.
+    pub fn at_most(&self) -> u64 {
+        match self {
+            XOffer::Interval { at_most, .. } => *at_most,
+            XOffer::Set(values) => values.last().copied().unwrap_or(0),
         }
     }
 }
 
-/// Why the least legal X is the least.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LeastX {
-    Zero,
-    /// "X can't be 0."
-    CannotBeZero,
-    /// The cost being paid has no X, so X is 0: CR 601.2b announces "a
-    /// variable cost that will be paid", and 107.3b says the same of an
-    /// effect's free cast.
-    NotInTheCostPaid,
-}
-
-/// Why the most legal X is the most.
+/// A larger X leaves the cost unpayable (CR 601.2h): beside `pips`, the
+/// caster can pay at most `most_generic_payable` generic mana, and the
+/// cost's generic part is `generic_besides_x` plus `x_symbol_count` for
+/// each X.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MostX {
-    /// A larger X leaves the cost unpayable (CR 601.2h). Each X adds `per_x`
-    /// generic mana to a generic part of `generic_besides_x` at X = 0, and
-    /// beside `beside`, the rest of the cost, the caster can pay at most
-    /// `generic_budget` generic mana.
-    Payable { generic_budget: u64, generic_besides_x: i64, per_x: u64, beside: ManaCost },
-    /// X is held at the least: the cost being paid has no X.
-    TheLeast,
+pub struct XBound {
+    pub pips: ManaCost,
+    pub most_generic_payable: u64,
+    pub generic_besides_x: i64,
+    pub x_symbol_count: u64,
 }
 
-/// Why no X can be announced, which reverses the cast (CR 601.2e, 732.1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoLegalX {
-    /// "X can't be 0", and the cost being paid has no X.
-    CannotBeZero,
-    /// Not even the least X leaves a payable total (CR 601.2h).
-    Unpayable { least: u64 },
-}
-
-/// The engine's own words, for the error a reversed cast returns.
-impl std::fmt::Display for NoLegalX {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NoLegalX::CannotBeZero => f.write_str("X can't be 0, and the cost being paid has no X"),
-            NoLegalX::Unpayable { least } => write!(f, "Not enough mana for X = {least}"),
-        }
-    }
-}
-
-/// CR 601.2b's choices before X, which the values of X depend on.
-#[derive(Debug, Clone, Copy)]
-pub struct XAnnouncement<'a> {
-    pub base_mana_cost: &'a ManaCost,
-    pub chosen_alt_cost: Option<&'a AlternativeCost>,
-    pub chosen_additional_costs: &'a [&'a AdditionalCost],
-    /// The card's "X can't be 0", as printed.
-    pub x_cannot_be_zero: bool,
-}
-
-/// The values of X `caster` may announce for `spell`, after `announced`.
+/// The values of X `caster` may announce for a spell whose total, with X a
+/// variable, is `total`; `None` when no X can be announced, which reverses
+/// the cast (CR 601.2e, 732.1).
 pub fn legal_x_values(
     game: &GameState,
     caster: PlayerId,
-    spell: ObjectId,
-    announced: &XAnnouncement<'_>,
-) -> Result<LegalXValues, NoLegalX> {
-    let (mana, others) = total_in_x(
-        game,
-        spell,
-        announced.base_mana_cost,
-        announced.chosen_alt_cost,
-        announced.chosen_additional_costs,
-    );
-    if mana.x_symbols() == 0 {
-        if announced.x_cannot_be_zero {
-            return Err(NoLegalX::CannotBeZero);
-        }
-        return Ok(LegalXValues {
-            offered: XOffer::Range { min: 0, max: 0 },
-            least: LeastX::NotInTheCostPaid,
-            most: MostX::TheLeast,
+    total: &TotalCostInX,
+    x_cant_be_zero: bool,
+) -> Option<LegalXValues> {
+    let at_least = u64::from(x_cant_be_zero);
+    let Some(x_symbol_count) = NonZeroU64::new(total.mana.x_symbol_count()) else {
+        return (!x_cant_be_zero).then_some(LegalXValues {
+            offered: XOffer::Interval { at_least: 0, at_most: 0 },
+            x_cant_be_zero,
+            bound: None,
         });
-    }
-    let (least, least_because) =
-        if announced.x_cannot_be_zero { (1, LeastX::CannotBeZero) } else { (0, LeastX::Zero) };
-    let non_mana = NonManaCosts { source: None, costs: &others };
-    let beside = mana.pips();
-    let generic_budget = ManaSupply::read(game, caster).most_generic_beside(game, &beside, &non_mana);
-    let bounded = generic_budget.and_then(|budget| mana.most_x_within(budget).map(|most| (budget, most)));
-    let Some((generic_budget, most)) = bounded.filter(|(_, most)| *most >= least) else {
-        return Err(NoLegalX::Unpayable { least });
     };
+    let non_mana = NonManaCosts { source: None, costs: &total.non_mana };
+    let pips = total.mana.pips();
+    let most_generic_payable =
+        ManaSupply::read(game, caster).most_generic_payable_alongside(game, &pips, &non_mana)?;
+    let at_most = total.mana.generic_left_for_x(most_generic_payable)? / x_symbol_count;
+    if at_most < at_least {
+        return None;
+    }
     #[cfg(debug_assertions)]
-    audit(game, caster, &mana, &others, most);
-    Ok(LegalXValues {
-        offered: XOffer::Range { min: least, max: most },
-        least: least_because,
-        most: MostX::Payable {
-            generic_budget,
-            generic_besides_x: mana.generic_besides_x(),
-            per_x: mana.x_symbols(),
-            beside,
-        },
+    audit(game, caster, total, at_most);
+    Some(LegalXValues {
+        offered: XOffer::Interval { at_least, at_most },
+        x_cant_be_zero,
+        bound: Some(XBound {
+            pips,
+            most_generic_payable,
+            generic_besides_x: total.mana.generic_besides_x(),
+            x_symbol_count: x_symbol_count.get(),
+        }),
     })
 }
 
@@ -181,19 +147,14 @@ pub fn legal_x_values(
 /// the check leans yes at every X and the closed form only to its upper
 /// bound: no fuzz board has come near it.
 #[cfg(debug_assertions)]
-fn audit(
-    game: &GameState,
-    caster: PlayerId,
-    mana: &crate::engine::cost_determination::ManaComponent,
-    others: &[crate::types::costs::Cost],
-    most: u64,
-) {
+fn audit(game: &GameState, caster: PlayerId, total: &TotalCostInX, at_most: u64) {
     let supply = std::cell::OnceCell::new();
-    let non_mana = NonManaCosts { source: None, costs: others };
-    let checked: Vec<u64> = if most < 64 { (0..=most + 8).collect() } else { vec![most, most + 1] };
+    let non_mana = NonManaCosts { source: None, costs: &total.non_mana };
+    let checked: Vec<u64> = if at_most < 64 { (0..=at_most + 8).collect() } else { vec![at_most, at_most + 1] };
     for x in checked {
-        let payable = crate::oracle::mana_helpers::mana_payable(game, caster, &mana.at(x), &non_mana, &supply);
-        assert_eq!(payable, x <= most, "the closed form says X = {x} is {}payable, the check says otherwise", if x <= most { "" } else { "not " });
+        let payable = crate::oracle::mana_helpers::mana_payable(game, caster, &total.mana.at(x), &non_mana, &supply);
+        let expected = x <= at_most;
+        assert_eq!(payable, expected, "the closed form says X = {x} is {}payable, the check says otherwise", if expected { "" } else { "not " });
     }
 }
 
@@ -201,12 +162,14 @@ fn audit(
 mod tests {
     use super::*;
     use crate::cards::basic_lands::{mountain, plains};
+    use crate::engine::cost_determination::total_cost_in_x;
     use crate::cards::phase_cm_cards::{goblin_electromancer, thalia_guardian_of_thraben, trinisphere};
     use crate::cards::phase_re9_cards::doubling_cube;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::card_types::CardType;
-    use crate::types::costs::Cost;
+    use crate::types::ids::ObjectId;
+    use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
     use crate::types::mana::{ManaSymbol, ManaType};
     use std::sync::Arc;
 
@@ -229,7 +192,7 @@ mod tests {
         (game, spell)
     }
 
-    fn values(game: &GameState, spell: ObjectId) -> Result<LegalXValues, NoLegalX> {
+    fn values(game: &GameState, spell: ObjectId) -> Option<LegalXValues> {
         values_with(game, spell, None, &[])
     }
 
@@ -238,15 +201,10 @@ mod tests {
         spell: ObjectId,
         alt: Option<&AlternativeCost>,
         additional: &[&AdditionalCost],
-    ) -> Result<LegalXValues, NoLegalX> {
+    ) -> Option<LegalXValues> {
         let card = &game.objects[&spell].card_data;
-        let announced = XAnnouncement {
-            base_mana_cost: card.mana_cost.as_ref().unwrap(),
-            chosen_alt_cost: alt,
-            chosen_additional_costs: additional,
-            x_cannot_be_zero: card.x_cannot_be_zero,
-        };
-        legal_x_values(game, 0, spell, &announced)
+        let total = total_cost_in_x(game, spell, card.mana_cost.as_ref().unwrap(), alt, additional);
+        legal_x_values(game, 0, &total, card.x_cant_be_zero)
     }
 
     fn offered(game: &GameState, spell: ObjectId) -> XOffer {
@@ -260,15 +218,15 @@ mod tests {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
         assert_eq!(
             values(&game, spell),
-            Ok(LegalXValues {
-                offered: XOffer::Range { min: 0, max: 4 },
-                least: LeastX::Zero,
-                most: MostX::Payable {
-                    generic_budget: 4,
+            Some(LegalXValues {
+                offered: XOffer::Interval { at_least: 0, at_most: 4 },
+                x_cant_be_zero: false,
+                bound: Some(XBound {
+                    pips: ManaCost::from_symbols(vec![R]),
+                    most_generic_payable: 4,
                     generic_besides_x: 0,
-                    per_x: 1,
-                    beside: ManaCost::from_symbols(vec![R]),
-                },
+                    x_symbol_count: 1,
+                }),
             })
         );
     }
@@ -277,7 +235,7 @@ mod tests {
     #[test]
     fn each_x_symbol_pays_x() {
         let (game, spell) = board(5, sorcery(&[X, X, R]).build());
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 2 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 2 });
     }
 
     /// A `{1}` reduction absorbs one X (§3.7): Goblin Electromancer makes
@@ -286,7 +244,7 @@ mod tests {
     fn a_reduction_absorbs_part_of_x() {
         let (mut game, spell) = board(4, sorcery(&[X, R]).build());
         put_on_battlefield(&mut game, goblin_electromancer(), 0);
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 4 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 4 });
     }
 
     /// Thalia's `{1}` more takes one X back.
@@ -294,7 +252,7 @@ mod tests {
     fn an_increase_takes_part_of_x() {
         let (mut game, spell) = board(4, sorcery(&[X, R]).build());
         put_on_battlefield(&mut game, thalia_guardian_of_thraben(), 1);
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 2 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 2 });
     }
 
     /// Trinisphere raises `{X}{R}` to three mana below X = 2, so three
@@ -303,10 +261,10 @@ mod tests {
     fn a_floor_on_the_total_bounds_x_from_below_too() {
         let (mut game, spell) = board(3, sorcery(&[X, R]).build());
         put_on_battlefield(&mut game, trinisphere(), 1);
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 2 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 2 });
         let (mut game, spell) = board(2, sorcery(&[X, R]).build());
         put_on_battlefield(&mut game, trinisphere(), 1);
-        assert_eq!(values(&game, spell), Err(NoLegalX::Unpayable { least: 0 }));
+        assert_eq!(values(&game, spell), None);
     }
 
     /// Doubling Cube under a Plains and six Mountains: the seven mana less
@@ -316,20 +274,20 @@ mod tests {
     fn a_pool_multiplier_raises_the_most() {
         let (mut game, spell) = board(6, sorcery(&[X, W]).build());
         put_on_battlefield(&mut game, plains(), 0);
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 6 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 6 });
         put_on_battlefield(&mut game, doubling_cube(), 0);
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 7 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 7 });
     }
 
     /// "X can't be 0" sets the least, and a board that pays only `{R}` pays
     /// no legal X.
     #[test]
-    fn x_cannot_be_zero_sets_the_least() {
-        let (game, spell) = board(1, sorcery(&[X, R]).x_cannot_be_zero().build());
-        assert_eq!(values(&game, spell), Err(NoLegalX::Unpayable { least: 1 }));
-        let (game, spell) = board(2, sorcery(&[X, R]).x_cannot_be_zero().build());
+    fn x_cant_be_zero_sets_the_least() {
+        let (game, spell) = board(1, sorcery(&[X, R]).x_cant_be_zero().build());
+        assert_eq!(values(&game, spell), None);
+        let (game, spell) = board(2, sorcery(&[X, R]).x_cant_be_zero().build());
         let legal = values(&game, spell).unwrap();
-        assert_eq!((legal.offered, legal.least), (XOffer::Range { min: 1, max: 1 }, LeastX::CannotBeZero));
+        assert_eq!((legal.offered, legal.x_cant_be_zero), (XOffer::Interval { at_least: 1, at_most: 1 }, true));
     }
 
     /// CR 601.2b announces X only for "a variable cost that will be paid",
@@ -342,10 +300,10 @@ mod tests {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
         assert_eq!(
             values_with(&game, spell, Some(&free), &[]),
-            Ok(LegalXValues { offered: XOffer::Range { min: 0, max: 0 }, least: LeastX::NotInTheCostPaid, most: MostX::TheLeast })
+            Some(LegalXValues { offered: XOffer::Interval { at_least: 0, at_most: 0 }, x_cant_be_zero: false, bound: None })
         );
-        let (game, spell) = board(5, sorcery(&[X, R]).x_cannot_be_zero().build());
-        assert_eq!(values_with(&game, spell, Some(&free), &[]), Err(NoLegalX::CannotBeZero));
+        let (game, spell) = board(5, sorcery(&[X, R]).x_cant_be_zero().build());
+        assert_eq!(values_with(&game, spell, Some(&free), &[]), None);
     }
 
     /// An alternative cost's own X is bounded by its own total: miracle's
@@ -354,8 +312,8 @@ mod tests {
     fn an_alternative_costs_x_is_bounded_by_that_cost() {
         let miracle = AlternativeCost::Custom("Miracle".to_string(), vec![Cost::Mana(ManaCost::from_symbols(vec![X, R]))]);
         let (game, spell) = board(3, sorcery(&[X, R, R]).build());
-        assert_eq!(offered(&game, spell), XOffer::Range { min: 0, max: 1 });
-        assert_eq!(values_with(&game, spell, Some(&miracle), &[]).unwrap().offered, XOffer::Range { min: 0, max: 2 });
+        assert_eq!(offered(&game, spell), XOffer::Interval { at_least: 0, at_most: 1 });
+        assert_eq!(values_with(&game, spell, Some(&miracle), &[]).unwrap().offered, XOffer::Interval { at_least: 0, at_most: 2 });
     }
 
     /// A kicker announced before X takes its share first, and a kicker the
@@ -364,17 +322,17 @@ mod tests {
     fn an_announced_kicker_narrows_the_most() {
         let kicker = |generic| AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], generic))]);
         let (game, spell) = board(5, sorcery(&[X, R]).build());
-        assert_eq!(values_with(&game, spell, None, &[&kicker(2)]).unwrap().offered, XOffer::Range { min: 0, max: 2 });
-        assert_eq!(values_with(&game, spell, None, &[&kicker(5)]), Err(NoLegalX::Unpayable { least: 0 }));
+        assert_eq!(values_with(&game, spell, None, &[&kicker(2)]).unwrap().offered, XOffer::Interval { at_least: 0, at_most: 2 });
+        assert_eq!(values_with(&game, spell, None, &[&kicker(5)]), None);
     }
 
     #[test]
-    fn the_offer_names_its_one_value_and_what_it_offers() {
-        assert_eq!(XOffer::Range { min: 2, max: 2 }.only(), Some(2));
-        assert_eq!(XOffer::Range { min: 0, max: 2 }.only(), None);
-        assert_eq!(XOffer::Values(vec![4]).only(), Some(4));
-        let tamiyo = XOffer::Values(vec![0, 1, 4, 6, 7]);
-        assert!(tamiyo.offers(4) && !tamiyo.offers(2));
-        assert!(XOffer::Range { min: 1, max: 3 }.offers(3) && !XOffer::Range { min: 1, max: 3 }.offers(0));
+    fn the_offer_says_whether_it_has_one_value_and_where_it_stops() {
+        assert!(XOffer::Interval { at_least: 2, at_most: 2 }.has_one_value());
+        assert!(!XOffer::Interval { at_least: 0, at_most: 2 }.has_one_value());
+        assert!(XOffer::Set(vec![4]).has_one_value());
+        let tamiyo = XOffer::Set(vec![0, 1, 4, 6, 7]);
+        assert!(!tamiyo.has_one_value());
+        assert_eq!((tamiyo.at_least(), tamiyo.at_most()), (0, 7));
     }
 }

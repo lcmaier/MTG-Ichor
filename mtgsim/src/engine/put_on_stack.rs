@@ -30,7 +30,8 @@ use crate::oracle::mana_helpers::{
     can_activate_its_abilities, can_begin_to_activate, can_begin_to_cast, remaining_cost_after_pool, CannotActivate,
 };
 use crate::oracle::mana_supply::ManaAbilityWindowOffer;
-use crate::oracle::x_values::{legal_x_values, XAnnouncement};
+use crate::engine::cost_determination::total_cost_in_x;
+use crate::oracle::x_values::legal_x_values;
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
@@ -116,20 +117,7 @@ impl GameState {
         self.move_object(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
-        let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
-            ask_choose_alternative_cost(decisions, self, player_id, card_id, &card_data.alternative_costs)
-        } else {
-            None
-        };
-
-        if let Some(idx) = chosen_alt_cost_idx
-            && idx >= card_data.alternative_costs.len() {
-            self.rollback_cast_to_hand(card_id)?;
-            return Err(format!(
-                "Alternative cost index {} out of range (card has {})",
-                idx, card_data.alternative_costs.len()
-            ));
-        }
+        let chosen_alt = ask_choose_alternative_cost(decisions, self, player_id, card_id, &card_data.alternative_costs);
 
         // CR 601.2b announces "their intentions to pay any or all of those
         // costs" — of the *optional* ones. A mandatory additional cost
@@ -163,7 +151,6 @@ impl GameState {
             }
         }
 
-        let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
         // Printed order, mandatory costs included whether or not anything was
         // offered — `additional_costs_paid` is what was paid, not what was
         // announced.
@@ -171,40 +158,27 @@ impl GameState {
             .iter()
             .map(|&idx| offered_positions[idx])
             .collect();
-        let chosen_additional: Vec<_> = card_data.additional_costs.iter()
+        let chosen_additional: Vec<&AdditionalCost> = card_data.additional_costs.iter()
             .enumerate()
             .filter(|(i, c)| !c.is_optional() || announced.contains(i))
-            .map(|(_, c)| c.clone())
+            .map(|(_, c)| c)
             .collect();
-        let additional_refs: Vec<_> = chosen_additional.iter().collect();
 
         // The value of X, last of 601.2b's announcements, from the values the
         // costs announced before it leave payable (CR 107.3a; `oracle::x_values`).
-        // The X the chosen base pays: an alternative cost's own, or the mana
-        // cost's; one with none holds X at 0.
+        // The X the chosen base pays is an alternative cost's own or the mana
+        // cost's, and one with none holds X at 0.
         let base_mana_cost = card_data.mana_cost.clone()
             .unwrap_or_else(ManaCost::zero);
-        let x_count = match &chosen_alt {
-            Some(alt) => alt.costs().iter().map(|cost| match cost {
-                Cost::Mana(mana) => mana.x_count(),
-                _ => 0,
-            }).sum(),
-            None => base_mana_cost.x_count(),
-        };
-        let has_x = base_mana_cost.x_count() > 0 || x_count > 0;
+        let total_in_x = total_cost_in_x(self, card_id, &base_mana_cost, chosen_alt, &chosen_additional);
+        let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
         let x_value = if has_x {
-            let announcement = XAnnouncement {
-                base_mana_cost: &base_mana_cost,
-                chosen_alt_cost: chosen_alt.as_ref(),
-                chosen_additional_costs: &additional_refs,
-                x_cannot_be_zero: card_data.x_cannot_be_zero,
-            };
-            match legal_x_values(self, player_id, card_id, &announcement) {
-                Ok(values) => ask_choose_x_value(decisions, self, player_id, card_id, u64::from(x_count), values),
+            match legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero) {
+                Some(values) => ask_choose_x_value(decisions, self, player_id, card_id, values),
                 // The 601.2h failure, found before a window opens for it.
-                Err(no_legal_x) => {
+                None => {
                     self.rollback_cast_to_hand(card_id)?;
-                    return Err(no_legal_x.to_string());
+                    return Err(format!("{} has no value of X that can be paid", card_data.name));
                 }
             }
         } else {
@@ -236,8 +210,8 @@ impl GameState {
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
-            chosen_alternative_cost: chosen_alt.clone(),
-            additional_costs_paid: chosen_additional.clone(),
+            chosen_alternative_cost: chosen_alt.cloned(),
+            additional_costs_paid: chosen_additional.iter().map(|&cost| cost.clone()).collect(),
             mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
             ability_identity: None,
@@ -259,8 +233,8 @@ impl GameState {
             player_id,
             card_id,
             &base_mana_cost,
-            chosen_alt.as_ref(),
-            &additional_refs,
+            chosen_alt,
+            &chosen_additional,
             x_value,
             decisions,
         );
@@ -960,7 +934,7 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, x_count: 1, values: Box::new(crate::oracle::x_values::LegalXValues::up_to(3)) }, 3);
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
         // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
         decisions.expect_pick_n(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
@@ -1009,41 +983,6 @@ mod tests {
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }
 
-    /// A seat that answers X with the most it is offered, and remembers the
-    /// range it was offered.
-    struct AnswersTheMostX {
-        offered: std::cell::Cell<Option<(u64, u64)>>,
-        then: ScriptedDecisionProvider,
-    }
-
-    impl DecisionProvider for AnswersTheMostX {
-        fn pick_n(&self, game: &GameState, player: PlayerId, context: &crate::ui::choice_types::ChoiceContext, options: &[crate::ui::choice_types::ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-            self.then.pick_n(game, player, context, options, bounds)
-        }
-
-        fn pick_number(&self, _: &GameState, _: PlayerId, _: &crate::ui::choice_types::ChoiceContext, min: u64, max: u64) -> u64 {
-            self.offered.set(Some((min, max)));
-            max
-        }
-
-        fn allocate(
-            &self,
-            game: &GameState,
-            player: PlayerId,
-            context: &crate::ui::choice_types::ChoiceContext,
-            total: u64,
-            buckets: &[crate::ui::choice_types::ChoiceOption],
-            mins: &[u64],
-            maxs: Option<&[u64]>,
-        ) -> Vec<u64> {
-            self.then.allocate(game, player, context, total, buckets, mins, maxs)
-        }
-
-        fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &crate::ui::choice_types::ChoiceContext, items: &[crate::ui::choice_types::ChoiceOption]) -> Vec<usize> {
-            self.then.choose_ordering(game, player, context, items)
-        }
-    }
-
     /// Two red pay `{X}{R}` up to X = 1, and no further X is offered: the
     /// prompt's range is what CR 601.2h can pay (`oracle::x_values`). Before
     /// MA-2 the range ran to `u64::MAX`, and an X of 3 from two red was
@@ -1059,15 +998,18 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = AnswersTheMostX { offered: std::cell::Cell::new(None), then: ScriptedDecisionProvider::new() };
-        decisions.then.expect_pick_n(ChoiceKind::SelectRecipients {
+        use crate::oracle::x_values::{LegalXValues, XOffer};
+        let decisions = ScriptedDecisionProvider::new();
+        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
+        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![1]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
-        assert_eq!(decisions.offered.get(), Some((0, 1)));
+        let ChoiceKind::ChooseXValue { values, .. } = &decisions.asked()[0] else { panic!("X is asked first") };
+        assert_eq!(values.offered, XOffer::Interval { at_least: 0, at_most: 1 });
         assert_eq!(game.stack_entries[&card_id].x_value, Some(1));
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
     }

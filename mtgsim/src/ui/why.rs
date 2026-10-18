@@ -31,7 +31,7 @@ use crate::types::colors::Color;
 use crate::types::effects::Effect;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::oracle::x_values::{LeastX, LegalXValues, MostX, XOffer};
+use crate::oracle::x_values::LegalXValues;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
@@ -355,32 +355,27 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
 /// gap a rule cuts gets its reason from that rule, with its surface.
 fn x_refusals(game: &GameState, player: PlayerId, spell: ObjectId, values: &LegalXValues) -> Vec<WhyLine> {
     let mut lines = Vec::new();
-    match values.least {
-        LeastX::Zero => {}
-        LeastX::CannotBeZero => {
-            lines.push(refusal("X = 0", (format!("{} says X can't be 0", named(game, spell)), None)).naming(game, &[spell]))
-        }
-        LeastX::NotInTheCostPaid => {
-            lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))))
-        }
+    if values.x_cant_be_zero {
+        lines.push(refusal("X = 0", (format!("{} says X can't be 0", named(game, spell)), None)).naming(game, &[spell]));
     }
-    if let MostX::Payable { generic_budget, generic_besides_x, per_x, beside } = &values.most {
-        let most = match &values.offered {
-            XOffer::Range { max, .. } => *max,
-            XOffer::Values(offered) => offered.last().copied().unwrap_or(0),
-        };
-        let beside = if beside.symbols.is_empty() { String::new() } else { format!("beside {beside}, ") };
-        let besides = match generic_besides_x.cmp(&0) {
-            std::cmp::Ordering::Greater => format!(", to the {{{generic_besides_x}}} the cost asks besides"),
-            std::cmp::Ordering::Less => format!(", less the {{{}}} its reductions take off", -generic_besides_x),
-            std::cmp::Ordering::Equal => String::new(),
-        };
-        let words = format!(
-            "{beside}{} can pay at most {generic_budget} generic mana, and each X adds {{{per_x}}}{besides}",
-            player_name(player)
-        );
-        lines.push(refusal(format!("X above {most}"), (words, Some("601.2h"))));
-    }
+    let Some(bound) = &values.bound else {
+        lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))));
+        return lines;
+    };
+    let pips = if bound.pips.symbols.is_empty() { String::new() } else { format!("alongside {}, ", bound.pips) };
+    let generic_besides_x = bound.generic_besides_x;
+    let besides = match generic_besides_x.cmp(&0) {
+        std::cmp::Ordering::Greater => format!(", to the {{{generic_besides_x}}} the cost asks besides"),
+        std::cmp::Ordering::Less => format!(", less the {{{}}} its reductions take off", -generic_besides_x),
+        std::cmp::Ordering::Equal => String::new(),
+    };
+    let words = format!(
+        "{pips}{} can pay at most {} generic mana, and each X adds {{{}}}{besides}",
+        player_name(player),
+        bound.most_generic_payable,
+        bound.x_symbol_count,
+    );
+    lines.push(refusal(format!("X above {}", values.offered.at_most()), (words, Some("601.2h"))));
     lines
 }
 

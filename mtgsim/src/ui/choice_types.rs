@@ -48,12 +48,13 @@ pub enum ChoiceKind {
     AssignTrampleDamage { attacker_id: ObjectId, defending_target: DamageTarget },
 
     // --- Casting Pipeline (601.2) ---
-    /// CR 601.2b — the value of X for `spell_id`, which pays it `x_count`
-    /// times. `values` is what the engine offers and why (`oracle::x_values`):
+    /// CR 601.2b — the value of X for `spell_id`. `values` is what the
+    /// engine offers and why (`oracle::x_values`), how many times the cost
+    /// pays X among it:
     /// asked by `pick_number` over an interval, by `pick_n` over
     /// `ChoiceOption::Number` when a rule cuts a gap, and not asked at all
     /// when there is one value. Boxed, since every other kind is smaller.
-    ChooseXValue { spell_id: ObjectId, x_count: u64, values: Box<LegalXValues> },
+    ChooseXValue { spell_id: ObjectId, values: Box<LegalXValues> },
     /// CR 601.2b / 118.9 — whether to cast `spell_id` for its mana cost or
     /// for one of its alternative costs. The options are `NormalCost` first,
     /// then the alternatives in printed order.

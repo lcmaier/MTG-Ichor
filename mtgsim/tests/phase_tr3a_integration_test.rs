@@ -906,7 +906,7 @@ fn a_delayed_trigger_takes_the_x_of_the_spell_that_created_it() {
     game.players[0].mana_pool.add(ManaType::Green, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: bounty, x_count: 1, values: Box::new(LegalXValues::up_to(3)) }, 3);
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: bounty, values: Box::new(LegalXValues::zero_through(3)) }, 3);
     game.cast_spell(0, bounty, &ManaWindowStop::new(dp)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.delayed_triggers[0].x_value, Some(3));

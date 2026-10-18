@@ -14,4 +14,4 @@ mod gather;
 mod total;
 
 pub use gather::{cost_modifications_for, CostModificationInstance};
-pub use total::{determine_total_cost, preview_mana_cost, total_in_x, ManaComponent};
+pub use total::{determine_total_cost, preview_mana_cost, total_cost_in_x, ManaComponent, TotalCostInX};

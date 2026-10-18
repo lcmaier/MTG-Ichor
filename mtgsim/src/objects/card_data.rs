@@ -63,7 +63,7 @@ pub struct CardData {
     pub additional_costs: Vec<AdditionalCost>,
     /// "X can't be 0" (Ertai's Meddling, Mind Grind): the least X its caster
     /// may announce for its mana cost's X is 1 (CR 601.2b).
-    pub x_cannot_be_zero: bool,
+    pub x_cant_be_zero: bool,
 }
 
 /// The type of an ability
@@ -243,7 +243,7 @@ impl CardDataBuilder {
                 spell_instances: Vec::new(),
                 alternative_costs: Vec::new(),
                 additional_costs: Vec::new(),
-                x_cannot_be_zero: false,
+                x_cant_be_zero: false,
             },
         }
     }
@@ -372,8 +372,8 @@ impl CardDataBuilder {
     }
 
     /// "X can't be 0."
-    pub fn x_cannot_be_zero(mut self) -> Self {
-        self.data.x_cannot_be_zero = true;
+    pub fn x_cant_be_zero(mut self) -> Self {
+        self.data.x_cant_be_zero = true;
         self
     }
 

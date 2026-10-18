@@ -605,21 +605,20 @@ pub fn ask_choose_x_value(
     game: &GameState,
     player: PlayerId,
     spell_id: ObjectId,
-    x_count: u64,
     values: LegalXValues,
 ) -> u64 {
-    if let Some(only) = values.offered.only() {
-        return only;
+    if values.offered.has_one_value() {
+        return values.offered.at_least();
     }
     let offered = values.offered.clone();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count, values: Box::new(values) });
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) });
     match offered {
-        XOffer::Range { min, max } => {
-            let value = dp.pick_number(game, player, &ctx, min, max);
-            validate_pick_number(value, min, max, "choose_x_value", game, player, &ctx);
+        XOffer::Interval { at_least, at_most } => {
+            let value = dp.pick_number(game, player, &ctx, at_least, at_most);
+            validate_pick_number(value, at_least, at_most, "choose_x_value", game, player, &ctx);
             value
         }
-        XOffer::Values(values) => {
+        XOffer::Set(values) => {
             let options: Vec<ChoiceOption> = values.iter().map(|&x| ChoiceOption::Number(x)).collect();
             let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
             validate_pick_n(&index, &options, (1, 1), "choose_x_value", game, player, &ctx);
@@ -628,15 +627,15 @@ pub fn ask_choose_x_value(
     }
 }
 
-/// Choose an alternative cost (rule 118.9).
-/// Returns `None` for normal cost, or `Some(index)` for chosen alt cost.
-pub fn ask_choose_alternative_cost(
+/// Choose an alternative cost (rule 118.9): the one chosen, or `None` for
+/// the mana cost. Nothing is asked when the card has none.
+pub fn ask_choose_alternative_cost<'a>(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     spell_id: ObjectId,
-    available: &[AlternativeCost],
-) -> Option<usize> {
+    available: &'a [AlternativeCost],
+) -> Option<&'a AlternativeCost> {
     if available.is_empty() {
         return None;
     }
@@ -648,12 +647,8 @@ pub fn ask_choose_alternative_cost(
     let ctx = ChoiceContext::new(ChoiceKind::ChooseAlternativeCost { spell_id });
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_alternative_cost", game, player, &ctx);
-    let chosen = index[0];
-    if chosen == 0 {
-        None
-    } else {
-        Some(chosen - 1)
-    }
+    // Option 0 is the mana cost, and option i the alternative cost i − 1.
+    index[0].checked_sub(1).map(|chosen| &available[chosen])
 }
 
 /// Choose which additional costs to pay (rule 118.8).
@@ -1432,10 +1427,10 @@ mod tests {
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
-            ChoiceKind::ChooseXValue { spell_id, x_count: 1, values: Box::new(LegalXValues::up_to(5)) },
+            ChoiceKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(5)) },
             5,
         );
-        let result = ask_choose_x_value(&dp, &game, 0, spell_id, 1, LegalXValues::up_to(5));
+        let result = ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(5));
         assert_eq!(result, 5);
     }
 
@@ -1638,10 +1633,10 @@ mod tests {
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
-            ChoiceKind::ChooseXValue { spell_id, x_count: 1, values: Box::new(LegalXValues::up_to(3)) },
+            ChoiceKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(3)) },
             3,
         );
-        let result = ask_choose_x_value(&dp, &game, 0, spell_id, 1, LegalXValues::up_to(3));
+        let result = ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(3));
         assert_eq!(result, 3);
     }
 
@@ -1812,7 +1807,7 @@ mod tests {
     /// 7 (`mana-architecture.md` §3.7): a set with gaps, which only a rule
     /// cuts. No rule MA-2 builds does, so the set is handed to the ask here.
     fn tamiyo() -> LegalXValues {
-        LegalXValues { offered: XOffer::Values(vec![0, 1, 4, 6, 7]), ..LegalXValues::up_to(7) }
+        LegalXValues { offered: XOffer::Set(vec![0, 1, 4, 6, 7]), ..LegalXValues::zero_through(7) }
     }
 
     /// The random agent answers a set with gaps only from it, and in time
@@ -1825,8 +1820,8 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         for seed in 0..64 {
             let dp = RandomDecisionProvider::seeded(seed);
-            let x = ask_choose_x_value(&dp, &game, 0, spell_id, 1, tamiyo());
-            assert!(tamiyo().offered.offers(x), "seed {seed} answered {x}");
+            let x = ask_choose_x_value(&dp, &game, 0, spell_id, tamiyo());
+            assert!([0, 1, 4, 6, 7].contains(&x), "seed {seed} answered {x}");
             seen.insert(x);
         }
         assert_eq!(seen.into_iter().collect::<Vec<_>>(), vec![0, 1, 4, 6, 7]);
@@ -1838,8 +1833,8 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
-        dp.expect_number(ChoiceKind::ChooseXValue { spell_id, x_count: 1, values: Box::new(tamiyo()) }, 4);
-        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, 1, tamiyo()), 4);
+        dp.expect_number(ChoiceKind::ChooseXValue { spell_id, values: Box::new(tamiyo()) }, 4);
+        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, tamiyo()), 4);
     }
 
     /// One legal value is announced without asking: a provider with nothing
@@ -1849,9 +1844,9 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
-        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, 1, LegalXValues::up_to(0)), 0);
-        let only_four = LegalXValues { offered: XOffer::Values(vec![4]), ..LegalXValues::up_to(4) };
-        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, 1, only_four), 4);
+        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(0)), 0);
+        let only_four = LegalXValues { offered: XOffer::Set(vec![4]), ..LegalXValues::zero_through(4) };
+        assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, only_four), 4);
     }
 
     /// A decision log's line for the set names the number, as the log writes
@@ -1872,7 +1867,7 @@ mod tests {
             chosen: Chosen::Picks(vec![ChoiceOption::Number(6).as_logged(&game)]),
         };
         let replay = crate::ui::replay::Replay::new(vec![line]);
-        assert_eq!(ask_choose_x_value(&replay, &game, 0, spell_id, 1, tamiyo()), 6);
+        assert_eq!(ask_choose_x_value(&replay, &game, 0, spell_id, tamiyo()), 6);
         assert_eq!(replay.remaining(), 0);
     }
 

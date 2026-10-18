@@ -282,7 +282,7 @@ impl LineAnswers<'_> {
     }
 
     /// The line's `x N`, asked for CR 601.2b's X.
-    fn x(&self, player: PlayerId, kind: &ChoiceKind) -> u64 {
+    fn line_x(&self, player: PlayerId, kind: &ChoiceKind) -> u64 {
         match self.line().written.verb {
             SetupVerb::Casts { x: Some(x) } => x,
             SetupVerb::Casts { x: None } | SetupVerb::Activates { .. } => {
@@ -355,7 +355,7 @@ impl DecisionProvider for LineAnswers<'_> {
             LineAnswer::Targets(spell) if self.asks_for_the_line(game, spell) => self.targets(game, player, options, bounds),
             LineAnswer::Window(subject, remaining) if self.asks_for_the_line(game, subject) => self.tap(game, player, remaining, options),
             LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
-                let x = self.x(player, &context.kind);
+                let x = self.line_x(player, &context.kind);
                 let offered = options.iter().position(|option| matches!(option, ChoiceOption::Number(n) if *n == x));
                 vec![offered.unwrap_or_else(|| self.refuse(format!("its `x {x}` is not among the values of X offered")))]
             }
@@ -366,7 +366,7 @@ impl DecisionProvider for LineAnswers<'_> {
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
         match line_answer(&context.kind) {
             LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
-                let x = self.x(player, &context.kind);
+                let x = self.line_x(player, &context.kind);
                 if !(min..=max).contains(&x) {
                     self.refuse(format!("its `x {x}` is not offered: X can be {min} to {max} (CR 601.2h)"));
                 }

@@ -206,7 +206,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DeclareBlockers,
         ChoiceKind::AssignCombatDamage { attacker_id: object },
         ChoiceKind::AssignTrampleDamage { attacker_id: object, defending_target: DamageTarget::Player(1) },
-        ChoiceKind::ChooseXValue { spell_id: object, x_count: 1, values: Box::new(LegalXValues::up_to(1)) },
+        ChoiceKind::ChooseXValue { spell_id: object, values: Box::new(LegalXValues::zero_through(1)) },
         ChoiceKind::ChooseAlternativeCost { spell_id: object },
         ChoiceKind::ChooseAdditionalCosts { spell_id: object },
         ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Controller, spell_id: object },
