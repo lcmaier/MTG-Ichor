@@ -128,7 +128,7 @@ pub enum Multiplicity {
     /// creatures at once trigger three times (Enduring Scalelord's second
     /// ruling) and two records on one creature once. "That many" sums that
     /// subject's records, and "that creature" is the subject. Only an arm
-    /// whose records name one subject reads it: the counter arms
+    /// that `TriggerEvent::supports_once_per_subject` carries it
     /// (`TriggerDef::readings_its_arms_cannot_give`).
     OncePerSubject,
 }
@@ -860,10 +860,14 @@ impl TriggerEvent {
         }
     }
 
-    /// Whether each of this arm's records is about one object or player,
-    /// which is what `Multiplicity::OncePerSubject` counts by: a counter
-    /// record's subject.
-    pub fn names_one_subject(&self) -> bool {
+    /// Whether this arm may be read once per subject: whether one event can
+    /// make several of its records about one object or player, so that
+    /// grouping them by it differs from reading each. Counters put on one
+    /// creature by two players, or of two kinds, are two records. A death is
+    /// one record per object, so per subject would be per record. The damage
+    /// arm is the next to join, for "one or more creatures deal combat damage
+    /// to a player" (`triggers-architecture.md` §4.4).
+    pub fn supports_once_per_subject(&self) -> bool {
         match self {
             TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => true,
             TriggerEvent::ZoneChange { .. }
@@ -891,9 +895,9 @@ impl TriggerEvent {
         }
     }
 
-    /// The object or player `record` is about, for an arm whose records name
-    /// one subject (`names_one_subject`): what a once-per-subject trigger is
-    /// one of. `None` for every other arm and record.
+    /// The object or player `record` is about, for an arm that may be read
+    /// once per subject (`supports_once_per_subject`): what a once-per-subject
+    /// trigger is one of. `None` for every other arm and record.
     pub fn occurrence_subject(&self, record: &GameEvent) -> Option<crate::events::event::CounterSubject> {
         match (self, record) {
             (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })

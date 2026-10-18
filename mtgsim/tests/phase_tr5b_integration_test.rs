@@ -637,10 +637,10 @@ fn the_nth_counter_reads_the_count_before_and_after_one_event() {
 /// `readings_its_arms_cannot_give` is the registry's check that a trigger
 /// asks nothing of its event that the event's arm cannot supply; every
 /// registered card must pass it. Each wrong def here breaks one of its two
-/// rules: "once per subject" on a death, whose record has no subject to group
-/// by, and "the third counter" read once per counter, where one put of three
-/// would make three triggers that each see the count cross three. The
-/// countdown, written right, passes.
+/// rules: "once per subject" on a death, which is one record per object, so
+/// that grouping by object would change nothing; and "the third counter" read
+/// once per counter, where one put of three would make three triggers that
+/// each see the count cross three. The countdown, written right, passes.
 #[test]
 fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
     let once_per_subject_dies = TriggerDef {

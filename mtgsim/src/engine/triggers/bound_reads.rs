@@ -122,15 +122,15 @@ impl TriggerDef {
     }
 
     /// The readings of its event the def asks of an arm that cannot give
-    /// them: once per subject on an arm whose records name no one subject,
+    /// them: once per subject on an arm that cannot be read that way,
     /// and CR 122.7's threshold on a trigger that is not a counter put read
     /// once per subject, whose records alone keep the counts it compares.
     /// Empty for every registered card (`cards::registry`'s test).
     pub fn readings_its_arms_cannot_give(&self) -> Vec<&'static str> {
         let arms = self.condition.events();
         let mut wrong = Vec::new();
-        if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.names_one_subject()) {
-            wrong.push("once per subject, on an arm whose records name no one subject");
+        if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.supports_once_per_subject()) {
+            wrong.push("once per subject, on an arm that cannot be read that way");
         }
         let puts_once_per_subject =
             |arm: &TriggerEvent| matches!(arm, TriggerEvent::CountersPutOn { multiplicity: Multiplicity::OncePerSubject, .. });

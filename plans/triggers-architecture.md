@@ -1853,8 +1853,10 @@ gives. The *occurrence* it counts is one triggering event
   records. Simic Ascendancy's "one or more" collapses the counters on one
   creature, not the creatures: counters put on three creatures at once are
   three occurrences (CR 603.2c). Added 2026-09-24; built in TR-5b as
-  `Multiplicity::OncePerSubject`, which only an arm whose records name one
-  subject may carry (`TriggerDef::readings_its_arms_cannot_give`). The
+  `Multiplicity::OncePerSubject`, which only an arm where one event can make
+  several records about one subject may carry
+  (`TriggerEvent::supports_once_per_subject`,
+  `TriggerDef::readings_its_arms_cannot_give`). The
   damage arm is the next to need it: "whenever one or more creatures you
   control deal combat damage to a player" triggers once for each player
   dealt combat damage at once (Pyrewild Shaman's and Frostcliff Siege's
