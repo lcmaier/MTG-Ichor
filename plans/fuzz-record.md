@@ -37,6 +37,33 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-18 for MA-2's dev GUI notes** (#260: item 276).
+`GameEvent::DamagePrevented` is announced where a prevention applies (CR
+615.13), ahead of the trigger arm TR-5d builds, and no pool moves, so the §3
+columns stand. One `close_out.py` sitting: **main** `8274a8b` (#259's merge)
+and **engine** `1634162`, the record's commit, which carries the branch's
+`ui::why::not_offered_yet` too, a function no game calls.
+
+**Predictions, before any arm ran:** every gameplay row the same, both pools,
+both seat counts, since no decision reads the record and no arm matches it;
+audit dispatches the same, or up by the batches whose only record is a
+prevention; instructions per decision within ±0.3%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, dispatches agreed, `main` → engine, performance / stress | 161,688 → 161,704 / 157,454 → 157,476 | 318,208 → 318,253 / 316,829 → 316,874 |
+| audit, triggers agreed, both arms, performance / stress | 1,421 / 951 | 3,498 / 2,408 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6810 M → 0.6814 M, **+0.06%** |
+
+**Every prediction held.** The dispatches that rose are batches a
+prevention emptied, which now hold a record and dispatch it; every trigger
+the audit agreed on is the same. `--dump-events`, 50 stress games at seed
+12345 and two seats on each arm: identical once each line's number and
+each game's event count are set aside and the new lines removed. 40
+`DamagePrevented` lines in 11 of the 50 games: Daunting Defender's,
+Gisela's, Safe Passage's and Protean Hydra's.
+
 **Re-recorded 2026-10-18 for MA-2** (#259: the legal values of X; item
 214). Blaze joins the registry and the pool (205 → 206 registered, 115 →
 116 pooled), and Protean Hydra becomes castable, so both §3 columns are new
