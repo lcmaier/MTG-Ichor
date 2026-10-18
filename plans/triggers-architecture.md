@@ -3537,7 +3537,7 @@ reach that path with no arm to read them, or short of what an arm needs:
 
 This phase completes the blockers record and builds an arm over each of the
 four. Beside them it builds the "this turn" object filter, a recipient that
-names two objects, and item 275's fix to the ordering elision. Item 275 is
+joins recipients, and item 275's fix to the ordering elision. Item 275 is
 slotted here because this phase moves the random agent's stream anyway.
 
 **What the re-read found** (CR 509.3a–g, 115, 602.2, 603.2 and 120.10, the
@@ -3565,6 +3565,38 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 - **"That entered this turn" needs no history.** A permanent keeps the turn it
   entered (`PermanentState::entered_battlefield_turn`), and a new object is a
   new permanent (CR 400.7).
+- **"This turn" is two families** (asked at review, with Betor, Ancestor's
+  Voice). A *player's* count over the turn is TR-2a's turn summary
+  (`TurnFact`, §3.10), which `Condition::ThisTurn` already reads. What it
+  lacks is an amount: Betor's "equal to the amount of life you gained this
+  turn" is one of 31 (`o:"life you gained this turn"`), and no `AmountExpr`
+  reads a summary. An *object's* deed is this phase's filter, and it is wider
+  than the four the row named. Each deed needs a writer, and the writers come
+  in four kinds:
+
+  | Deed (Scryfall, 2026-10-18) | Cards | Its writer |
+  |---|---|---|
+  | attacked, this turn or this combat | 30, 4 | the combat rows (TR-5f) |
+  | blocked, was blocked, this turn or this combat | 11, 14 | the combat rows, from the declaration (piece 2) |
+  | entered | 29 | the permanent itself |
+  | was dealt damage; dealt damage to a player or creature | 35; 10 | rows off `DamageDealt` |
+  | died, or was put into a graveyard from the battlefield; discarded; milled; put into a graveyard | 36; 10; 3; 3 | rows off the zone change, keyed by the object the move made (CR 400.7, RH-3) |
+  | was cast | 11 | the permanent's `cast` facts, which CR 400.7d keeps |
+  | crewed or saddled it | 13 | crew and saddle, neither built |
+  | came under your control; turned face up | 1; 1 | the control sweep; morph (CV-6) |
+
+  The queries are `o:"attacked this turn" -o:"you attacked this turn"`,
+  `o:"attacked this combat"`, the two above for blocks, `o:"was dealt damage
+  this turn"`, `(o:"that dealt damage to" or o:"that dealt combat damage to")
+  o:"this turn"`, `(o:"that entered this turn" or o:"entered the battlefield
+  this turn")`, `(o:"put into your graveyard from the battlefield this turn"
+  or o:"put into a graveyard from the battlefield this turn" or o:"that died
+  this turn")`, `o:"discarded this turn"`, `o:"milled this turn"`,
+  `(o:"put into a graveyard this turn" or o:"put into your graveyard this
+  turn")`, `(o:"was cast this turn" or o:"cast it this turn")`,
+  `(o:"crewed it this turn" or o:"saddled it this turn" or o:"saddled this
+  turn")`, `(o:"came under your control this turn" or o:"gained control of
+  this turn")` and `o:"turned face up this turn"`.
 
 *Blocks*
 - **CR 509.3a–d differ in two things, as 508.3a–e did** (TR-5e's decision 5):
@@ -3600,8 +3632,16 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
   creature put onto the battlefield blocking (CR 509.4, ATOM-509.4-001, a
   Phase 8 atom). Only the declaration writes a block (`steps.rs:152–166`),
   beside the scenario loader and the test helpers.
-- **CR 506.5's "blocks alone"** has no printed trigger (`o:"blocks alone"`
-  0), where "attacks alone" does. It is a field and a line, beside `Attacks`'.
+- **CR 506.5's "blocks alone" is left out** (the owner, at review). The rule
+  does settle what it means: "the only creature declared as a blocker during
+  the declare blockers step", so the only blocker at all, across every
+  defending player, since all of them declare in that step (CR 802.4). But
+  no printed trigger reads it (`o:"blocks alone"` 0), where "attacks alone"
+  does. Its sibling "is blocking alone", blocking while no other creature is,
+  is printed once, as a condition on a creature that died: Thijarian
+  Witness's "if it was attacking or blocking alone", off its frame and not on
+  this arm. A future card would likely spell the reading out. If one prints
+  "blocks alone", it is a field and a line beside `Attacks`' `alone`.
 - **Loyal Sentry's one ruling.** The Sentry and the creature it blocks are
   destroyed before combat damage, and the blocked creature is destroyed even
   if the Sentry has left the battlefield before its trigger resolves. So the
@@ -3680,8 +3720,11 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
   - "was dealt excess damage this turn", an object's history (Maarika,
     Brutal Gladiator; Overclocked Electromancer).
 
-  Megatron, Tyrant's "if excess damage would be dealt" is CR 120.4a's
-  modification of the event, a replacement, and not 120.10.
+  Megatron, Tyrant's "if excess damage would be dealt to that creature this
+  way, instead that damage is dealt to that creature's controller" is CR
+  120.4a's modification of the event: a self-replacement effect, the
+  resolving ability replacing part of its own effect (CR 614.15), applied
+  before any other replacement (CR 616.1a). It is not 120.10.
 - **Lethal damage has one reading in the tree already.** Trample's
   `lethal_damage_owed` (`engine/combat/keywords.rs:63`) reads toughness less
   damage marked, less what other sources assign in the same step, and 1 for a
@@ -3689,12 +3732,30 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
   quantity.
 
 *Item 275*
-- **The fix as sized misses X.** `AmountExpr::X` reads as nothing
-  (`engine/triggers/bound_reads.rs:210`), and a delayed trigger's X is its own
-  (CR 107.3n, `PendingTrigger::x_value`). Once the source is compared instead
-  of the origin, two delayed triggers of one template, made by resolutions with
-  different X, would go on the stack unasked. No registered delayed trigger
-  reads X, so the fix carries the read.
+- **What the elision is.** When one player has several triggers waiting, CR
+  603.3b lets them choose the order. The engine does not ask when the order
+  cannot matter: every entry has one def, and the entries agree on each fact
+  the def reads (`trigger_order_cannot_change_outcome`, item 163). "This
+  object" is one of those facts (`BoundReads::SOURCE`), and today it compares
+  the entries' origins. A delayed trigger's origin carries its own registry
+  number, so no two delayed triggers ever agree, and Protean Hydra hit for
+  three asks the order of three identical triggers. Item 275 compares the
+  source instead of the origin.
+- **What that uncovers: X.** Once the source is compared, two delayed
+  triggers of one template can agree for the first time, so the elision has
+  to compare every fact in which two of them can differ. One is X: a delayed
+  trigger has its creator's X (CR 107.3n, `PendingTrigger::x_value`), and the
+  elision reads `AmountExpr::X` as reading nothing
+  (`engine/triggers/bound_reads.rs:210`), since no two entries that could
+  differ in X ever reached the comparison before. An ability that resolves
+  twice, with X = 2 and then X = 5, each time creating "at the beginning of
+  the next end step, draw X cards", would put the two on the stack in either
+  order without asking, though the player may want the 5 to resolve first.
+- **How it is dealt with.** The fix adds X to the facts the elision
+  compares: `AmountExpr::X` reads a new `BoundReads::X`, and
+  `entries_agree_on` compares the entries' `x_value` when the def reads it
+  (piece 12). No registered delayed trigger reads X, so nothing changes in
+  today's games, and a fixture proves the guard.
 
 **The pieces**
 1. **The declaration's record** (item 11's blockers half). One record per
@@ -3706,8 +3767,15 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
    /// blocking, which became an unblocked creature (CR 509.1h).
    BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
    ```
-   - The pairs in declaration order, the defending players in APNAP order;
-     `unblocked` in battlefield order.
+   - **The order carries no rules meaning.** The blocks are declared together,
+     and CR 509.2a says the order in which the triggers triggered doesn't
+     matter: their controller orders them (CR 603.3b). It is fixed only so a
+     game replays: the dispatch walks the record in order, so the record's
+     order becomes the order of the triggering events and of a prompt's
+     options, which a `DecisionProvider` picks by index. Nothing is sorted.
+     The pairs keep the order the defending players answered in, which CR
+     802.4 already puts in APNAP order, and `unblocked` is
+     `battlefield_ordered`'s, by timestamp (CLAUDE.md's determinism rule).
    - Announced with the step's provider, as `AttackersDeclared` is: one record
      can hold two triggering events of one arm, which CR 603.7b's "the next
      time" asks between.
@@ -3723,22 +3791,39 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
    reads the rows that name the creature. The rows share one `Arc<Vec>`, so a
    clone allocates nothing more, and the save writes the fact as a word, as it
    writes an attack.
-3. **The "this turn" filter** (the decision's part (a)). One leaf, which
-   `AttackedThisTurn` folds into at 7 sites:
+3. **The "this turn" filter** (the decision's part (a)). `AttackedThisTurn`
+   folds into it at 7 sites. Its names are to settle at review (the owner,
+   2026-10-18: the first draft's `Did { deed: ObjectDeed, during: DeedSpan }`
+   would confuse at its call sites). The recommendation names the window as
+   the variant, as the player's history already does
+   (`Condition::ThisTurn`, `LastTurn`, `SinceYourLastTurn`, `ThisGame`), and
+   the fact in the card's own past tense:
    ```rust
-   /// "Creatures that attacked this turn" (Relentless Assault), "that blocked
-   /// this combat": what the object did, read off the history, or off the
-   /// permanent for its entry. A new object did nothing (CR 400.7).
-   Did { deed: ObjectDeed, during: DeedSpan },
+   /// "Creatures that attacked this turn" (Relentless Assault): what the
+   /// object did, read off the history, or off the permanent for its entry.
+   /// A new object did nothing (CR 400.7).
+   ThisTurn(ObjectFact),
+   /// "If this creature attacked or blocked this combat" (Clockwork Beast).
+   ThisCombat(ObjectFact),
 
-   pub enum ObjectDeed { Attacked, Blocked, WasBlocked, Entered }
-   pub enum DeedSpan { ThisTurn, ThisCombat }
+   pub enum ObjectFact { Attacked, Blocked, WasBlocked, Entered }
    ```
+   The three shapes, as two cards would write them:
+
+   | Shape | Relentless Assault, "creatures that attacked this turn" | Clockwork Beast, "attacked or blocked this combat" | Its cost |
+   |---|---|---|---|
+   | **The window as the variant (recommended)** | `And(Creature, ThisTurn(ObjectFact::Attacked))` | `Or(ThisCombat(ObjectFact::Attacked), ThisCombat(ObjectFact::Blocked))` | a variant per window: two now, and "attacked during your last turn" (Giant Turtle, 4 cards) a third with its card. Reads as the player's conditions do |
+   | One leaf, fact and window as fields | `And(Creature, History { fact: ObjectFact::Attacked, during: Window::ThisTurn })` | `Or(History { fact: ObjectFact::Attacked, during: Window::ThisCombat }, History { .. })` | one variant for every window, and the longest call site |
+   | A variant per fact | `And(Creature, Attacked(Window::ThisTurn))` | `Or(Attacked(Window::ThisCombat), Blocked(Window::ThisCombat))` | reads most like the card, but each of the census's dozen deeds is a new `ObjectFilter` variant and an arm in every exhaustive match over the filter (four today) |
+
    - `Attacked` reads only the declaration's rows (CR 508.4). `Entered` reads
      `entered_battlefield_turn`, or the `Lki` for a frame, which gains the
-     turn. It has no combat span: the registry refuses `Entered` with
-     `ThisCombat`.
-   - "Attacked or blocked this turn" is `Or` over two leaves.
+     turn. It has no combat window: the registry refuses
+     `ThisCombat(ObjectFact::Entered)`.
+   - Each deed the census lists beyond these four is an `ObjectFact` variant
+     with its writer, added with its first card (the decision's part (a)).
+     The combat rows become the object's rows when the first deed that is
+     not combat's lands, and are renamed then.
    - The layer memo already gates the leaf on `Histories`
      (`engine/layers/board.rs:751`).
 4. **The block arm**, as fields:
@@ -3748,15 +3833,14 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
    Blocks {
        blocker: TriggerSubject,
        attacker: TriggerSubject,
-       per: BlockEventPer,
+       occurrence: BlockOccurrence,
        /// CR 509.3e: how many of the other side's creatures match.
        count: Option<CountIs>,
-       /// CR 506.5: the only creature declared as a blocker.
-       alone: bool,
        multiplicity: Multiplicity,
    },
 
-   pub enum BlockEventPer {
+   /// What one occurrence of a block trigger is (CR 603.2c).
+   pub enum BlockOccurrence {
        /// CR 509.3a: each blocking creature, however many it blocks.
        Blocker,
        /// CR 509.3b, 509.3d: each blocking creature and each creature it blocks.
@@ -3767,10 +3851,26 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
        Unblocked,
    }
    ```
+   - **`occurrence` and `multiplicity` answer two questions** (asked at review,
+     of the first draft's `per`). CR 603.2c: "an ability triggers only once
+     each time its trigger event occurs. However, it can trigger repeatedly if
+     one event contains multiple occurrences." `occurrence` is what one
+     occurrence is for this arm, which CR 509.3a–d each state as "triggers
+     once for each": a blocking creature, a block, a blocked creature, an
+     unblocked one. `multiplicity` is whether each occurrence triggers
+     (`PerOccurrence`) or one trigger takes all of an event's occurrences
+     (`OncePerEvent`, "one or more"). So "whenever a creature you control
+     becomes blocked" is `occurrence: Blocked` read `PerOccurrence`, and
+     "whenever one or more creatures you control become blocked" the same
+     occurrence read `OncePerEvent`. One declaration with three blocked
+     creatures you control triggers the first three times and the second
+     once. `Attacks` has the same field as `per: AttackEventPer` since TR-5e;
+     if `occurrence` reads better, it becomes `occurrence: AttackOccurrence`
+     in this phase, at 15 sites.
    - **Per blocking creature or per blocked creature, the other side's filter
      picks which of its creatures count**, and the event needs at least one,
      or `count`. "Becomes blocked by one or more blue and/or black creatures"
-     is `per: Blocked` with the blocker's filter. `CountIs` gains `Exactly`,
+     is `occurrence: Blocked` with the blocker's filter. `CountIs` gains `Exactly`,
      CR 509.3e's "a particular number".
    - **The registry refuses** a blocker filter or a `count` with `Unblocked`,
      and a `count` with `Block`.
@@ -3790,22 +3890,39 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
      which is the self-destruction above.
    - **Read after the event, never looking back** (CR 509.3f). About 15
      exhaustive matches take the arm.
-5. **A recipient that names two objects.**
+5. **A recipient that joins recipients.**
    ```rust
-   /// "Destroy that creature and this creature": each found as its
-   /// antecedent is, and acted on in one instruction (CR 608.2f).
-   Both(Antecedent, Antecedent),
+   /// "Destroy that creature and this creature": each part found as it is on
+   /// its own, and every object they find acted on in one instruction (CR
+   /// 608.2f).
+   Together(Vec<EffectRecipient>),
    ```
-   - Each part is found on its own: `ThisObject` by identity, `Triggering`
-     off the binding. One that is gone is skipped, which is Loyal Sentry's
-     ruling.
-   - The parts reach the primitive as one target slice, so `Destroy` makes one
-     batch: one event, and one "whenever one or more creatures die".
-   - No part can be an instance of "target", since `Antecedent` names none.
-     Its bound reads are its parts'.
+   - **A list of recipients, not two antecedents** (asked at review: "would
+     taking a vec be better?"). No printed join found names three objects,
+     but the joins do name more than "that" and "this". Hunting Kavu exiles
+     "this creature and target creature without flying that's attacking you",
+     a target. Defiant Vanguard destroys "it and all creatures it blocked this
+     turn", a set. Loyal Sentry and Dream Fighter join two antecedents. 10
+     cards say "and this creature" or "and this permanent" beside a verb
+     (`(o:"and this creature" or o:"and this permanent") (o:destroy or
+     o:exile or o:sacrifice or o:return)`), and 15 "[verb] this creature and"
+     (`(o:"destroy this creature and" or o:"exile this creature and" or
+     o:"sacrifice this creature and")`). The list costs no clone: a card's
+     effect sits behind its `Arc`, which a game's clone shares.
+   - **Each part is found on its own**, as it would be alone: `ThisObject` by
+     identity, `Triggering` off the binding, a filter swept now. One that
+     finds nothing adds nothing, which is Loyal Sentry's ruling.
+   - **One instruction.** The parts' objects reach the primitive as one target
+     slice, so `Destroy` makes one batch: one event, and one "whenever one or
+     more creatures die".
+   - **Built narrow.** A part that is an instance of "target" or "choose" is
+     refused by the registry until its first card (Hunting Kavu): its instance
+     has to be declared in the walk's order and fizzle on its own (CR 608.2b),
+     which no part needs here. A list of fewer than two parts is refused too.
+     The bound reads are the parts'.
 6. **Loyal Sentry**, registered and pooled. {W} 1/1 Human Soldier: `Blocks {
-   blocker: ThisObject, attacker: Any, per: Block, .. }`, then `Destroy` on
-   `Both(Triggering(Attacker), ThisObject)`.
+   blocker: ThisObject, attacker: Any, occurrence: Block, .. }`, then `Destroy`
+   on `Together(vec![Triggering(Attacker), ThisObject])`.
 7. **The targeting arm** (item 12):
    ```rust
    /// "Whenever [this creature/you] become[s] the target of a [spell/ability/
@@ -3868,6 +3985,19 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
       702.2c). For a planeswalker it is its loyalty, and for a creature
       planeswalker the smaller of the two. Battles join with `backlog.md`
       §2.23, which owns their defense counters (CR 120.3h).
+    - **A Gideon needs nothing of its own** (asked at review). The Gideons
+      that become creatures prevent the damage dealt to them: Gideon Jura's
+      and Gideon, Ally of Zendikar's "prevent all damage that would be dealt
+      to him this turn", Gideon Blackblade's "during your turn". Prevented
+      damage is never dealt (CR 615.6), and the lethal amounts are taken after
+      the batch has decided its preventions, so there is no excess. Damage
+      that can't be prevented (CR 615.12) is dealt, and the excess is CR
+      120.10's greatest, from the smaller lethal amount. Indestructible
+      changes neither amount: it stops a destruction (CR 702.12b), not the
+      damage being lethal, and the loyalty still falls (CR 120.3c), which CR
+      704.5i reads. Aegar's #6 is the test: a 5/5 creature planeswalker with
+      indestructible and three loyalty counters, dealt 4 that can't be
+      prevented, is dealt 1 excess.
     - **Each record takes its share.** The batch keeps the amounts on
       `GameState` while it performs, saved and restored for a nested batch as
       `prevention_allocations` is. Each `DealDamage` performer takes what of
@@ -3900,7 +4030,8 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 - **§3.3's `Blocks { shape: BlockShape }`**, an enum of five readings,
   becomes fields, as `Attacks` did at TR-5e's decision 5. The enum had two
   spellings of one trigger ("this creature blocks a creature" and "a creature
-  becomes blocked by this creature") and no place for 509.3e's count.
+  becomes blocked by this creature") and no place for 509.3e's count. What
+  one occurrence is takes CR 603.2c's word, `occurrence`.
 - **§3.3's `BecomesTarget { .., first_time_each_turn }`** drops the field:
   "for the first time each turn" is `TriggerDef::limit`'s, as on every other
   arm, and the decision's part (b) says when the limit reads a target.
@@ -3918,6 +4049,16 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 - "If excess damage was dealt this way" (4 cards) and "was dealt excess damage
   this turn" (2): an amount and a history fact over `excess`, with the first
   registered card of each.
+- The object deeds past the four, each an `ObjectFact` and its writer (the
+  census table above; the decision's part (a)). One item lists them by
+  writer, each slotted with its first registered card.
+- An amount over a player's turn summary: Betor's "the amount of life you
+  gained this turn" (31 cards) and "life you lost this turn" (6). A
+  `HistoryCount`'s fact and players, read as a number rather than compared,
+  about 15 lines of code and 30 of tests. Not this filter's, and not a record
+  this phase reads, so an item of its own, slotted with the first registered
+  card.
+- CR 506.5's "blocks alone" (above).
 - Ward (210) and every "counter unless": CP-1.
 - "Copy that ability": CV-4 (item 256).
 - Prevention's arm, Selfless Squire and the multiplier: TR-5d.
@@ -3928,9 +4069,9 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 | Piece | Code | Tests |
 |---|---|---|
 | 1–2. The record, one per step with the unblocked; its 5 sites; the block rows and their save word | ~60 | ~100: two defending players in one record; nobody blocks; a creature that entered attacking is unblocked (509.3g); blocked, then its blocker removed (509.1h); the save's round trip |
-| 3. The "this turn" leaf, four deeds and two spans; `AttackedThisTurn` folded; `Lki`'s entry turn | ~45 | ~90: each deed; a second combat (RE-10's) against the first; a new object; a frame's entry turn; Relentless Assault unmoved |
-| 4. The block arm: four readings, the count, `alone`, `Blocker`, four triggering events, ~15 matches, the registry's refusals | ~160 | ~220: CR 509.3a–e and g on fixtures; 509.3f's characteristics at the declaration; each refusal |
-| 5–6. `Both`; Loyal Sentry | ~55 | ~120: its ruling; one event for both deaths; an indestructible attacker |
+| 3. The "this turn" leaf, four facts and two windows; `AttackedThisTurn` folded; `Lki`'s entry turn | ~45 | ~90: each fact; a second combat (RE-10's) against the first; a new object; a frame's entry turn; Relentless Assault unmoved |
+| 4. The block arm: four occurrences, the count, `Blocker`, four triggering events, ~15 matches, the registry's refusals | ~155 | ~220: CR 509.3a–e and g on fixtures; 509.3f's characteristics at the declaration; each refusal |
+| 5–6. `Together` and its refusals; Loyal Sentry | ~60 | ~120: its ruling; one event for both deaths; an indestructible attacker; a target part refused |
 | 7–9. The targeting arm, its player leg and its window, `Counter`, Cephalid Aristocrat, Frost Titan's fixture | ~155 | ~270: Frost Titan #1 three ways, and its controller's own spell (ATOM-702.21a-002); one spell choosing one creature twice; a player target; a triggered ability's target (CR 603.3d); the refusal |
 | 10. The activation arm, the record's zone and frame, the fixture | ~45 | ~80 |
 | 11. Excess: the lethal amounts, each record's share, the arm, damage read per subject | ~90 | ~160: ATOM-120.10-001 and the six boards above |
@@ -3938,15 +4079,16 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 | **Whole: 2,065–2,380** | ~630 (945–1,260) | ~1,120 |
 
 Against the row's 1,920–2,250 and item 275's ~55: the window per spell,
-`Counter`, the record's zone and frame, `alone`, `Entered`, the refusals and X
-are new. Each part of the decision taken the other way adds 90–160, so any
-two together pass the band's top. Docs at the close-out, about 350 more: the
-stub and the archive, `fuzz-record.md`'s block, §3.3's four rows, §3.12's
+`Counter`, the record's zone and frame, `Together`'s list, `Entered`, the
+refusals and X are new. Renaming `Attacks`' `per` to `occurrence`, if taken,
+adds about 30. Each part of the decision taken the other way adds 90–160, so
+any two together pass the band's top. Docs at the close-out, about 350 more:
+the stub and the archive, `fuzz-record.md`'s block, §3.3's four rows, §3.12's
 item 11 row, and the glossary's new event roles. TR-5f and TR-5b each landed
 past their sizing's top, by 28% and 14%, so the build tracks the band at each
-commit and stops at 2,500 to say so. If it gets
-there, the seam is targeting and activation (pieces 7–10, CR 115 and 602)
-against blocks and damage (CR 509 and 120).
+commit and stops at 2,500 to say so. If it gets there, the seam is targeting
+and activation (pieces 7–10, CR 115 and 602) against blocks and damage (CR
+509 and 120).
 
 **Predictions for the close-out** (to be re-stated before `close_out.py`,
 with three arms since item 275 moves the stream)
@@ -3982,7 +4124,7 @@ with three arms since item 275 moves the stream)
 
    | Part | The family | Recommended | The other way |
    |---|---|---|---|
-   | (a) The "this turn" filter's deeds | attacked (30 cards), blocked and was blocked (11), entered (27); was dealt damage (35) | the four deeds now, and "was dealt damage this turn" with its first card | "was dealt damage" now: rows written off `DamageDealt` by the history writer, ~40 code and ~60 tests. Aegar's "a Giant, Wizard, or spell you controlled dealt damage to it this turn" would still need each source's frame on the row, a larger one |
+   | (a) The "this turn" filter's facts | attacked (34 with "this combat"), blocked and was blocked (25), entered (29), whose writers exist; and the census's rest, about 120 cards over six more writers (the table under "What the re-read found") | the four whose writers exist now; each other fact with its first card, one item listing them by writer | the two widest writers now. Damage: "was dealt damage" and "dealt damage to", 45 cards, rows off `DamageDealt`, ~40 code and ~60 tests; Aegar's "a Giant, Wizard, or spell you controlled dealt damage to it this turn" would still need each source's frame on its row. Zone changes: "died", "discarded", "milled", "put into a graveyard", 52 cards, rows off the move keyed by the object it made, ~45 code and ~70 tests |
    | (b) "For the first time each turn" on the targeting arm | valiant and Kira, 17 cards | refused now (piece 7) | now: a row per object and per controller, "became the target this turn", which the limit reads, ~45 code and ~70 tests |
    | (c) A mana ability's activation | "whenever you activate an ability of an Elemental" (Ceaseless Searblades), and what Harsh Mentor's "if" excludes | narrow: the arm reads activations of abilities that are not mana abilities, and a mana ability writes no record | the record for a mana ability too (`engine/mana.rs:58`, after its costs, CR 605.3b), CR 605.1b's leg for a triggered mana ability that triggers on one, and a `mana_ability` field: ~40 code and ~60 tests, and one record per mana ability activated in every game, about as many as `ManaAdded`'s, so +0.1% to +0.3% instructions per decision predicted |
    | (d) "That creature" across two arms | "blocks or becomes blocked by a creature", 32 cards | refused now (piece 4) | now: an event role for the other side from the ability's own source, which the binding resolves per arm, ~25 code and ~50 tests |
