@@ -67,7 +67,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 117] = [
+const PERFORMANCE_POOL: [&str; 118] = [
     "Plains",
     "Island",
     "Swamp",
@@ -552,6 +552,11 @@ const PERFORMANCE_POOL: [&str; 117] = [
     // 509.3b), and one instruction on two objects, which destroys both in
     // one event. A random agent's block is what triggers it.
     "Loyal Sentry",
+    // TR-5c's other: becoming the target of a spell or ability, whoever
+    // controls it, once for each however many instances chose it. Every
+    // targeted spell and ability aimed at it opens the path; it mills its
+    // controller, which a long game can feel.
+    "Cephalid Aristocrat",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -985,6 +990,9 @@ impl CardRegistry {
         // TR-5c: blocks. Loyal Sentry triggers once for each creature it
         // blocks (CR 509.3b) and destroys that creature and itself together.
         registry.register("Loyal Sentry", phase_tr5c_cards::loyal_sentry);
+        // Cephalid Aristocrat mills two each time it becomes the target of a
+        // spell or ability, its controller's own included.
+        registry.register("Cephalid Aristocrat", phase_tr5c_cards::cephalid_aristocrat);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
