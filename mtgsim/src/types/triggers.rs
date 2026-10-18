@@ -445,6 +445,7 @@ impl EventKind {
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::BlockersDeclared { .. }
+            | GameEvent::DamagePrevented { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::RemovedFromCombat { .. }

@@ -9,6 +9,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_rd_cards::{mending_hands, pinpoint_avalanche, pyroclasm, safe_passage};
+use mtgsim::cards::registry::CardRegistry;
 use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_cv_cards::cryptoplasm;
 use mtgsim::cards::phase_tr1_cards::soul_warden;
@@ -18,6 +20,7 @@ use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
+use mtgsim::scenario::Scenario;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -462,4 +465,123 @@ fn an_until_return_is_announced_as_it_is_made() {
     assert_eq!(game.until_returns[0].id, UntilReturnId(1));
     assert!(game.until_returns[0].created_at > record.seq, "made after its own record");
     assert_eq!(EventKind::from_record(&record.event), None);
+}
+
+// ---------------------------------------------------------------------------
+// What a prevention effect prevented
+// ---------------------------------------------------------------------------
+
+/// Protean Hydra on the battlefield with `counters` +1/+1 counters, put
+/// there by the scenario loader so its entry needs no X.
+fn hydra_with(counters: u32) -> (GameState, ObjectId) {
+    let text = format!(
+        "library 0: Forest | x8\nlibrary 1: Mountain | x8\nbattlefield: Protean Hydra | controller 0, +1/+1 {counters}\n"
+    );
+    let scenario = Scenario::parse(&text).unwrap_or_else(|refusal| panic!("{refusal}"));
+    let mut game = scenario.build(&CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}")).game.state;
+    game.record_events();
+    let hydra = game.battlefield_ids_ordered()[0];
+    (game, hydra)
+}
+
+/// Safe Passage, then Lightning Bolt at its caster: the whole 3 is
+/// prevented and nothing is dealt (CR 615.6), so the prevention's own record
+/// is the only line about the damage (CR 615.13). It names the effect by its
+/// spell, and comes before the Bolt goes to the graveyard.
+#[test]
+fn a_prevention_with_no_rider_is_announced_where_no_damage_is_dealt() {
+    let mut game = setup_two_player_game();
+    let passage = cast_from_pool(&mut game, 1, safe_passage(), &[(ManaType::White, 3)], test_dp());
+    resolve_top(&mut game);
+    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(1)]);
+    resolve_top(&mut game);
+
+    assert_eq!(game.players[1].life_total, 20);
+    let log = format_event_log(&game);
+    let prevented = format!("DamagePrevented: 3 to P1 by Spell of Safe Passage ({passage}) [P1]");
+    let at = log.iter().position(|l| *l == prevented).unwrap_or_else(|| panic!("no {prevented:?} in {log:#?}"));
+    assert!(log[at + 1].starts_with(&format!("ZoneChange: Lightning Bolt ({bolt}) [P0] Stack -> Graveyard")), "{log:#?}");
+    assert!(!log.iter().any(|l| l.starts_with("DamageDealt")), "nothing was dealt: {log:#?}");
+}
+
+/// Mending Hands' 4 under two Bolts: the first is prevented whole, and the
+/// second is prevented by the 1 left and dealt the rest (CR 615.7), so its
+/// record says 1 and the 2 dealt follows it, in the same batch.
+#[test]
+fn a_shield_that_prevents_part_of_the_damage_announces_the_part() {
+    let mut game = setup_two_player_game();
+    let hands = cast_at(&mut game, 1, mending_hands(), &[(ManaType::White, 1)], &[ChoiceOption::Player(1)]);
+    resolve_top(&mut game);
+    bolt_at_player(&mut game, 1);
+    resolve_top(&mut game);
+    let second = bolt_at_player(&mut game, 1);
+    resolve_top(&mut game);
+
+    assert_eq!(game.players[1].life_total, 18);
+    let log = format_event_log(&game);
+    let by = format!("by Spell of Mending Hands ({hands}) [P1]");
+    assert!(log.contains(&format!("DamagePrevented: 3 to P1 {by}")), "{log:#?}");
+    assert_followed_by(&log, &format!("DamagePrevented: 1 to P1 {by}"), &format!("DamageDealt: Lightning Bolt ({second}) -> P1 for 2"));
+}
+
+/// Pyroclasm into Safe Passage: one record for each creature whose damage
+/// it prevented, the subject being the unit (CR 615.13, 616.1), and the
+/// Bears it does not protect are dealt their 2.
+#[test]
+fn one_effect_preventing_damage_to_two_creatures_announces_each() {
+    let mut game = setup_two_player_game();
+    let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let theirs = [put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 1)];
+    let passage = cast_from_pool(&mut game, 1, safe_passage(), &[(ManaType::White, 3)], test_dp());
+    resolve_top(&mut game);
+    let clasm = cast_from_pool(&mut game, 0, pyroclasm(), &[(ManaType::Red, 2)], test_dp());
+    resolve_top(&mut game);
+
+    let log = format_event_log(&game);
+    for bears in theirs {
+        let line = format!("DamagePrevented: 2 to Grizzly Bears ({bears}) by Spell of Safe Passage ({passage}) [P1]");
+        assert_eq!(log.iter().filter(|l| **l == line).count(), 1, "{line:?} in {log:#?}");
+    }
+    assert!(log.contains(&format!("DamageDealt: Pyroclasm ({clasm}) -> Grizzly Bears ({mine}) for 2")), "{log:#?}");
+    assert_eq!(log.iter().filter(|l| l.starts_with("DamageDealt")).count(), 1, "{log:#?}");
+}
+
+/// The dev GUI's note: Lightning Bolt on Protean Hydra. The prevention is
+/// announced, and its rider's removal of that many counters follows it
+/// (CR 615.5). Neither is a trigger's event yet: the record files under no
+/// kind a trigger arm reads.
+#[test]
+fn protean_hydras_prevention_is_announced_before_its_counters_come_off() {
+    let (mut game, hydra) = hydra_with(5);
+    bolt_at(&mut game, 1, hydra);
+    resolve_top(&mut game);
+
+    let log = format_event_log(&game);
+    let removed = format!("CountersRemovedFrom: 3 +1/+1 counter(s) removed from Protean Hydra ({hydra}) by P0 (now 2)");
+    let prevented = format!("DamagePrevented: 3 to Protean Hydra ({hydra}) by StaticAbility of Protean Hydra ({hydra}) [P0]");
+    assert_followed_by(&log, &prevented, &removed);
+    let records = game.recorded_events();
+    let record = records.records().iter().find(|r| matches!(r.event, GameEvent::DamagePrevented { .. })).unwrap();
+    assert_eq!(EventKind::from_record(&record.event), None);
+    assert!(record.stamp.batch.is_some(), "announced inside the Bolt's damage batch");
+}
+
+/// Pinpoint Avalanche's damage can't be prevented (CR 615.12): the Hydra's
+/// effect applies and prevents none of it, so no record says it did, and
+/// the 4 is dealt.
+#[test]
+fn unpreventable_damage_announces_no_prevention() {
+    let (mut game, hydra) = hydra_with(5);
+    // The Hydra is the one creature, so the target is asked of nobody.
+    let avalanche = cast_from_pool(&mut game, 1, pinpoint_avalanche(), &[(ManaType::Red, 5)], test_dp());
+    resolve_top(&mut game);
+
+    let log = format_event_log(&game);
+    assert!(!log.iter().any(|l| l.starts_with("DamagePrevented")), "{log:#?}");
+    assert!(log.contains(&format!("DamageDealt: Pinpoint Avalanche ({avalanche}) -> Protean Hydra ({hydra}) for 4")), "{log:#?}");
+}
+
+/// Lightning Bolt cast by player 0 at `player`.
+fn bolt_at_player(game: &mut GameState, player: PlayerId) -> ObjectId {
+    cast_at(game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(player)])
 }

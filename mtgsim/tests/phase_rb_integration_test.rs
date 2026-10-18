@@ -556,7 +556,9 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     // §4.1a's timing contract, asserted on the *event log* rather than the end
     // state, because the end state is identical either way. The rider is queued
     // during the CR 616.1 loop and resolved after the surviving event — so its
-    // counter removal is the last thing in the log, not the first.
+    // counter removal is the last thing in the log, not the first. Ahead of it
+    // is the prevention's own record (CR 615.13), announced as the batch
+    // decided.
     //
     // The event here is prevented entirely, which is the sharper case: CR
     // 615.12 makes a rider unconditional once queued, so it still runs.
@@ -581,8 +583,9 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
 
     let after: Vec<String> =
         game.recorded_events().events().skip(before).map(|e| format!("{e:?}")).collect();
-    assert_eq!(after.len(), 1, "one event: the rider's counter removal, got {after:?}");
-    assert!(after[0].starts_with("CountersRemovedFrom"), "got {:?}", after[0]);
+    assert_eq!(after.len(), 2, "the prevention, then the rider's counter removal, got {after:?}");
+    assert!(after[0].starts_with("DamagePrevented"), "got {:?}", after[0]);
+    assert!(after[1].starts_with("CountersRemovedFrom"), "got {:?}", after[1]);
 }
 
 // COVERS-PARTIAL: ATOM-122.1h-001

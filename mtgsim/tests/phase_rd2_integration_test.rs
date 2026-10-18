@@ -614,10 +614,10 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
 
 /// > 615.6 If damage that would be dealt is prevented, it never happens.
 ///
-/// Safe Passage against a bolt to its caster: no `DamageDealt`, no life
-/// change, nothing in the log. The atom's other half — "a 'whenever damage is
-/// dealt' trigger does not fire" — is critical-path item 6's, when triggers
-/// exist to not fire.
+/// Safe Passage against a bolt to its caster: no `DamageDealt` and no life
+/// change. The one record is the prevention's own (CR 615.13). The atom's
+/// other half — "a 'whenever damage is dealt' trigger does not fire" — is
+/// critical-path item 6's, when triggers exist to not fire.
 // COVERS-PARTIAL: ATOM-615.6-001
 #[test]
 fn prevented_damage_never_happens_and_the_trigger_half_is_item_6s() {
@@ -629,7 +629,9 @@ fn prevented_damage_never_happens_and_the_trigger_half_is_item_6s() {
     bolt(&mut game, source, DamageTarget::Player(0), 3);
 
     assert_eq!(life(&game, 0), 20);
-    assert_eq!(game.recorded_events().len(), before, "nothing was announced");
+    let recorded = game.recorded_events();
+    let announced: Vec<&GameEvent> = recorded.events().skip(before).collect();
+    assert!(matches!(announced.as_slice(), [GameEvent::DamagePrevented { amount: 3, .. }]), "only the prevention: {announced:?}");
 }
 
 /// > 615.11 Some effects create a prevention shield for each applicable

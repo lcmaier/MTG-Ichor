@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, prohibition, Prohibition, Query};
 use crate::events::cause::{EventCause, GeneratedBy};
-use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, ResolutionStamp};
+use crate::events::event::{AppliedReplacement, CounterSubject, DamageTarget, GameEvent, ResolutionStamp};
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -602,9 +602,17 @@ pub(crate) fn apply_replacements(
         let mut rider_subject: Option<EventSubject> = None;
         let mut outcome = Applied::default();
         let mut redirected = false;
+        // Whom it prevented damage to, and how much, in member order: a
+        // redirect earlier in the loop can leave two members of one group
+        // dealing damage to two recipients.
+        let mut prevented_to: Vec<(DamageTarget, u64)> = Vec::new();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
             let went_to = destination(&event);
+            let damaged = match &event {
+                GameAction::DealDamage { target, .. } => Some(*target),
+                _ => None,
+            };
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
@@ -621,6 +629,14 @@ pub(crate) fn apply_replacements(
             let (next, did) = apply_rewrite(game, ctx, &chosen, event, member_subject, share)?;
             outcome.took_effect |= did.took_effect;
             outcome.prevented += did.prevented;
+            if let Some(target) = damaged
+                && did.prevented > 0
+            {
+                match prevented_to.iter_mut().find(|(to, _)| *to == target) {
+                    Some((_, amount)) => *amount += did.prevented,
+                    None => prevented_to.push((target, did.prevented)),
+                }
+            }
             if let Some(next) = &next {
                 // CR 616.1f — the modified event is what the next iteration
                 // re-gathers against, which is how CR 616.2's "a replacement
@@ -650,6 +666,12 @@ pub(crate) fn apply_replacements(
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
             group[pos].event = next;
+        }
+        // CR 615.13 — the application is the event, so it is announced as the
+        // batch decides; unpreventable damage (CR 615.12) prevented none.
+        for (target, amount) in prevented_to {
+            let event = GameEvent::DamagePrevented { target, amount, by: chosen.id };
+            game.emit_event(event, caused_by_replacement(game, &chosen)?)?;
         }
         // Into the set once applied, before the next iteration gathers (CR
         // 614.5); CR 903.9b's exempt effect never joins it.

@@ -125,6 +125,15 @@ pub enum GameEvent {
         /// what dealt it reads what the damage's results read (CR 608.2h).
         source_lki: Option<Lki>,
     },
+    /// A prevention effect applied, preventing `amount` of the damage that
+    /// would be dealt to `target` (CR 615.13): one record each time an effect
+    /// prevents some or all of one subject's damage in a batch. `by` is the
+    /// effect, which "prevented this way" reads; there is no source, since one
+    /// subject's damage can come from several (two attackers into a Fog).
+    /// **Announced while its batch decides**, ahead of what the batch
+    /// performs: the prevented damage is never performed (CR 615.6), and
+    /// the application is the event.
+    DamagePrevented { target: DamageTarget, amount: u64, by: ReplacementInstanceId },
 
     // --- Turn structure ---
     //
@@ -525,6 +534,7 @@ impl GameEvent {
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
+            | DamagePrevented { target: DamageTarget::Object(id), .. }
             | SpellCast { spell_id: id, .. }
             | SpellFizzled { spell_id: id, .. } => each(*id),
             AbilityActivated { identity, .. } | AbilityResolved { identity, .. } | AbilityFizzled { identity, .. } => {
@@ -600,6 +610,7 @@ impl GameEvent {
             | LeftTheGame { .. }
             | CountersPutOn { .. }
             | CountersRemovedFrom { .. }
+            | DamagePrevented { target: DamageTarget::Player(_), .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }
