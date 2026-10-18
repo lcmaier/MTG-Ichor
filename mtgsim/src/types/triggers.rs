@@ -160,6 +160,17 @@ pub enum TriggerSubject {
     Referred,
 }
 
+impl TriggerSubject {
+    /// Whether it names one object, not any of a kind: this object, its host,
+    /// or the object a delayed trigger refers to.
+    pub fn names_one_object(&self) -> bool {
+        match self {
+            TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Referred => true,
+            TriggerSubject::Filter(_) | TriggerSubject::Any => false,
+        }
+    }
+}
+
 /// What becomes the target (CR 115.1): an object, or a player.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TargetSubject {
@@ -969,6 +980,13 @@ impl TriggerEvent {
     /// damage. `None` for an arm about a player, a step or an ability.
     pub fn subject(&self) -> Option<&TriggerSubject> {
         match self {
+            // "Becomes blocked by a creature" is about the attacker it names
+            // (CR 509.3d); every other block is about its blocker.
+            TriggerEvent::Blocks { occurrence: BlockOccurrence::Block, blocker, attacker, .. }
+                if attacker.names_one_object() && !blocker.names_one_object() =>
+            {
+                Some(attacker)
+            }
             TriggerEvent::ZoneChange { subject, .. }
             | TriggerEvent::BecomesTapped { subject }
             | TriggerEvent::BecomesUntapped { subject }
@@ -1105,14 +1123,25 @@ impl TriggerEvent {
     }
 
     /// `role` as this arm's events hold it: the other creature in a block
-    /// is the attacker on an arm whose blocker is the ability's own source,
-    /// and the blocker on one whose attacker is. Every other event role is
+    /// is its side's role (`other_combatant`), and every other event role is
     /// itself.
     pub fn role_in_arm(&self, role: EventRole) -> EventRole {
-        match (self, role) {
-            (TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. }, EventRole::OtherCombatant) => EventRole::Attacker,
-            (TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. }, EventRole::OtherCombatant) => EventRole::Blocker,
+        match role {
+            EventRole::OtherCombatant => self.other_combatant().unwrap_or(role),
             _ => role,
+        }
+    }
+
+    /// The role of the creature across a block from the ability's own source
+    /// (CR 509.1): the attacker on an arm whose blocker is the source, the
+    /// blocker on one whose attacker is. `None` for an unblocked creature,
+    /// which has none, and for every other arm.
+    fn other_combatant(&self) -> Option<EventRole> {
+        match self {
+            TriggerEvent::Blocks { occurrence: BlockOccurrence::Unblocked, .. } => None,
+            TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. } => Some(EventRole::Attacker),
+            TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. } => Some(EventRole::Blocker),
+            _ => None,
         }
     }
 
@@ -1136,8 +1165,7 @@ impl TriggerEvent {
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
             TriggerEvent::Blocks { occurrence: BlockOccurrence::Unblocked, .. } => &[EventRole::Attacker],
-            TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. }
-            | TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. } => {
+            TriggerEvent::Blocks { .. } if self.other_combatant().is_some() => {
                 &[EventRole::Blocker, EventRole::Attacker, EventRole::OtherCombatant]
             }
             TriggerEvent::Blocks { .. } => &[EventRole::Blocker, EventRole::Attacker],

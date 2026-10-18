@@ -482,6 +482,23 @@ fn the_registry_refuses_block_readings_no_rule_gives() {
     assert!(fine.readings_its_arms_cannot_give().is_empty());
 }
 
+/// A block arm is about the side its text names: "when that creature becomes
+/// blocked by a creature" watches the creature its delayed trigger refers to
+/// (CR 603.7c), on the attacker's side, as "when that creature blocks a
+/// creature" does on the blocker's. An unblocked creature has no other
+/// creature to name.
+#[test]
+fn a_block_arm_is_about_the_side_it_names() {
+    let blocked: TriggerEvent = becomes_blocked_by(TriggerSubject::Referred, TriggerSubject::Any).into();
+    assert!(blocked.watches_referred());
+    assert_eq!(blocked.subject(), Some(&TriggerSubject::Referred));
+    let blocking: TriggerEvent = blocks_a_creature(TriggerSubject::Referred, TriggerSubject::Any).into();
+    assert!(blocking.watches_referred());
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
+    let unblocked = whenever(attacks_and_isnt_blocked(TriggerSubject::ThisObject), destroy);
+    assert_eq!(unblocked.readings_its_arms_cannot_give().len(), 1, "no creature across an unblocked one");
+}
+
 // ---------------------------------------------------------------------------
 // 4. Loyal Sentry, and one instruction on two objects
 // ---------------------------------------------------------------------------
@@ -969,27 +986,50 @@ fn a_mana_ability_is_activated_too() {
 fn a_source_sacrificed_as_a_cost_is_read_as_it_was() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, life_on("Fixture Artificer", activates_an_ability_of(Whose::Each, of_type(&[CardType::Artifact]), None)), 0);
-    let petal = CardDataBuilder::new("Fixture Petal")
-        .card_type(CardType::Artifact)
-        .ability(AbilityDef {
-            rules_text: "{T}, Sacrifice this artifact: Add {C}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf, Cost::SacrificeSelf],
-            effect: Effect::Atom(
-                Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
-                EffectRecipient::Implicit,
-            ),
-        })
-        .build();
+    let petal = with_a_sacrifice_for_mana(CardDataBuilder::new("Fixture Petal").card_type(CardType::Artifact), &[Cost::TapSelf]);
     let petal = put_on_battlefield(&mut game, petal, 0);
     tap_for_mana(&mut game, 0, petal);
     assert_eq!(game.objects[&petal].zone, Zone::Graveyard);
     resolve_all(&mut game);
     assert_eq!(life(&game, 0), 21);
+}
+
+/// `card` with "[{T},] Sacrifice this artifact: Add {C}."
+fn with_a_sacrifice_for_mana(card: CardDataBuilder, costs: &[Cost]) -> Arc<CardData> {
+    let text = if costs.contains(&Cost::TapSelf) { "{T}, Sacrifice this artifact: Add {C}." } else { "Sacrifice this artifact: Add {C}." };
+    card.ability(AbilityDef {
+        rules_text: text.into(),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+        id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
+        ability_type: AbilityType::Mana,
+        costs: costs.iter().cloned().chain([Cost::SacrificeSelf]).collect(),
+        effect: Effect::Atom(
+            Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
+            EffectRecipient::Implicit,
+        ),
+    })
+    .build()
+}
+
+/// And as the trigger resolves: "that artifact's power" is its power on the
+/// battlefield, off the frame its record kept (CR 608.2h).
+#[test]
+fn a_source_sacrificed_as_a_cost_is_read_as_it_was_at_resolution() {
+    let mut game = stocked(2);
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringPower(EventRole::Object)), EffectRecipient::Controller);
+    let reader = CardDataBuilder::new("Fixture Artifact Reader")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, of_type(&[CardType::Artifact]), None), gain)))
+        .build();
+    put_on_battlefield(&mut game, reader, 0);
+    let golem = CardDataBuilder::new("Fixture Golem").card_type(CardType::Artifact).card_type(CardType::Creature).power_toughness(3, 3);
+    let golem = put_on_battlefield(&mut game, with_a_sacrifice_for_mana(golem, &[]), 0);
+    tap_for_mana(&mut game, 0, golem);
+    assert_eq!(game.objects[&golem].zone, Zone::Graveyard);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 23);
 }
 
 /// CR 605.1b: a triggered ability that triggers on a mana ability's

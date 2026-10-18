@@ -1647,7 +1647,7 @@ impl GameState {
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
+                GameEvent::DamageDealt { source_id, target, is_combat, .. },
             ) => {
                 let to = match (recipient, target) {
                     (DamageRecipient::Any, _) => true,
@@ -1669,7 +1669,8 @@ impl GameState {
                 };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let source_read =
+                    record.event.frame_gone_before_this_event(*source_id).map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 triggering_event_if(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
@@ -1779,9 +1780,10 @@ impl GameState {
             // when a cost moved it (Harsh Mentor's second ruling).
             (
                 TriggerEvent::ActivatesAbility { player, source, mana_ability },
-                GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, source_lki },
+                GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, .. },
             ) => {
-                let read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let read =
+                    record.event.frame_gone_before_this_event(identity.source.id).map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 let matched = *from == Zone::Battlefield
                     && mana_ability.is_none_or(|asked| asked == *was_mana)
                     && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
@@ -2280,10 +2282,10 @@ impl GameState {
     /// A damage event's source and recipient. A source that left before
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
-        let GameEvent::DamageDealt { source_id, source_lki, target, .. } = event else {
+        let GameEvent::DamageDealt { source_id, target, .. } = event else {
             return TriggeringEventObjects::NoObject;
         };
-        let source = source_lki.as_ref().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let source = event.frame_gone_before_this_event(*source_id).map(Lki::object).or_else(|| self.subject_after(event, *source_id));
         let recipient = match target {
             DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
             DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
