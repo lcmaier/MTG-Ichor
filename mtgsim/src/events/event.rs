@@ -351,7 +351,7 @@ pub enum GameEvent {
 
     /// Counters were taken off a permanent or away from a player (CR 122.1).
     /// Emitted only on an actual change: `RemoveCounters` reports how many
-    /// were really there (CR 701.2's "as much as it can"), and removing none
+    /// were really there (CR 609.3's "only as much as possible"), and removing none
     /// announces nothing, the same transition rule CR 603.2e gives tapping.
     CountersRemovedFrom {
         subject: CounterSubject,

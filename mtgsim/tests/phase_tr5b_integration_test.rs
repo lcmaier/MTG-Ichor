@@ -150,7 +150,7 @@ fn a_put_names_the_instructions_controller_and_the_count_it_leaves() {
 }
 
 /// CR 608.2c again, for a removal: Vampire Hexmage's "remove all counters"
-/// is its controller's, as a put is. CR 701.2: as many as there are.
+/// is its controller's, as a put is. CR 609.3: as many as there are.
 #[test]
 fn a_removal_by_an_instruction_names_its_controller_and_takes_what_is_there() {
     let mut game = setup_two_player_game();

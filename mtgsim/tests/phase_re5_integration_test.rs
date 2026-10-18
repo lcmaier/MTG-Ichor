@@ -511,7 +511,7 @@ fn a_player_gets_counters_through_the_same_event() {
     assert_eq!(game.players[1].counter_count(CounterType::Energy), 2, "not mine to double");
 }
 
-/// A removal from a player takes as much as it can (CR 701.2) and announces
+/// A removal from a player takes as much as it can (CR 609.3) and announces
 /// only a transition, the object arm's mirror. That clamp is for an
 /// *effect's* instruction; a cost that removes counters — paying {E}, a
 /// loyalty ability's minus — is validated in full before it is paid

@@ -773,7 +773,7 @@ impl EventPattern {
             // `n` and of each kind in an entry's mods, and a multiplier of one or more
             // or a plus keeps every kind on its side of that line; `Halve` can cross it.
             EventPattern::AddCounters { .. } => false,
-            // A counter kind. CR 701.2 makes a removal "as much as possible",
+            // A counter kind. CR 609.3 makes a removal "only as much as possible",
             // and no field here reads how much.
             EventPattern::RemoveCounters { .. } => false,
             // A turn, a phase, a step. CR 614.10's units are not amounts.

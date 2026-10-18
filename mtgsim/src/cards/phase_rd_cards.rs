@@ -387,7 +387,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
 /// # The rulings, and where each is tested
 ///
 /// - *If you would mill more cards than are in your library, you mill all
-///   cards in your library* → CR 701.2's "as much as it can", in
+///   cards in your library* → CR 609.3's "only as much as possible", in
 ///   `Primitive::Mill`.
 /// - *Damage that would be dealt to you will be prevented even if you can't
 ///   mill twice that many* → the prevention is not conditional on the rider,

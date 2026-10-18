@@ -315,7 +315,7 @@ pub enum GameAction {
     /// stun counter, and the CR 615.5 rider for the shield's prevention half.
     ///
     /// `n` is a maximum: removing three counters from a permanent that has one
-    /// removes one, which is CR 701.2's "as much as it can" and what
+    /// removes one, which is CR 609.3's "only as much as possible" and what
     /// `PermanentState::remove_counters` already reports. **That is the rule
     /// for an effect's instruction, and a cost never reaches it**: CR 118.3
     /// lets no player pay a cost they cannot pay in full, so a cost that
@@ -1660,7 +1660,7 @@ impl GameState {
                 if n == 0 {
                     return Ok(());
                 }
-                // CR 701.2 — do as much as possible. Both removers report how
+                // CR 609.3 — only as much as possible. Both removers report how
                 // many were actually there, and a removal of nothing is not an
                 // event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.

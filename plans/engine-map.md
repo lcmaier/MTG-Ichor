@@ -177,7 +177,7 @@ table, the enum and the match disagree.
 | `Unattach` | `GameState::detach`, nothing if attached to nothing (CR 704.5n, 704.5p); `Unattached` | — |
 | `Tap` | on the transition only; `Tapped` | — |
 | `AddCounters` | counters on a permanent or a player; `CountersPutOn`, with its putter and the count left | — |
-| `RemoveCounters` | as many as there are (CR 701.2); `CountersRemovedFrom` only if any, with its remover where a player is one | — |
+| `RemoveCounters` | as many as there are (CR 609.3); `CountersRemovedFrom` only if any, with its remover where a player is one | — |
 | `Destroy` | the outer event only; its `ZoneChange` to the graveyard, decided with it in phase 1 (`decide_destruction_moves`, item 248), is performed right after it | — |
 | `EnterBattlefield` | the move (or a token's creation), then `perform_entry`, which announces a `CountersPutOn` for each counter row (CR 122.6) | — |
 | `CreateTokens` | the objects, then every entry as one batch | `EnterBattlefield` per token |
