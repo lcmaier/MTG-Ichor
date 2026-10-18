@@ -176,7 +176,10 @@ pub fn legal_x_values(
 /// small bound and eight past it, or a large bound and one past it, each
 /// total built by the cast's own arithmetic and asked of the gate's
 /// predicate. A cost that a larger X makes cheaper, or a shape the closed
-/// form misreads, fails here in a debug test or fuzz run.
+/// form misreads, fails here in a debug test or fuzz run. So does a board
+/// past the choice search's cap (`mana_supply`'s `MAX_CHOICE_LEAVES`), where
+/// the check leans yes at every X and the closed form only to its upper
+/// bound: no fuzz board has come near it.
 #[cfg(debug_assertions)]
 fn audit(
     game: &GameState,
