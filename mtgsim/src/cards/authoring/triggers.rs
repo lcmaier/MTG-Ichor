@@ -20,7 +20,7 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackOccurrence, BlockOccurrence, CountersOn, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -200,6 +200,7 @@ impl CountableEvent {
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. }
             | TriggerEvent::Blocks { multiplicity, .. }
+            | TriggerEvent::BecomesTarget { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
             | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => {
                 *multiplicity = Multiplicity::OncePerEvent
@@ -473,6 +474,32 @@ pub fn becomes_blocked_by(subject: impl Into<TriggerSubject>, blocker: impl Into
 /// attacking included.
 pub fn attacks_and_isnt_blocked(subject: impl Into<TriggerSubject>) -> CountableEvent {
     CountableEvent(block_event(TriggerSubject::Any, subject.into(), BlockOccurrence::Unblocked))
+}
+
+/// "Whenever [subject] becomes the target of [by] [controlled by]" (CR
+/// 115.1): once for each spell or ability. "An opponent controls" is
+/// `Some(Opponent)`, any controller `None`.
+pub fn becomes_the_target_of(
+    subject: impl Into<TriggerSubject>,
+    by: TargetedBy,
+    controlled_by: Option<PlayerRef>,
+) -> CountableEvent {
+    CountableEvent(TriggerEvent::BecomesTarget {
+        target: TargetSubject::Object(subject.into()),
+        by,
+        controller: controlled_by,
+        multiplicity: Multiplicity::PerOccurrence,
+    })
+}
+
+/// "Whenever [whose player] become[s] the target of [by] [controlled by]".
+pub fn player_becomes_the_target_of(whose: Whose, by: TargetedBy, controlled_by: Option<PlayerRef>) -> CountableEvent {
+    CountableEvent(TriggerEvent::BecomesTarget {
+        target: TargetSubject::Player(whose.player_ref()),
+        by,
+        controller: controlled_by,
+        multiplicity: Multiplicity::PerOccurrence,
+    })
 }
 
 fn block_event(blocker: TriggerSubject, attacker: TriggerSubject, occurrence: BlockOccurrence) -> TriggerEvent {

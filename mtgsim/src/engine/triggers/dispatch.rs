@@ -40,11 +40,12 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
+use crate::engine::targeting::TargetRef;
 use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -1458,14 +1459,14 @@ impl GameState {
             }
         }
         let (event_index, triggering_events) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn()) {
+        let arm = &def.condition.events()[event_index.0];
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, arm, record, &referents) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
-        let arm = &def.condition.events()[event_index.0];
         let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
         Ok((event_index, triggering_events))
     }
@@ -1519,19 +1520,38 @@ impl GameState {
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
     /// 603.2h's gate is its source's controller's; "only once each turn" is
     /// the ability's; "the first time" is the record's place in its turn
-    /// (`EventRecord::place_in_turn`).
+    /// (`EventRecord::place_in_turn`), or for a targeting, no earlier row of
+    /// the turn's that `arm` would also have matched: Heartfire Hero's "if
+    /// that creature hasn't yet been the target of a spell or ability you
+    /// control this turn".
     pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
         identity: AbilityIdentity,
         controller: PlayerId,
-        place_in_turn: Option<u64>,
+        arm: &TriggerEvent,
+        record: &EventRecord,
+        referents: &TriggerReferents<'_>,
     ) -> bool {
         match def.limit {
             None => true,
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.history.action_taken_this_turn.contains(&(identity, controller)),
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
-            Some(TriggerLimit::FirstTimeEachTurn) => place_in_turn == Some(1),
+            Some(TriggerLimit::FirstTimeEachTurn) => match (arm, &record.event) {
+                (TriggerEvent::BecomesTarget { by, controller: whose, .. }, GameEvent::Targeted { target, .. }) => {
+                    !self.history.targetings.rows().iter().any(|row| {
+                        row.seq < record.seq
+                            && row.target == *target
+                            && match by {
+                                TargetedBy::SpellOrAbility => true,
+                                TargetedBy::Spell(_) => row.by_spell,
+                                TargetedBy::Ability => !row.by_spell,
+                            }
+                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, row.controller, referents))
+                    })
+                }
+                _ => record.place_in_turn() == Some(1),
+            },
         }
     }
 
@@ -1753,6 +1773,41 @@ impl GameState {
                 }
             }
             (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
+            // Read after the event: the target as it is now, and the spell or
+            // ability on the stack, a spell by its characteristics there.
+            (
+                TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
+                GameEvent::Targeted { target, by, ability_source, controller, .. },
+            ) => {
+                let target_ok = match (watched, target) {
+                    (TargetSubject::Object(subject), TargetRef::Object(object)) => {
+                        self.subject_matches(subject, Some(object.id), referents, seq, SubjectRead::Now)
+                    }
+                    (TargetSubject::Player(who), TargetRef::Player(player)) => {
+                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
+                    }
+                    (TargetSubject::Object(_), TargetRef::Player(_)) | (TargetSubject::Player(_), TargetRef::Object(_)) => false,
+                };
+                let kind_ok = match kind {
+                    TargetedBy::SpellOrAbility => true,
+                    TargetedBy::Ability => ability_source.is_some(),
+                    TargetedBy::Spell(filter) => {
+                        ability_source.is_none()
+                            && filter.as_ref().is_none_or(|filter| {
+                                self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(*by), referents, seq, SubjectRead::Now)
+                            })
+                    }
+                };
+                let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
+                let objects = || {
+                    let target = match target {
+                        TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
+                        TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
+                    };
+                    Some(TriggeringEventObjects::Target { target, by: self.object_ref(*by)? })
+                };
+                if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
+            }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
                     None => true,
@@ -1867,6 +1922,7 @@ impl GameState {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
+                | TriggerEvent::BecomesTarget { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -2171,6 +2227,7 @@ impl GameState {
             }
             TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }

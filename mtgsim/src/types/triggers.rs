@@ -160,6 +160,26 @@ pub enum TriggerSubject {
     Referred,
 }
 
+/// What becomes the target (CR 115.1): an object, or a player.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TargetSubject {
+    /// "This creature", "a permanent you control".
+    Object(TriggerSubject),
+    /// "You", or any player for `None`.
+    Player(Option<PlayerRef>),
+}
+
+/// What it becomes the target of: "a spell or ability", "a spell", "an Aura
+/// spell", "an ability" (CR 115.1a-d).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TargetedBy {
+    SpellOrAbility,
+    /// A spell, of the filter's kind when it has one, read on the stack.
+    Spell(Option<ObjectFilter>),
+    /// An activated or triggered ability.
+    Ability,
+}
+
 /// What an attack trigger asks of the player, planeswalker or battle
 /// attacked: CR 508.3a's "attacks [a player, planeswalker, or battle]",
 /// 508.3b's "is attacked" and 508.3e's "attacks [another player]".
@@ -273,10 +293,15 @@ pub enum EventRole {
     Attachment,
     /// CR 701.3: the object it became attached to, or was attached to.
     Host,
+    /// CR 115.1: the object that became the target.
+    Target,
+    /// CR 115.1: the spell or ability it became the target of, as the stack
+    /// object it is: Frost Titan's "counter that spell or ability".
+    SpellOrAbility,
 }
 
 impl EventRole {
-    pub const ALL: [EventRole; 9] = [
+    pub const ALL: [EventRole; 11] = [
         EventRole::Object,
         EventRole::DamageSource,
         EventRole::DamageRecipient,
@@ -286,6 +311,8 @@ impl EventRole {
         EventRole::Attacked,
         EventRole::Attachment,
         EventRole::Host,
+        EventRole::Target,
+        EventRole::SpellOrAbility,
     ];
 }
 
@@ -336,6 +363,9 @@ pub enum TriggeringEventObjects {
     BlockedBy { attacker: ObjectRef, blockers: Vec<ObjectRef> },
     /// CR 509.3g: an attacking creature no creature was declared blocking.
     Unblocked { attacker: ObjectRef },
+    /// CR 115.1: what became the target, and the spell or ability whose
+    /// target it became.
+    Target { target: ObjectOrPlayer, by: ObjectRef },
 }
 
 impl TriggeringEventObjects {
@@ -352,7 +382,9 @@ impl TriggeringEventObjects {
             | (TriggeringEventObjects::Block { attacker: object, .. }, EventRole::Attacker)
             | (TriggeringEventObjects::Blocking { blocker: object, .. }, EventRole::Blocker)
             | (TriggeringEventObjects::BlockedBy { attacker: object, .. }, EventRole::Attacker)
-            | (TriggeringEventObjects::Unblocked { attacker: object }, EventRole::Attacker) => Some(*object),
+            | (TriggeringEventObjects::Unblocked { attacker: object }, EventRole::Attacker)
+            | (TriggeringEventObjects::Target { by: object, .. }, EventRole::SpellOrAbility) => Some(*object),
+            (TriggeringEventObjects::Target { target, .. }, EventRole::Target) => target.object(),
             (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
             | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
             | (TriggeringEventObjects::Defense { defender: object, .. }, EventRole::Attacked) => object.object(),
@@ -366,7 +398,8 @@ impl TriggeringEventObjects {
                 | TriggeringEventObjects::Block { .. }
                 | TriggeringEventObjects::Blocking { .. }
                 | TriggeringEventObjects::BlockedBy { .. }
-                | TriggeringEventObjects::Unblocked { .. },
+                | TriggeringEventObjects::Unblocked { .. }
+                | TriggeringEventObjects::Target { .. },
                 _,
             ) => None,
         }
@@ -407,6 +440,10 @@ impl TriggeringEventObjects {
             TriggeringEventObjects::Unblocked { attacker } => {
                 ([Some((EventRole::Attacker, *attacker)), None], (EventRole::Attacker, &[]))
             }
+            TriggeringEventObjects::Target { target, by } => (
+                [target.object().map(|o| (EventRole::Target, o)), Some((EventRole::SpellOrAbility, *by))],
+                (EventRole::Attacker, &[]),
+            ),
         };
         let (role, several) = several;
         pairs.into_iter().flatten().chain(several.iter().map(move |&object| (role, object)))
@@ -448,6 +485,7 @@ counted_enum! {
         EnteredBattlefield,
         AttackersDeclared,
         BlockersDeclared,
+        Targeted,
         AbilityTriggered,
         SpellCast,
         CardDrawn,
@@ -489,6 +527,7 @@ impl EventKind {
             GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::BlockersDeclared { .. } => EventKind::BlockersDeclared,
+            GameEvent::Targeted { .. } => EventKind::Targeted,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
             GameEvent::SpellCast { .. } => EventKind::SpellCast,
             GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
@@ -512,7 +551,6 @@ impl EventKind {
             | GameEvent::Scried { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
-            | GameEvent::Targeted { .. }
             | GameEvent::TokenCeasedToExist { .. }
             | GameEvent::TokenCreated { .. }
             | GameEvent::UntilReturnMade { .. } => return None,
@@ -695,6 +733,13 @@ pub enum TriggerEvent {
         alone: bool,
         multiplicity: Multiplicity,
     },
+    /// "Whenever [this creature/you] become[s] the target of a [spell or
+    /// ability] [an opponent controls]" (CR 115.1, 601.2c, 602.2b, 603.3d):
+    /// once for each spell or ability, however many of its instances chose it
+    /// (Frost Titan's ruling). `controller` is whose spell or ability it is.
+    /// "For the first time each turn" (valiant) is the def's limit, read off
+    /// the turn's targeting rows.
+    BecomesTarget { target: TargetSubject, by: TargetedBy, controller: Option<PlayerRef>, multiplicity: Multiplicity },
     /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
@@ -834,6 +879,7 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::CountersPutOn { .. }
@@ -883,6 +929,7 @@ impl TriggerEvent {
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared),
+            TriggerEvent::BecomesTarget { .. } => EventKindMask::of(EventKind::Targeted),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
             TriggerEvent::PlayerLoses { .. } => EventKindMask::of(EventKind::PlayerLost),
@@ -920,6 +967,7 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked | BlockOccurrence::Unblocked, attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker | BlockOccurrence::Block, blocker: subject, .. }
+            | TriggerEvent::BecomesTarget { target: TargetSubject::Object(subject), .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
@@ -927,6 +975,7 @@ impl TriggerEvent {
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(subject), .. } => Some(subject),
             TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. }
             | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
@@ -966,6 +1015,7 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::PlayerLoses { .. }
@@ -1006,6 +1056,7 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. }
             | TriggerEvent::Blocks { multiplicity, .. }
+            | TriggerEvent::BecomesTarget { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
             | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
@@ -1075,6 +1126,8 @@ impl TriggerEvent {
                 &[EventRole::Blocker, EventRole::Attacker, EventRole::OtherCombatant]
             }
             TriggerEvent::Blocks { .. } => &[EventRole::Blocker, EventRole::Attacker],
+            TriggerEvent::BecomesTarget { target: TargetSubject::Object(_), .. } => &[EventRole::Target, EventRole::SpellOrAbility],
+            TriggerEvent::BecomesTarget { target: TargetSubject::Player(_), .. } => &[EventRole::SpellOrAbility],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 &[EventRole::Attachment, EventRole::Host]
             }
@@ -1109,6 +1162,9 @@ impl TriggerEvent {
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. })
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { caster, .. }) => Some(*caster),
+            // Whose spell or ability it is: ward's "that player", Frost
+            // Titan's "its controller".
+            (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { controller, .. }) => Some(*controller),
             // The player who gained control.
             (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { to, .. }) => Some(*to),
             // Its controller as it left the stack, as the record keeps it.
@@ -1154,6 +1210,7 @@ impl TriggerEvent {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
+                | TriggerEvent::BecomesTarget { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1208,6 +1265,7 @@ impl TriggerEvent {
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. })
+            | (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { .. })
             | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
@@ -1236,6 +1294,7 @@ impl TriggerEvent {
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
+                | TriggerEvent::BecomesTarget { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }

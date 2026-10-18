@@ -904,51 +904,32 @@ impl GameState {
             }
 
             Primitive::CounterSpell => {
-                // CR 701.6a — the countered spell goes to its owner's graveyard, through
-                // `execute_action(ZoneChange)` so the CR 614 pipeline sees it;
-                // `remove_from_zone_collection(Stack)` tears down the `StackEntry`.
                 for target in targets {
                     if let ResolvedTarget::Object(id) = target {
-                        let id = *id;
-                        // Its controller and its frame read while it is a spell, as
-                        // the record keeps them (CR 108.4a: a card in a graveyard
-                        // has none; CR 603.10e looks back at the spell).
-                        if self.stack.contains(&id)
-                            && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
-                        {
-                            let lki = crate::engine::layers::compute_characteristics(self, id)
-                                .and_then(|frame| self.last_known_information(id, frame))
-                                .ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
-                            self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, &actx)?;
-                            let countered = crate::events::event::GameEvent::SpellCountered {
-                                spell_id: id,
-                                controller,
-                                countered_by: ctx.source,
-                                lki,
-                            };
-                            self.emit_event(countered, actx.cause)?;
-                        }
+                        self.counter_spell(*id, ctx, &actx)?;
                     }
                 }
                 Ok(())
             }
 
             Primitive::CounterAbility => {
-                // Counter target activated or triggered ability on the stack
-                // (rule 701.6b). The ability ceases to exist — it is simply
-                // removed from the stack. It does NOT go to any zone.
                 for target in targets {
-                    if let ResolvedTarget::Object(id) = target
-                        && self.stack.contains(id)
-                        && let Some(entry) = self.ability_leaves_the_stack(*id)
-                        && let Some(identity) = entry.ability_identity
-                    {
-                        let countered = crate::events::event::GameEvent::AbilityCountered {
-                            identity,
-                            controller: entry.controller,
-                            countered_by: ctx.source,
-                        };
-                        self.emit_event(countered, actx.cause)?;
+                    if let ResolvedTarget::Object(id) = target {
+                        self.counter_ability(*id, ctx, &actx)?;
+                    }
+                }
+                Ok(())
+            }
+
+            // CR 701.6a — "counter that spell or ability", by what it is.
+            Primitive::Counter => {
+                for target in targets {
+                    if let ResolvedTarget::Object(id) = target {
+                        if self.is_spell_on_stack(*id) {
+                            self.counter_spell(*id, ctx, &actx)?;
+                        } else {
+                            self.counter_ability(*id, ctx, &actx)?;
+                        }
                     }
                 }
                 Ok(())
@@ -2320,6 +2301,40 @@ impl GameState {
         let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
         let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
         self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
+    }
+
+    /// CR 701.6a — a spell countered goes to its owner's graveyard, through
+    /// `change_zone` so the CR 614 pipeline sees it, and the `StackEntry`
+    /// goes with it. An object that is no spell on the stack is not one to
+    /// counter this way.
+    fn counter_spell(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
+        // Its controller and its frame read while it is a spell, as the record
+        // keeps them (CR 108.4a: a card in a graveyard has none; CR 603.10e
+        // looks back at the spell).
+        if !self.stack.contains(&id) || !self.is_spell_on_stack(id) {
+            return Ok(());
+        }
+        let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
+        let lki = crate::engine::layers::compute_characteristics(self, id)
+            .and_then(|frame| self.last_known_information(id, frame))
+            .ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+        self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
+        let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
+        self.emit_event(countered, actx.cause)
+    }
+
+    /// CR 701.6b's ability: it ceases to exist, removed from the stack and
+    /// put into no zone.
+    fn counter_ability(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
+        if self.stack.contains(&id)
+            && let Some(entry) = self.ability_leaves_the_stack(id)
+            && let Some(identity) = entry.ability_identity
+        {
+            let countered =
+                crate::events::event::GameEvent::AbilityCountered { identity, controller: entry.controller, countered_by: ctx.source };
+            self.emit_event(countered, actx.cause)?;
+        }
+        Ok(())
     }
 
     /// What one part of a `Together` finds, as it would alone: this object by

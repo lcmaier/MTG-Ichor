@@ -11,7 +11,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history::{CombatFact, PlayerHistory};
+use crate::state::history::{CombatFact, PlayerHistory, TargetingRow};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectRef, PlayerId};
@@ -35,6 +35,9 @@ enum HistoryUpdate {
     AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
     /// Each block, as (blocker, attacker): the combat's rows.
     BlockersDeclared { blocks: Vec<(ObjectRef, ObjectRef)> },
+    /// Something became the target of a spell or ability: the turn's
+    /// targeting rows.
+    Targeted { row: TargetingRow },
     CombatBegan,
     RemovedFromCombat { exits: Vec<(ObjectRef, Option<AttackTarget>)> },
 }
@@ -57,6 +60,7 @@ impl HistoryUpdate {
             | HistoryUpdate::CreatureDied { .. }
             | HistoryUpdate::AttackersDeclared { .. }
             | HistoryUpdate::BlockersDeclared { .. }
+            | HistoryUpdate::Targeted { .. }
             | HistoryUpdate::CombatBegan
             | HistoryUpdate::RemovedFromCombat { .. } => return None,
         })
@@ -157,6 +161,7 @@ impl GameState {
                     self.history.combat.record(blocker, turn, CombatFact::Blocked(attacker));
                 }
             }
+            HistoryUpdate::Targeted { row } => self.history.targetings.record(*row),
             HistoryUpdate::CombatBegan => self.history.combat.combat_began(),
             HistoryUpdate::RemovedFromCombat { exits } => {
                 for &(object, attacking) in exits {
@@ -249,6 +254,9 @@ impl GameState {
                     .collect();
                 HistoryUpdate::BlockersDeclared { blocks }
             }
+            GameEvent::Targeted { target, ability_source, controller, .. } => HistoryUpdate::Targeted {
+                row: TargetingRow { target: *target, controller: *controller, by_spell: ability_source.is_none(), seq },
+            },
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             // CR 506.4, 511.3: what each was attacking as it left combat.
             GameEvent::RemovedFromCombat { removed } => HistoryUpdate::RemovedFromCombat {

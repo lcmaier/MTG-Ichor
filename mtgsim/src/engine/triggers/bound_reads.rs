@@ -15,7 +15,7 @@ use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
+use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the event roles of its event it names. Built like
@@ -141,6 +141,12 @@ impl TriggerDef {
         if self.intervening_if.as_ref().is_some_and(reads_a_counter_threshold) && !arms.iter().all(puts_once_per_subject) {
             wrong.push("CR 122.7's threshold, on a trigger that is not a counter put read once per subject");
         }
+        // "For the first time each turn" asks a record's place in its turn,
+        // which a cast, a draw, a gain and a loss have, or the turn's
+        // targeting rows, which keep no spell's characteristics.
+        if self.limit == Some(TriggerLimit::FirstTimeEachTurn) && !arms.iter().all(|arm| has_a_first_time(arm)) {
+            wrong.push("for the first time each turn, on an arm whose record has no place in its turn");
+        }
         let named = self.bound_reads();
         for arm in arms {
             let TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. } = arm else { continue };
@@ -163,6 +169,19 @@ impl TriggerDef {
             }
         }
         wrong
+    }
+}
+
+/// Whether an arm can say its event is the first of the turn: by its
+/// record's place, or for a targeting by the turn's rows.
+fn has_a_first_time(arm: &TriggerEvent) -> bool {
+    match arm {
+        TriggerEvent::CastsSpell { .. }
+        | TriggerEvent::DrawsCard { .. }
+        | TriggerEvent::GainsLife { .. }
+        | TriggerEvent::LosesLife { .. } => true,
+        TriggerEvent::BecomesTarget { by, .. } => !matches!(by, TargetedBy::Spell(Some(_))),
+        _ => false,
     }
 }
 
@@ -350,7 +369,8 @@ fn primitive(p: &Primitive) -> BoundReads {
         | Primitive::Tap
         | Primitive::Untap
         | Primitive::CounterSpell
-        | Primitive::CounterAbility => BoundReads::NOTHING,
+        | Primitive::CounterAbility
+        | Primitive::Counter => BoundReads::NOTHING,
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)

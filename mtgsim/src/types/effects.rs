@@ -2121,6 +2121,10 @@ pub enum Primitive {
     /// Counter an activated or triggered ability on the stack (rule 701.6b).
     /// The countered ability ceases to exist — it is simply removed from the stack.
     CounterAbility,
+    /// "Counter that spell or ability" (Frost Titan, Kira, ward): whichever
+    /// the stack object it is handed is, a spell to its owner's graveyard and
+    /// an ability off the stack (CR 701.6a).
+    Counter,
 }
 
 impl Primitive {
@@ -2180,7 +2184,8 @@ impl Primitive {
             | Primitive::ChangeType(..)
             | Primitive::GainControl(_)
             | Primitive::Copy { .. }
-            | Primitive::CounterAbility => None,
+            | Primitive::CounterAbility
+            | Primitive::Counter => None,
         }
     }
 }

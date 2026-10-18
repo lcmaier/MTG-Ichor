@@ -396,14 +396,14 @@ impl GameState {
                 (!triggering_events.is_empty()).then_some((EventIndex(index), triggering_events))
             })
             .ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, record.place_in_turn()) {
+        let (event, triggering_events) = matched;
+        let arm = &delayed.def.condition.events()[event.0];
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, arm, record, &referents) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its
         // source as it last existed once it has left (CR 113.7a, 400.7).
-        let (event, triggering_events) = matched;
         let source = TriggerSource { object: delayed.source.id, controller: delayed.controller, lki: delayed.source_lki.as_ref() };
-        let arm = &delayed.def.condition.events()[event.0];
         let triggering_events = self.triggers_whose_intervening_if_holds(&delayed.def, arm, record, triggering_events, source)?;
         Ok((event, triggering_events))
     }

@@ -14,6 +14,8 @@
 
 use std::sync::Arc;
 
+use crate::engine::targeting::TargetRef;
+use crate::events::event::EventSeq;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::AbilityIdentity;
 use crate::types::history::TurnFact;
@@ -195,6 +197,9 @@ pub struct GameHistory {
     pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
     /// What each creature did in this round's combats.
     pub combat: CombatHistory,
+    /// What became the target of what this turn, which valiant's "for the
+    /// first time each turn" reads.
+    pub targetings: TargetingHistory,
 }
 
 impl GameHistory {
@@ -207,6 +212,7 @@ impl GameHistory {
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),
             combat: CombatHistory::default(),
+            targetings: TargetingHistory::default(),
         }
     }
 
@@ -243,6 +249,7 @@ impl GameHistory {
         self.triggered_this_turn.clear();
         self.resolutions_this_turn.clear();
         self.combat.turn_began(keep_from);
+        self.targetings.turn_began();
     }
 }
 
@@ -364,6 +371,44 @@ impl CombatHistory {
             CombatFact::Removed { attacking } => attacking,
             CombatFact::Attacked(_) | CombatFact::Blocked(_) => None,
         }
+    }
+}
+
+/// Each time something became the target of a spell or ability this turn
+/// (CR 115.1), one row per `Targeted` record, in the order announced. Kept
+/// for the turn: valiant and Kira read "for the first time each turn", and
+/// nothing reads further back. Shared, as the combat's rows are.
+#[derive(Debug, Clone, Default)]
+pub struct TargetingHistory {
+    rows: Arc<Vec<TargetingRow>>,
+}
+
+/// One object or player becoming the target of one spell or ability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetingRow {
+    pub target: TargetRef,
+    /// The spell's or ability's controller.
+    pub controller: PlayerId,
+    /// A spell rather than an ability.
+    pub by_spell: bool,
+    /// The record, which tells an earlier targeting from the one being read.
+    pub seq: EventSeq,
+}
+
+impl TargetingHistory {
+    pub(crate) fn record(&mut self, row: TargetingRow) {
+        Arc::make_mut(&mut self.rows).push(row);
+    }
+
+    fn turn_began(&mut self) {
+        if !self.rows.is_empty() {
+            self.rows = Arc::default();
+        }
+    }
+
+    /// Every row this turn, oldest first.
+    pub fn rows(&self) -> &[TargetingRow] {
+        &self.rows
     }
 }
 
