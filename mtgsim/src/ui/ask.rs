@@ -823,6 +823,14 @@ pub fn ask_order_triggers(
     order
 }
 
+/// Each bucket's most toward `mana_cost`'s generic part: the pool's mana of
+/// that type, less the pips that need it (CR 601.2h). What the generic
+/// split's ask clamps to, and what its why says.
+pub(crate) fn generic_split_caps(mana_cost: &ManaCost, available_types: &[(ManaType, u64)]) -> Vec<u64> {
+    let pips = mana_cost.demand_without_choices();
+    available_types.iter().map(|(mt, amt)| amt.saturating_sub(pips.pips_of(*mt))).collect()
+}
+
 /// Choose how to allocate mana from the pool to pay generic mana.
 /// Returns a map of ManaType → amount.
 ///
@@ -859,8 +867,7 @@ pub fn ask_choose_generic_mana_allocation(
         mana_cost: mana_cost.clone(),
     });
     let mins = vec![0u64; buckets.len()];
-    let pips = mana_cost.demand_without_choices();
-    let maxs: Vec<u64> = available_types.iter().map(|(mt, amt)| amt.saturating_sub(pips.pips_of(*mt))).collect();
+    let maxs = generic_split_caps(mana_cost, available_types);
     // `can_pay` has passed by the time this is asked, and it checked both
     // halves of the same inequality: every type covers its own pips, and what
     // is left over covers the generic count. So the clamped maxima always sum

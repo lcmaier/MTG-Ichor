@@ -102,3 +102,90 @@ fn x_cannot_be_zero_asks_the_gate_for_one_x() {
     put_on_battlefield(&mut game, mountain(), 0);
     assert!(can_cast(&game, 0, card).is_ok(), "{{1}}{{R}} does");
 }
+
+/// The why's lines at `kind`'s question to player 0, about `about`, each as
+/// its text and its rule.
+fn why_lines(game: &GameState, kind: mtgsim::ui::choice_types::ChoiceKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
+    use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
+    let context = mtgsim::ui::choice_types::ChoiceContext::new(kind);
+    let answer = why(game, WhyAbout::Object(about), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
+    assert_eq!(answer.sections[0].heading, "At this question");
+    answer.sections[0].lines.iter().map(|line| (line.text.clone(), line.rule)).collect()
+}
+
+/// `card`'s legal values of X, cast for its mana cost with nothing else
+/// announced.
+fn legal_values(game: &GameState, card: mtgsim::types::ids::ObjectId) -> mtgsim::oracle::x_values::LegalXValues {
+    use mtgsim::oracle::x_values::{legal_x_values, XAnnouncement};
+    let data = &game.objects[&card].card_data;
+    let announced = XAnnouncement {
+        base_mana_cost: data.mana_cost.as_ref().unwrap(),
+        chosen_alt_cost: None,
+        chosen_additional_costs: &[],
+        x_cannot_be_zero: data.x_cannot_be_zero,
+    };
+    legal_x_values(game, 0, card, &announced).unwrap()
+}
+
+fn choose_x(card: mtgsim::types::ids::ObjectId, values: mtgsim::oracle::x_values::LegalXValues) -> mtgsim::ui::choice_types::ChoiceKind {
+    mtgsim::ui::choice_types::ChoiceKind::ChooseXValue { spell_id: card, x_count: 1, values: Box::new(values) }
+}
+
+/// The why of X's bound says what the closed form read (setup-architecture
+/// §7c, `mana-architecture.md` §3.13): the mana beside the pips, and what
+/// each X adds, less what a reduction absorbs.
+#[test]
+fn the_why_of_x_names_the_bound_and_what_set_it() {
+    let mut game = main_phase();
+    for _ in 0..4 {
+        put_on_battlefield(&mut game, mountain(), 0);
+    }
+    let card = put_in_hand(&mut game, ember_lesson(false), 0);
+    let lines = why_lines(&game, choose_x(card, legal_values(&game, card)), card);
+    assert!(lines.contains(&(
+        "X above 3: beside {R}, Player 0 can pay at most 3 generic mana, and each X adds {1}.".to_string(),
+        Some("601.2h")
+    )), "{lines:#?}");
+
+    put_on_battlefield(&mut game, mtgsim::cards::phase_cm_cards::goblin_electromancer(), 0);
+    let lines = why_lines(&game, choose_x(card, legal_values(&game, card)), card);
+    assert!(lines.contains(&(
+        "X above 4: beside {R}, Player 0 can pay at most 3 generic mana, and each X adds {1}, less the {1} its reductions take off."
+            .to_string(),
+        Some("601.2h")
+    )), "{lines:#?}");
+}
+
+/// "X can't be 0" says why the least is one.
+#[test]
+fn the_why_of_x_names_the_printed_least() {
+    let mut game = main_phase();
+    for _ in 0..2 {
+        put_on_battlefield(&mut game, mountain(), 0);
+    }
+    let card = put_in_hand(&mut game, ember_lesson(true), 0);
+    let lines = why_lines(&game, choose_x(card, legal_values(&game, card)), card);
+    assert!(lines.contains(&(format!("X = 0: Ember Lesson ({card}) says X can't be 0."), None)), "{lines:#?}");
+}
+
+/// The generic split's why names the clamp: two red in the pool, one of them
+/// the `{R}` pip's, so at most one red pays the generic part
+/// (`ui::ask::generic_split_caps`, the ask's own caps).
+#[test]
+fn the_why_of_the_generic_split_names_the_clamp() {
+    use mtgsim::types::mana::{ManaCost, ManaType};
+    let mut game = main_phase();
+    let card = put_in_hand(&mut game, ember_lesson(false), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    let kind = mtgsim::ui::choice_types::ChoiceKind::GenericManaAllocation {
+        spell_or_ability_id: card,
+        mana_cost: ManaCost::build(&[ManaType::Red], 1),
+    };
+    let lines = why_lines(&game, kind, card);
+    assert!(lines.contains(&(
+        "More than 1 red toward the generic part: 2 red in the pool, less the cost's {R}.".to_string(),
+        Some("601.2h")
+    )), "{lines:#?}");
+    assert!(!lines.iter().any(|(text, _)| text.contains("green")), "green pays the generic part freely: {lines:#?}");
+}

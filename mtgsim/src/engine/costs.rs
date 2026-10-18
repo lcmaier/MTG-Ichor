@@ -287,6 +287,21 @@ impl GameState {
     /// Every prompt a payment asks is asked here, which is the property
     /// [`Self::pay_costs`] leans on: once the first permanent moves, no
     /// decision is outstanding. See the module doc.
+    /// The buckets CR 601.2h's generic split is asked over: each type of mana
+    /// in `player_id`'s pool, with how much, in type order. The split's why
+    /// reads the same ones.
+    pub(crate) fn generic_split_buckets(&self, player_id: PlayerId) -> Vec<(ManaType, u64)> {
+        let mut available: Vec<(ManaType, u64)> = self.players[player_id]
+            .mana_pool
+            .available()
+            .iter()
+            .filter(|(_, amt)| **amt > 0)
+            .map(|(mt, amt)| (*mt, *amt))
+            .collect();
+        available.sort_by_key(|(mt, _)| *mt as u8);
+        available
+    }
+
     pub fn plan_payment(
         &self,
         costs: &[Cost],
@@ -307,14 +322,7 @@ impl GameState {
         let generic_allocation = if mana_cost.generic_count() == 0 {
             HashMap::new()
         } else {
-            let mut available: Vec<(ManaType, u64)> = self.players[player_id]
-                .mana_pool
-                .available()
-                .iter()
-                .filter(|(_, amt)| **amt > 0)
-                .map(|(mt, amt)| (*mt, *amt))
-                .collect();
-            available.sort_by_key(|(mt, _)| *mt as u8);
+            let available = self.generic_split_buckets(player_id);
             ask_choose_generic_mana_allocation(
                 ctx.dp, self, player_id, source_id, &mana_cost, &available,
                 mana_cost.generic_count() as u64,
