@@ -69,7 +69,7 @@ fn the_agent_activates_the_cube_last() {
 /// Lightning Bolt costing `{X}{R}`, registered nowhere: what the gate reads
 /// of an X spell before Blaze is in the registry.
 fn ember_lesson(x_cant_be_zero: bool) -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
-    use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
+    use mtgsim::types::mana::{ManaCost, ManaType};
     let bolt = mtgsim::test_support::lightning_bolt();
     std::sync::Arc::new(mtgsim::objects::card_data::CardData {
         name: "Ember Lesson".to_string(),
@@ -351,7 +351,7 @@ use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::oracle::x_values::{LegalXValues, XOffer};
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::ObjectId;
-use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::ui::decision::PriorityAction;
 
 /// What the X prompt offered, read off the provider that answered it.
@@ -403,6 +403,30 @@ fn blaze_is_cast_with_the_x_its_caster_announces() {
     assert_eq!(offered_x(&seat), XOffer::Interval { at_least: 0, at_most: 4 });
     assert_eq!(game.stack_entries[&card].x_value, Some(3));
     assert_eq!(game.players[0].mana_pool.total(), 1, "{{3}}{{R}} paid of five");
+}
+
+/// An X past 255 is paid whole: 256 announced, so `{256}{R}` takes all 257
+/// red mana. Counted in a byte, the 256 generic read as none, and only the
+/// `{R}` was paid. Doubling Cubes make such pools (the dev GUI's board-1).
+#[test]
+fn an_x_past_a_byte_is_paid_whole() {
+    let mut game = main_phase();
+    game.players[0].mana_pool.add(ManaType::Red, 257);
+    let card = put_in_hand(&mut game, blaze(), 0);
+    let seat = ScriptedDecisionProvider::new();
+    seat.expect_number(choose_x(card, LegalXValues::zero_through(256)), 256);
+    seat.expect_choice(blaze_target(card), vec![ChoiceOption::Player(1)]);
+    game.cast_spell(0, card, &seat).expect("castable");
+    assert_eq!(game.stack_entries[&card].x_value, Some(256));
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{256}}{{R}} paid of 257");
+}
+
+/// The payment question words what is left to pay, a run of generic mana
+/// as one number however long: `{300}{G}`, which a byte's count overflowed.
+#[test]
+fn a_cost_with_a_large_x_is_written_as_one_number() {
+    let cost = ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]).with_x_as(300);
+    assert_eq!(cost.to_string(), "{300}{G}");
 }
 
 /// A staged fixture cannot check the question (`engineering-practices.md`):

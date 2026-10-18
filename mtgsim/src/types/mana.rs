@@ -197,9 +197,10 @@ impl ManaCost {
         (demand, every_symbol)
     }
 
-    /// Count how many generic symbols appear.
-    pub fn generic_count(&self) -> u8 {
-        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u8
+    /// Count how many generic symbols appear: an announced X makes any
+    /// number of them (CR 107.3a), so not a printed cost's byte.
+    pub fn generic_count(&self) -> u64 {
+        self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u64
     }
 
     /// Count how many X symbols appear.
@@ -270,7 +271,7 @@ impl fmt::Display for ManaCost {
         let mut i = 0;
         while i < self.symbols.len() {
             if self.symbols[i] == ManaSymbol::Generic {
-                let mut count = 0u8;
+                let mut count: u64 = 0;
                 while i < self.symbols.len() && self.symbols[i] == ManaSymbol::Generic {
                     count += 1;
                     i += 1;

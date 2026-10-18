@@ -325,7 +325,7 @@ impl GameState {
             let available = self.generic_split_buckets(player_id);
             ask_choose_generic_mana_allocation(
                 ctx.dp, self, player_id, source_id, &mana_cost, &available,
-                mana_cost.generic_count() as u64,
+                mana_cost.generic_count(),
             )
         };
 
