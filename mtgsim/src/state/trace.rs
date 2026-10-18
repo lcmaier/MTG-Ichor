@@ -849,10 +849,11 @@ impl GameState {
     }
 
     /// The same door for a record emitted outside any batch whose dispatch
-    /// may have to ask a player something: `AttackersDeclared`, the one such
-    /// record that can carry two occurrences of one arm, which CR 603.7b's
-    /// choice for a delayed trigger asks between. The turn-based action that
-    /// emits it holds the provider, and its context names the cause.
+    /// may have to ask a player something: `AttackersDeclared` and
+    /// `BlockersDeclared`, the records that can carry two occurrences of one
+    /// arm, which CR 603.7b's choice for a delayed trigger asks between. The
+    /// turn-based action that emits each holds the provider, and its context
+    /// names the cause.
     pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(ctx.cause);
         self.emit_record(event, stamp, Some(ctx))

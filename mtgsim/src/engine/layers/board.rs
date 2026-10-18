@@ -748,7 +748,8 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // source's is touched.
         ObjectFilter::All
         | ObjectFilter::Token
-        | ObjectFilter::AttackedThisTurn
+        | ObjectFilter::ThisTurn(_)
+        | ObjectFilter::ThisCombat(_)
         | ObjectFilter::NotSource
         | ObjectFilter::OtherThanInstance(_) => {}
         ObjectFilter::ByType(_) => out.members |= Channels::TYPES,

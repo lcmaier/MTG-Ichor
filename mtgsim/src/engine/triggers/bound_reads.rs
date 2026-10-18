@@ -253,7 +253,8 @@ fn filter(f: &ObjectFilter) -> BoundReads {
         | ObjectFilter::PowerLE(_)
         | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token
-        | ObjectFilter::AttackedThisTurn
+        | ObjectFilter::ThisTurn(_)
+        | ObjectFilter::ThisCombat(_)
         | ObjectFilter::OtherThanInstance(_) => BoundReads::NOTHING,
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),
         ObjectFilter::NotSource => BoundReads::SOURCE,

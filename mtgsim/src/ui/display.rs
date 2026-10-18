@@ -1088,9 +1088,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 .collect();
             format!("RemovedFromCombat: [{}]", exits.join(", "))
         }
-        BlockersDeclared { blockers } => {
-            let pairs: Vec<String> = blockers.iter()
+        BlockersDeclared { blocks, unblocked } => {
+            let pairs: Vec<String> = blocks.iter()
                 .map(|(b, a)| format!("{} blocks {}", obj_name(game, *b), obj_name(game, *a)))
+                .chain(unblocked.iter().map(|a| format!("{} unblocked", obj_name(game, *a))))
                 .collect();
             format!("BlockersDeclared: [{}]", pairs.join(", "))
         }

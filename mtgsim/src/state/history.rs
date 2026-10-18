@@ -280,6 +280,19 @@ pub enum CombatFact {
     /// CR 506.4, 511.3: removed from combat, attacking this as it was, or
     /// nothing.
     Removed { attacking: Option<AttackTarget> },
+    /// CR 509.1: declared as a blocker of this attacking creature, one row
+    /// for each creature it blocks. The attacker's own "was blocked" is the
+    /// row that names it.
+    Blocked(ObjectRef),
+}
+
+/// How much of the turn a question about its combats spans: the whole turn,
+/// or its latest combat, which CR 500.8's additional combats make two
+/// different questions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CombatSpan {
+    ThisTurn,
+    ThisCombat,
 }
 
 impl CombatHistory {
@@ -307,11 +320,33 @@ impl CombatHistory {
         &self.rows
     }
 
-    /// Was `object` declared as an attacker in turn `turn`, the turn in
-    /// progress? A creature put onto the battlefield attacking never was (CR
-    /// 508.4).
-    pub fn attacked_this_turn(&self, object: ObjectRef, turn: u32) -> bool {
-        self.rows.iter().any(|row| row.object == object && row.turn == turn && matches!(row.fact, CombatFact::Attacked(_)))
+    /// The rows of turn `turn`, the turn in progress, that `span` covers.
+    fn rows_in(&self, turn: u32, span: CombatSpan) -> impl Iterator<Item = &CombatRow> {
+        let latest = self.combats_this_turn;
+        self.rows.iter().filter(move |row| {
+            row.turn == turn && match span {
+                CombatSpan::ThisTurn => true,
+                CombatSpan::ThisCombat => row.combat == latest,
+            }
+        })
+    }
+
+    /// Was `object` declared as an attacker in `span` of turn `turn`? A
+    /// creature put onto the battlefield attacking never was (CR 508.4).
+    pub fn attacked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_in(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Attacked(_)))
+    }
+
+    /// Was `object` declared as a blocker in `span` of turn `turn` (CR
+    /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
+    pub fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_in(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Blocked(_)))
+    }
+
+    /// Did `object` become a blocked creature as blockers were declared in
+    /// `span` of turn `turn` (CR 509.1h)?
+    pub fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_in(turn, span).any(|row| row.fact == CombatFact::Blocked(object))
     }
 
     /// What `object` was attacking as it was last removed from combat in the
@@ -327,7 +362,7 @@ impl CombatHistory {
         })?;
         match removed.fact {
             CombatFact::Removed { attacking } => attacking,
-            CombatFact::Attacked(_) => None,
+            CombatFact::Attacked(_) | CombatFact::Blocked(_) => None,
         }
     }
 }
@@ -406,9 +441,28 @@ mod tests {
 
         combat.combat_began();
         assert_eq!(combat.attacking_when_removed(bears, 3), None, "not removed in the second combat");
-        assert!(combat.attacked_this_turn(bears, 3), "it attacked in the first");
-        assert!(!combat.attacked_this_turn(after_a_flicker, 3));
-        assert!(!combat.attacked_this_turn(bears, 4));
+        assert!(combat.attacked(bears, 3, CombatSpan::ThisTurn), "it attacked in the first");
+        assert!(!combat.attacked(bears, 3, CombatSpan::ThisCombat), "and not in the second");
+        assert!(!combat.attacked(after_a_flicker, 3, CombatSpan::ThisTurn));
+        assert!(!combat.attacked(bears, 4, CombatSpan::ThisTurn));
+    }
+
+    /// A block is the blocker's row, naming the attacker, which is how the
+    /// attacker was blocked; and "this combat" is the latest combat's.
+    #[test]
+    fn a_block_row_answers_both_sides_in_its_combat() {
+        let mut combat = CombatHistory::default();
+        let (wall, bears) = (object_ref(7, 1), object_ref(8, 1));
+        combat.combat_began();
+        combat.record(wall, 3, CombatFact::Blocked(bears));
+        assert!(combat.blocked(wall, 3, CombatSpan::ThisCombat));
+        assert!(combat.was_blocked(bears, 3, CombatSpan::ThisCombat));
+        assert!(!combat.blocked(bears, 3, CombatSpan::ThisTurn), "the attacker did not block");
+        assert!(!combat.was_blocked(wall, 3, CombatSpan::ThisTurn), "the blocker was not blocked");
+
+        combat.combat_began();
+        assert!(!combat.blocked(wall, 3, CombatSpan::ThisCombat), "not in the second combat");
+        assert!(combat.blocked(wall, 3, CombatSpan::ThisTurn));
     }
 
     /// The rows keep a round: from the earliest turn any player's "your last

@@ -17,7 +17,9 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
+use crate::state::history::CombatSpan;
 use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
+use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::state::layer_memo::GatedWalkInput;
@@ -257,14 +259,31 @@ fn answer_or_refuse<'f>(
         // its characteristics: a copy effect does not make a nontoken
         // permanent a token.
         ObjectFilter::Token => Ok(object()?.is_token),
-        // The existence it is, or the one its frame kept (CR 400.7).
-        ObjectFilter::AttackedThisTurn => {
+        // The existence it is, or the one its frame kept (CR 400.7). An entry
+        // is the permanent's own fact, and every other is the combat's.
+        ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {
             referents.note_gated_read(GatedWalkInput::Histories);
-            let existence = match last_known {
-                Some(lki) => lki.object(),
-                None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id))?,
+            let span = match filter {
+                ObjectFilter::ThisCombat(_) => CombatSpan::ThisCombat,
+                _ => CombatSpan::ThisTurn,
             };
-            Ok(game.history.combat.attacked_this_turn(existence, game.turn_number))
+            let (combat, turn) = (&game.history.combat, game.turn_number);
+            let existence = || match last_known {
+                Some(lki) => Ok(lki.object()),
+                None => game.object_ref(id).ok_or(FilterRefusal::ObjectGone(id)),
+            };
+            Ok(match fact {
+                ObjectFact::Attacked => combat.attacked(existence()?, turn, span),
+                ObjectFact::Blocked => combat.blocked(existence()?, turn, span),
+                ObjectFact::WasBlocked => combat.was_blocked(existence()?, turn, span),
+                ObjectFact::Entered => {
+                    let entered = match last_known {
+                        Some(lki) => lki.entered_turn(),
+                        None => game.battlefield.get(&id).map(|entry| entry.entered_battlefield_turn),
+                    };
+                    span == CombatSpan::ThisTurn && entered == Some(turn)
+                }
+            })
         }
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.
         ObjectFilter::ByOwner(who) => {

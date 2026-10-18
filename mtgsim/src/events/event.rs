@@ -165,7 +165,12 @@ pub enum GameEvent {
     /// (CR 508.1b). A creature put onto the battlefield attacking is in no
     /// record: it never "attacked" (CR 508.4).
     AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
-    BlockersDeclared { blockers: Vec<(ObjectId, ObjectId)> },
+    /// CR 509.1: every defending player's blocks (CR 802.4), each as (blocker,
+    /// attacker), and each attacking creature no creature was declared
+    /// blocking, which became an unblocked creature (CR 509.1h). One record
+    /// for the step, written when nobody blocks too, since CR 509.3g's
+    /// "attacks and isn't blocked" reads the declaration whole.
+    BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -588,9 +593,12 @@ impl GameEvent {
                     }
                 }
             }
-            BlockersDeclared { blockers } => {
-                for &(blocker, attacker) in blockers {
+            BlockersDeclared { blocks, unblocked } => {
+                for &(blocker, attacker) in blocks {
                     each(blocker);
+                    each(attacker);
+                }
+                for &attacker in unblocked {
                     each(attacker);
                 }
             }

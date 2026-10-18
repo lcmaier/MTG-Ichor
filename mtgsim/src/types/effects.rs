@@ -240,12 +240,17 @@ pub enum ObjectFilter {
     /// It is a leaf rather than a `Not`-only helper because `Not` already
     /// composes; adding `Nontoken` as well would give one quality two spellings.
     Token,
-    /// "Creatures that attacked this turn" (Relentless Assault): declared as
-    /// an attacker this turn (CR 508.1), read off the combat's history, so a
-    /// creature put onto the battlefield attacking never did (CR 508.4) and a
-    /// creature that left and came back is a new object that did not (CR
-    /// 400.7). Like `Token`, a fact about the object that no layer touches.
-    AttackedThisTurn,
+    /// "Creatures that attacked this turn" (Relentless Assault), "each
+    /// creature that blocked or was blocked this turn" (Heat Stroke): what the
+    /// object did this turn, read off the combat's history, or off the
+    /// permanent for its entry. A creature that left and came back is a new
+    /// object that did nothing (CR 400.7). Like `Token`, a fact about the
+    /// object that no layer touches.
+    ThisTurn(crate::types::history::ObjectFact),
+    /// "If this creature attacked or blocked this combat" (Clockwork Beast):
+    /// the same, in the turn's latest combat only, which CR 500.8's
+    /// additional combats make a different question. Never `Entered`.
+    ThisCombat(crate::types::history::ObjectFact),
     /// CR 108.3 — the player who started the game with the card in their deck.
     ///
     /// **Not `ByController` with extra steps.** A card put into a graveyard goes

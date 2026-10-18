@@ -1523,10 +1523,11 @@ struct LkiBody {
 
 /// What a permanent had that its characteristics do not carry: its tapped
 /// status (CR 110.5), its counters (CR 122), its attachments both ways (CR
-/// 301.5, 303.4) and what it was attacking (CR 506.3).
+/// 301.5, 303.4), what it was attacking (CR 506.3), and the turn it entered.
 #[derive(Debug, PartialEq)]
 struct PermanentFacts {
     tapped: bool,
+    entered_turn: u32,
     attacking: Option<AttackTarget>,
     /// By kind, in `CounterType`'s order.
     counters: Vec<(CounterType, u32)>,
@@ -1553,6 +1554,7 @@ impl Lki {
             counters.sort_unstable_by_key(|&(kind, _)| kind);
             PermanentFacts {
                 tapped: entry.tapped,
+                entered_turn: entry.entered_battlefield_turn,
                 attacking: entry.attacking.as_ref().map(|attack| attack.target),
                 counters,
                 attached_to: entry.attached_to,
@@ -1611,6 +1613,13 @@ impl Lki {
     /// move); `None` for an object that was not an attacking permanent.
     pub fn attacking(&self) -> Option<AttackTarget> {
         self.0.permanent.as_ref().and_then(|p| p.attacking)
+    }
+
+    /// The turn it entered the battlefield: "a creature that entered this
+    /// turn" asked of one that has left. `None` for an object that was not a
+    /// permanent.
+    pub fn entered_turn(&self) -> Option<u32> {
+        self.0.permanent.as_ref().map(|p| p.entered_turn)
     }
 
     /// What it was attached to.

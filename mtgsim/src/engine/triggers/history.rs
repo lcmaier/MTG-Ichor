@@ -33,6 +33,8 @@ enum HistoryUpdate {
     /// The count is the attacking player's; the attacks are the combat's
     /// rows.
     AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
+    /// Each block, as (blocker, attacker): the combat's rows.
+    BlockersDeclared { blocks: Vec<(ObjectRef, ObjectRef)> },
     CombatBegan,
     RemovedFromCombat { exits: Vec<(ObjectRef, Option<AttackTarget>)> },
 }
@@ -54,6 +56,7 @@ impl HistoryUpdate {
             | HistoryUpdate::DamageTaken { .. }
             | HistoryUpdate::CreatureDied { .. }
             | HistoryUpdate::AttackersDeclared { .. }
+            | HistoryUpdate::BlockersDeclared { .. }
             | HistoryUpdate::CombatBegan
             | HistoryUpdate::RemovedFromCombat { .. } => return None,
         })
@@ -149,6 +152,11 @@ impl GameState {
                     row.add(turn, TurnFact::AttackersDeclared, *count);
                 }
             }
+            HistoryUpdate::BlockersDeclared { blocks } => {
+                for &(blocker, attacker) in blocks {
+                    self.history.combat.record(blocker, turn, CombatFact::Blocked(attacker));
+                }
+            }
             HistoryUpdate::CombatBegan => self.history.combat.combat_began(),
             HistoryUpdate::RemovedFromCombat { exits } => {
                 for &(object, attacking) in exits {
@@ -231,6 +239,15 @@ impl GameState {
                 let attacks =
                     attackers.iter().filter_map(|&(attacker, target)| Some((self.object_ref(attacker)?, target))).collect();
                 HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64, attacks }
+            }
+            // CR 509.1: each block, its two creatures as the existences they
+            // are now, at the declaration's own instant.
+            GameEvent::BlockersDeclared { blocks, .. } if !blocks.is_empty() => {
+                let blocks = blocks
+                    .iter()
+                    .filter_map(|&(blocker, attacker)| Some((self.object_ref(blocker)?, self.object_ref(attacker)?)))
+                    .collect();
+                HistoryUpdate::BlockersDeclared { blocks }
             }
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             // CR 506.4, 511.3: what each was attacking as it left combat.

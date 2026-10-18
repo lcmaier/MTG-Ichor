@@ -16,6 +16,7 @@ use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::history::ObjectFact;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
@@ -111,7 +112,7 @@ pub fn hanweir_garrison() -> Arc<CardData> {
 pub fn relentless_assault() -> Arc<CardData> {
     let text = "Untap all creatures that attacked this turn. After this main phase, there is an additional combat phase followed by an additional main phase.";
     let attacked_this_turn =
-        ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::AttackedThisTurn));
+        ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ThisTurn(ObjectFact::Attacked)));
     CardDataBuilder::new("Relentless Assault")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
         .color(Color::Red)

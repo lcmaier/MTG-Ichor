@@ -25,12 +25,14 @@ use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
 use mtgsim::events::event::{CombatExit, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
+use mtgsim::state::history::CombatSpan;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, static_ability, test_ctx, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
     setup_two_player_game, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
+use mtgsim::types::history::ObjectFact;
 use mtgsim::types::colors::Color;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::types::effects::{
@@ -565,7 +567,7 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
     }
     assert_eq!(entering_defender_prompts(&dp), 0, "one player to attack, so nothing to choose");
     assert_eq!(life(&game, 1), 18, "Hellrider's two triggers, and none for the tokens");
-    let attacked = |id| game.history.combat.attacked_this_turn(existence(&game, id), game.turn_number);
+    let attacked = |id| game.history.combat.attacked(existence(&game, id), game.turn_number, CombatSpan::ThisTurn);
     assert!(attacked(hellrider) && attacked(garrison));
     assert!(humans.iter().all(|&human| !attacked(human)), "no declaration, no `Attacked` row");
 }
@@ -807,7 +809,7 @@ fn a_card_returned_tapped_and_attacking_is_tapped_and_attacking() {
     resolve_as(&mut game, 0, &returns, bears);
     assert_eq!(attack_of(&game, bears), Some(AttackTarget::Player(1)));
     assert!(game.battlefield[&bears].tapped);
-    assert!(!game.history.combat.attacked_this_turn(existence(&game, bears), game.turn_number));
+    assert!(!game.history.combat.attacked(existence(&game, bears), game.turn_number, CombatSpan::ThisTurn));
 }
 
 /// Hanweir Garrison's third ruling: another attack trigger goes on the stack
@@ -1077,7 +1079,7 @@ fn a_static_reading_its_defending_player_answers_anew_as_it_attacks() {
 #[test]
 fn a_static_naming_what_attacked_this_turn_answers_anew_as_it_attacks() {
     let mut game = stocked(2);
-    let attacked = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::AttackedThisTurn));
+    let attacked = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ThisTurn(ObjectFact::Attacked)));
     let banner = CardDataBuilder::new("Fixture War Banner")
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Atom(
