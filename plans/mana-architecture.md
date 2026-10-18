@@ -527,11 +527,11 @@ mana cost's is (107.3a).
   beside `max(F, a − r + kX)` generic: a the generic besides X, r what the
   reductions take off, k the X symbols, F a Trinisphere-like floor. The cast
   evaluates the same component at the announced X.
-- **The budget.** `ManaSupply::most_generic_beside` answers once how much
-  generic mana the inventory pays beside P, G: the existence check's own walk
-  with a maximum at its leaves, since generic mana enters Gale's condition
-  only through the total; past a pool multiplier, each leaf's total is
-  carried forward through its transform, inverted. The most is
+- **The budget.** `ManaSupply::most_generic_payable_alongside` answers once
+  how much generic mana the inventory pays alongside P, G: the existence
+  check's own walk with a maximum at its leaves, since generic mana enters
+  Gale's condition only through the total; past a pool multiplier, each
+  leaf's total is carried forward through its transform, inverted. The most is
   `floor((G + r − a) / k)`, when F ≤ G; "X can't be 0" moves only the least.
 - **Checked twice.** A property test runs the budget against MA-1's
   exhaustive search on 3,000 random boards, and in debug builds
@@ -971,7 +971,7 @@ against built, what the build changed); `fuzz-record.md`, MA-1's block;
 
 **What shipped.** #259, §6's MA-2 row. The gate offers an X spell when its
 least legal X is payable, 0 or 1 under "X can't be 0"
-(`CardData::x_cannot_be_zero`). CR 601.2b's `ChooseXValue` offers the values
+(`CardData::x_cant_be_zero`). CR 601.2b's `ChooseXValue` offers the values
 `oracle::x_values` reads in closed form (§3.7): an interval by `pick_number`,
 a set with a gap by `pick_n`, one value unasked, none a reversal at the
 announcement. An alternative cost's own X is the announced X, and one with

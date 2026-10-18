@@ -185,7 +185,7 @@ payment does not change: every X the prompt offers is one it can pay.
 |---|---|---|---|
 | 1 | X expanded by one function | 107.3a, 601.2f | `ManaCost::with_x_as(x)` in `types/mana.rs`. `determine_total_cost`'s step 1 calls it on whichever base 601.2b chose, so an alternative cost's X (miracle's `{X}{R}`) is expanded too |
 | 2 | The total as a function of X | 601.2f; `cost-architecture.md` §3.6 | beside `preview_mana_cost` (`total.rs:135`): step 1's assembly and steps 3–6's arithmetic run once on the 601.2b choices with the generic part kept as a count, giving the pips and the a, r, k and F of the most's closed form (below). `determine_total_cost` reads the same run at the announced X (`modify`, `:77`, takes the reduction order as an argument), the reductions in gather order for the preview (`cost-architecture.md` §3.4's theorem), no prompt |
-| 3 | "X can't be 0" | the card's text | `CardData::x_cannot_be_zero`, read as printed: the gate reads the card in hand and the cast its snapshot from before the CR 601.2a move, as both read the mana cost |
+| 3 | "X can't be 0" | the card's text | `CardData::x_cant_be_zero`, read as printed: the gate reads the card in hand and the cast its snapshot from before the CR 601.2a move, as both read the mana cost |
 | 4 | The gate tests the smallest legal X | 107.3a | `can_cast_with` previews the printed cost at X = 0, or 1 under "X can't be 0". A cost with no X skips the expansion and allocates nothing |
 | 5 | The legal values at 601.2b | 107.3a, 107.3b, 601.2b | a new function in `oracle`, `legal_x_values`, over the base, the announced additional costs and one inventory read (below); the inventory's most generic beside a cost's pips is a mode of `ManaSupply`'s existing walk (`oracle/mana_supply.rs:331`), never a second matcher |
 | 6 | `ChooseXValue` carries them | 601.2b | the kind (`ui/choice_types.rs:50`) gains the legal values and their reasons. Asked by `pick_number(min, max)` when they are an interval, by `pick_n` over `ChoiceOption::Number` when they are not, and not asked when there is one |
@@ -323,7 +323,7 @@ payment does not change: every X the prompt offers is one it can pay.
     is a `u64` or "theirs plus N" (§9.6 there), so there is no "half my
     pool". `GameNumber` needs a floor-quotient node, floor(E / k) for a
     constant k, kept unevaluated and compared through `k·c ≤ E`. MA-2 keeps
-    the parts (`MostX` carries G, a − r and k), so that node can be built
+    the parts (`XBound` carries G, a − r and k), so that node can be built
     from them (§9).
 - **Empty.** If the least is not payable, the cast is reversed at 601.2b,
   with the reason 601.2h would give, before a window opens for a payment
@@ -333,13 +333,13 @@ payment does not change: every X the prompt offers is one it can pay.
 - **One value** is not asked: `backlog.md` §2.22's rule 1, A4e's. Blaze with
   only `{R}` casts with X = 0 and no prompt.
 
-**The shape (pieces 6 and 8).** A sketch; the names are the build's, and the
-PR body lists them.
+**The shape (pieces 6 and 8).** As built, after #259's code review cut the
+sketch's two reason enums: a least of 1 is "X can't be 0", and no bound is
+the cost being paid with no X.
 ```rust
-pub struct LegalXValues { pub offered: XOffer, pub least: LeastX, pub most: MostX }
-pub enum XOffer { Range { min: u64, max: u64 }, Values(Vec<u64>) }
-pub enum LeastX { Zero, CannotBeZero, NotInTheCostPaid } // 107.3a; the text; 601.2b and 107.3b
-pub enum MostX { Payable { generic: u64, fixed: i64, per_x: u64, beside: ManaCost }, TheLeast } // 601.2h: G, a − r, k, P
+pub struct LegalXValues { pub offered: XOffer, pub x_cant_be_zero: bool, pub bound: Option<XBound> }
+pub enum XOffer { Interval { at_least: u64, at_most: u64 }, Set(Vec<u64>) }
+pub struct XBound { pub pips: ManaCost, pub most_generic_payable: u64, pub generic_besides_x: i64, pub x_symbol_count: u64 } // 601.2h: P, G, a − r, k
 ```
 The kind carries them, because the announcement's other choices are not on
 the stack entry yet when X is asked, so the why cannot work them out again.
@@ -355,7 +355,7 @@ Its lines, about the spell, at the question:
 A gap's reason arrives with the cut that makes it (§3.7's owners).
 
 **The set form with no cut (decision 1).** No rule MA-2 builds cuts a gap,
-so no game reaches `XOffer::Values` until a cut lands. Under decision 1's
+so no game reaches `XOffer::Set` until a cut lands. Under decision 1's
 recommendation it is driven directly: a test hands the ask Tamiyo's set
 from §3.7, {0, 1, 4, 6, 7}, and checks that the random agent answers only
 from it over many seeds, that a scripted `Number(4)` answers it by value,

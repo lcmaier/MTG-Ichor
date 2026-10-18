@@ -2019,7 +2019,7 @@ mechanic rather than a migration, which is why it is here and not in
   more X symbols is a floor quotient of the mana a loop made, which the
   planned `Finite`, `Shortcut` and `Relative` cannot hold, so a player could
   not announce "half my pool". It needs a floor-quotient node compared
-  through `k·c ≤ E`; `oracle::x_values`' `MostX::Payable` keeps the parts
+  through `k·c ≤ E`; `oracle::x_values`' `XBound` keeps the parts
   (the generic budget, what the cost asks besides X, and the X symbols) so
   the node can be built from them.
 - **Blocks** — every combo deck's win; `fuzz_games`' 200-turn limit stands in

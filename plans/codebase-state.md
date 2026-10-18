@@ -9295,7 +9295,7 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
 
 ### Found by MA-2 (2026-10-18)
 
-273. **`ChooseXValue`'s set form has no producer.** `XOffer::Values` is the
+273. **`ChooseXValue`'s set form has no producer.** `XOffer::Set` is the
      prompt's shape for legal values of X with a gap (Tamiyo, Compleated
      Sage's −X over cards of mana value 0, 1, 4, 6 and 7), asked by `pick_n`
      over `ChoiceOption::Number`. No rule MA-2 builds cuts a gap, so only
@@ -9333,3 +9333,53 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      row) (`mana-architecture.md` §3.7).
      **Slotted:** with the first registered card whose cost change applies
      by a spell's mana value (Krosan Drover, Thryx).
+
+275. **Delayed triggers from one template and one source still ask their
+     order.** Protean Hydra hit for three makes three delayed triggers, and
+     at the end step the engine asks the order of three identical "put two
+     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
+     (`engine/triggers/placement.rs`) elides the prompt when every entry has
+     one def and agrees on each fact the def reads; the def is shared (each
+     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
+     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
+     own registry number (`AbilityId::delayed`), so no two ever agree.
+     Asking is legal (CR 603.3b lets the player order them), so this is an
+     extra prompt, not a wrong answer. The fix compares the source under
+     `SOURCE` (`ABILITY` already reads what depends on the ability's own
+     identity), and has to check that two delayed triggers' last known
+     information of their source agrees: one made while the source was
+     there and one made after it left keep different `source_lki`. TR-5b's
+     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
+     today, and dropping it moves the random agent's stream.
+     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
+     Hydra registered; no answer changes.
+     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
+     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
+     for the dropped prompt.
+     **Slotted:** TR-5c, the next triggers PR, which moves the stream anyway.
+
+276. **Three dev GUI notes from MA-2's manual testing (2026-10-18).**
+     - **The why panel squeezes the board.** Open, it takes most of the
+       window's width, and the battlefield is drawn in what is left. It
+       needs a width cap or a resizable split.
+     - **A prevented event leaves nothing to see.** Lightning Bolt on Protean
+       Hydra: the damage is prevented and the counters come off, and the log
+       shows only the removal. An event replaced away is never performed, so
+       the performed stream has no record of it, and nothing tells the log
+       that a replacement applied. The engine half is a design question,
+       what the stream records for an event replaced to nothing without a
+       second emitter beside the performer's (CLAUDE.md's chokepoint), and
+       rides in the GUI PR by the cadence.
+     - **A pool multiplier is offered only once the pool pays its cost.**
+       Seven Everywheres and two Doubling Cubes pay Protean Hydra at X = 9:
+       tap all seven, then each Cube. The window offers a Cube only once the
+       pool holds `{3}`, so it first shows only the Everywheres, and the play
+       looks impossible. The why already says what a source lacks
+       (`ui/why.rs`' `window_refusals`); the window could draw a source it
+       does not offer greyed, with that line.
+     Floating mana outside a payment is item 211's (MA-6), an engine gap and
+     not the dev GUI's.
+     **Reachability (2026-10-18):** reachable — the dev GUI, every game.
+     **Sized:** the panel's width ~20 lines; the greyed sources ~40 lines and
+     a picture; the prevention record unsized until its design.
+     **Slotted:** MA-2's dev GUI notes PR, the cadence's next, before TR-5c.
