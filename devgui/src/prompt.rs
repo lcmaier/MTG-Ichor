@@ -10,7 +10,7 @@ use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{option_label, question, rejection};
-use mtgsim::ui::why::{WhyAbout, read_from_the_trace};
+use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,6 +101,9 @@ pub struct Prompt {
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
+    /// At CR 601.2g's window, each mana ability it does not offer until the
+    /// pool holds its mana, with why.
+    pub not_offered_yet: Vec<NotOfferedYet>,
 }
 
 impl Prompt {
@@ -152,6 +155,7 @@ impl Prompt {
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
+            not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),
         }
     }
 }
