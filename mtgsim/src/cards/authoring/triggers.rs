@@ -218,6 +218,7 @@ impl CountableEvent {
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
             | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
@@ -490,6 +491,12 @@ pub fn becomes_the_target_of(
         controller: controlled_by,
         multiplicity: Multiplicity::PerOccurrence,
     })
+}
+
+/// "Whenever [whose player] activates an ability of [source]" (CR 602.2),
+/// mana abilities included unless `mana_ability` says (CR 605.3a).
+pub fn activates_an_ability_of(whose: Whose, source: impl Into<TriggerSubject>, mana_ability: Option<bool>) -> TriggerEvent {
+    TriggerEvent::ActivatesAbility { player: whose.player_ref(), source: source.into(), mana_ability }
 }
 
 /// "Whenever [whose player] become[s] the target of [by] [controlled by]".

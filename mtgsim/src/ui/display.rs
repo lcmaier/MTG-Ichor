@@ -963,7 +963,7 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("SameZoneMove: {} [P{}] stays in {:?} [{:?}] by {}{}",
                     obj_name(game, *object_id), owner, zone, act, cause_words(game, cause), replaced)
         }
-        AbilityActivated { identity, controller } => format!(
+        AbilityActivated { identity, controller, .. } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
         AbilityTriggered { seq, origin, controller, .. } => match delayed_trigger(origin.identity()) {
             Some(id) => format!("AbilityTriggered: {}'s delayed trigger {} [P{}]", obj_name(game, origin.source()), id.0, controller),

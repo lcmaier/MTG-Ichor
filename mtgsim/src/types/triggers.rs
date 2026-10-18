@@ -486,6 +486,7 @@ counted_enum! {
         AttackersDeclared,
         BlockersDeclared,
         Targeted,
+        AbilityActivated,
         AbilityTriggered,
         SpellCast,
         CardDrawn,
@@ -528,6 +529,7 @@ impl EventKind {
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::BlockersDeclared { .. } => EventKind::BlockersDeclared,
             GameEvent::Targeted { .. } => EventKind::Targeted,
+            GameEvent::AbilityActivated { .. } => EventKind::AbilityActivated,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
             GameEvent::SpellCast { .. } => EventKind::SpellCast,
             GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
@@ -541,8 +543,7 @@ impl EventKind {
             GameEvent::ControlChanged { .. } => EventKind::ControlChanged,
             GameEvent::CountersPutOn { .. } => EventKind::CountersPutOn,
             GameEvent::CountersRemovedFrom { .. } => EventKind::CountersRemovedFrom,
-            GameEvent::AbilityActivated { .. }
-            | GameEvent::AbilityCountered { .. }
+            GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::DamagePrevented { .. }
             | GameEvent::DelayedTriggerCreated { .. }
@@ -740,6 +741,14 @@ pub enum TriggerEvent {
     /// "For the first time each turn" (valiant) is the def's limit, read off
     /// the turn's targeting rows.
     BecomesTarget { target: TargetSubject, by: TargetedBy, controller: Option<PlayerRef>, multiplicity: Multiplicity },
+    /// "Whenever [a player] activates an ability of [a permanent] [that isn't
+    /// a mana ability]" (CR 602.2), off the record its costs announce: a
+    /// mana ability's included (CR 605.3a), which Harsh Mentor's intervening
+    /// "if it isn't a mana ability" excludes as `mana_ability: Some(false)`.
+    /// The source is read as it was on the battlefield (Harsh Mentor's second
+    /// ruling): off its frame when a cost moved it. Loyalty abilities are
+    /// CP-2's, and the arm asks nothing of them yet.
+    ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> },
     /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
@@ -880,6 +889,7 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
             | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::CountersPutOn { .. }
@@ -930,6 +940,7 @@ impl TriggerEvent {
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared),
             TriggerEvent::BecomesTarget { .. } => EventKindMask::of(EventKind::Targeted),
+            TriggerEvent::ActivatesAbility { .. } => EventKindMask::of(EventKind::AbilityActivated),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
             TriggerEvent::PlayerLoses { .. } => EventKindMask::of(EventKind::PlayerLost),
@@ -968,6 +979,7 @@ impl TriggerEvent {
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked | BlockOccurrence::Unblocked, attacker: subject, .. }
             | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker | BlockOccurrence::Block, blocker: subject, .. }
             | TriggerEvent::BecomesTarget { target: TargetSubject::Object(subject), .. }
+            | TriggerEvent::ActivatesAbility { source: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
@@ -1016,6 +1028,7 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
             | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::PlayerLoses { .. }
@@ -1072,6 +1085,7 @@ impl TriggerEvent {
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::BecomesUnattached { .. }
             | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => Multiplicity::PerOccurrence,
         }
@@ -1116,6 +1130,7 @@ impl TriggerEvent {
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::CountersPutOn { subject: CountersOn::Object(_), .. }
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
@@ -1165,6 +1180,8 @@ impl TriggerEvent {
             // Whose spell or ability it is: ward's "that player", Frost
             // Titan's "its controller".
             (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { controller, .. }) => Some(*controller),
+            // Who activated it: Harsh Mentor's "that player".
+            (TriggerEvent::ActivatesAbility { .. }, GameEvent::AbilityActivated { controller, .. }) => Some(*controller),
             // The player who gained control.
             (TriggerEvent::ControlChanges { .. }, GameEvent::ControlChanged { to, .. }) => Some(*to),
             // Its controller as it left the stack, as the record keeps it.
@@ -1211,6 +1228,7 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
                 | TriggerEvent::BecomesTarget { .. }
+                | TriggerEvent::ActivatesAbility { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1266,6 +1284,7 @@ impl TriggerEvent {
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. })
             | (TriggerEvent::BecomesTarget { .. }, GameEvent::Targeted { .. })
+            | (TriggerEvent::ActivatesAbility { .. }, GameEvent::AbilityActivated { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { .. })
             | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
@@ -1295,6 +1314,7 @@ impl TriggerEvent {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
                 | TriggerEvent::BecomesTarget { .. }
+                | TriggerEvent::ActivatesAbility { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }

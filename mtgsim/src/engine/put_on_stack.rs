@@ -402,6 +402,19 @@ impl GameState {
         self.dispatch_batch(mark, window, &ActionContext { dp, cause })
     }
 
+    /// `source` as it is now, when one of `costs` can move it before the
+    /// activation's record is written: a sacrifice, which "an ability of an
+    /// artifact" must still read it as (CR 602.2b runs 601.2h before 601.2i).
+    /// `None` for every other cost, which leaves the source where it is.
+    pub(crate) fn frame_a_cost_can_take(&self, source: ObjectId, costs: &[Cost]) -> Option<crate::types::triggers::Lki> {
+        let can_take = costs.iter().any(|cost| matches!(cost, Cost::SacrificeSelf | Cost::Sacrifice(..)));
+        if !can_take {
+            return None;
+        }
+        let frame = crate::engine::layers::compute_characteristics(self, source)?;
+        self.last_known_information(source, frame)
+    }
+
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
     ///
     /// Creates a new stack object representing the ability. The source permanent
@@ -504,6 +517,7 @@ impl GameState {
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
+        let before_paying = self.frame_a_cost_can_take(source_id, &ability_costs);
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
@@ -526,7 +540,10 @@ impl GameState {
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating)?;
+        let source_lki = before_paying.filter(|_| self.object_ref(source_id) != Some(identity.source));
+        let activated =
+            GameEvent::AbilityActivated { identity, controller: player_id, mana_ability: false, from: Zone::Battlefield, source_lki };
+        self.emit_event(activated, activating)?;
 
         Ok(())
     }

@@ -9,15 +9,19 @@
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::{giant_growth, lightning_bolt};
+use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::authoring::{
-    attacks_and_isnt_blocked, becomes_blocked, becomes_blocked_by, becomes_the_target_of, blocks, blocks_a_creature, dies,
+    activates_an_ability_of, attacks_and_isnt_blocked, becomes_blocked, becomes_blocked_by, becomes_the_target_of, blocks, blocks_a_creature, dies,
     player_becomes_the_target_of, triggered_ability, whenever, Whose,
 };
 use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_tr5c_cards::{cephalid_aristocrat, loyal_sentry};
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
-use mtgsim::objects::card_data::AbilityType;
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use mtgsim::types::costs::Cost;
+use mtgsim::types::effects::ManaOutput;
+use mtgsim::types::ids::AbilityId;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -889,4 +893,122 @@ fn the_registry_refuses_a_first_time_no_record_answers() {
     assert!(first(becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::Spell(None), None).into())
         .readings_its_arms_cannot_give()
         .is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 6. Activating an ability (CR 602.2, 605.3a)
+// ---------------------------------------------------------------------------
+
+/// "A [creature/artifact/land] or [...]", for an activation's source.
+fn of_type(types: &[CardType]) -> TriggerSubject {
+    let mut filters = types.iter().map(|&t| ObjectFilter::ByType(t));
+    let first = filters.next().unwrap();
+    TriggerSubject::Filter(filters.fold(first, |either, or| ObjectFilter::Or(Box::new(either), Box::new(or))))
+}
+
+/// **Fixture.** Harsh Mentor's shape: "Whenever an opponent activates an
+/// ability of an artifact, creature, or land on the battlefield, if it isn't a
+/// mana ability, this creature deals 2 damage to that player."
+fn mentor_fixture() -> Arc<CardData> {
+    let two = Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false }, EffectRecipient::TriggeringPlayer);
+    let arm = activates_an_ability_of(Whose::AnOpponents, of_type(&[CardType::Artifact, CardType::Creature, CardType::Land]), Some(false));
+    CardDataBuilder::new("Fixture Mentor").card_type(CardType::Creature).power_toughness(2, 2).ability(triggered_ability("", whenever(arm, two))).build()
+}
+
+/// `player` taps `permanent` for its mana ability.
+fn tap_for_mana(game: &mut GameState, player: PlayerId, permanent: ObjectId) {
+    let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, permanent);
+    let ability = abilities.iter().find(|a| a.ability_type == AbilityType::Mana).expect("a mana ability").id;
+    game.activate_mana_ability(player, permanent, ability, &test_dp()).unwrap();
+}
+
+/// An opponent's activation triggers it, and its controller's does not; the
+/// trigger goes on the stack above the ability, so it resolves first.
+// RULING: Harsh Mentor #3 - "Harsh Mentor's ability resolves before the ability that caused it to trigger."
+#[test]
+fn an_opponents_activation_triggers_and_resolves_first() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, mentor_fixture(), 0);
+    let theirs = put_on_battlefield(&mut game, merfolk_thaumaturgist(), 1);
+    let mine = put_on_battlefield(&mut game, merfolk_thaumaturgist(), 0);
+    set_active_player(&mut game, 1);
+    thaumaturgist_at(&mut game, 1, theirs, mine);
+    place_triggers(&mut game, &ScriptedDecisionProvider::new());
+    assert_eq!(game.stack.len(), 2, "the ability, and the trigger above it");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(life(&game, 1), 18, "the trigger resolved first");
+    resolve_all(&mut game);
+
+    set_active_player(&mut game, 0);
+    thaumaturgist_at(&mut game, 0, mine, theirs);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 1), 18, "its controller's own activation");
+}
+
+/// A mana ability's activation is an activation (CR 605.3a): "an ability of a
+/// land" triggers on it, and Harsh Mentor's "if it isn't a mana ability"
+/// leaves it out.
+#[test]
+fn a_mana_ability_is_activated_too() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, life_on("Fixture Land Watcher", activates_an_ability_of(Whose::Each, of_type(&[CardType::Land]), None)), 0);
+    put_on_battlefield(&mut game, mentor_fixture(), 0);
+    let forest = put_on_battlefield(&mut game, forest(), 1);
+    tap_for_mana(&mut game, 1, forest);
+    assert_eq!(game.players[1].mana_pool.amount(ManaType::Green), 1);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21, "the land's ability was activated");
+    assert_eq!(life(&game, 1), 20, "and it is a mana ability");
+}
+
+/// A source sacrificed to pay the cost is read as it was on the battlefield:
+/// "an ability of an artifact" still triggers (CR 602.2b pays before it
+/// announces).
+#[test]
+fn a_source_sacrificed_as_a_cost_is_read_as_it_was() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, life_on("Fixture Artificer", activates_an_ability_of(Whose::Each, of_type(&[CardType::Artifact]), None)), 0);
+    let petal = CardDataBuilder::new("Fixture Petal")
+        .card_type(CardType::Artifact)
+        .ability(AbilityDef {
+            rules_text: "{T}, Sacrifice this artifact: Add {C}.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Mana,
+            costs: vec![Cost::TapSelf, Cost::SacrificeSelf],
+            effect: Effect::Atom(
+                Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
+                EffectRecipient::Implicit,
+            ),
+        })
+        .build();
+    let petal = put_on_battlefield(&mut game, petal, 0);
+    tap_for_mana(&mut game, 0, petal);
+    assert_eq!(game.objects[&petal].zone, Zone::Graveyard);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21);
+}
+
+/// CR 605.1b: a triggered ability that triggers on a mana ability's
+/// activation and could add mana is a mana ability, and resolves at once,
+/// with no stack (CR 605.4a).
+#[test]
+fn a_trigger_on_a_mana_abilitys_activation_that_adds_mana_resolves_at_once() {
+    let mut game = stocked(2);
+    let add_one = Effect::Atom(
+        Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
+        EffectRecipient::Controller,
+    );
+    let echo = CardDataBuilder::new("Fixture Mana Echo")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Any, Some(true)), add_one)))
+        .build();
+    put_on_battlefield(&mut game, echo, 0);
+    let forest = put_on_battlefield(&mut game, forest(), 0);
+    tap_for_mana(&mut game, 0, forest);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 1, "added at once");
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
 }

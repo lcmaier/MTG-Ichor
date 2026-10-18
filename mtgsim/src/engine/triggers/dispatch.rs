@@ -149,13 +149,15 @@ enum KeptLkiSlot<'a> {
 }
 
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
-/// target, triggers from mana being added, and could add mana. CR 605.5a is
-/// the same sentence from the other side — a target or any other event
-/// makes it an ordinary triggered ability.
+/// target, triggers from mana being added or a mana ability's activation,
+/// and could add mana. CR 605.5a is the same sentence from the other side —
+/// a target or any other event makes it an ordinary triggered ability.
 pub fn is_mana_ability(def: &TriggerDef) -> bool {
     let arms = def.condition.events();
     !arms.is_empty()
-        && arms.iter().all(|arm| matches!(arm, TriggerEvent::ManaAdded { .. }))
+        && arms.iter().all(|arm| {
+            matches!(arm, TriggerEvent::ManaAdded { .. } | TriggerEvent::ActivatesAbility { mana_ability: Some(true), .. })
+        })
         && def.effect.instances().is_empty()
         && could_add_mana(&def.effect)
 }
@@ -1773,6 +1775,19 @@ impl GameState {
                 }
             }
             (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
+            // The source as it was activated, on the battlefield: off its frame
+            // when a cost moved it (Harsh Mentor's second ruling).
+            (
+                TriggerEvent::ActivatesAbility { player, source, mana_ability },
+                GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, source_lki },
+            ) => {
+                let read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let matched = *from == Zone::Battlefield
+                    && mana_ability.is_none_or(|asked| asked == *was_mana)
+                    && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
+                    && self.subject_matches(source, Some(identity.source.id), referents, seq, read);
+                if matched { vec![TriggeringEventObjects::Object(identity.source)] } else { Vec::new() }
+            }
             // Read after the event: the target as it is now, and the spell or
             // ability on the stack, a spell by its characteristics there.
             (
@@ -1923,6 +1938,7 @@ impl GameState {
                 | TriggerEvent::Attacks { .. }
                 | TriggerEvent::Blocks { .. }
                 | TriggerEvent::BecomesTarget { .. }
+                | TriggerEvent::ActivatesAbility { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -2228,6 +2244,7 @@ impl GameState {
             TriggerEvent::Attacks { .. }
             | TriggerEvent::Blocks { .. }
             | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }

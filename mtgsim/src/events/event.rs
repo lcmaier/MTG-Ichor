@@ -197,8 +197,17 @@ pub enum GameEvent {
     AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
     /// An activated ability became activated: its costs are paid (CR 602.2b
     /// runs 601.2i), so an activation reversed for want of them (CR 732.1)
-    /// announces nothing.
-    AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
+    /// announces nothing. A mana ability is activated too (CR 605.3a), and
+    /// announces this before it resolves (CR 605.3b). `from` is the zone its
+    /// source was in as it was activated, and `source_lki` the source as it
+    /// was then when a cost moved it, which "an ability of an artifact" reads.
+    AbilityActivated {
+        identity: AbilityIdentity,
+        controller: PlayerId,
+        mana_ability: bool,
+        from: Zone,
+        source_lki: Option<Lki>,
+    },
     /// An object or player became the target of a spell or ability: one
     /// record per (spell or ability, distinct target), `instances` how many
     /// of its instances of "target" chose it (CR 115.9a counts each).
