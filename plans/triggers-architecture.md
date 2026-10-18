@@ -313,8 +313,8 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
-| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, multiplicity }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live, per object and kind over the window: the count now minus the window's `added` for that object and kind, since CR 122.7 and the Sagas' CR 714.2b compare the counts around the event, and two wither sources in one combat damage step write two records on one creature (§3.12a); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count. Simic Ascendancy's "one or more ... on a creature" is once per creature, §4.4's third multiplicity (corrected 2026-09-24; it read `OncePerEvent`) | no | TR-5 |
-| `CountersAnnihilated` | **no arm, and the variant goes** — CR 704.5q's annihilation *is* a removal of counters: Protean Hydra's ruling has a -1/-1 counter meeting a +1/+1 counter trigger "whenever a +1/+1 counter is removed". Today the state-based sweep writes both kinds directly and announces this variant (Deferred Migrations item 6's counter half, `sba.rs:484`); TR-5 routes it through two `RemoveCounters` proposals in the state-based batch, so the annihilation is two `CountersChanged` records the removal arm reads, and the variant is deleted with item 18's three | — | TR-5 |
+| `CountersPutOn` / `CountersRemovedFrom` | `CountersPutOn { subject: CountersOn, counter_type, by, multiplicity }` / `CountersRemovedFrom { .. }`, over two records since TR-5b split `CountersChanged` by direction: a put always has a putter (CR 122.6a, 120.3d), a removal has a remover only where a player removed them. An occurrence is a counter by default (Protean Hydra's fourth ruling), `OncePerSubject` is "one or more ... on a creature" (Enduring Scalelord's second), `OncePerEvent` "on one or more". Counters a permanent enters with are put on it (CR 122.6). CR 122.7's "the Nth counter" is no field: it is the ability's intervening "if", `Condition::CounterCountReached`, reading the count each record left (`now`), as CR 714.2b words a Saga's chapter | no | TR-5b |
+| `CountersAnnihilated` | **deleted in TR-5b**: CR 704.5q is two `RemoveCounters` members of the state-based batch, so its removals are `CountersRemovedFrom` records the removal arm reads (Protean Hydra's fifth ruling) | — | TR-5b |
 | `Attached` | `BecomesAttached { attachment, host }`, each a `TriggerSubject`, read after the event (Siona, Captain of the Pyleas' fourth ruling) — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002), and an Aura entering attached is one (CR 303.4f; item 228). "That creature" is the host | no | TR-4b |
 | `Unattached` (was `EquipmentDetached`) | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's four routes (question 5), named by `UnattachRoute`, the cause on the stamp (§3.12a). Both ends are `ObjectRef`s, and "that permanent" is the existence the record names (CR 400.7) | yes (603.10c): each end as it was, off its departure's frame when it left in the window; an attached ability-list source's move snapshots the lists before it (§4.3) | TR-4b |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
@@ -327,13 +327,13 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), source: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
 
 Thirty-four variants, four deleted (three never emitted, and
-`CountersAnnihilated` once CR 704.5q proposes), four added (three from the
-survey's gaps and `AbilityTriggered`), one renamed: **thirty-four performed
-kinds after TR-5, thirty with an arm and four with none, each of the four
-named above with the reason.** Two kinds carry two arms each — life and
-counters, where a signed field splits two printed families — which is the
-one place the projection is not one-to-one, and it is a property of the
-record, not a second axis. `PhaseType` and `StepType` are
+`CountersAnnihilated` once CR 704.5q proposed), four added (three from the
+survey's gaps and `AbilityTriggered`), one renamed, and one split
+(`CountersChanged`, in TR-5b): **thirty-five performed kinds after TR-5,
+thirty-one with an arm and four with none, each of the four named above with
+the reason.** One kind carries two arms, life, where a signed total splits
+two printed families; that is the one place the projection is not
+one-to-one, and it is a property of the record, not a second axis. `PhaseType` and `StepType` are
 the engine's own; "at end of combat" is `StepBegins { step: EndCombat }`
 (511.2) and "at end of turn" is `StepBegins { step: End }` (513.1a), which
 is why the three `*End` variants die.
@@ -861,9 +861,9 @@ pub struct PlayerHistory {
     last_turn: TurnSummary,                 // turn - 1's
     this_game: TurnSummary,
     own_turn: Option<u32>,                  // the turn this player last began
-    at_your_last_turn: Vec<TurnSummary>,    // by PlayerId: O(seats²) in all
+    at_your_last_turn: Arc<[TurnSummary]>,  // by PlayerId: O(seats²) in all, shared
 }
-// on PlayerState: history: PlayerHistory
+// on GameHistory: players: Vec<PlayerHistory>, by PlayerId (TR-5b)
 ```
 
 **Three decisions.** *Whole game, not two turns*: the brief's recommendation,
@@ -885,6 +885,13 @@ too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
 `LastTurn(..)`, `SinceYourLastTurn(..)`, `ThisGame(..)`, three edits each
 (the variant, the `holds` arm, the `condition_reads` arm, which for a
 summary read is "nothing" — no frame is read).
+
+**Amended 2026-10-17 (TR-5b's decision 1): one history struct.** The rows
+moved from `PlayerState` into `GameHistory.players`, and each player's
+snapshot sits behind an `Arc`: its one writer replaces it whole once a turn,
+so a clone copies a pointer, and the seats² summaries cost a clone nothing
+however `TurnSummary` grows. The worst clone of `clone_bound_test`'s board
+went from 41 allocations to 38 (§12, TR-5b; `fuzz-record.md`).
 
 **A departed player's counts stay readable (CR 800.4i).** The rule says that
 "if an effect requires information from the game about actions players have
@@ -1365,7 +1372,8 @@ Eleven new items, and one re-slotted, in route order. Item 261 came at #246's re
 Each is a sketch in this document, written before RH or before a rule reached
 it. Its phase builds the corrected one.
 - **`nth` reads the event, not the record** (§3.3's `CountersChanged` row,
-  TR-5b). CR 122.7 and the Sagas' CR 714.2b compare the count before the event
+  TR-5b; built there as the ability's condition over the counts the records
+  keep, §12). CR 122.7 and the Sagas' CR 714.2b compare the count before the event
   with the count after it. "Count now minus `added`" is right only for the last
   record of a kind on an object, and two wither sources in one combat damage
   step write two records on one creature. So `nth` is the count now minus the
@@ -1427,8 +1435,8 @@ it. Its phase builds the corrected one.
 | 14 | Holds, with item 252 beside it |
 | 15 | Holds; closed by TR-4c, with items 259 and 260 |
 | 16 | Holds without `source`, which one subject group cannot name |
-| 17 | Holds. `by` is CR 122.6a's putter, a player, which is not the cause |
-| 18 | Holds. `CountersAnnihilated` goes in TR-5b |
+| 17 | Holds. `by` is CR 122.6a's putter, a player, which is not the cause. Built in TR-5b |
+| 18 | Holds. `CountersAnnihilated` went in TR-5b |
 
 #### Decisions, and what is left open
 
@@ -1844,7 +1852,17 @@ gives. The *occurrence* it counts is one triggering event
   subject in the window, `TriggeringAmount` summed over that subject's
   records. Simic Ascendancy's "one or more" collapses the counters on one
   creature, not the creatures: counters put on three creatures at once are
-  three occurrences (CR 603.2c). Added 2026-09-24; TR-5b builds it.
+  three occurrences (CR 603.2c). Added 2026-09-24; built in TR-5b as
+  `Multiplicity::OncePerSubject`, which only an arm where one event can make
+  several records about one subject may carry
+  (`TriggerEvent::supports_once_per_subject`,
+  `TriggerDef::readings_its_arms_cannot_give`). The
+  damage arm is the next to need it: "whenever one or more creatures you
+  control deal combat damage to a player" triggers once for each player
+  dealt combat damage at once (Pyrewild Shaman's and Frostcliff Siege's
+  rulings; 32 cards, Scryfall `o:"one or more creatures you control deal
+  combat damage to a player"`), its subject the player. No registered card
+  reads it yet; the first one does.
 - **The join** for `EntersBattlefield { from, cast }`: the entry record and
   the same object's `ZoneChange` or `TokenCreated` are both in the window;
   the matcher reads `from` off the zone change and "cast" off
@@ -3461,6 +3479,40 @@ board), and `GameAction`'s 8 bytes once the entry's attack was boxed.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5f".
 
+### TR-5b — counters, and one history struct — ✅ landed 2026-10-17
+
+*Body evicted 2026-10-17 to `plans/archive/triggers-architecture-landed.md`,
+"TR-5b", with the plan as designed, its decisions 1–4 and what the build
+corrected.*
+
+**What shipped.** One history struct: the players' rows in `GameHistory`,
+each "since your last turn" snapshot shared behind an `Arc`. A put and a
+removal are two records, `CountersPutOn` and `CountersRemovedFrom`, each
+naming the player who did it where the rules name one and the count it
+left; an entry announces its counters (CR 122.6). Two trigger arms read
+them once per counter, once per object (`Multiplicity::OncePerSubject`) or
+once per event, and CR 122.7's "the Nth counter" is the ability's own "if",
+`Condition::CounterCountReached`. CR 704.5q is two removals in the
+state-based batch, and `CountersAnnihilated` is gone. An entry template
+reads its spell's X (CR 107.3m). Simic Ascendancy and Protean Hydra are
+registered and pooled (203 → 205, 113 → 115). Items 6 and 'Before Triggered
+abilities' 17 closed. ATOM-122.7-001, ATOM-107.3m-001, ATOM-704.5q-001 and
+-002 and ATOM-704.8-001 covered.
+
+**What moved on the way in.** Review moved CR 122.7's threshold off the arm,
+gave a removal its remover (Vampire Hexmage), and shared the snapshot so the
+history costs a clone fewer allocations than before. The build found
+that a permanent's controller removes its shield and stun counters, as the
+shield's damage half already said. The close-out found Protean Hydra uncastable: the gate
+refuses `{X}` until MA-2, which moved up to the next PR. +2,103 in code and
+tests (code +946, tests +1,157), against 1,630–1,850.
+
+**Measured** (`fuzz-record.md`, TR-5b's block). The engine arm plays `main`'s
+games on every table. +0.11% instructions per decision. The history commit
+read IDENTICAL and cut the worst clone from 41 to 38 allocations.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5b".
+
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
 
 **Re-counted and split in four on 2026-10-12 (A6p)**, as TR-4 was. TR-5c
@@ -3471,7 +3523,8 @@ the binding's roles, then TR-5e, the attack declaration. **TR-5e split in
 two at its review (2026-10-16, decision 9)**: the declaration, then TR-5f,
 creatures put onto the battlefield attacking and removal from combat, whose
 rows TR-5c's block triggers read. The route is TR-5a, TR-5e, TR-5f, TR-5b,
-TR-5c, TR-5d.
+then MA-2 (`mana-architecture.md` §6, for TR-5b's Protean Hydra), then TR-5c,
+TR-5d.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
@@ -3479,8 +3532,8 @@ TR-5c, TR-5d.
 | **TR-5e — the attack declaration** — ✅ landed 2026-10-16, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5e" | | | | +1,286 |
 | **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,547 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
-| **TR-5b — counters** (CR 122.6, 122.7, 704.5q) | one history struct, `PlayerHistory` moved into `GameHistory` (the owner, at #257's review); item 17; `CountersPutOn` and `CountersRemovedFrom` with `nth` read per object over the window, and an occurrence per counter; the per-subject multiplicity (§4.4); CR 704.5q as two removals in the state-based batch, with the batch's per-subject dedupe and a subject that dies in the same check answered; X in an entry template (CR 107.3m) | Simic Ascendancy (`CounterType::Growth`, four rulings), Protean Hydra (six rulings); ATOM-122.7-001 | ~410 (615–820) | ~895 | 1,510–1,715 |
-| **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
+| **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
+| **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | the "this turn" object filters as one `ObjectFilter` leaf read off the history, `AttackedThisTurn` folded in as "blocked this turn" joins it (the owner, at #257's review: 234 cards say "blocked this turn", 83 "attacked this turn", 50 "dealt damage this turn", 48 "entered this turn"); item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
 | **TR-5d — prevention, the multiplier, tokens and scry** (CR 615.13, 603.2d, 701.7, 701.22) | item 16's `DamagePrevented { target, amount, by }`, emitted as the batch decides; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~460 (690–920) | ~780 | 1,470–1,700 |
 
 ### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)

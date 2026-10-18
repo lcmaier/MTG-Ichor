@@ -307,7 +307,7 @@ impl GameState {
     /// the draw it watches before it is performed: the history has counted
     /// every card drawn before it, each as its draw ended (CR 121.2).
     pub(crate) fn next_draw_ordinals(&self, player: PlayerId) -> DrawOrdinals {
-        let (Some(history), now) = (self.players.get(player).map(|p| &p.history), self.turn_number) else {
+        let (Some(history), now) = (self.history.players.get(player), self.turn_number) else {
             return DrawOrdinals::BEFORE_ANY_TURN;
         };
         if now == 0 {

@@ -315,19 +315,25 @@ pub enum GameAction {
     /// stun counter, and the CR 615.5 rider for the shield's prevention half.
     ///
     /// `n` is a maximum: removing three counters from a permanent that has one
-    /// removes one, which is CR 701.2's "as much as it can" and what
+    /// removes one, which is CR 609.3's "only as much as possible" and what
     /// `PermanentState::remove_counters` already reports. **That is the rule
     /// for an effect's instruction, and a cost never reaches it**: CR 118.3
     /// lets no player pay a cost they cannot pay in full, so a cost that
     /// removes counters — paying {E}, a loyalty ability's minus — is validated
     /// against the count before it proposes anything, where `Cost::Sacrifice`
     /// counts its candidates (`engine::costs`; `Cost::RemoveCounters` is the
-    /// unimplemented arm there). No `by`: nothing printed asks who *removes* a
-    /// counter.
+    /// unimplemented arm there).
+    ///
+    /// `by` is the player removing them, where an instruction, an effect or a
+    /// cost does (CR 608.2c: Vampire Hexmage's "remove all counters" is its
+    /// controller's; a shield counter's replacement is its effect's
+    /// controller's), and `None` where a rule does and names no player: CR
+    /// 704.5q, and damage to a planeswalker (CR 120.3c).
     RemoveCounters {
         subject: CounterSubject,
         counter: CounterType,
         n: u32,
+        by: Option<PlayerId>,
     },
 
     /// Destroy a permanent (CR 701.8).
@@ -1457,6 +1463,7 @@ impl GameState {
                             subject: CounterSubject::Object(*id),
                             counter: CounterType::Loyalty,
                             n: amount as u32,
+                            by: None,
                         },
                         ctx,
                     )?;
@@ -1624,7 +1631,7 @@ impl GameState {
             // CR 614.7a is about damage and life gain, and "one or more" is asked by
             // the pattern (`gather::pattern_watches`), so a count a halving took to
             // zero matches nothing further and arrives here.
-            GameAction::AddCounters { subject, counter, n, by: _ } => {
+            GameAction::AddCounters { subject, counter, n, by } => {
                 if n == 0 {
                     return Ok(());
                 }
@@ -1644,15 +1651,16 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 }, ctx.cause)?;
+                let now = self.counter_count_of(subject, counter);
+                self.emit_event(GameEvent::CountersPutOn { subject, counter_type: counter, n, by, now }, ctx.cause)?;
                 Ok(())
             }
 
-            GameAction::RemoveCounters { subject, counter, n } => {
+            GameAction::RemoveCounters { subject, counter, n, by } => {
                 if n == 0 {
                     return Ok(());
                 }
-                // CR 701.2 — do as much as possible. Both removers report how
+                // CR 609.3 — only as much as possible. Both removers report how
                 // many were actually there, and a removal of nothing is not an
                 // event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.
@@ -1672,11 +1680,8 @@ impl GameState {
                 if removed == 0 {
                     return Ok(());
                 }
-                self.emit_event(GameEvent::CountersChanged {
-                    subject,
-                    counter,
-                    added: -(removed as i32),
-                }, ctx.cause)?;
+                let now = self.counter_count_of(subject, counter);
+                self.emit_event(GameEvent::CountersRemovedFrom { subject, counter_type: counter, n: removed, by, now }, ctx.cause)?;
                 Ok(())
             }
 

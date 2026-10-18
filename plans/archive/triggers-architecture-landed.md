@@ -3093,3 +3093,482 @@ the review's fixes. Thirty-six integration
 tests in
 `phase_tr5f_integration_test` and three unit tests in `state::history`,
 each fix shown to fail with its piece taken out.
+
+#### TR-5b — counters, and one history struct — ✅ landed 2026-10-17
+
+*Evicted 2026-10-17 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
+
+### The plan as designed (TR-5b, as §12 carried it on 2026-10-17)
+
+*Designed 2026-10-17 against the tree at `9f265c3` (`main` at `65d33bc`,
+and #257's review follow-ups on this branch). Reviewed once the same day
+(the owner, on the design PR) in four rounds: decisions 2, 3 and 4 in the
+first, the removal's remover in the second, and decision 1 in the fourth,
+once the third had shared its snapshot. All four are decided, at the end of
+this section. Nothing built.*
+
+**Where it sits.** Counters reach the chokepoint since RB:
+`GameAction::AddCounters` and `RemoveCounters` each announce
+`CountersChanged`, and `EventKind::from_record` files that record as one no
+arm reads. Three changes to counters are not announced the way a trigger
+needs. Counters a permanent enters with announce nothing (CR 122.6, §3.12's
+item 17). CR 704.5q's annihilation writes both kinds directly, after the
+state-based batch, and announces `CountersAnnihilated` (`codebase-state.md`
+item 6's last half; §3.12's item 18). And an entry template cannot read X
+(CR 107.3m). This phase builds the two arms over the records, the count CR
+122.7 compares, and §4.4's per-subject reading. It starts with the history
+move the owner asked for at #257's review: the per-player rows join the
+game's.
+
+**What the re-read found**
+- **Three printed readings of how many triggers one event makes**, all on
+  these arms, each with a ruling (Scryfall, 2026-10-17):
+  - *A counter.* "Whenever a +1/+1 counter is put on this creature" triggers
+    once per counter, entry counters included (Fathom Mage #8 and #9,
+    Bloodcrazed Hoplite #2 and #3). A removal is the same (Protean Hydra #4).
+  - *One or more on an object.* Once per object: Enduring Scalelord #2,
+    Hapatra #2, Generous Patron #1. Simic Ascendancy reads this way.
+  - *One or more on one or more objects.* Once per event, since one event
+    is one occurrence (CR 603.2c): Invisible Woman, Sue Storm's "on one or
+    more other Heroes you control", and Cloaked Cadet's "on one or more
+    Humans". The Woman has no ruling, and the Cadet's #1 is also what its
+    once-each-turn limit gives, so the owner confirmed the reading at
+    review. Under Basri's Solidarity ("put a +1/+1 counter on each creature
+    you control"), the Woman as printed triggers once, and worded as
+    Enduring Scalelord is, once for each other Hero.
+
+  So the counter arms take three multiplicities, and the second is not
+  `OncePerEvent` behind a filter.
+- **Counters a permanent enters with are "put" on it** (CR 122.6): Simic
+  Ascendancy #1, Enduring Scalelord #1, Fathom Mage #8. The putter is the
+  entering permanent's controller unless the effect names one (CR 122.6a;
+  Generous Patron #6).
+- **A player is a subject too.** `o:"whenever you get one or more"` is 4,
+  Territorial Gorger among them, and its ruling #5 says effects that interact
+  with counters a player gets interact with energy.
+- **Cards read who put the counters on, and who removed them.** 22 cards
+  say "whenever you put one or more" counters on something (`o:"you put one
+  or more"`; Generous Patron, Hapatra). One says "whenever you remove"
+  (`o:"whenever you remove"`): Watcher of Hours, about its own time counters
+  being removed while it is suspended in exile, which waits for counters on
+  a card off the battlefield (`backlog.md` §2.6). A trigger on the removal
+  itself needs no remover and is in this phase: "whenever one or more
+  counters are removed from this creature" is Chandra, Fire Artisan's and
+  Regenerations Restored's.
+- **Every put has a player, and so does a removal, unless a rule removes
+  the counters.** The controller of an instruction does what it says (CR
+  608.2c), so Vampire Hexmage's "remove all counters from target permanent"
+  is its controller's removal, as a put is. Damage that puts counters names
+  its putter, the source's controller (CR 120.3d; Nest of Scarabs #2), but
+  damage that removes loyalty names no one (CR 120.3c), and neither does CR
+  704.5q. So both records name a player: a put's always, a removal's when
+  there is one.
+- **CR 122.7's threshold** is printed on 10 cards, by a regex over "the
+  second" to "the hundredth ... counter is put" (Claim the Kingdom's "fourth
+  plan counter" among them). Every Saga's chapter reads the same comparison
+  (CR 714.2b), which `backlog.md` §2.44 builds on this arm.
+- **"The last" is read on a removal, on the battlefield too.** Orcish Mine's
+  "when the last ore counter is removed from this Aura", and vanishing's
+  trigger (CR 702.63a), beside suspend's in exile (CR 702.62a).
+- **CR 704.5q's board where the creature also dies is ATOM-704.8-001.**
+  Strangleroot Geist, registered, has undying and a +1/+1 counter and takes
+  three -1/-1 counters. One check removes a pair and puts it into the
+  graveyard (CR 704.5f), and CR 704.8 frames it before either, with its
+  +1/+1 counter, so undying does not return it. Persist is the mirror: Kitchen
+  Finks's and Wingrattle Scarecrow's ruling #7, TR-7's board.
+- **`CountersAnnihilated` is read by the log and one test helper**, at 6
+  sites.
+- **X is on `GameState::resolving` already**: the spell resolving into the
+  entering object carries its X (`ResolvingObject::x_value`), and
+  `PermanentState::entering` copies it. `evaluate_enter_template` refuses
+  every amount but `Fixed` and `SourcePower`.
+
+**The pieces**
+1. **One history struct** (decision 1), its own first commit, with no
+   behavior change. `PlayerState.history` becomes `GameHistory.players:
+   Vec<PlayerHistory>`, indexed by `PlayerId` as `GameState.players` is, and
+   built for the seats by `GameHistory::new(seats)`. Each player's snapshot
+   for "since your last turn" is shared between clones behind an `Arc`,
+   since one writer replaces it once a turn (decision 1). `begin_turn_history`
+   reads every player's row at once, so it becomes a `GameHistory` method
+   beside `turn_began`. `since_your_last_turn` takes the two players. 36
+   reads and writes move in 11 files, plus the field in `player.rs`:
+   `condition.rs`, `zones.rs`, the history writer, `game_state.rs`,
+   `scenario/build.rs`, `scenario/write.rs` (the save's destructure of
+   `PlayerState` loses the field), `state/history.rs`'s own tests, and four
+   test files. CR 800.4i's departed player keeps its row, since the seat list
+   never shrinks.
+2. **Two records for two directions** (decision 2):
+   ```rust
+   /// CR 122.1, 122.6: counters were put on an object or given to a player.
+   CountersPutOn {
+       subject: CounterSubject,
+       counter_type: CounterType,
+       n: u32,
+       by: PlayerId,
+       now: u32,
+   },
+   /// CR 122.1, 701.2: counters were removed, as many as there were.
+   CountersRemovedFrom {
+       subject: CounterSubject,
+       counter_type: CounterType,
+       n: u32,
+       by: Option<PlayerId>,
+       now: u32,
+   },
+   ```
+   - `by` is the putter (item 17). For an instruction it is
+     `AddCounters::by`. For an entry it is the row's named player, or else
+     the entering permanent's controller as it enters, which CR 616.1b has
+     settled before the performer runs. A `PlayerId`, since every put has
+     one.
+   - A removal's `by` is the remover, which `GameAction::RemoveCounters`
+     gains at its five producers:
+
+     | Producer | The remover |
+     |---|---|
+     | An instruction, `Primitive::RemoveCounters`, a rider's included | its controller (CR 608.2c) |
+     | Damage to a planeswalker (CR 120.3c) | none: the rule names no player |
+     | A replacement's "instead remove" (shield and stun counters, CR 122.1c–d) | the replaced event's: its instruction's controller, none for a rule's or a turn-based action's |
+     | CR 704.5q | none |
+     | A cost, `Cost::RemoveCounters`, once its payment is built | the player paying it |
+   - `now` is the subject's count of that kind after the record, taken by
+     the performer. CR 122.7's condition reads it (piece 4). So would "when
+     the last time counter is removed" (CR 702.62a, 702.63a), once counters
+     off the battlefield let suspend land.
+   - `CountersChanged` goes, at 9 lines in `src` and 5 in the tests.
+     `CountersPutOn` is about 40 bytes, inside the 72 that
+     `the_event_keeps_its_size` pins.
+3. **An entry announces its counters** (item 17). `perform_entry` announces
+   one `CountersPutOn` per `EnterMods.counters` row, after
+   `PermanentEnteredBattlefield` and in the entry's batch. Announced, never
+   proposed: CR 614.16's doublers applied to the entry already (RC-5), so
+   none sees the counters twice. Protean Hydra's X counters and Master
+   Biomancer's are two rows of one kind, so two records of one event.
+4. **The two arms**, §3.3's row over the split records:
+   ```rust
+   CountersPutOn {
+       subject: CountersOn,
+       counter_type: Option<CounterType>,
+       by: Option<PlayerRef>,
+       multiplicity: Multiplicity,
+   },
+   CountersRemovedFrom {
+       subject: CountersOn,
+       counter_type: Option<CounterType>,
+       by: Option<PlayerRef>,
+       multiplicity: Multiplicity,
+   },
+
+   /// What the counters are on (CR 122.1): an object, or a player.
+   pub enum CountersOn {
+       Object(TriggerSubject),
+       Player(Option<PlayerRef>),
+   }
+   ```
+   - **Occurrences.** `PerOccurrence` is one per counter:
+     `triggering_events_in` returns `n` triggering events for one record, as
+     `Attacks` returns one per attacker. "That many" of one is 1.
+   - **`Multiplicity::OncePerSubject`, §4.4's third reading.** One trigger
+     for each object or player the window's matching records are about.
+     `TriggeringAmount` sums that subject's records, and "that creature"
+     (`EventRole::Object`) is the subject, as for one occurrence.
+     `match_candidates` folds it beside `OncePerEvent`, keyed on the
+     subject, and `delayed.rs`'s fold does the same. A variant of the shared
+     enum rather than a counter field, because the fold is the dispatcher's.
+     The registry refuses it on an arm that names no subject, which is every
+     other arm today.
+   - **CR 122.7's threshold is the ability's own condition** (the owner, at
+     review), not a field on the arm. "When the fourth plan counter is put
+     on this" is the put arm on `ThisObject`, read `OncePerSubject`, with an
+     intervening "if": `Condition::CounterCountReached { counter_type, n }`,
+     the count was less than N and became at least N. That is CR 714.2b's
+     own wording for a Saga's chapter, and CR 122.7 says the same without
+     the "if". After is the count the trigger's last record of that kind
+     left (`now`), and before is after less the counters of that kind its
+     records put. It reads the records, so it answers the same at the
+     trigger and at resolution (CR 603.4), and two records on one creature
+     in one event, as two wither sources make, are one comparison. The
+     registry refuses it on a trigger that is not a put read once per
+     subject. ATOM-122.7-001 is its fixture.
+   - **`by` asks the record's player.** "Whenever you remove" is `by:
+     Some(You)` on the removal arm, and a removal no player made matches no
+     `by`.
+   - **The subject is read after the event** (CR 603.10). No counter arm
+     looks back. A newcomer answers them (`answered_arms`), so a creature's
+     own entry counters trigger it (Fathom Mage #8). A permanent the same
+     event moved is not asked from the zone it went to.
+   - The arms join about 15 exhaustive matches: `reads`, `amount_of`,
+     `multiplicity`, `looks_back`, `EventKind`, the bound reads, the
+     authoring words and the audit. `EventKind` gains two kinds and loses
+     none.
+5. **CR 704.5q in the state-based batch** (decision 3). Each permanent with
+   both kinds gets two `RemoveCounters` members, gathered against the same
+   board as every other member. The sweep after the batch goes, and so does
+   `CountersAnnihilated`: item 6 closes, and the variant is item 18's fourth
+   deletion. The batch's CR 704.7 collapse keys on the subject and the
+   result. A result is a departure or a loss, an unattach, or one kind's
+   removal, so the two removals collapse neither with each other nor with a
+   death. The removals go at the batch's head, ahead of the moves, so each
+   is performed while its permanent is still there. CR 704.3 makes them one
+   event with the moves, and a moved permanent's frame is taken before the
+   batch performs, as now (CR 704.8).
+6. **X in an entry template** (CR 107.3m). `evaluate_enter_template`'s
+   `AmountExpr::X` arm reads `GameState::resolving` when the resolving spell
+   is the object entering. Every other entry reads 0, as the permanent's own
+   X is (107.3m's last clause, 107.3g). ATOM-107.3m-001.
+7. **`CounterType::Growth`**, named "growth".
+8. **Simic Ascendancy**, registered. {G}{U} enchantment:
+   - "{1}{G}{U}: Put a +1/+1 counter on target creature you control."
+   - `CountersPutOn { subject: Object(Filter(a creature you control)),
+     counter_type: Some(PlusOnePlusOne), multiplicity: OncePerSubject, .. }`,
+     putting `TriggeringAmount` growth counters on this enchantment.
+   - "At the beginning of your upkeep, if this enchantment has twenty or more
+     growth counters on it, you win the game": `Condition::CounterCount` and
+     `Primitive::WinGame`.
+
+   Its four rulings are tests. #1, entry counters. #2, a board that reaches
+   twenty only after the upkeep began. #3, counters removed in response.
+   #4, the count it had as it left, which `CounterCount` reads off the `Lki`
+   (TR-5a).
+9. **Protean Hydra**, registered and pooled. {X}{G} 0/0 Hydra:
+   - It enters with X +1/+1 counters (piece 6).
+   - "If damage would be dealt to this creature, prevent that damage and
+     remove that many +1/+1 counters from it" is Angel of Suffering's shape:
+     `Prevent`, with a rider reading `ReplacedAmount` (CR 615.5, 615.12).
+   - "Whenever a +1/+1 counter is removed from this creature, put two +1/+1
+     counters on it at the beginning of the next end step" is
+     `CountersRemovedFrom { subject: Object(ThisObject), counter_type:
+     Some(PlusOnePlusOne), multiplicity: PerOccurrence }`. It creates a
+     delayed trigger on `StepBegins { step: End }`, Flickerwisp's shape,
+     whose "it" is `ThisObject`, found by identity (CR 400.7).
+
+   Its six rulings are tests. #1, all the damage prevented and the counters
+   removed as far as they go. #2, unpreventable damage still removes them
+   (CR 615.12). #3, any removal. #4, that many triggers. #5, CR 704.5q's
+   removal. #6, removed during an end step, so the next end step is next
+   turn's.
+10. **Atoms.** ATOM-122.7-001, the brief's. Within reach and planned:
+    ATOM-107.3m-001 (piece 6), ATOM-704.5q-001 and ATOM-704.5q-002 (piece
+    5), and ATOM-704.8-001 (piece 5, with Strangleroot Geist).
+
+**Planned shapes corrected here, with no decision**
+- **CR 122.7's threshold reads the records' counts, not the board**
+  (§3.12a's correction, corrected again), and it is the ability's condition
+  rather than §3.3's `nth` on the arm (piece 4). "The count now minus the
+  window's `added`" reads the
+  board at the dispatch, which is right only while the window moved nothing
+  away: a creature annihilated and destroyed in one check reads 0. Each
+  record keeps the count after it, so the event's before and after come
+  from its first and last record, with no board read.
+- **`by` is a `PlayerId`**, where item 17 had an `Option<PlayerId>`. The
+  entry's default putter is known when the performer announces, so the
+  record never has to say "the default".
+- **The removal names its remover**, an `Option<PlayerId>` on the record
+  and on `GameAction::RemoveCounters`, which had none (piece 2).
+  `EventPattern::RemoveCounters` stays without one until a replacement or a
+  restriction reads it.
+- **§3.3's counter row and its closing paragraph**: the counters become two
+  records with an arm each, so only life keeps two arms over one record, and
+  the performed kinds after TR-5 are thirty-five, not thirty-four.
+
+**Not in this phase**
+- §3.10's `counters_put` summary: no registered card reads a count of
+  counters put this turn.
+- "The last" on `CountersRemovedFrom`, read off `now`: about 10 lines and a
+  fixture, with the first registered card that reads it (vanishing, Orcish
+  Mine).
+
+**Sized.** Code at 1.5–2× plus tests, counted against the tree on
+2026-10-17.
+
+| Piece | Code | Tests |
+|---|---|---|
+| 1. The history move: 36 sites, `GameHistory::new`, the turn snapshot moved, the snapshot behind an `Arc` (decision 1's (a″)) | ~60 | ~30, the sites in four test files and the struct's own tests, and a clone sharing the snapshot |
+| 2–3. The two records, `by` and `now`, `CountersChanged` at 14 lines; the entry's announcement; the remover on `RemoveCounters` at five producers | ~75 | ~150: each putter (an instruction, an entry's default and its named player, CR 122.6a); each remover (an instruction, a replacement's, none for damage and CR 704.5q); `now` after two rows of one kind |
+| 4. The two arms, three multiplicities, CR 122.7's condition and its read of the trigger's records, the player leg, the registry's two refusals | ~155 | ~280: per counter (Fathom Mage's #7–#9 on a fixture), per object (Enduring Scalelord #2 on a fixture), per event (Cloaked Cadet #1 on a fixture), `by` (Hapatra #2 on a fixture), the player leg (Territorial Gorger on a fixture), ATOM-122.7-001, two records on one creature in one event, a newcomer's own entry counters, both refusals |
+| 5. CR 704.5q in the batch | ~35 | ~140: ATOM-704.5q-001 and -002; ATOM-704.8-001 with Strangleroot Geist; persist's #7; the collapse keeps both removals beside a death; the state-based test helper moved to the removals |
+| 6. X in an entry template | ~15 | ~50: ATOM-107.3m-001; 0 when not cast, so a Hydra put onto the battlefield dies; X beside Master Biomancer's counters |
+| 7–8. The growth counter, Simic Ascendancy | ~45 | ~140, its four rulings |
+| 9. Protean Hydra | ~50 | ~190, its six rulings |
+| **Whole: 1,630–1,850** | ~435 (650–870) | ~980 |
+
+Against the 2026-10-12 row's 1,510–1,715: the history move, the player leg,
+the remover and `now` are new. Docs at the close-out, about 350 more: the stub
+and the archive, `fuzz-record.md`'s block, §3.3, §3.10, §4.4, the glossary's
+multiplicity entry and `engine-map.md`'s history row.
+
+**Predictions for the close-out** (to be re-stated before `close_out.py`)
+- *The history commit.* An A/B against `main` reads IDENTICAL on every row,
+  both pools, two seats and four. Clone floor 2 reads three allocations
+  fewer at four seats (39 to 36 of 64), and floor 3 about 3 KB less.
+- *The engine arm against `main`*, with no new card registered. Gameplay
+  rows identical: CR 704.5q decides against the board it read before, and
+  no registered card reads a counter record. The event dumps move:
+  `CountersChanged` renamed, each `CountersAnnihilated` line two
+  `CountersRemovedFrom` lines (item 6 counted 10 in 200 `stress` games on
+  2026-09-01), and a `CountersPutOn` line for each counter row an entry
+  carries. Those records now reach the gate, so the dispatch counters move.
+  Instructions per decision +0.1% to +0.3%.
+- *The shipped arm.* Every dealt game moves once Protean Hydra is pooled,
+  and Simic Ascendancy's share of `stress` games won is reported (decision
+  4).
+
+**Decisions** (reviewed 2026-10-17, all four decided)
+
+- **1. The history's shape — (a″), the rows in `GameHistory` and each
+  snapshot shared** (the owner, at review's fourth round, after it was put
+  again twice). The owner asked
+  first whether one history struct costs the clone floor, and would keep
+  the rows on `PlayerState` if it does (option (c)). Then, whether "since
+  your last turn"'s snapshot, seats × seats summaries, grows past the floor
+  as `TurnSummary` gains facts. As stored today it would. The fix is the
+  same whichever struct holds the rows: share the snapshot between clones.
+
+  **What "since your last turn" keeps.** It asks what a player did between
+  the end of your last turn and now (CR 730's day and night, Arboria). The
+  history answers it by subtraction. As your turn ends, it writes down every
+  player's totals for the game so far: a `TurnSummary` each, 192 bytes, with
+  cards drawn, life lost and the rest. Later, "since your last turn" is
+  their totals now less what was written down. So each player keeps one
+  written-down summary per player, its snapshot: at four seats, 4 × 4 = 16
+  summaries. Today each player keeps its snapshot in its own `Vec`
+  (`PlayerHistory::at_your_last_turn`), four heap allocations a clone. The
+  rest of a player's history is its rows, three summaries (this turn, last
+  turn, this game) inside `PlayerState`, in `GameState.players`' one
+  allocation.
+
+  **It grows two ways, and today a clone copies all of it.** Each new
+  `TurnFact` is 8 bytes in every summary, and the snapshots are seats²
+  summaries: 64, or 12 KB, at eight seats. With the rows, each new fact adds
+  224 bytes to every four-seat clone today, and floor 3 has 28 KB of room.
+
+  **Shared, a snapshot costs a clone nothing.** One writer replaces a
+  player's snapshot, once a turn, as the next turn begins
+  (`last_turn_ended`), and nothing edits one in place. So it can sit behind
+  an `Arc<[TurnSummary]>`, as TR-5f's combat rows sit behind theirs. A
+  clone copies the pointer, with no allocation and no bytes counted
+  (`clone_bound_test` counts what a clone allocates). A new turn builds the
+  next snapshot, one allocation, as today's `Vec` does. No fork ever copies
+  one, since a write replaces it rather than editing it. An empty snapshot
+  reads as zeros, as today's empty `Vec` does, so the commit's A/B still
+  reads IDENTICAL. What a clone still copies is the rows, three summaries a
+  player: linear in the seats, and 96 bytes a new fact at four seats.
+
+  Counted from the code for `clone_bound_test`'s board, four seats, where
+  floor 2 reads 39 of 64:
+
+  | Option | The rows | The snapshots | Allocations a clone, four seats (two) | The history's bytes in a four-seat clone |
+  |---|---|---|---|---|
+  | Today | `PlayerState` | a `Vec` per player | 4 (2) | 5.4 KB |
+  | (a′), round one | `GameHistory.players` | one `Vec` on `GameHistory` | 2 (2) | 5.3 KB |
+  | **(a″), decided** | `GameHistory.players` | an `Arc` per player | 1 (1) | 2.4 KB |
+  | (c″) | `PlayerState` | an `Arc` per player | 0 (0) | 2.4 KB |
+
+  - *(a″)* is the one struct #257's review asked for, at one allocation,
+    three fewer than today: floor 2 reads 36, and floor 3 about 3 KB less.
+    The one allocation is the rows' `Vec`, the same whatever the seats or
+    the facts.
+  - *(c″)* is the floor's minimum, no allocation at all, and keeps the two
+    structs: every read of "since your last turn" still reaches into both.
+  - Round one's (a′), the 16 summaries in one `Vec`, is dropped: sharing
+    beats it on both counts. So is (b), the rows flattened into a list per
+    view.
+
+  If the rows ever weigh on floor 3, the next lever is `SpellsCastOfType`:
+  one slot per card type, 15 of a summary's 24.
+
+  **Asked at review: what "this game" asks of the history** (Approach of
+  the Second Sun, Echogoyfs). 37 cards say "this game" (`o:"this game"`,
+  2026-10-17), five of them with no paper printing. Each kind of count has
+  a home, and none is closed off by this shape:
+
+  | What it counts | Cards | Where it lives |
+  |---|---|---|
+  | A player's count of one fact over the game | Flourishing Forces (life gained); First Contact and Once Upon a Time (the first spell this game); the two Frodos (the Ring tempting you); Captain Vargus Wrath and sixteen more (casting a commander from the command zone) | a `TurnFact` slot, read off the rows' `this_game` view, which is a running total rather than a window. A slot is 8 bytes in each of a player's three summaries, 96 bytes a four-seat clone, and is authored with its card (§3.10's rule) |
+  | The same, about where the spell's card came from | Echogoyfs and Etali, Primal Garden: spells cast this game "that weren't from your starting deck" | a slot as above, beside one fact each card keeps: the starting deck it began the game in. CR 103.2a defines a starting deck, so this is not digital-only in the rules: a card brought in from outside the game, or cast from an opponent's library, was not from yours. Echogoyfs's power is then a CDA over the history, which the layer memo's `Histories` input already gates. Its double team is an Arena mechanic the CR does not define, which is the post-v1 custom-card question, not this one |
+  | A count by card name | Approach of the Second Sun (spells cast with its name), Yidaro, Wandering Monster (cards cycled with its name), Gollum, Obsessed Stalker (opponents a creature with its name dealt combat damage) | not a slot, since names are unbounded: a per-player map from a name some registered card watches to its count, kept for the game. Bounded by the names watched, not the turns, and a store of its own, built with its first card |
+  | A count for one object | Rampaging Ursaguana (the times it attacked); The Fallen (whom it has damaged); CR 903.8's commander tax, and the four cards that read one commander's casts (Liesa, Myth Unbound, Opal Palace, Study Hall) | on the object: a permanent's own count, which CR 400.7 starts over for a new object, or for a commander B2's designation, which keeps it across zones (CR 903.8 counts "each previous time the player casting it has cast it") |
+  | Un-cards | Bureaucracy, Goblin Cruciverbalist, Pietra, Crafter of Clowns, Time Machine | out of scope |
+
+  One cost to watch is the first kind's: most of its facts are read only
+  over the game, so their this-turn and last-turn slots are spent for
+  nothing. If those facts pile up, a game-only row beside the summaries
+  takes each at 8 bytes a player. And §3.10's sketch of the commander tax
+  as one slot on the summary is a player's total, which those seventeen
+  cards read; the tax itself is per commander.
+- **2. The counter records — split by direction** (the owner, at review).
+  `CountersPutOn` and `CountersRemovedFrom` (piece 2) mirror their
+  proposals, `AddCounters` and `RemoveCounters`, as their `EventPattern`
+  arms and the trigger arms do. A put's `by` is a `PlayerId`, since every
+  put has a putter, and a removal's an `Option`, since a rule's removal has
+  none (second round, after Vampire Hexmage). The counts are unsigned. The
+  alternative kept the signed `CountersChanged` with two arms over it, as
+  `LifeChanged` has, where one `by` would have to be an `Option` for both
+  directions.
+- **3. CR 704.5q's two removals — every applicable action is performed**
+  (the owner, at review). The collapse keys on the subject and the result,
+  and the removals go at the batch's head, ahead of the moves (piece 5). CR
+  704.8 holds as it does today, since the frame is taken before the batch
+  performs, so ATOM-704.8-001's Strangleroot Geist and persist's #7 do not
+  return. A Protean Hydra that survives the check triggers once for each
+  +1/+1 counter removed (its #5). One the check kills triggers nothing: its
+  ability does not function in the graveyard (CR 113.6), and a counter
+  trigger does not look back (CR 603.10). The alternative skipped the
+  annihilation on a permanent the same check moves, since its counters cease
+  to exist with it (CR 122.2). No printed trigger tells the two apart, but
+  CR 704.3 makes no such exception.
+- **4. Card stress distortion — both registered** (the owner, at review:
+  "it's a nontrivial win condition to reach, so enough game will have almost
+  certainly occurred to not impact the diagnostics too much"). Protean
+  Hydra is pooled. Simic Ascendancy's share of the `stress` games it wins is
+  still measured and reported at the close-out, natural and with
+  `--require`, at two seats and four, and whether it joins
+  `PERFORMANCE_POOL` is read off that number.
+
+### As landed (2026-10-17)
+
+**Built as designed**, with decisions 1–4 as the four review rounds decided
+them. Ten code commits: the history move; the two records; an entry's
+counters; the arms, the fold and the condition; CR 704.5q in the batch; X
+in an entry template; the two cards; their registration; the dev GUI's two
+pictures; the pool.
+
+**What the build corrected.**
+- **The permanent's controller removes its shield and stun counters.** A
+  shield counter's effects (CR 122.1c) and a stun counter's (CR 122.1d)
+  each say "instead remove a [shield/stun] counter from it", and the design
+  had those removals name no player. But a shield counter has two effects,
+  and the damage one already removed its counter through a CR 615.5 rider,
+  which names the controller of the effect: the permanent's controller. So
+  a destroyed permanent's shield removal said "no one" and a damaged one's
+  said "its controller". Both name the controller now, and so does a stun
+  counter's. The removals that name no player are the ones a rule makes:
+  CR 704.5q's, and the loyalty damage takes off a planeswalker (CR 120.3c).
+- **An entry's rows merge by kind and putter** (`EnterMods`'s
+  `same_kind_and_putter`), so "Protean Hydra's X counters and Master
+  Biomancer's are two records" was wrong: they are one row and one record.
+  Two of one kind are two records only under two putters.
+- **CR 122.7's condition is answered per record.** One event's puts on one
+  object chain their counts, so some record crossing N is the event
+  crossing it, at the trigger, where the condition sees the record being
+  matched, and at resolution, where it sees the binding's.
+- **Two real prompts the tests answer**: Protean Hydra beside Master
+  Biomancer is CR 616.1e's choice between two entry effects, and three
+  delayed triggers made by three resolutions ask their order (CR 603.3b),
+  since each is its own.
+
+**At the close-out.** The reachability pass cast Protean Hydra 0 times in
+400 games: MA-1's gate refuses an `{X}` symbol, which `mana-architecture.md`
+§3.7 gives to MA-2. The owner moved MA-2 up to the next PR and kept the
+Hydra registered and pooled for the one PR between. Simic Ascendancy is
+pooled too, for the variety of ways a game ends.
+
+**What it leaves.** "The last" on the removal arm (vanishing, Orcish Mine),
+with the first registered card that reads it. A remover on
+`EventPattern::RemoveCounters`, with the first replacement or restriction
+that reads one. Counts over the whole game, `backlog.md` §2.47.
+
+**Size.** +2,103 in code and tests (code +946, tests +1,157), against
+1,630–1,850, over by tests. Thirty-seven integration tests in
+`phase_tr5b_integration_test`.

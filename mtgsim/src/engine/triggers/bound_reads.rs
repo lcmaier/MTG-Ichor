@@ -15,7 +15,7 @@ use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{EventRole, TriggerDef, TriggerLimit};
+use crate::types::triggers::{EventRole, Multiplicity, TriggerDef, TriggerEvent, TriggerLimit};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the event roles of its event it names. Built like
@@ -119,6 +119,34 @@ impl TriggerDef {
             }
         }
         lacking
+    }
+
+    /// The readings of its event the def asks of an arm that cannot give
+    /// them: once per subject on an arm that cannot be read that way,
+    /// and CR 122.7's threshold on a trigger that is not a counter put read
+    /// once per subject, whose records alone keep the counts it compares.
+    /// Empty for every registered card (`cards::registry`'s test).
+    pub fn readings_its_arms_cannot_give(&self) -> Vec<&'static str> {
+        let arms = self.condition.events();
+        let mut wrong = Vec::new();
+        if arms.iter().any(|arm| arm.multiplicity() == Multiplicity::OncePerSubject && !arm.supports_once_per_subject()) {
+            wrong.push("once per subject, on an arm that cannot be read that way");
+        }
+        let puts_once_per_subject =
+            |arm: &TriggerEvent| matches!(arm, TriggerEvent::CountersPutOn { multiplicity: Multiplicity::OncePerSubject, .. });
+        if self.intervening_if.as_ref().is_some_and(reads_a_counter_threshold) && !arms.iter().all(puts_once_per_subject) {
+            wrong.push("CR 122.7's threshold, on a trigger that is not a counter put read once per subject");
+        }
+        wrong
+    }
+}
+
+/// Whether `condition` asks CR 122.7's threshold of the triggering event.
+fn reads_a_counter_threshold(condition: &Condition) -> bool {
+    match condition {
+        Condition::CounterCountReached { .. } => true,
+        Condition::All(all) => all.iter().any(reads_a_counter_threshold),
+        _ => false,
     }
 }
 
@@ -250,6 +278,8 @@ fn condition(c: &Condition) -> BoundReads {
         }
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,
+        // The counts its records left, as "that many" reads their counters.
+        Condition::CounterCountReached { .. } => BoundReads::AMOUNT,
         // A mode makes the def modal, which reads everything; a history and
         // the walk's answer are one player's, the same for each entry.
         Condition::ModeChosen(_)

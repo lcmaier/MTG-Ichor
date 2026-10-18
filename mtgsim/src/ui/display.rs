@@ -913,6 +913,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
     use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
     let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
+    let counter_subject_name = |game: &GameState, subject: CounterSubject| match subject {
+        CounterSubject::Object(id) => obj_name(game, id),
+        CounterSubject::Player(pid) => format!("P{}", pid),
+    };
     match event {
         ZoneChange { object_id, owner, from, to, act, lki, applied, new_epoch: _ } => {
             // The act says what was done and the CR 603.10a frame says every
@@ -1084,13 +1088,16 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             "AbilityFizzled: {}'s {} [P{}] {DOES_NOT_RESOLVE}", obj_name(game, identity.source.id), ability_word(*identity), controller),
         PlayerLost { player_id } => format!("PlayerLost: P{} by {}", player_id, cause_words(game, cause)),
         PlayerWon { player_id } => format!("PlayerWon: P{}", player_id),
-        CountersChanged { subject, counter, added } => {
-            let verb = if *added >= 0 { "put on" } else { "removed from" };
-            let whom = match subject {
-                CounterSubject::Object(id) => obj_name(game, *id),
-                CounterSubject::Player(pid) => format!("P{}", pid),
-            };
-            format!("CountersChanged: {} {:?} counter(s) {} {}", added.abs(), counter, verb, whom)
+        CountersPutOn { subject, counter_type, n, by, now } => format!(
+            "CountersPutOn: {} {} counter(s) put on {} by P{} (now {})",
+            n, counter_type.name(), counter_subject_name(game, *subject), by, now
+        ),
+        CountersRemovedFrom { subject, counter_type, n, by, now } => {
+            let whom = by.map_or_else(|| "a rule".to_string(), |p| format!("P{p}"));
+            format!(
+                "CountersRemovedFrom: {} {} counter(s) removed from {} by {} (now {})",
+                n, counter_type.name(), counter_subject_name(game, *subject), whom, now
+            )
         }
         Scried { player_id, n, looked_at } => {
             // Both numbers, and they differ only on a short library — which is
@@ -1099,9 +1106,6 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
             format!("Scried: P{} scry {} (looked at {})", player_id, n, looked_at)
         }
         LibraryShuffled { player_id } => format!("LibraryShuffled: P{}", player_id),
-        CountersAnnihilated { object_id, pairs_removed } => {
-            format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
-        }
         Attached { attachment, host, former_host } => match former_host {
             Some(former) => format!(
                 "Attached: {} to {} (from {})",

@@ -366,7 +366,7 @@ impl GameState {
                 .into_iter()
                 .filter(|id| self.battlefield.get(id).is_some_and(|e| e.attacking.is_some() || e.blocking.is_some()))
                 .collect();
-            // NOT AN EVENT: CR 511.3's removal from combat, of everything in it at
+            // NOT REPLACEABLE: CR 511.3's removal from combat, of everything in it at
             // once, announced as one record that CR 508.5 reads after combat.
             let removed = self.remove_from_combat(&combatants);
             self.announce_removal_from_combat(removed, EventCause::GameRule(GameRule::CombatEnds))?;
@@ -405,7 +405,7 @@ impl GameState {
                 // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
                 // lives one level up in `Game::process_turn_based_actions`, not here.
 
-                // NOT AN EVENT: CR 514.2's damage wearing off. The cards that
+                // NOT REPLACEABLE: CR 514.2's damage wearing off. The cards that
                 // stop it are "can't"s, not replacements.
                 // ORDER-FREE: each entry is cleared alone, and nothing is announced.
                 for entry in self.battlefield.values_mut() {

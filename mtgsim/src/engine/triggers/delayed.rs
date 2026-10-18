@@ -441,12 +441,23 @@ impl GameState {
             source_lki: None,
         };
         let these = triggering_events.into_iter().map(|objects| TriggeringEvent { record: record.clone(), objects });
-        match delayed.def.condition.events()[event.0].multiplicity() {
+        let arm = &delayed.def.condition.events()[event.0];
+        match arm.multiplicity() {
             Multiplicity::PerOccurrence => matches.extend(these.map(|event| matched(vec![event]))),
             Multiplicity::OncePerEvent => match matches.iter_mut().find(|m| m.event == event) {
                 Some(folded) => folded.triggering_events.extend(these),
                 None => matches.push(matched(these.collect())),
             },
+            Multiplicity::OncePerSubject => {
+                let subject = arm.occurrence_subject(&record.event);
+                let same = |m: &MatchedTrigger| {
+                    m.event == event && m.triggering_events.first().and_then(|e| arm.occurrence_subject(&e.record.event)) == subject
+                };
+                match matches.iter_mut().find(|m| same(m)) {
+                    Some(folded) => folded.triggering_events.extend(these),
+                    None => matches.push(matched(these.collect())),
+                }
+            }
         }
     }
 
@@ -608,7 +619,7 @@ mod tests {
         let template = DelayedTriggerTemplate {
             def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
             duration: DelayedDuration::Once,
-            turn: DelayedTurn::Any,
+            turn: DelayedTurn::NoneNamed,
             rules_text: "When its owner next gains life, nothing.".into(),
         };
         let provenance = DelayedProvenance {

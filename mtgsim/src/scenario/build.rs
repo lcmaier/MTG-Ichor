@@ -112,8 +112,8 @@ impl<'s> Loader<'s> {
         // for player 0, which this game's rotation may not.
         state.turn_number = 0;
         state.last_turn_began = vec![0; scenario.players];
-        for player in &mut state.players {
-            player.history = PlayerHistory::before_any_turn();
+        for history in &mut state.history.players {
+            *history = PlayerHistory::before_any_turn();
         }
         state.reseed(RandomStreams::from_seed(scenario.seed).game);
         Ok(Loader {
@@ -433,10 +433,10 @@ impl<'s> Loader<'s> {
             let back = (turn - t) as usize % in_game.len();
             let player = in_game[(place + in_game.len() - back) % in_game.len()];
             self.state.begin_turn(t, player);
-            self.state.begin_turn_history(t, player);
+            self.state.history.count_turn_began(t, player);
             for &(player, on_turn, fact, count) in &rows {
                 if on_turn == t && count > 0 {
-                    self.state.players[player].history.add(t, fact, count);
+                    self.state.history.players[player].add(t, fact, count);
                 }
             }
         }
@@ -448,7 +448,7 @@ impl<'s> Loader<'s> {
         self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || self.state.players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || self.state.history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
         self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
         let skipped_without_attackers = matches!(
@@ -481,13 +481,13 @@ impl<'s> Loader<'s> {
         for located in &self.scenario.player_words {
             let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
             let player = self.checked_player(player, located.line)?;
-            let history = &self.state.players[player].history;
+            let history = &self.state.history.players[player];
             let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
             } else if count > history.this_turn(turn).count(TurnFact::CardsDrawn) {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
             } else {
-                self.state.players[player].history.draw_step_drawn(count);
+                self.state.history.players[player].draw_step_drawn(count);
                 continue;
             };
             return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, located.line, message));

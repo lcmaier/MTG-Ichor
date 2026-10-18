@@ -822,7 +822,7 @@ impl GameState {
                         .ok_or_else(|| format!("the source {} of a delayed triggered ability is not in the game", ctx.source))?,
                 };
                 let turn = match template.turn {
-                    DelayedTurn::Any => TriggerTurn::Any,
+                    DelayedTurn::NoneNamed => TriggerTurn::Any,
                     DelayedTurn::NextTurn => TriggerTurn::LaterThan(self.turn_number),
                     DelayedTurn::ThatExtraTurn => TriggerTurn::Extra(walk.extra_turn.ok_or_else(|| {
                         format!(
@@ -1470,7 +1470,7 @@ impl GameState {
                 Ok(())
             }
 
-            // NOT AN EVENT: CR 506.4. Writes `PermanentState` directly: 506.4 defines a
+            // NOT REPLACEABLE: CR 506.4. Writes `PermanentState` directly: 506.4 defines a
             // *consequence* with seven causes, and this arm is one of them. The CR
             // does not forbid "can't be removed from combat"; it puts that card's
             // enforcement at all seven causes, which makes it a `RestrictionDef`
@@ -1483,7 +1483,7 @@ impl GameState {
                 self.announce_removal_from_combat(removed, ctx.cause())
             }
 
-            // NOT AN EVENT: a direct write because nothing replaces *this* removal — Pyramids, the
+            // NOT REPLACEABLE: a direct write because nothing replaces *this* removal — Pyramids, the
             // one printed card that removes all damage, uses it as a replacement's
             // substituted event. Not by analogy to the CR 514.2 cleanup wipe, which
             // seven cards restrict and which owes an enforcement point
@@ -2243,12 +2243,14 @@ impl GameState {
                     by: self.resolve_player_ref(by, targets, ctx)?,
                 }),
             },
+            // CR 608.2c: the resolution's controller removes them.
             Primitive::RemoveCounters(counter, amount) => match is_permanent {
                 false => None,
                 true => Some(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),
                     counter: *counter,
                     n: self.evaluate_amount(amount, ctx)? as u32,
+                    by: Some(ctx.controller),
                 }),
             },
             other => return Err(format!("{:?} acts on no object, so it has no event for {}", other, object)),

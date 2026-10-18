@@ -217,8 +217,9 @@ fn counter_changes(game: &GameState, start: usize) -> Vec<(CounterSubject, Count
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::CountersChanged { subject, counter, added } => {
-                Some((*subject, *counter, *added))
+            GameEvent::CountersPutOn { subject, counter_type, n, .. } => Some((*subject, *counter_type, *n as i32)),
+            GameEvent::CountersRemovedFrom { subject, counter_type, n, .. } => {
+                Some((*subject, *counter_type, -(*n as i32)))
             }
             _ => None,
         })
@@ -510,7 +511,7 @@ fn a_player_gets_counters_through_the_same_event() {
     assert_eq!(game.players[1].counter_count(CounterType::Energy), 2, "not mine to double");
 }
 
-/// A removal from a player takes as much as it can (CR 701.2) and announces
+/// A removal from a player takes as much as it can (CR 609.3) and announces
 /// only a transition, the object arm's mirror. That clamp is for an
 /// *effect's* instruction; a cost that removes counters — paying {E}, a
 /// loyalty ability's minus — is validated in full before it is paid
@@ -525,6 +526,7 @@ fn a_player_removal_takes_as_much_as_it_can() {
         subject: CounterSubject::Player(0),
         counter: CounterType::Energy,
         n,
+        by: None,
     };
 
     game.execute_action(remove(5), &test_ctx()).expect("it performs");

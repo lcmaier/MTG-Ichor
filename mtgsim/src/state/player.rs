@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use crate::state::history::PlayerHistory;
 use crate::types::effects::CounterType;
 use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
@@ -41,13 +40,6 @@ pub struct PlayerState {
     // General per-turn tracking (e.g. "cast a spell this turn") should live
     // in a separate TurnTracker struct when needed.
     pub has_drawn_from_empty_library: bool,
-
-    /// This player's history (`triggers-architecture.md` §3.10): what "this
-    /// turn", "last turn", "since your last turn" and "this game" read, bounded
-    /// by the table, and the cards drawn in their draw step in progress.
-    /// Advanced record by record as each event ends, by
-    /// `engine::triggers::history` and nothing else.
-    pub history: PlayerHistory,
 }
 
 impl PlayerState {
@@ -71,7 +63,6 @@ impl PlayerState {
             counters: BTreeMap::new(),
             commander_damage_taken: IdMap::default(),
             has_drawn_from_empty_library: false,
-            history: PlayerHistory::before_any_turn(),
         }
     }
 
@@ -91,7 +82,7 @@ impl PlayerState {
     }
 
     /// Take up to `n` counters of `kind` off this player; the number actually
-    /// taken — CR 701.2's "as much as it can", `PermanentState::remove_counters`'
+    /// taken — CR 609.3's "only as much as possible", `PermanentState::remove_counters`'
     /// mirror, and for an *effect's* instruction only: a cost paid in
     /// counters ("you can't pay more energy counters than you have", CR 118.3)
     /// is validated in full before it proposes a removal (`engine::costs`).
@@ -147,7 +138,7 @@ mod tests {
         player.add_counters(CounterType::Energy, 2);
         player.add_counters(CounterType::Energy, 3);
         assert_eq!(player.counter_count(CounterType::Energy), 5);
-        assert_eq!(player.remove_counters(CounterType::Energy, 7), 5, "CR 701.2");
+        assert_eq!(player.remove_counters(CounterType::Energy, 7), 5, "CR 609.3");
         assert!(player.counters.is_empty(), "a kind at zero leaves the map");
         assert_eq!(player.remove_counters(CounterType::Poison, 1), 0);
     }

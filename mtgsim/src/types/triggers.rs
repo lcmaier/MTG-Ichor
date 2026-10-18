@@ -123,6 +123,24 @@ pub enum TriggerLimit {
 pub enum Multiplicity {
     PerOccurrence,
     OncePerEvent,
+    /// "One or more ... on a creature": one trigger for each object or player
+    /// the window's matching records are about, so counters put on three
+    /// creatures at once trigger three times (Enduring Scalelord's second
+    /// ruling) and two records on one creature once. "That many" sums that
+    /// subject's records, and "that creature" is the subject. Only an arm
+    /// that `TriggerEvent::supports_once_per_subject` carries it
+    /// (`TriggerDef::readings_its_arms_cannot_give`).
+    OncePerSubject,
+}
+
+/// What a counter arm's counters are on (CR 122.1): an object, or a player.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CountersOn {
+    /// "On this creature", "on a creature you control".
+    Object(TriggerSubject),
+    /// "Whenever you get one or more counters": a player, or any player for
+    /// `None`.
+    Player(Option<PlayerRef>),
 }
 
 /// "Which object" an arm is about, read against the ability's own source.
@@ -381,6 +399,8 @@ counted_enum! {
         PlayerLost,
         SameZoneMove,
         ControlChanged,
+        CountersPutOn,
+        CountersRemovedFrom,
     }
 }
 
@@ -419,12 +439,12 @@ impl EventKind {
             GameEvent::PlayerLost { .. } => EventKind::PlayerLost,
             GameEvent::SameZoneMove { .. } => EventKind::SameZoneMove,
             GameEvent::ControlChanged { .. } => EventKind::ControlChanged,
+            GameEvent::CountersPutOn { .. } => EventKind::CountersPutOn,
+            GameEvent::CountersRemovedFrom { .. } => EventKind::CountersRemovedFrom,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
             | GameEvent::BlockersDeclared { .. }
-            | GameEvent::CountersAnnihilated { .. }
-            | GameEvent::CountersChanged { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::RemovedFromCombat { .. }
@@ -619,6 +639,30 @@ pub enum TriggerEvent {
     /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
     /// no record (Cosi's Trickster's rulings).
     ShufflesLibrary { player: Option<PlayerRef> },
+    /// "Whenever a +1/+1 counter is put on this creature" (`PerOccurrence`,
+    /// one trigger per counter: Fathom Mage's ninth ruling), "one or more
+    /// ... on a creature you control" (`OncePerSubject`), "one or more ... on
+    /// one or more" (`OncePerEvent`). Counters a permanent enters with are
+    /// put on it (CR 122.6). `by` is who put them on (CR 122.6a): "whenever
+    /// you put". CR 122.7's "the Nth counter" is the ability's own
+    /// intervening "if", `Condition::CounterCountReached`, as CR 714.2b
+    /// words a Saga's chapter.
+    CountersPutOn {
+        subject: CountersOn,
+        counter_type: Option<CounterType>,
+        by: Option<PlayerRef>,
+        multiplicity: Multiplicity,
+    },
+    /// "Whenever a +1/+1 counter is removed from this creature" (one per
+    /// counter: Protean Hydra's fourth ruling), CR 704.5q's annihilation
+    /// included (its fifth). `by` is who removed them, where a player did:
+    /// a rule's removal matches no `by`.
+    CountersRemovedFrom {
+        subject: CountersOn,
+        counter_type: Option<CounterType>,
+        by: Option<PlayerRef>,
+        multiplicity: Multiplicity,
+    },
     /// "Whenever [an Aura] becomes attached to [this creature]" (CR 701.3a),
     /// on the transition only (CR 603.2e, 701.3b): entering attached is one
     /// (CR 303.4f), moving from another object is one, and an attach to the
@@ -713,6 +757,8 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::CountersPutOn { .. }
+            | TriggerEvent::CountersRemovedFrom { .. }
             | TriggerEvent::BecomesAttached { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => false,
@@ -761,6 +807,8 @@ impl TriggerEvent {
             TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
             TriggerEvent::PlayerLoses { .. } => EventKindMask::of(EventKind::PlayerLost),
             TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
+            TriggerEvent::CountersPutOn { .. } => EventKindMask::of(EventKind::CountersPutOn),
+            TriggerEvent::CountersRemovedFrom { .. } => EventKindMask::of(EventKind::CountersRemovedFrom),
             TriggerEvent::BecomesAttached { .. } => EventKindMask::of(EventKind::Attached),
             TriggerEvent::BecomesUnattached { .. } => EventKindMask::of(EventKind::Unattached),
             TriggerEvent::ControlChanges { to, .. } => {
@@ -792,8 +840,12 @@ impl TriggerEvent {
             | TriggerEvent::Attacks { attacker: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
-            | TriggerEvent::ControlChanges { subject, .. } => Some(subject),
-            TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ControlChanges { subject, .. }
+            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(subject), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(subject), .. } => Some(subject),
+            TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
@@ -805,6 +857,52 @@ impl TriggerEvent {
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => None,
+        }
+    }
+
+    /// Whether this arm may be read once per subject: whether one event can
+    /// make several of its records about one object or player, so that
+    /// grouping them by it differs from reading each. Counters put on one
+    /// creature by two players, or of two kinds, are two records. A death is
+    /// one record per object, so per subject would be per record. The damage
+    /// arm is the next to join, for "one or more creatures deal combat damage
+    /// to a player" (`triggers-architecture.md` §4.4).
+    pub fn supports_once_per_subject(&self) -> bool {
+        match self {
+            TriggerEvent::CountersPutOn { .. } | TriggerEvent::CountersRemovedFrom { .. } => true,
+            TriggerEvent::ZoneChange { .. }
+            | TriggerEvent::BecomesTapped { .. }
+            | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
+            | TriggerEvent::ManaAdded { .. }
+            | TriggerEvent::DamageDealt { .. }
+            | TriggerEvent::PhaseBegins { .. }
+            | TriggerEvent::StepBegins { .. }
+            | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
+            | TriggerEvent::EntersBattlefield { .. }
+            | TriggerEvent::Attacks { .. }
+            | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::IsCountered { .. }
+            | TriggerEvent::PlayerLoses { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::BecomesAttached { .. }
+            | TriggerEvent::BecomesUnattached { .. }
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::AbilityTriggers { .. }
+            | TriggerEvent::AbilityResolves { .. } => false,
+        }
+    }
+
+    /// The object or player `record` is about, for an arm that may be read
+    /// once per subject (`supports_once_per_subject`): what a once-per-subject
+    /// trigger is one of. `None` for every other arm and record.
+    pub fn occurrence_subject(&self, record: &GameEvent) -> Option<crate::events::event::CounterSubject> {
+        match (self, record) {
+            (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
+            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => Some(*subject),
+            _ => None,
         }
     }
 
@@ -823,7 +921,9 @@ impl TriggerEvent {
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
-            | TriggerEvent::Attacks { multiplicity, .. } => *multiplicity,
+            | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::CountersPutOn { multiplicity, .. }
+            | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::ManaAdded { .. }
@@ -865,7 +965,9 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
-            | TriggerEvent::ControlChanges { .. } => &[EventRole::Object],
+            | TriggerEvent::ControlChanges { .. }
+            | TriggerEvent::CountersPutOn { subject: CountersOn::Object(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
@@ -878,6 +980,8 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::PlayerLoses { .. }
             | TriggerEvent::ShufflesLibrary { .. }
+            | TriggerEvent::CountersPutOn { subject: CountersOn::Player(_), .. }
+            | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Player(_), .. }
             | TriggerEvent::AbilityTriggers { .. }
             | TriggerEvent::AbilityResolves { .. } => &[],
         }
@@ -910,6 +1014,12 @@ impl TriggerEvent {
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
                 Some(*controller)
             }
+            // The player who got them; counters on an object name no player.
+            (TriggerEvent::CountersPutOn { .. }, GameEvent::CountersPutOn { subject, .. })
+            | (TriggerEvent::CountersRemovedFrom { .. }, GameEvent::CountersRemovedFrom { subject, .. }) => match subject {
+                crate::events::event::CounterSubject::Player(player) => Some(*player),
+                crate::events::event::CounterSubject::Object(_) => None,
+            },
             (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { controller, .. })
             | (TriggerEvent::AbilityResolves { .. }, GameEvent::AbilityResolved { controller, .. }) => {
                 Some(*controller)
@@ -941,6 +1051,8 @@ impl TriggerEvent {
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::CountersPutOn { .. }
+                | TriggerEvent::CountersRemovedFrom { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
@@ -961,6 +1073,15 @@ impl TriggerEvent {
             }
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((new - old).max(0) as u64)
+            }
+            // A counter is one occurrence of a per-counter arm, so "that many"
+            // of it is one; the other readings sum the record's counters.
+            (TriggerEvent::CountersPutOn { multiplicity, .. }, GameEvent::CountersPutOn { n, .. })
+            | (TriggerEvent::CountersRemovedFrom { multiplicity, .. }, GameEvent::CountersRemovedFrom { n, .. }) => {
+                Some(match multiplicity {
+                    Multiplicity::PerOccurrence => 1,
+                    Multiplicity::OncePerEvent | Multiplicity::OncePerSubject => u64::from(*n),
+                })
             }
             (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((old - new).max(0) as u64)
@@ -1010,6 +1131,8 @@ impl TriggerEvent {
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
                 | TriggerEvent::ShufflesLibrary { .. }
+                | TriggerEvent::CountersPutOn { .. }
+                | TriggerEvent::CountersRemovedFrom { .. }
                 | TriggerEvent::BecomesAttached { .. }
                 | TriggerEvent::BecomesUnattached { .. }
                 | TriggerEvent::ControlChanges { .. }
@@ -1082,11 +1205,12 @@ impl TriggerBinding {
         self.records().next()
     }
 
-    /// The one triggering event of a `PerOccurrence` trigger. `None` for a
-    /// "one or more" trigger, which has several.
+    /// The one triggering event of a `PerOccurrence` trigger, or the first of
+    /// a once-per-subject trigger's, whose events are all about its one
+    /// subject. `None` for a "one or more" trigger, which has several.
     pub fn triggering_event(&self) -> Option<&TriggeringEvent> {
         match self.event().multiplicity() {
-            Multiplicity::PerOccurrence => self.triggering_events.first(),
+            Multiplicity::PerOccurrence | Multiplicity::OncePerSubject => self.triggering_events.first(),
             Multiplicity::OncePerEvent => None,
         }
     }
@@ -1188,9 +1312,12 @@ pub struct CreatingResolution {
 /// You` on the step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayedTurn {
-    /// Whichever turn its event comes in: "at the beginning of the next end
-    /// step".
-    Any,
+    /// The card names no turn, so it triggers in whichever turn its event
+    /// comes in: "at the beginning of the next end step" is next turn's
+    /// once this turn's has begun (Protean Hydra's sixth ruling). How many
+    /// times it triggers is its `DelayedDuration`, whose `ThisTurn` is "this
+    /// turn".
+    NoneNamed,
     /// A turn after the one it is created in: the Ice Age cantrips' "at the
     /// beginning of the next turn's upkeep", which a second upkeep this turn
     /// (CR 500.10) is not.

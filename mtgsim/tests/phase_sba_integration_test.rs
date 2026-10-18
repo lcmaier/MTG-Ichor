@@ -17,7 +17,8 @@ use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker};
 use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::cause::{EventCause, StateBasedAction};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_power, get_effective_toughness};
 use mtgsim::state::game_state::GameState;
@@ -71,17 +72,28 @@ fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -
     id
 }
 
-/// Every `CountersAnnihilated` in the log, as `(object, pairs_removed)`.
+/// Every CR 704.5q annihilation in the log, as `(object, pairs removed)`:
+/// its +1/+1 removal, which the -1/-1 removal of as many matches.
 fn annihilations(game: &GameState) -> Vec<(ObjectId, u32)> {
-    game.recorded_events()
-        .events()
-        .filter_map(|e| match e {
-            GameEvent::CountersAnnihilated { object_id, pairs_removed } => {
-                Some((*object_id, *pairs_removed))
-            }
-            _ => None,
-        })
-        .collect()
+    let annihilating = EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate);
+    let removed = |kind: CounterType| -> Vec<(ObjectId, u32)> {
+        game.recorded_events()
+            .records()
+            .iter()
+            .filter(|r| r.stamp.cause == annihilating)
+            .filter_map(|r| match r.event {
+                GameEvent::CountersRemovedFrom { subject: CounterSubject::Object(id), counter_type, n, by: None, .. }
+                    if counter_type == kind =>
+                {
+                    Some((id, n))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let pluses = removed(CounterType::PlusOnePlusOne);
+    assert_eq!(pluses, removed(CounterType::MinusOneMinusOne), "as many of each kind (CR 704.5q)");
+    pluses
 }
 
 // ---------------------------------------------------------------------------

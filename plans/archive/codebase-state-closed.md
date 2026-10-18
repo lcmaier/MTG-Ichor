@@ -6866,3 +6866,116 @@ each failing on the tree before.
      with the first registered card whose static ability reads a life total,
      in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
      whose summary bit it shares, if that comes first.
+
+### Item 6 — closed 2026-10-17 by PR #258 (TR-5b)
+
+Closed by TR-5b. CR 704.5q's annihilation, the one state-based action still
+writing `PermanentState` after the batch performed, is two `RemoveCounters`
+members of the CR 704.3 batch, gathered against the same board as every
+other member, with no remover. The batch's CR 704.7 collapse keys on the
+subject and the result (a departure or a loss, an unattach, one kind's
+removal), so the two removals collapse neither with each other nor with a
+death of the same permanent. They go at the batch's head, so each is
+performed while its permanent is still there, and a permanent the check
+also moves is framed before any member performs (CR 704.8).
+`CountersAnnihilated` is deleted; Protean Hydra's fifth ruling reads the
+removal. ATOM-704.5q-001, -002 and ATOM-704.8-001 are tests
+(`phase_tr5b_integration_test`).
+
+*Original entry:*
+
+6. **State-based actions that mutate outside the chokepoint — partly closed by RB (2026-08-26).** `GameAction::AddCounters`/`RemoveCounters` exist now, so counters have a proposal vocabulary; CR 704.5q's *annihilation* still writes directly, because it removes two kinds at once and would have to join the SBA batch to propose. **A card went in ahead of that routing, deliberately (2026-09-01).** `battlegrowth` makes the annihilation sweep run in a fuzz game — 0 → 10 occurrences per 200 stress games — against the direct-write code exactly as it stands. The argument is Darksteel Myr's: coverage *before* a move is worth more than after, because the move is what needs a witness. It also gives the proposal vocabulary its first production reader — `CountersChanged` goes 0 → 82 per 200 games, so `perform_action`'s `AddCounters` arm and `gather`'s `EventSubject::Object` leg for it are no longer reached only by tests. Player loss, the Equipment detach and the token cease-to-exist are untouched. Original entry (recorded 2026-08-25, RA-3; extended 2026-08-26): CR 704.5q's counter annihilation, CR 704.5p's Equipment detach, and CR 704.5q's attachment catch-all write `PermanentState` fields directly; CR 704.5d's token cease-to-exist removes from `objects` directly. **~~Player loss (704.5a/b/c and CR 903.10a) is the fourth and the most consequential~~ — ✅ closed 2026-09-12 (RE-6).** The four loops are `GameAction::PlayerLoses` members of the CR 704.3 batch, deduped per player by the same subject-keyed collapse that dedupes the zone changes (CR 704.7), so `ATOM-704.7-001`'s board is a test (partial — the Archangel stands in for Lich's Mirror). The `!player_lost[i]` guard is now the gate ahead of the proposal, for CR 800.4k's reason and not by accident. *Original entry:* it wrote `player_lost[i]` and emitted `PlayerLost` without proposing anything, so CR 704.7's own worked example — Lich's Mirror replacing a loss that two rules would cause at once — could not be expressed at all. They are outside RA's exit criterion by construction — the criterion is about mutations CR 614 can observe, and there is no proposal vocabulary for a counter or an attachment yet. **RB item 5 adds `CounterType::{Shield, Stun, Finality}` and their effects, which is when counters need an `AddCounters` / `RemoveCounters` action;** the attachment pair wants one when Equip lands (CR 702.6) — **the attach half landed with LH-2 (2026-09-05): `GameAction::Attach`, performed through `GameState::attach`, emitting `Attached` on the transition; the SBA detach (704.5n/p and the catch-all) still calls `detach` directly and stays here.** Until then they are correctly outside, not accidentally: `GameAction`'s own comment block lists them as the variants to add as primitives arrive. A token ceasing to exist is genuinely not a zone change (CR 704.5d removes it from the game) and `TokenCeasedToExist` is the right event for it. **The token sweep was also a live determinism leak, found 2026-09-01 while measuring RC-1 and pre-existing on `main`; closed 2026-09-04 (83333e9):** `engine/sba.rs`'s 704.5d gather iterated `self.objects` — a `HashMap` — straight into an ordered `Vec`, so two tokens ceasing to exist in one sweep emitted `TokenCeasedToExist` in per-process order. It was invisible to `fuzz_games`' summary, which counts no such ordering, and showed up only in a `--dump-events` diff on the `stress` pool (adjacent lines that swap between runs of the *same* binary). CLAUDE.md's rule covers it — "same rule for any collection reaching a choice" — and here the collection reaches the event log instead, which is why it went unnoticed. **The fix is a key, not the routing.** `GameObject.zone_change_epoch` orders the gather: `move_object` stamps it on every move, one tick per move, so tokens leaving in one batch carry distinct ticks in batch order, and a token is only ever created *in* the battlefield zone, so one reaching the sweep has moved. Routing was the obvious fix and is the wrong one — a token ceasing to exist is not a zone change (CR 704.5d removes it from the game), so the sweep has nothing to propose and needed an order, not a batch. **Measured.** At 200 `stress` games / seed 12345 the run holds exactly one multi-token sweep — game 108, three of Kalitas's Zombies sacrificed at once — and three same-binary `--dump-events` runs of the pre-fix tree order them **three different ways**, while four runs of the fixed tree give one order, the order the three tokens left the battlefield. The two streams are otherwise identical line for line (101,214 lines), so no event count moves and `engineering-practices.md` §3's fixture table is confirmed rather than re-recorded. The other three direct writes are untouched, and so is the routing they are recorded for.
+
+   **Found by the feedback-loop census (2026-10-06): the sweeps also read
+   late.** The four sweeps run after the check's batch has performed, so each
+   reads what CR 704.3 shows only to the next check: a token that died in the
+   batch ceases to exist in the same check, and counters are annihilated on
+   what the batch left. CR 117.5 places nothing between two checks, so the
+   outcome is the CR's wherever a sweep's condition reads nothing the batch
+   changed. 704.5n's and 704.5p's do: whether a host or an attachment is a
+   creature. When a creature that animates an attachment dies in the batch,
+   the CR detaches the attachment at this check and puts an Aura into the
+   graveyard at the next (704.5m); the engine reads the attachment as no
+   longer a creature and leaves it attached. Routing the sweeps through the
+   batch decides them against the pre-batch board, which closes both
+   (`plans/references/feedback-loops.md` §4).
+
+   **The detach and token halves — ✅ done 2026-10-14 (PR #252, TR-4b).**
+   CR 704.5n, 704.5p and 704.5d are members of the CR 704.3 batch,
+   `GameAction::Unattach` and `GameAction::TokenCeasesToExist`, decided
+   against the board before the check performs. The census's timing case is a
+   test: an Equipment or Aura animated by a creature that dies in the check is
+   unattached at that check. CR 704.7's collapse keeps an unattach beside a
+   destruction of the same object, so an indestructible animated Equipment is
+   still unattached. A token that dies in a check ceases to exist at the next,
+   as CR 704.3 has it. What remains is CR 704.5q's annihilation, TR-5b's.
+
+   **Reachability (2026-10-14):** unreachable. What remains is the
+   annihilation, whose condition reads counters, which no member of the batch
+   changes, so its read after the batch is the CR's answer; Battlegrowth and
+   Chainbreaker exercise it and it counts right.
+
+   **Reachability (2026-10-06):** unreachable. Re-derived at the census: the
+   timing case needs a creature that animates an attached Aura or Equipment
+   and dies in the check where the attachment first is one, and no registered
+   pair has that. The 2026-09-04 reading stands: the one wrong part is fixed and
+   the three that remain are right today. The CR 704.5d sweep's `HashMap` order
+   is closed above (83333e9), so what is left of this item is the *routing*, and
+   re-deriving it a day later changes none of the 2026-09-03 verdicts:
+   `!player_lost[i]` makes player loss's outcome right, and the CR 704.7 Lich's
+   Mirror board needs a `PlayerLoses` card, of which none is registered; 704.5p
+   has no Equipment to detach; 704.5q's annihilation is exercised by
+   Battlegrowth + Chainbreaker and gives the right counts through a direct
+   write. Each is right for a reason a card can take away — a registered
+   Lich's Mirror, an Equipment, a counter-doubler — and none of those is in
+   either pool, so the routing is owed and not yet observable.
+
+   **Sized:** the leak alone was ~5 lines and is **done** (2026-09-04) — the
+   sort by `GameObject.zone_change_epoch` and the unit test the size named, in
+   their own commits, which is what the estimate said it would take.
+   Annihilation joining the SBA batch is ~40 lines (two
+   `RemoveCounters` members per object). Player loss is RE-6's
+   `GameAction::PlayerLoses` (`replacement-architecture.md` §9, sized
+   2026-09-11 — the four loops become CR 704.3 batch members); the detach
+   pair lands with Equip.
+
+   **Phase (2026-09-19):** the counter half — CR 704.5q's annihilation — is TR-5's: two `RemoveCounters` proposals in the state-based batch, `CountersAnnihilated` deleted (`triggers-architecture.md` §3.3, §12); Protean Hydra's rulings are why it is a removal event. The detach and the token halves stay here.
+   **Slotted:** TR-5b, which routes CR 704.5q's annihilation as two
+   `RemoveCounters` proposals.
+
+### 'Before Triggered abilities' item 17 — closed 2026-10-17 by PR #258 (TR-5b)
+
+Closed by TR-5b. `perform_entry` announces one `CountersPutOn` per counter
+row after `PermanentEnteredBattlefield`, in the entry's batch, never
+proposed: CR 614.16's effects applied to the entry already. The record's
+putter is the row's named player or the entering controller (CR 122.6a), a
+`PlayerId` rather than the survey's `Option`, and it keeps the count it left
+(`now`), which CR 122.7's condition reads. A row is one per kind and
+putter, so two of one kind are two records only under two putters. Simic
+Ascendancy's first ruling and Fathom Mage's eighth are tests.
+
+*Original entry:*
+
+17. **Counters a permanent enters with announce nothing, and the entry
+    record carries no `mods` (the trigger survey, 2026-09-18).** CR 122.6:
+    counters "being put on an object … refers to putting counters on that
+    object while it's on the battlefield and also to an object that's given
+    counters as it enters the battlefield" — so "whenever one or more +1/+1
+    counters are put on a creature you control" (72 cards on the survey's
+    query) triggers for a creature entering with them. Today the entry
+    announces no `CountersChanged` — by design on the replacement side, where
+    CR 614.16's doublers replace the `EnterMods` rather than an event — and
+    `PermanentEnteredBattlefield` carries no `mods`. Live-derivable at the
+    entry's dispatch, since every counter on it then is an entry counter; not
+    from the record.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** the counter rows on the entry event, or a `CountersChanged`
+    per row announced after the entry inside its batch, ~10 lines; which is
+    the survey's question 4 — CR 122.7's "the Nth counter" and the
+    replacement side read the two differently.
+
+    **Phase (2026-09-18):** TR-5 — question 4 decided: one `CountersChanged` per entry row, announced after the entry inside its batch and never proposed, with `by` on the record; `triggers-architecture.md` §3.12.
+    **Slotted:** TR-5b, which announces one `CountersChanged` per entry row
+    inside the entry's batch (CR 122.6), with Simic Ascendancy.

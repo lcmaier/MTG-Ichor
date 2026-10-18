@@ -65,7 +65,7 @@ impl GameState {
             .map(|(_, id)| id)
             .filter(|&id| !is_nonbattle_creature(self, id))
             .collect();
-        // NOT AN EVENT: CR 506.4's removal, a consequence of the type change
+        // NOT REPLACEABLE: CR 506.4's removal, a consequence of the type change
         // rather than a replaceable event (`replacement-architecture.md` §8a),
         // announced as one record.
         let removed = self.remove_from_combat(&changed);

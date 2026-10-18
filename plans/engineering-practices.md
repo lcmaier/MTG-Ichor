@@ -716,9 +716,9 @@ and the dated record of every reading stays in `fuzz-record.md`. The
 | Floor | Limit | Reading | Read on | Where |
 |---|---|---|---|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 2026-10-06 | #225's pooled tree on `performance` at Commander scale, 200 games: 17,900 on one thread, 7.26 times that on 16 threads over 8 physical cores |
-| 2. Allocations per clone | ≤ 64 | 39 | 2026-10-05 | `clone_bound_test` in release, 207 checkpoints over 24 Commander games |
+| 2. Allocations per clone | ≤ 64 | 42 | 2026-10-17 | `clone_bound_test` in release, 183 checkpoints over 24 Commander games, TR-5b's tree (`stress` 12351 under Teferi's clause, turn 30) |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 2026-10-06 | the same checkpoints, the median of nine clones at each, the worst checkpoint of three runs |
-| 3. Kilobytes per clone | ≤ 128 | 100.0 | 2026-10-05 | the same checkpoints, `performance` 12347 at turn 150 |
+| 3. Kilobytes per clone | ≤ 128 | 93.3 | 2026-10-17 | the same checkpoints, `performance` 12345 at turn 80 |
 <!-- floors: end -->
 
 **Floor 1 is read under a named stack, as it is read on a named board.** Its
@@ -2334,7 +2334,7 @@ mid-sentence is a mention, which is how this section can name them.
 | `NO ROW REACHES:` | printed | asked of an object no continuous effect reaches, whose printed characteristics are its effective ones, or with a leg that asks the effective list when a row may reach |
 | `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone and nothing announced |
 | `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i (`replacement-architecture.md` §2) |
-| `NOT AN EVENT:` | write | a write no rule makes an event: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads |
+| `NOT REPLACEABLE:` | write | a write no replacement effect can watch for (CR 614.1), so nothing is proposed: damage wearing off (CR 514.2), removal from combat (CR 506.4, 511.3), the deathtouch flag CR 704.5h reads. Named for CR 614 and not CR 700.1, under which each is still an event, and the removal is announced as one (`RemovedFromCombat`). `NOT AN EVENT:` until 2026-10-17 |
 
 `AUXILIARY-MOVE:` is the one chokepoint tag the gate does not read. It marks
 a batch, CR 614.13's moves, and a batch is proposed.

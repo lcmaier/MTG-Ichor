@@ -31,6 +31,7 @@ use super::phase_tr4b_cards;
 use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
+use super::phase_tr5b_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
 use super::phase_lj_cards;
@@ -64,7 +65,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 113] = [
+const PERFORMANCE_POOL: [&str; 115] = [
     "Plains",
     "Island",
     "Swamp",
@@ -142,7 +143,7 @@ const PERFORMANCE_POOL: [&str; 113] = [
     "Root Maze",
     // The first card in the crate to propose a `GameAction::AddCounters`.
     // Chainbreaker is already here and enters with -1/-1 counters, so this is
-    // also what makes CR 704.5q's annihilation sweep run in a measured game
+    // also what makes CR 704.5q's annihilation happen in a measured game
     // rather than only in a fixture.
     "Battlegrowth",
     // The `AmountExpr::CountOf` in the layer walk: a CDA that enumerates the
@@ -530,6 +531,17 @@ const PERFORMANCE_POOL: [&str; 113] = [
     // combat announces. Two more attackers shorten games; how much it moves
     // `stress` is read at the close-out and reported.
     "Hanweir Garrison",
+    // TR-5b's: a removal of counters read once per counter, CR 704.5q's
+    // annihilation in the state-based batch among them, each making a
+    // delayed trigger; an entry's X (CR 107.3m); and a prevention whose rider
+    // removes counters. No player can cast it until MA-2, the next PR, offers
+    // an X spell at the gate.
+    "Protean Hydra",
+    // TR-5b's other: a put of counters read once for each creature, that many
+    // counters of a kind no rule reads, and a win behind an intervening "if"
+    // over them. It ends some games (2.5 points of four-seat `stress` games,
+    // natural decks), kept for the variety of ways a game ends.
+    "Simic Ascendancy",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -765,7 +777,7 @@ impl CardRegistry {
         registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
-        // and until this card the annihilation sweep had never run in a fuzz
+        // and until this card the annihilation had never happened in a fuzz
         // game — `engineering-practices.md` §3.3.
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
@@ -948,6 +960,13 @@ impl CardRegistry {
         // turn, read off the history's rows, for a second combat.
         registry.register("Hanweir Garrison", phase_tr5f_cards::hanweir_garrison);
         registry.register("Relentless Assault", phase_tr5f_cards::relentless_assault);
+
+        // TR-5b: counters. Simic Ascendancy's put is read once for each
+        // creature, and its win is an intervening "if" over its own counters;
+        // Protean Hydra's X is its spell's (CR 107.3m), and each counter
+        // removed from it triggers, CR 704.5q's annihilation included.
+        registry.register("Simic Ascendancy", phase_tr5b_cards::simic_ascendancy);
+        registry.register("Protean Hydra", phase_tr5b_cards::protean_hydra);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
@@ -1261,6 +1280,11 @@ mod tests {
                 def.event_roles_its_arms_lack().is_empty(),
                 "{what}: names {:?}, which an arm of its condition does not have",
                 def.event_roles_its_arms_lack()
+            );
+            assert!(
+                def.readings_its_arms_cannot_give().is_empty(),
+                "{what}: asks {:?}",
+                def.readings_its_arms_cannot_give()
             );
         }
         fn walk(what: &str, effect: &Effect) {

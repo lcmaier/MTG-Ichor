@@ -143,7 +143,7 @@ each, and reads these seams for a fifth loop, finding none.
 | `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `perform_entry`, `register_static_effects` and the printed-source sets |
 | `state/battlefield.rs`, `state/player.rs` | `PermanentState` and its one constructor for an entry; `PlayerState` |
 | `state/continuous_effects.rs`, `state/replacement_effects.rs`, `state/restrictions.rs`, `state/duration_registry.rs` | the three registries of resolution-created rows, their shared CR 514.2 expiry, and `RegistryScopeSummary`, the gates' granted and copied legs |
-| `state/layer_memo.rs`, `state/history.rs`, `state/diagnostics.rs`, `state/trace.rs` | the layer memo; each player's bounded history; seed-deterministic work counters; the trace sink and `emit_event` |
+| `state/layer_memo.rs`, `state/history.rs`, `state/diagnostics.rs`, `state/trace.rs` | the layer memo; the game's bounded history, each player's rows in it; seed-deterministic work counters; the trace sink and `emit_event` |
 | `state/game.rs`, `state/game_config.rs` | `Game`: setup and the turn loop a harness drives; format configuration |
 | `events/event.rs`, `events/recorder.rs` | `GameEvent`, the batch window and `BatchId`; the whole stream for readers outside the game |
 | `objects/card_data.rs`, `objects/object.rs` | `CardData`, `AbilityDef` and the builder; `GameObject` |
@@ -176,10 +176,10 @@ table, the enum and the match disagree.
 | `Attach` | `GameState::attach`, nothing if already there; an `Unattached` from the old host, then `Attached` | — |
 | `Unattach` | `GameState::detach`, nothing if attached to nothing (CR 704.5n, 704.5p); `Unattached` | — |
 | `Tap` | on the transition only; `Tapped` | — |
-| `AddCounters` | counters on a permanent or a player; `CountersChanged` | — |
-| `RemoveCounters` | as many as there are (CR 701.2); announced only if any | — |
+| `AddCounters` | counters on a permanent or a player; `CountersPutOn`, with its putter and the count left | — |
+| `RemoveCounters` | as many as there are (CR 609.3); `CountersRemovedFrom` only if any, with its remover where a player is one | — |
 | `Destroy` | the outer event only; its `ZoneChange` to the graveyard, decided with it in phase 1 (`decide_destruction_moves`, item 248), is performed right after it | — |
-| `EnterBattlefield` | the move (or a token's creation), then `perform_entry` | — |
+| `EnterBattlefield` | the move (or a token's creation), then `perform_entry`, which announces a `CountersPutOn` for each counter row (CR 122.6) | — |
 | `CreateTokens` | the objects, then every entry as one batch | `EnterBattlefield` per token |
 | `CreateTokenIn` | `put_token_into`; `TokenCreated` | — |
 | `TokenCeasesToExist` | CR 704.5d: out of its zone and the store; `TokenCeasedToExist` | — |

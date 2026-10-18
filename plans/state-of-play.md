@@ -29,11 +29,11 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
+   TR-1–TR-7 in `triggers-architecture.md` §12, MA-2 between TR-5b and TR-5c, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
    (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to Phase 8", has each step's why):
 the route review, A6s; four-player Commander end to end — RS-2; PM-0 with a card's characteristic sets designed beside it; PM-1; B2; B3; B4's
-information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-2–MA-6; B9; B13, the Ironworks loop; PM's
+information model — then what Phase 8 is gated on: RS-3a, RS-4, RS-3b; B8's permission half; CP-1, CP-2; MA-7, MA-3–MA-6; B9; B13, the Ironworks loop; PM's
 later builds; CV-5 with the other characteristic sets; CV-3, CV-4; CV-6; CV-7; B10; A4l. Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
 AI games over the CLI. Two-player Standard is a checkpoint, not the target — so **write new systems N-player-shaped from the start**.
@@ -127,6 +127,7 @@ is derived.
 | 2026-10-16 | The binding's roles | `TR-5a` | `triggers-architecture.md` |
 | 2026-10-16 | The attack declaration | `TR-5e` | `triggers-architecture.md` |
 | 2026-10-17 | Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
+| 2026-10-17 | Counters, and one history struct | `TR-5b` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -155,7 +156,6 @@ and no ✅ heading records, in the docs' order.
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
-| Counters | `TR-5b` | `triggers-architecture.md` |
 | Blocks, targeting, activation and excess damage | `TR-5c` | `triggers-architecture.md` |
 | Prevention, the multiplier, tokens and scry | `TR-5d` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
@@ -165,9 +165,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 203 |
-| …of them in `PERFORMANCE_POOL` | 113 |
-| `#[test]` functions | 2490 |
+| Cards registered | 205 |
+| …of them in `PERFORMANCE_POOL` | 115 |
+| `#[test]` functions | 2528 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -180,22 +180,22 @@ is bolded.
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
 | 1. Decisions per loaded physical core-second | ≥ 10000 | 15700 | 57% | 2026-10-06 |
-| 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-05 |
+| 2. Allocations per clone | ≤ 64 | 42 | 52% | 2026-10-17 |
 | 2. Microseconds per clone | ≤ 10 | 6.9 | 45% | 2026-10-06 |
-| 3. Kilobytes per clone | ≤ 128 | 100.0 | 28% | 2026-10-05 |
+| 3. Kilobytes per clone | ≤ 128 | 93.3 | 37% | 2026-10-17 |
 
 ## Debt — `codebase-state.md`'s Deferred Migrations
 
 | | |
 |---|---:|
 | Numbered items | 326 |
-| …closed, still recorded | 183 |
-| …open — unreachable, and says why | 95 |
+| …closed, still recorded | 185 |
+| …open — unreachable, and says why | 93 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 28 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 141 of 143 |
+| …open, carrying an explicit `**Sized:**` | 139 of 141 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -209,7 +209,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 85 |
+| …slotted to a phase or roadmap row still to come | 83 |
 | …slotted to the first registered card that needs it | 46 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |

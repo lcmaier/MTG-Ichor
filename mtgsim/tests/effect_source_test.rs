@@ -212,7 +212,7 @@ fn tempest_fixture(words: &'static str, damage: Effect) -> Arc<CardData> {
     let end_step_damage = DelayedTriggerTemplate {
         def: Arc::new(whenever(at_beginning_of(StepType::End, Whose::Yours), damage)),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: words.into(),
     };
     let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(end_step_damage)), EffectRecipient::Controller);

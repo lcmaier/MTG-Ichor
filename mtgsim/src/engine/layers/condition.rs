@@ -224,6 +224,17 @@ pub(super) fn holds(
             board.note_gated_read(GatedWalkInput::Histories);
             history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
         }
+        // CR 122.7, 714.2b: some record of the trigger's left the count at
+        // least `n` from below it. Off the records, never the board, so it
+        // answers alike at both instants; false outside a trigger.
+        Condition::CounterCountReached { counter_type, n } => referents.triggering_event.any_record(|record| {
+            matches!(
+                record.event,
+                crate::events::event::GameEvent::CountersPutOn { counter_type: kind, n: put, now, .. }
+                    if kind == *counter_type && now.saturating_sub(put) < *n && *n <= now
+            )
+        }),
+
         // CR 603.7h: the resolving ability's count, which its own resolution
         // has not advanced yet. False outside a resolution, where nothing is
         // resolving to be counted.
@@ -313,18 +324,18 @@ fn history_holds(
         return false;
     };
     let now = game.turn_number;
-    let yours = game.players.get(you).map(|p| &p.history);
+    let yours = game.history.players.get(you);
     let total: u64 = game
+        .history
         .players
         .iter()
         .enumerate()
         .filter(|(player, _)| count.players.contains(you, *player))
-        .map(|(player, state)| {
-            let theirs = &state.history;
+        .map(|(player, theirs)| {
             let counts = match (span, yours) {
                 (HistorySpan::ThisTurn, _) => theirs.this_turn(now),
                 (HistorySpan::LastTurn, _) => theirs.last_turn(now),
-                (HistorySpan::SinceYourLastTurn, Some(yours)) => yours.since_your_last_turn(player, theirs),
+                (HistorySpan::SinceYourLastTurn, Some(_)) => game.history.since_your_last_turn(you, player),
                 (HistorySpan::ThisGame, _) | (HistorySpan::SinceYourLastTurn, None) => theirs.this_game(),
             };
             counts.count(count.fact)

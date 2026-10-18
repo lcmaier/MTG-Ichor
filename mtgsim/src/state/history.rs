@@ -9,8 +9,8 @@
 //! `engine::triggers::history`, as each event ends; nothing derives these from
 //! the event stream.
 //!
-//! What belongs to no one player is [`GameHistory`]'s: each ability's "this
-//! turn" facts, and what each creature did in combat.
+//! [`GameHistory`] holds it all: each player's [`PlayerHistory`], each
+//! ability's "this turn" facts, and what each creature did in combat.
 
 use std::sync::Arc;
 
@@ -73,7 +73,11 @@ pub struct PlayerHistory {
     /// One row per player, because "an opponent lost life since your last
     /// turn" reads the other players' counts. Empty until this player's first
     /// turn has ended, which reads as zeros.
-    at_your_last_turn: Vec<TurnSummary>,
+    ///
+    /// Shared, so a clone copies a pointer: it is seats × seats summaries in
+    /// all, and its one writer replaces it whole once a turn rather than
+    /// editing it, so no clone ever has to copy it.
+    at_your_last_turn: Arc<[TurnSummary]>,
     /// The cards drawn since this player's draw step in progress began (CR
     /// 504), read only while it is in progress.
     this_draw_step: u64,
@@ -88,7 +92,7 @@ impl PlayerHistory {
             last_turn: TurnSummary::ZERO,
             this_game: TurnSummary::ZERO,
             own_turn: None,
-            at_your_last_turn: Vec::new(),
+            at_your_last_turn: Arc::from([]),
             this_draw_step: 0,
         }
     }
@@ -112,14 +116,6 @@ impl PlayerHistory {
     /// Every turn of the game so far, summed.
     pub fn this_game(&self) -> TurnSummary {
         self.this_game
-    }
-
-    /// `player`'s counts since this player's last turn, the turn in progress
-    /// included, where `theirs` is `player`'s history. "Your last turn" is
-    /// your most recent turn to have ended, so on your own turn it is the one
-    /// before.
-    pub fn since_your_last_turn(&self, player: PlayerId, theirs: &PlayerHistory) -> TurnSummary {
-        theirs.this_game.since(self.at_your_last_turn.get(player).unwrap_or(&TurnSummary::ZERO))
     }
 
     /// Count `n` of `fact` on turn `now`'s row, moving the rows along if `now`
@@ -149,7 +145,7 @@ impl PlayerHistory {
 
     /// This player's last turn has ended, and `totals` is every player's
     /// count up to its end.
-    pub(crate) fn last_turn_ended(&mut self, totals: Vec<TurnSummary>) {
+    pub(crate) fn last_turn_ended(&mut self, totals: Arc<[TurnSummary]>) {
         self.at_your_last_turn = totals;
     }
 
@@ -174,9 +170,14 @@ impl PlayerHistory {
     }
 }
 
-/// What the game remembers that belongs to no one player.
-#[derive(Debug, Clone, Default)]
+/// What the game remembers: each player's history, and what belongs to no one
+/// player.
+#[derive(Debug, Clone)]
 pub struct GameHistory {
+    /// Each player's history, by `PlayerId`. A player who has left the game
+    /// keeps theirs, since an effect can still find what they did (CR
+    /// 800.4i).
+    pub players: Vec<PlayerHistory>,
     /// CR 603.2h — "do this only once each turn": each ability whose action
     /// its controller has taken this turn, with that controller, since the
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
@@ -197,6 +198,43 @@ pub struct GameHistory {
 }
 
 impl GameHistory {
+    /// The history of a game of `seats` players before its first turn:
+    /// nothing counted.
+    pub fn new(seats: usize) -> Self {
+        GameHistory {
+            players: vec![PlayerHistory::before_any_turn(); seats],
+            action_taken_this_turn: IdSet::default(),
+            triggered_this_turn: IdSet::default(),
+            resolutions_this_turn: IdMap::default(),
+            combat: CombatHistory::default(),
+        }
+    }
+
+    /// `them`'s counts since `you`'s last turn, the turn in progress
+    /// included. "Your last turn" is your most recent turn to have ended, so
+    /// on your own turn it is the one before. Zeros for a player the game
+    /// does not seat.
+    pub fn since_your_last_turn(&self, you: PlayerId, them: PlayerId) -> TurnSummary {
+        let (Some(yours), Some(theirs)) = (self.players.get(you), self.players.get(them)) else {
+            return TurnSummary::ZERO;
+        };
+        theirs.this_game.since(yours.at_your_last_turn.get(them).unwrap_or(&TurnSummary::ZERO))
+    }
+
+    /// Count turn `turn` as begun, `active` taking it. Whoever took the turn
+    /// before it has just had their last turn end, so their "since your last
+    /// turn" starts from every player's count now. The counts exclude the new turn's own, which a record earlier in the same
+    /// window may already have added.
+    pub(crate) fn count_turn_began(&mut self, turn: u32, active: PlayerId) {
+        if let Some(previous) = self.players.iter().position(|p| p.took_the_turn_before(turn)) {
+            let totals: Arc<[TurnSummary]> = self.players.iter().map(|p| p.before(turn)).collect();
+            self.players[previous].last_turn_ended(totals);
+        }
+        if let Some(player) = self.players.get_mut(active) {
+            player.record_own_turn(turn);
+        }
+    }
+
     /// A turn has begun. "Each turn" is the game's turn, not a controller's
     /// (§3.5), so the abilities' facts start over; the combat's rows keep the
     /// turns from `keep_from` on.
@@ -324,14 +362,14 @@ mod tests {
     #[test]
     fn since_your_last_turn_starts_when_your_turn_ends() {
         let mut game = GameState::new(2, 20);
-        game.players[1].history.add(1, DRAWN, 5);
-        game.begin_turn_history(2, 1);
-        game.players[1].history.add(2, DRAWN, 1);
-        let since = |game: &GameState| game.players[0].history.since_your_last_turn(1, &game.players[1].history);
+        game.history.players[1].add(1, DRAWN, 5);
+        game.history.count_turn_began(2, 1);
+        game.history.players[1].add(2, DRAWN, 1);
+        let since = |game: &GameState| game.history.since_your_last_turn(0, 1);
         assert_eq!(since(&game).count(DRAWN), 1);
 
-        game.begin_turn_history(3, 0);
-        game.players[1].history.add(3, DRAWN, 1);
+        game.history.count_turn_began(3, 0);
+        game.history.players[1].add(3, DRAWN, 1);
         assert_eq!(since(&game).count(DRAWN), 2, "on your own turn, your last turn is the one before");
     }
 
@@ -340,11 +378,10 @@ mod tests {
     #[test]
     fn after_an_extra_turn_your_last_turn_is_the_one_just_ended() {
         let mut game = GameState::new(2, 20);
-        game.players[0].history.add(1, DRAWN, 4);
-        game.begin_turn_history(2, 0);
-        game.players[0].history.add(2, DRAWN, 1);
-        let mine = &game.players[0].history;
-        assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);
+        game.history.players[0].add(1, DRAWN, 4);
+        game.history.count_turn_began(2, 0);
+        game.history.players[0].add(2, DRAWN, 1);
+        assert_eq!(game.history.since_your_last_turn(0, 0).count(DRAWN), 1);
     }
 
     /// Object `id` as the existence its `zone_change_epoch` names (CR

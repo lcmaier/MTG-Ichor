@@ -713,7 +713,7 @@ fn delayed_trigger_if_its_source_was_tapped_reads_the_creature_that_made_it() {
     let template = DelayedTriggerTemplate {
         def: Arc::new(def),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "When you next gain life, if this creature was tapped, you lose 5 life.".into(),
     };
     let provenance = DelayedProvenance {
@@ -774,7 +774,7 @@ fn a_dies_trigger_puts_as_many_counters_as_its_source_had() {
     resolve_all(&mut game, &test_dp());
     assert_eq!(counters(&game, b, CounterType::PlusOnePlusOne), 6, "three new counters, put and so doubled");
     let put_on_b = game.recorded_events().events().any(|event| {
-        matches!(event, GameEvent::CountersChanged { subject: CounterSubject::Object(id), added: 6, .. } if *id == b)
+        matches!(event, GameEvent::CountersPutOn { subject: CounterSubject::Object(id), n: 6, .. } if *id == b)
     });
     assert!(put_on_b, "put, not moved: A's ceased to exist as it left (CR 122.2)");
 }
@@ -857,7 +857,7 @@ fn a_delayed_trigger_made_after_its_source_is_gone_knows_its_owner() {
     let template = DelayedTriggerTemplate {
         def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "When its owner next gains life, nothing.".into(),
     };
     let text = "When this creature dies, when its owner next gains life, nothing.";
@@ -934,7 +934,7 @@ fn delayed_trigger_if_its_spell_was_kicked_holds_after_the_spell_resolved() {
     let template = DelayedTriggerTemplate {
         def: Arc::new(def),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "When you next gain life, if this spell was kicked, you lose 5 life.".into(),
     };
     let spell = CardDataBuilder::new("Kicked Spell").card_type(CardType::Instant).build();
@@ -1026,7 +1026,7 @@ fn enchanted_creature_deals_damage_does_not_see_the_creature_it_was_before_a_fli
             deals_2,
         )),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "When you next gain life, this creature deals 2 damage to each opponent.".into(),
     };
     let provenance = DelayedProvenance {

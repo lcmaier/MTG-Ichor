@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::events::cause::{EventCause, GameRule, StateBasedAction};
-use crate::events::event::GameEvent;
+use crate::events::event::{CounterSubject, GameEvent};
 use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
@@ -60,6 +60,60 @@ fn sba_destroy(id: ObjectId) -> GameAction {
 /// (`replacement-architecture.md` §9, RE decision 5).
 fn sba_player_loses(player: PlayerId, state_based_action: StateBasedAction) -> (GameAction, StateBasedAction) {
     (GameAction::PlayerLoses { player }, state_based_action)
+}
+
+/// Half of the key CR 704.7's collapse dedupes one check's members on; the
+/// other half is the permanent or player a member is about. Two members with
+/// one subject and one result are one event, the first in CR order, so one
+/// replacement effect replaces both: a player losing to CR 704.5a and 704.5b
+/// at once loses once, which Lich's Mirror replaces once. Members with
+/// different results all stay. A creature with lethal damage and both kinds
+/// of counter has three: its +1/+1 counters removed, its -1/-1 counters
+/// removed (CR 704.5q), and its death. A destroyed Equipment is still
+/// unattached (CR 704.5p).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum CollapsedResult {
+    LeavesOrLoses,
+    Unattached,
+    RemovesCounters(CounterType),
+}
+
+impl CollapsedResult {
+    /// `action`'s result, or `None` for an action no state-based check
+    /// proposes, which nothing collapses. Every action is named so that a new
+    /// state-based one says which result it has: CR 704.5u's sector, 704.5w's
+    /// protector and 704.5z's speed are none of these, and one filed as
+    /// leaving would collapse with its subject's loss, which comes later in
+    /// the batch.
+    fn of(action: &GameAction) -> Option<CollapsedResult> {
+        match action {
+            GameAction::ZoneChange { .. }
+            | GameAction::Destroy { .. }
+            | GameAction::TokenCeasesToExist { .. }
+            | GameAction::PlayerLoses { .. } => Some(CollapsedResult::LeavesOrLoses),
+            GameAction::Unattach { .. } => Some(CollapsedResult::Unattached),
+            GameAction::RemoveCounters { counter, .. } => Some(CollapsedResult::RemovesCounters(*counter)),
+            GameAction::DealDamage { .. }
+            | GameAction::DrawCards { .. }
+            | GameAction::DrawCard { .. }
+            | GameAction::GainLife { .. }
+            | GameAction::LoseLife { .. }
+            | GameAction::Untap { .. }
+            | GameAction::Tap { .. }
+            | GameAction::Attach { .. }
+            | GameAction::AddCounters { .. }
+            | GameAction::EnterBattlefield { .. }
+            | GameAction::CreateTokens { .. }
+            | GameAction::CreateTokenIn { .. }
+            | GameAction::BeginTurn { .. }
+            | GameAction::BeginPhase { .. }
+            | GameAction::BeginStep { .. }
+            | GameAction::Scry { .. }
+            | GameAction::ShuffleLibrary { .. }
+            | GameAction::PlayerWins { .. }
+            | GameAction::ProduceMana { .. } => None,
+        }
+    }
 }
 
 /// How many performing state-based checks in one run of
@@ -135,7 +189,7 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
-        // NOT AN EVENT: deathtouch's memory of damage already announced.
+        // NOT REPLACEABLE: deathtouch's memory of damage already announced.
         // ORDER-FREE: each entry's flag is read and cleared alone, into a set.
         let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
             .battlefield
@@ -214,6 +268,23 @@ impl GameState {
         // Every condition below reads *this* state, before any move performs.
         // Ordered sweeps: the batch order is a CR 616.1 prompt's, and the
         // graveyard is an ordered zone.
+
+        // 704.5q — a permanent with both +1/+1 and -1/-1 counters loses N of
+        // each, N the smaller count: two removals, a result each, so the
+        // collapse below keeps both beside a death of the same permanent. At
+        // the batch's head, so each is performed while its permanent is still
+        // there; one the check also moves is framed before any member performs
+        // (CR 704.8), with every counter it had. No player removes them.
+        for (id, entry) in self.battlefield_ordered() {
+            let pairs = entry.counter_count(CounterType::PlusOnePlusOne).min(entry.counter_count(CounterType::MinusOneMinusOne));
+            if pairs == 0 {
+                continue;
+            }
+            for counter in [CounterType::PlusOnePlusOne, CounterType::MinusOneMinusOne] {
+                let removal = GameAction::RemoveCounters { subject: CounterSubject::Object(id), counter, n: pairs, by: None };
+                batch.push((removal, StateBasedAction::CountersAnnihilate));
+            }
+        }
 
         // 704.5d — a token in a zone other than the battlefield ceases to exist:
         // one there as the check begins, so a token that dies in this check
@@ -412,16 +483,20 @@ impl GameState {
 
         // --- Perform the gathered actions as one event (CR 704.3) -----------
         //
-        // CR 704.7's collapse is the dedupe, keyed on the subject: one event and
-        // one applied set per permanent or player, named by the first condition in
-        // CR order (a dead duplicate legend was destroyed, 704.5g). Becoming
-        // unattached is a result of its own: an Equipment made a creature with
-        // lethal damage is destroyed *and* unattached (704.5g, 704.5p), and an
-        // indestructible one is still unattached. The unattaches follow the moves,
-        // so a subject's group decides under the move's cause, and one finds an
-        // attachment the batch moved already unattached by its leaving (CR 701.3d).
-        let mut seen: HashSet<(EventSubject, bool)> = HashSet::new();
-        batch.retain(|(action, _)| seen.insert((subject_of(action), matches!(action, GameAction::Unattach { .. }))));
+        // CR 704.7's collapse is the dedupe, keyed on the subject and the result:
+        // one event and one applied set per permanent or player and result, named
+        // by the first condition in CR order (a dead duplicate legend was
+        // destroyed, 704.5g). Becoming unattached is a result of its own: an
+        // Equipment made a creature with lethal damage is destroyed *and*
+        // unattached (704.5g, 704.5p), and an indestructible one is still
+        // unattached. The unattaches follow the moves, so a subject's group
+        // decides under the move's cause, and one finds an attachment the batch
+        // moved already unattached by its leaving (CR 701.3d). Each kind of
+        // counter CR 704.5q removes is one too, ahead of the moves.
+        let mut seen: HashSet<(EventSubject, CollapsedResult)> = HashSet::new();
+        batch.retain(|(action, _)| {
+            CollapsedResult::of(action).is_none_or(|result| seen.insert((subject_of(action), result)))
+        });
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
@@ -432,32 +507,6 @@ impl GameState {
             let members = batch.into_iter().map(|(action, rule)| (action, EventCause::StateBasedAction(rule))).collect();
             self.execute_caused_actions(members, &ActionContext::game_rule(decisions, GameRule::StateBasedCheck))?;
             any_performed |= self.events.next_seq() > before;
-        }
-
-        // 704.5q — +1/+1 and -1/-1 counter annihilation
-        // If a permanent has both +1/+1 and -1/-1 counters, remove pairs
-        // until only one type remains.
-        let annihilation_targets: Vec<(ObjectId, u32)> = self.battlefield_ordered()
-            .into_iter()
-            .filter_map(|(id, entry)| {
-                let plus = entry.counter_count(CounterType::PlusOnePlusOne);
-                let minus = entry.counter_count(CounterType::MinusOneMinusOne);
-                if plus > 0 && minus > 0 {
-                    Some((id, plus.min(minus)))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for (id, pairs) in annihilation_targets {
-            self.remove_counters(id, CounterType::PlusOnePlusOne, pairs);
-            self.remove_counters(id, CounterType::MinusOneMinusOne, pairs);
-            self.emit_event(
-                GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs },
-                EventCause::StateBasedAction(StateBasedAction::CountersAnnihilate),
-            )?;
-            any_performed = true;
         }
 
         // CR 704.3 — one check, one event.

@@ -85,7 +85,7 @@ fn a_this_turn_delayed_trigger_is_gone_after_the_cleanup() {
             Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         )),
         duration: DelayedDuration::ThisTurn,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "This turn, whenever an upkeep begins, you gain 1 life.".into(),
     };
     let create = Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller);
