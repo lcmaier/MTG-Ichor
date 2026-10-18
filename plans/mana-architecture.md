@@ -468,13 +468,20 @@ holds any. **About 2,100 instructions a cost where present.**
   is the largest X whose total the inventory covers. It is read in closed
   form, not searched (amended at §6.1, decision 2, which the owner asked
   for at #259's review: a search cannot survive a loop's mana, CR 731.2a).
-  X adds only generic mana and no cost change depends on X, so the total
-  is the same pips beside `a − r + kX` generic, read off 601.2f's own
-  arithmetic in `cost_determination`, and the inventory says once how much
-  generic it can pay beside those pips. The `r` is why the arithmetic is
-  601.2f's and not the printed cost's: a reduction can absorb part of X, so
-  at X = 0 a `{1}` reduction on `{X}{R}` is wasted, and at X = 1 it is not.
-  A larger X never costs less, so this part is always an interval.
+  X adds only generic mana, and no cost change's size depends on the
+  spell's X, so the total is the same pips beside `a − r + kX` generic,
+  read off 601.2f's own arithmetic in `cost_determination`, and the
+  inventory says once how much generic it can pay beside those pips. The
+  `r` is why the arithmetic is 601.2f's and not the printed cost's: a
+  reduction can absorb part of X, so at X = 0 a `{1}` reduction on
+  `{X}{R}` is wasted, and at X = 1 it is not. A larger X never costs less
+  while no cost change's *applying* depends on X either, so this part is an
+  interval. One whose filter reads the spell's mana value breaks both
+  (§6.1): on the stack the mana value counts X (CR 202.3e), and Stonecoil
+  Serpent under Krosan Drover costs `{5}` at X = 5 and `{4}` at X = 6. No
+  filter can read a mana value today. **The owner's condition** (2026-10-17,
+  at #259): if the bound ever costs materially, the engine falls back to
+  §6.1's option B, no bound, while the algorithm improves.
 - **Other rules cut it.** A loyalty ability's −X can be no more than the
   loyalty (CR 606.6). "X can't be 0" sets a minimum. 64 cards name a card
   with mana value exactly X (`o:"mana value X" -o:"mana value X or less"
@@ -735,7 +742,7 @@ card-by-card hunt runs in each PR's brief.
 |---|---|---|---|---|
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
 | **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
-| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound in closed form, §6.1's decision 2; the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable. **The plan is §6.1** | ~350 engine, ~450 tests, a card: 800–950 as sized here; §6.1's plan, with item 214 and what the rules pass added, ~460–500 code and ~630 tests: 1,100–1,150 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
+| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound in closed form, §6.1's decision 2; the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable. **The plan is §6.1** | ~350 engine, ~450 tests, a card: 800–950 as sized here; §6.1's plan, with item 214 and what the rules pass added, ~600–640 code and ~720 tests: 1,320–1,360 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
 | **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` B13) | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
@@ -807,10 +814,15 @@ payment does not change: every X the prompt offers is one it can pay.
   X. No registered card has both, so it is not reachable.
 - **The least.** 0, or 1 under "X can't be 0".
 - **The most, in closed form (decision 2).** Two facts make it one
-  division instead of a search. X adds only generic mana. And no cost change
-  depends on X: `representable` (`total.rs`) already refuses an X in an
-  increase or a reduction, and a `ReduceGeneric` amount is read off the
-  board. So at every X the total is the same pips P (after reductions)
+  division instead of a search. X adds only generic mana. And no cost
+  change's size depends on the spell's X: `representable` (`total.rs`)
+  already refuses an X in an increase or a reduction, and a `ReduceGeneric`
+  amount is read off the board. Golden-Tail Trainer's "cost {X} less, where
+  X is this creature's power" is that kind: its X is its own, defined by its
+  text (CR 107.3c) and read once at 601.2f, so it is a constant in r. (Its
+  ruling: a change to the power after the lock changes nothing.) Whether a
+  change *applies* is the next bullet. So at every X the total is the same
+  pips P (after reductions)
   beside `max(F, a − r + kX)` generic, where:
   - a is the cost's generic mana besides its X, increases included;
   - r is what the reductions take off generic, a colored reduction that
@@ -860,6 +872,40 @@ payment does not change: every X the prompt offers is one it can pay.
   the random agent's misplay, none an over-offer (`fuzz-record.md`, MA-1's
   block). The property test leaves out sacrifice outlets, a cost's own
   reservations and restricted mana, which are tested board by board.
+- **A cost change that applies by mana value** (found at #259's review).
+  On the stack a spell's mana value counts X (CR 202.3e), so a change whose
+  filter reads it applies at some X and not others. Six paper cards print
+  one, read by hand from 16 matches on Scryfall, 2026-10-17:
+  `o:/mana value (\d+|x) or (greater|less)/ o:/cost(s)? \{[0-9X]\} (less|more) to cast/ -is:digital`.
+  Krosan Drover, Thryx, Spectacle Mage, The Scarlet Witch and It
+  That Heralds the End reduce, and Reidane increases. With one, the total
+  is affine only between thresholds: "mana value m or greater" is
+  `X ≥ ceil((m − the rest's mana value) / k)`. Three things then fail.
+  - A larger X can cost less. Stonecoil Serpent (`{X}`) under Krosan Drover
+    costs `{5}` at X = 5 and `{4}` at X = 6.
+  - The payable values can have a gap: from four mana, X is 0 to 4, or 6.
+    The set form carries it (decision 1).
+  - The least need not be the cheapest. A creature spell costing
+    `{X}{3}{G}{G}` under Krosan Drover costs five at X = 0 and four at
+    X = 1, so the gate must test each threshold's first X, not only the
+    least.
+
+  **Not built in MA-2, and not reachable**: no `ObjectFilter` arm reads a
+  mana value, so no cost change can apply by one, and the total is one
+  piece. **Guarded, so the first such arm cannot pass silently.**
+  `filter_reads` (`engine/layers/board.rs:744`) matches every
+  `ObjectFilter` arm with no wildcard, and its `MANA_COST` channel is set
+  by no filter today. A mana-value arm cannot compile without an arm there,
+  which is where it says it reads `MANA_COST`.
+  `legal_x_values` asks it of each gathered cost change's filter, and a
+  filter that reads `MANA_COST` fails a debug assertion naming this
+  bullet. The thresholds, the per-piece division and the gate's per-piece
+  check land with the first mana-value filter, beside CR 202.3e's value on
+  the stack (`cost-architecture.md`'s CP-1 row). `codebase-state.md`'s
+  Deferred Migrations gets a line naming it. A second guard, debug-only:
+  when the bound is under 64, every X from 0 to the bound plus 8 is checked
+  with `covers` against the closed form's set, which catches any other
+  shape the pieces miss.
 - **With `GameNumber`** (`backlog.md` §2.28; `roadmap.md` D26;
   `decision-provider-refactor.md` §9's planned shape: `Finite(u64)`;
   `Shortcut`, a loop's iterations times what each makes, either of them
@@ -870,19 +916,25 @@ payment does not change: every X the prompt offers is one it can pay.
   - **k = 1** (Stroke of Genius, Awaken the Woods): the most is
     `G + r − a`, a `Relative` of G. The prompt can offer it as a number.
   - **k ≥ 2** (Gelatinous Genesis, `{X}{X}{G}`): the most is
-    floor((G + r − a) / k), and no planned variant divides. Sometimes the
-    engine could rewrite it. A nested loop of 10^18 iterations making 10^18
-    green each leaves 10^36 green, more than a `u64`; the `{G}` pip takes
-    one, so G = 10^36 − 1, and the most is 5 × 10^35 − 1, a `Shortcut` of
-    10^18 times 5 × 10^17, less one. With an odd count of iterations, or a
-    pool that is "your opponent's number plus one", there is no such
-    rewrite. Checking an announced X always works, since `2X ≤ G` is a
-    comparison the planned `PartialOrd` makes. What is missing is the most
-    as a number, and so a way to announce it: the planned declaration is a
-    `u64` or "theirs plus N" (§9.6 there), so a player cannot say "half my
+    floor((G + r − a) / k). The rule is plain: divide, round down, and the
+    remainder, fewer than k mana, stays unspent in the pool. Which types
+    stay is the payment's generic split (CR 601.2h), the player's or the
+    agent's choice, not the bound's. What is missing is a way for the
+    planned type to *hold* that number, since no planned variant divides.
+    Sometimes the engine could rewrite it. A nested loop of 10^18 iterations
+    making 10^18 green each leaves 10^36 green, more than a `u64`; the `{G}`
+    pip takes one, so G = 10^36 − 1, and the most is 5 × 10^35 − 1, a
+    `Shortcut` of 10^18 times 5 × 10^17, less one. With an odd count of
+    iterations, or a pool that is "your opponent's number plus one" where
+    that number is itself symbolic, no rewrite exists: the value is
+    well-defined, and the type cannot name it. Checking an announced X
+    always works, since `2X ≤ G` is a comparison the planned `PartialOrd`
+    makes. But a player cannot announce the most: the planned declaration
+    is a `u64` or "theirs plus N" (§9.6 there), so there is no "half my
     pool". `GameNumber` needs a floor-quotient node, floor(E / k) for a
-    constant k, compared through `k·c ≤ E`. MA-2 keeps the parts (`MostX`
-    carries G, a − r and k), so that node can be built from them (§9).
+    constant k, kept unevaluated and compared through `k·c ≤ E`. MA-2 keeps
+    the parts (`MostX` carries G, a − r and k), so that node can be built
+    from them (§9).
 - **Empty.** If the least is not payable, the cast is reversed at 601.2b,
   with the reason 601.2h would give, before a window opens for a payment
   that cannot happen. Only an announcement can take what the gate counted: a
@@ -992,20 +1044,20 @@ which moves the stream.
 | X's arithmetic, the alternative cost's X (1, 2) | 50 | 60 |
 | The printed minimum, the gate (3, 4) | 30 | 60 |
 | The legal values, the announcement, the prompt, the agent (5–7) | 170 | 220 |
-| The closed form: the total in X, the most generic, the audit (decision 2) | 100 | 60 |
+| The closed form: the total in X, the most generic, the audits and the mana-value guard (decision 2) | 140 | 90 |
 | The why, both kinds (8) | 80 | 80 |
 | The scenario word (9) | 60 | 50 |
 | Blaze and the Hydra's cast path (11) | 30 | 80 |
 | The fixtures that move | | ~40 changed |
-| **Total** | **~560–600** | **~690** |
+| **Total** | **~600–640** | **~720** |
 
-1,250–1,300, against the row's 800–950 plus item 214's 40–80. The
+1,320–1,360, against the row's 800–950 plus item 214's 40–80. The
 difference is four things the row did not price: the generic split's why
 (§3.13 gave it to MA-2), the scenario word (setup-architecture's promise),
-the alternative cost's X (the rules pass), and the closed form, whose tests
-include one that compares it with `covers` at every X on random small
-boards. MA-1 ran about 1.5 times its code sizing; at that rate this is about
-1,550, inside the band.
+the alternative cost's X (the rules pass), and the closed form, tested
+against the exhaustive search and audited against `covers`, with its
+mana-value guard. MA-1 ran about 1.5 times its code sizing; at that rate this is about
+1,650, inside the band.
 
 **What the close-out owes the docs.** `cast-census.py`'s `{X}` row built,
 its activated-ability X row's owner corrected (§9), §8's prose and §10's
@@ -1017,7 +1069,7 @@ Migrations line. Blaze's line in the rulings ledger (no rulings), the
 §10's ✅ heading with a stub of 40 lines or fewer, this section to the
 archive; `state-of-play.md` regenerated.
 
-**Decisions.** One taken, one open.
+**Decisions.** Both taken.
 
 1. **The set form with no cut. Taken: A** (the owner, 2026-10-17, at
    #259's review). The problem: MA-2 builds the set form (§3.7), and nothing
@@ -1029,17 +1081,28 @@ archive; `state-of-play.md` regenerated.
    | Performance | none: no game builds a set | none | none |
    | Upkeep | one shape with no producer, in Deferred Migrations. The clients move once, in the PR that already changes the prompt (its range goes from `(0, u64::MAX)` to the engine's bound), and every cut after only produces | a second copy of CP-2's counter-amount work, which CP-2 replaces | the prompt changes shape again in CP-2: the CLI, the dev GUI, the scripted provider, replay and the setup driver move a second time, and the dev GUI job reruns. Reopens §3.7's "MA-2 builds the set shape" (decision 6) |
 
-2. **Whether the engine bounds X by what the board can pay, and how.** The
-   problem (the owner, at #259's review): a search for the bound cannot
+2. **Whether the engine bounds X by what the board can pay, and how.
+   Taken: A, on a condition** (the owner, 2026-10-17, at #259's review):
+   if the bound ever costs materially, the engine falls back to B while the
+   algorithm improves. **Material, as measured:** the bound's inclusive
+   share in callgrind (`legal_x_values` and the walk under it) past half a
+   point, 0.5% of instructions per decision (§2.2's unit), on
+   `close_out.py`'s boards. Every close-out that changes the inventory or
+   registers an X card reads it, and its `fuzz-record.md` block says the
+   number. The fallback is local: `legal_x_values` stops computing the
+   most, the interval's top opens, and the agents take back a cheap cap
+   of their own.
+
+   The problem: a search for the bound cannot
    survive a loop's mana. CR 731.2a's shortcut repeats a loop "a specified
    number of times", so a pool can hold more mana than a `u64` once
    `GameNumber` lands (`backlog.md` §2.28), and Stroke of Genius or Awaken
    the Woods is then cast for that much. The plan's first draft searched by
    doubling, about 113 steps to bracket 10^34 and as many to bisect (a step
    count that is fine), but every step expanded X into one generic symbol
-   per mana, which is not. Arena does not compute the bound, beyond rule cuts such as
-   Tamiyo's (the owner's account). Both options keep the gate (the smallest
-   X) and every rule cut.
+   per mana, which is not. Arena does not compute the bound, beyond rule
+   cuts such as Tamiyo's (the owner's account). Both options keep the gate
+   (the smallest X) and every rule cut.
 
    | | **A. The bound in closed form** (recommended) | **B. No bound: the payment decides, as Arena does** |
    |---|---|---|
@@ -1173,6 +1236,12 @@ Found by MA-2's plan (2026-10-17, §6.1):
   only, so a player cannot announce "half my pool". It needs a
   floor-quotient node compared through `k·c ≤ E`; a second line for
   §2.28 at MA-2's close.
+- **A cost change can apply by the spell's mana value** (found at #259's
+  review, from Golden-Tail Trainer). On the stack the mana value counts X
+  (CR 202.3e), so Krosan Drover and five other printed cards make the
+  total piecewise in X, and §3.7's "a larger X never costs less" fails.
+  No filter can read a mana value yet; §6.1 says what the first one must
+  bring and how `filter_reads` keeps it from passing silently.
 
 ---
 
