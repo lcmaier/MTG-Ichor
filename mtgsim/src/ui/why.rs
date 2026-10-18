@@ -13,6 +13,7 @@
 use std::collections::HashSet;
 
 use crate::engine::combat::validation::{can_block, CombatError};
+use crate::engine::costs::CannotPay;
 use crate::engine::layers::types::{EffectOrigin, EffectiveCharacteristics, Layer};
 use crate::engine::layers::{explain, AppliedBy, LayerStep, StepResult};
 use crate::engine::replacement::{auxiliary_zone, not_auxiliary, NotAuxiliary};
@@ -28,6 +29,7 @@ use crate::state::game_state::GameState;
 use crate::state::trace::{RecordKind, TraceRecord};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
+use crate::types::costs::Cost;
 use crate::types::effects::Effect;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -650,8 +652,7 @@ fn priority_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) ->
 
 /// In CR 601.2g's window: each of the permanent's mana abilities the window
 /// does not offer, with the cost that cannot be paid (`mana-architecture.md`
-/// §3.13). Two grants of one ability are one option, so an ability is
-/// offered when any instance of its definition is.
+/// §3.13).
 fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Vec<WhyLine> {
     let player = question.player;
     if !game.battlefield.contains_key(&id) {
@@ -665,20 +666,72 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
     if let Err(reason) = can_activate_its_abilities(game, player, id) {
         return vec![refusal("To activate its mana abilities", cannot_activate(game, player, id, first, &reason))];
     }
-    let offered = |ability: AbilityId| {
-        question.options.iter().any(|option| {
-            matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(source, offered))
-                if *source == id && offered.definition() == ability.definition())
-        })
-    };
     mana.iter()
-        .filter(|ability| !offered(ability.id))
+        .filter(|ability| !window_offers(question, id, ability.id))
         .filter_map(|ability| {
             let reason = game.can_pay_costs(&ability.costs, player, id).err()?;
             let action = format!("To activate “{}”", ability.rules_text.words);
             Some(refusal(action, cannot_pay(game, player, id, &reason)))
         })
         .collect()
+}
+
+/// Does the window offer `source`'s `ability`? Two grants of one ability are
+/// one option, so it is offered when any instance of its definition is.
+fn window_offers(question: &OpenQuestion, source: ObjectId, ability: AbilityId) -> bool {
+    question.options.iter().any(|option| {
+        matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(offered_source, offered))
+            if *offered_source == source && offered.definition() == ability.definition())
+    })
+}
+
+/// A mana ability CR 601.2g's window does not offer yet: each of its other
+/// costs can be paid, and the pool does not hold its mana.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NotOfferedYet {
+    pub source: ObjectId,
+    /// The option it would be, as the window's options are labeled.
+    pub label: String,
+    /// Why not yet, as the why words it, and the rule.
+    pub reason: String,
+    pub rule: Option<&'static str>,
+}
+
+/// At CR 601.2g's window, each mana ability the asked player may activate
+/// that the window does not offer only because the pool does not hold its
+/// mana yet, so mana from the sources it does offer can bring it in (Doubling
+/// Cube's {3}). In the battlefield's order, one per ability however many
+/// grants it has; none at any other question. A source spent another way,
+/// tapped or summoning sick, is no source yet, and its right-click says why.
+pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOfferedYet> {
+    if !matches!(question.context.kind, ChoiceKind::ManaAbilityWindow { .. }) {
+        return Vec::new();
+    }
+    let player = question.player;
+    let mut not_yet = Vec::new();
+    for source in game.battlefield_ids_ordered() {
+        if can_activate_its_abilities(game, player, source).is_err() {
+            continue;
+        }
+        let abilities = get_effective_abilities(game, source);
+        let mut seen: Vec<AbilityId> = Vec::new();
+        for ability in abilities.iter().filter(|ability| ability.ability_type == AbilityType::Mana) {
+            if seen.contains(&ability.id.definition()) || window_offers(question, source, ability.id) {
+                continue;
+            }
+            seen.push(ability.id.definition());
+            // The mana is checked first, so a short pool hides a tapped source:
+            // the rest is asked on its own.
+            let short = game.can_pay_costs(&ability.costs, player, source) == Err(CannotPay::PoolShort);
+            let rest: Vec<Cost> = ability.costs.iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
+            if short && game.can_pay_costs(&rest, player, source).is_ok() {
+                let option = ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability.id));
+                let (reason, rule) = cannot_pay(game, player, source, &CannotPay::PoolShort);
+                not_yet.push(NotOfferedYet { source, label: option_label(game, &option), reason, rule });
+            }
+        }
+    }
+    not_yet
 }
 
 /// At a declare-blockers question: for an attacker, which of the defending
