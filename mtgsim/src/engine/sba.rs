@@ -79,13 +79,39 @@ enum CollapsedResult {
 }
 
 impl CollapsedResult {
-    /// Every member of the check that is no unattach and no removal moves,
-    /// destroys, ceases to exist or loses.
-    fn of(action: &GameAction) -> CollapsedResult {
+    /// `action`'s result, or `None` for an action no state-based check
+    /// proposes, which nothing collapses. Every action is named so that a new
+    /// state-based one says which result it has: CR 704.5u's sector, 704.5w's
+    /// protector and 704.5z's speed are none of these, and one filed as
+    /// leaving would collapse with its subject's loss, which comes later in
+    /// the batch.
+    fn of(action: &GameAction) -> Option<CollapsedResult> {
         match action {
-            GameAction::Unattach { .. } => CollapsedResult::Unattached,
-            GameAction::RemoveCounters { counter, .. } => CollapsedResult::RemovesCounters(*counter),
-            _ => CollapsedResult::LeavesOrLoses,
+            GameAction::ZoneChange { .. }
+            | GameAction::Destroy { .. }
+            | GameAction::TokenCeasesToExist { .. }
+            | GameAction::PlayerLoses { .. } => Some(CollapsedResult::LeavesOrLoses),
+            GameAction::Unattach { .. } => Some(CollapsedResult::Unattached),
+            GameAction::RemoveCounters { counter, .. } => Some(CollapsedResult::RemovesCounters(*counter)),
+            GameAction::DealDamage { .. }
+            | GameAction::DrawCards { .. }
+            | GameAction::DrawCard { .. }
+            | GameAction::GainLife { .. }
+            | GameAction::LoseLife { .. }
+            | GameAction::Untap { .. }
+            | GameAction::Tap { .. }
+            | GameAction::Attach { .. }
+            | GameAction::AddCounters { .. }
+            | GameAction::EnterBattlefield { .. }
+            | GameAction::CreateTokens { .. }
+            | GameAction::CreateTokenIn { .. }
+            | GameAction::BeginTurn { .. }
+            | GameAction::BeginPhase { .. }
+            | GameAction::BeginStep { .. }
+            | GameAction::Scry { .. }
+            | GameAction::ShuffleLibrary { .. }
+            | GameAction::PlayerWins { .. }
+            | GameAction::ProduceMana { .. } => None,
         }
     }
 }
@@ -468,7 +494,9 @@ impl GameState {
         // moved already unattached by its leaving (CR 701.3d). Each kind of
         // counter CR 704.5q removes is one too, ahead of the moves.
         let mut seen: HashSet<(EventSubject, CollapsedResult)> = HashSet::new();
-        batch.retain(|(action, _)| seen.insert((subject_of(action), CollapsedResult::of(action))));
+        batch.retain(|(action, _)| {
+            CollapsedResult::of(action).is_none_or(|result| seen.insert((subject_of(action), result)))
+        });
 
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
