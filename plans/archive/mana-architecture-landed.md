@@ -339,7 +339,7 @@ the cost being paid with no X.
 ```rust
 pub struct LegalXValues { pub offered: XOffer, pub x_cant_be_zero: bool, pub bound: Option<XBound> }
 pub enum XOffer { Interval { at_least: u64, at_most: u64 }, Set(Vec<u64>) }
-pub struct XBound { pub pips: ManaCost, pub most_generic_payable: u64, pub generic_besides_x: i64, pub x_symbol_count: u64 } // 601.2h: P, G, a − r, k
+pub struct XBound { pub pips: ManaCost, pub max_generic_payable: u64, pub generic_besides_x: i64, pub x_symbol_count: u64 } // 601.2h: P, G, a − r, k
 ```
 The kind carries them, because the announcement's other choices are not on
 the stack entry yet when X is asked, so the why cannot work them out again.

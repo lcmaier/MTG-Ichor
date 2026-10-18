@@ -372,7 +372,7 @@ fn x_refusals(game: &GameState, player: PlayerId, spell: ObjectId, values: &Lega
     let words = format!(
         "{pips}{} can pay at most {} generic mana, and each X adds {{{}}}{besides}",
         player_name(player),
-        bound.most_generic_payable,
+        bound.max_generic_payable,
         bound.x_symbol_count,
     );
     lines.push(refusal(format!("X above {}", values.offered.at_most()), (words, Some("601.2h"))));

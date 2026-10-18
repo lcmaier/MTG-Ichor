@@ -527,7 +527,7 @@ mana cost's is (107.3a).
   beside `max(F, a − r + kX)` generic: a the generic besides X, r what the
   reductions take off, k the X symbols, F a Trinisphere-like floor. The cast
   evaluates the same component at the announced X.
-- **The budget.** `ManaSupply::most_generic_payable_alongside` answers once
+- **The budget.** `ManaSupply::max_generic_payable_alongside` answers once
   how much generic mana the inventory pays alongside P, G: the existence
   check's own walk with a maximum at its leaves, since generic mana enters
   Gale's condition only through the total; past a pool multiplier, each

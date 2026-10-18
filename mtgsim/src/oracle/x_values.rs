@@ -7,7 +7,7 @@
 //! reads it, so CR 601.2f's total is the same pips beside a generic part
 //! linear in X (`ManaComponent`), and the inventory says once how much
 //! generic mana it can pay alongside those pips
-//! ([`ManaSupply::most_generic_payable_alongside`]). Rules that cut a gap, a
+//! ([`ManaSupply::max_generic_payable_alongside`]). Rules that cut a gap, a
 //! loyalty ability's −X or a target with mana value X, arrive with their
 //! surfaces and offer the set form, [`XOffer::Set`].
 
@@ -42,7 +42,7 @@ impl LegalXValues {
             x_cant_be_zero: false,
             bound: Some(XBound {
                 pips: ManaCost::zero(),
-                most_generic_payable: at_most,
+                max_generic_payable: at_most,
                 generic_besides_x: 0,
                 x_symbol_count: 1,
             }),
@@ -88,13 +88,16 @@ impl XOffer {
 }
 
 /// A larger X leaves the cost unpayable (CR 601.2h): beside `pips`, the
-/// caster can pay at most `most_generic_payable` generic mana, and the
+/// caster can pay at most `max_generic_payable` generic mana, and the
 /// cost's generic part is `generic_besides_x` plus `x_symbol_count` for
 /// each X.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XBound {
+    /// The cost's symbols other than generic, the same at every X: not the
+    /// whole cost. The generic maximum is only true beside them, since a
+    /// mana that pays a pip pays no generic, so the why names them with it.
     pub pips: ManaCost,
-    pub most_generic_payable: u64,
+    pub max_generic_payable: u64,
     pub generic_besides_x: i64,
     pub x_symbol_count: u64,
 }
@@ -118,9 +121,9 @@ pub fn legal_x_values(
     };
     let non_mana = NonManaCosts { source: None, costs: &total.non_mana };
     let pips = total.mana.pips();
-    let most_generic_payable =
-        ManaSupply::read(game, caster).most_generic_payable_alongside(game, &pips, &non_mana)?;
-    let at_most = total.mana.generic_left_for_x(most_generic_payable)? / x_symbol_count;
+    let max_generic_payable =
+        ManaSupply::read(game, caster).max_generic_payable_alongside(game, &pips, &non_mana)?;
+    let at_most = total.mana.generic_left_for_x(max_generic_payable)? / x_symbol_count;
     if at_most < at_least {
         return None;
     }
@@ -131,7 +134,7 @@ pub fn legal_x_values(
         x_cant_be_zero,
         bound: Some(XBound {
             pips,
-            most_generic_payable,
+            max_generic_payable,
             generic_besides_x: total.mana.generic_besides_x(),
             x_symbol_count: x_symbol_count.get(),
         }),
@@ -223,7 +226,7 @@ mod tests {
                 x_cant_be_zero: false,
                 bound: Some(XBound {
                     pips: ManaCost::from_symbols(vec![R]),
-                    most_generic_payable: 4,
+                    max_generic_payable: 4,
                     generic_besides_x: 0,
                     x_symbol_count: 1,
                 }),

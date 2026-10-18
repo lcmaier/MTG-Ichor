@@ -357,34 +357,34 @@ impl ManaSupply {
     /// (`oracle::x_values`), and it answers what [`Self::covers`] would at
     /// every amount of generic mana: the check's walk with a maximum at its
     /// leaves, tried the same two ways as [`Self::pays`].
-    pub fn most_generic_payable_alongside(&self, game: &GameState, pips: &ManaCost, non_mana: &NonManaCosts<'_>) -> Option<u64> {
+    pub fn max_generic_payable_alongside(&self, game: &GameState, pips: &ManaCost, non_mana: &NonManaCosts<'_>) -> Option<u64> {
         let demand = pips.demand()?;
         let reserved = ReservedByCosts::of(game, self.player, non_mana, !self.sacrifice_outlets.is_empty());
-        self.most_generic_alongside_demand(&demand, &reserved)
+        self.max_generic_alongside_demand(&demand, &reserved)
     }
 
-    /// [`Self::most_generic_payable_alongside`] in the check's terms, as
+    /// [`Self::max_generic_payable_alongside`] in the check's terms, as
     /// [`Self::pays`] is [`Self::covers`]'.
-    fn most_generic_alongside_demand(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> Option<u64> {
+    fn max_generic_alongside_demand(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> Option<u64> {
         let mut most = self
             .split_without_pool_multipliers(reserved)
-            .most_generic_payable_alongside(demand, |made| made.checked_sub(demand.total()));
+            .max_generic_payable_alongside(demand, |made| made.checked_sub(demand.total()));
         let multipliers: Vec<&PoolMultiplier> =
             self.pool_multipliers.iter().filter(|m| !reserved.reserves(m.permanent)).collect();
         for k in 1..=multipliers.len() {
-            most = most.max(self.most_generic_payable_with_multipliers(demand, reserved, &multipliers[..k]));
+            most = most.max(self.max_generic_payable_with_multipliers(demand, reserved, &multipliers[..k]));
         }
         most
     }
 
-    /// [`Self::most_generic_payable_alongside`] with the pool multipliers
+    /// [`Self::max_generic_payable_alongside`] with the pool multipliers
     /// `used` activated last, in their order, as
     /// [`Self::pays_with_multipliers`] tries them. The walk asks for the pips
     /// carried back through each with no generic part; a leaf's total is then
     /// carried forward through each, the first activated first: its input
     /// paid, the rest times its factor (`ManaDemand::before_multiplying`,
     /// inverted). What is made after them and pays no pip pays generic.
-    fn most_generic_payable_with_multipliers(
+    fn max_generic_payable_with_multipliers(
         &self,
         demand: &ManaDemand,
         reserved: &ReservedByCosts,
@@ -409,7 +409,7 @@ impl ManaSupply {
             }
             Some(budget + spare)
         };
-        self.split(reserved, used).most_generic_payable_alongside(&needed, generic_paid_by_total)
+        self.split(reserved, used).max_generic_payable_alongside(&needed, generic_paid_by_total)
     }
 
     /// With the pool multipliers `used` activated last, in their order: the
@@ -1236,7 +1236,7 @@ impl SplitSupply {
     /// (`useful_copies`), so this is the check's own walk with a maximum at
     /// its leaves (`mana-architecture.md` §3.7). Past the walk's cap it leans
     /// high, as the check leans yes: every group's largest way.
-    fn most_generic_payable_alongside(&self, demand: &ManaDemand, generic_paid_by_total: impl Fn(u64) -> Option<u64>) -> Option<u64> {
+    fn max_generic_payable_alongside(&self, demand: &ManaDemand, generic_paid_by_total: impl Fn(u64) -> Option<u64>) -> Option<u64> {
         let groups = self.choice_groups_seen_by(demand);
         let first_copies = groups.first().map_or(0, |(_, copies)| *copies);
         let free: u64 = self.free.iter().map(|(_, n)| n).sum();
@@ -2061,7 +2061,7 @@ mod tests {
     /// finds a payment for, on the same random boards, multipliers among
     /// them (`mana-architecture.md` §3.7).
     #[test]
-    fn the_most_generic_agrees_with_an_exhaustive_search() {
+    fn the_max_generic_agrees_with_an_exhaustive_search() {
         let mut rng = StdRng::seed_from_u64(259);
         let (mut paid, mut unpaid, mut doubled) = (0, 0, 0);
         for _ in 0..3000 {
@@ -2069,7 +2069,7 @@ mod tests {
             let pips = random_pips(&mut rng);
             let pays = |generic| pays_by_search(&supply, &ManaDemand { pips, generic });
             let expected = pays(0).then(|| (0..).take_while(|&generic| pays(generic)).last().unwrap_or(0));
-            let most = supply.most_generic_alongside_demand(&ManaDemand { pips, generic: 0 }, &ReservedByCosts::default());
+            let most = supply.max_generic_alongside_demand(&ManaDemand { pips, generic: 0 }, &ReservedByCosts::default());
             assert_eq!(most, expected, "{supply:#?}\n{pips:?}");
             match most {
                 Some(_) if !supply.pool_multipliers.is_empty() => doubled += 1,

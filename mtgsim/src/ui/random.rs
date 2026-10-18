@@ -187,7 +187,7 @@ pub struct RandomDecisionProvider {
 
     /// The pool multiplier this provider last activated, and the pips the
     /// cost it feeds owes, which paying the multiplier's input leaves alone.
-    last_pool_multiplier: Cell<Option<(ObjectId, ManaBag)>>,
+    previous_pool_multiplier: Cell<Option<(ObjectId, ManaBag)>>,
 
     /// The actions the engine rejected in the priority window this provider
     /// is answering. The engine offers them again, since a person may take one
@@ -220,7 +220,7 @@ impl RandomDecisionProvider {
     pub fn new() -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
-            last_pool_multiplier: Cell::new(None),
+            previous_pool_multiplier: Cell::new(None),
             rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::from_os_rng()),
         }
@@ -234,7 +234,7 @@ impl RandomDecisionProvider {
     pub fn seeded(seed: u64) -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
-            last_pool_multiplier: Cell::new(None),
+            previous_pool_multiplier: Cell::new(None),
             rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::seed_from_u64(seed)),
         }
@@ -285,7 +285,7 @@ impl DecisionProvider for RandomDecisionProvider {
             let seen = match self.window.get() {
                 Some(seen) if seen.subject == *spell_or_ability_id => seen,
                 _ => {
-                    self.last_pool_multiplier.set(None);
+                    self.previous_pool_multiplier.set(None);
                     WindowSeen {
                         subject: *spell_or_ability_id,
                         activations: 0,
@@ -306,7 +306,7 @@ impl DecisionProvider for RandomDecisionProvider {
             if let ChoiceOption::Action(PriorityAction::ActivateAbility(permanent, ability)) = &options[idx]
                 && is_pool_multiplier(game, *permanent, *ability)
             {
-                self.last_pool_multiplier.set(Some((*permanent, seen.owed_at_first)));
+                self.previous_pool_multiplier.set(Some((*permanent, seen.owed_at_first)));
             }
             self.window.set(Some(WindowSeen { activations: seen.activations + 1, ..seen }));
             return vec![idx];
@@ -403,10 +403,10 @@ impl DecisionProvider for RandomDecisionProvider {
         // not need for a pip, so the doubling keeps that mana, when the split
         // can be made that way.
         if let ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } = &context.kind
-            && let Some((multiplier, owed)) = self.last_pool_multiplier.get()
+            && let Some((multiplier, owed)) = self.previous_pool_multiplier.get()
             && multiplier == *spell_or_ability_id
         {
-            self.last_pool_multiplier.set(None);
+            self.previous_pool_multiplier.set(None);
             let kept: Vec<u64> = buckets
                 .iter()
                 .zip(&caps)
