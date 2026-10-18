@@ -7013,3 +7013,48 @@ tree before, at seeds 0 and 5.
      units. Slot: MA-2's first commit (B12), or its own PR sooner.
      **Slotted:** MA-2's first commit (B12), a doubler-aware preference in
      `ui/random.rs`, with a test on the Humility board.
+
+### Item 276 — closed 2026-10-18 by PR #260 (MA-2's dev GUI notes)
+
+All three notes, in the dev GUI PR the cadence put after MA-2.
+- **The why panel.** An egui panel widens to whatever it holds that
+  cannot wrap, and the panel's title, a log line's whole text for an
+  event's why, sat in a row that did not. It wraps now, and a drag widens
+  the panel only to half the room the log leaves.
+- **The prevented event.** The owner chose option (A) of the PR's design:
+  `triggers-architecture.md` item 16's `GameEvent::DamagePrevented`, built
+  ahead of TR-5d for the log, as #231 built `Targeted`. `apply_replacements`
+  announces one per effect per recipient it prevented damage to, as the
+  batch decides, so a prevention with no rider, and part of a shield's
+  damage, have lines. The arm stays TR-5d's.
+- **Sources not offered yet.** `ui::why::not_offered_yet` lists each mana
+  ability the window does not offer only because the pool lacks its mana,
+  and the payment step draws it greyed with the why's reason.
+
+*Original entry:*
+
+276. **Three dev GUI notes from MA-2's manual testing (2026-10-18).**
+     - **The why panel squeezes the board.** Open, it takes most of the
+       window's width, and the battlefield is drawn in what is left. It
+       needs a width cap or a resizable split.
+     - **A prevented event leaves nothing to see.** Lightning Bolt on Protean
+       Hydra: the damage is prevented and the counters come off, and the log
+       shows only the removal. An event replaced away is never performed, so
+       the performed stream has no record of it, and nothing tells the log
+       that a replacement applied. The engine half is a design question,
+       what the stream records for an event replaced to nothing without a
+       second emitter beside the performer's (CLAUDE.md's chokepoint), and
+       rides in the GUI PR by the cadence.
+     - **A pool multiplier is offered only once the pool pays its cost.**
+       Seven Everywheres and two Doubling Cubes pay Protean Hydra at X = 9:
+       tap all seven, then each Cube. The window offers a Cube only once the
+       pool holds `{3}`, so it first shows only the Everywheres, and the play
+       looks impossible. The why already says what a source lacks
+       (`ui/why.rs`' `window_refusals`); the window could draw a source it
+       does not offer greyed, with that line.
+     Floating mana outside a payment is item 211's (MA-6), an engine gap and
+     not the dev GUI's.
+     **Reachability (2026-10-18):** reachable — the dev GUI, every game.
+     **Sized:** the panel's width ~20 lines; the greyed sources ~40 lines and
+     a picture; the prevention record unsized until its design.
+     **Slotted:** MA-2's dev GUI notes PR, the cadence's next, before TR-5c.

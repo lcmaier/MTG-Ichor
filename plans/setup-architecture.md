@@ -1836,7 +1836,9 @@ says which rules and effects made the thing look the way it does.
   that event. The panel shows the event's batch as the engine decided it: the
   damage proposed, each CR 616.1 iteration with its candidates (a prevention
   shield, say), the one applied and what it rewrote the event to, and what
-  was performed. When a "can't" stopped the event, it names that too.
+  was performed. When a "can't" stopped the event, it names that too. Since
+  #260 a prevention is a line of its own, `DamagePrevented` (CR 615.13), so
+  damage prevented whole still has a line whose why is its batch.
 - **"Why didn't Soul Warden trigger?"** The same right-click, on "Grizzly Bears
   enters the battlefield", lists every triggered ability the engine asked
   about that event. Each one either matched or was refused, and the panel says

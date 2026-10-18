@@ -247,8 +247,10 @@ player's line can be right-clicked too, and its why is that section alone.
   shows the event's batch as the engine decided it: the proposals, each CR
   616.1 iteration that met an effect or a "can't", and a batch after it that
   performed nothing, which is where a destruction a "can't" stopped shows.
-  Then every triggered ability asked about the event, matched or refused and
-  by what. Every question kind's line says what the question ranges over.
+  Damage a prevention effect stopped has a line of its own, the prevention's
+  `DamagePrevented` record (CR 615.13), and its why is the batch the damage
+  was proposed in. Then every triggered ability asked about the event,
+  matched or refused and by what. Every question kind's line says what the question ranges over.
 - **A question about the past is a replay's.** The engine reads a past event
   from its trace (`ui::why::why_from_trace`), and the window keeps no trace,
   so the session replays the window's line on a thread of its own with the
