@@ -129,6 +129,7 @@ is derived.
 | 2026-10-17 | Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
 | 2026-10-17 | Counters, and one history struct | `TR-5b` | `triggers-architecture.md` |
 | 2026-10-18 | The legal values of X | `MA-2` | `mana-architecture.md` |
+| 2026-10-18 | Blocks, targeting and activation | `TR-5c` | `triggers-architecture.md` |
 
 ### Named, not yet landed
 
@@ -155,7 +156,6 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| Blocks, targeting and activation | `TR-5c` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | Prevention, excess damage, the multiplier, tokens and scry | `TR-5d` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
@@ -167,7 +167,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 208 |
 | …of them in `PERFORMANCE_POOL` | 118 |
-| `#[test]` functions | 2607 |
+| `#[test]` functions | 2610 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -188,14 +188,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 330 |
-| …closed, still recorded | 187 |
-| …open — unreachable, and says why | 95 |
+| Numbered items | 336 |
+| …closed, still recorded | 189 |
+| …open — unreachable, and says why | 99 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 28 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 141 of 143 |
+| …open, carrying an explicit `**Sized:**` | 145 of 147 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -209,8 +209,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 84 |
-| …slotted to the first registered card that needs it | 47 |
+| …slotted to a phase or roadmap row still to come | 83 |
+| …slotted to the first registered card that needs it | 52 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

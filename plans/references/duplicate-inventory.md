@@ -397,6 +397,9 @@ Each fixed one says so in its owner cell.
 | "it" for an intervening "if" (T10) | asked once per record at the trigger and once per occurrence at resolution | no registered trigger reads "it" in its "if" before TR-4a | fixed in #251 |
 | a spell's cost decisions (T11) | the capture missed the resolving spell's, condition's reader the stack's | `SpellWasKicked` has no registered user | fixed in #251 |
 | "its owner" of a gone source (T12) | `FilterPlayers::owner` panics with no row, `TextReferents::source_owner` refuses, two resolution reads error | no registered filter writes `Owner`; TR-4a opened the first site, which #251 closed | the first site fixed in #251; the rest item 247 |
+| a frame gone before its event (T17) | `record_frame` knew a damage source's frame and not an activation source's, which the matcher read | no registered card reads a sacrificed activation source | fixed in #261 |
+| a block arm's own side (T18) | `subject` named the blocker of "becomes blocked by", and an unblocked arm mapped its other creature to a blocker | no registered card has a delayed block trigger or an unblocked one naming another creature | fixed in #261 |
+| the mana part of a cost list (T19) | the window and the plan take the first `Cost::Mana`, the enumeration joins them all | no registered cost has two | item 247 |
 
 ### 3.6 Found by TR-4a's model pass (2026-10-14)
 
@@ -434,6 +437,73 @@ re-found T1, T2, T3, T4, T6, T8 and the `in_game` key (§6, same composition
 - **Kept:** the CR 603.4 recheck's "you" is the controller locked at CR
   603.3a and an effect's own "if"'s is the resolution's (CR 109.5); two
   readings of two instants, not one fact.
+
+### 3.7 Found by TR-5c's model pass (2026-10-18)
+
+§2a's prompt over the 22 engine files #261 changed, its report unseen. It
+named 17 facts; #261 merged or fixed nine, and the rest are kept with a
+reason or are item 247's.
+
+**Fixed in #261, each shown failing first.**
+- **T17. The frame of an object gone before its event** (CR 608.2h,
+  602.2b): the matcher read an activation source a cost had sacrificed off
+  its record's frame, and `binding::record_frame` knew only a damage
+  source's, so a read at the trigger or at resolution reported a missed
+  capture. One method, `GameEvent::frame_gone_before_this_event`, for the
+  matcher's two arms, `record_frame` and `damage_objects`. Its log half
+  stays item 247's: the activation line names its source by the card, the
+  damage line by the frame, which part only for a copy sacrificed for its
+  own cost.
+- **T18. Which side of a block arm is its own:** `TriggerEvent::subject`
+  always named the blocker, so "when that creature becomes blocked by a
+  creature" did not watch the creature it refers to (CR 603.7c), and an
+  unblocked arm's other creature mapped to a blocker its events never hold.
+  `subject` names the side the text names, and `other_combatant` is the one
+  reading `role_in_arm` and `event_roles` share.
+
+**Merged in #261, no game moved.** An object's last known information now
+(`last_known_information_now`, five sites); the combat in progress's rows
+(`rows_in`); a filtered sweep for a `Together` part (`affected_permanents`);
+the activation's record (`announce_activation`, both producers, each with
+its provider); a spell or an ability as a targeting asks
+(`TargetedBy::admits`); the object that played a role
+(`GameState::triggering_object` through the binding's lookup); the
+declaration's distinct sides (one walk in `block_events`); where countering
+puts a spell (`Counter`'s `moves_into`).
+
+**Kept, each with its reason.**
+- `entries_agree_on` compares each triggering event's own pairs, which a
+  per-role list from `triggering_objects` cannot give where an event lacks a
+  role; agreeing wrongly there would elide two different triggers.
+- `has_a_first_time` is the reader of `HistoryUpdate::placed_among`'s list;
+  were they to part, a valid card would be refused loudly, never answered
+  wrong.
+- `TargetSubject` and `CountersOn` share a shape and stay apart, as TR-5c's
+  design decided, since each reads well only at its own arm.
+- `players_named_by` and `found_by_part` answer two questions: who chooses
+  or who "that player" is, and what a join acts on.
+- The one-window idiom in `announce_targeted_records` and
+  `control::announce`: the control sweep does its removal from combat and
+  its look-back snapshot inside the window, so a wrapper would take a
+  closure for one caller. An emit inside an open batch dispatches nothing
+  and cannot fail, so the two error paths agree.
+
+**Item 247's, beside T1–T16.**
+- **T19. The mana part of a cost list:** `run_mana_ability_window` and
+  `plan_payment` take the first `Cost::Mana`, and `split_out_mana_costs`
+  joins them all; `costs.rs` says there is at most one, and nothing
+  enforces it. No registered cost has two.
+- **T20. Which role of an occurrence holds several objects:**
+  `may_have_several`, `TriggeringEventObjects::objects`' plural slot and
+  `get`, which leaves it out. One per-variant table.
+- **T21. Small ones:** "has first strike or double strike" three times in
+  `combat/` (`a_combatant_strikes_first`, `process_combat_damage`,
+  `should_deal_damage_this_step`); a `LifeChanged`'s gain or loss in the
+  history's update, `amount_of` and the dispatch's sign test; whether
+  attackers or blockers were declared, derived from the board in
+  `scenario/build.rs` and `write.rs`.
+- T1–T3's fold and queue (the dispatch's and the delayed registry's) were
+  re-found, and #261 edited both copies of T1's tail identically.
 
 ## 4. The rename: "departed frame" to LKI
 

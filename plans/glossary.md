@@ -635,7 +635,8 @@ about, which only the counter arms can carry (TR-5b). Distinct from the
 **occurrence** it counts, which is what the
 arm says one of its events is (one **triggering event** that
 `triggering_events_in` returns: a record for most kinds, an attacker for
-the attack shape, a counter for the counter arms).
+the attack arm, a blocker, a block or a blocked creature for the block
+arm, a counter for the counter arms).
 The CR gives the occurrence a name and the choice between the two none, so this
 one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
 
@@ -667,8 +668,11 @@ fact and the frame comes with the record. → `TriggerBinding`,
 `engine::triggers::binding`.
 
 **event role** — the part an object played in a triggering event: a damage
-record's source and recipient, an attack's attacker and what it attacks, an
-attach's attachment and host, or the one object of a record about one. Each
+record's source and recipient, an attack's attacker and what it attacks, a
+block's blocker and attacker, a targeting's target and the spell or ability
+that chose it, an attach's attachment and host, or the one object of a record
+about one. On an arm that reads either side of a block, the **other
+combatant** is the creature across it from this one (TR-5c). Each
 instruction that reads a triggering object names the event role it means,
 since CR 608.2c leaves the antecedent of "that creature" to the text. The
 project's words, always both: a bare "role" is the Role tokens' (CR 111.10),
