@@ -29,7 +29,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, Lki, ReflexiveForm};
-use crate::types::mana::ManaSymbol;
+use crate::types::mana::{ManaSymbol, ManaType};
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 
@@ -778,6 +778,18 @@ fn keyword_and_cost(keyword: &str, costs: &[Cost]) -> String {
     match mana {
         Some(symbols) if !symbols.is_empty() => format!("{keyword} {}", symbols.concat()),
         _ => keyword.to_string(),
+    }
+}
+
+/// A type of mana as a sentence says it: "two red".
+pub(crate) fn mana_type_name(mana_type: ManaType) -> &'static str {
+    match mana_type {
+        ManaType::White => "white",
+        ManaType::Blue => "blue",
+        ManaType::Black => "black",
+        ManaType::Red => "red",
+        ManaType::Green => "green",
+        ManaType::Colorless => "colorless",
     }
 }
 

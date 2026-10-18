@@ -128,6 +128,7 @@ is derived.
 | 2026-10-16 | The attack declaration | `TR-5e` | `triggers-architecture.md` |
 | 2026-10-17 | Creatures put onto the battlefield attacking, and removal from combat | `TR-5f` | `triggers-architecture.md` |
 | 2026-10-17 | Counters, and one history struct | `TR-5b` | `triggers-architecture.md` |
+| 2026-10-18 | The legal values of X | `MA-2` | `mana-architecture.md` |
 
 ### Named, not yet landed
 
@@ -148,7 +149,6 @@ and no ✅ heading records, in the docs' order.
 | Hybrid, Phyrexian and X payment | `CP-1` | `cost-architecture.md` |
 | The cost actions | `CP-2` | `cost-architecture.md` |
 | The check widened | `MA-7` | `mana-architecture.md` |
-| The legal values of X | `MA-2` | `mana-architecture.md` |
 | Any color, riders, the nested window | `MA-3` | `mana-architecture.md` |
 | The chosen color and "could produce" | `MA-4` | `mana-architecture.md` |
 | Paying with permanents or cards | `MA-5` | `mana-architecture.md` |
@@ -165,9 +165,9 @@ and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 205 |
-| …of them in `PERFORMANCE_POOL` | 115 |
-| `#[test]` functions | 2528 |
+| Cards registered | 206 |
+| …of them in `PERFORMANCE_POOL` | 116 |
+| `#[test]` functions | 2561 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -188,14 +188,14 @@ is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 326 |
-| …closed, still recorded | 185 |
-| …open — unreachable, and says why | 93 |
+| Numbered items | 330 |
+| …closed, still recorded | 186 |
+| …open — unreachable, and says why | 95 |
 | **…open — reachable, wrong today** | **4** |
-| …open — reachable, not wrong (perf, a name, a harness) | 28 |
+| …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 139 of 141 |
+| …open, carrying an explicit `**Sized:**` | 142 of 144 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -209,8 +209,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 83 |
-| …slotted to the first registered card that needs it | 46 |
+| …slotted to a phase or roadmap row still to come | 85 |
+| …slotted to the first registered card that needs it | 47 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

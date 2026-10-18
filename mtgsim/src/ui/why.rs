@@ -31,14 +31,16 @@ use crate::types::colors::Color;
 use crate::types::effects::Effect;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::ManaCost;
+use crate::oracle::x_values::LegalXValues;
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
-    named, option_label, player_name, rejection_words, type_line, Declaring,
+    mana_type_name, named, option_label, player_name, rejection_words, type_line, Declaring,
 };
 use crate::ui::what_happened::{cant_words, trigger_lines, what_happened, WHAT_HAPPENED};
 
@@ -260,11 +262,12 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
 /// The priority question, the two declarations and CR 601.2g's window ask
 /// their checks; three kinds ask their filters, the opponents an entering
 /// permanent may go to, an entry's auxiliary move and a copy effect's donor;
-/// and two read the trace, when a replay has one: the effects a CR 616.1
-/// choice has applied already, and the triggered abilities asked about the
-/// events an ordering's abilities triggered on. The other filtered kinds'
-/// reasons are their owners': a target's RS-2's, X's and the generic split's
-/// MA-2's, a sacrifice's CP-2's (`setup-architecture.md` §8).
+/// two say why their amounts stop where they do, about what is paid for, X
+/// and the generic split; and two read the trace, when a replay has one: the
+/// effects a CR 616.1 choice has applied already, and the triggered
+/// abilities asked about the events an ordering's abilities triggered on.
+/// The other filtered kinds' reasons are their owners': a target's RS-2's, a
+/// sacrifice's CP-2's (`setup-architecture.md` §8).
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
     let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {
@@ -287,6 +290,14 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
         }
         (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
         (ChoiceKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
+        (ChoiceKind::ChooseXValue { spell_id, values, .. }, WhyAbout::Object(id)) if id == *spell_id => {
+            x_refusals(game, question.player, id, values)
+        }
+        (ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost }, WhyAbout::Object(id))
+            if id == *spell_or_ability_id =>
+        {
+            generic_split_refusals(game, question.player, mana_cost)
+        }
         (ChoiceKind::ChooseEnteringController { .. }, WhyAbout::Player(player)) => {
             let reason = game.not_an_opponent(question.player, player).map(|reason| match reason {
                 NotAnOpponent::Yourself => (format!("{} is choosing, and an opponent is another player", player_name(player)), Some("102.2")),
@@ -337,6 +348,63 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             _,
         ) => Vec::new(),
     }
+}
+
+/// At CR 601.2b's announcement of X, about the spell: why the values offered
+/// start and stop where they do, as `oracle::x_values` worked them out. A
+/// gap a rule cuts gets its reason from that rule, with its surface.
+fn x_refusals(game: &GameState, player: PlayerId, spell: ObjectId, values: &LegalXValues) -> Vec<WhyLine> {
+    let mut lines = Vec::new();
+    if values.x_cant_be_zero {
+        lines.push(refusal("X = 0", (format!("{} says X can't be 0", named(game, spell)), None)).naming(game, &[spell]));
+    }
+    let Some(bound) = &values.bound else {
+        lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))));
+        return lines;
+    };
+    let pips = if bound.pips.symbols.is_empty() { String::new() } else { format!("alongside {}, ", bound.pips) };
+    let generic_besides_x = bound.generic_besides_x;
+    let besides = match generic_besides_x.cmp(&0) {
+        std::cmp::Ordering::Greater => format!(", to the {{{generic_besides_x}}} the cost asks besides"),
+        std::cmp::Ordering::Less => format!(", less the {{{}}} its reductions take off", -generic_besides_x),
+        std::cmp::Ordering::Equal => String::new(),
+    };
+    let words = format!(
+        "{pips}{} can pay at most {} generic mana, and each X adds {{{}}}{besides}",
+        player_name(player),
+        bound.max_generic_payable,
+        bound.x_symbol_count,
+    );
+    lines.push(refusal(format!("X above {}", values.offered.at_most()), (words, Some("601.2h"))));
+    lines
+}
+
+/// At CR 601.2h's generic split, about what is paid for: the mana the split
+/// cannot spend on the generic part, because a pip of the cost needs it,
+/// from the buckets and the caps the ask itself reads.
+fn generic_split_refusals(game: &GameState, player: PlayerId, mana_cost: &ManaCost) -> Vec<WhyLine> {
+    let buckets = game.generic_split_buckets(player);
+    let caps = generic_split_caps(mana_cost, &buckets);
+    let pips = mana_cost.demand_without_choices();
+    buckets
+        .iter()
+        .zip(caps)
+        .filter(|((_, amount), cap)| cap < amount)
+        .map(|((mana_type, amount), cap)| {
+            let name = mana_type_name(*mana_type);
+            let action = if cap == 0 {
+                format!("Any {name} toward the generic part")
+            } else {
+                format!("More than {cap} {name} toward the generic part")
+            };
+            let pip = match mana_type {
+                ManaType::Colorless => ManaSymbol::Colorless,
+                colored => ManaSymbol::Colored(*colored),
+            };
+            let needed = ManaCost::from_symbols(vec![pip; pips.pips_of(*mana_type) as usize]);
+            refusal(action, (format!("{amount} {name} in the pool, less the cost's {needed}"), Some("601.2h")))
+        })
+        .collect()
 }
 
 /// What a question ranges over, said to a why about something it does not

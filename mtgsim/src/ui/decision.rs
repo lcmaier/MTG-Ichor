@@ -250,6 +250,8 @@ pub struct ScriptedDecisionProvider {
     /// The `per_bucket_mins` of every [`DecisionProvider::allocate`] this
     /// provider has answered, in prompt order — see [`Self::allocation_mins`].
     allocation_mins: RefCell<Vec<Vec<u64>>>,
+    /// Every prompt's kind, in prompt order — see [`Self::asked`].
+    asked: RefCell<Vec<ChoiceKind>>,
     mode: SeatMode,
 }
 
@@ -258,6 +260,7 @@ impl ScriptedDecisionProvider {
         ScriptedDecisionProvider {
             queue: RefCell::new(VecDeque::new()),
             allocation_mins: RefCell::new(Vec::new()),
+            asked: RefCell::new(Vec::new()),
             mode: SeatMode::default(),
         }
     }
@@ -288,6 +291,14 @@ impl ScriptedDecisionProvider {
     /// provider's "every decision must be declared" design exists to prevent.
     pub fn allocation_mins(&self) -> Vec<Vec<u64>> {
         self.allocation_mins.borrow().clone()
+    }
+
+    /// The kind of every prompt answered, in prompt order, with what each
+    /// carried: a `ChooseXValue`'s values, a window's remaining cost. The
+    /// queue matches a kind by its variant alone, so what a question offered
+    /// is read here, as [`Self::allocation_mins`] reads a split's floors.
+    pub fn asked(&self) -> Vec<ChoiceKind> {
+        self.asked.borrow().clone()
     }
 
     /// Enqueue a pick_n expectation.
@@ -335,6 +346,7 @@ impl ScriptedDecisionProvider {
     /// Pop the front expectation and validate. Panics if queue is empty or
     /// kind doesn't match — every DP call must have a corresponding expectation.
     fn pop_and_validate(&self, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
+        self.asked.borrow_mut().push(actual_kind.clone());
         let mut queue = self.queue.borrow_mut();
         let expectation = match queue.pop_front() {
             Some(e) => e,
@@ -415,6 +427,12 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 }
                 picked
             }
+            // A number answers a pick over numbers by value: CR 601.2b's X as
+            // a set with a gap (`ChoiceKind::ChooseXValue`).
+            ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, ChoiceOption::Number(offered) if *offered == n)) {
+                Some(index) => vec![index],
+                None => panic!("ScriptedDecisionProvider: number {n} is not offered: {options:?}"),
+            },
             other => panic!(
                 "ScriptedDecisionProvider: pick_n called but scripted response is {:?}, expected PickN",
                 other

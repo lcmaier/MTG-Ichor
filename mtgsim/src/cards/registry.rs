@@ -32,6 +32,7 @@ use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
 use super::phase_tr5b_cards;
+use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
 use super::phase_lj_cards;
@@ -65,7 +66,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 115] = [
+const PERFORMANCE_POOL: [&str; 116] = [
     "Plains",
     "Island",
     "Swamp",
@@ -534,14 +535,18 @@ const PERFORMANCE_POOL: [&str; 115] = [
     // TR-5b's: a removal of counters read once per counter, CR 704.5q's
     // annihilation in the state-based batch among them, each making a
     // delayed trigger; an entry's X (CR 107.3m); and a prevention whose rider
-    // removes counters. No player can cast it until MA-2, the next PR, offers
-    // an X spell at the gate.
+    // removes counters. Castable since MA-2 offers an X spell at the gate.
     "Protean Hydra",
     // TR-5b's other: a put of counters read once for each creature, that many
     // counters of a kind no rule reads, and a win behind an intervening "if"
     // over them. It ends some games (2.5 points of four-seat `stress` games,
     // natural decks), kept for the variety of ways a game ends.
     "Simic Ascendancy",
+    // MA-2's: the plain X spell. The gate asks its least X, CR 601.2b offers
+    // the X the board can pay, read in closed form, and the announced X
+    // deals the damage. A burn spell, so it ends some games by damage; how
+    // much it moves `stress` is read at the close-out and reported.
+    "Blaze",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -967,6 +972,10 @@ impl CardRegistry {
         // removed from it triggers, CR 704.5q's annihilation included.
         registry.register("Simic Ascendancy", phase_tr5b_cards::simic_ascendancy);
         registry.register("Protean Hydra", phase_tr5b_cards::protean_hydra);
+
+        // MA-2: the legal values of X. Blaze is the plain X spell, offered
+        // at its least X and announced from what the board can pay.
+        registry.register("Blaze", phase_ma2_cards::blaze);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

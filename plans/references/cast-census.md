@@ -47,7 +47,7 @@ count is Scryfall's `total_cards`, with the query in the row. `--residual` is
 empty at this run: every cost piece and every mana ability lands in a bucket.
 
 <!-- cast-census: begin DATE -->
-Counted 2026-10-06: the corpus fetched 2026-10-05, the counts cache's newest entry 2026-10-05, the tree as of the run.
+Counted 2026-10-18: the corpus fetched 2026-10-05, the counts cache's newest entry 2026-10-05, the tree as of the run.
 <!-- cast-census: end DATE -->
 
 ## 1. The families by status, and what changed in ownership
@@ -55,7 +55,7 @@ Counted 2026-10-06: the corpus fetched 2026-10-05, the counts cache's newest ent
 <!-- cast-census: begin SUMMARY -->
 | table | built | owned and slotted | found unowned | ... given an owner here | ... excluded here | still unowned |
 |---|---:|---:|---:|---:|---:|---:|
-| activation costs | 6 | 3 | 41 | 40 | 1 | 0 |
+| activation costs | 6 | 4 | 40 | 39 | 1 | 0 |
 | who activates | 1 | 0 | 2 | 2 | 0 | 0 |
 | when | 3 | 0 | 4 | 4 | 0 | 0 |
 | where | 1 | 0 | 3 | 3 | 0 | 0 |
@@ -63,9 +63,9 @@ Counted 2026-10-06: the corpus fetched 2026-10-05, the counts cache's newest ent
 | what feeds a mana ability | 3 | 0 | 0 | 0 | 0 | 0 |
 | casting and playing | 0 | 3 | 7 | 7 | 0 | 0 |
 | keyword families | 3 | 6 | 14 | 14 | 0 | 0 |
-| mana symbols | 2 | 6 | 1 | 1 | 0 | 0 |
+| mana symbols | 3 | 5 | 1 | 1 | 0 | 0 |
 | mana by phrase | 1 | 5 | 1 | 1 | 0 | 0 |
-| **all** | **25** | **25** | **77** | **76** | **1** | **0** |
+| **all** | **26** | **25** | **76** | **75** | **1** | **0** |
 <!-- cast-census: end SUMMARY -->
 
 The owner settled the homes on 2026-10-05, at this census's review. Each
@@ -224,7 +224,7 @@ past (118.6a).
 | mana with a Phyrexian symbol | 107.4f | `ManaSymbol::Phyrexian`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 38 | 38 | 0 |
 | mana with a hybrid or {2/W} symbol | 107.4e | `ManaSymbol::Hybrid`, `MonoHybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 121 | 110 | 0 |
 | mana with {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 37 | 35 | 0 |
-| mana with {X} | 107.3a | `Cost::Mana`; an ability's X is never asked | **owned** (found unowned) | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 148 | 145 | 0 |
+| mana with {X} | 107.3a | `Cost::Mana`; an ability's X is never asked | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 148 | 145 | 0 |
 | mana | 601.2g | `Cost::Mana` | built |  | 5,636 | 5,098 | 20 |
 | an amount of mana the board decides | 107.3 | `Cost::Mana(ManaCost)` holds symbols | **owned** (found unowned) | `cost-architecture.md` CP-2 (`roadmap-v2.md` B1, before C) | 2 | 2 | 0 |
 | pay {E} | 107.14 | no arm: a player's counters | **owned** (found unowned) | `cost-architecture.md` §6: one `Cost` arm with its first card, in C | 58 | 52 | 0 |
@@ -492,18 +492,20 @@ trigger, dash's return, bestow's Aura) is the card's, in C.
 | a {2/W} symbol | 107.4e | `ManaSymbol::MonoHybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 20 | 20 | `m:/\{2\/[WUBRG]\}/` |
 | a hybrid symbol | 107.4e | `ManaSymbol::Hybrid`, unpaid | owned | `cost-architecture.md` CP-1 (`roadmap-v2.md` B1, any time) | 582 | 600 | `is:hybrid` |
 | {S} | 107.4h | `ManaSymbol::Snow`, unpaid | owned | `codebase-state.md` item 33, mana provenance (`roadmap-v2.md` B9, before C) | 2 | 2 | `m:{S}` |
-| {X} | 107.3a | `ChooseXValue` asked; `find_mana_sources` refuses X, so never offered | owned | `codebase-state.md` item 162's design, the next PR | 527 | 534 | `m:{X}` |
+| {X} | 107.3a | offered at its least legal X; `ChooseXValue` offers the X the board pays (`oracle::x_values`) | built |  | 527 | 534 | `m:{X}` |
 | {C} | 107.4c | `ManaSymbol::Colorless` | built |  | 27 | 28 | `m:{C}` |
 | colored and generic only | 107.4a | `ManaSymbol::Colored`, `Generic` | built |  | 30,920 | -- | the rest |
 
 A card lands in the first row its mana cost matches, so the cards column partitions the corpus; the Scryfall column counts every card the query matches, overlaps included.
 <!-- cast-census: end SYMBOLS -->
 
-**527 cards have `{X}` in their mana cost, and the priority question never
-offers one.** `ManaPool::can_pay` returns `false` for an `{X}` symbol, and
-`find_mana_sources` returns `None`, so `can_cast` answers `ManaShort` before
-the cast that would ask `ChooseXValue` begins. No registered card has an X
-cost, so no game meets it today. It is item 162's.
+**527 cards have `{X}` in their mana cost, and since MA-2 the priority
+question offers one** when its least legal X is payable, 0 or 1 under "X
+can't be 0" (`mana-architecture.md` §3.7). CR 601.2b's `ChooseXValue` then
+offers the X the board can pay, read in closed form off CR 601.2f's
+arithmetic and the inventory (`oracle::x_values`). Blaze and Protean Hydra
+are the registered X spells. An activated ability's `{X}` is still never
+asked (the "mana with {X}" cost row, CP-1's).
 
 <!-- cast-census: begin PHRASES -->
 | family | CR | surface | status | owner | cards | query (plus `BASE`) |
@@ -520,7 +522,7 @@ cost, so no game meets it today. It is item 162's.
 ## 9. The question kinds
 
 <!-- cast-census: begin QUESTIONS -->
-27 kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` answers 9 with a check (`ChooseAuxiliaryZoneChange`, `ChooseCopySource`, `ChooseEnteringController`, `ChooseReplacementEffect`, `DeclareAttackers`, `DeclareBlockers`, `ManaAbilityWindow`, `OrderTriggers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it ranges over (`ranges_over`). Of the 18 it does not check, 2 are **filtered**: a check drops a candidate the question could have named. 5 are **bounds**: the options are amounts, and the why explains a limit. 11 are **no**: every candidate is offered.
+29 kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` answers 11 with a check (`ChooseAuxiliaryZoneChange`, `ChooseCopySource`, `ChooseEnteringController`, `ChooseReplacementEffect`, `ChooseXValue`, `DeclareAttackers`, `DeclareBlockers`, `GenericManaAllocation`, `ManaAbilityWindow`, `OrderTriggers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it ranges over (`ranges_over`). Of the 18 it does not check, 2 are **filtered**: a check drops a candidate the question could have named. 3 are **bounds**: the options are amounts, and the why explains a limit. 13 are **no**: every candidate is offered.
 
 | `ChoiceKind` | its options | filtered | what a why reads | owner | slot |
 |---|---|---|---|---|---|
@@ -529,11 +531,11 @@ cost, so no game meets it today. It is item 162's.
 | `DeclareBlockers` | creatures and what each may block | yes | `can_block` (SU-7) | built (SU-7) | -- |
 | `AssignCombatDamage` | amounts across the creatures blocking it | bounds | what it ranges over, CR 510.1c | what it ranges over (SU-8) | -- |
 | `AssignTrampleDamage` | amounts across blockers and the player | bounds | what it ranges over, CR 702.19b | what it ranges over (SU-8) | -- |
-| `ChooseXValue` | a number | bounds | the bound the enumeration sets on X | `mana-architecture.md` MA-2 | MA-2 |
+| `ChooseXValue` | the values of X the board can pay | bounds | the least and the most, from `oracle::x_values`'s reasons (MA-2) | built (MA-2) | -- |
 | `ChooseAlternativeCost` | the mana cost and each printed alternative | no | -- | what it ranges over (SU-8) | -- |
 | `ChooseAdditionalCosts` | each optional additional cost | no | -- | what it ranges over (SU-8) | -- |
 | `SelectRecipients` | the objects or players a target or choice may name | yes | `validate_selection`'s reasons, typed | `cant-effects-architecture.md` RS-2 | RS-2 |
-| `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana | `mana-architecture.md` MA-2 | MA-2 |
+| `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2) | built (MA-2) | -- |
 | `OrderCostReductions` | an order of every reduction that applies | no | -- | what it ranges over (SU-8) | -- |
 | `ManaAbilityWindow` | the mana abilities that can pay now | yes | `can_pay_costs`'s `CannotPay`, per ability | built (MA-1) | -- |
 | `ChooseSacrificeForCost` | the permanents that can pay the cost | yes | CR 701.21a and the cost's filter | the cost phase that pays the cost | the cost phase |
@@ -543,7 +545,9 @@ cost, so no game meets it today. It is item 162's.
 | `ApplyOptionalEffect` | yes or no | no | -- | what it ranges over (SU-8) | -- |
 | `AllocateNextDamage` | amounts across the damage sources | bounds | what it ranges over, CR 615.7 | what it ranges over (SU-8) | -- |
 | `ChooseDamageSource` | every permanent and spell | no | -- | what it ranges over (SU-8) | -- |
+| `ChooseDelayedTriggerEvent` | the events that happened at once, any of which triggers the delayed ability | no | -- | what it ranges over (SU-8) | -- |
 | `ChooseEnteringController` | the opponents still in the game | yes | `not_an_opponent`, CR 102.2 and 800.4a | built (SU-8) | -- |
+| `ChooseEnteringDefender` | what an entering attacker may attack, as its effect allows | no | -- | what it ranges over (SU-8) | -- |
 | `ChooseAuxiliaryZoneChange` | the objects CR 614.13a/b and CR 101.2 allow | yes | `not_auxiliary`, and the "can't" that dropped it | built (SU-8) | -- |
 | `ChooseCopySource` | the permanents the copy effect may copy | yes | the copy effect's words; typed with RS-2's selection reasons | built (SU-8) | -- |
 | `CommanderToCommandZoneSba` | yes or no | no | -- | what it ranges over (SU-8) | -- |
@@ -565,8 +569,9 @@ filtered kinds' reasons are their owners':
 
 - `SelectRecipients`, with RS-2, which also types `ChooseCopySource`'s, today
   the copy effect's own words;
-- `ChooseXValue` and `GenericManaAllocation`, with MA-2; `ManaAbilityWindow`'s
-  MA-1 built;
+- `ManaAbilityWindow`'s, MA-1 built, and `ChooseXValue`'s and
+  `GenericManaAllocation`'s, MA-2 built: the least and the most X with what
+  set them, and the clamp on each bucket of the generic split;
 - `ChooseSacrificeForCost`, with CP-2.
 
 The kinds marked "no" need no reason: every candidate is offered. A why
@@ -579,28 +584,29 @@ since the engine plays them. The registered printings went through the same
 classifiers by name:
 
 <!-- cast-census: begin CALIBRATION -->
-181 names registered in `mtgsim/src/cards/registry.rs`; Scryfall knows 180 of them, and the rest are fixtures: Loyalty Probe.
+206 names registered in `mtgsim/src/cards/registry.rs`; Scryfall knows 205 of them, and the rest are fixtures: Loyalty Probe.
 
 | table | family | status | registered cards that use it |
 |---|---|---|---|
 | symbol | `sym-hybrid` | owned | Mirrorweave |
 | cost | `life` | built | Yawgmoth's Bargain |
-| cost | `mana` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Deep Water, Doubling Cube, Elvish Warmaster and 4 more |
+| cost | `mana` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Deep Water, Doubling Cube, Elvish Warmaster and 5 more |
 | cost | `sacrifice` | built | Altar's Reap, Bone Splinters, Kalitas, Traitor of Ghet, Krark-Clan Ironworks |
 | cost | `sacrifice-self` | built | Dark Sphere, Mind Stone, Samite Censer-Bearer |
 | cost | `tap-self` | built | Chainbreaker, Citanul Hierophants, Dark Sphere, Doubling Cube, Merfolk Thaumaturgist, Mind Stone and 5 more |
 | keyword | `kw-affinity` | built | Frogmite, Myr Enforcer |
-| keyword | `kw-equip` | built | Bonesplitter, Cobbled Wings |
+| keyword | `kw-equip` | built | Bonesplitter, Cobbled Wings, Grafted Wargear, Loxodon Warhammer |
 | mana | `fed-mana` | built | Doubling Cube |
 | mana | `fed-other` | built | Citanul Hierophants, Mind Stone, Nephalia Academy, Seat of the Synod, Sol Ring |
 | mana | `fed-sacrifice` | built | Krark-Clan Ironworks |
 | mana | `prod-double` | built | Doubling Cube |
 | mana | `prod-one` | built | Citanul Hierophants, Mind Stone, Nephalia Academy, Seat of the Synod |
 | mana | `prod-several` | built | Krark-Clan Ironworks, Sol Ring |
-| when | `when-any` | built | Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water, Doubling Cube and 13 more |
+| symbol | `sym-x` | built | Blaze, Protean Hydra |
+| when | `when-any` | built | Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water, Doubling Cube and 14 more |
 | when | `when-sorcery` | built | Aggravated Assault |
-| where | `where-battlefield` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water and 14 more |
-| who | `who-controller` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water and 14 more |
+| where | `where-battlefield` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water and 15 more |
+| who | `who-controller` | built | Aggravated Assault, Chainbreaker, Circle of Protection: Red, Citanul Hierophants, Dark Sphere, Deep Water and 15 more |
 <!-- cast-census: end CALIBRATION -->
 
 **It passes, with one exception on the record and one correction to the
@@ -684,8 +690,9 @@ three scope changes.
 
   Also unread: triggered mana (19 cards) and the replacements on it (10),
   from §8.
-- **X, never offered:** 527 cards with `{X}` in their mana cost (§8). The
-  bound the enumeration sets on X is `ChooseXValue`'s why (§9).
+- **X, offered since MA-2:** 527 cards with `{X}` in their mana cost (§8),
+  offered at the least legal X; the bound the board sets on X is
+  `ChooseXValue`'s why (§9).
 - **Payment by permanents or cards:** convoke 104, improvise 23, delve 28,
   assist 16, offering 6 and waterbend 28 (§7). Item 162's survey owned these
   already.

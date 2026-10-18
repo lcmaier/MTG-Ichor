@@ -67,7 +67,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
 | 103.5 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
 | 103.8 | The starting player's first draw step | ✅ 103.8a and 103.8c, from the seat count at `Game::new`; 103.8b (Two-Headed Giant) waits for teams, item 196 | `state/game.rs`, `starting_player_skips_first_draw` |
-| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
+| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 a spell's X: offered at its least legal X, announced from the values the board pays, read in closed form (MA-2, `mana-architecture.md` §3.7); an activated ability's X never asked, hybrid/Phyrexian payment `NotImplemented`, and mana value with X on the stack (202.3e), all CP-1's | `types/mana.rs`, `oracle/x_values.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
@@ -8580,25 +8580,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** MA-7, the check widened, which reads every cost per `Cost`
      arm; the converters and Treasure are MA-3's.
 
-214. **The random agent does not pay through Doubling Cube.** MA-1's check
-     counts a payment the Cube's doubling makes, and the window offers the
-     Cube once the pool can pay its `{3}` (`mana-architecture.md` §3.8), whose
-     units the player chooses. `ui::random`'s window policy reads only what
-     each offered source makes now: on a Blood Moon board where the Cube is
-     the only route to a second `{W}`, it taps the one Plains and declines, so
-     the cast is reversed (CR 732.1) and offered again at the next priority
-     question. Elsewhere it activates the Cube with mana the spell needed. On
-     `close_out.py`'s board with the Cube pooled, 46 reversals in 20 games, 42
-     of them declines and 28 in one game (`fuzz-record.md`, MA-1's block).
-     **Reachability (2026-10-05):** reachable — not wrong: the engine offers
-     and rewinds as CR 601.2g–h and 732.1 say, and the price is the agent's
-     stream, 2.3 re-asks a game on the budget's board.
-     **Sized:** a doubler-aware preference in `ui/random.rs`, ~40–80 lines
-     with a test on the Humility board: keep the owed pip's mana, tap toward
-     the doubler's `{3}`, activate it, and pay the `{3}` with the other
-     units. Slot: MA-2's first commit (B12), or its own PR sooner.
-     **Slotted:** MA-2's first commit (B12), a doubler-aware preference in
-     `ui/random.rs`, with a test on the Humility board.
+214. **~~The random agent does not pay through Doubling Cube.~~ — ✅ CLOSED 2026-10-18 (PR #259, MA-2).** — archived.
+     The agent holds a pool multiplier back until nothing else is offered,
+     taps toward it when its doubling is the only source of a pip still owed,
+     and pays its input with mana the cost does not need for a pip.
+     **Reachability (2026-10-18):** closed — PR #259.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 214".
 
 215. **What MA-1's review left for a hygiene pass.** Three cleanups the
      owner's review of #225 found, each changing no answer:
@@ -9305,3 +9292,94 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Slotted:** with the first registered card that runs an instruction
      once for each opponent naming that player; Adeline, Resplendent Cathar,
      a Commander staple, is the likely one.
+
+### Found by MA-2 (2026-10-18)
+
+273. **`ChooseXValue`'s set form has no producer.** `XOffer::Set` is the
+     prompt's shape for legal values of X with a gap (Tamiyo, Compleated
+     Sage's −X over cards of mana value 0, 1, 4, 6 and 7), asked by `pick_n`
+     over `ChoiceOption::Number`. No rule MA-2 builds cuts a gap, so only
+     tests build one: the random agent answers only from it, a scripted
+     number and a replayed log line answer it by value, and the scenario
+     word `x N` refuses a value it leaves out (`mana-architecture.md` §3.7;
+     decision 1 in the archive's "MA-2"). The first cut is the producer, and gives each gap its
+     typed reason in the why (`ui/why.rs`' `x_refusals`).
+     **Reachability (2026-10-18):** unreachable — no registered card cuts the
+     values of X.
+     **Sized:** each cut with its surface (`mana-architecture.md` §3.7's
+     owners): the cut's set built in `oracle::x_values` and its reason's
+     line, ~30 lines each beside the surface's own.
+     **Slotted:** CP-2, whose loyalty −X is the first cut (CR 606.6).
+
+274. **A cost change that applies by a spell's mana value makes the bound
+     on X piecewise.** On the stack a spell's mana value counts X (CR
+     202.3e), so a change whose filter reads it applies at some X and not
+     others: Krosan Drover, Thryx, Spectacle Mage, The Scarlet Witch and It
+     That Heralds the End reduce, Reidane increases (2026-10-17). With one, a
+     larger X can cost less (Stonecoil Serpent under Krosan Drover costs
+     `{5}` at X = 5 and `{4}` at X = 6), the payable values gain a gap, and
+     the least X need not be the cheapest, so the gate's one check at the
+     least X under-offers. No `ObjectFilter` arm reads a mana value, so the
+     total is one affine piece. `cost_determination::gather`'s `applies_to`
+     asserts in debug that no cost change applying to an X spell has a
+     filter that reads `MANA_COST` (`engine::layers::board::
+     filter_reads_mana_value`), so the first such arm fails a test.
+     **Reachability (2026-10-18):** unreachable — no filter can read a mana
+     value.
+     **Sized:** the thresholds (`X ≥ ceil((m − the rest's mana value) / k)`)
+     cutting `ManaComponent` into pieces, one division a piece, and the gate
+     testing each piece's first X: ~60 lines of code and ~80 of tests,
+     beside CR 202.3e's on-stack mana value (`cost-architecture.md`'s CP-1
+     row) (`mana-architecture.md` §3.7).
+     **Slotted:** with the first registered card whose cost change applies
+     by a spell's mana value (Krosan Drover, Thryx).
+
+275. **Delayed triggers from one template and one source still ask their
+     order.** Protean Hydra hit for three makes three delayed triggers, and
+     at the end step the engine asks the order of three identical "put two
+     +1/+1 counters on it". `trigger_order_cannot_change_outcome`
+     (`engine/triggers/placement.rs`) elides the prompt when every entry has
+     one def and agrees on each fact the def reads; the def is shared (each
+     `DelayedTrigger` clones the template's `Arc`), but the `SOURCE` read
+     compares `PendingTrigger::origin`, and a delayed trigger's origin is its
+     own registry number (`AbilityId::delayed`), so no two ever agree.
+     Asking is legal (CR 603.3b lets the player order them), so this is an
+     extra prompt, not a wrong answer. The fix compares the source under
+     `SOURCE` (`ABILITY` already reads what depends on the ability's own
+     identity), and has to check that two delayed triggers' last known
+     information of their source agrees: one made while the source was
+     there and one made after it left keep different `source_lki`. TR-5b's
+     `protean_hydra_triggers_once_for_each_counter_removed` expects the prompt
+     today, and dropping it moves the random agent's stream.
+     **Reachability (2026-10-18):** reachable — an extra prompt with Protean
+     Hydra registered; no answer changes.
+     **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
+     ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
+     for the dropped prompt.
+     **Slotted:** TR-5c, the next triggers PR, which moves the stream anyway.
+
+276. **Three dev GUI notes from MA-2's manual testing (2026-10-18).**
+     - **The why panel squeezes the board.** Open, it takes most of the
+       window's width, and the battlefield is drawn in what is left. It
+       needs a width cap or a resizable split.
+     - **A prevented event leaves nothing to see.** Lightning Bolt on Protean
+       Hydra: the damage is prevented and the counters come off, and the log
+       shows only the removal. An event replaced away is never performed, so
+       the performed stream has no record of it, and nothing tells the log
+       that a replacement applied. The engine half is a design question,
+       what the stream records for an event replaced to nothing without a
+       second emitter beside the performer's (CLAUDE.md's chokepoint), and
+       rides in the GUI PR by the cadence.
+     - **A pool multiplier is offered only once the pool pays its cost.**
+       Seven Everywheres and two Doubling Cubes pay Protean Hydra at X = 9:
+       tap all seven, then each Cube. The window offers a Cube only once the
+       pool holds `{3}`, so it first shows only the Everywheres, and the play
+       looks impossible. The why already says what a source lacks
+       (`ui/why.rs`' `window_refusals`); the window could draw a source it
+       does not offer greyed, with that line.
+     Floating mana outside a payment is item 211's (MA-6), an engine gap and
+     not the dev GUI's.
+     **Reachability (2026-10-18):** reachable — the dev GUI, every game.
+     **Sized:** the panel's width ~20 lines; the greyed sources ~40 lines and
+     a picture; the prevention record unsized until its design.
+     **Slotted:** MA-2's dev GUI notes PR, the cadence's next, before TR-5c.

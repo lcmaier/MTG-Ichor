@@ -7,7 +7,7 @@
 //! | Card | The path | Pooled |
 //! |---|---|---|
 //! | Simic Ascendancy | a put read once per creature, that many counters of a kind no rule reads, and a win behind an intervening "if" over them | yes |
-//! | Protean Hydra | an entry template's X (CR 107.3m), a prevention whose rider removes that many counters, and a removal read once per counter that makes a delayed trigger | yes; castable from MA-2, the next PR, which offers an X spell at the gate |
+//! | Protean Hydra | an entry template's X (CR 107.3m), a prevention whose rider removes that many counters, and a removal read once per counter that makes a delayed trigger | yes; castable since MA-2 offers an X spell at the gate |
 
 use std::sync::Arc;
 

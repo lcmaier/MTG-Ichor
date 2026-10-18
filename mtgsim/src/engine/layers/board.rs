@@ -779,6 +779,14 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
     }
 }
 
+/// Whether `filter` reads the mana value of what it is matched against,
+/// through `filter_reads`' arms, which a new leaf cannot skip.
+pub(crate) fn filter_reads_mana_value(filter: &ObjectFilter) -> bool {
+    let mut reads = Reads::default();
+    filter_reads(filter, &mut reads, Channels::NONE);
+    reads.members.intersects(Channels::MANA_COST)
+}
+
 /// The channels a dynamic amount reads, mirroring `compute::evaluate_amount`'s
 /// arms: a count reads its filter's leaves on every member; a graveyard type
 /// count reads types (of non-members, which no application reaches — kept

@@ -11,7 +11,7 @@
 //!
 //! One entry point, [`determine_total_cost`], which is the whole of the step
 //! (`cost-architecture.md` §3.3): assemble what CR 601.2b chose — the base or
-//! alternative cost with X expanded, then the additional costs — merge every
+//! alternative cost with its X, then the additional costs — merge every
 //! mana cost into the one mana component, gather the cost effects that apply,
 //! add the increases, subtract the reductions in the player's order under
 //! CR 118.7a–d, apply the direct-total effects, and lock — which is that the
@@ -46,48 +46,62 @@ pub fn determine_total_cost(
     x_value: u64,
     dp: &dyn DecisionProvider,
 ) -> Vec<Cost> {
-    // Step 1 — the base. An alternative cost replaces the mana cost entirely
-    // (CR 118.9a); otherwise the printed cost with every X expanded into the
-    // generic mana CR 601.2b's announced value is worth (CR 107.3).
-    let mut assembled: Vec<Cost> = match chosen_alt_cost {
-        Some(alt) => alt.costs().to_vec(),
-        None => {
-            let x_count = base_mana_cost.x_count() as usize;
-            let mut symbols: Vec<ManaSymbol> = base_mana_cost
-                .symbols
-                .iter()
-                .filter(|s| !matches!(s, ManaSymbol::X))
-                .copied()
-                .collect();
-            symbols.extend(std::iter::repeat_n(ManaSymbol::Generic, x_value as usize * x_count));
-            vec![Cost::Mana(ManaCost::from_symbols(symbols))]
-        }
-    };
-
-    // Step 2 — the additional costs the player chose (CR 118.8), whichever
-    // base was chosen: CR 118.9d applies them to an alternative cost too.
-    for additional in chosen_additional_costs {
-        assembled.extend(additional.costs().iter().cloned());
-    }
-
-    modify(game, caster, spell, assembled, dp)
+    let mut total = assemble_total_cost(base_costs(base_mana_cost, chosen_alt_cost), chosen_additional_costs);
+    let instances = cost_modifications_for(game, spell);
+    modify(game, &mut total.mana, &instances, |sources| ask_order_cost_reductions(dp, game, caster, spell, sources));
+    // Step 6 — locked in: this value is paid, and nothing re-reads the board.
+    total.locked_at(x_value)
 }
 
-/// Steps 3–6: the modifications, and the lock.
+/// Step 1 — the base. An alternative cost replaces the mana cost entirely
+/// (CR 118.9a).
+fn base_costs(base_mana_cost: &ManaCost, chosen_alt_cost: Option<&AlternativeCost>) -> Vec<Cost> {
+    match chosen_alt_cost {
+        Some(alt) => alt.costs().to_vec(),
+        None => vec![Cost::Mana(base_mana_cost.clone())],
+    }
+}
+
+/// Steps 1 and 2 — the base and the additional costs the player chose
+/// (CR 118.8), whichever base was chosen: CR 118.9d applies them to an
+/// alternative cost too. Every mana cost among them is one component, and the
+/// other costs keep their order. The base's X is the announced X, in an
+/// alternative cost as in the mana cost (CR 107.3a); an X in an additional
+/// cost stays a symbol, which no payment pays yet.
+fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> TotalCostInX {
+    let mut total = TotalCostInX { mana: ManaComponent::EMPTY, non_mana: Vec::new(), has_mana_cost: false };
+    for cost in base {
+        match cost {
+            Cost::Mana(base) => {
+                total.mana.add_base(&base);
+                total.has_mana_cost = true;
+            }
+            other => total.non_mana.push(other),
+        }
+    }
+    for cost in additional.iter().flat_map(|additional| additional.costs()) {
+        match cost {
+            Cost::Mana(more) => {
+                total.mana.add(more);
+                total.has_mana_cost = true;
+            }
+            other => total.non_mana.push(other.clone()),
+        }
+    }
+    total
+}
+
+/// Steps 3–5: the modifications, the reductions in `order`'s.
 fn modify(
     game: &GameState,
-    caster: PlayerId,
-    spell: ObjectId,
-    assembled: Vec<Cost>,
-    dp: &dyn DecisionProvider,
-) -> Vec<Cost> {
-    let (mut mana, others, had_mana) = split_mana_component(assembled);
-    let instances = cost_modifications_for(game, spell);
-
+    mana: &mut ManaComponent,
+    instances: &[CostModificationInstance],
+    order: impl FnOnce(&[ObjectId]) -> Vec<usize>,
+) {
     // Step 3 — increases. Addition commutes; the gather order is for the log.
-    for inst in &instances {
+    for inst in instances {
         if let CostChange::Increase(amount) = &inst.def.change {
-            apply_increase(&mut mana, amount);
+            mana.increase(amount);
         }
     }
 
@@ -99,34 +113,32 @@ fn modify(
     // not yet representable, respectively. A dynamic amount does not add a
     // third: nothing in this step touches the board, so every `ReduceGeneric`
     // reads the same board whenever it is applied.
-    let reductions: Vec<&CostModificationInstance> =
-        instances.iter().filter(|inst| is_reduction(inst)).collect();
+    let reductions: Vec<&CostModificationInstance> = instances.iter().filter(|inst| is_reduction(inst)).collect();
     let order: Vec<usize> = if reductions.len() >= 2 {
         let sources: Vec<ObjectId> = reductions.iter().map(|inst| inst.source).collect();
-        ask_order_cost_reductions(dp, game, caster, spell, &sources)
+        order(&sources)
     } else {
         (0..reductions.len()).collect()
     };
     for idx in order {
-        apply_one_reduction(game, &mut mana, reductions[idx]);
+        apply_one_reduction(game, mana, reductions[idx]);
     }
 
     // Step 5 — "any effects that directly affect the total cost". Two
     // Trinispheres agree, so no order is chosen.
-    for inst in &instances {
+    for inst in instances {
         if let CostChange::TotalAtLeast(n) = inst.def.change {
-            apply_total_at_least(&mut mana, n);
+            mana.raise_to(n);
         }
     }
-
-    // Step 6 — locked in: this value is paid, and nothing re-reads the board.
-    rebuild(mana, others, had_mana)
 }
 
 /// The mana component `castable_spells` should expect for `card` (its
 /// printed cost, as it would stand at CR 601.2f if cast now). No prompt: the
 /// reductions are applied in gather order, which by §3.4's theorem gives the
-/// total the cast will lock in whatever order the player later chooses.
+/// total the cast will lock in whatever order the player later chooses. An X
+/// stays a symbol: a caller previewing a cost at some X expands it first
+/// (`ManaCost::with_x_as`), as 601.2f's first step does.
 ///
 /// The preview and the cast read the same arithmetic, which is what keeps
 /// enumeration and enforcement agreeing (`cost-architecture.md` §3.6): a
@@ -137,61 +149,200 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
     if instances.is_empty() {
         return printed.clone();
     }
-    let mut mana = printed.clone();
-    for inst in &instances {
-        if let CostChange::Increase(amount) = &inst.def.change {
-            apply_increase(&mut mana, amount);
+    let mut mana = ManaComponent::EMPTY;
+    mana.add(printed);
+    modify(game, &mut mana, &instances, |sources| (0..sources.len()).collect());
+    mana.at(0)
+}
+
+/// The total CR 601.2b's choices make, with X a variable: what the
+/// announcement of X reads (`oracle::x_values`). No prompt, and the
+/// reductions in gather order, as in [`preview_mana_cost`].
+pub fn total_cost_in_x(
+    game: &GameState,
+    spell: ObjectId,
+    base_mana_cost: &ManaCost,
+    chosen_alt_cost: Option<&AlternativeCost>,
+    chosen_additional_costs: &[&AdditionalCost],
+) -> TotalCostInX {
+    let mut total = assemble_total_cost(base_costs(base_mana_cost, chosen_alt_cost), chosen_additional_costs);
+    let instances = cost_modifications_for(game, spell);
+    modify(game, &mut total.mana, &instances, |sources| (0..sources.len()).collect());
+    total
+}
+
+/// CR 601.2f's total with X a variable: steps 1 and 2 assemble it, steps 3–5
+/// modify its mana, and step 6 locks it at the announced X
+/// ([`Self::locked_at`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TotalCostInX {
+    /// "The mana component of the total cost", singular: every mana cost
+    /// among the costs is one.
+    pub mana: ManaComponent,
+    /// The other costs, in their order.
+    pub non_mana: Vec<Cost>,
+    /// Whether a cost assembled had mana in it: such a component stays at
+    /// {0}, and one an increase gives a mana-less alternative cost
+    /// (CR 118.9d) is added only if it has something in it.
+    has_mana_cost: bool,
+}
+
+impl TotalCostInX {
+    /// The locked total at an announced X, with the mana component **first**.
+    /// CR 601.2h lets the player pay the first group's costs "in any order"
+    /// and the engine picks one: the mana payment is the one that can still
+    /// fail after `can_pay_costs` — an illegal generic split — and a failure
+    /// mid-list leaves the costs before it paid, so the fallible payment goes
+    /// first.
+    fn locked_at(self, x: u64) -> Vec<Cost> {
+        let mana = self.mana.at(x);
+        let mut costs = self.non_mana;
+        if self.has_mana_cost || !mana.symbols.is_empty() {
+            costs.insert(0, Cost::Mana(mana));
         }
+        costs
     }
-    for inst in &instances {
-        if is_reduction(inst) {
-            apply_one_reduction(game, &mut mana, inst);
-        }
-    }
-    for inst in &instances {
-        if let CostChange::TotalAtLeast(n) = inst.def.change {
-            apply_total_at_least(&mut mana, n);
-        }
-    }
-    mana
 }
 
 // ---------------------------------------------------------------------------
 // The mana component
 // ---------------------------------------------------------------------------
 
-/// Split the assembled costs into one mana component and the non-mana costs
-/// in their order; the flag says whether there was any mana cost at all (an
-/// alternative cost of "pay 2 life" has none).
-fn split_mana_component(costs: Vec<Cost>) -> (ManaCost, Vec<Cost>, bool) {
-    let (mana, others) = Cost::split_out_mana_costs(costs);
-    let had_mana = mana.is_some();
-    (canonical(mana.unwrap_or_default()), others, had_mana)
+/// CR 601.2f's "mana component of the total cost", as its steps compute it:
+/// every symbol but generic and the base's X, in order; the generic part a
+/// count; and the base's X a variable. X adds only generic mana and no
+/// modification reads it (`representable`), so the component at any
+/// announced X is one evaluation, [`ManaComponent::at`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManaComponent {
+    pips: Vec<ManaSymbol>,
+    generic: u64,
+    /// The base's X symbols, each the announced X in generic mana (CR 107.3a).
+    x_symbol_count: u64,
+    /// The generic mana the reductions take off, at most all of it
+    /// (CR 601.2f: "It can't be reduced to less than {0}"). A colored
+    /// reduction takes a pip of its color first, so only what it finds no pip
+    /// for counts here (CR 118.7d).
+    generic_reduction: u64,
+    /// The least mana value a direct effect on the total allows (Trinisphere).
+    at_least: u8,
 }
 
-/// The total, with the mana component **first**. CR 601.2h lets the player
-/// pay the first group's costs "in any order" and the engine picks one: the
-/// mana payment is the one that can still fail after `can_pay_costs` — an
-/// illegal generic split — and a failure mid-list leaves the costs before it
-/// paid, so the fallible payment goes first. A component that was there and
-/// is now {0} stays, because "considered to be {0}" is still a mana cost of
-/// {0}; one that appeared from nothing — an increase on a mana-less
-/// alternative cost (CR 118.9d) — is added only if it has something in it.
-fn rebuild(mana: ManaCost, mut others: Vec<Cost>, had_mana: bool) -> Vec<Cost> {
-    if had_mana || !mana.symbols.is_empty() {
-        others.insert(0, Cost::Mana(mana));
+impl ManaComponent {
+    /// No mana: what assembly starts from.
+    pub const EMPTY: ManaComponent =
+        ManaComponent { pips: Vec::new(), generic: 0, x_symbol_count: 0, generic_reduction: 0, at_least: 0 };
+
+    /// A base cost's mana, whose X is the announced X.
+    fn add_base(&mut self, mana: &ManaCost) {
+        for symbol in &mana.symbols {
+            match symbol {
+                ManaSymbol::X => self.x_symbol_count += 1,
+                ManaSymbol::Generic => self.generic += 1,
+                other => self.pips.push(*other),
+            }
+        }
     }
-    others
-}
 
-/// The conventional order `ManaCost::build` writes: generic first, then every
-/// other symbol in the order it appeared. Coalescing generic is also what
-/// keeps `Display` printing {3} rather than {1}{1}{1} after an increase.
-fn canonical(symbols: Vec<ManaSymbol>) -> ManaCost {
-    let generic = symbols.iter().filter(|s| **s == ManaSymbol::Generic).count();
-    let mut out: Vec<ManaSymbol> = vec![ManaSymbol::Generic; generic];
-    out.extend(symbols.into_iter().filter(|s| *s != ManaSymbol::Generic));
-    ManaCost::from_symbols(out)
+    /// Mana whose symbols are kept as printed, an X among them.
+    fn add(&mut self, mana: &ManaCost) {
+        for symbol in &mana.symbols {
+            match symbol {
+                ManaSymbol::Generic => self.generic += 1,
+                other => self.pips.push(*other),
+            }
+        }
+    }
+
+    /// "cost {N} more to cast": add the symbols as printed.
+    fn increase(&mut self, amount: &ManaCost) {
+        for symbol in amount.symbols.iter().filter(|symbol| representable(symbol, "increase")) {
+            match symbol {
+                ManaSymbol::Generic => self.generic += 1,
+                other => self.pips.push(*other),
+            }
+        }
+    }
+
+    /// "cost {N} less to cast", under CR 118.7a–d and 118.7g.
+    ///
+    /// Per symbol of the reduction: generic and snow come off generic (118.7a,
+    /// 118.7g); a colored or colorless symbol takes a pip of its own type if
+    /// the cost has one and otherwise comes off generic (118.7b–d — the
+    /// "excess" cases fall out of doing this one symbol at a time). What comes
+    /// off generic is kept as a count and taken at [`Self::generic_at`], which
+    /// saturates at zero (601.2f) as each reduction in turn would.
+    fn reduce(&mut self, amount: &ManaCost) {
+        for symbol in &amount.symbols {
+            match symbol {
+                ManaSymbol::Generic | ManaSymbol::Snow => self.generic_reduction += 1,
+                ManaSymbol::Colored(_) | ManaSymbol::Colorless => {
+                    let wanted = pip_type(symbol);
+                    match self.pips.iter().position(|p| pip_type(p) == wanted) {
+                        Some(at) => {
+                            self.pips.remove(at);
+                        }
+                        None => self.generic_reduction += 1,
+                    }
+                }
+                other => {
+                    representable(other, "reduction");
+                }
+            }
+        }
+    }
+
+    /// Trinisphere: the mana value raised to `n` with generic mana.
+    fn raise_to(&mut self, n: u8) {
+        self.at_least = self.at_least.max(n);
+    }
+
+    /// The generic mana the component asks at an announced X.
+    pub fn generic_at(&self, x: u64) -> u64 {
+        let pips_value: u64 = self.pips.iter().map(|symbol| u64::from(symbol.mana_value())).sum();
+        let raised = u64::from(self.at_least).saturating_sub(pips_value);
+        (self.generic + self.x_symbol_count.saturating_mul(x)).saturating_sub(self.generic_reduction).max(raised)
+    }
+
+    /// How many times the announced X is paid: the base's X symbols
+    /// (CR 107.3a).
+    pub fn x_symbol_count(&self) -> u64 {
+        self.x_symbol_count
+    }
+
+    /// What the component asks at every X but its generic part: what the
+    /// inventory pays beside the generic mana.
+    pub fn pips(&self) -> ManaCost {
+        ManaCost::from_symbols(self.pips.clone())
+    }
+
+    /// The generic part with X at 0, before it saturates: what is there
+    /// besides X less what the reductions take off, negative when they take
+    /// more than there is.
+    pub fn generic_besides_x(&self) -> i64 {
+        self.generic as i64 - self.generic_reduction as i64
+    }
+
+    /// The generic mana `generic_budget` leaves for the X symbols once the
+    /// rest of the generic part is paid, or `None` when not even X = 0's
+    /// generic part fits. A larger X never asks less (no modification reads
+    /// X), so every X whose symbols this pays fits, and the most X is this
+    /// over [`Self::x_symbol_count`], rounded down.
+    pub fn generic_left_for_x(&self, generic_budget: u64) -> Option<u64> {
+        if self.generic_at(0) > generic_budget {
+            return None;
+        }
+        Some(generic_budget.saturating_add(self.generic_reduction).saturating_sub(self.generic))
+    }
+
+    /// The component at an announced X, generic first and the rest in their
+    /// order, as `ManaCost::build` writes it: which is also what keeps
+    /// `Display` printing {3} rather than {1}{1}{1} after an increase.
+    pub fn at(&self, x: u64) -> ManaCost {
+        let mut symbols = vec![ManaSymbol::Generic; self.generic_at(x) as usize];
+        symbols.extend(self.pips.iter().copied());
+        ManaCost::from_symbols(symbols)
+    }
 }
 
 /// The pip `symbol` of a *cost* is, for reduction purposes: `{C}` has two
@@ -204,7 +355,6 @@ fn pip_type(symbol: &ManaSymbol) -> Option<ManaType> {
     }
 }
 
-/// "cost {N} more to cast": add the symbols as printed.
 /// Is this instance a cost reduction — CR 601.2f's second position, and so a
 /// candidate for its ordering prompt?
 ///
@@ -222,9 +372,9 @@ fn is_reduction(inst: &CostModificationInstance) -> bool {
 /// application keeps a `CostModificationInstance` the definition that was
 /// gathered rather than a definition plus a snapshot of a number, which is
 /// one fewer thing that can disagree with itself.
-fn apply_one_reduction(game: &GameState, mana: &mut ManaCost, inst: &CostModificationInstance) {
+fn apply_one_reduction(game: &GameState, mana: &mut ManaComponent, inst: &CostModificationInstance) {
     match &inst.def.change {
-        CostChange::Reduce(amount) => apply_reduction(mana, amount),
+        CostChange::Reduce(amount) => mana.reduce(amount),
         // CR 118.7a — generic only, whatever the count, and generic saturates
         // at zero. `settled_amount` returning `None` is an amount with no
         // static evaluator, whose own assert has already fired: reduce
@@ -232,69 +382,10 @@ fn apply_one_reduction(game: &GameState, mana: &mut ManaCost, inst: &CostModific
         CostChange::ReduceGeneric(expr) => {
             let n = settled_amount(expr, game, inst.source).unwrap_or(0).max(0) as usize;
             if n > 0 {
-                apply_reduction(mana, &ManaCost::from_symbols(vec![ManaSymbol::Generic; n]));
+                mana.reduce(&ManaCost::from_symbols(vec![ManaSymbol::Generic; n]));
             }
         }
         CostChange::Increase(_) | CostChange::TotalAtLeast(_) => {}
-    }
-}
-
-fn apply_increase(mana: &mut ManaCost, amount: &ManaCost) {
-    let mut symbols = std::mem::take(&mut mana.symbols);
-    for symbol in &amount.symbols {
-        if representable(symbol, "increase") {
-            symbols.push(*symbol);
-        }
-    }
-    *mana = canonical(symbols);
-}
-
-/// "cost {N} less to cast", under CR 118.7a–d and 118.7g.
-///
-/// Per symbol of the reduction: generic and snow come off generic (118.7a,
-/// 118.7g); a colored or colorless symbol takes a pip of its own type if the
-/// cost has one and otherwise comes off generic (118.7b–d — the "excess"
-/// cases fall out of doing this one symbol at a time). Generic saturates at
-/// zero (601.2f).
-fn apply_reduction(mana: &mut ManaCost, amount: &ManaCost) {
-    let mut pips: Vec<ManaSymbol> = mana
-        .symbols
-        .iter()
-        .copied()
-        .filter(|s| *s != ManaSymbol::Generic)
-        .collect();
-    let mut generic = mana.symbols.len() - pips.len();
-    let mut generic_off = 0usize;
-    for symbol in &amount.symbols {
-        match symbol {
-            ManaSymbol::Generic | ManaSymbol::Snow => generic_off += 1,
-            ManaSymbol::Colored(_) | ManaSymbol::Colorless => {
-                let wanted = pip_type(symbol);
-                match pips.iter().position(|p| pip_type(p) == wanted) {
-                    Some(at) => {
-                        pips.remove(at);
-                    }
-                    None => generic_off += 1,
-                }
-            }
-            other => {
-                representable(other, "reduction");
-            }
-        }
-    }
-    generic = generic.saturating_sub(generic_off);
-    let mut symbols = vec![ManaSymbol::Generic; generic];
-    symbols.extend(pips);
-    *mana = canonical(symbols);
-}
-
-/// Trinisphere: the mana value is raised to `n` with generic mana.
-fn apply_total_at_least(mana: &mut ManaCost, n: u8) {
-    let value = mana.mana_value();
-    if value < n {
-        let mut symbols = std::mem::take(&mut mana.symbols);
-        symbols.extend(std::iter::repeat_n(ManaSymbol::Generic, (n - value) as usize));
-        *mana = canonical(symbols);
     }
 }
 
@@ -339,10 +430,17 @@ mod tests {
     const GR: ManaSymbol = ManaSymbol::Colored(ManaType::Green);
     const C: ManaSymbol = ManaSymbol::Colorless;
 
+    /// `symbols` as one component, kept as printed.
+    fn component(symbols: &[ManaSymbol]) -> ManaComponent {
+        let mut mana = ManaComponent::EMPTY;
+        mana.add(&cost(symbols));
+        mana
+    }
+
     fn reduced(base: &[ManaSymbol], by: &[ManaSymbol]) -> String {
-        let mut mana = cost(base);
-        apply_reduction(&mut mana, &cost(by));
-        mana.to_string()
+        let mut mana = component(base);
+        mana.reduce(&cost(by));
+        mana.at(0).to_string()
     }
 
     /// `determine_total_cost` on a board with no cost effects: a spell in
@@ -399,12 +497,12 @@ mod tests {
         // `Display` renders as nothing.
         assert_eq!(reduced(&[G], &[G, G, G]), "");
         assert_eq!(reduced(&[G, GR], &[G, G, GR]), "");
-        let mut mana = cost(&[G, GR]);
+        let mut mana = component(&[G, GR]);
         for by in [&[G][..], &[G][..], &[GR][..]] {
-            apply_reduction(&mut mana, &cost(by));
+            mana.reduce(&cost(by));
         }
-        assert!(mana.symbols.is_empty());
-        assert_eq!(mana.mana_value(), 0);
+        assert!(mana.at(0).symbols.is_empty());
+        assert_eq!(mana.at(0).mana_value(), 0);
     }
 
     /// CR 118.7g — snow reduces generic.
@@ -415,24 +513,24 @@ mod tests {
 
     #[test]
     fn an_increase_adds_symbols_as_printed_and_keeps_generic_first() {
-        let mut mana = cost(&[G, R]);
-        apply_increase(&mut mana, &cost(&[G]));
-        assert_eq!(mana.to_string(), "{2}{R}");
-        apply_increase(&mut mana, &cost(&[W]));
-        assert_eq!(mana.to_string(), "{2}{R}{W}");
+        let mut mana = component(&[G, R]);
+        mana.increase(&cost(&[G]));
+        assert_eq!(mana.at(0).to_string(), "{2}{R}");
+        mana.increase(&cost(&[W]));
+        assert_eq!(mana.at(0).to_string(), "{2}{R}{W}");
     }
 
     #[test]
     fn total_at_least_raises_the_mana_value_with_generic_and_never_lowers_it() {
-        let mut mana = cost(&[R]);
-        apply_total_at_least(&mut mana, 3);
-        assert_eq!(mana.to_string(), "{2}{R}");
-        let mut mana = cost(&[G, G, G, R]);
-        apply_total_at_least(&mut mana, 3);
-        assert_eq!(mana.to_string(), "{3}{R}");
-        let mut mana = cost(&[]);
-        apply_total_at_least(&mut mana, 3);
-        assert_eq!(mana.to_string(), "{3}");
+        let mut mana = component(&[R]);
+        mana.raise_to(3);
+        assert_eq!(mana.at(0).to_string(), "{2}{R}");
+        let mut mana = component(&[G, G, G, R]);
+        mana.raise_to(3);
+        assert_eq!(mana.at(0).to_string(), "{3}{R}");
+        let mut mana = component(&[]);
+        mana.raise_to(3);
+        assert_eq!(mana.at(0).to_string(), "{3}");
     }
 
     /// §3.4's theorem, checked the other way: for every pair of reductions
@@ -444,13 +542,13 @@ mod tests {
         for base in bases {
             for a in amounts {
                 for b in amounts {
-                    let mut ab = cost(base);
-                    apply_reduction(&mut ab, &cost(a));
-                    apply_reduction(&mut ab, &cost(b));
-                    let mut ba = cost(base);
-                    apply_reduction(&mut ba, &cost(b));
-                    apply_reduction(&mut ba, &cost(a));
-                    assert_eq!(ab, ba, "{} less {} and {} in either order", cost(base), cost(a), cost(b));
+                    let mut ab = component(base);
+                    ab.reduce(&cost(a));
+                    ab.reduce(&cost(b));
+                    let mut ba = component(base);
+                    ba.reduce(&cost(b));
+                    ba.reduce(&cost(a));
+                    assert_eq!(ab.at(0), ba.at(0), "{} less {} and {} in either order", cost(base), cost(a), cost(b));
                 }
             }
         }
@@ -462,19 +560,15 @@ mod tests {
     /// cost and a kicker's mana are one component, and it goes first.
     #[test]
     fn every_mana_cost_in_the_assembled_list_is_one_component_and_it_goes_first() {
-        let (mana, others, had_mana) = split_mana_component(vec![
-            Cost::PayLife(2),
-            Cost::Mana(cost(&[G, R])),
-            Cost::TapSelf,
-            Cost::Mana(cost(&[R])),
-        ]);
-        assert_eq!(mana.to_string(), "{1}{R}{R}");
-        assert_eq!(others, vec![Cost::PayLife(2), Cost::TapSelf]);
-        assert!(had_mana);
-        assert_eq!(
-            rebuild(mana.clone(), others, had_mana),
-            vec![Cost::Mana(mana), Cost::PayLife(2), Cost::TapSelf]
+        let total = assemble_total_cost(
+            vec![Cost::PayLife(2), Cost::Mana(cost(&[G, R])), Cost::TapSelf, Cost::Mana(cost(&[R]))],
+            &[],
         );
+        let mana = total.mana.at(0);
+        assert_eq!(mana.to_string(), "{1}{R}{R}");
+        assert_eq!(total.non_mana, vec![Cost::PayLife(2), Cost::TapSelf]);
+        assert!(total.has_mana_cost);
+        assert_eq!(total.locked_at(0), vec![Cost::Mana(mana), Cost::PayLife(2), Cost::TapSelf]);
     }
 
     /// An alternative cost with no mana in it gains a component only when a
@@ -482,12 +576,17 @@ mod tests {
     /// stays, even at {0}.
     #[test]
     fn a_component_appears_only_when_a_modification_gives_it_something() {
-        assert_eq!(rebuild(cost(&[]), vec![Cost::PayLife(2)], false), vec![Cost::PayLife(2)]);
+        let total = |mana: &[ManaSymbol], non_mana: Vec<Cost>, has_mana_cost: bool| TotalCostInX {
+            mana: component(mana),
+            non_mana,
+            has_mana_cost,
+        };
+        assert_eq!(total(&[], vec![Cost::PayLife(2)], false).locked_at(0), vec![Cost::PayLife(2)]);
         assert_eq!(
-            rebuild(cost(&[G]), vec![Cost::PayLife(2)], false),
+            total(&[G], vec![Cost::PayLife(2)], false).locked_at(0),
             vec![Cost::Mana(cost(&[G])), Cost::PayLife(2)]
         );
-        assert_eq!(rebuild(cost(&[]), vec![], true), vec![Cost::Mana(cost(&[]))]);
+        assert_eq!(total(&[], vec![], true).locked_at(0), vec![Cost::Mana(cost(&[]))]);
     }
 
     // --- the assembly (CR 601.2b's choices, 107.3, 118.8, 118.9) -----------
@@ -507,6 +606,29 @@ mod tests {
         assert_eq!(determine(&one_x, None, &[], 0), vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))]);
         let two_x = ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::X]);
         assert_eq!(determine(&two_x, None, &[], 2), vec![Cost::Mana(ManaCost::build(&[], 4))]);
+    }
+
+    /// CR 107.3a — "any X in its mana cost or in any alternative cost or
+    /// additional cost it has equals the announced value": an alternative
+    /// cost's own X (miracle's `{X}{R}`) is expanded as the mana cost's is.
+    #[test]
+    fn an_alternative_costs_x_is_the_announced_x() {
+        let base = ManaCost::from_symbols(vec![ManaSymbol::X, R, R]);
+        let miracle = AlternativeCost::Custom("Miracle".to_string(), vec![Cost::Mana(cost(&[ManaSymbol::X, R]))]);
+        assert_eq!(determine(&base, Some(&miracle), &[], 3), vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 3))]);
+    }
+
+    /// An X in an additional cost (Thieving Skydiver's kicker) is not
+    /// announced at 601.2b yet, so it stays a symbol no payment pays, as
+    /// before (`mana-architecture.md` §3.7: CP-2's amount shape).
+    #[test]
+    fn an_additional_costs_x_stays_a_symbol() {
+        let base = ManaCost::build(&[ManaType::Blue], 1);
+        let kicker = AdditionalCost::Kicker(vec![Cost::Mana(cost(&[ManaSymbol::X]))]);
+        assert_eq!(
+            determine(&base, None, &[&kicker], 3),
+            vec![Cost::Mana(ManaCost::from_symbols(vec![G, ManaSymbol::Colored(ManaType::Blue), ManaSymbol::X]))]
+        );
     }
 
     /// CR 118.9a — an alternative cost replaces the mana cost entirely.

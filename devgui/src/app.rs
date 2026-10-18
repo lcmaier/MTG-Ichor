@@ -777,9 +777,9 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
         }
     });
     ui.horizontal(|ui| {
-        if let Some(NumberField { min, max, value }) = prompt.number {
+        if let Some(NumberField { min, max, value, live }) = prompt.number {
             let mut number = value;
-            ui.add(egui::DragValue::new(&mut number).range(min..=max));
+            ui.add_enabled(live, egui::DragValue::new(&mut number).range(min..=max));
             if number != value {
                 inputs.push(Input::Number(number));
             }

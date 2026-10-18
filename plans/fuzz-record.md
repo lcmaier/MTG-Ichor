@@ -37,6 +37,101 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-18 for MA-2** (#259: the legal values of X; item
+214). Blaze joins the registry and the pool (205 → 206 registered, 115 →
+116 pooled), and Protean Hydra becomes castable, so both §3 columns are new
+baselines. Two `close_out.py` sittings, since it compares every arm with its
+first: the IDENTICAL pair, **cube_nh** `867b545` and **engine_nh** `387c3fe`,
+throwaway commits on item 214's commit `b8ea007` and the engine commit
+`c4ca1c8`, each with Protean Hydra out of the registry and the pool and
+never on the branch, so no registered card has an X; then **main**
+`baf55ae` (#258's merge), **cube** `b8ea007` and **shipped** `d552ae3`.
+
+**Predictions, before any arm ran** (`mana-architecture.md` §6.1, now in the
+archive's "MA-2"):
+- cube differing from `main` where Doubling Cube is dealt, "Actions
+  reversed" toward 0;
+- engine_nh against cube_nh, every gameplay row the same, both pools, both
+  seat counts, and instructions per decision within ±0.1%;
+- shipped moving every game that deals Protean Hydra or Blaze, and no
+  reversal from an X cast.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine_nh vs cube_nh, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine_nh, performance / stress, dispatches agreed | 159,795 / 168,189 | 315,861 / 344,010 |
+| gameplay rows, cube vs `main`, performance / stress | differ (the Cube's games) / differ | differ / differ |
+| "Actions reversed", `main` → cube → shipped, performance / stress | 0.2 → 0.1 → 0.0 / 0.5 → 0.4 → 0.1 | 0.4 → 0.0 → 0.0 / 0.3 → 0.2 → 0.3 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ (the pool) / differ (the registry) |
+| audit, shipped, performance / stress, dispatches agreed | 161,688 / 157,454 | 318,208 / 316,829 |
+| `stress` avg turns, engine → shipped | 25.8 → 25.3 | 51.2 → 49.1 |
+| `stress` total damage, engine → shipped | 51.6 → 49.9 | 136.5 → 130.4 |
+| instructions / decision, engine_nh vs cube_nh, callgrind, the Commander board | | 0.6586 M → 0.6590 M, **+0.07%** |
+
+**Every prediction held on the first sitting.** On the pooled Commander
+board (the callgrind board, 20 games), "Actions reversed" reads 0.4 on
+`main`, 0.0 with item 214, and 0.1 shipped; the one reversal a traced
+shipped run shows is an activated ability's "Not enough mana", not an X
+cast. The +0.07% is the bound's budget reading as well: the owner's
+fallback triggers past half a point (`mana-architecture.md` §3.7).
+
+**Reachability**, shipped, 200 games forced: Protean Hydra cast 169 times
+in 123 games at two seats and 112 in 95 at four; Blaze 182 in 135 and 102
+in 90.
+
+**Blaze's distortion is within the deal's noise**: both seat counts moved
+average turns down by under two turns, and total damage by a few points.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+on shipped: 0 errors, 0 panics, and no disagreement (796,907 / 814,181
+dispatches at two seats, 1,555,751 / 1,643,852 at four). One four-seat
+`stress` game reached the 200-turn limit, seed 810: a three-player stall
+after a departure at about turn 41. Its three reversals are Rancor's and
+Yixlid Jailer's, the agent's, and Blaze, in one deck, was never cast.
+`main`, cube and engine reach no limit on their deals, which differ from
+shipped's, since the registry moved.
+
+**The ratchet** re-bases on shipped, which moves the stream.
+
+**Copies** (`close_out.py`'s report against `main`): "`mana_cost` +
+`x_count()`" at three sites (the gather's guard, the cast, the scenario's
+build), each reading a different object; the split's caps and their why
+share "`demand_without_choices()` + `pips_of()`" by design; and
+`XOffer::only`'s `min == max` beside `only_pick`. Kept.
+
+**§3 fixture rows, shipped `d552ae3`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 22 (44.0%) / 27 (54.0%) | 22 (44.0%) / 27 (54.0%) |
+| Wins by effect | 1 | 1 |
+| Avg turns | 28.4 | 26.8 |
+| Spells cast | 20.7 | 21.0 |
+| Lands played | 16.6 | 16.6 |
+| Combat w/ atk | 10.7 | 8.5 |
+| Creatures died | 7.4 | 4.9 |
+| Damage events | 25.0 | 19.6 |
+| Total damage | 68.4 | 58.0 |
+| Life changes | 16.9 | 14.2 |
+| **Layer walks** | **349** | **377** |
+| **Board walks** | **222** | **233** |
+| **Memo hits** | **55,478** | **68,190** |
+| **Layer frames** | **4,161** | **4,818** |
+| **Frames/walk** | **11.92** | **12.78** |
+| **Dependency checks** | **15** | **31** |
+| **Replacement gathers** | **993** | **1003** |
+| **Restriction queries** | **995** | **1005** |
+| Mana productions | 69 | 85 |
+| Replacement prompts | 0.14 | 0.62 |
+| Max batch depth | 4 | 4 |
+| Decisions | 196 | 244 |
+| Priority decisions | 72 | 96 |
+| Actions reversed | 0.0 | 0.0 |
+| Triggers placed | 6.9 | 4.7 |
+| Windows past gate | 79.8 | 76.2 |
+| Candidate visits | 110.1 | 99.5 |
+| Trigger matches | 8.0 | 5.3 |
+
 **Re-recorded 2026-10-17 for TR-5b** (#258: counters, and one history
 struct; items 6 and 'Before Triggered abilities' 17). Simic Ascendancy and
 Protean Hydra join the registry and the pool (203 → 205 registered, 113 →

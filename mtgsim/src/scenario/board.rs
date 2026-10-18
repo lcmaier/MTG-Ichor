@@ -180,8 +180,9 @@ pub struct SetupAction {
 /// What a setup action does, with the answer only that verb has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetupVerb {
-    /// `casts`, from the seat's hand.
-    Casts,
+    /// `casts`, from the seat's hand; `x N` is the X it is cast with
+    /// (CR 601.2b), when its cost has one.
+    Casts { x: Option<u64> },
     /// `activates` (CR 602.2); `ability N` is the ability's place among the
     /// permanent's abilities as the layers give them, 1 for the first.
     Activates { ability: Option<usize> },

@@ -15,7 +15,11 @@
 // that makes a pip the cost still needs before it taps anything else, least
 // flexible source first, and declines when no source can make a pip that is
 // still owed; and it splits the generic part of a cost only across mana the
-// same payment does not need for a pip. Both are policy, not payment law —
+// same payment does not need for a pip. A pool multiplier (Doubling Cube)
+// doubles what the pool holds, so it is activated once nothing else is
+// offered, tapped toward when its doubling is the only source of a pip still
+// owed, and its input is paid with mana the cost does not need for a pip.
+// All of these are policy, not payment law —
 // the prompt still offers every legal option and the engine still validates
 // what comes back — and both exist because an any-color mana base
 // (`cards/dual_lands.rs::everywhere`) turns a uniform tap into a five-sided
@@ -34,10 +38,10 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
 
-use crate::oracle::mana_supply::available_mana_sources;
+use crate::oracle::mana_supply::{available_mana_sources, controls_a_pool_multiplier, is_pool_multiplier};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
+use crate::types::mana::{ManaBag, ManaCost, ManaSymbol, ManaType};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
@@ -48,8 +52,10 @@ pub(crate) enum WindowPreference {
     /// five-color land, so the land is still there for the pip only it can
     /// make.
     Useful(Vec<usize>),
-    /// Nothing but generic (or nothing this policy reads) is owed: any source.
-    AnyWillDo,
+    /// Nothing but generic (or nothing this policy reads) is owed, or a pip
+    /// only a pool multiplier's doubling can make: any of these, which hold
+    /// a pool multiplier back while anything else is offered.
+    AnyOf(Vec<usize>),
     /// A pip is owed that no offered source can make. Tapping anything now
     /// spends mana on a payment that will fail and rewind.
     Hopeless,
@@ -86,8 +92,14 @@ pub(crate) fn mana_window_preference(
             _ => {}
         }
     }
+    // A pool multiplier doubles what the pool holds as it resolves, so
+    // everything else is tapped first (`mana-architecture.md` §3.3).
+    let (held, first): (Vec<usize>, Vec<usize>) = (0..options.len()).partition(|&i| {
+        matches!(&options[i], ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) if is_pool_multiplier(game, *perm, *ab))
+    });
+    let any = if first.is_empty() { held.clone() } else { first.clone() };
     if !owes_a_pip {
-        return WindowPreference::AnyWillDo;
+        return WindowPreference::AnyOf(any);
     }
 
     // Keyed on the definition, as the window is: two grants of one mana
@@ -113,8 +125,8 @@ pub(crate) fn mana_window_preference(
 
     let mut useful: Vec<(usize, usize)> = Vec::new();
     let mut unreadable = false;
-    for (i, opt) in options.iter().enumerate() {
-        let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) = opt else {
+    for &i in &first {
+        let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) = &options[i] else {
             unreadable = true;
             continue;
         };
@@ -125,12 +137,26 @@ pub(crate) fn mana_window_preference(
         }
     }
     if useful.is_empty() {
-        // An option this policy cannot read might still be the right one;
-        // only a fully-read window with nothing useful in it is hopeless.
-        return if unreadable { WindowPreference::AnyWillDo } else { WindowPreference::Hopeless };
+        // An option this policy cannot read might still be the right one, and
+        // a pool multiplier's doubling makes what the pool holds: tap toward
+        // its input, offered yet or not. Only a fully-read window with
+        // nothing useful in it and no doubling to come is hopeless.
+        let doubling = !held.is_empty() || controls_a_pool_multiplier(game, player);
+        return if unreadable || doubling { WindowPreference::AnyOf(any) } else { WindowPreference::Hopeless };
     }
     let least = useful.iter().map(|(_, f)| *f).min().unwrap();
     WindowPreference::Useful(useful.into_iter().filter(|(_, f)| *f == least).map(|(i, _)| i).collect())
+}
+
+/// One mana-ability window, as its prompts are answered.
+#[derive(Debug, Clone, Copy)]
+struct WindowSeen {
+    /// What the window pays for.
+    subject: ObjectId,
+    activations: u32,
+    /// The pips its cost owed at the first prompt, before any mana it made:
+    /// what a pool multiplier's input must not spend.
+    owed_at_first: ManaBag,
 }
 
 /// A decision provider that makes random legal choices.
@@ -155,9 +181,13 @@ pub(crate) fn mana_window_preference(
 /// determinization reseeds the branch's provider instead.
 #[derive(Clone)]
 pub struct RandomDecisionProvider {
-    /// Current mana-ability window tracker: `(spell_or_ability_id, activations_so_far)`.
-    /// Resets when a new window id is seen. See `pick_n` for the rationale.
-    window: Cell<Option<(ObjectId, u32)>>,
+    /// The mana-ability window being answered. Resets when a new window id is
+    /// seen. See `pick_n` for the rationale.
+    window: Cell<Option<WindowSeen>>,
+
+    /// The pool multiplier this provider last activated, and the pips the
+    /// cost it feeds owes, which paying the multiplier's input leaves alone.
+    previous_pool_multiplier: Cell<Option<(ObjectId, ManaBag)>>,
 
     /// The actions the engine rejected in the priority window this provider
     /// is answering. The engine offers them again, since a person may take one
@@ -190,6 +220,7 @@ impl RandomDecisionProvider {
     pub fn new() -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
+            previous_pool_multiplier: Cell::new(None),
             rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::from_os_rng()),
         }
@@ -203,6 +234,7 @@ impl RandomDecisionProvider {
     pub fn seeded(seed: u64) -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),
+            previous_pool_multiplier: Cell::new(None),
             rejected_in_window: RefCell::new(Vec::new()),
             rng: RefCell::new(StdRng::seed_from_u64(seed)),
         }
@@ -250,25 +282,33 @@ impl DecisionProvider for RandomDecisionProvider {
         if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
             &context.kind
         {
-            let (win_id, count) = match self.window.get() {
-                Some((id, n)) if id == *spell_or_ability_id => (id, n),
-                _ => (*spell_or_ability_id, 0),
+            let seen = match self.window.get() {
+                Some(seen) if seen.subject == *spell_or_ability_id => seen,
+                _ => {
+                    self.previous_pool_multiplier.set(None);
+                    WindowSeen {
+                        subject: *spell_or_ability_id,
+                        activations: 0,
+                        owed_at_first: remaining_cost.demand_without_choices().pips,
+                    }
+                }
             };
-            if count >= Self::WINDOW_ACTIVATION_CAP {
-                self.window.set(Some((win_id, count)));
+            self.window.set(Some(seen));
+            if seen.activations >= Self::WINDOW_ACTIVATION_CAP {
                 return Vec::new();
             }
             let pick_from: Vec<usize> =
                 match mana_window_preference(game, player, remaining_cost, options) {
-                    WindowPreference::Useful(indices) => indices,
-                    WindowPreference::AnyWillDo => (0..options.len()).collect(),
-                    WindowPreference::Hopeless => {
-                        self.window.set(Some((win_id, count)));
-                        return Vec::new();
-                    }
+                    WindowPreference::Useful(indices) | WindowPreference::AnyOf(indices) => indices,
+                    WindowPreference::Hopeless => return Vec::new(),
                 };
             let idx = pick_from[rng.random_range(0..pick_from.len())];
-            self.window.set(Some((win_id, count + 1)));
+            if let ChoiceOption::Action(PriorityAction::ActivateAbility(permanent, ability)) = &options[idx]
+                && is_pool_multiplier(game, *permanent, *ability)
+            {
+                self.previous_pool_multiplier.set(Some((*permanent, seen.owed_at_first)));
+            }
+            self.window.set(Some(WindowSeen { activations: seen.activations + 1, ..seen }));
             return vec![idx];
         }
 
@@ -321,40 +361,16 @@ impl DecisionProvider for RandomDecisionProvider {
 
     fn pick_number(
         &self,
-        game: &GameState,
-        player: PlayerId,
-        context: &ChoiceContext,
+        _game: &GameState,
+        _player: PlayerId,
+        _context: &ChoiceContext,
         min: u64,
         max: u64,
     ) -> u64 {
         let mut rng = self.rng.borrow_mut();
 
-        // For ChooseXValue, self-limit based on available mana to avoid
-        // degenerate rollback loops in fuzz testing. The ask function passes
-        // (0, u64::MAX) — we inspect game state for a reasonable upper bound.
-        if let ChoiceKind::ChooseXValue { .. } = &context.kind {
-            let pool_total: u64 = game.players.get(player)
-                .map(|p| p.mana_pool.total())
-                .unwrap_or(0);
-            // Count untapped lands as potential mana sources
-            // Ordered although a count: `has_type` walks the layers, and a walk
-            // writes a trace record.
-            let untapped_lands: u64 = crate::oracle::board::permanents_controlled_by(game, player).into_iter()
-                .filter(|id| game.battlefield.get(id).is_some_and(|e| !e.tapped))
-                .filter(|&id| {
-                    crate::oracle::characteristics::has_type(
-                        game, id, crate::types::card_types::CardType::Land)
-                })
-                .count() as u64;
-            let reasonable_max = pool_total + untapped_lands;
-            let effective_max = reasonable_max.min(max);
-            if effective_max <= min {
-                return min;
-            }
-            return rng.random_range(min..=effective_max);
-        }
-
-        // General case: pick in the given range
+        // Uniform over the range, which the engine bounds: CR 601.2b's X is
+        // offered only as far as the payment can go (`oracle::x_values`).
         // Guard against u64::MAX range causing overflow
         if max == u64::MAX && min == 0 {
             // Pick a small reasonable number to avoid degenerate behavior
@@ -367,7 +383,7 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _context: &ChoiceContext,
+        context: &ChoiceContext,
         total: u64,
         buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
@@ -381,7 +397,29 @@ impl DecisionProvider for RandomDecisionProvider {
         // The prompt's caps already leave every pip of the cost its own mana
         // (`ask_choose_generic_mana_allocation`), so a generic split needs no
         // payment law here — taking them at face value is what a DP is owed.
-        let caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
+        let mut caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
+
+        // A pool multiplier's input is paid with what the cost it feeds does
+        // not need for a pip, so the doubling keeps that mana, when the split
+        // can be made that way.
+        if let ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } = &context.kind
+            && let Some((multiplier, owed)) = self.previous_pool_multiplier.get()
+            && multiplier == *spell_or_ability_id
+        {
+            self.previous_pool_multiplier.set(None);
+            let kept: Vec<u64> = buckets
+                .iter()
+                .zip(&caps)
+                .map(|(bucket, &cap)| match bucket {
+                    ChoiceOption::ManaType(mana_type) => cap.saturating_sub(owed[*mana_type as usize]),
+                    _ => cap,
+                })
+                .collect();
+            let fits = kept.iter().zip(per_bucket_mins).all(|(cap, min)| cap >= min) && kept.iter().sum::<u64>() >= total;
+            if fits {
+                caps = kept;
+            }
+        }
 
         let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
         let min_sum: u64 = alloc.iter().sum();
@@ -602,7 +640,8 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
         let spell_id = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1 });
+        let values = Box::new(crate::oracle::x_values::LegalXValues::zero_through(10));
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
     }

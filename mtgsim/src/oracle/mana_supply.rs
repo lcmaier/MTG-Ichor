@@ -34,6 +34,7 @@
 //! `plans/traces/ma-1-a-payment-is-a-matching-not-a-count.html` walks six
 //! boards through it.
 
+use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::sync::Arc;
 
@@ -329,7 +330,7 @@ impl ManaSupply {
     /// the {10} left needs {5} before the Cube and its {3}, and eight Plains
     /// make eight.
     fn pays(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> bool {
-        if self.pays_without_multipliers(demand, reserved) {
+        if self.split_without_pool_multipliers(reserved).pays(demand) {
             return true;
         }
         let multipliers: Vec<&PoolMultiplier> =
@@ -337,16 +338,78 @@ impl ManaSupply {
         (1..=multipliers.len()).any(|k| self.pays_with_multipliers(demand, reserved, &multipliers[..k]))
     }
 
-    /// The plain check. The split depends on the cost only through what the
-    /// payment reserves, so a payment reserving nothing an entry or an outlet
-    /// uses, nearly every one, shares one split, made at the first check.
-    fn pays_without_multipliers(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> bool {
+    /// The split a payment reserving `reserved` leaves, with no pool
+    /// multiplier. It depends on the cost only through what the payment
+    /// reserves, so a payment reserving nothing an entry or an outlet uses,
+    /// nearly every one, shares one split, made at the first check.
+    fn split_without_pool_multipliers(&self, reserved: &ReservedByCosts) -> Cow<'_, SplitSupply> {
         let reserves_from_the_supply = self.entries.iter().any(|e| e.permanent.is_some_and(|p| reserved.reserves(p)))
             || (!self.sacrifice_outlets.is_empty() && !reserved.reserves_no_fodder());
         if reserves_from_the_supply {
-            return self.split(reserved, &[]).pays(demand);
+            return Cow::Owned(self.split(reserved, &[]));
         }
-        self.plain_split.get_or_init(|| self.split(&ReservedByCosts::default(), &[])).pays(demand)
+        Cow::Borrowed(self.plain_split.get_or_init(|| self.split(&ReservedByCosts::default(), &[])))
+    }
+
+    /// The most generic mana this inventory can pay alongside `pips`, a cost
+    /// with no generic part, for a payment whose other costs are `non_mana`;
+    /// `None` when it cannot pay the pips. CR 601.2b's bound on X reads it
+    /// (`oracle::x_values`), and it answers what [`Self::covers`] would at
+    /// every amount of generic mana: the check's walk with a maximum at its
+    /// leaves, tried the same two ways as [`Self::pays`].
+    pub fn max_generic_payable_alongside(&self, game: &GameState, pips: &ManaCost, non_mana: &NonManaCosts<'_>) -> Option<u64> {
+        let demand = pips.demand()?;
+        let reserved = ReservedByCosts::of(game, self.player, non_mana, !self.sacrifice_outlets.is_empty());
+        self.max_generic_alongside_demand(&demand, &reserved)
+    }
+
+    /// [`Self::max_generic_payable_alongside`] in the check's terms, as
+    /// [`Self::pays`] is [`Self::covers`]'.
+    fn max_generic_alongside_demand(&self, demand: &ManaDemand, reserved: &ReservedByCosts) -> Option<u64> {
+        let mut most = self
+            .split_without_pool_multipliers(reserved)
+            .max_generic_payable_alongside(demand, |made| made.checked_sub(demand.total()));
+        let multipliers: Vec<&PoolMultiplier> =
+            self.pool_multipliers.iter().filter(|m| !reserved.reserves(m.permanent)).collect();
+        for k in 1..=multipliers.len() {
+            most = most.max(self.max_generic_payable_with_multipliers(demand, reserved, &multipliers[..k]));
+        }
+        most
+    }
+
+    /// [`Self::max_generic_payable_alongside`] with the pool multipliers
+    /// `used` activated last, in their order, as
+    /// [`Self::pays_with_multipliers`] tries them. The walk asks for the pips
+    /// carried back through each with no generic part; a leaf's total is then
+    /// carried forward through each, the first activated first: its input
+    /// paid, the rest times its factor (`ManaDemand::before_multiplying`,
+    /// inverted). What is made after them and pays no pip pays generic.
+    fn max_generic_payable_with_multipliers(
+        &self,
+        demand: &ManaDemand,
+        reserved: &ReservedByCosts,
+        used: &[&PoolMultiplier],
+    ) -> Option<u64> {
+        let made_after = self.made_after_multiplying(reserved, used);
+        let after = demand.less(&made_after);
+        let spare = made_after.iter().sum::<u64>() - (demand.total() - after.total());
+        // The demand going into each multiplier, the last activated first.
+        let mut levels: Vec<(ManaDemand, &PoolMultiplier)> = Vec::new();
+        let mut needed = after;
+        for multiplier in used.iter().rev() {
+            levels.push((needed, multiplier));
+            needed = needed.before_multiplying(multiplier.factor, &multiplier.input);
+        }
+        let generic_paid_by_total = |made: u64| {
+            let mut budget = made.checked_sub(needed.pips.iter().sum::<u64>())?;
+            for (inner, multiplier) in levels.iter().rev() {
+                let per_type: u64 = inner.pips.iter().map(|n| n.div_ceil(multiplier.factor)).sum();
+                let left = budget.checked_sub(multiplier.input.generic)?;
+                budget = multiplier.factor.saturating_mul(left + per_type).checked_sub(inner.pips.iter().sum::<u64>())?;
+            }
+            Some(budget + spare)
+        };
+        self.split(reserved, used).max_generic_payable_alongside(&needed, generic_paid_by_total)
     }
 
     /// With the pool multipliers `used` activated last, in their order: the
@@ -443,6 +506,24 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
         }
     }
     sources
+}
+
+/// Whether `permanent`'s mana ability `ability` adds the unspent mana in the
+/// pool again (Doubling Cube's): what it makes is the pool's, so it has no
+/// row in [`available_mana_sources`].
+pub fn is_pool_multiplier(game: &GameState, permanent: ObjectId, ability: AbilityId) -> bool {
+    get_effective_abilities(game, permanent).iter().any(|a| {
+        a.id.definition() == ability.definition() && matches!(mana_ability_cost_of(a), ManaAbilityCost::MultipliesThePool { .. })
+    })
+}
+
+/// Whether `player` controls a pool multiplier whose `{T}` can be paid now,
+/// whether or not the pool pays its input yet.
+pub fn controls_a_pool_multiplier(game: &GameState, player: PlayerId) -> bool {
+    controlled_mana_abilities(game, player).any(|(id, abilities)| {
+        abilities.iter().any(|a| matches!(mana_ability_cost_of(a), ManaAbilityCost::MultipliesThePool { .. }))
+            && game.can_pay_costs(&[Cost::TapSelf], player, id).is_ok()
+    })
 }
 
 /// The types `ability` makes now, after what the board does to its
@@ -1139,11 +1220,54 @@ impl SplitSupply {
     }
 
     fn pays(&self, demand: &ManaDemand) -> bool {
-        let asked = demand.kinds();
-        let groups: Vec<(Vec<ManaBag>, u64)> =
-            self.choices.iter().map(|(ways, copies)| (views(ways, asked), *copies)).collect();
+        let groups = self.choice_groups_seen_by(demand);
         let first_copies = groups.first().map_or(0, |(_, copies)| *copies);
-        ChoiceSearch { pieces: self, groups: &groups, demand, leaves: 0 }.from(0, 0, first_copies, NO_MANA)
+        let mut stop_when_feasible = |extra: &ManaBag| self.feasible(extra, demand);
+        ChoiceSearch { groups: &groups, demand, leaves: 0, capped: false, stop_at_leaf: &mut stop_when_feasible }
+            .from(0, 0, first_copies, NO_MANA)
+    }
+
+    /// The most generic mana this split can pay alongside `demand`, `None`
+    /// when no way of making mana pays `demand`. Each way that does is a leaf
+    /// of the check's walk, and `generic_paid_by_total` turns the total mana
+    /// that leaf makes into the generic mana it pays once `demand` is paid;
+    /// the most over every leaf wins. Generic mana enters Gale's condition
+    /// only through the total, and the walk's pruning reads only the pips
+    /// (`useful_copies`), so this is the check's own walk with a maximum at
+    /// its leaves (`mana-architecture.md` §3.7). Past the walk's cap it leans
+    /// high, as the check leans yes: every group's largest way.
+    fn max_generic_payable_alongside(&self, demand: &ManaDemand, generic_paid_by_total: impl Fn(u64) -> Option<u64>) -> Option<u64> {
+        let groups = self.choice_groups_seen_by(demand);
+        let first_copies = groups.first().map_or(0, |(_, copies)| *copies);
+        let free: u64 = self.free.iter().map(|(_, n)| n).sum();
+        let mut most: Option<u64> = None;
+        let capped = {
+            let mut record_and_go_on = |extra: &ManaBag| {
+                if self.feasible(extra, demand) {
+                    most = most.max(generic_paid_by_total(free + extra.iter().sum::<u64>()));
+                }
+                false
+            };
+            let mut search =
+                ChoiceSearch { groups: &groups, demand, leaves: 0, capped: false, stop_at_leaf: &mut record_and_go_on };
+            search.from(0, 0, first_copies, NO_MANA);
+            search.capped
+        };
+        if capped {
+            let largest: u64 = groups
+                .iter()
+                .map(|(ways, copies)| copies * ways.iter().map(|way| way.iter().sum::<u64>()).max().unwrap_or(0))
+                .sum();
+            return most.max(generic_paid_by_total(free + largest));
+        }
+        most
+    }
+
+    /// The choice groups, each way seen only by the pip kinds `demand` asks
+    /// for, so ways that differ only in mana it does not ask for are one.
+    fn choice_groups_seen_by(&self, demand: &ManaDemand) -> Vec<(Vec<ManaBag>, u64)> {
+        let asked = demand.kinds();
+        self.choices.iter().map(|(ways, copies)| (views(ways, asked), *copies)).collect()
     }
 
     /// Gale's condition (Hall's, for b-matchings): every set of the asked pip
@@ -1164,12 +1288,16 @@ impl SplitSupply {
 }
 
 /// Every way of spreading each group's copies over its ways, as a multiset,
-/// ending in one Hall check each.
+/// ending in one question at each: whether a Hall check passes, or how much
+/// generic mana the leaf would pay.
 struct ChoiceSearch<'a> {
-    pieces: &'a SplitSupply,
     groups: &'a [(Vec<ManaBag>, u64)],
     demand: &'a ManaDemand,
     leaves: usize,
+    /// Whether the walk stopped at `MAX_CHOICE_LEAVES` without finishing.
+    capped: bool,
+    /// Asked at each leaf with the mana the choices make; `true` ends the walk.
+    stop_at_leaf: &'a mut dyn FnMut(&ManaBag) -> bool,
 }
 
 impl ChoiceSearch<'_> {
@@ -1179,9 +1307,10 @@ impl ChoiceSearch<'_> {
         let groups = self.groups;
         let Some((ways, _)) = groups.get(group) else {
             self.leaves += 1;
-            return self.pieces.feasible(&extra, self.demand);
+            return (self.stop_at_leaf)(&extra);
         };
         if self.leaves >= MAX_CHOICE_LEAVES {
+            self.capped = true;
             return true;
         }
         if way + 1 == ways.len() {
@@ -1882,42 +2011,72 @@ mod tests {
 
     /// The property MA-1 rests on: on small random boards, Hall's condition
     /// with §3.3's shapes answers what trying every payment answers.
+    /// A small random inventory of §3.3's shapes: entries, copies of one of
+    /// them, which the check counts as a group, and pool multipliers.
+    fn random_supply(rng: &mut StdRng) -> ManaSupply {
+        let mut entries: Vec<SupplyEntry> = (0..rng.random_range(0..=5)).map(|_| random_entry(rng)).collect();
+        if let Some(copied) = entries.first().cloned().filter(|_| rng.random_bool(0.4)) {
+            for _ in 0..rng.random_range(1..=2) {
+                entries.push(SupplyEntry { permanent: Some(new_object_id()), ..copied.clone() });
+            }
+        }
+        let pool_multipliers = (0..rng.random_range(0..=2))
+            .map(|_| {
+                let mut input = ManaDemand { pips: NO_MANA, generic: rng.random_range(1..=3) };
+                if rng.random_bool(0.3) {
+                    input.pips[rng.random_range(0..6)] = 1;
+                }
+                PoolMultiplier { permanent: new_object_id(), input, factor: rng.random_range(2..=3) }
+            })
+            .collect();
+        ManaSupply { player: 0, entries, sacrifice_outlets: Vec::new(), pool_multipliers, plain_split: OnceCell::new() }
+    }
+
+    /// A random demand's pips, up to three kinds of up to three each.
+    fn random_pips(rng: &mut StdRng) -> ManaBag {
+        let mut pips = NO_MANA;
+        for _ in 0..rng.random_range(0..=3) {
+            pips[rng.random_range(0..6)] += rng.random_range(1..=3);
+        }
+        pips
+    }
+
     #[test]
     fn the_check_agrees_with_an_exhaustive_search() {
         let mut rng = StdRng::seed_from_u64(162);
         let (mut yes, mut no) = (0, 0);
         for _ in 0..3000 {
-            let mut entries: Vec<SupplyEntry> = (0..rng.random_range(0..=5)).map(|_| random_entry(&mut rng)).collect();
-            // Copies of one entry, which the check counts as a group.
-            if let Some(copied) = entries.first().cloned().filter(|_| rng.random_bool(0.4)) {
-                for _ in 0..rng.random_range(1..=2) {
-                    entries.push(SupplyEntry { permanent: Some(new_object_id()), ..copied.clone() });
-                }
-            }
-            let pool_multipliers = (0..rng.random_range(0..=2))
-                .map(|_| {
-                    let mut input = ManaDemand { pips: NO_MANA, generic: rng.random_range(1..=3) };
-                    if rng.random_bool(0.3) {
-                        input.pips[rng.random_range(0..6)] = 1;
-                    }
-                    PoolMultiplier { permanent: new_object_id(), input, factor: rng.random_range(2..=3) }
-                })
-                .collect();
-            let supply = ManaSupply {
-                player: 0,
-                entries,
-                sacrifice_outlets: Vec::new(),
-                pool_multipliers,
-                plain_split: OnceCell::new(),
-            };
-            let mut demand = ManaDemand { pips: NO_MANA, generic: rng.random_range(0..=6) };
-            for _ in 0..rng.random_range(0..=3) {
-                demand.pips[rng.random_range(0..6)] += rng.random_range(1..=3);
-            }
+            let supply = random_supply(&mut rng);
+            let generic = rng.random_range(0..=6);
+            let demand = ManaDemand { pips: random_pips(&mut rng), generic };
             let expected = pays_by_search(&supply, &demand);
             assert_eq!(supply.pays(&demand, &ReservedByCosts::default()), expected, "{supply:#?}\n{demand:?}");
             if expected { yes += 1 } else { no += 1 }
         }
         assert!(yes > 500 && no > 500, "both answers, often: {yes} yes, {no} no");
+    }
+
+    /// What CR 601.2b's bound on X rests on: the most generic mana the
+    /// inventory pays beside some pips is the most the exhaustive search
+    /// finds a payment for, on the same random boards, multipliers among
+    /// them (`mana-architecture.md` §3.7).
+    #[test]
+    fn the_max_generic_agrees_with_an_exhaustive_search() {
+        let mut rng = StdRng::seed_from_u64(259);
+        let (mut paid, mut unpaid, mut doubled) = (0, 0, 0);
+        for _ in 0..3000 {
+            let supply = random_supply(&mut rng);
+            let pips = random_pips(&mut rng);
+            let pays = |generic| pays_by_search(&supply, &ManaDemand { pips, generic });
+            let expected = pays(0).then(|| (0..).take_while(|&generic| pays(generic)).last().unwrap_or(0));
+            let most = supply.max_generic_alongside_demand(&ManaDemand { pips, generic: 0 }, &ReservedByCosts::default());
+            assert_eq!(most, expected, "{supply:#?}\n{pips:?}");
+            match most {
+                Some(_) if !supply.pool_multipliers.is_empty() => doubled += 1,
+                Some(_) => paid += 1,
+                None => unpaid += 1,
+            }
+        }
+        assert!(paid > 300 && unpaid > 300 && doubled > 300, "{paid} paid, {unpaid} unpaid, {doubled} with a multiplier");
     }
 }
