@@ -157,6 +157,23 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
     mana.at(0)
 }
 
+/// The total CR 601.2b's choices make, with X a variable: its mana component
+/// and its other costs, what the announcement of X reads
+/// (`oracle::x_values`). No prompt, and the reductions in gather order, as
+/// in [`preview_mana_cost`].
+pub fn total_in_x(
+    game: &GameState,
+    spell: ObjectId,
+    base_mana_cost: &ManaCost,
+    chosen_alt_cost: Option<&AlternativeCost>,
+    chosen_additional_costs: &[&AdditionalCost],
+) -> (ManaComponent, Vec<Cost>) {
+    let (mut mana, others, _) = assemble(base_costs(base_mana_cost, chosen_alt_cost), chosen_additional_costs);
+    let instances = cost_modifications_for(game, spell);
+    modify(game, &mut mana, &instances, |sources| (0..sources.len()).collect());
+    (mana, others)
+}
+
 // ---------------------------------------------------------------------------
 // The mana component
 // ---------------------------------------------------------------------------
@@ -249,6 +266,40 @@ impl ManaComponent {
         let pips_value: u64 = self.pips.iter().map(|symbol| u64::from(symbol.mana_value())).sum();
         let raised = u64::from(self.at_least).saturating_sub(pips_value);
         (self.generic + self.per_x.saturating_mul(x)).saturating_sub(self.reduced).max(raised)
+    }
+
+    /// How many times the announced X is paid: the base's X symbols
+    /// (CR 107.3a).
+    pub fn x_symbols(&self) -> u64 {
+        self.per_x
+    }
+
+    /// What the component asks at every X but its generic part: what the
+    /// inventory pays beside the generic mana.
+    pub fn pips(&self) -> ManaCost {
+        ManaCost::from_symbols(self.pips.clone())
+    }
+
+    /// The generic part with X at 0, before it saturates: what is there
+    /// besides X less what the reductions take off, negative when they take
+    /// more than there is.
+    pub fn generic_besides_x(&self) -> i64 {
+        self.generic as i64 - self.reduced as i64
+    }
+
+    /// The largest X whose generic part is at most `generic_budget`, or
+    /// `None` when not even X = 0's is. A larger X never asks less (no
+    /// modification reads X), so every X up to it fits; with no X symbol,
+    /// every X does.
+    pub fn most_x_within(&self, generic_budget: u64) -> Option<u64> {
+        if self.generic_at(0) > generic_budget {
+            return None;
+        }
+        if self.per_x == 0 {
+            return Some(u64::MAX);
+        }
+        let room = generic_budget.saturating_add(self.reduced).saturating_sub(self.generic);
+        Some(room / self.per_x)
     }
 
     /// The component at an announced X, generic first and the rest in their

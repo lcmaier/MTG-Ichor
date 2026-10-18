@@ -20,7 +20,7 @@ use crate::engine::put_on_stack::SorceryTiming;
 /// pool alone, or from all they can make, the inventory `supply` holds once
 /// a check needs it. The priority question's every check shares one
 /// (`mana-architecture.md` §3.1).
-fn mana_payable(
+pub(crate) fn mana_payable(
     game: &GameState,
     player_id: PlayerId,
     cost: &ManaCost,

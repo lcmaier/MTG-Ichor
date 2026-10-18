@@ -61,6 +61,9 @@ pub struct CardData {
     /// Additional costs this card can optionally pay (rule 118.8).
     /// Multiple may be paid in a single cast (e.g. kicker + buyback).
     pub additional_costs: Vec<AdditionalCost>,
+    /// "X can't be 0" (Ertai's Meddling, Mind Grind): the least X its caster
+    /// may announce for its mana cost's X is 1 (CR 601.2b).
+    pub x_cannot_be_zero: bool,
 }
 
 /// The type of an ability
@@ -240,6 +243,7 @@ impl CardDataBuilder {
                 spell_instances: Vec::new(),
                 alternative_costs: Vec::new(),
                 additional_costs: Vec::new(),
+                x_cannot_be_zero: false,
             },
         }
     }
@@ -364,6 +368,12 @@ impl CardDataBuilder {
 
     pub fn additional_cost(mut self, cost: AdditionalCost) -> Self {
         self.data.additional_costs.push(cost);
+        self
+    }
+
+    /// "X can't be 0."
+    pub fn x_cannot_be_zero(mut self) -> Self {
+        self.data.x_cannot_be_zero = true;
         self
     }
 

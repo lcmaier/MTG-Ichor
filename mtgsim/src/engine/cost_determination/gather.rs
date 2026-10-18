@@ -5,6 +5,7 @@
 //! cost-effect sources, and the spell itself (CR 113.6d, affinity). A registry
 //! of resolution-created cost effects is later (`cost-architecture.md` §4).
 
+use crate::engine::layers::board::filter_reads_mana_value;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::targeting::HeldFrame;
@@ -162,6 +163,15 @@ fn applies_to(
         // 113.6d lets an object's own ability modify only what *it* costs, so
         // source 2 is `Itself` only (`cost-architecture.md` §4).
         CostSubject::Spells(filter) => {
+            // On the stack a spell's mana value counts X (CR 202.3e), so a
+            // filter that reads it applies at some announced X and not
+            // others, and the bound `oracle::x_values` reads in closed form
+            // is no longer one piece (`mana-architecture.md` §6.1).
+            debug_assert!(
+                !(frame.mana_cost.as_ref().is_some_and(|cost| cost.x_count() > 0) && filter_reads_mana_value(filter)),
+                "a cost change whose filter reads the mana value of an X spell needs the bound's thresholds \
+                 (mana-architecture.md §6.1, \"A cost change that applies by mana value\")"
+            );
             source != spell
                 && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))
         }
