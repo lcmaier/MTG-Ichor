@@ -9358,7 +9358,9 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
      ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
      for the dropped prompt.
-     **Slotted:** TR-5c, the next triggers PR, which moves the stream anyway.
+     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
+     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
+     damage, to keep both phases in the band.
 
 276. **~~Three dev GUI notes from MA-2's manual testing.~~ — ✅ CLOSED 2026-10-18 (PR #260).** — archived.
      The why panel wraps instead of widening, the payment step greys a source

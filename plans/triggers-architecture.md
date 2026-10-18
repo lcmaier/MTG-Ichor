@@ -1171,7 +1171,7 @@ from a known item, so the calibration also bought two findings.
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
 | `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as the card's draw ends (`place_in_turn`, `place_in_draw_step`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
-| `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5c | holds (`source_lki`, CR 608.2h) |
+| `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5d | holds (`source_lki`, CR 608.2h) |
 | `DamagePrevented` | holds: the recipient; no source, since one subject's damage can come from several | holds: `by` is the effect, and the stamp's cause the prevention's own | holds: announced only for damage prevented, so none under CR 615.12 | holds: announced as the batch decides, ahead of what it performs, and dispatched at its close; the arm is TR-5d's | holds: nothing left |
 | `PhaseBegin`, `StepBegin`, `TurnBegin` | holds: whose (item 10) | holds | holds: a skip leaves no record (CR 614.10) | holds | holds |
 | `PermanentEnteredBattlefield` | holds; "them" item 250 → TR-5a | holds: `was_cast` off CR 400.7d's facts, `from` off the joined zone change (§4.4) | holds; entry counters item 17 → TR-5b | holds since RH-3 (CR 603.6a) | holds (the kept LKI, §6.1) |
@@ -3515,13 +3515,13 @@ read IDENTICAL and cut the worst clone from 41 to 38 allocations.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5b".
 
-### TR-5c — blocks, targeting, activation and excess damage
+### TR-5c — blocks, targeting and activation
 
 *Designed 2026-10-18 against the tree at `2e9ac04` (`main`), and reviewed
-twice the same day (the owner, on the design PR). One decision at the end,
-whose second round proposes building three of round one's four refused
-families here and moving excess damage and item 275 to TR-5d. Nothing
-built.*
+twice the same day (the owner, on the design PR). Its one decision is
+decided: three of round one's four refused families are built here, and
+excess damage and item 275 moved to TR-5d, which the phase's name follows.
+Pieces 11 and 12 stay below as written, for TR-5d's design to start from.*
 
 **Where it sits.** A trigger reads the performed stream. A record is
 announced, `EventKind::from_record` files it, the dispatch matches each
@@ -3542,8 +3542,8 @@ This phase completes the blockers record and builds an arm over each of the
 four. Beside them it builds the "this turn" object filter, a recipient that
 joins recipients, and item 275's fix to the ordering elision. Item 275 is
 slotted here because this phase moves the random agent's stream anyway. The
-decision's second round proposes moving the excess reading and item 275 to
-TR-5d, which reads the damage batch's other record and moves the stream too.
+decision's second round moved the excess reading and item 275 to TR-5d, which
+reads the damage batch's other record and moves the stream too.
 
 **What the re-read found** (CR 509.3a–g, 115, 602.2, 603.2 and 120.10, the
 cards' rulings, and Scryfall's counts on 2026-10-18)
@@ -4005,8 +4005,8 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
     - Its fixture is Harsh Mentor's shape: an opponent's activation triggers
       it, its controller's does not, a source sacrificed as a cost still does,
       and the trigger resolves first (Harsh Mentor #3).
-11. **Excess damage** (CR 120.10). *On the path the decision proposes, this
-    piece moves to TR-5d as written, with the damage facts of part (a).*
+11. **Excess damage** (CR 120.10). *Moved to TR-5d at review's second round,
+    as written, with the damage facts of part (a).*
     - **Decided with the batch.** After a batch decides and before it
       performs (`engine/actions.rs:1082`), each permanent the decided damage is
       dealt to gets the damage still lethal to it. For a creature that is its
@@ -4049,8 +4049,8 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
     - *Set aside:* the permanent's total on each of its records, which every
       reader would have to read once rather than sum; and a record of its own
       per permanent, which is no performed event (§3.3's contract).
-12. **Item 275.** *On the path the decision proposes, this piece moves to
-    TR-5d as written, with its three-arm sitting.* `SOURCE` compares the source (`origin.source_ref()`) where
+12. **Item 275.** *Moved to TR-5d at review's second round, as written,
+    with its three-arm sitting.* `SOURCE` compares the source (`origin.source_ref()`) where
     it compared the origin, and the source's last known information each
     entry carries, so a delayed trigger made after its source left is not
     elided with one made before. `AmountExpr::X` reads a new `BoundReads::X`,
@@ -4094,9 +4094,9 @@ cards' rulings, and Scryfall's counts on 2026-10-18)
 - Prevention's arm, Selfless Squire and the multiplier: TR-5d.
 
 **Sized.** Code at 1.5–2× plus tests, counted against the tree on
-2026-10-18, for the path the decision proposes at review's second round:
-(b), (c), (d), "blocks alone" and `Attacks`' rename built here, and excess
-damage and item 275 moved to TR-5d.
+2026-10-18, for the path decided at review's second round: (b), (c), (d),
+"blocks alone" and `Attacks`' rename built here, and excess damage and item
+275 moved to TR-5d.
 
 | Piece | Code | Tests |
 |---|---|---|
@@ -4141,14 +4141,15 @@ the usual sitting, since item 275's three arms go with it to TR-5d)
 
 **Decision**
 
-1. **Scope, and where each family goes.** Asked again at review's second
+1. **Scope, and where each family goes — decided at review's second round
+   (the owner, 2026-10-18): the path as proposed.** Asked again at review's second
    round (the owner: why push valiant, is there a more natural slot; isn't
    the mana work Wild Growth's; what is (d)'s "that creature"). The first
    round sorted the four families by the band. Asked instead which phase
    each belongs to, (b), (c) and (d) belong here, and of (a) only the damage
    facts have a phase, TR-5d:
 
-   | Part | What it needs | Its natural slot | Proposed |
+   | Part | What it needs | Its natural slot | Decided |
    |---|---|---|---|
    | (a) The damage facts: "was dealt damage this turn", "dealt damage to", 45 cards | rows written off `DamageDealt` | TR-5d, which reads the damage batch's other record (`DamagePrevented`, CR 615.13) | TR-5d, with excess damage |
    | (a) The zone-change facts: "died", "discarded", "milled", "put into a graveyard" this turn, 52 cards | rows written off the zone change, keyed by the object the move made (CR 400.7) | none: no phase on the route reads them | its first registered card, one item |
@@ -4227,8 +4228,8 @@ TR-5d.
 | **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,547 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
-| **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) — designed 2026-10-18, above | → the design above, its decision in four parts, with item 275. As sized on 2026-10-12: the "this turn" object filters as one `ObjectFilter` leaf read off the history, `AttackedThisTurn` folded in as "blocked this turn" joins it (the owner, at #257's review); item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants; `ActivatesAbility`, narrow; excess damage per recipient over the batch; a recipient that joins two objects. ~655 code (980–1,310), ~940 tests, 1,920–2,250 | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-702.21a-002's trigger half, and CR 509.3a–g's readings; ATOM-120.10-001 with excess damage, which the proposed path moves to TR-5d | ~650 (975–1,300) on the proposed path | ~1,070 | 2,045–2,370 |
-| **TR-5d — prevention, the multiplier, tokens and scry** (CR 615.13, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~460 (690–920) | ~780 | 1,470–1,700; 1,995–2,300 with TR-5c's excess damage, the damage facts and item 275, as its decision proposes |
+| **TR-5c — blocks, targeting and activation** (CR 509, 115, 602) — designed 2026-10-18, above | → the design above and its decision; excess damage and item 275 moved to TR-5d. As sized on 2026-10-12: the "this turn" object filters as one `ObjectFilter` leaf read off the history, `AttackedThisTurn` folded in as "blocked this turn" joins it (the owner, at #257's review); item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants; `ActivatesAbility`, narrow; excess damage per recipient over the batch; a recipient that joins two objects. ~655 code (980–1,310), ~940 tests, 1,920–2,250 | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-702.21a-002's trigger half, and CR 509.3a–g's readings | ~650 (975–1,300) | ~1,070 | 2,045–2,370 |
+| **TR-5d — prevention, excess damage, the multiplier, tokens and scry** (CR 615.13, 120.10, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
 ### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)
 
@@ -4410,7 +4411,7 @@ their trigger half lands.
 | **TR-3c** | 603.12-001 | 1 |
 | **RH-3** (`replacement-architecture.md` §2b.5) | 400.7e-001, -002, moved from TR-4 on 2026-10-10, and from RH-2 to RH-3 on 2026-10-12: the record carries the object the move made | 2 |
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
-| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5c: 120.10-001. TR-5d: 603.2d-001 (2026-10-12, §12) | 4 |
+| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 603.2d-001 (2026-10-12, §12), and 120.10-001, moved from TR-5c at its review (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
