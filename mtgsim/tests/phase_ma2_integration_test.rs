@@ -344,3 +344,121 @@ fn the_word_x_is_refused_where_nothing_has_an_x() {
     let refusal = Scenario::parse(text).map(|_| ()).unwrap_err();
     assert!(refusal.to_string().contains("an activated ability's X is not announced yet"), "{refusal}");
 }
+
+// --- Blaze, and Protean Hydra at the priority question ----------------------
+
+use mtgsim::cards::basic_lands::forest;
+use mtgsim::cards::phase_ma2_cards::blaze;
+use mtgsim::cards::phase_tr5b_cards::protean_hydra;
+use mtgsim::engine::priority::PriorityResult;
+use mtgsim::oracle::legality::candidate_priority_actions;
+use mtgsim::types::mana::ManaType;
+use mtgsim::ui::decision::PriorityAction;
+
+/// A seat that casts `card` when it is offered, answers X with `x` or the
+/// most offered if that is less, remembering the range, targets player 1,
+/// and taps the first source a window offers.
+struct Casts {
+    card: mtgsim::types::ids::ObjectId,
+    x: u64,
+    offered: std::cell::Cell<Option<(u64, u64)>>,
+}
+
+impl Casts {
+    fn new(card: mtgsim::types::ids::ObjectId, x: u64) -> Casts {
+        Casts { card, x, offered: std::cell::Cell::new(None) }
+    }
+}
+
+impl DecisionProvider for Casts {
+    fn pick_n(&self, _: &GameState, _: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        let wanted = |option: &ChoiceOption| match context.kind {
+            ChoiceKind::PriorityAction => matches!(option, ChoiceOption::Action(PriorityAction::CastSpell(id)) if *id == self.card),
+            ChoiceKind::SelectRecipients { .. } => matches!(option, ChoiceOption::Player(1)),
+            _ => true,
+        };
+        options.iter().position(wanted).into_iter().take(bounds.1.max(1)).collect()
+    }
+
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.offered.set(Some((min, max)));
+        self.x.min(max)
+    }
+
+    fn allocate(
+        &self,
+        _: &GameState,
+        _: PlayerId,
+        _: &ChoiceContext,
+        total: u64,
+        _: &[ChoiceOption],
+        mins: &[u64],
+        maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        let mut split = mins.to_vec();
+        let mut rest = total - mins.iter().sum::<u64>();
+        for (i, amount) in split.iter_mut().enumerate() {
+            let more = rest.min(maxs.map_or(u64::MAX, |maxs| maxs[i]) - *amount);
+            *amount += more;
+            rest -= more;
+        }
+        split
+    }
+
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        (0..items.len()).collect()
+    }
+}
+
+/// CR 107.3a and 601.2b on the atoms' board: `{X}{R}` with five mana, X
+/// announced as 3, kept on the stack entry, and paid as `{3}{R}`, leaving
+/// one. The prompt offered 0 to 4, what five mana pays beside `{R}`.
+// COVERS: ATOM-107.3a-001, ATOM-601.2b-004
+#[test]
+fn blaze_is_cast_with_the_x_its_caster_announces() {
+    let mut game = main_phase();
+    game.players[0].mana_pool.add(ManaType::Red, 5);
+    let card = put_in_hand(&mut game, blaze(), 0);
+    let seat = Casts::new(card, 3);
+    game.cast_spell(0, card, &seat).expect("castable");
+    assert_eq!(seat.offered.get(), Some((0, 4)));
+    assert_eq!(game.stack_entries[&card].x_value, Some(3));
+    assert_eq!(game.players[0].mana_pool.total(), 1, "{{3}}{{R}} paid of five");
+}
+
+/// A staged fixture cannot check the question (`mana-architecture.md` §6.1):
+/// Blaze cast from hand at a real priority question, from four untapped
+/// Mountains, under `ManaWindowStop`. The question offers it, X runs 0 to 3,
+/// and X = 3 taps every Mountain.
+#[test]
+fn blaze_is_offered_and_cast_from_untapped_lands() {
+    let mut game = main_phase();
+    for _ in 0..4 {
+        put_on_battlefield(&mut game, mountain(), 0);
+    }
+    let card = put_in_hand(&mut game, blaze(), 0);
+    assert!(candidate_priority_actions(&game, 0).contains(&PriorityAction::CastSpell(card)));
+    let seat = ManaWindowStop::new(Casts::new(card, u64::MAX));
+    assert_eq!(game.run_priority_round(&seat), Ok(PriorityResult::ActionTaken));
+    assert_eq!(seat.inner().offered.get(), Some((0, 3)));
+    assert_eq!(game.stack_entries[&card].x_value, Some(3));
+    let tapped = game.battlefield_ordered().into_iter().filter(|(_, entry)| entry.tapped).count();
+    assert_eq!(tapped, 4, "every Mountain");
+}
+
+/// TR-5b's reachability pass cast Protean Hydra 0 times in 400 games: the
+/// gate refused its `{X}`. The priority question offers it now, and three
+/// Forests cast it with X up to 2.
+#[test]
+fn protean_hydra_is_offered_at_the_priority_question() {
+    let mut game = main_phase();
+    for _ in 0..3 {
+        put_on_battlefield(&mut game, forest(), 0);
+    }
+    let card = put_in_hand(&mut game, protean_hydra(), 0);
+    assert!(candidate_priority_actions(&game, 0).contains(&PriorityAction::CastSpell(card)));
+    let seat = ManaWindowStop::new(Casts::new(card, u64::MAX));
+    assert_eq!(game.run_priority_round(&seat), Ok(PriorityResult::ActionTaken));
+    assert_eq!(seat.inner().offered.get(), Some((0, 2)));
+    assert_eq!(game.stack_entries[&card].x_value, Some(2));
+}

@@ -947,33 +947,10 @@ mod tests {
 
     // --- T18a: X value, alternative cost, additional cost, rollback tests ---
 
-    fn make_x_spell() -> std::sync::Arc<crate::objects::card_data::CardData> {
-        use crate::types::mana::ManaSymbol;
-        // Blaze: {X}{R} — deal X damage to any target
-        CardDataBuilder::new("Blaze")
-            .card_type(CardType::Sorcery)
-            .color(crate::types::colors::Color::Red)
-            .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
-                    Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-                ),
-            })
-            .build()
-    }
-
     #[test]
     fn test_cast_x_spell_x_equals_3() {
         let mut game = GameState::new(2, 20);
-        let blaze = make_x_spell();
+        let blaze = crate::cards::phase_ma2_cards::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1007,7 +984,7 @@ mod tests {
     #[test]
     fn test_cast_x_spell_x_equals_0() {
         let mut game = GameState::new(2, 20);
-        let blaze = make_x_spell();
+        let blaze = crate::cards::phase_ma2_cards::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1074,7 +1051,7 @@ mod tests {
     #[test]
     fn test_cast_x_spell_offers_only_the_x_the_mana_pays() {
         let mut game = GameState::new(2, 20);
-        let blaze = make_x_spell();
+        let blaze = crate::cards::phase_ma2_cards::blaze();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1104,7 +1081,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let kicked = std::sync::Arc::new(crate::objects::card_data::CardData {
             additional_costs: vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])],
-            ..(*make_x_spell()).clone()
+            ..(*crate::cards::phase_ma2_cards::blaze()).clone()
         });
         let obj = GameObject::new(kicked, 0, Zone::Hand);
         let card_id = game.add_object(obj);
