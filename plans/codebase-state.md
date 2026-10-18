@@ -9365,3 +9365,27 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      waiting on mana, and a prevention is announced as `DamagePrevented`.
      **Reachability (2026-10-18):** closed — PR #260.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 276".
+
+277. **A cost's generic mana is one symbol per unit, so a large X allocates as
+     much.** `ManaCost` holds `{3}` as three `Generic` symbols, and
+     `with_x_as` and `cost_determination::total` write an announced X out the
+     same way (CR 107.3a). MA-2's bound has no cap (`oracle::x_values`), and
+     Doubling Cubes beside Nyxbloom Ancient multiply the board's mana by about
+     four each: a dozen Cubes offer an X near 10^9, and choosing it builds a
+     vector that long, which the process cannot hold. Past about thirty, the
+     bound's own `budget + spare` (`mana_supply.rs`'
+     `max_generic_payable_with_multipliers`) adds to a saturated `u64`, which
+     a debug build panics on. Mana value is a byte as well
+     (`ManaCost::mana_value`): harmless while X counts as 0 everywhere, and
+     not once CR 202.3e's X on the stack is read. Found by item 276's panic,
+     an X of 11,318 on the dev GUI's board-1, whose cause, the generic counts
+     held in a byte, PR #260 fixed.
+     **Reachability (2026-10-18):** reachable — wrong today on a built board:
+     a scenario with about ten Cubes and Nyxbloom Ancient; no random deck
+     holds that many multipliers.
+     **Sized:** generic as a count beside the other symbols: 23
+     `ManaSymbol::Generic` sites outside the cards, 20 `from_symbols` calls
+     and 13 readers of `.symbols`, ~150 lines with a test at an X past
+     `u32`; `mana_value` widened with it, and the bound's last add saturating.
+     **Slotted:** CP-1, which rebuilds `ManaCost`'s symbols for hybrid and
+     Phyrexian mana and reads 202.3e's X (`cost-architecture.md` §6).
