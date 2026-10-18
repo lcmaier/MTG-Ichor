@@ -1150,10 +1150,11 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
     }
 }
 
-/// Which of `records` are lines in a game's log: every record but a rule's
-/// sweep with no choice in it, which the log leaves implicit, the end of
-/// combat's removal (CR 511.3) and the untap step's untaps (CR 502.3). A
-/// sweep a triggered ability read is a line: each `AbilityTriggered` names
+/// Which of `records` are lines in a game's log: every record but the ones
+/// the log leaves implicit, a rule's sweep with no choice in it (the end of
+/// combat's removal, CR 511.3, and the untap step's untaps, CR 502.3) and a
+/// mana ability's activation, which its tap and its mana already say (CR
+/// 605.3b). One a triggered ability read is a line: each `AbilityTriggered` names
 /// the record it matched, and that record's whole event shows, every record
 /// of it for a "one or more" trigger (CR 603.2c). The triggers are read off
 /// `game`'s whole recorded stream, since they come after the event they
@@ -1172,19 +1173,21 @@ pub fn log_lines<'a>(game: &GameState, records: &'a [EventRecord]) -> Vec<&'a Ev
     records
         .iter()
         .filter(|record| {
-            !is_a_rules_sweep(record)
+            !the_log_leaves_implicit(record)
                 || read.contains(&record.seq)
                 || record.stamp.batch.is_some_and(|batch| read_events.contains(&batch))
         })
         .collect()
 }
 
-/// A rule's sweep over many permanents with no choice in it.
-fn is_a_rules_sweep(record: &EventRecord) -> bool {
+/// A rule's sweep over many permanents with no choice in it, or a mana
+/// ability's activation.
+fn the_log_leaves_implicit(record: &EventRecord) -> bool {
     matches!(
         (&record.event, record.stamp.cause),
         (GameEvent::RemovedFromCombat { .. }, EventCause::GameRule(GameRule::CombatEnds))
             | (GameEvent::Untapped { .. }, EventCause::TurnBasedAction(TurnBasedAction::Untap))
+            | (GameEvent::AbilityActivated { mana_ability: true, .. }, _)
     )
 }
 

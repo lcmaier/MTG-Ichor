@@ -398,7 +398,7 @@ impl GameState {
             .ok_or(Refusal::TriggerCondition)?;
         let (event, triggering_events) = matched;
         let arm = &delayed.def.condition.events()[event.0];
-        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, arm, record, &referents) {
+        if !self.within_once_per_turn_limit(&delayed.def, delayed.identity(), delayed.controller, arm, record, referents) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger, "you" its controller (CR 109.5), and its

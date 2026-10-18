@@ -144,7 +144,7 @@ impl TriggerDef {
         // "For the first time each turn" asks a record's place in its turn,
         // which a cast, a draw, a gain and a loss have, or the turn's
         // targeting rows, which keep no spell's characteristics.
-        if self.limit == Some(TriggerLimit::FirstTimeEachTurn) && !arms.iter().all(|arm| has_a_first_time(arm)) {
+        if self.limit == Some(TriggerLimit::FirstTimeEachTurn) && !arms.iter().all(has_a_first_time) {
             wrong.push("for the first time each turn, on an arm whose record has no place in its turn");
         }
         let named = self.bound_reads();

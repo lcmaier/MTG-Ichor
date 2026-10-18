@@ -24,6 +24,7 @@ use mtgsim::types::effects::ManaOutput;
 use mtgsim::types::ids::AbilityId;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
+use mtgsim::ui::display::{format_record, log_lines};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::cards::creatures::grizzly_bears;
@@ -1011,4 +1012,18 @@ fn a_trigger_on_a_mana_abilitys_activation_that_adds_mana_resolves_at_once() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 1, "added at once");
     assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
+}
+
+/// The log leaves a mana ability's activation implicit, since its tap and
+/// its mana say it, and the full event log keeps it.
+#[test]
+fn a_mana_abilitys_activation_is_left_implicit_in_the_log() {
+    let mut game = stocked(2);
+    let forest = put_on_battlefield(&mut game, forest(), 0);
+    tap_for_mana(&mut game, 0, forest);
+    let recorded = game.recorded_events();
+    let lines: Vec<String> = log_lines(&game, recorded.records()).into_iter().map(|record| format_record(&game, record)).collect();
+    assert!(lines.iter().any(|line| line.starts_with("ManaAdded")), "{lines:#?}");
+    assert!(!lines.iter().any(|line| line.starts_with("AbilityActivated")), "{lines:#?}");
+    assert!(mtgsim::ui::display::format_event_log(&game).iter().any(|line| line.starts_with("AbilityActivated")));
 }
