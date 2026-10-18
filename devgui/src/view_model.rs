@@ -1156,6 +1156,8 @@ pub struct NumberField {
     pub min: u64,
     pub max: u64,
     pub value: u64,
+    /// Off in the beat after the prompt arrives, as every other control is.
+    pub live: bool,
 }
 
 /// A control over the seat rather than an option of the prompt: a click on
@@ -1231,7 +1233,7 @@ impl PromptView {
             }
             (Primitive::Number { min, max }, Selection::Number(value)) => {
                 let top = if *max == u64::MAX { "any".to_string() } else { max.to_string() };
-                let field = NumberField { min: *min, max: *max, value: *value };
+                let field = NumberField { min: *min, max: *max, value: *value, live: true };
                 (format!("a number from {min} to {top}"), Vec::new(), Some(field), Some(done_button("Done")))
             }
             (Primitive::Allocate { total, .. }, Selection::Allocation(amounts)) => {
@@ -1283,6 +1285,9 @@ impl PromptView {
         }
         if let Some(done) = &mut self.done {
             done.live = false;
+        }
+        if let Some(number) = &mut self.number {
+            number.live = false;
         }
         self.can_reset = false;
         for button in self.yields.iter_mut().chain(self.yielding.as_mut().map(|(_, stop)| stop)) {
@@ -1701,6 +1706,22 @@ mod tests {
         state.tick(10.0 + 2.0 * SETTLE_SECONDS);
         assert_eq!(state.input(Input::Key { key: Key::Digit(1), repeat: true }), None, "a held key");
         assert_eq!(state.input(Input::Key { key: Key::Digit(2), repeat: false }), Some(Reply::Answer(Answer::Picks(vec![1]))));
+    }
+
+    /// A number field is off in the beat too: CR 601.2b's X is the first
+    /// number the engine asks a seat (MA-2), and its field would otherwise
+    /// take a click the beat drops.
+    #[test]
+    fn a_number_field_is_off_in_the_beat_after_a_prompt_arrives() {
+        let b = board();
+        let mut state = WindowState::default();
+        state.tick(10.0);
+        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::Number { min: 0, max: 3 }, Vec::new()), yielding: None, why: None });
+        state.tick(10.1);
+        assert!(!state.prompt_view().unwrap().number.unwrap().live);
+        assert_eq!(state.input(Input::Number(2)), None, "dropped, as the field shows");
+        state.tick(10.0 + 2.0 * SETTLE_SECONDS);
+        assert!(state.prompt_view().unwrap().number.unwrap().live);
     }
 
     /// The why panel opening or closing slides the board under the pointer,

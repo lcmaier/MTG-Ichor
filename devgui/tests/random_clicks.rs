@@ -294,7 +294,7 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
             None => inputs.extend(option.live.then_some(Input::OptionButton(i))),
         }
     }
-    if let Some(NumberField { min, max, .. }) = prompt.number {
+    if let Some(NumberField { min, max, live: true, .. }) = prompt.number {
         inputs.push(Input::Number(rng.random_range(min..=max.min(min.saturating_add(20)))));
     }
     if let Some(DoneButton { live: true, .. }) = prompt.done {
