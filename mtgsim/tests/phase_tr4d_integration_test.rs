@@ -431,7 +431,7 @@ fn then_return_it_later(instruction: Effect) -> Effect {
         at_beginning_of(StepType::End, Whose::Each),
         Effect::Atom(Primitive::ReturnToHand, EffectRecipient::Referred),
     ));
-    let template = DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::Any, rules_text: "".into() };
+    let template = DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::NoneNamed, rules_text: "".into() };
     Effect::Sequence(vec![
         Effect::Remember(Box::new(instruction)),
         Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), EffectRecipient::Controller),

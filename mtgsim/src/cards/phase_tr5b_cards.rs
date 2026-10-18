@@ -185,7 +185,7 @@ pub fn protean_hydra() -> Arc<CardData> {
             ),
         )),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "Put two +1/+1 counters on it at the beginning of the next end step.".into(),
     };
     let prevent = ReplacementDef::new(EventPattern::DealDamage { source: None, combat: None }, ObjectSet::SourceOnly, Rewrite::Prevent)

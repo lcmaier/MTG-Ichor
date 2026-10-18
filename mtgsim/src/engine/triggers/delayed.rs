@@ -619,7 +619,7 @@ mod tests {
         let template = DelayedTriggerTemplate {
             def: Arc::new(whenever(owner_gains, Effect::Sequence(Vec::new()))),
             duration: DelayedDuration::Once,
-            turn: DelayedTurn::Any,
+            turn: DelayedTurn::NoneNamed,
             rules_text: "When its owner next gains life, nothing.".into(),
         };
         let provenance = DelayedProvenance {

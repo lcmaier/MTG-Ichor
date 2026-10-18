@@ -66,7 +66,7 @@ pub fn flickerwisp() -> Arc<CardData> {
             Effect::Atom(Primitive::ReturnToBattlefield { under: ReturnUnder::Owner, counters: Vec::new(), tapped: false, attacking: None }, EffectRecipient::Referred),
         )),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "Return that card to the battlefield under its owner's control at the beginning of the next end step.".into(),
     };
     CardDataBuilder::new("Flickerwisp")

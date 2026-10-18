@@ -120,7 +120,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
 /// "At the beginning of the next end step, [effect]."
 fn at_the_next_end_step(effect: Effect) -> Effect {
     let def = Arc::new(whenever(at_beginning_of(StepType::End, Whose::Each), effect));
-    delayed(DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::Any, rules_text: "".into() })
+    delayed(DelayedTriggerTemplate { def, duration: DelayedDuration::Once, turn: DelayedTurn::NoneNamed, rules_text: "".into() })
 }
 
 /// The instruction that creates `template`.
@@ -338,7 +338,7 @@ fn a_delayed_trigger_watching_two_tokens_that_die_at_once_triggers_once() {
     let when_it_dies = DelayedTriggerTemplate {
         def: Arc::new(whenever(dies(TriggerSubject::Referred), gain)),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "".into(),
     };
     let totem = put_on_battlefield(

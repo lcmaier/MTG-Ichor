@@ -323,7 +323,7 @@ fn reflexive(form: ReflexiveForm, event: TriggerEvent, effect: Effect, rules_tex
     DelayedTriggerTemplate {
         def: std::sync::Arc::new(whenever(event, effect)),
         duration: DelayedDuration::Reflexive(form),
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: rules_text.into(),
     }
 }

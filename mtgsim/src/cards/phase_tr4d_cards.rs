@@ -93,7 +93,7 @@ pub fn ray_of_command() -> Arc<CardData> {
             Effect::Atom(Primitive::Tap, EffectRecipient::Referred),
         )),
         duration: DelayedDuration::Once,
-        turn: DelayedTurn::Any,
+        turn: DelayedTurn::NoneNamed,
         rules_text: "When you lose control of the creature, tap it.".into(),
     };
     CardDataBuilder::new("Ray of Command")

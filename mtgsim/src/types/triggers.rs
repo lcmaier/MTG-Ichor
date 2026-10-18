@@ -1308,9 +1308,12 @@ pub struct CreatingResolution {
 /// You` on the step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayedTurn {
-    /// Whichever turn its event comes in: "at the beginning of the next end
-    /// step".
-    Any,
+    /// The card names no turn, so it triggers in whichever turn its event
+    /// comes in: "at the beginning of the next end step" is next turn's
+    /// once this turn's has begun (Protean Hydra's sixth ruling). How many
+    /// times it triggers is its `DelayedDuration`, whose `ThisTurn` is "this
+    /// turn".
+    NoneNamed,
     /// A turn after the one it is created in: the Ice Age cantrips' "at the
     /// beginning of the next turn's upkeep", which a second upkeep this turn
     /// (CR 500.10) is not.

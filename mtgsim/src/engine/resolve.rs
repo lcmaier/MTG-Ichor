@@ -822,7 +822,7 @@ impl GameState {
                         .ok_or_else(|| format!("the source {} of a delayed triggered ability is not in the game", ctx.source))?,
                 };
                 let turn = match template.turn {
-                    DelayedTurn::Any => TriggerTurn::Any,
+                    DelayedTurn::NoneNamed => TriggerTurn::Any,
                     DelayedTurn::NextTurn => TriggerTurn::LaterThan(self.turn_number),
                     DelayedTurn::ThatExtraTurn => TriggerTurn::Extra(walk.extra_turn.ok_or_else(|| {
                         format!(
