@@ -20,7 +20,7 @@ use crate::types::replacement::EntryCounters;
 use crate::types::ids::AbilityId;
 use crate::types::card_types::CardType;
 use crate::types::triggers::{
-    AttackEventPer, CountersOn, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
+    AttackOccurrence, BlockOccurrence, CountersOn, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
@@ -199,6 +199,7 @@ impl CountableEvent {
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::Blocks { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
             | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => {
                 *multiplicity = Multiplicity::OncePerEvent
@@ -389,13 +390,13 @@ pub fn enters(subject: impl Into<TriggerSubject>) -> CountableEvent {
 /// declared as an attacker, so "whenever a creature you control attacks" is
 /// also CR 508.3c's "whenever you attack with a creature".
 pub fn attacks(subject: impl Into<TriggerSubject>) -> CountableEvent {
-    CountableEvent(attack_event(subject.into(), None, AttackEventPer::Attacker))
+    CountableEvent(attack_event(subject.into(), None, AttackOccurrence::Attacker))
 }
 
 /// "Whenever [subject] attacks [defender]" (CR 508.3a's second sentence):
 /// "whenever a creature attacks you or a planeswalker you control".
 pub fn attacks_defender(subject: impl Into<TriggerSubject>, defender: DefenderFilter) -> CountableEvent {
-    CountableEvent(attack_event(subject.into(), Some(defender), AttackEventPer::Attacker))
+    CountableEvent(attack_event(subject.into(), Some(defender), AttackOccurrence::Attacker))
 }
 
 /// "Whenever [subject] attacks alone" (CR 506.5): the only creature declared
@@ -404,7 +405,7 @@ pub fn attacks_alone(subject: impl Into<TriggerSubject>) -> TriggerEvent {
     TriggerEvent::Attacks {
         attacker: subject.into(),
         defender: None,
-        per: AttackEventPer::Attacker,
+        occurrence: AttackOccurrence::Attacker,
         alone: true,
         multiplicity: Multiplicity::PerOccurrence,
     }
@@ -414,14 +415,14 @@ pub fn attacks_alone(subject: impl Into<TriggerSubject>) -> TriggerEvent {
 /// player, planeswalker or battle that one or more creatures are declared
 /// attacking, whose "them" are those creatures.
 pub fn is_attacked(defender: DefenderFilter) -> TriggerEvent {
-    attack_event(TriggerSubject::Any, Some(defender), AttackEventPer::Defender)
+    attack_event(TriggerSubject::Any, Some(defender), AttackOccurrence::Defender)
 }
 
 /// "Whenever [whose player] attacks" (CR 508.3d): one trigger for a
 /// declaration with one or more creatures that player controls in it, whose
 /// "them" are those creatures.
 pub fn player_attacks(whose: Whose) -> TriggerEvent {
-    CountableEvent(attack_event(creature_controlled_by(whose), None, AttackEventPer::Attacker)).once_per_event()
+    CountableEvent(attack_event(creature_controlled_by(whose), None, AttackOccurrence::Attacker)).once_per_event()
 }
 
 /// "Whenever [whose player] attacks [attacked player]" (CR 508.3e): one
@@ -430,7 +431,7 @@ pub fn player_attacks(whose: Whose) -> TriggerEvent {
 /// the player.
 pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
     let defender = DefenderFilter::Player(attacked.player_ref());
-    attack_event(creature_controlled_by(whose), Some(defender), AttackEventPer::Defender)
+    attack_event(creature_controlled_by(whose), Some(defender), AttackOccurrence::Defender)
 }
 
 /// "[A player] or a planeswalker [that player] controls", as what is
@@ -443,8 +444,43 @@ pub fn player_or_their_planeswalker(who: PlayerRef) -> DefenderFilter {
     DefenderFilter::Or(Box::new(DefenderFilter::Player(Some(who))), Box::new(DefenderFilter::Permanent(their_planeswalker)))
 }
 
-fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, per: AttackEventPer) -> TriggerEvent {
-    TriggerEvent::Attacks { attacker, defender, per, alone: false, multiplicity: Multiplicity::PerOccurrence }
+/// "Whenever [subject] blocks" (CR 509.3a): once for each such creature
+/// declared as a blocker, however many it blocks.
+pub fn blocks(subject: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(block_event(subject.into(), TriggerSubject::Any, BlockOccurrence::Blocker))
+}
+
+/// "Whenever [subject] blocks [a creature]" (CR 509.3b): once for each
+/// attacking creature it blocks.
+pub fn blocks_a_creature(subject: impl Into<TriggerSubject>, blocked: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(block_event(subject.into(), blocked.into(), BlockOccurrence::Block))
+}
+
+/// "Whenever [subject] becomes blocked" (CR 509.3c): once for each such
+/// creature blocked, however many block it.
+pub fn becomes_blocked(subject: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(block_event(TriggerSubject::Any, subject.into(), BlockOccurrence::Blocked))
+}
+
+/// "Whenever [subject] becomes blocked by [a creature]" (CR 509.3d): once
+/// for each creature blocking it.
+pub fn becomes_blocked_by(subject: impl Into<TriggerSubject>, blocker: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(block_event(blocker.into(), subject.into(), BlockOccurrence::Block))
+}
+
+/// "Whenever [subject] attacks and isn't blocked" (CR 509.3g): once for each
+/// attacking creature no creature was declared blocking, one that entered
+/// attacking included.
+pub fn attacks_and_isnt_blocked(subject: impl Into<TriggerSubject>) -> CountableEvent {
+    CountableEvent(block_event(TriggerSubject::Any, subject.into(), BlockOccurrence::Unblocked))
+}
+
+fn block_event(blocker: TriggerSubject, attacker: TriggerSubject, occurrence: BlockOccurrence) -> TriggerEvent {
+    TriggerEvent::Blocks { blocker, attacker, occurrence, count: None, alone: false, multiplicity: Multiplicity::PerOccurrence }
+}
+
+fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, occurrence: AttackOccurrence) -> TriggerEvent {
+    TriggerEvent::Attacks { attacker, defender, occurrence, alone: false, multiplicity: Multiplicity::PerOccurrence }
 }
 
 /// "A creature [whose player] controls"; any creature for `Whose::Each`.

@@ -406,8 +406,8 @@ impl GameState {
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
             // What a creature attacks, and whom, is read as the instruction
-            // applies.
-            EffectRecipient::AttackedBy(_) | EffectRecipient::DefendingPlayer(_) => Err(format!(
+            // applies, and so is what a join's parts find.
+            EffectRecipient::AttackedBy(_) | EffectRecipient::DefendingPlayer(_) | EffectRecipient::Together(_) => Err(format!(
                 "{recipient:?} is read as the effect applies, not an instance of \"target\" to validate"
             )),
             // A choice is made as the effect applies (CR 608.2d); only its

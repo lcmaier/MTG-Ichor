@@ -97,7 +97,7 @@ impl<'a> TriggeringEventView<'a> {
         match self {
             TriggeringEventView::None => None,
             TriggeringEventView::AtTrigger { arm, record, objects } => {
-                objects.get(role).map(|object| read_at_trigger(arm, record, object.id))
+                objects.get(arm.role_in_arm(role)).map(|object| read_at_trigger(arm, record, object.id))
             }
             TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, role),
         }
@@ -188,7 +188,7 @@ impl GameState {
         role: EventRole,
     ) -> Option<CurrentOrLastKnown<'a>> {
         let event = binding.triggering_event()?;
-        let object = event.objects.get(role)?;
+        let object = event.objects.get(binding.event().role_in_arm(role))?;
         let lki = match record_frame(binding.event(), &event.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,

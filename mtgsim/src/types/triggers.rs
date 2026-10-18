@@ -205,14 +205,27 @@ impl DefenderFilter {
     }
 }
 
-/// What one triggering event of an attack trigger is (CR 603.2c): each
-/// creature declared as an attacker (CR 508.3a, 508.3c, 508.3d), or each
-/// player, planeswalker or battle it is declared attacking (CR 508.3b,
-/// 508.3e).
+/// What one occurrence of an attack trigger is (CR 603.2c): each creature
+/// declared as an attacker (CR 508.3a, 508.3c, 508.3d), or each player,
+/// planeswalker or battle it is declared attacking (CR 508.3b, 508.3e).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttackEventPer {
+pub enum AttackOccurrence {
     Attacker,
     Defender,
+}
+
+/// What one occurrence of a block trigger is (CR 603.2c), each CR 509.3
+/// reading's "triggers once for each".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockOccurrence {
+    /// CR 509.3a: each blocking creature, however many it blocks.
+    Blocker,
+    /// CR 509.3b, 509.3d: each blocking creature and each creature it blocks.
+    Block,
+    /// CR 509.3c: each blocked creature, however many block it.
+    Blocked,
+    /// CR 509.3g: each attacking creature no creature was declared blocking.
+    Unblocked,
 }
 
 /// Whom damage was dealt to, for "is dealt damage" and "deals damage to".
@@ -243,8 +256,16 @@ pub enum EventRole {
     DamageSource,
     /// CR 120.1: the object the damage was dealt to.
     DamageRecipient,
-    /// CR 508.1: a creature declared as an attacker.
+    /// CR 506.4's attacking creature: one declared as an attacker (CR 508.1),
+    /// or, in a block, one that is attacking however it came to.
     Attacker,
+    /// CR 509.1g: a creature declared as a blocker.
+    Blocker,
+    /// "Whenever this creature blocks or becomes blocked by a creature,
+    /// destroy that creature": the creature on the other side of a block
+    /// from the ability's own source, the attacker it blocks or the blocker
+    /// blocking it, which the arm that matched says.
+    OtherCombatant,
     /// CR 506.3: the planeswalker or battle a creature was declared
     /// attacking. A player attacked is no object.
     Attacked,
@@ -255,11 +276,13 @@ pub enum EventRole {
 }
 
 impl EventRole {
-    pub const ALL: [EventRole; 7] = [
+    pub const ALL: [EventRole; 9] = [
         EventRole::Object,
         EventRole::DamageSource,
         EventRole::DamageRecipient,
         EventRole::Attacker,
+        EventRole::Blocker,
+        EventRole::OtherCombatant,
         EventRole::Attacked,
         EventRole::Attachment,
         EventRole::Host,
@@ -303,6 +326,16 @@ pub enum TriggeringEventObjects {
     Defense { defender: ObjectOrPlayer, attackers: Vec<ObjectRef> },
     /// CR 701.3: an attachment and the object it became, or was, attached to.
     Attach { attachment: ObjectRef, host: ObjectRef },
+    /// CR 509.3b, 509.3d: one block, its blocker and the attacker it blocks.
+    Block { blocker: ObjectRef, attacker: ObjectRef },
+    /// CR 509.3a: one blocking creature, and the attackers it blocks that
+    /// the arm counts.
+    Blocking { blocker: ObjectRef, attackers: Vec<ObjectRef> },
+    /// CR 509.3c: one blocked creature, and the blockers blocking it that
+    /// the arm counts.
+    BlockedBy { attacker: ObjectRef, blockers: Vec<ObjectRef> },
+    /// CR 509.3g: an attacking creature no creature was declared blocking.
+    Unblocked { attacker: ObjectRef },
 }
 
 impl TriggeringEventObjects {
@@ -314,7 +347,12 @@ impl TriggeringEventObjects {
             | (TriggeringEventObjects::Damage { source: object, .. }, EventRole::DamageSource)
             | (TriggeringEventObjects::Attack { attacker: object, .. }, EventRole::Attacker)
             | (TriggeringEventObjects::Attach { attachment: object, .. }, EventRole::Attachment)
-            | (TriggeringEventObjects::Attach { host: object, .. }, EventRole::Host) => Some(*object),
+            | (TriggeringEventObjects::Attach { host: object, .. }, EventRole::Host)
+            | (TriggeringEventObjects::Block { blocker: object, .. }, EventRole::Blocker)
+            | (TriggeringEventObjects::Block { attacker: object, .. }, EventRole::Attacker)
+            | (TriggeringEventObjects::Blocking { blocker: object, .. }, EventRole::Blocker)
+            | (TriggeringEventObjects::BlockedBy { attacker: object, .. }, EventRole::Attacker)
+            | (TriggeringEventObjects::Unblocked { attacker: object }, EventRole::Attacker) => Some(*object),
             (TriggeringEventObjects::Damage { recipient: object, .. }, EventRole::DamageRecipient)
             | (TriggeringEventObjects::Attack { defender: object, .. }, EventRole::Attacked)
             | (TriggeringEventObjects::Defense { defender: object, .. }, EventRole::Attacked) => object.object(),
@@ -324,7 +362,11 @@ impl TriggeringEventObjects {
                 | TriggeringEventObjects::Damage { .. }
                 | TriggeringEventObjects::Attack { .. }
                 | TriggeringEventObjects::Defense { .. }
-                | TriggeringEventObjects::Attach { .. },
+                | TriggeringEventObjects::Attach { .. }
+                | TriggeringEventObjects::Block { .. }
+                | TriggeringEventObjects::Blocking { .. }
+                | TriggeringEventObjects::BlockedBy { .. }
+                | TriggeringEventObjects::Unblocked { .. },
                 _,
             ) => None,
         }
@@ -332,25 +374,42 @@ impl TriggeringEventObjects {
 
     /// Each object, with the part it played.
     pub fn objects(&self) -> impl Iterator<Item = (EventRole, ObjectRef)> + '_ {
-        // Up to two objects, then a defender's attackers.
-        let (pairs, attackers): ([Option<(EventRole, ObjectRef)>; 2], &[ObjectRef]) = match self {
-            TriggeringEventObjects::NoObject => ([None, None], &[]),
-            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], &[]),
+        // Up to two objects, then the several of one event role: a defender's
+        // attackers, a blocker's attackers, a blocked creature's blockers.
+        let (pairs, several): ([Option<(EventRole, ObjectRef)>; 2], (EventRole, &[ObjectRef])) = match self {
+            TriggeringEventObjects::NoObject => ([None, None], (EventRole::Attacker, &[])),
+            TriggeringEventObjects::Object(object) => ([Some((EventRole::Object, *object)), None], (EventRole::Attacker, &[])),
             TriggeringEventObjects::Damage { source, recipient } => (
                 [Some((EventRole::DamageSource, *source)), recipient.object().map(|o| (EventRole::DamageRecipient, o))],
-                &[],
+                (EventRole::Attacker, &[]),
             ),
-            TriggeringEventObjects::Attack { attacker, defender } => {
-                ([Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))], &[])
-            }
+            TriggeringEventObjects::Attack { attacker, defender } => (
+                [Some((EventRole::Attacker, *attacker)), defender.object().map(|o| (EventRole::Attacked, o))],
+                (EventRole::Attacker, &[]),
+            ),
             TriggeringEventObjects::Defense { defender, attackers } => {
-                ([defender.object().map(|o| (EventRole::Attacked, o)), None], attackers)
+                ([defender.object().map(|o| (EventRole::Attacked, o)), None], (EventRole::Attacker, attackers))
             }
-            TriggeringEventObjects::Attach { attachment, host } => {
-                ([Some((EventRole::Attachment, *attachment)), Some((EventRole::Host, *host))], &[])
+            TriggeringEventObjects::Attach { attachment, host } => (
+                [Some((EventRole::Attachment, *attachment)), Some((EventRole::Host, *host))],
+                (EventRole::Attacker, &[]),
+            ),
+            TriggeringEventObjects::Block { blocker, attacker } => (
+                [Some((EventRole::Blocker, *blocker)), Some((EventRole::Attacker, *attacker))],
+                (EventRole::Attacker, &[]),
+            ),
+            TriggeringEventObjects::Blocking { blocker, attackers } => {
+                ([Some((EventRole::Blocker, *blocker)), None], (EventRole::Attacker, attackers))
+            }
+            TriggeringEventObjects::BlockedBy { attacker, blockers } => {
+                ([Some((EventRole::Attacker, *attacker)), None], (EventRole::Blocker, blockers))
+            }
+            TriggeringEventObjects::Unblocked { attacker } => {
+                ([Some((EventRole::Attacker, *attacker)), None], (EventRole::Attacker, &[]))
             }
         };
-        pairs.into_iter().flatten().chain(attackers.iter().map(|&attacker| (EventRole::Attacker, attacker)))
+        let (role, several) = several;
+        pairs.into_iter().flatten().chain(several.iter().map(move |&object| (role, object)))
     }
 }
 
@@ -388,6 +447,7 @@ counted_enum! {
         LifeChanged,
         EnteredBattlefield,
         AttackersDeclared,
+        BlockersDeclared,
         AbilityTriggered,
         SpellCast,
         CardDrawn,
@@ -428,6 +488,7 @@ impl EventKind {
             GameEvent::LifeChanged { .. } => EventKind::LifeChanged,
             GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
+            GameEvent::BlockersDeclared { .. } => EventKind::BlockersDeclared,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
             GameEvent::SpellCast { .. } => EventKind::SpellCast,
             GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
@@ -444,7 +505,6 @@ impl EventKind {
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityFizzled { .. }
-            | GameEvent::BlockersDeclared { .. }
             | GameEvent::DamagePrevented { .. }
             | GameEvent::DelayedTriggerCreated { .. }
             | GameEvent::PlayerWon { .. }
@@ -613,8 +673,25 @@ pub enum TriggerEvent {
     Attacks {
         attacker: TriggerSubject,
         defender: Option<DefenderFilter>,
-        per: AttackEventPer,
+        occurrence: AttackOccurrence,
         /// CR 506.5: the only creature declared as an attacker.
+        alone: bool,
+        multiplicity: Multiplicity,
+    },
+    /// CR 509.3a–g, read off the declaration of blockers (CR 509.1) at its
+    /// dispatch, which is CR 509.3f's moment. `blocker` and `attacker` are
+    /// the two sides' filters. Read once for each blocking creature or each
+    /// blocked one, the other side's filter picks which of its creatures
+    /// count, and the occurrence needs one of them, or `count`'s many (CR
+    /// 509.3e).
+    Blocks {
+        blocker: TriggerSubject,
+        attacker: TriggerSubject,
+        occurrence: BlockOccurrence,
+        /// CR 509.3e: how many of the other side's creatures match.
+        count: Option<crate::types::history::CountIs>,
+        /// CR 506.5: the only creature declared as a blocker, across every
+        /// defending player (CR 802.4).
         alone: bool,
         multiplicity: Multiplicity,
     },
@@ -756,6 +833,7 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::CountersPutOn { .. }
@@ -804,6 +882,7 @@ impl TriggerEvent {
                 EventKindMask::of(EventKind::EnteredBattlefield)
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
+            TriggerEvent::Blocks { .. } => EventKindMask::of(EventKind::BlockersDeclared),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::IsCountered { .. } => EventKindMask::of(EventKind::SpellCountered),
             TriggerEvent::PlayerLoses { .. } => EventKindMask::of(EventKind::PlayerLost),
@@ -839,6 +918,8 @@ impl TriggerEvent {
             | TriggerEvent::ManaAdded { source: subject, .. }
             | TriggerEvent::DamageDealt { source: subject, .. }
             | TriggerEvent::Attacks { attacker: subject, .. }
+            | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked | BlockOccurrence::Unblocked, attacker: subject, .. }
+            | TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker | BlockOccurrence::Block, blocker: subject, .. }
             | TriggerEvent::BecomesAttached { host: subject, .. }
             | TriggerEvent::BecomesUnattached { former_host: subject, .. }
             | TriggerEvent::ControlChanges { subject, .. }
@@ -884,6 +965,7 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { .. }
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
             | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::IsCountered { .. }
             | TriggerEvent::PlayerLoses { .. }
@@ -923,6 +1005,7 @@ impl TriggerEvent {
             | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. }
+            | TriggerEvent::Blocks { multiplicity, .. }
             | TriggerEvent::CountersPutOn { multiplicity, .. }
             | TriggerEvent::CountersRemovedFrom { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
@@ -947,10 +1030,25 @@ impl TriggerEvent {
     /// `role`'s part: a defender's attackers (CR 508.3b). An
     /// instruction that needs exactly one, "its power", cannot name it.
     pub fn may_have_several(&self, role: EventRole) -> bool {
-        matches!(
-            (self, role),
-            (TriggerEvent::Attacks { per: AttackEventPer::Defender, .. }, EventRole::Attacker)
-        )
+        let several = match self {
+            TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocker, .. } => EventRole::Attacker,
+            TriggerEvent::Blocks { occurrence: BlockOccurrence::Blocked, .. } => EventRole::Blocker,
+            TriggerEvent::Attacks { occurrence: AttackOccurrence::Defender, .. } => EventRole::Attacker,
+            _ => return false,
+        };
+        self.role_in_arm(role) == several
+    }
+
+    /// `role` as this arm's events hold it: the other creature in a block
+    /// is the attacker on an arm whose blocker is the ability's own source,
+    /// and the blocker on one whose attacker is. Every other event role is
+    /// itself.
+    pub fn role_in_arm(&self, role: EventRole) -> EventRole {
+        match (self, role) {
+            (TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. }, EventRole::OtherCombatant) => EventRole::Attacker,
+            (TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. }, EventRole::OtherCombatant) => EventRole::Blocker,
+            _ => role,
+        }
     }
 
     /// The parts an object can play in this arm's triggering events: what an
@@ -971,6 +1069,12 @@ impl TriggerEvent {
             | TriggerEvent::CountersRemovedFrom { subject: CountersOn::Object(_), .. } => &[EventRole::Object],
             TriggerEvent::DamageDealt { .. } => &[EventRole::DamageSource, EventRole::DamageRecipient],
             TriggerEvent::Attacks { .. } => &[EventRole::Attacker, EventRole::Attacked],
+            TriggerEvent::Blocks { occurrence: BlockOccurrence::Unblocked, .. } => &[EventRole::Attacker],
+            TriggerEvent::Blocks { blocker: TriggerSubject::ThisObject, .. }
+            | TriggerEvent::Blocks { attacker: TriggerSubject::ThisObject, .. } => {
+                &[EventRole::Blocker, EventRole::Attacker, EventRole::OtherCombatant]
+            }
+            TriggerEvent::Blocks { .. } => &[EventRole::Blocker, EventRole::Attacker],
             TriggerEvent::BecomesAttached { .. } | TriggerEvent::BecomesUnattached { .. } => {
                 &[EventRole::Attachment, EventRole::Host]
             }
@@ -1031,7 +1135,8 @@ impl TriggerEvent {
             | (TriggerEvent::BecomesUnattached { .. }, GameEvent::Unattached { .. })
             | (TriggerEvent::ControlChanges { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ControlChanges { .. }, GameEvent::LeftTheGame { .. })
-            | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. }) => None,
+            | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => None,
             // Every arm, by name, so a new arm does not compile until it says what
             // this projection is for it; the record never matches the arm otherwise.
             (
@@ -1048,6 +1153,7 @@ impl TriggerEvent {
                 | TriggerEvent::LosesLife { .. }
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
+                | TriggerEvent::Blocks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1101,6 +1207,7 @@ impl TriggerEvent {
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
+            | (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::IsCountered { .. }, GameEvent::SpellCountered { .. })
             | (TriggerEvent::PlayerLoses { .. }, GameEvent::PlayerLost { .. })
@@ -1128,6 +1235,7 @@ impl TriggerEvent {
                 | TriggerEvent::LosesLife { .. }
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
+                | TriggerEvent::Blocks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1220,13 +1328,14 @@ impl TriggerBinding {
     /// one triggering event, as the existence the dispatch found. `None` for a
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
-        self.triggering_event()?.objects.get(role)
+        self.triggering_event()?.objects.get(self.event().role_in_arm(role))
     }
 
     /// "That creature", "them": each object that played `role` in each
     /// triggering event. One for a `PerOccurrence` trigger, but for a
     /// defender's attackers.
     pub fn triggering_objects(&self, role: EventRole) -> Vec<ObjectRef> {
+        let role = self.event().role_in_arm(role);
         self.triggering_events
             .iter()
             .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == role))
@@ -1778,7 +1887,7 @@ mod tests {
                 &["PermanentEnteredBattlefield"],
             ),
             (
-                TriggerEvent::Attacks { attacker: this, defender: None, per: AttackEventPer::Attacker, alone: false, multiplicity: each },
+                TriggerEvent::Attacks { attacker: this, defender: None, occurrence: AttackOccurrence::Attacker, alone: false, multiplicity: each },
                 &["AttackersDeclared"],
             ),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),

@@ -40,10 +40,11 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
+use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, AttackEventPer, CountersOn, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -1718,7 +1719,7 @@ impl GameState {
             // attacks, in the record's order: a triggering event each, or one
             // for each player, planeswalker or battle they attack.
             (
-                TriggerEvent::Attacks { attacker, defender, per, alone, .. },
+                TriggerEvent::Attacks { attacker, defender, occurrence, alone, .. },
                 GameEvent::AttackersDeclared { attackers },
             ) => {
                 // CR 506.5: the only creature declared as an attacker.
@@ -1732,11 +1733,11 @@ impl GameState {
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
                     .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
-                match per {
-                    AttackEventPer::Attacker => {
+                match occurrence {
+                    AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
                     }
-                    AttackEventPer::Defender => {
+                    AttackOccurrence::Defender => {
                         let mut defenses: Vec<(ObjectOrPlayer, Vec<ObjectRef>)> = Vec::new();
                         for (attacker, defender) in attacks {
                             match defenses.iter_mut().find(|(attacked, _)| *attacked == defender) {
@@ -1751,6 +1752,7 @@ impl GameState {
                     }
                 }
             }
+            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
                     None => true,
@@ -1864,6 +1866,7 @@ impl GameState {
                 | TriggerEvent::LosesLife { .. }
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
+                | TriggerEvent::Blocks { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1877,6 +1880,79 @@ impl GameState {
                 | TriggerEvent::AbilityResolves { .. },
                 _,
             ) => Vec::new(),
+        }
+    }
+
+    /// The declaration's occurrences of a block arm (CR 509.3a–g), in the
+    /// record's order, each side asked as it is now (CR 509.3f). Read once
+    /// for each blocking creature or each blocked one, the other side's
+    /// creatures that match are the ones it counts, and the occurrence needs
+    /// one of them, or `count`'s many (CR 509.3e).
+    fn block_events(&self, arm: &TriggerEvent, record: &EventRecord, referents: &TriggerReferents<'_>) -> Vec<TriggeringEventObjects> {
+        let (
+            TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. },
+            GameEvent::BlockersDeclared { blocks, unblocked },
+        ) = (arm, &record.event)
+        else {
+            return Vec::new();
+        };
+        let (event, seq) = (&record.event, record.seq);
+        // CR 506.5: the only creature declared as a blocker.
+        if *alone {
+            let mut blockers = blocks.iter().map(|&(b, _)| b);
+            let first = blockers.next();
+            if first.is_none() || blockers.any(|b| Some(b) != first) {
+                return Vec::new();
+            }
+        }
+        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
+        let now = |id: ObjectId| self.subject_after(event, id);
+        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).met_by(n as u64);
+        match *occurrence {
+            BlockOccurrence::Block => blocks
+                .iter()
+                .filter(|&&(b, a)| is(blocker, b) && is(attacker, a))
+                .filter_map(|&(b, a)| Some(TriggeringEventObjects::Block { blocker: now(b)?, attacker: now(a)? }))
+                .collect(),
+            BlockOccurrence::Blocker => {
+                let mut each: Vec<ObjectId> = Vec::new();
+                for &(b, _) in blocks {
+                    if !each.contains(&b) {
+                        each.push(b);
+                    }
+                }
+                each.into_iter()
+                    .filter(|&b| is(blocker, b))
+                    .filter_map(|b| {
+                        let attackers: Vec<ObjectRef> =
+                            blocks.iter().filter(|&&(of, a)| of == b && is(attacker, a)).filter_map(|&(_, a)| now(a)).collect();
+                        enough(attackers.len()).then_some(())?;
+                        Some(TriggeringEventObjects::Blocking { blocker: now(b)?, attackers })
+                    })
+                    .collect()
+            }
+            BlockOccurrence::Blocked => {
+                let mut each: Vec<ObjectId> = Vec::new();
+                for &(_, a) in blocks {
+                    if !each.contains(&a) {
+                        each.push(a);
+                    }
+                }
+                each.into_iter()
+                    .filter(|&a| is(attacker, a))
+                    .filter_map(|a| {
+                        let blockers: Vec<ObjectRef> =
+                            blocks.iter().filter(|&&(b, of)| of == a && is(blocker, b)).filter_map(|&(b, _)| now(b)).collect();
+                        enough(blockers.len()).then_some(())?;
+                        Some(TriggeringEventObjects::BlockedBy { attacker: now(a)?, blockers })
+                    })
+                    .collect()
+            }
+            BlockOccurrence::Unblocked => unblocked
+                .iter()
+                .filter(|&&a| is(attacker, a))
+                .filter_map(|&a| Some(TriggeringEventObjects::Unblocked { attacker: now(a)? }))
+                .collect(),
         }
     }
 
@@ -2094,6 +2170,7 @@ impl GameState {
                 self.attachment_objects(&record.event)
             }
             TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }

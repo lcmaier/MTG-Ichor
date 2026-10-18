@@ -15,7 +15,7 @@ use crate::types::effects::{
     AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
     Primitive, Selector,
 };
-use crate::types::triggers::{EventRole, Multiplicity, TriggerDef, TriggerEvent, TriggerLimit};
+use crate::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
 
 /// A set of the facts of an entry a def reads, each one a column the elision
 /// compares, and the event roles of its event it names. Built like
@@ -122,10 +122,14 @@ impl TriggerDef {
     }
 
     /// The readings of its event the def asks of an arm that cannot give
-    /// them: once per subject on an arm that cannot be read that way,
-    /// and CR 122.7's threshold on a trigger that is not a counter put read
-    /// once per subject, whose records alone keep the counts it compares.
-    /// Empty for every registered card (`cards::registry`'s test).
+    /// them: once per subject on an arm that cannot be read that way; CR
+    /// 122.7's threshold on a trigger that is not a counter put read once per
+    /// subject, whose records alone keep the counts it compares; a block arm
+    /// whose fields no CR 509.3 reading combines; and a side of a block named
+    /// by event role where the arm fixes that side to the ability's own
+    /// source, which on a second arm of "blocks or becomes blocked by" is
+    /// the source itself and not "that creature". Empty for every registered
+    /// card (`cards::registry`'s test).
     pub fn readings_its_arms_cannot_give(&self) -> Vec<&'static str> {
         let arms = self.condition.events();
         let mut wrong = Vec::new();
@@ -136,6 +140,27 @@ impl TriggerDef {
             |arm: &TriggerEvent| matches!(arm, TriggerEvent::CountersPutOn { multiplicity: Multiplicity::OncePerSubject, .. });
         if self.intervening_if.as_ref().is_some_and(reads_a_counter_threshold) && !arms.iter().all(puts_once_per_subject) {
             wrong.push("CR 122.7's threshold, on a trigger that is not a counter put read once per subject");
+        }
+        let named = self.bound_reads();
+        for arm in arms {
+            let TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. } = arm else { continue };
+            match occurrence {
+                BlockOccurrence::Unblocked if *blocker != TriggerSubject::Any || count.is_some() || *alone => {
+                    wrong.push("an unblocked creature's trigger that asks about a blocker")
+                }
+                BlockOccurrence::Block if count.is_some() => wrong.push("CR 509.3e's count, on a trigger once per block"),
+                _ => {}
+            }
+            let own_side = [(blocker, EventRole::Blocker), (attacker, EventRole::Attacker)]
+                .into_iter()
+                .any(|(side, role)| *side == TriggerSubject::ThisObject && named.contains(BoundReads::event_role(role)));
+            if own_side {
+                wrong.push("its own side of a block, named by event role rather than as this object");
+            }
+            let other = named.contains(BoundReads::event_role(EventRole::OtherCombatant));
+            if other && arm.role_in_arm(EventRole::OtherCombatant) == EventRole::OtherCombatant {
+                wrong.push("the other creature in a block, on a block arm with no side of its own");
+            }
         }
         wrong
     }
@@ -185,6 +210,7 @@ fn recipient(r: &EffectRecipient) -> BoundReads {
         EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
         EffectRecipient::AttackedBy(creature) | EffectRecipient::DefendingPlayer(creature) => creature_read(*creature),
         EffectRecipient::Referred => BoundReads::REFERRED,
+        EffectRecipient::Together(parts) => parts.iter().fold(BoundReads::NOTHING, |reads, part| reads | recipient(part)),
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
             let count = match &pick.count {

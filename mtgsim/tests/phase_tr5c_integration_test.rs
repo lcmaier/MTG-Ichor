@@ -8,7 +8,11 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{
+    attacks_and_isnt_blocked, becomes_blocked, becomes_blocked_by, blocks, blocks_a_creature, dies, triggered_ability, whenever,
+};
+use mtgsim::cards::phase_tr5c_cards::loyal_sentry;
+use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -16,13 +20,15 @@ use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_on_battlefield, put_on_battlefield_this_turn, set_attacking, setup_game, setup_two_player_game,
-    static_ability, test_dp,
+    static_ability, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
-use mtgsim::types::history::ObjectFact;
+use mtgsim::types::colors::Color;
+use mtgsim::types::history::{CountIs, ObjectFact};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::triggers::TriggerSubject;
+use mtgsim::types::triggers::{BlockOccurrence, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -201,11 +207,315 @@ fn entered_this_turn_reads_a_departed_creatures_frame() {
     let before = hand_size(&game, 0);
 
     for creature in [old, new] {
-        game.change_zone(creature, Zone::Graveyard, mtgsim::engine::actions::ZoneChangeAct::Destroyed, &mtgsim::test_support::test_ctx()).unwrap();
+        game.change_zone(creature, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     }
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     while !game.stack.is_empty() {
         game.resolve_top_of_stack(&test_dp()).unwrap();
     }
     assert_eq!(hand_size(&game, 0), before + 1, "only the one that entered this turn");
+}
+
+// ---------------------------------------------------------------------------
+// 3. The block arm (CR 509.3a–g)
+// ---------------------------------------------------------------------------
+
+/// Put every waiting trigger on the stack and resolve the stack.
+fn resolve_all(game: &mut GameState) {
+    let dp = test_dp();
+    game.perform_sba_and_triggers(&dp).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&dp).unwrap();
+        game.perform_sba_and_triggers(&dp).unwrap();
+    }
+}
+
+/// An enchantment whose controller gains 1 life on each `arm`.
+fn life_on(name: &str, arm: impl Into<TriggerEvent>) -> Arc<CardData> {
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(triggered_ability("", whenever(arm, gain))).build()
+}
+
+fn life(game: &GameState, player: PlayerId) -> i64 {
+    game.players[player].life_total
+}
+
+/// Three attackers, one blocked by one creature, one by two, one unblocked:
+/// the board each reading below counts on.
+struct Board {
+    game: GameState,
+    attackers: [ObjectId; 3],
+    /// The first attacker's blocker, then the second's two.
+    blockers: [ObjectId; 3],
+}
+
+fn three_attackers_three_ways(watching: Arc<CardData>) -> Board {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, watching, 0);
+    let attackers = [0, 1, 2].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let blockers = [0, 1, 2].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 1));
+    declare_attacks(&mut game, &attackers.map(|a| (a, 1)));
+    declare_blocks(&mut game, &[vec![(blockers[0], attackers[0]), (blockers[1], attackers[1]), (blockers[2], attackers[1])]]);
+    Board { game, attackers, blockers }
+}
+
+/// CR 509.3a: once for each blocking creature.
+#[test]
+fn blocks_triggers_once_for_each_blocking_creature() {
+    let mut board = three_attackers_three_ways(life_on("Fixture Wall Watcher", blocks(TriggerSubject::Any)));
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 23);
+}
+
+/// CR 509.3c: once for each blocked creature, however many block it.
+#[test]
+fn becomes_blocked_triggers_once_for_each_blocked_creature() {
+    let mut board = three_attackers_three_ways(life_on("Fixture Charge Watcher", becomes_blocked(TriggerSubject::Any)));
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 22, "two blocked creatures, one of them twice");
+}
+
+/// CR 509.3d: once for each creature blocking it.
+#[test]
+fn becomes_blocked_by_triggers_once_for_each_blocker() {
+    let mut board =
+        three_attackers_three_ways(life_on("Fixture Melee Watcher", becomes_blocked_by(TriggerSubject::Any, TriggerSubject::Any)));
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 23);
+}
+
+fn blocked_by(count: CountIs) -> TriggerEvent {
+    TriggerEvent::Blocks {
+        blocker: TriggerSubject::Any,
+        attacker: TriggerSubject::Any,
+        occurrence: BlockOccurrence::Blocked,
+        count: Some(count),
+        alone: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    }
+}
+
+/// CR 509.3e: "becomes blocked by two or more creatures" triggers for the one
+/// that was, and "by exactly one" for the other.
+#[test]
+fn a_count_of_blockers_is_asked_when_blockers_are_declared() {
+    let mut board = three_attackers_three_ways(life_on("Fixture Crowd Watcher", blocked_by(CountIs::AtLeast(2))));
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 21);
+
+    let mut board = three_attackers_three_ways(life_on("Fixture Duel Watcher", blocked_by(CountIs::Exactly(1))));
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 21);
+}
+
+/// "Whenever this creature becomes blocked, tap each creature blocking it":
+/// a blocked creature's triggering event holds every blocker it counts, and
+/// "them" is all of them.
+#[test]
+fn a_blocked_creatures_event_holds_every_blocker() {
+    let mut game = stocked(2);
+    let tap_them = Effect::Atom(Primitive::Tap, EffectRecipient::Triggering(EventRole::Blocker));
+    let charger = CardDataBuilder::new("Fixture Charger")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .ability(triggered_ability("", whenever(becomes_blocked(TriggerSubject::ThisObject), tap_them)))
+        .build();
+    let charger = put_on_battlefield(&mut game, charger, 0);
+    let (first, second) = (put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 1));
+    declare_attacks(&mut game, &[(charger, 1)]);
+    declare_blocks(&mut game, &[vec![(first, charger), (second, charger)]]);
+    resolve_all(&mut game);
+    assert!(game.battlefield[&first].tapped && game.battlefield[&second].tapped);
+}
+
+/// CR 509.3g: the unblocked creature triggers, and a blocked creature whose
+/// blocker has left does not: the declaration decided it (CR 509.1h).
+// COVERS-PARTIAL: ATOM-509.1h-001
+#[test]
+fn attacks_and_isnt_blocked_reads_the_declaration() {
+    let mut board = three_attackers_three_ways(life_on("Fixture Raid Watcher", attacks_and_isnt_blocked(TriggerSubject::Any)));
+    board.game.change_zone(board.blockers[0], Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
+    resolve_all(&mut board.game);
+    assert_eq!(life(&board.game, 0), 21, "the third attacker only");
+    assert!(board.game.battlefield[&board.attackers[0]].attacking.as_ref().unwrap().is_blocked, "still blocked");
+}
+
+/// CR 509.3f: a blocked creature's characteristics as it became blocked. Of
+/// two blocked creatures, the red one triggers "whenever a red creature
+/// becomes blocked".
+#[test]
+fn a_filter_reads_the_creature_as_blockers_are_declared() {
+    let red = TriggerSubject::Filter(ObjectFilter::ByColor(Color::Red));
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, life_on("Fixture Red Watcher", becomes_blocked(red)), 0);
+    let red_bears = CardDataBuilder::new("Fixture Red Bears").card_type(CardType::Creature).color(Color::Red).power_toughness(2, 2).build();
+    let (red_one, green_one) = (put_on_battlefield(&mut game, red_bears, 0), put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let (b1, b2) = (put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 1));
+    declare_attacks(&mut game, &[(red_one, 1), (green_one, 1)]);
+    declare_blocks(&mut game, &[vec![(b1, red_one), (b2, green_one)]]);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21);
+}
+
+fn blocks_alone() -> TriggerEvent {
+    TriggerEvent::Blocks {
+        blocker: TriggerSubject::Any,
+        attacker: TriggerSubject::Any,
+        occurrence: BlockOccurrence::Blocker,
+        count: None,
+        alone: true,
+        multiplicity: Multiplicity::PerOccurrence,
+    }
+}
+
+/// CR 506.5: "blocks alone" is the only creature declared as a blocker, across
+/// every defending player (CR 802.4).
+#[test]
+fn blocks_alone_is_the_only_blocker_across_every_defender() {
+    let mut game = stocked(3);
+    put_on_battlefield(&mut game, life_on("Fixture Lone Watcher", blocks_alone()), 0);
+    let (first, second) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let (b1, b2) = (put_on_battlefield(&mut game, grizzly_bears(), 1), put_on_battlefield(&mut game, grizzly_bears(), 2));
+    declare_attacks(&mut game, &[(first, 1), (second, 2)]);
+    declare_blocks(&mut game, &[vec![(b1, first)], vec![(b2, second)]]);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 20, "two players blocked, one creature each");
+
+    let mut game = stocked(3);
+    put_on_battlefield(&mut game, life_on("Fixture Lone Watcher", blocks_alone()), 0);
+    let (first, second) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let b1 = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    put_on_battlefield(&mut game, grizzly_bears(), 2);
+    declare_attacks(&mut game, &[(first, 1), (second, 2)]);
+    declare_blocks(&mut game, &[vec![(b1, first)], vec![]]);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21);
+}
+
+/// Cockatrice's shape: "whenever this creature blocks or becomes blocked by a
+/// creature, destroy that creature".
+fn basilisk() -> Arc<CardData> {
+    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
+    let def = TriggerDef {
+        condition: TriggerCondition::AnyOf(vec![
+            blocks_a_creature(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
+            becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
+        ]),
+        intervening_if: None,
+        limit: None,
+        effect: destroy,
+    };
+    CardDataBuilder::new("Fixture Basilisk").card_type(CardType::Creature).power_toughness(1, 3).ability(triggered_ability("", def)).build()
+}
+
+/// "That creature" is the attacker when it blocks and the blocker when it is
+/// blocked, and never the creature itself.
+#[test]
+fn the_other_creature_in_a_block_is_read_through_the_arm_that_matched() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let blocking = put_on_battlefield(&mut game, basilisk(), 1);
+    declare_attacks(&mut game, &[(bears, 1)]);
+    declare_blocks(&mut game, &[vec![(blocking, bears)]]);
+    resolve_all(&mut game);
+    assert!(!game.battlefield.contains_key(&bears), "it blocked the bears");
+    assert!(game.battlefield.contains_key(&blocking));
+
+    let mut game = stocked(2);
+    let attacking = put_on_battlefield(&mut game, basilisk(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    declare_attacks(&mut game, &[(attacking, 1)]);
+    declare_blocks(&mut game, &[vec![(bears, attacking)]]);
+    resolve_all(&mut game);
+    assert!(!game.battlefield.contains_key(&bears), "the bears blocked it");
+    assert!(game.battlefield.contains_key(&attacking));
+}
+
+/// The registry's refusals for the block arm: a reading no CR 509.3 rule
+/// combines, a side of a block named by event role where the arm fixes it to
+/// the source, and the other creature on an arm with no side of its own.
+#[test]
+fn the_registry_refuses_block_readings_no_rule_gives() {
+    let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    let unblocked_by = TriggerEvent::Blocks {
+        blocker: TriggerSubject::ThisObject,
+        attacker: TriggerSubject::Any,
+        occurrence: BlockOccurrence::Unblocked,
+        count: None,
+        alone: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    assert_eq!(whenever(unblocked_by, gain.clone()).readings_its_arms_cannot_give().len(), 1);
+    let counted_block = TriggerEvent::Blocks {
+        blocker: TriggerSubject::Any,
+        attacker: TriggerSubject::Any,
+        occurrence: BlockOccurrence::Block,
+        count: Some(CountIs::AtLeast(2)),
+        alone: false,
+        multiplicity: Multiplicity::PerOccurrence,
+    };
+    assert_eq!(whenever(counted_block, gain).readings_its_arms_cannot_give().len(), 1);
+    let destroy = |role| Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(role));
+    let own_side = whenever(becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any), destroy(EventRole::Attacker));
+    assert_eq!(own_side.readings_its_arms_cannot_give().len(), 1, "its own side, by event role");
+    let no_side = whenever(becomes_blocked_by(TriggerSubject::Any, TriggerSubject::Any), destroy(EventRole::OtherCombatant));
+    assert_eq!(no_side.readings_its_arms_cannot_give().len(), 1);
+    let fine = whenever(becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any), destroy(EventRole::OtherCombatant));
+    assert!(fine.readings_its_arms_cannot_give().is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 4. Loyal Sentry, and one instruction on two objects
+// ---------------------------------------------------------------------------
+
+/// Its ruling's first sentence: both are destroyed before combat damage, in
+/// one event, which a "one or more creatures die" trigger sees once.
+#[test]
+fn loyal_sentry_destroys_both_before_combat_damage() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, life_on("Fixture Mourning Bell", dies(TriggerSubject::Any).once_per_event()), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let sentry = put_on_battlefield(&mut game, loyal_sentry(), 1);
+    declare_attacks(&mut game, &[(bears, 1)]);
+    declare_blocks(&mut game, &[vec![(sentry, bears)]]);
+    resolve_all(&mut game);
+    assert!(!game.battlefield.contains_key(&bears) && !game.battlefield.contains_key(&sentry));
+    assert_eq!(life(&game, 1), 21, "one event, so the bell rings once");
+    game.process_combat_damage(&test_dp(), false).unwrap();
+    assert_eq!(life(&game, 1), 21, "nothing left to deal combat damage");
+}
+
+/// Its ruling's second sentence: the blocked creature is destroyed even if
+/// the Sentry has left before its trigger resolves.
+#[test]
+fn loyal_sentry_destroys_the_attacker_after_it_has_left() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let sentry = put_on_battlefield(&mut game, loyal_sentry(), 1);
+    declare_attacks(&mut game, &[(bears, 1)]);
+    declare_blocks(&mut game, &[vec![(sentry, bears)]]);
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    assert_eq!(game.stack.len(), 1);
+    game.change_zone(sentry, Zone::Hand, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    resolve_all(&mut game);
+    assert!(!game.battlefield.contains_key(&bears));
+    assert_eq!(game.objects[&sentry].zone, Zone::Hand, "a new object in hand, which the trigger does not know");
+}
+
+/// An indestructible attacker survives, and the Sentry still goes: each is
+/// destroyed or not on its own terms (CR 702.12b).
+#[test]
+fn loyal_sentry_still_dies_beside_an_indestructible_attacker() {
+    let mut game = stocked(2);
+    let darksteel = CardDataBuilder::new("Fixture Darksteel Bear")
+        .card_type(CardType::Creature)
+        .power_toughness(2, 2)
+        .keyword_flag(KeywordFlag::Indestructible)
+        .build();
+    let bear = put_on_battlefield(&mut game, darksteel, 0);
+    let sentry = put_on_battlefield(&mut game, loyal_sentry(), 1);
+    declare_attacks(&mut game, &[(bear, 1)]);
+    declare_blocks(&mut game, &[vec![(sentry, bear)]]);
+    resolve_all(&mut game);
+    assert!(game.battlefield.contains_key(&bear) && !game.battlefield.contains_key(&sentry));
 }

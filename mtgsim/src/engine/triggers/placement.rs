@@ -112,12 +112,14 @@ impl GameState {
         let unread = |fact| !reads.contains(fact);
         // The event roles the def names, each triggering event's: one it
         // does not name may differ, as each Wargear's own attachment does.
-        let named: Vec<EventRole> = reads.event_roles().collect();
+        // Each as its own entry's arm holds it, since "that creature" of
+        // "blocks or becomes blocked by" is a different side on each arm.
         let objects = |binding: &TriggerBinding| -> Vec<(EventRole, ObjectRef)> {
+            let named: Vec<EventRole> = reads.event_roles().map(|role| binding.event().role_in_arm(role)).collect();
             binding
                 .triggering_events
                 .iter()
-                .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)))
+                .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)).collect::<Vec<_>>())
                 .collect()
         };
         (unread(BoundReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))

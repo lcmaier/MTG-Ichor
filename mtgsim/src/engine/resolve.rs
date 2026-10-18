@@ -328,6 +328,20 @@ impl GameState {
                     self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
             }
+            // "That creature and this creature": each part found as it would be
+            // alone, and every object they find handed to the primitive at once,
+            // so it acts on them in one instruction (CR 608.2f).
+            Effect::Atom(primitive, recipient @ EffectRecipient::Together(parts)) => {
+                let mut together: Vec<ResolvedTarget> = Vec::new();
+                for part in parts {
+                    for found in self.found_by_part(part, ctx)? {
+                        if !together.contains(&found) {
+                            together.push(found);
+                        }
+                    }
+                }
+                self.resolve_primitive(primitive, recipient, &together, ctx, dp, walk)
+            }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
             Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
@@ -1274,6 +1288,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::Together(_)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
@@ -1581,6 +1596,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::Together(_)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
@@ -2306,6 +2322,30 @@ impl GameState {
         self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
     }
 
+    /// What one part of a `Together` finds, as it would alone: this object by
+    /// identity, a trigger's bound fact, or every permanent a filter matches
+    /// now. Anything else is no part a join can have yet, loudly.
+    fn found_by_part(&self, part: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ResolvedTarget>, String> {
+        Ok(match part {
+            EffectRecipient::ThisObject => self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect(),
+            EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
+                self.bound_targets(part, ctx)?
+            }
+            EffectRecipient::FilteredPermanents(filter) => self
+                .battlefield_ids_ordered()
+                .into_iter()
+                .filter(|&id| self.matches_for_effect(id, filter, ctx))
+                .map(ResolvedTarget::Object)
+                .collect(),
+            other => {
+                return Err(format!(
+                    "{other:?} is no part `Together` resolves on {:?}: a part is this object, a trigger's bound fact or a filtered sweep",
+                    ctx.source
+                ));
+            }
+        })
+    }
+
     /// The permanents a one-shot continuous effect applies to: its resolved
     /// targets, or for "each [permanent] you control" every permanent the
     /// filter matches now. CR 611.2c fixes that set as the effect begins, so
@@ -2684,6 +2724,7 @@ impl GameState {
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
             | EffectRecipient::SameInstanceAs(_)
+            | EffectRecipient::Together(_)
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::FilteredPermanents(_)
             | EffectRecipient::FilteredObjectsIn(..)
