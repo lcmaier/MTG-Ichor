@@ -5,7 +5,9 @@
 > §7, shape C for item 211 among them. MA-1 landed 2026-10-05 (§10); §3.3,
 > §3.4 and §3.8 say where it built otherwise than designed. Every number in
 > §2 to §6 is from a measurement made 2026-10-05 on `f4df90a` (#223's
-> merge), and §2 says how.
+> merge), and §2 says how. MA-2's build plan is §6.1, written 2026-10-17
+> against `baf55ae` (#258's merge) and under review; §3.7 is amended where
+> the plan refines it.
 > **Authority:** whether a player can pay a cost at this moment, the
 > existence half of CR 601.2g–h and 602.2b that decides what the priority
 > question offers. What a mana ability makes and how it resolves (CR 106.1b,
@@ -463,8 +465,10 @@ holds any. **About 2,100 instructions a cost where present.**
 
 **The legal set is an intersection, and it need not be an interval.**
 - **Payability gives an interval**, from the minimum to the bound. The bound
-  is the largest X whose total the inventory covers. It is found by bisection
-  over [0, the inventory's mana], with the total previewed through
+  is the largest X whose total the inventory covers. It is found by doubling
+  from the minimum until a total is refused, then bisecting between the last
+  two (amended at §6.1: the inventory has no one total to read once a pool
+  multiplier is on the board), with the total previewed through
   `cost_determination` at each X, because a reduction can absorb part of X:
   at X = 0 a `{1}` reduction on `{X}{R}` is wasted, and at X = 1 it is not.
   A larger X never costs less, so this part is always an interval.
@@ -491,7 +495,19 @@ with its surface and reads MA-2's shape:
 - the loyalty −X, with CP-2's counter arms (an amount that can be X);
 - a target's mana value, with the first card that prints it, in C;
 - X in an activated ability's mana cost, CP-1's;
-- X in an additional cost, CP-2's amount shape.
+- X in an additional cost, CP-2's amount shape;
+- a "can't cast" that names a quality X changes (CR 601.3a: Void Winnower's
+  even mana values), with RS-2's cast prohibitions. `cant-effects-architecture.md`
+  §4.3 plans a reversal after the announcement; the set form lets the same
+  check cut instead (amended at §6.1, which says why both are the CR's);
+- a minimum that depends on how the spell is cast (Light Up the Night's
+  flashback: "If you cast this spell this way, X can't be 0"), with its card.
+
+The base 601.2b chose decides whether X is announced at all (amended at
+§6.1): an alternative cost with no X leaves 0 the only legal value (CR
+601.2b announces "a variable cost that will be paid"; 107.3b says the same of
+an effect's free cast), and an alternative cost's own X is expanded as the
+mana cost's is (107.3a).
 
 ### 3.8 The window reads the inventory
 
@@ -716,7 +732,7 @@ card-by-card hunt runs in each PR's brief.
 |---|---|---|---|---|
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
 | **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
-| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable | ~350 engine, ~450 tests, a card: 800–950 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
+| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable. **The plan is §6.1** | ~350 engine, ~450 tests, a card: 800–950 as sized here; §6.1's plan, with item 214 and what the rules pass added, ~460–500 code and ~630 tests: 1,100–1,150 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
 | **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` B13) | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
@@ -740,6 +756,217 @@ card-by-card hunt runs in each PR's brief.
   draw inside a mana ability, and a window inside a mana ability's activation.
 - **CP-1 after MA-1**: its gate half is §3.2's arms.
 - **Item 33's design pass after MA-1**: its seam is §3.6.
+
+### 6.1 MA-2's build plan (2026-10-17, for review)
+
+**Where it sits.** On the casting path, at four points (`engine-map.md`'s
+CR 601.2 row). Lines are `baf55ae`'s.
+1. **The offer.** At each priority question `can_cast_with`
+   (`oracle/mana_helpers.rs:110`) previews the card's cost and asks the
+   inventory whether it is payable. A cost with `{X}` has no demand
+   (`ManaCost::demand`, `types/mana.rs:166`), so `ManaSupply::covers`
+   (`oracle/mana_supply.rs:312`) refuses it, and no X spell is offered.
+2. **CR 601.2b, the announcement.** `cast_spell` asks `ask_choose_x_value`
+   (`ui/ask.rs:603`, from `engine/put_on_stack.rs:170`) after the
+   alternative and additional costs, over `(0, u64::MAX)`.
+3. **CR 601.2f, the total.** `determine_total_cost`
+   (`engine/cost_determination/total.rs:39`) turns each X into that much
+   generic mana before cost changes apply. It does so for the mana cost
+   only: an alternative cost's X stays a symbol nothing pays.
+4. **CR 601.2h, the payment.** An X the player cannot pay is found here, and
+   the cast is reversed (CR 732.1).
+
+MA-2 changes the first two, and the third's alternative-cost half. The
+payment does not change: every X the prompt offers is one it can pay.
+
+**The pieces.**
+
+| # | What | CR | Where |
+|---|---|---|---|
+| 1 | X expanded by one function | 107.3a, 601.2f | `ManaCost::with_x_as(x)` in `types/mana.rs`. `determine_total_cost`'s step 1 calls it on whichever base 601.2b chose, so an alternative cost's X (miracle's `{X}{R}`) is expanded too |
+| 2 | A whole total previewed at a given X | 601.2f; `cost-architecture.md` §3.6 | `preview_total_cost` beside `preview_mana_cost` (`total.rs:135`): step 1's assembly and steps 3–6's arithmetic, shared with `determine_total_cost` (`modify`, `:77`, takes the reduction order as an argument), the reductions in gather order (`cost-architecture.md` §3.4's theorem), no prompt |
+| 3 | "X can't be 0" | the card's text | `CardData::x_cannot_be_zero`, read as printed: the gate reads the card in hand and the cast its snapshot from before the CR 601.2a move, as both read the mana cost |
+| 4 | The gate tests the smallest legal X | 107.3a | `can_cast_with` previews the printed cost at X = 0, or 1 under "X can't be 0". A cost with no X skips the expansion and allocates nothing |
+| 5 | The legal values at 601.2b | 107.3a, 107.3b, 601.2b | a new function in `oracle`, `legal_x_values`, over the base, the announced additional costs and one inventory read (below) |
+| 6 | `ChooseXValue` carries them | 601.2b | the kind (`ui/choice_types.rs:50`) gains the legal values and their reasons. Asked by `pick_number(min, max)` when they are an interval, by `pick_n` over `ChoiceOption::Number` when they are not, and not asked when there is one |
+| 7 | The random agent's cap goes | — | `ui/random.rs:335`. It caps X at the pool plus the untapped lands, counting the land that pays `{R}` toward X as well: with four Mountains it picks X = 4 one time in five, and that cast is reversed. It also misses Sol Ring's second mana. The engine's bound replaces it |
+| 8 | The why of `ChooseXValue` and `GenericManaAllocation` | 601.2b, 601.2h | `ui/why.rs:362`, `:372`: the X lines below, and the generic split's clamp from one function the ask (`ui/ask.rs:829`) and the why share (§3.13) |
+| 9 | The scenario word `x N` | — | `scenario/text.rs`, `board.rs`, `build.rs`, `setup.rs:156`: a `then: … casts` line's `x N` segment answers the X prompt, and a value the engine does not offer stops the line. `setup-architecture.md` §5.1 gave it to "the PR that offers one" |
+| 10 | Item 214, the Doubling Cube preference | — | `mana_window_preference` (`ui/random.rs:63`), the first commit, with item 214's test on the Humility board |
+| 11 | Blaze | 107.3a | `cards/phase_ma2_cards.rs`, registered and pooled. It replaces `put_on_stack.rs`' `make_x_spell` fixture (`:926`), which is Blaze unregistered. Scryfall, 2026-10-17: `{X}{R}` Sorcery, "Blaze deals X damage to any target.", no rulings |
+
+**The legal values (piece 5)**, decided in this order:
+- **The base.** If the cost 601.2b chose has no X (an alternative cost
+  without one), 0 is the only legal value: CR 601.2b announces "a variable
+  cost that will be paid", and 107.3b says the same of an effect's free
+  cast. Today the engine asks X there, pays the alternative cost, and keeps
+  the announced X: Blaze cast for an X-less alternative cost would deal any
+  X. No registered card has both, so it is not reachable.
+- **The least.** 0, or 1 under "X can't be 0".
+- **The most.** The largest X whose previewed total (piece 2) the inventory
+  covers, with the announced additional costs and what they reserve: a
+  mandatory sacrifice takes its permanent out of what makes mana (§3.3). The
+  inventory is read once. Each step is one `covers`, about 100 instructions
+  (§3.2), plus a preview. The bracket comes from doubling, the least plus 1,
+  then plus 2, then plus 4, until a total is refused, then bisection between
+  the last two.
+  §3.7 said "over [0, the inventory's mana]", but the inventory has no one
+  total once a pool multiplier is on the board (Doubling Cube's), and a
+  hand-written upper estimate that missed one would under-offer. Doubling
+  needs only `covers` and that a larger X never costs less (§3.7's
+  argument), so it agrees with the gate by construction.
+- **Empty.** If the least is not payable, the cast is reversed at 601.2b,
+  with the reason 601.2h would give, before a window opens for a payment
+  that cannot happen. Only an announcement can take what the gate counted: a
+  kicker on an X spell, or 107.3b's 0 under "X can't be 0", which leaves no
+  legal value at all (CR 601.2e).
+- **One value** is not asked: `backlog.md` §2.22's rule 1, A4e's. Blaze with
+  only `{R}` casts with X = 0 and no prompt.
+
+**The shape (pieces 6 and 8).** A sketch; the names are the build's, and the
+PR body lists them.
+```rust
+pub struct LegalXValues { pub offered: XOffer, pub least: LeastX, pub most: MostX }
+pub enum XOffer { Range { min: u64, max: u64 }, Values(Vec<u64>) }
+pub enum LeastX { Zero, CannotBeZero, NotInTheCostPaid } // 107.3a; the text; 601.2b and 107.3b
+pub enum MostX { Payable { refused: ManaCost }, TheLeast } // 601.2h: the total at most + 1
+```
+The kind carries them, because the announcement's other choices are not on
+the stack entry yet when X is asked, so the why cannot work them out again.
+Its lines, about the spell, at the question:
+- "X can be 0 to 4."
+- "X above 4 leaves the cost unpayable: {5}{R} is more than Player 0 can
+  pay." (CR 601.2h)
+- "X can't be 0: the card says so."
+- "X is 0: the cost being paid has no X." (CR 601.2b, 107.3b)
+- the generic split's: "At most 1 red toward the generic part: the pool's 2
+  red, less the {R} that needs it." (CR 601.2h)
+
+A gap's reason arrives with the cut that makes it (§3.7's owners).
+
+**The set form with no cut (decision 1).** No rule MA-2 builds cuts a gap,
+so no game reaches `XOffer::Values` until a cut lands. Under decision 1's
+recommendation it is driven directly: a test hands the ask Tamiyo's set
+from §3.7, {0, 1, 4, 6, 7}, and checks that the random agent answers only
+from it over many seeds, that a scripted `Number(4)` answers it by value,
+that a decision log's line replays it, and that the setup word refuses
+`x 2`. `codebase-state.md`'s Deferred Migrations gains a line: a shape no
+producer reaches, CP-2's loyalty −X the first.
+
+**The atoms.** One Blaze test on `ATOM-107.3a-001`'s and
+`ATOM-601.2b-004`'s board, `// COVERS:` both: five mana, X = 3,
+`x_value == Some(3)`, `{3}{R}` paid, one mana left, and the prompt offered 0
+to 4. `ATOM-107.3b-001`, `// COVERS-PARTIAL:` by the alternative-cost
+fixture: its free-cast effect lands in Phase 8. `ATOM-601.2b-007`, X only in
+an additional cost, stays CP-2's. **A staged fixture cannot check the
+question**, so one test casts Blaze from hand at a real priority question
+from four untapped Mountains under `ManaWindowStop`: offered, X from 0 to
+3, cast with 3, every Mountain tapped.
+
+**Commits, each an arm** (`engineering-practices.md` §3.1; §5's carry-over:
+a budget is read only off identical games).
+
+| # | Commit | Arm | Predicted |
+|---|---|---|---|
+| 1 | Item 214's preference (piece 10) | **cube** | differs from `main` where Doubling Cube is dealt, as it is pooled. "Actions reversed" on the performance pool from 2.3 a game toward 0: 42 of item 214's 46 reversals in 20 games were the agent declining a window the Cube covered |
+| 2 | X's arithmetic (pieces 1, 2) | — | no game moves |
+| 3 | The legal values, the printed minimum (3, 5) | — | no game moves |
+| 4 | The gate, the announcement, the prompt's forms, the agent's cap out, the fixtures moved (4, 6, 7) | — | changes only games that cast an X spell |
+| 5 | The why (8) | — | no game moves |
+| 6 | The scenario word (9) | **engine** | with Protean Hydra unregistered (below), **IDENTICAL** to *cube* unregistered the same way |
+| 7 | Blaze registered and pooled; the Hydra's cast path tested (11) | **shipped** | differs wherever Protean Hydra or Blaze is dealt; reported against *cube* |
+| 8 | The close-out's docs | — | — |
+
+**The pair that must read IDENTICAL.** Making Protean Hydra castable changes
+every game that deals it, so *engine* cannot read IDENTICAL against anything
+with the Hydra registered. The pair is *cube* and *engine*, each with a
+throwaway commit in a detached `C:/w/arms` worktree that takes Protean
+Hydra out of the registry and the pool, never on the branch. Then no
+registered card has an X, and the X work may change no game: every gameplay
+row IDENTICAL, both pools, two seats and four. **Its base is *cube*, not
+`main`**: commit 1 changes the games that deal the Cube, so `main` and
+*engine* differ for a reason that is not the X work. The pair is also the
+budget's reading: callgrind instructions per decision on the Commander
+board, predicted within ±0.1%, since a card with no X pays one scan of its
+symbols at the gate.
+
+**The rest of the close-out.** Two `close_out.py` sittings, since it
+compares every arm with its first: the patched pair, *cube* first, which
+reads the IDENTICAL table and callgrind; then *main*, *cube* and *shipped*
+with `--no-cpu`, *shipped* last so that its `--require` reachability pass
+runs there (it reads only the last arm, and `main` has no Blaze). Each arm's
+games run once. The pass must cast Protean Hydra and Blaze, and reports how
+often, with which X, and "Actions reversed" from X casts, predicted 0. Then
+Blaze's effect on how `stress` games end, as for the last cards (a burn
+spell, so some games end by damage to a player); the 1,000-game audited
+smoke; and a `fuzz-record.md` block. The ratchet re-bases on *shipped*,
+which moves the stream.
+
+**The fixtures that move.** Eight sites answer `ChooseXValue` today:
+- `put_on_stack.rs`' three. X = 3 from four red keeps its answer (the bound
+  is 3). X = 0 from `{R}` loses its answer: one value, not asked.
+  `test_cast_x_spell_insufficient_mana_rollback` asks X = 3 from two red,
+  which is never offered; it becomes the bound's test (X from 0 to 1), and
+  its rollback goes to the empty set's.
+- `tests/`' five. `phase_cm_integration_test.rs:1166` (Foundry Inspector, X
+  = 4 from `{3}` under a `{1}` reduction) is §3.7's case and its bound;
+  `phase_tr3a_integration_test.rs:908` (X = 3 from exactly `{3}{G}`) and
+  `phase_tr5b_integration_test.rs:824` (X = x from x + 1 green; no call uses
+  x = 0) answer their bounds; `phase_su8_integration_test.rs:208` and
+  `prompt_subject_test.rs:222` build the kind and gain its field.
+- Unit tests that build the kind: `ui/ask.rs` (3), `ui/random.rs` (1).
+
+**The size.**
+
+| Piece | Code | Tests |
+|---|---:|---:|
+| Item 214 (10) | 40–80 | 40 |
+| X's arithmetic, the alternative cost's X (1, 2) | 50 | 60 |
+| The printed minimum, the gate (3, 4) | 30 | 60 |
+| The legal values, the announcement, the prompt, the agent (5–7) | 170 | 220 |
+| The why, both kinds (8) | 80 | 80 |
+| The scenario word (9) | 60 | 50 |
+| Blaze and the Hydra's cast path (11) | 30 | 80 |
+| The fixtures that move | | ~40 changed |
+| **Total** | **~460–500** | **~630** |
+
+1,100–1,150, against the row's 800–950 plus item 214's 40–80. The
+difference is three things the row did not price: the generic split's why
+(§3.13 gave it to MA-2), the scenario word (setup-architecture's promise),
+and the alternative cost's X (the rules pass). MA-1 ran about 1.5 times its
+code sizing; at that rate this is about 1,350, under the band's ceiling
+either way.
+
+**What the close-out owes the docs.** `cast-census.py`'s `{X}` row built,
+its activated-ability X row's owner corrected (§9), §8's prose and §10's
+line, the census regenerated with `--no-fetch`. `setup-architecture.md`
+§5.1's X row becomes the word, and §7c's two kinds are built.
+`codebase-state.md`: item 214 closed, the CR 107 row, the Deferred
+Migrations line. Blaze's line in the rulings ledger (no rulings), the
+`PERFORMANCE_POOL` entry, `cards-unlocked-ledger.md`. §3.13 here landed;
+§10's ✅ heading with a stub of 40 lines or fewer, this section to the
+archive; `state-of-play.md` regenerated.
+
+**Decisions.** One is open.
+
+1. **The set form with no cut.** The problem: MA-2 builds the set form
+   (§3.7), and nothing MA-2 builds produces one.
+
+   | | **A. Built, tested directly** (recommended) | **B. An early cut** | **C. Wait for the first cut** |
+   |---|---|---|---|
+   | In code | the ask's `Values` branch, the scripted provider's `Number` answer to a `pick_n`, the setup word's refusal: ~35 lines and ~60 of tests | a cut written now on a fixture, the loyalty −X on a fixture planeswalker | nothing here; CP-2 writes the branch with the loyalty −X |
+   | Performance | none: no game builds a set | none | none |
+   | Upkeep | one shape with no producer, in Deferred Migrations. The clients move once, in the PR that already changes the prompt (its range goes from `(0, u64::MAX)` to the engine's bound), and every cut after only produces | a second copy of CP-2's counter-amount work, which CP-2 replaces | the prompt changes shape again in CP-2: the CLI, the dev GUI, the scripted provider, replay and the setup driver move a second time, and the dev GUI job reruns. Reopens §3.7's "MA-2 builds the set shape" (decision 6) |
+
+**Taken as settled** (named so the review can strike one):
+- **Item 214 first**, measured as its own arm: `codebase-state.md` item 214
+  slots it there, and the X work is measured against it.
+- **Blaze pooled**, §6's row, its effect on how games end reported.
+- **The alternative cost's X and 107.3b's alternative-cost half** (pieces 1
+  and 5): about 70 lines with tests. They are CR 107.3a and 601.2b, and the
+  latent wrong above.
+- **The scenario word** (piece 9): `setup-architecture.md` §5.1's promise.
+- **One value is not asked**: rule 1.
 
 ---
 
@@ -815,6 +1042,30 @@ seven were taken as recommended at #224's review** (the owner,
   Shape C's window at priority pays for nothing, so MA-6 makes that field an
   `Option` or adds a kind, and decides which with `ChoiceKind::subject()`'s
   match (A4j).
+
+Found by MA-2's plan (2026-10-17, §6.1):
+- **The census files an activated ability's `{X}` as unowned.**
+  `cast-census.py`'s cost row "mana with {X}" says "an ability's X is never
+  asked", owner none, while `cost-architecture.md`'s CP-1 row claims it
+  (`activate_ability` never asks, `x_value: None`; 145 cards). The owner
+  column is corrected at MA-2's close.
+- **Two plans for Void Winnower's X.** `cant-effects-architecture.md` §4.3
+  reads CR 601.3a as "begin the cast, then reverse an announced X the
+  prohibition forbids" (Endless One with X = 5, not 6, from the card's
+  ruling). With the set form, the same check can cut the even mana values
+  out of what is offered instead. Both are the CR's: 601.3a lets the cast
+  begin, and 601.2e reverses an announcement that makes it illegal. Offering
+  only what can be completed is `cost-architecture.md` §3.6's preference, so
+  §3.7's owners list the cut with RS-2, and the choice is RS-2's.
+- **Mana value with X on the stack** (CR 202.3e) stays `ManaSymbol::X => 0`
+  everywhere. CP-1's row owns it; no registered card reads a spell's mana
+  value on the stack, so it is not reachable when X spells become castable.
+- **"X can't be 0" is a fixture.** Three paper cards print it on a mana
+  cost's X (`o:"X can't be 0" m:{X} -is:digital`, 3, Scryfall 2026-10-17):
+  Ertai's Meddling needs delay counters, Mind Grind revealing until a count,
+  and Light Up the Night's applies only when it is flashed back (§3.7's
+  owners). §3.7's 17 is the census's corpus filter; Scryfall without it
+  gives 21, most of them suspend's, a kicker's or an activated ability's X.
 
 ---
 
