@@ -1816,34 +1816,38 @@ impl GameState {
                 from.as_ref().is_none_or(|p| self.player_ref_is(p, lki.chars().controller, referents))
                     && self.subject_matches(subject, Some(*object_id), referents, seq, SubjectRead::LeftInThisEvent(lki)),
             ),
-            // A counter is an occurrence of a per-counter arm, so a record of
-            // three holds three events (Protean Hydra's fourth ruling); the
-            // other readings fold the records whole. A rule's removal names no
-            // player, and matches no `by`.
+            // A record matches when it passes the arm's three questions, each
+            // of which the arm's `None` leaves unasked: the counter's kind
+            // ("a +1/+1 counter"), the player who put or removed them ("you
+            // put"), and what they are on. A removal by a rule names no player
+            // (CR 704.5q, 120.3c), so no `by` matches it. A counter is an
+            // occurrence of a per-counter arm, so a record of three holds three
+            // events (Protean Hydra's fourth ruling).
             (
-                TriggerEvent::CountersPutOn { subject, counter_type, by, multiplicity },
+                TriggerEvent::CountersPutOn { subject: watched, counter_type, by, multiplicity },
                 GameEvent::CountersPutOn { subject: on, counter_type: kind, n, by: putter, .. },
-            ) => self.counter_events(
-                arm,
-                record,
-                *multiplicity,
-                *n,
-                counter_type.is_none_or(|k| k == *kind)
-                    && by.as_ref().is_none_or(|p| self.player_ref_is(p, *putter, referents))
-                    && self.counters_on_matches(subject, *on, referents, seq),
-            ),
+            ) => {
+                let kind_matches = counter_type.is_none_or(|k| k == *kind);
+                let putter_matches = by.as_ref().is_none_or(|p| self.player_ref_is(p, *putter, referents));
+                if kind_matches && putter_matches && self.counters_on_matches(watched, *on, referents, seq) {
+                    self.counter_events(arm, record, *multiplicity, *n)
+                } else {
+                    Vec::new()
+                }
+            }
             (
-                TriggerEvent::CountersRemovedFrom { subject, counter_type, by, multiplicity },
+                TriggerEvent::CountersRemovedFrom { subject: watched, counter_type, by, multiplicity },
                 GameEvent::CountersRemovedFrom { subject: on, counter_type: kind, n, by: remover, .. },
-            ) => self.counter_events(
-                arm,
-                record,
-                *multiplicity,
-                *n,
-                counter_type.is_none_or(|k| k == *kind)
-                    && by.as_ref().is_none_or(|p| remover.is_some_and(|r| self.player_ref_is(p, r, referents)))
-                    && self.counters_on_matches(subject, *on, referents, seq),
-            ),
+            ) => {
+                let kind_matches = counter_type.is_none_or(|k| k == *kind);
+                let remover_matches =
+                    by.as_ref().is_none_or(|p| remover.is_some_and(|r| self.player_ref_is(p, r, referents)));
+                if kind_matches && remover_matches && self.counters_on_matches(watched, *on, referents, seq) {
+                    self.counter_events(arm, record, *multiplicity, *n)
+                } else {
+                    Vec::new()
+                }
+            }
             // Every arm, by name, so a new arm does not compile until it is matched
             // here; a record of another kind holds no event of it.
             (
@@ -1885,11 +1889,7 @@ impl GameState {
         record: &EventRecord,
         multiplicity: Multiplicity,
         n: u32,
-        matched: bool,
     ) -> Vec<TriggeringEventObjects> {
-        if !matched {
-            return Vec::new();
-        }
         let objects = self.triggering_event_objects(arm, record);
         match multiplicity {
             Multiplicity::PerOccurrence => vec![objects; n as usize],
@@ -1897,12 +1897,17 @@ impl GameState {
         }
     }
 
-    /// Whether counters on `on` are on what `subject` names: an object the
-    /// subject's filter reads after the event (CR 603.10), or a player.
-    fn counters_on_matches(&self, subject: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
-        match (subject, on) {
-            (CountersOn::Object(subject), CounterSubject::Object(id)) => {
-                self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now)
+    /// Whether the counters a record put or removed are where the arm watches.
+    /// `watched` is the card's words, `on` the record's fact. "On this
+    /// creature" or "on a creature you control" (`CountersOn::Object`) asks
+    /// the object `on` names the question every object arm asks, of the object
+    /// as it is after the event (CR 603.10). "On you" or "on a player"
+    /// (`CountersOn::Player`) asks the player `on` names, any player for
+    /// `None`. Counters on a player never match an object arm, nor the reverse.
+    fn counters_on_matches(&self, watched: &CountersOn, on: CounterSubject, referents: &TriggerReferents<'_>, seq: EventSeq) -> bool {
+        match (watched, on) {
+            (CountersOn::Object(which), CounterSubject::Object(id)) => {
+                self.subject_matches(which, Some(id), referents, seq, SubjectRead::Now)
             }
             (CountersOn::Player(who), CounterSubject::Player(player)) => {
                 who.as_ref().is_none_or(|p| self.player_ref_is(p, player, referents))

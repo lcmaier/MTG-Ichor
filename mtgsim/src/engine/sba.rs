@@ -62,11 +62,15 @@ fn sba_player_loses(player: PlayerId, state_based_action: StateBasedAction) -> (
     (GameAction::PlayerLoses { player }, state_based_action)
 }
 
-/// What CR 704.7's collapse counts as one result, beside the subject it is
-/// about: leaving the battlefield or the game, a token ceasing to exist or a
-/// player losing; becoming unattached (CR 704.5n, 704.5p); and each kind of
-/// counter removed (CR 704.5q). So a destroyed Equipment is still unattached,
-/// and a creature that dies in the check still loses both kinds.
+/// Half of the key CR 704.7's collapse dedupes one check's members on; the
+/// other half is the permanent or player a member is about. Two members with
+/// one subject and one result are one event, the first in CR order, so one
+/// replacement effect replaces both: a player losing to CR 704.5a and 704.5b
+/// at once loses once, which Lich's Mirror replaces once. Members with
+/// different results all stay. A creature with lethal damage and both kinds
+/// of counter has three: its +1/+1 counters removed, its -1/-1 counters
+/// removed (CR 704.5q), and its death. A destroyed Equipment is still
+/// unattached (CR 704.5p).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum CollapsedResult {
     LeavesOrLoses,
