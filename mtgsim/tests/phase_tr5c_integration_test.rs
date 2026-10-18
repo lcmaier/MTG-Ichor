@@ -470,6 +470,7 @@ fn the_registry_refuses_block_readings_no_rule_gives() {
 
 /// Its ruling's first sentence: both are destroyed before combat damage, in
 /// one event, which a "one or more creatures die" trigger sees once.
+// RULING: Loyal Sentry #1 - "Loyal Sentry and the creature it blocks are destroyed before combat damage is dealt."
 #[test]
 fn loyal_sentry_destroys_both_before_combat_damage() {
     let mut game = stocked(2);
@@ -487,6 +488,7 @@ fn loyal_sentry_destroys_both_before_combat_damage() {
 
 /// Its ruling's second sentence: the blocked creature is destroyed even if
 /// the Sentry has left before its trigger resolves.
+// RULING: Loyal Sentry #1 - "The blocked creature is destroyed even if Loyal Sentry leaves the battlefield before its triggered ability resolves."
 #[test]
 fn loyal_sentry_destroys_the_attacker_after_it_has_left() {
     let mut game = stocked(2);

@@ -745,6 +745,12 @@
       "first_seen": "2026-10-08",
       "rulings": []
     },
+    "Loyal Sentry": {
+      "first_seen": "2026-10-18",
+      "rulings": [
+        {"n": 1, "published_at": "2018-03-16", "comment": "Loyal Sentry and the creature it blocks are destroyed before combat damage is dealt. The blocked creature is destroyed even if Loyal Sentry leaves the battlefield before its triggered ability resolves."}
+      ]
+    },
     "Mana Reflection": {
       "first_seen": "2026-09-17",
       "rulings": [

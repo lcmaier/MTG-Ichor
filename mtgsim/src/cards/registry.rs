@@ -32,6 +32,7 @@ use super::phase_tr4c_cards;
 use super::phase_tr4d_cards;
 use super::phase_tr5a_cards;
 use super::phase_tr5b_cards;
+use super::phase_tr5c_cards;
 use super::phase_ma2_cards;
 use super::phase_tr5e_cards;
 use super::phase_tr5f_cards;
@@ -66,7 +67,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 116] = [
+const PERFORMANCE_POOL: [&str; 117] = [
     "Plains",
     "Island",
     "Swamp",
@@ -547,6 +548,10 @@ const PERFORMANCE_POOL: [&str; 116] = [
     // deals the damage. A burn spell, so it ends some games by damage; how
     // much it moves `stress` is read at the close-out and reported.
     "Blaze",
+    // TR-5c's: the declaration of blockers read once for each block (CR
+    // 509.3b), and one instruction on two objects, which destroys both in
+    // one event. A random agent's block is what triggers it.
+    "Loyal Sentry",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -976,6 +981,10 @@ impl CardRegistry {
         // MA-2: the legal values of X. Blaze is the plain X spell, offered
         // at its least X and announced from what the board can pay.
         registry.register("Blaze", phase_ma2_cards::blaze);
+
+        // TR-5c: blocks. Loyal Sentry triggers once for each creature it
+        // blocks (CR 509.3b) and destroys that creature and itself together.
+        registry.register("Loyal Sentry", phase_tr5c_cards::loyal_sentry);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,
