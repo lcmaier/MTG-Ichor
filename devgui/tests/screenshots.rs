@@ -102,6 +102,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
     results.add(picture(&partway(fizzled()), &header("fizzle.scenario"), None, "fizzle_log"));
+    results.add(picture(&partway(not_offered_yet()), &header("hydra.scenario"), None, "mana_not_yet"));
+    results.add(picture(&partway(why_long_title()), &header("hydra.scenario"), None, "why_long_title"));
+    results.add(picture(&partway(why_prevented()), &header("hydra.scenario"), None, "why_prevented"));
     let waiting = partway(waiting());
     results.add(clicked_picture(&waiting, &header("waiting.scenario"), "Waiting (4)", "waiting"));
     results.add(hovered_picture(&waiting, &header("waiting.scenario"), "Flickerwisp", "hover"));
@@ -250,6 +253,64 @@ fn why_event(sample: &str) -> WindowState {
     session.state.clone()
 }
 
+/// The why panel open on the log line where Protean Hydra enters with its
+/// counters, on `hydra.scenario` once it has resolved: a title as long as
+/// its line, which wraps in the panel rather than widening it over the board.
+fn why_long_title() -> WindowState {
+    why_on_hydra_line("ZoneChange: Protean Hydra (#1) [P0] Stack -> Battlefield", false)
+}
+
+/// The why panel open on the log line where the Hydra's effect prevents
+/// Lightning Bolt's damage (CR 615.13), once player 1 has bolted it: the
+/// batch the Bolt proposed its damage in, the prevention applied, and the
+/// damage not performed. The counters coming off follow it in the log.
+fn why_prevented() -> WindowState {
+    why_on_hydra_line("DamagePrevented: 3 to Protean Hydra (#1)", true)
+}
+
+/// `hydra.scenario` played by the click script: Protean Hydra cast at X = 9,
+/// paid with the Everywheres for green and then the Cubes, and, when `bolt`,
+/// player 1's Lightning Bolt at it once it has resolved. Stops at the first
+/// question whose log has a line starting `line`, and opens that line's why.
+fn why_on_hydra_line(line: &str, bolt: bool) -> WindowState {
+    let root = std::env::temp_dir().join(format!("devgui-picture-hydra-{bolt}"));
+    let _ = std::fs::remove_dir_all(&root);
+    let folders = Folders { logs: root.join("logs"), boards: root.join("boards"), ..Folders::default() };
+    let mut session = Session::start(Start::Game(from_board("hydra.scenario")), folders, Arc::new(|| {}));
+    let until = |session: &mut Session, done: &dyn Fn(&Session) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while !done(session) {
+            assert!(std::time::Instant::now() < deadline, "{}", session.state.status());
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            session.receive();
+        }
+    };
+    let found = loop {
+        until(&mut session, &|session| session.state.prompt.is_some());
+        if let Some(found) = session.state.log.iter().find(|logged| logged.text.starts_with(line)) {
+            break found.event;
+        }
+        let resolved = session.state.log.iter().any(|logged| logged.text.starts_with("ZoneChange: Protean Hydra (#1) [P0] Stack -> Battlefield"));
+        let prompt = session.state.prompt.as_ref().expect("a question");
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let input = match prompt.kind.as_str() {
+            "PriorityAction" if bolt && resolved && prompt.player == 1 => labeled("Cast Lightning Bolt").map(Input::OptionButton),
+            "PriorityAction" => labeled("Cast Protean Hydra").or(prompt.pass).map(Input::OptionButton),
+            "ChooseXValue" => {
+                session.input(Input::Number(9));
+                Some(Input::Done)
+            }
+            "ManaAbilityWindow" => labeled("Add {G}").or(labeled("Doubling Cube")).or(labeled("Mountain")).map(Input::OptionButton),
+            "SelectRecipients" => labeled("Protean Hydra").map(Input::OptionButton),
+            _ => None,
+        };
+        session.input(input.unwrap_or_else(|| panic!("nothing to take at {}", session.state.status())));
+    };
+    session.input(Input::WhyEvent(found));
+    until(&mut session, &|session| session.state.why_view().is_some_and(|view| view.title.starts_with(line)));
+    session.state.clone()
+}
+
 /// The window as Cryptoplasm's upkeep trigger doesn't resolve, on
 /// `fizzle.scenario`: every seat passes, but player 0 bolts the trigger's
 /// target, the Blood Artist, and the Artist's own trigger takes player 1.
@@ -280,6 +341,32 @@ fn fizzled() -> WindowState {
         engine.answers.send(state.input(input).expect("one option answers")).unwrap();
     }
     assert!(bolted, "the Bolt was cast");
+    finish(engine);
+    state
+}
+
+/// The click script's board, `hydra.scenario`: Protean Hydra cast with X =
+/// 9, at the payment's first question. The window offers the seven
+/// Everywheres, and shows the two Doubling Cubes greyed, not offered until
+/// the pool holds their {3}.
+fn not_offered_yet() -> WindowState {
+    let engine = spawn(from_board("hydra.scenario"));
+    let mut state = WindowState::default();
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        let input = match prompt.kind.as_str() {
+            "PriorityAction" => Input::OptionButton(prompt.options.iter().position(|o| o.label.contains("Protean Hydra")).expect("the Hydra")),
+            "ChooseXValue" => {
+                state.input(Input::Number(9));
+                Input::Done
+            }
+            "ManaAbilityWindow" => break,
+            kind => panic!("{kind} before the payment"),
+        };
+        engine.answers.send(state.input(input).expect("one input answers")).unwrap();
+    }
+    assert_eq!(state.prompt_view().map(|view| view.not_offered_yet.len()), Some(2), "both Cubes, greyed");
     finish(engine);
     state
 }

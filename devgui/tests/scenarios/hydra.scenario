@@ -1,0 +1,25 @@
+# Protean Hydra's board: seven Everywheres and two Doubling Cubes pay for it
+# at X = 9. Tap all seven, then each Cube: the first doubles the 4 left
+# after its {3} to 8, the second the 5 left to 10, which is {X}{G} at 9.
+# Until the pool holds {3}, the payment shows each Cube greyed, with why.
+# Player 1's Lightning Bolt then targets the Hydra: its 3 damage is
+# prevented, and 3 counters come off in its place.
+turn 3
+active 0
+step precombat main
+
+hand 0: Protean Hydra
+hand 1: Lightning Bolt
+library 0: Forest | x8
+library 1: Mountain | x8
+
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Everywhere | controller 0
+battlefield: Doubling Cube | controller 0
+battlefield: Doubling Cube | controller 0
+battlefield: Mountain | controller 1

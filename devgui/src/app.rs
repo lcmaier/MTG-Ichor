@@ -240,7 +240,11 @@ fn game_panels(ui: &mut egui::Ui, state: &WindowState, board: Option<&BoardView>
         });
     });
     if let Some(why) = state.why_view() {
-        egui::Panel::left("why").default_size(400.0).show(ui, |ui| why_panel(ui, &why, inputs));
+        // A panel widens to whatever inside it cannot wrap, so everything in
+        // it wraps; a drag on its edge widens it as far as half the room the
+        // log leaves, and the board keeps the rest.
+        let half = ui.available_width() / 2.0;
+        egui::Panel::left("why").default_size(400.0).max_size(half).show(ui, |ui| why_panel(ui, &why, inputs));
     }
     egui::CentralPanel::default().show(ui, |ui| {
         let Some(board) = board else {
@@ -657,7 +661,8 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
 /// The why panel: the engine's lines, each indented under the one it says
 /// more about, its rule beside it and a link for each object it names.
 fn why_panel(ui: &mut egui::Ui, why: &WhyView, inputs: &mut Vec<Input>) {
-    ui.horizontal(|ui| {
+    // Wrapped: an event's title is its whole log line.
+    ui.horizontal_wrapped(|ui| {
         if ui.add_enabled(why.back, egui::Button::new("Back")).clicked() {
             inputs.push(Input::WhyBack);
         }
@@ -776,6 +781,15 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             }
         }
     });
+    for not_yet in &prompt.not_offered_yet {
+        ui.horizontal_wrapped(|ui| {
+            ui.add_enabled(false, egui::Button::new(&not_yet.label));
+            ui.weak(&not_yet.why);
+            if let Some(rule) = &not_yet.rule {
+                ui.weak(rule);
+            }
+        });
+    }
     ui.horizontal(|ui| {
         if let Some(NumberField { min, max, value, live }) = prompt.number {
             let mut number = value;

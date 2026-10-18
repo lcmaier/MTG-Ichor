@@ -131,8 +131,9 @@ impl Play {
 pub enum ToWindow {
     /// The seat `prompt` names has a decision to make, and holds this yield
     /// while it does. `why` is the why of the object the panel shows, at this
-    /// question, boxed: the variant is the enum's largest already.
-    Prompt { snapshot: Snapshot, prompt: Prompt, yielding: Option<Yield>, why: Option<Box<Why>> },
+    /// question. The board and the why are boxed: the variant is the enum's
+    /// largest.
+    Prompt { snapshot: Box<Snapshot>, prompt: Prompt, yielding: Option<Yield>, why: Option<Box<Why>> },
     /// The why the window asked for at the open question
     /// (`setup-architecture.md` §7c).
     Why(Why),
@@ -355,7 +356,7 @@ impl GuiSeat {
     /// priority prompt a yield. "Stop yielding" and a why are carried out
     /// here, and the prompt stays open.
     fn send_and_wait(&self, game: &GameState, question: OpenQuestion, prompt: Prompt) -> Reply {
-        let snapshot = Snapshot::build(game, self.events_logged.get());
+        let snapshot = Box::new(Snapshot::build(game, self.events_logged.get()));
         self.events_logged.set(snapshot.events_logged);
         if let Some(record) = &self.record {
             record.window_asked();

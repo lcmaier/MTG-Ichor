@@ -25,7 +25,7 @@ use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejectio
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
 use mtgsim::ui::display::named;
-use mtgsim::ui::why::{why, OpenQuestion, Why, WhyAbout, WhyLine};
+use mtgsim::ui::why::{not_offered_yet, why, NotOfferedYet, OpenQuestion, Why, WhyAbout, WhyLine};
 
 fn built(text: &str) -> GameState {
     let scenario = Scenario::parse(text).unwrap_or_else(|refusal| panic!("{refusal}"));
@@ -135,6 +135,44 @@ fn the_window_says_why_each_mana_ability_is_not_offered() {
     assert!(has(&hierophants, sick, Some("302.6")), "{hierophants:#?}");
     let forest = asked("Forest");
     assert!(has(&forest, "Offered to Player 0:", None) && !has(&forest, "Never offered to Player 0:", None), "{forest:#?}");
+}
+
+/// The window offers Doubling Cube once the pool holds its {3}, and until
+/// then names it as not offered yet, with why: the mana the window does
+/// offer can bring it in. A tapped Cube and a tapped Everywhere are spent,
+/// so neither is named, though the Cube's {3} is checked ahead of its {T}.
+#[test]
+fn the_window_names_a_source_waiting_for_mana_it_does_not_offer_yet() {
+    let mut game = built(&format!(
+        "{MAIN}hand 0: Protean Hydra\n\
+         battlefield: Everywhere | controller 0\n\
+         battlefield: Everywhere | controller 0, tapped\n\
+         battlefield: Doubling Cube | controller 0\n\
+         battlefield: Doubling Cube | controller 0, tapped\n"
+    ));
+    let hydra = find(&game, "Protean Hydra");
+    let ids = game.battlefield_ids_ordered();
+    let untapped_cube = ids[2];
+    assert_eq!(named(&game, untapped_cube), format!("Doubling Cube ({untapped_cube})"));
+    let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);
+    let context = ChoiceContext { kind: ChoiceKind::ManaAbilityWindow { spell_or_ability_id: hydra, remaining_cost }, rejected: None };
+    let window = |game: &GameState| {
+        let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(game, 0)
+            .options(game)
+            .into_iter()
+            .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
+            .collect();
+        not_offered_yet(game, &OpenQuestion { player: 0, context: &context, options: &options })
+    };
+
+    let label = format!("Doubling Cube ({untapped_cube}) · {{3}}, {{T}}: Double the amount of each type of unspent mana you have.");
+    let reason = "Player 0's mana pool does not hold the mana".to_string();
+    assert_eq!(window(&game), [NotOfferedYet { source: untapped_cube, label, reason, rule: Some("601.2h") }]);
+    let priority = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected: None };
+    assert!(not_offered_yet(&game, &OpenQuestion { player: 0, context: &priority, options: &[] }).is_empty(), "the window's alone");
+
+    game.players[0].mana_pool.add(ManaType::Green, 3);
+    assert_eq!(window(&game), [], "the pool holds {{3}}, so the window offers the Cube");
 }
 
 /// CR 117.1a: a creature spell waits for its caster's main phase with the

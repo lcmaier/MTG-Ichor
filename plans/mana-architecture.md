@@ -700,6 +700,10 @@ reasons "with item 162's build":
   mana of that type less the pips that need it.
 
 The first landed with MA-1, the second and third with MA-2 (`ui/why.rs`' `x_refusals` and `generic_split_refusals`).
+MA-2's dev GUI notes PR added the window's sources it does not offer *yet*:
+a mana ability whose other costs can be paid while the pool lacks its mana
+(`ui/why.rs`' `not_offered_yet`), which a client draws beside the options so
+that a Doubling Cube waiting for its {3} does not look unusable.
 
 ---
 
@@ -908,7 +912,11 @@ Found by MA-2's plan (2026-10-17, at #259):
   the same way, so a cast's cost allocates as many symbols as its mana. On
   today's boards that is tens. `GameNumber` (`backlog.md` §2.28) needs the
   generic part held as a count, beside the colored symbols, whichever way
-  decision 2 goes; a line for §2.28 at MA-2's close.
+  decision 2 goes; a line for §2.28 at MA-2's close. Pool multipliers make
+  it far more: on the dev GUI's board-1, four Doubling Cubes beside Nyxbloom
+  Ancient, an X of 11,318 was announced and paid, and beside Nyxbloom each
+  Cube multiplies what the pool can reach by about four, so a dozen reach
+  about 10^9 (#260, which fixed the byte counts an X past 255 overflowed).
 - **`GameNumber`'s plan has no division** (found at #259's review). The
   most X for a cost with two or more X symbols is a floor quotient of the
   mana the board makes (§3.7), and `decision-provider-refactor.md` §9's

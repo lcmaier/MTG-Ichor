@@ -144,7 +144,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry; 610.3's "until" returns (`engine/returns.rs`, TR-3b); a resolution's "for as long as" row ends as its source leaves (611.2b, TR-3b) | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, CV-6). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13 (critical-path item 6); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
+| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13's trigger arm (critical-path item 6; the record came with #260); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
 
 ### CR 7 — Additional Rules
 
@@ -5223,8 +5223,10 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** the record drops `source`, since one
     subject group can hold several, and keeps `by` a `ReplacementInstanceId`,
     which "prevented this way" reads.
-    **Slotted:** TR-5d, whose prevention leg announces
-    `GameEvent::DamagePrevented` for CR 615.13, with Selfless Squire
+    **Record built (2026-10-18, PR #260):** `GameEvent::DamagePrevented`,
+    announced by `apply_replacements` once per effect per recipient it
+    prevented damage to, for the dev GUI's log (item 276). No arm reads it.
+    **Slotted:** TR-5d, the arm over the record, with Selfless Squire
     (re-slotted from TR-5b at A6p's split).
 
 17. **~~Counters a permanent enters with announce nothing, and the entry
@@ -9358,28 +9360,8 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      for the dropped prompt.
      **Slotted:** TR-5c, the next triggers PR, which moves the stream anyway.
 
-276. **Three dev GUI notes from MA-2's manual testing (2026-10-18).**
-     - **The why panel squeezes the board.** Open, it takes most of the
-       window's width, and the battlefield is drawn in what is left. It
-       needs a width cap or a resizable split.
-     - **A prevented event leaves nothing to see.** Lightning Bolt on Protean
-       Hydra: the damage is prevented and the counters come off, and the log
-       shows only the removal. An event replaced away is never performed, so
-       the performed stream has no record of it, and nothing tells the log
-       that a replacement applied. The engine half is a design question,
-       what the stream records for an event replaced to nothing without a
-       second emitter beside the performer's (CLAUDE.md's chokepoint), and
-       rides in the GUI PR by the cadence.
-     - **A pool multiplier is offered only once the pool pays its cost.**
-       Seven Everywheres and two Doubling Cubes pay Protean Hydra at X = 9:
-       tap all seven, then each Cube. The window offers a Cube only once the
-       pool holds `{3}`, so it first shows only the Everywheres, and the play
-       looks impossible. The why already says what a source lacks
-       (`ui/why.rs`' `window_refusals`); the window could draw a source it
-       does not offer greyed, with that line.
-     Floating mana outside a payment is item 211's (MA-6), an engine gap and
-     not the dev GUI's.
-     **Reachability (2026-10-18):** reachable — the dev GUI, every game.
-     **Sized:** the panel's width ~20 lines; the greyed sources ~40 lines and
-     a picture; the prevention record unsized until its design.
-     **Slotted:** MA-2's dev GUI notes PR, the cadence's next, before TR-5c.
+276. **~~Three dev GUI notes from MA-2's manual testing.~~ — ✅ CLOSED 2026-10-18 (PR #260).** — archived.
+     The why panel wraps instead of widening, the payment step greys a source
+     waiting on mana, and a prevention is announced as `DamagePrevented`.
+     **Reachability (2026-10-18):** closed — PR #260.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 276".

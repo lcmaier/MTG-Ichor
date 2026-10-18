@@ -418,7 +418,7 @@ impl WindowState {
                 self.selection = Some(Selection::start(&prompt));
                 let reads_the_trace = prompt.why_reads_the_trace;
                 self.prompt = Some(prompt);
-                self.board = Some(snapshot);
+                self.board = Some(*snapshot);
                 // The panel follows an object or a player to this question:
                 // the seat's answer, or else a replay's. An event's answer
                 // stands, and a panel closed while this was on its way shows
@@ -1169,6 +1169,18 @@ pub struct SeatButton {
     pub live: bool,
 }
 
+/// A source the window does not offer yet, drawn greyed beside why
+/// (`mtgsim::ui::why::not_offered_yet`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NotOfferedYetView {
+    /// As the option would be labeled.
+    pub label: String,
+    /// `not offered yet:`, then the engine's reason.
+    pub why: String,
+    /// `CR 601.2h`.
+    pub rule: Option<String>,
+}
+
 /// The confirm button.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DoneButton {
@@ -1185,6 +1197,7 @@ pub struct PromptView {
     /// What makes an answer complete.
     pub rule: String,
     pub options: Vec<OptionButton>,
+    pub not_offered_yet: Vec<NotOfferedYetView>,
     pub number: Option<NumberField>,
     /// The confirm button, when the prompt has one.
     pub done: Option<DoneButton>,
@@ -1266,6 +1279,15 @@ impl PromptView {
             rejected: prompt.rejected.clone(),
             rule,
             options,
+            not_offered_yet: prompt
+                .not_offered_yet
+                .iter()
+                .map(|not_yet| NotOfferedYetView {
+                    label: not_yet.label.clone(),
+                    why: format!("not offered yet: {}", not_yet.reason),
+                    rule: not_yet.rule.map(|rule| format!("CR {rule}")),
+                })
+                .collect(),
             number,
             done,
             can_reset,
@@ -1327,6 +1349,7 @@ mod tests {
     };
     use mtgsim::types::card_types::CardType;
     use mtgsim::types::ids::ObjectId;
+    use mtgsim::ui::why::NotOfferedYet;
 
     use super::*;
     use crate::prompt::OptionView;
@@ -1385,6 +1408,7 @@ mod tests {
             why_reads_the_trace: false,
             primitive,
             options,
+            not_offered_yet: Vec::new(),
         }
     }
 
@@ -1699,7 +1723,7 @@ mod tests {
         let b = board();
         let mut state = WindowState::default();
         state.tick(10.0);
-        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None });
+        state.receive(ToWindow::Prompt { snapshot: Box::new(b.snapshot.clone()), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None });
         state.tick(10.1);
         assert_eq!(state.input(Input::OptionButton(0)), None, "the second click of a double click");
         assert!(state.prompt_view().unwrap().options.iter().all(|option| !option.live));
@@ -1716,7 +1740,7 @@ mod tests {
         let b = board();
         let mut state = WindowState::default();
         state.tick(10.0);
-        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::Number { min: 0, max: 3 }, Vec::new()), yielding: None, why: None });
+        state.receive(ToWindow::Prompt { snapshot: Box::new(b.snapshot.clone()), prompt: prompt(Primitive::Number { min: 0, max: 3 }, Vec::new()), yielding: None, why: None });
         state.tick(10.1);
         assert!(!state.prompt_view().unwrap().number.unwrap().live);
         assert_eq!(state.input(Input::Number(2)), None, "dropped, as the field shows");
@@ -1736,7 +1760,7 @@ mod tests {
         let mut state = WindowState::default();
         state.tick(10.0);
         state.receive(ToWindow::Prompt {
-            snapshot: b.snapshot.clone(),
+            snapshot: Box::new(b.snapshot.clone()),
             prompt: prompt(Primitive::PickN { min: 1, max: 1 }, vec![option("Player 0", vec![player])]),
             yielding: None,
             why: None,
@@ -1894,7 +1918,7 @@ mod tests {
 
         state.receive(ToWindow::WhyFromTrace { request: 0, why: answer("a request since replaced") });
         assert_eq!(state.why, None);
-        let next = ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None };
+        let next = ToWindow::Prompt { snapshot: Box::new(b.snapshot.clone()), prompt: prompt(Primitive::PickN { min: 1, max: 1 }, unnamed(2)), yielding: None, why: None };
         state.receive(next);
         assert_eq!(state.reading_the_trace.map(|r| r.number), Some(1), "an event's answer is still on its way");
         state.receive(ToWindow::WhyFromTrace { request: 1, why: answer("DamageDealt") });
@@ -1913,7 +1937,7 @@ mod tests {
         let mut state = deciding(&b, reads.clone());
         assert_eq!(state.input(Input::Why(Object(b.bear))), Some(Reply::Why(Some(Object(b.bear)))));
         assert_eq!(state.reading_the_trace.map(|r| (r.about, r.number)), Some((WhyAbout::Object(b.bear), 1)));
-        state.receive(ToWindow::Prompt { snapshot: b.snapshot.clone(), prompt: reads, yielding: None, why: None });
+        state.receive(ToWindow::Prompt { snapshot: Box::new(b.snapshot.clone()), prompt: reads, yielding: None, why: None });
         assert_eq!(state.reading_the_trace.map(|r| r.number), Some(2), "followed through the next one");
 
         let mut over = WindowState { board: Some(b.snapshot.clone()), outcome: Some(Outcome::Won(0)), ..WindowState::default() };
@@ -1923,5 +1947,25 @@ mod tests {
         assert_eq!(item(&over.board_view().unwrap(), b.bear).why_hint, Some(WHY_ON_RIGHT_CLICK));
         over.receive(ToWindow::WhyFromTrace { request: 1, why: answer("an event") });
         assert!(over.why_view().unwrap().note.is_none(), "a game over answers, and its links ask");
+    }
+
+    /// CR 601.2g's window: a source it does not offer yet, until the pool
+    /// holds its mana, is shown under the options with the engine's reason,
+    /// and no click or key reaches it.
+    #[test]
+    fn a_source_the_window_does_not_offer_yet_shows_why() {
+        let b = board();
+        let reason = "Player 0's mana pool does not hold the mana".to_string();
+        let not_yet = NotOfferedYet { source: b.relic, label: "Relic · {3}, {T}: Add {C}{C}.".to_string(), reason, rule: Some("601.2h") };
+        let offered = vec![option("Forest · {T}: Add {G}.", vec![Object(b.forest)])];
+        let window = Prompt { not_offered_yet: vec![not_yet], ..prompt(Primitive::PickN { min: 0, max: 1 }, offered) };
+        let state = deciding(&b, window);
+
+        let view = state.prompt_view().unwrap();
+        assert_eq!(view.options.iter().map(|o| o.label.as_str()).collect::<Vec<_>>(), ["Yes: Forest · {T}: Add {G}."]);
+        let why = "not offered yet: Player 0's mana pool does not hold the mana".to_string();
+        let greyed = NotOfferedYetView { label: "Relic · {3}, {T}: Add {C}{C}.".to_string(), why, rule: Some("CR 601.2h".to_string()) };
+        assert_eq!(view.not_offered_yet, [greyed]);
+        assert!(!item(&state.board_view().unwrap(), b.relic).clickable, "no option names it");
     }
 }

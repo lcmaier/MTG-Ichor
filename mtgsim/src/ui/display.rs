@@ -1035,6 +1035,13 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
                 if *is_combat { " (combat)" } else { "" },
             )
         }
+        DamagePrevented { target, amount, by: _ } => {
+            let target_str = match target {
+                crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
+                crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
+            };
+            format!("DamagePrevented: {} to {} by {}", amount, target_str, cause_words(game, cause))
+        }
         PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [P{}]", phase, player),
         StepBegin { step, player } => format!("StepBegin: {:?} [P{}]", step, player),
         TurnBegin { player, turn_number } => format!("TurnBegin: P{} turn {}", player, turn_number),

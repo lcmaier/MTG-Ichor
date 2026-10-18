@@ -228,18 +228,29 @@ player's line can be right-clicked too, and its why is that section alone.
   names, Back, and a close, and `app.rs` draws them (`why_panel`). With no
   question open the panel keeps its last answer, its links off, and says so,
   and an object's hover says a right-click asks nothing (`Item::why_hint`).
+- **Its width.** A panel widens to whatever it holds that cannot wrap, so
+  every line in it wraps, the title among them: a log line's why is titled
+  with the whole line. It opens at 400 points, and a drag on its edge widens
+  it as far as half the room the log leaves, the board keeping the rest.
 - **Two tiers of "not offered".** *Never offered* is what the checks refuse,
   each line with its rule: the mana is short (CR 601.2h), it is not your turn
   (CR 117.1a), the Angel has flying (CR 702.9b). *Offered, then reversed* is
   an answer the engine took and undid at this question (CR 732.1), which the
   re-asked question's `rejected` names.
+- **Not offered yet.** At CR 601.2g's window, a mana ability the window does
+  not offer only because the pool lacks its mana, Doubling Cube's {3} say,
+  is drawn greyed under the options with the why's reason
+  (`ui::why::not_offered_yet`, carried in the prompt). A source spent another
+  way, tapped or summoning sick, is not drawn: its right-click says why.
 - **What happened (SU-8).** A right-click on a log line asks what its event
   did. Each line carries its event's number (`snapshot::LogLine`). The panel
   shows the event's batch as the engine decided it: the proposals, each CR
   616.1 iteration that met an effect or a "can't", and a batch after it that
   performed nothing, which is where a destruction a "can't" stopped shows.
-  Then every triggered ability asked about the event, matched or refused and
-  by what. Every question kind's line says what the question ranges over.
+  Damage a prevention effect stopped has a line of its own, the prevention's
+  `DamagePrevented` record (CR 615.13), and its why is the batch the damage
+  was proposed in. Then every triggered ability asked about the event,
+  matched or refused and by what. Every question kind's line says what the question ranges over.
 - **A question about the past is a replay's.** The engine reads a past event
   from its trace (`ui::why::why_from_trace`), and the window keeps no trace,
   so the session replays the window's line on a thread of its own with the

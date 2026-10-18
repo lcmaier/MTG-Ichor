@@ -609,8 +609,8 @@ replacement's cause (`pipeline::caused_by_replacement`). Whether an "instead
 nothing replaced, and it allocates only for a replaced move. The applied
 set's type becomes an ordered set, kept in insertion order, since a hash set
 has no order to keep: 11 `HashSet<ReplacementInstanceId>` sites in `src`. Other
-record kinds gain one when a reader needs it. Damage prevention already has
-CR 615.13's, `DamagePrevented.by` (TR-5).
+record kinds gain one when a reader needs it. Damage prevention has
+CR 615.13's, `DamagePrevented.by` (#260).
 
 **The name.** `applied` is the glossary's "applied set", now kept on a record.
 "Redirect" stays ordinary English for a replacement that changes only where a
@@ -3171,7 +3171,9 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 - **CR 615.13** — Phase 7, as §12 says. RD records the prevented amount where
   615.5 needs it and emits no new event: whether a prevention is something the
   performed stream announces is item 6's to decide, and the seam is
-  `apply_rewrite`'s return value, which already carries it.
+  `apply_rewrite`'s return value, which already carries it. Decided at
+  `triggers-architecture.md` §3.12 item 16 and built with #260:
+  `apply_replacements` announces `GameEvent::DamagePrevented` from that seam.
 - **`codebase-state.md` item 20** (the CR 514.2 cleanup wipe has no enforcement
   point) and **"Before card breadth" item 6** (multi-attacker block damage is a
   silent stub) — damage-adjacent and combat's; neither is touched, and the
@@ -4337,7 +4339,8 @@ post-RE audit (2026-09-15) and amended in place where the tree moved.
 - **CR 615.13** — triggers on prevention. **Critical-path item 6** ("Phase 7"
   is the archived plan's name). RD-4 left the seam: `apply_rewrite`'s return
   value carries the prevented amount, and whether a prevention is announced on
-  the performed stream is item 6's to decide.
+  the performed stream is item 6's to decide. The record came with #260; the
+  trigger arm is TR-5d's.
 - **CR 731 loop detection.** Survives from `state-tracking-architecture.md`
   Tiers 1–3, re-based on performed-action transcripts; not this phase. **Now
   captured** as `backlog.md` §2.28 (2026-09-14), a capture and not a design.
