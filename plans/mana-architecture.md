@@ -812,7 +812,7 @@ payment does not change: every X the prompt offers is one it can pay.
   increase or a reduction, and a `ReduceGeneric` amount is read off the
   board. So at every X the total is the same pips P (after reductions)
   beside `max(F, a − r + kX)` generic, where:
-  - a is the generic mana at X = 0 before reductions, increases included;
+  - a is the cost's generic mana besides its X, increases included;
   - r is what the reductions take off generic, a colored reduction that
     finds no pip of its type included (CR 118.7b–d);
   - k is the number of X symbols;
@@ -833,17 +833,56 @@ payment does not change: every X the prompt offers is one it can pay.
 
   The bound is `floor((G + r − a) / k)`, when F ≤ G. The cost is one
   inventory read, one pass of the arithmetic and a division, the same at
-  X = 3 as at X = 10^34. In debug builds an audit asks `covers` at the bound
+  X = 3 as at X = 10^34. The four numbers describe the arithmetic, not a
+  cast at X = 0, so "X can't be 0" changes only the least: the legal values
+  are the least to the most, and none when the most is below the least. A
+  `{1}` reduction on an X-can't-be-0 `{X}{R}` has a = 0, r = 1, k = 1, so
+  X = 1 costs `{R}`: the reduction absorbs the one X.
+
+  **Checked twice.** A test runs the closed form against the exhaustive
+  search MA-1's property test already has
+  (`the_check_agrees_with_an_exhaustive_search`, `oracle/mana_supply.rs`),
+  extended from "does it pay" to "the most generic it pays", on the same
+  random boards. And in debug builds an audit asks `covers` at the bound
   and one above it, so a closed form that drifts from the check fails a
   test or a fuzz run, not a game. Past the choice search's cap (§3.3) the
   maximum leans high, as the check leans yes.
-- **With `GameNumber`** (`backlog.md` §2.28; `roadmap.md` D26's planned
-  `Finite`, `Shortcut`, `Relative`, each affine in a loop's count), G is a
+
+  **What it rests on.** The bound is as exact as the existence check, and no
+  more; `codebase-state.md` item 213 lists where the check is not, each
+  shape one no registered card has. The check's evidence is three things.
+  The property test, 3,000 random boards of §3.3's shapes with copies and
+  pool multipliers, each answer more than 500 times, against a search that
+  tries every payment. A test that forks the game, taps each registered
+  mana ability with 16 seeds, and compares what it made with what the
+  inventory predicted (`what_the_inventory_predicts_a_tap_makes_is_what_the_engine_makes`).
+  And fuzz: each of the 64 reversals MA-1's close-out read in traces was
+  the random agent's misplay, none an over-offer (`fuzz-record.md`, MA-1's
+  block). The property test leaves out sacrifice outlets, a cost's own
+  reservations and restricted mana, which are tested board by board.
+- **With `GameNumber`** (`backlog.md` §2.28; `roadmap.md` D26;
+  `decision-provider-refactor.md` §9's planned shape: `Finite(u64)`;
+  `Shortcut`, a loop's iterations times what each makes, either of them
+  itself a `GameNumber`; and `Relative`, a number times a whole-number
+  multiplier plus an offset, which is "your number plus one"), G is a
   number a loop made: CR 731.2a's "a loop that repeats a specified number of
-  times". The bound stays the inequality `kX + a − r ≤ G`. For k = 1, the
-  most is `G + r − a`, still affine and in the planned shape. For k ≥ 2,
-  floor division of a symbolic count is not in that shape, so the prompt
-  carries the inequality and checks an announced X with one comparison.
+  times". The bound stays the inequality `kX + a − r ≤ G`.
+  - **k = 1** (Stroke of Genius, Awaken the Woods): the most is
+    `G + r − a`, a `Relative` of G. The prompt can offer it as a number.
+  - **k ≥ 2** (Gelatinous Genesis, `{X}{X}{G}`): the most is
+    floor((G + r − a) / k), and no planned variant divides. Sometimes the
+    engine could rewrite it. A nested loop of 10^18 iterations making 10^18
+    green each leaves 10^36 green, more than a `u64`; the `{G}` pip takes
+    one, so G = 10^36 − 1, and the most is 5 × 10^35 − 1, a `Shortcut` of
+    10^18 times 5 × 10^17, less one. With an odd count of iterations, or a
+    pool that is "your opponent's number plus one", there is no such
+    rewrite. Checking an announced X always works, since `2X ≤ G` is a
+    comparison the planned `PartialOrd` makes. What is missing is the most
+    as a number, and so a way to announce it: the planned declaration is a
+    `u64` or "theirs plus N" (§9.6 there), so a player cannot say "half my
+    pool". `GameNumber` needs a floor-quotient node, floor(E / k) for a
+    constant k, compared through `k·c ≤ E`. MA-2 keeps the parts (`MostX`
+    carries G, a − r and k), so that node can be built from them (§9).
 - **Empty.** If the least is not payable, the cast is reversed at 601.2b,
   with the reason 601.2h would give, before a window opens for a payment
   that cannot happen. Only an announcement can take what the gate counted: a
@@ -858,7 +897,7 @@ PR body lists them.
 pub struct LegalXValues { pub offered: XOffer, pub least: LeastX, pub most: MostX }
 pub enum XOffer { Range { min: u64, max: u64 }, Values(Vec<u64>) }
 pub enum LeastX { Zero, CannotBeZero, NotInTheCostPaid } // 107.3a; the text; 601.2b and 107.3b
-pub enum MostX { Payable { generic: u64, per_x: u64, beside: ManaCost }, TheLeast } // 601.2h: G, k and P
+pub enum MostX { Payable { generic: u64, fixed: i64, per_x: u64, beside: ManaCost }, TheLeast } // 601.2h: G, a − r, k, P
 ```
 The kind carries them, because the announcement's other choices are not on
 the stack entry yet when X is asked, so the why cannot work them out again.
@@ -1127,6 +1166,13 @@ Found by MA-2's plan (2026-10-17, §6.1):
   today's boards that is tens. `GameNumber` (`backlog.md` §2.28) needs the
   generic part held as a count, beside the colored symbols, whichever way
   decision 2 goes; a line for §2.28 at MA-2's close.
+- **`GameNumber`'s plan has no division** (found at #259's review). The
+  most X for a cost with two or more X symbols is a floor quotient of the
+  mana the board makes (§6.1), and `decision-provider-refactor.md` §9's
+  planned `Finite`, `Shortcut` and `Relative` hold products and offsets
+  only, so a player cannot announce "half my pool". It needs a
+  floor-quotient node compared through `k·c ≤ E`; a second line for
+  §2.28 at MA-2's close.
 
 ---
 
