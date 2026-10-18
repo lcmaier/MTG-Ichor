@@ -551,6 +551,37 @@ fn a_per_counter_removal_arm_triggers_once_for_each_counter_removed() {
     assert_eq!(waiting_from(&game, hydra), 2);
 }
 
+/// CR 609.3, as Amy Pond's "remove that many time counters" can ask for more
+/// than a card has: an instruction asking three of a creature with one takes
+/// the one, its record says one, and a per-counter arm triggers once. What
+/// was asked is the proposal's, which a replacement reads; what was taken is
+/// the record's, which a trigger reads. A removal from a creature with none
+/// takes nothing, which is no event.
+#[test]
+fn a_removal_asking_more_than_is_there_records_and_triggers_on_what_it_took() {
+    let mut game = setup_two_player_game();
+    let arm = counters_removed_from(TriggerSubject::ThisObject, CounterType::PlusOnePlusOne);
+    let hydra = put_on_battlefield(&mut game, creature_that_gains("Fixture Hydra", arm, AmountExpr::Fixed(1)), 0);
+    counters_on_target(&mut game, 0, hydra, put(CounterType::PlusOnePlusOne, 1));
+    let start = game.recorded_events().records().len();
+
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 3));
+    let took_one = GameEvent::CountersRemovedFrom {
+        subject: CounterSubject::Object(hydra),
+        counter_type: CounterType::PlusOnePlusOne,
+        n: 1,
+        by: Some(1),
+        now: 0,
+    };
+    assert_eq!(counter_records(&game, start), vec![took_one]);
+    assert_eq!(waiting_from(&game, hydra), 1, "one counter taken, one trigger");
+
+    let start = game.recorded_events().records().len();
+    counters_on_target(&mut game, 1, hydra, remove(CounterType::PlusOnePlusOne, 3));
+    assert_eq!(counter_records(&game, start), Vec::new(), "none there, none taken");
+    assert_eq!(waiting_from(&game, hydra), 1, "and no second trigger");
+}
+
 // ---------------------------------------------------------------------------
 // CR 122.7's threshold, the ability's own "if"
 // ---------------------------------------------------------------------------
@@ -603,7 +634,13 @@ fn the_nth_counter_reads_the_count_before_and_after_one_event() {
     assert_eq!(waiting_from(&game, countdown), 0, "five to six does not");
 }
 
-/// The registry's check: a reading its arm cannot give is refused.
+/// `readings_its_arms_cannot_give` is the registry's check that a trigger
+/// asks nothing of its event that the event's arm cannot supply; every
+/// registered card must pass it. Each wrong def here breaks one of its two
+/// rules: "once per subject" on a death, whose record has no subject to group
+/// by, and "the third counter" read once per counter, where one put of three
+/// would make three triggers that each see the count cross three. The
+/// countdown, written right, passes.
 #[test]
 fn a_trigger_asking_a_reading_its_arm_cannot_give_is_refused() {
     let once_per_subject_dies = TriggerDef {
@@ -1021,7 +1058,7 @@ fn protean_hydra_loses_counters_to_damage_that_cannot_be_prevented() {
 //   +1/+1 counter is removed from it for any reason, not just when a +1/+1
 //   counter is removed by its second ability."
 #[test]
-fn protean_hydra_grows_back_from_any_removal() {
+fn protean_hydra_grows_back_from_any_counter_removal() {
     let mut game = setup_two_player_game();
     let hydra = hydra_with(&mut game, 3);
 

@@ -158,7 +158,7 @@ pub fn simic_ascendancy() -> Arc<CardData> {
 /// - *"Protean Hydra's last ability triggers whenever a +1/+1 counter is
 ///   removed from it for any reason, not just when a +1/+1 counter is
 ///   removed by its second ability."* (#3) →
-///   `protean_hydra_grows_back_from_any_removal`.
+///   `protean_hydra_grows_back_from_any_counter_removal`.
 /// - *"If multiple +1/+1 counters are removed from Protean Hydra at once, its
 ///   last ability will trigger that many times."* (#4) →
 ///   `protean_hydra_triggers_once_for_each_counter_removed`.
