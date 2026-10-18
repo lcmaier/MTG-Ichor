@@ -1,4 +1,4 @@
-//! Phase MA-2 — the legal values of X (`mana-architecture.md` §6.1).
+//! Phase MA-2 — the legal values of X (`mana-architecture.md` §3.7, §10).
 //!
 //! The oracle text below was verified on Scryfall on 2026-10-17 and is
 //! quoted verbatim, and the card's rulings were read the same day: it has

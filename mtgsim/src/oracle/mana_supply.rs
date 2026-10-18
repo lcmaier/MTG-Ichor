@@ -1229,7 +1229,7 @@ impl SplitSupply {
     /// pays `demand`; `None` when none does. Generic mana enters Gale's
     /// condition only through the total, and the walk's pruning reads only
     /// the pips (`useful_copies`), so this is the check's own walk with a
-    /// maximum at its leaves (`mana-architecture.md` §6.1). Past the walk's
+    /// maximum at its leaves (`mana-architecture.md` §3.7). Past the walk's
     /// cap it leans high, as the check leans yes: every group's largest way.
     fn most_beside(&self, demand: &ManaDemand, most_at: impl Fn(u64) -> Option<u64>) -> Option<u64> {
         let groups = self.groups_for(demand);
@@ -2052,7 +2052,7 @@ mod tests {
     /// What CR 601.2b's bound on X rests on: the most generic mana the
     /// inventory pays beside some pips is the most the exhaustive search
     /// finds a payment for, on the same random boards, multipliers among
-    /// them (`mana-architecture.md` §6.1).
+    /// them (`mana-architecture.md` §3.7).
     #[test]
     fn the_most_generic_agrees_with_an_exhaustive_search() {
         let mut rng = StdRng::seed_from_u64(259);

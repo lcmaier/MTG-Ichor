@@ -6979,3 +6979,37 @@ Ascendancy's first ruling and Fathom Mage's eighth are tests.
     **Phase (2026-09-18):** TR-5 — question 4 decided: one `CountersChanged` per entry row, announced after the entry inside its batch and never proposed, with `by` on the record; `triggers-architecture.md` §3.12.
     **Slotted:** TR-5b, which announces one `CountersChanged` per entry row
     inside the entry's batch (CR 122.6), with Simic Ascendancy.
+
+### Item 214 — closed 2026-10-18 by PR #259 (MA-2)
+
+Closed by MA-2's first commit. `ui::random`'s window policy holds a pool
+multiplier back while anything else is offered, the order MA-1's exact
+check assumes; when a pip is owed that no source makes, a multiplier on
+the battlefield keeps the agent tapping toward its input instead of
+declining; and the agent remembers the pips its window's cost owed at the
+first prompt, so the multiplier's generic split leaves that mana to be
+doubled. Both tests (Humility through the Cube from one Plains and four
+Mountains; Darksteel Colossus from nine Plains and the Cube) failed on the
+tree before, at seeds 0 and 5.
+
+*Original entry:*
+
+214. **The random agent does not pay through Doubling Cube.** MA-1's check
+     counts a payment the Cube's doubling makes, and the window offers the
+     Cube once the pool can pay its `{3}` (`mana-architecture.md` §3.8), whose
+     units the player chooses. `ui::random`'s window policy reads only what
+     each offered source makes now: on a Blood Moon board where the Cube is
+     the only route to a second `{W}`, it taps the one Plains and declines, so
+     the cast is reversed (CR 732.1) and offered again at the next priority
+     question. Elsewhere it activates the Cube with mana the spell needed. On
+     `close_out.py`'s board with the Cube pooled, 46 reversals in 20 games, 42
+     of them declines and 28 in one game (`fuzz-record.md`, MA-1's block).
+     **Reachability (2026-10-05):** reachable — not wrong: the engine offers
+     and rewinds as CR 601.2g–h and 732.1 say, and the price is the agent's
+     stream, 2.3 re-asks a game on the budget's board.
+     **Sized:** a doubler-aware preference in `ui/random.rs`, ~40–80 lines
+     with a test on the Humility board: keep the owed pip's mana, tap toward
+     the doubler's `{3}`, activate it, and pay the `{3}` with the other
+     units. Slot: MA-2's first commit (B12), or its own PR sooner.
+     **Slotted:** MA-2's first commit (B12), a doubler-aware preference in
+     `ui/random.rs`, with a test on the Humility board.

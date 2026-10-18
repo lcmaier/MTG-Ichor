@@ -1,4 +1,4 @@
-//! MA-2, the legal values of X (`mana-architecture.md` §6.1), and the random
+//! MA-2, the legal values of X (`mana-architecture.md` §3.7), and the random
 //! agent's payment through a pool multiplier it rides on (`codebase-state.md`
 //! item 214): what MA-1's check offers, the agent now pays.
 
@@ -246,8 +246,8 @@ fn refused(text: &str, as_a_set: bool) -> String {
 
 /// The driver, asked X as Tamiyo's set of 0, 1, 4, 6 and 7 where the engine
 /// asks an interval: no rule MA-2 builds cuts a gap, so this hands the
-/// driver's set form a real cast's question (`mana-architecture.md` §6.1,
-/// decision 1).
+/// driver's set form a real cast's question (`mana-architecture.md` §3.7's
+/// set form).
 struct AsTamiyosSet<'a>(&'a dyn DecisionProvider);
 
 impl DecisionProvider for AsTamiyosSet<'_> {
@@ -426,7 +426,7 @@ fn blaze_is_cast_with_the_x_its_caster_announces() {
     assert_eq!(game.players[0].mana_pool.total(), 1, "{{3}}{{R}} paid of five");
 }
 
-/// A staged fixture cannot check the question (`mana-architecture.md` §6.1):
+/// A staged fixture cannot check the question (`engineering-practices.md`):
 /// Blaze cast from hand at a real priority question, from four untapped
 /// Mountains, under `ManaWindowStop`. The question offers it, X runs 0 to 3,
 /// and X = 3 taps every Mountain.

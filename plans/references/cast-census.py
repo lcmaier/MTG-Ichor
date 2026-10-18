@@ -419,7 +419,7 @@ COST_BUCKETS = [
      "owned", "CP-1", r"^(pay )?(\{[^}]+\})*\{[wubrg2]/[wubrg]\}"),
     ("mana-snow", "mana with {S}", "107.4h", "`ManaSymbol::Snow`, unpaid", "owned", "B9",
      r"^(pay )?(\{[^}]+\})*\{s\}"),
-    ("mana-x", "mana with {X}", "107.3a", "`Cost::Mana`; an ability's X is never asked", "unowned", "none",
+    ("mana-x", "mana with {X}", "107.3a", "`Cost::Mana`; an ability's X is never asked", "owned", "CP-1",
      r"^(pay )?(\{[^}]+\})*\{x\}"),
     ("mana", "mana", "601.2g", "`Cost::Mana`", "built", "built", r"^(pay )?(\{(\d+|[wubrgc])\})+$"),
     ("mana-variable", "an amount of mana the board decides", "107.3", "`Cost::Mana(ManaCost)` holds symbols",
@@ -689,7 +689,7 @@ SYMBOLS = [
     ("sym-hybrid", "a hybrid symbol", "107.4e", "`ManaSymbol::Hybrid`, unpaid", "owned", "CP-1",
      r"\{[wubrg]/[wubrg]\}", "is:hybrid"),
     ("sym-snow", "{S}", "107.4h", "`ManaSymbol::Snow`, unpaid", "owned", "B9", r"\{s\}", "m:{S}"),
-    ("sym-x", "{X}", "107.3a", "`ChooseXValue` asked; `find_mana_sources` refuses X, so never offered", "owned", "162",
+    ("sym-x", "{X}", "107.3a", "offered at its least legal X; `ChooseXValue` offers the X the board pays (`oracle::x_values`)", "built", "built",
      r"\{x\}", "m:{X}"),
     ("sym-colorless", "{C}", "107.4c", "`ManaSymbol::Colorless`", "built", "built", r"\{c\}", "m:{C}"),
     ("sym-plain", "colored and generic only", "107.4a", "`ManaSymbol::Colored`, `Generic`", "built", "built", r"", ""),
@@ -806,13 +806,13 @@ QUESTIONS = {
                            "what it ranges over, CR 510.1c", "range", ""),
     "AssignTrampleDamage": ("amounts across blockers and the player", "bounds",
                             "what it ranges over, CR 702.19b", "range", ""),
-    "ChooseXValue": ("a number", "bounds", "the bound the enumeration sets on X", "MA-2", "MA-2"),
+    "ChooseXValue": ("the values of X the board can pay", "bounds", "the least and the most, from `oracle::x_values`'s reasons (MA-2)", "MA-2", ""),
     "ChooseAlternativeCost": ("the mana cost and each printed alternative", "no", "", "range", ""),
     "ChooseAdditionalCosts": ("each optional additional cost", "no", "", "range", ""),
     "SelectRecipients": ("the objects or players a target or choice may name", "yes",
                          "`validate_selection`'s reasons, typed", "RS-2", "RS-2"),
     "GenericManaAllocation": ("a split of the generic part across the pool", "bounds",
-                              "the clamp that keeps each pip's mana", "MA-2", "MA-2"),
+                              "the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2)", "MA-2", ""),
     "OrderCostReductions": ("an order of every reduction that applies", "no", "", "range", ""),
     "ManaAbilityWindow": ("the mana abilities that can pay now", "yes",
                           "`can_pay_costs`'s `CannotPay`, per ability", "MA-1", ""),
@@ -826,8 +826,11 @@ QUESTIONS = {
     "ApplyOptionalEffect": ("yes or no", "no", "", "range", ""),
     "AllocateNextDamage": ("amounts across the damage sources", "bounds", "what it ranges over, CR 615.7", "range", ""),
     "ChooseDamageSource": ("every permanent and spell", "no", "", "range", ""),
+    "ChooseDelayedTriggerEvent": ("the events that happened at once, any of which triggers the delayed ability", "no", "",
+                                  "range", ""),
     "ChooseEnteringController": ("the opponents still in the game", "yes", "`not_an_opponent`, CR 102.2 and 800.4a",
                                  "SU-8", ""),
+    "ChooseEnteringDefender": ("what an entering attacker may attack, as its effect allows", "no", "", "range", ""),
     "ChooseAuxiliaryZoneChange": ("the objects CR 614.13a/b and CR 101.2 allow", "yes",
                                   "`not_auxiliary`, and the \"can't\" that dropped it", "SU-8", ""),
     "ChooseCopySource": ("the permanents the copy effect may copy", "yes",
@@ -844,13 +847,13 @@ QUESTION_OWNERS = {
     "MA-1": "built (MA-1)",
     "SU-8": "built (SU-8)",
     "range": "what it ranges over (SU-8)",
-    "MA-2": "`mana-architecture.md` MA-2",
+    "MA-2": "built (MA-2)",
     "RS-2": "`cant-effects-architecture.md` RS-2",
     "costs": "the cost phase that pays the cost",
 }
 
 #: The owners whose kinds `ui::why::refusals` answers with a check of their own.
-CHECKED = ("SU-7", "MA-1", "SU-8")
+CHECKED = ("SU-7", "MA-1", "SU-8", "MA-2")
 
 # ==========================================================================
 # Classification

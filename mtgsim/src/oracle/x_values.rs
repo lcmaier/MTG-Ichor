@@ -1,5 +1,5 @@
 //! CR 107.3a and 601.2b: the values of X a caster may announce, and why
-//! (`mana-architecture.md` §3.7, §6.1).
+//! (`mana-architecture.md` §3.7).
 //!
 //! Asked at 601.2b, once the alternative and additional costs are announced.
 //! The legal values run from the least to the most, and the most is read in

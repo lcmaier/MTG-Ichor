@@ -2011,7 +2011,17 @@ mechanic rather than a migration, which is why it is here and not in
   harness's infinite-mana question.
 - **Size** — unsized; (1) needs item 6 and a state hash that is a pure
   function of `GameState` (item 40's discipline); (2) needs a
-  `DecisionProvider` surface (§2.22) and `GameNumber`.
+  `DecisionProvider` surface (§2.22) and `GameNumber`. **Two needs MA-2 found
+  in `GameNumber` itself** (`mana-architecture.md` §3.7 and §9, 2026-10-18):
+  `ManaCost` holds generic mana as one symbol per mana, so CR 601.2f's
+  expansion of X (`ManaComponent::at`) allocates a symbol a mana, and the
+  generic part must become a count; and the most X for a cost with two or
+  more X symbols is a floor quotient of the mana a loop made, which the
+  planned `Finite`, `Shortcut` and `Relative` cannot hold, so a player could
+  not announce "half my pool". It needs a floor-quotient node compared
+  through `k·c ≤ E`; `oracle::x_values`' `MostX::Payable` keeps the parts
+  (the generic budget, what the cost asks besides X, and the X symbols) so
+  the node can be built from them.
 - **Blocks** — every combo deck's win; `fuzz_games`' 200-turn limit stands in
   for both halves until then. `GameNumber` is wanted outside loops too: a
   board of token doublers asks for about a million identical tokens, which

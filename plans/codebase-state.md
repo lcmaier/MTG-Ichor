@@ -67,7 +67,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
 | 103.5 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
 | 103.8 | The starting player's first draw step | ✅ 103.8a and 103.8c, from the seat count at `Game::new`; 103.8b (Two-Headed Giant) waits for teams, item 196 | `state/game.rs`, `starting_player_skips_first_draw` |
-| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
+| 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 a spell's X: offered at its least legal X, announced from the values the board pays, read in closed form (MA-2, `mana-architecture.md` §3.7); an activated ability's X never asked, hybrid/Phyrexian payment `NotImplemented`, and mana value with X on the stack (202.3e), all CP-1's | `types/mana.rs`, `oracle/x_values.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
@@ -8580,25 +8580,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** MA-7, the check widened, which reads every cost per `Cost`
      arm; the converters and Treasure are MA-3's.
 
-214. **The random agent does not pay through Doubling Cube.** MA-1's check
-     counts a payment the Cube's doubling makes, and the window offers the
-     Cube once the pool can pay its `{3}` (`mana-architecture.md` §3.8), whose
-     units the player chooses. `ui::random`'s window policy reads only what
-     each offered source makes now: on a Blood Moon board where the Cube is
-     the only route to a second `{W}`, it taps the one Plains and declines, so
-     the cast is reversed (CR 732.1) and offered again at the next priority
-     question. Elsewhere it activates the Cube with mana the spell needed. On
-     `close_out.py`'s board with the Cube pooled, 46 reversals in 20 games, 42
-     of them declines and 28 in one game (`fuzz-record.md`, MA-1's block).
-     **Reachability (2026-10-05):** reachable — not wrong: the engine offers
-     and rewinds as CR 601.2g–h and 732.1 say, and the price is the agent's
-     stream, 2.3 re-asks a game on the budget's board.
-     **Sized:** a doubler-aware preference in `ui/random.rs`, ~40–80 lines
-     with a test on the Humility board: keep the owed pip's mana, tap toward
-     the doubler's `{3}`, activate it, and pay the `{3}` with the other
-     units. Slot: MA-2's first commit (B12), or its own PR sooner.
-     **Slotted:** MA-2's first commit (B12), a doubler-aware preference in
-     `ui/random.rs`, with a test on the Humility board.
+214. **~~The random agent does not pay through Doubling Cube.~~ — ✅ CLOSED 2026-10-18 (PR #259, MA-2).** — archived.
+     The agent holds a pool multiplier back until nothing else is offered,
+     taps toward it when its doubling is the only source of a pip still owed,
+     and pays its input with mana the cost does not need for a pip.
+     **Reachability (2026-10-18):** closed — PR #259.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 214".
 
 215. **What MA-1's review left for a hygiene pass.** Three cleanups the
      owner's review of #225 found, each changing no answer:
@@ -9305,3 +9292,44 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Slotted:** with the first registered card that runs an instruction
      once for each opponent naming that player; Adeline, Resplendent Cathar,
      a Commander staple, is the likely one.
+
+### Found by MA-2 (2026-10-18)
+
+273. **`ChooseXValue`'s set form has no producer.** `XOffer::Values` is the
+     prompt's shape for legal values of X with a gap (Tamiyo, Compleated
+     Sage's −X over cards of mana value 0, 1, 4, 6 and 7), asked by `pick_n`
+     over `ChoiceOption::Number`. No rule MA-2 builds cuts a gap, so only
+     tests build one: the random agent answers only from it, a scripted
+     number and a replayed log line answer it by value, and the scenario
+     word `x N` refuses a value it leaves out (`mana-architecture.md` §3.7;
+     decision 1 in the archive's "MA-2"). The first cut is the producer, and gives each gap its
+     typed reason in the why (`ui/why.rs`' `x_refusals`).
+     **Reachability (2026-10-18):** unreachable — no registered card cuts the
+     values of X.
+     **Sized:** each cut with its surface (`mana-architecture.md` §3.7's
+     owners): the cut's set built in `oracle::x_values` and its reason's
+     line, ~30 lines each beside the surface's own.
+     **Slotted:** CP-2, whose loyalty −X is the first cut (CR 606.6).
+
+274. **A cost change that applies by a spell's mana value makes the bound
+     on X piecewise.** On the stack a spell's mana value counts X (CR
+     202.3e), so a change whose filter reads it applies at some X and not
+     others: Krosan Drover, Thryx, Spectacle Mage, The Scarlet Witch and It
+     That Heralds the End reduce, Reidane increases (2026-10-17). With one, a
+     larger X can cost less (Stonecoil Serpent under Krosan Drover costs
+     `{5}` at X = 5 and `{4}` at X = 6), the payable values gain a gap, and
+     the least X need not be the cheapest, so the gate's one check at the
+     least X under-offers. No `ObjectFilter` arm reads a mana value, so the
+     total is one affine piece. `cost_determination::gather`'s `applies_to`
+     asserts in debug that no cost change applying to an X spell has a
+     filter that reads `MANA_COST` (`engine::layers::board::
+     filter_reads_mana_value`), so the first such arm fails a test.
+     **Reachability (2026-10-18):** unreachable — no filter can read a mana
+     value.
+     **Sized:** the thresholds (`X ≥ ceil((m − the rest's mana value) / k)`)
+     cutting `ManaComponent` into pieces, one division a piece, and the gate
+     testing each piece's first X: ~60 lines of code and ~80 of tests,
+     beside CR 202.3e's on-stack mana value (`cost-architecture.md`'s CP-1
+     row) (`mana-architecture.md` §3.7).
+     **Slotted:** with the first registered card whose cost change applies
+     by a spell's mana value (Krosan Drover, Thryx).

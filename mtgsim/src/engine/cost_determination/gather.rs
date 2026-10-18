@@ -166,11 +166,11 @@ fn applies_to(
             // On the stack a spell's mana value counts X (CR 202.3e), so a
             // filter that reads it applies at some announced X and not
             // others, and the bound `oracle::x_values` reads in closed form
-            // is no longer one piece (`mana-architecture.md` §6.1).
+            // is no longer one piece (`mana-architecture.md` §3.7).
             debug_assert!(
                 !(frame.mana_cost.as_ref().is_some_and(|cost| cost.x_count() > 0) && filter_reads_mana_value(filter)),
                 "a cost change whose filter reads the mana value of an X spell needs the bound's thresholds \
-                 (mana-architecture.md §6.1, \"A cost change that applies by mana value\")"
+                 (CR 202.3e; mana-architecture.md §3.7, \"Owed\")"
             );
             source != spell
                 && game.object_matches_filter_of_source(spell, filter, source_controller, source, Some(HeldFrame::Characteristics(frame)))
