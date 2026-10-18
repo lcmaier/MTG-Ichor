@@ -605,7 +605,7 @@ impl<'s> Loader<'s> {
             }
             let targets = written.targets.iter().map(|target| self.setup_target(target, &cast, line)).collect::<Result<Vec<_>, _>>()?;
             let action = match written.verb {
-                SetupVerb::Casts => {
+                SetupVerb::Casts { x } => {
                     let what = format!("card in player {seat}'s hand");
                     let none = format!("{} is not in player {seat}'s hand, which a setup action casts from", written.card);
                     let in_hand = |c: &CreatedObject| crate::oracle::board::card_in_hand(&self.state, seat, c.id).is_some();
@@ -617,6 +617,10 @@ impl<'s> Loader<'s> {
                     let printed = &self.state.objects[&card].card_data;
                     if printed.types.contains(&CardType::Land) {
                         return refused(ScenarioErrorKind::Unreachable, format!("{} is a land, which is played, not cast (CR 305.1)", printed.name));
+                    }
+                    if x.is_some() && printed.mana_cost.as_ref().is_none_or(|cost| cost.x_count() == 0) {
+                        let message = format!("`x N` answers an X, and {}'s mana cost has none (CR 107.3a)", printed.name);
+                        return refused(ScenarioErrorKind::Unreachable, message);
                     }
                     cast.push((card, line));
                     PriorityAction::CastSpell(card)

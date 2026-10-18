@@ -189,3 +189,158 @@ fn the_why_of_the_generic_split_names_the_clamp() {
     )), "{lines:#?}");
     assert!(!lines.iter().any(|(text, _)| text.contains("green")), "green pays the generic part freely: {lines:#?}");
 }
+
+// --- The scenario word `x N` (setup-architecture §5.1) -----------------------
+
+use mtgsim::cards::registry::CardRegistry;
+use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
+use mtgsim::state::game::Halt;
+use mtgsim::types::ids::PlayerId;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode, Stop};
+
+/// Protean Hydra in player 0's hand, `forests` Forests to pay with, and
+/// `then`, the setup action.
+fn hydra_board(forests: usize, then: &str) -> String {
+    format!(
+        "turn 3\nactive 0\nstep precombat main\n\nhand 0: Protean Hydra\nlibrary 0: Forest | x8\nlibrary 1: Forest | x8\n\n\
+         battlefield: Forest | controller 0, x{forests}\n\n{then}\n"
+    )
+}
+
+fn built(text: &str) -> BuiltScenario {
+    Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"))
+}
+
+/// The board after `rounds` priority rounds, or the refusal the line stopped
+/// with. The line is cast in the first, and confirmed at the second's first
+/// prompt, where the seats then pass and the stack resolves.
+fn played_through(text: &str, rounds: usize, as_a_set: bool) -> Result<GameState, String> {
+    let BuiltScenario { mut game, setup } = built(text);
+    let seats = ScriptedDecisionProvider::new();
+    let driver = SetupDriver::new(setup, &seats);
+    let set = AsTamiyosSet(&driver);
+    let asked: &dyn DecisionProvider = if as_a_set { &set } else { &driver };
+    let played = game.until_stopped(|game| {
+        for _ in 0..rounds {
+            let _ = game.state.run_priority_round(asked);
+        }
+        Ok(())
+    });
+    match played {
+        Err(Halt::Stopped(stop @ Stop::SetupRefused { .. })) => Err(stop.to_string()),
+        Err(other) => panic!("{text}: {other:?}"),
+        Ok(()) => Ok(game.state),
+    }
+}
+
+/// The board with the line cast.
+fn played(text: &str) -> Result<GameState, String> {
+    played_through(text, 1, false)
+}
+
+/// The refusal the line meets, in its cast or once it is confirmed.
+fn refused(text: &str, as_a_set: bool) -> String {
+    played_through(text, 2, as_a_set).map(|_| ()).unwrap_err()
+}
+
+/// The driver, asked X as Tamiyo's set of 0, 1, 4, 6 and 7 where the engine
+/// asks an interval: no rule MA-2 builds cuts a gap, so this hands the
+/// driver's set form a real cast's question (`mana-architecture.md` §6.1,
+/// decision 1).
+struct AsTamiyosSet<'a>(&'a dyn DecisionProvider);
+
+impl DecisionProvider for AsTamiyosSet<'_> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        self.0.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        use mtgsim::oracle::x_values::{LegalXValues, XOffer};
+        let ChoiceKind::ChooseXValue { spell_id, x_count, .. } = &context.kind else {
+            return self.0.pick_number(game, player, context, min, max);
+        };
+        let set = vec![0, 1, 4, 6, 7];
+        let values = LegalXValues { offered: XOffer::Values(set.clone()), ..LegalXValues::up_to(7) };
+        let kind = ChoiceKind::ChooseXValue { spell_id: *spell_id, x_count: *x_count, values: Box::new(values) };
+        let options: Vec<ChoiceOption> = set.iter().map(|&x| ChoiceOption::Number(x)).collect();
+        set[self.0.pick_n(game, player, &ChoiceContext::new(kind), &options, (1, 1))[0]]
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        mins: &[u64],
+        maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.0.allocate(game, player, context, total, buckets, mins, maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.0.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.0.seat_mode(player)
+    }
+}
+
+fn hydra_x(state: &GameState) -> Option<u64> {
+    let top = *state.stack.last().expect("the Hydra on the stack");
+    state.stack_entries[&top].x_value
+}
+
+/// `x N` answers the X prompt: three Forests pay Protean Hydra's `{X}{G}` up
+/// to X = 2, and the line casts it with 2.
+#[test]
+fn the_word_x_answers_the_x_prompt() {
+    let state = played(&hydra_board(3, "then: player 0 casts Protean Hydra | x 2")).unwrap();
+    assert_eq!(hydra_x(&state), Some(2));
+}
+
+/// An X the engine does not offer stops the line, and so does a line with
+/// no `x N` that is asked one.
+#[test]
+fn the_word_x_is_refused_where_the_engine_offers_no_such_x() {
+    let refusal = refused(&hydra_board(3, "then: player 0 casts Protean Hydra | x 3"), false);
+    assert!(refusal.contains("its `x 3` is not offered: X can be 0 to 2"), "{refusal}");
+    let refusal = refused(&hydra_board(3, "then: player 0 casts Protean Hydra"), false);
+    assert!(refusal.contains("and the line has no `x N`"), "{refusal}");
+}
+
+/// One Forest pays X = 0 only, so nothing is asked, and a line saying
+/// another X is refused once the cast shows what it was cast with.
+#[test]
+fn an_unasked_x_must_be_the_lines() {
+    assert_eq!(hydra_x(&played(&hydra_board(1, "then: player 0 casts Protean Hydra | x 0")).unwrap()), Some(0));
+    let refusal = refused(&hydra_board(1, "then: player 0 casts Protean Hydra | x 1"), false);
+    assert!(refusal.contains("it says `x 1`, and the spell was cast with X = 0"), "{refusal}");
+}
+
+/// The set form: the line's X is answered from the set by value, and an X
+/// the set leaves out stops the line.
+#[test]
+fn the_word_x_answers_a_set_of_x_by_value() {
+    let state = played_through(&hydra_board(5, "then: player 0 casts Protean Hydra | x 4"), 1, true).unwrap();
+    assert_eq!(hydra_x(&state), Some(4));
+    let refusal = refused(&hydra_board(5, "then: player 0 casts Protean Hydra | x 2"), true);
+    assert!(refusal.contains("its `x 2` is not among the values of X offered"), "{refusal}");
+}
+
+/// `x N` on a card with no X, or on an activation, is refused as the file is
+/// read.
+#[test]
+fn the_word_x_is_refused_where_nothing_has_an_x() {
+    let text = "turn 3\nactive 0\nstep precombat main\n\nhand 0: Grizzly Bears\n\nbattlefield: Forest | controller 0, x2\n\n\
+                then: player 0 casts Grizzly Bears | x 2\n";
+    let refusal = Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).map(|_| ()).unwrap_err();
+    assert!(refusal.to_string().contains("Grizzly Bears's mana cost has none"), "{refusal}");
+    let text = "turn 3\nactive 0\nstep precombat main\n\nbattlefield: Merfolk Thaumaturgist | controller 0\n\n\
+                then: player 0 activates Merfolk Thaumaturgist | x 1\n";
+    let refusal = Scenario::parse(text).map(|_| ()).unwrap_err();
+    assert!(refusal.to_string().contains("an activated ability's X is not announced yet"), "{refusal}");
+}

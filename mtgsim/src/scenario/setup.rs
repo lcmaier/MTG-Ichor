@@ -4,7 +4,7 @@
 
 use std::cell::{Cell, RefCell};
 
-use super::board::SetupAction;
+use super::board::{SetupAction, SetupVerb};
 use crate::engine::resolve::ResolvedTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -131,11 +131,12 @@ struct LineAnswers<'a> {
 
 /// What in a line answers a question. Every `ChoiceKind` is named, so a new
 /// question decides at birth whether a line answers it: the mode prompt
-/// `backlog.md` §2.7 adds brings `mode N` here, and the first X spell the
-/// priority window offers brings `x N`.
+/// `backlog.md` §2.7 adds brings `mode N` here.
 enum LineAnswer<'k> {
     Action,
     Targets(ObjectId),
+    /// CR 601.2b's X, for the spell: `x N`.
+    X(ObjectId),
     /// CR 601.2g's window, for the spell or the activated permanent.
     Window(ObjectId, &'k ManaCost),
     /// CR 601.2h's generic split.
@@ -151,9 +152,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => LineAnswer::Split(*spell_or_ability_id),
         // CR 601.2f's order is `AutoPayer`'s, answered before a line is asked.
         ChoiceKind::OrderCostReductions { .. } => LineAnswer::Unanswered,
-        // No X spell is offered at priority yet: `ManaPool::can_pay` and
-        // `find_mana_sources` read no X (`codebase-state.md`'s CR 107 row).
-        ChoiceKind::ChooseXValue { .. } => LineAnswer::Unanswered,
+        ChoiceKind::ChooseXValue { spell_id, .. } => LineAnswer::X(*spell_id),
         // Asked while a line plays, with no word to answer them yet: the
         // line's own costs, the order of what it triggers, a replacement on
         // its events, and the state-based actions checked before and after
@@ -267,12 +266,29 @@ impl LineAnswers<'_> {
         let Some(entry) = entry else {
             self.refuse("the engine rewound it once picked (CR 732.1), most often for a cost the untapped lands cannot pay");
         };
+        // An `x N` the engine never asked, X having one legal value, must be
+        // that value.
+        if let SetupVerb::Casts { x: Some(x) } = line.written.verb
+            && entry.x_value != Some(x)
+        {
+            self.refuse(format!("it says `x {x}`, and the spell was cast with X = {}", entry.x_value.unwrap_or(0)));
+        }
         let chosen: Vec<ResolvedTarget> = entry.chosen_targets.iter().flat_map(|instance| instance.as_resolved_targets()).collect();
         let untaken = line.targets.iter().zip(self.taken.borrow().iter()).position(|(target, taken)| !taken && !chosen.contains(target));
         if let Some(i) = untaken {
             self.refuse(format!("it names {} as a target, and no target it was cast or activated with is that", line.written.targets[i]));
         }
         self.next.set(self.next.get() + 1);
+    }
+
+    /// The line's `x N`, asked for CR 601.2b's X.
+    fn x(&self, player: PlayerId, kind: &ChoiceKind) -> u64 {
+        match self.line().written.verb {
+            SetupVerb::Casts { x: Some(x) } => x,
+            SetupVerb::Casts { x: None } | SetupVerb::Activates { .. } => {
+                self.refuse(format!("player {player} is asked {} (CR 601.2b), and the line has no `x N`", kind.as_str()))
+            }
+        }
     }
 
     /// One CR 601.2c choice: the line's targets not yet taken, in the line's
@@ -338,12 +354,26 @@ impl DecisionProvider for LineAnswers<'_> {
             LineAnswer::Action => self.priority(game, player, context, options, bounds),
             LineAnswer::Targets(spell) if self.asks_for_the_line(game, spell) => self.targets(game, player, options, bounds),
             LineAnswer::Window(subject, remaining) if self.asks_for_the_line(game, subject) => self.tap(game, player, remaining, options),
+            LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
+                let x = self.x(player, &context.kind);
+                let offered = options.iter().position(|option| matches!(option, ChoiceOption::Number(n) if *n == x));
+                vec![offered.unwrap_or_else(|| self.refuse(format!("its `x {x}` is not among the values of X offered")))]
+            }
             _ => self.refuse_question(player, &context.kind),
         }
     }
 
-    fn pick_number(&self, _game: &GameState, player: PlayerId, context: &ChoiceContext, _min: u64, _max: u64) -> u64 {
-        self.refuse_question(player, &context.kind)
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        match line_answer(&context.kind) {
+            LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
+                let x = self.x(player, &context.kind);
+                if !(min..=max).contains(&x) {
+                    self.refuse(format!("its `x {x}` is not offered: X can be {min} to {max} (CR 601.2h)"));
+                }
+                x
+            }
+            _ => self.refuse_question(player, &context.kind),
+        }
     }
 
     fn allocate(
