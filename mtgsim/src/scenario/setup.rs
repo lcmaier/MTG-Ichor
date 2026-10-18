@@ -304,7 +304,7 @@ impl LineAnswers<'_> {
     fn tap(&self, game: &GameState, player: PlayerId, remaining: &ManaCost, options: &[ChoiceOption]) -> Vec<usize> {
         let allowed: Vec<usize> = match mana_window_preference(game, player, remaining, options) {
             WindowPreference::Useful(indices) => indices,
-            WindowPreference::AnyWillDo => (0..options.len()).collect(),
+            WindowPreference::AnyOf(indices) => indices,
             // Nothing offered pays: the payment fails, the engine rewinds the
             // action, and the next priority prompt refuses the line.
             WindowPreference::Hopeless => return Vec::new(),

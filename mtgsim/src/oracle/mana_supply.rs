@@ -445,6 +445,24 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
     sources
 }
 
+/// Whether `permanent`'s mana ability `ability` adds the unspent mana in the
+/// pool again (Doubling Cube's): what it makes is the pool's, so it has no
+/// row in [`available_mana_sources`].
+pub fn is_pool_multiplier(game: &GameState, permanent: ObjectId, ability: AbilityId) -> bool {
+    get_effective_abilities(game, permanent).iter().any(|a| {
+        a.id.definition() == ability.definition() && matches!(mana_ability_cost_of(a), ManaAbilityCost::MultipliesThePool { .. })
+    })
+}
+
+/// Whether `player` controls a pool multiplier whose `{T}` can be paid now,
+/// whether or not the pool pays its input yet.
+pub fn controls_a_pool_multiplier(game: &GameState, player: PlayerId) -> bool {
+    controlled_mana_abilities(game, player).any(|(id, abilities)| {
+        abilities.iter().any(|a| matches!(mana_ability_cost_of(a), ManaAbilityCost::MultipliesThePool { .. }))
+            && game.can_pay_costs(&[Cost::TapSelf], player, id).is_ok()
+    })
+}
+
 /// The types `ability` makes now, after what the board does to its
 /// production; for a shape the inventory does not read, the fixed amounts it
 /// prints.
