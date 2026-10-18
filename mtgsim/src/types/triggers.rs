@@ -191,6 +191,18 @@ pub enum TargetedBy {
     Ability,
 }
 
+impl TargetedBy {
+    /// Whether a spell (`by_spell`) or an ability is what it asks for. A
+    /// spell's kind, where it names one, is read on the stack apart.
+    pub fn admits(&self, by_spell: bool) -> bool {
+        match self {
+            TargetedBy::SpellOrAbility => true,
+            TargetedBy::Spell(_) => by_spell,
+            TargetedBy::Ability => !by_spell,
+        }
+    }
+}
+
 /// What an attack trigger asks of the player, planeswalker or battle
 /// attacked: CR 508.3a's "attacks [a player, planeswalker, or battle]",
 /// 508.3b's "is attacked" and 508.3e's "attacks [another player]".

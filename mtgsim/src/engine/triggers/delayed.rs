@@ -536,8 +536,9 @@ impl GameState {
             return distinct.pop();
         }
         let Some(ctx) = ctx else {
-            // Two occurrences of one arm come only in a batch's window or in
-            // `AttackersDeclared`, and both dispatch with a provider.
+            // Two occurrences of one arm come only in a batch's window, a
+            // declaration's record or one spell's targeting window, and each
+            // dispatches with a provider.
             debug_assert!(false, "CR 603.7b's choice reached a dispatch with no provider to ask");
             return distinct.into_iter().next();
         };

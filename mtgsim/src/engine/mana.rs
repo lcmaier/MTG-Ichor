@@ -9,9 +9,6 @@
 //! pipeline, just without using the stack.
 
 use crate::engine::actions::{ActionContext, GameAction};
-use crate::events::cause::EventCause;
-use crate::events::event::GameEvent;
-use crate::types::zones::Zone;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
 use crate::objects::card_data::AbilityType;
@@ -63,14 +60,9 @@ impl GameState {
         self.pay_costs(&plan, player_id, permanent_id, &paying)?;
 
         // CR 605.3a: activated, and announced as it is, before it resolves
-        // (605.3b). With the payer's provider, since a triggered mana ability
-        // on it resolves at the dispatch (CR 605.1b, 605.4a).
+        // (605.3b).
         let identity = crate::state::game_state::AbilityIdentity { source, ability: ability_id };
-        let source_lki = before_paying.filter(|_| self.object_ref(permanent_id) != Some(source));
-        let activated =
-            GameEvent::AbilityActivated { identity, controller: player_id, mana_ability: true, from: Zone::Battlefield, source_lki };
-        let activating = ActionContext { dp, cause: EventCause::Activating(player_id) };
-        self.emit_event_with_provider(activated, &activating)?;
+        self.announce_activation(identity, player_id, true, before_paying, dp)?;
 
         // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana
         // ability of that permanent that includes the {T} symbol in its

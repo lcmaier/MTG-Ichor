@@ -19,10 +19,11 @@ use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
-use crate::state::game_state::{GameState, PhaseType, StackEntry};
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{TargetInstance, TargetRef};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
@@ -406,13 +407,30 @@ impl GameState {
     /// activation's record is written: a sacrifice, which "an ability of an
     /// artifact" must still read it as (CR 602.2b runs 601.2h before 601.2i).
     /// `None` for every other cost, which leaves the source where it is.
-    pub(crate) fn frame_a_cost_can_take(&self, source: ObjectId, costs: &[Cost]) -> Option<crate::types::triggers::Lki> {
+    pub(crate) fn frame_a_cost_can_take(&self, source: ObjectId, costs: &[Cost]) -> Option<Lki> {
         let can_take = costs.iter().any(|cost| matches!(cost, Cost::SacrificeSelf | Cost::Sacrifice(..)));
         if !can_take {
             return None;
         }
-        let frame = crate::engine::layers::compute_characteristics(self, source)?;
-        self.last_known_information(source, frame)
+        self.last_known_information_now(source)
+    }
+
+    /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
+    /// `identity` activated by `controller`, its source as it was before
+    /// paying (`before_paying`) when a cost moved it. With the activator's
+    /// provider, since a triggered mana ability on it resolves at the dispatch
+    /// (CR 605.1b, 605.4a).
+    pub(crate) fn announce_activation(
+        &mut self,
+        identity: AbilityIdentity,
+        controller: PlayerId,
+        mana_ability: bool,
+        before_paying: Option<Lki>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        let source_lki = before_paying.filter(|_| self.object_ref(identity.source.id) != Some(identity.source));
+        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from: Zone::Battlefield, source_lki };
+        self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
@@ -540,10 +558,7 @@ impl GameState {
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, decisions)?;
-        let source_lki = before_paying.filter(|_| self.object_ref(source_id) != Some(identity.source));
-        let activated =
-            GameEvent::AbilityActivated { identity, controller: player_id, mana_ability: false, from: Zone::Battlefield, source_lki };
-        self.emit_event(activated, activating)?;
+        self.announce_activation(identity, player_id, false, before_paying, decisions)?;
 
         Ok(())
     }

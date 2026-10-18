@@ -185,9 +185,8 @@ impl GameState {
         binding: &'a TriggerBinding,
         role: EventRole,
     ) -> Option<CurrentOrLastKnown<'a>> {
-        let event = binding.triggering_event()?;
-        let object = event.objects.get(binding.event().role_in_arm(role))?;
-        let lki = match record_frame(binding.event(), &event.record, object.id) {
+        let object = binding.triggering_object(role)?;
+        let lki = match record_frame(binding.event(), &binding.triggering_event()?.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
             None => Some(self.lki_kept_by_resolving(object)?),

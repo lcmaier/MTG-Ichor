@@ -2139,7 +2139,8 @@ impl Primitive {
             | Primitive::Sacrifice
             | Primitive::Mill(_)
             | Primitive::Discard(..)
-            | Primitive::CounterSpell => Some(Zone::Graveyard),
+            | Primitive::CounterSpell
+            | Primitive::Counter => Some(Zone::Graveyard),
             Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
             Primitive::ReturnToBattlefield { .. } | Primitive::CreateToken(..) => Some(Zone::Battlefield),
@@ -2184,8 +2185,7 @@ impl Primitive {
             | Primitive::ChangeType(..)
             | Primitive::GainControl(_)
             | Primitive::Copy { .. }
-            | Primitive::CounterAbility
-            | Primitive::Counter => None,
+            | Primitive::CounterAbility => None,
         }
     }
 }

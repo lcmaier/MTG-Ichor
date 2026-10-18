@@ -2315,9 +2315,8 @@ impl GameState {
             return Ok(());
         }
         let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
-        let lki = crate::engine::layers::compute_characteristics(self, id)
-            .and_then(|frame| self.last_known_information(id, frame))
-            .ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+        let lki =
+            self.last_known_information_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
         let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
@@ -2346,12 +2345,9 @@ impl GameState {
             EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
                 self.bound_targets(part, ctx)?
             }
-            EffectRecipient::FilteredPermanents(filter) => self
-                .battlefield_ids_ordered()
-                .into_iter()
-                .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                .map(ResolvedTarget::Object)
-                .collect(),
+            EffectRecipient::FilteredPermanents(_) => {
+                self.affected_permanents(part, &[], ctx).into_iter().map(ResolvedTarget::Object).collect()
+            }
             other => {
                 return Err(format!(
                     "{other:?} is no part `Together` resolves on {:?}: a part is this object, a trigger's bound fact or a filtered sweep",

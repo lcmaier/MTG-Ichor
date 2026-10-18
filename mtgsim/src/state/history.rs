@@ -328,7 +328,7 @@ impl CombatHistory {
     }
 
     /// The rows of turn `turn`, the turn in progress, that `span` covers.
-    fn rows_in(&self, turn: u32, span: CombatSpan) -> impl Iterator<Item = &CombatRow> {
+    fn rows_in(&self, turn: u32, span: CombatSpan) -> impl DoubleEndedIterator<Item = &CombatRow> {
         let latest = self.combats_this_turn;
         self.rows.iter().filter(move |row| {
             row.turn == turn && match span {
@@ -361,12 +361,10 @@ impl CombatHistory {
     /// sentence): `None` when it was not removed in that combat, or was
     /// attacking nothing.
     pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
-        let removed = self.rows.iter().rev().find(|row| {
-            row.object == object
-                && row.turn == turn
-                && row.combat == self.combats_this_turn
-                && matches!(row.fact, CombatFact::Removed { .. })
-        })?;
+        let removed = self
+            .rows_in(turn, CombatSpan::ThisCombat)
+            .rev()
+            .find(|row| row.object == object && matches!(row.fact, CombatFact::Removed { .. }))?;
         match removed.fact {
             CombatFact::Removed { attacking } => attacking,
             CombatFact::Attacked(_) | CombatFact::Blocked(_) => None,

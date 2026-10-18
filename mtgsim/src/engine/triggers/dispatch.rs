@@ -523,9 +523,9 @@ impl GameState {
     /// One record emitted outside any batch — a cast, an activation, an
     /// ability's resolution, a trigger triggering, attackers declared —
     /// dispatched inside `emit_event`. `ctx` is the emitter's provider, where
-    /// the dispatch may have to ask (`emit_event_with_provider`); a mana
-    /// trigger's event (`ManaAdded`) is performed inside a batch, so the one
-    /// path that resolves at dispatch never runs here.
+    /// the dispatch may have to ask (`emit_event_with_provider`). A
+    /// triggered mana ability resolves here only on a mana ability's
+    /// activation, which `announce_activation` emits with its provider.
     pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) -> Result<(), String> {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
         let result = self.dispatch(&[seq], ctx, &[], audit.as_deref());
@@ -733,8 +733,9 @@ impl GameState {
                 match ctx {
                     Some(ctx) => self.resolve_triggered_mana(&pending, ctx)?,
                     // Unreachable: `ManaAdded` is always performed inside a
-                    // batch. Loud in debug; queued in release, so the mana is
-                    // late rather than lost.
+                    // batch, and every activation is announced with its
+                    // provider. Loud in debug; queued in release, so the mana
+                    // is late rather than lost.
                     None => {
                         debug_assert!(false, "a triggered mana ability reached an unbatched dispatch");
                         self.pending_triggers.push(pending);
@@ -1001,8 +1002,7 @@ impl GameState {
         if self.capture_of(object).is_some() {
             return;
         }
-        let frame = compute_characteristics(self, id);
-        if let Some(lki) = frame.and_then(|frame| self.last_known_information(id, frame)) {
+        if let Some(lki) = self.last_known_information_now(id) {
             self.lki_captures.push(LkiCapture { object, lki: Some(lki) });
         }
     }
@@ -1018,6 +1018,12 @@ impl GameState {
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
         Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
+    }
+
+    /// `id`'s last known information with its frame off the layer memo, for
+    /// every reader but a performing batch's fallback.
+    pub(crate) fn last_known_information_now(&self, id: ObjectId) -> Option<Lki> {
+        self.last_known_information(id, compute_characteristics(self, id)?)
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1110,7 +1116,7 @@ impl GameState {
 
     /// `id` as it is now, and where it is.
     pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
-        let lki = self.last_known_information(id, compute_characteristics(self, id)?)?;
+        let lki = self.last_known_information_now(id)?;
         Some(ObjectSnapshot { zone: self.objects.get(&id)?.zone, lki })
     }
 
@@ -1544,11 +1550,7 @@ impl GameState {
                     !self.history.targetings.rows().iter().any(|row| {
                         row.seq < record.seq
                             && row.target == *target
-                            && match by {
-                                TargetedBy::SpellOrAbility => true,
-                                TargetedBy::Spell(_) => row.by_spell,
-                                TargetedBy::Ability => !row.by_spell,
-                            }
+                            && by.admits(row.by_spell)
                             && whose.as_ref().is_none_or(|p| self.player_ref_is(p, row.controller, referents))
                     })
                 }
@@ -1805,16 +1807,13 @@ impl GameState {
                     }
                     (TargetSubject::Object(_), TargetRef::Player(_)) | (TargetSubject::Player(_), TargetRef::Object(_)) => false,
                 };
-                let kind_ok = match kind {
-                    TargetedBy::SpellOrAbility => true,
-                    TargetedBy::Ability => ability_source.is_some(),
-                    TargetedBy::Spell(filter) => {
-                        ability_source.is_none()
-                            && filter.as_ref().is_none_or(|filter| {
-                                self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(*by), referents, seq, SubjectRead::Now)
-                            })
-                    }
-                };
+                let kind_ok = kind.admits(ability_source.is_none())
+                    && match kind {
+                        TargetedBy::Spell(Some(filter)) => {
+                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(*by), referents, seq, SubjectRead::Now)
+                        }
+                        TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
+                    };
                 let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
                 let objects = || {
                     let target = match target {
@@ -1971,13 +1970,21 @@ impl GameState {
             return Vec::new();
         };
         let (event, seq) = (&record.event, record.seq);
-        // CR 506.5: the only creature declared as a blocker.
-        if *alone {
-            let mut blockers = blocks.iter().map(|&(b, _)| b);
-            let first = blockers.next();
-            if first.is_none() || blockers.any(|b| Some(b) != first) {
-                return Vec::new();
+        // Each creature on one side of the declaration once, in its order.
+        let each_on = |side: fn(&(ObjectId, ObjectId)) -> ObjectId| {
+            let mut each: Vec<ObjectId> = Vec::new();
+            for pair in blocks {
+                if !each.contains(&side(pair)) {
+                    each.push(side(pair));
+                }
             }
+            each
+        };
+        let blocker_of = |&(b, _): &(ObjectId, ObjectId)| b;
+        let attacker_of = |&(_, a): &(ObjectId, ObjectId)| a;
+        // CR 506.5: the only creature declared as a blocker.
+        if *alone && each_on(blocker_of).len() != 1 {
+            return Vec::new();
         }
         let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
         let now = |id: ObjectId| self.subject_after(event, id);
@@ -1988,14 +1995,8 @@ impl GameState {
                 .filter(|&&(b, a)| is(blocker, b) && is(attacker, a))
                 .filter_map(|&(b, a)| Some(TriggeringEventObjects::Block { blocker: now(b)?, attacker: now(a)? }))
                 .collect(),
-            BlockOccurrence::Blocker => {
-                let mut each: Vec<ObjectId> = Vec::new();
-                for &(b, _) in blocks {
-                    if !each.contains(&b) {
-                        each.push(b);
-                    }
-                }
-                each.into_iter()
+            BlockOccurrence::Blocker => each_on(blocker_of)
+                .into_iter()
                     .filter(|&b| is(blocker, b))
                     .filter_map(|b| {
                         let attackers: Vec<ObjectRef> =
@@ -2003,16 +2004,9 @@ impl GameState {
                         enough(attackers.len()).then_some(())?;
                         Some(TriggeringEventObjects::Blocking { blocker: now(b)?, attackers })
                     })
-                    .collect()
-            }
-            BlockOccurrence::Blocked => {
-                let mut each: Vec<ObjectId> = Vec::new();
-                for &(_, a) in blocks {
-                    if !each.contains(&a) {
-                        each.push(a);
-                    }
-                }
-                each.into_iter()
+                    .collect(),
+            BlockOccurrence::Blocked => each_on(attacker_of)
+                .into_iter()
                     .filter(|&a| is(attacker, a))
                     .filter_map(|a| {
                         let blockers: Vec<ObjectRef> =
@@ -2020,8 +2014,7 @@ impl GameState {
                         enough(blockers.len()).then_some(())?;
                         Some(TriggeringEventObjects::BlockedBy { attacker: now(a)?, blockers })
                     })
-                    .collect()
-            }
+                    .collect(),
             BlockOccurrence::Unblocked => unblocked
                 .iter()
                 .filter(|&&a| is(attacker, a))
