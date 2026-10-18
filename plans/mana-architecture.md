@@ -700,6 +700,10 @@ reasons "with item 162's build":
   mana of that type less the pips that need it.
 
 The first landed with MA-1, the second and third with MA-2 (`ui/why.rs`' `x_refusals` and `generic_split_refusals`).
+MA-2's dev GUI notes PR added the window's sources it does not offer *yet*:
+a mana ability whose other costs can be paid while the pool lacks its mana
+(`ui/why.rs`' `not_offered_yet`), which a client draws beside the options so
+that a Doubling Cube waiting for its {3} does not look unusable.
 
 ---
 

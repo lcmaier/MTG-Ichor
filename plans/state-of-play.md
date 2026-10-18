@@ -167,7 +167,7 @@ and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 206 |
 | …of them in `PERFORMANCE_POOL` | 116 |
-| `#[test]` functions | 2561 |
+| `#[test]` functions | 2562 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -245,7 +245,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- (none — nothing half-finished)
+- `plans/handoffs/ma-2-devgui-notes.md`
 
 ## What this file deliberately does not know
 
