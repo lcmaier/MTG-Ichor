@@ -465,11 +465,14 @@ holds any. **About 2,100 instructions a cost where present.**
 
 **The legal set is an intersection, and it need not be an interval.**
 - **Payability gives an interval**, from the minimum to the bound. The bound
-  is the largest X whose total the inventory covers. It is found by doubling
-  from the minimum until a total is refused, then bisecting between the last
-  two (amended at §6.1: the inventory has no one total to read once a pool
-  multiplier is on the board), with the total previewed through
-  `cost_determination` at each X, because a reduction can absorb part of X:
+  is the largest X whose total the inventory covers. It is read in closed
+  form, not searched (amended at §6.1, decision 2, which the owner asked
+  for at #259's review: a search cannot survive a loop's mana, CR 731.2a).
+  X adds only generic mana and no cost change depends on X, so the total
+  is the same pips beside `a − r + kX` generic, read off 601.2f's own
+  arithmetic in `cost_determination`, and the inventory says once how much
+  generic it can pay beside those pips. The `r` is why the arithmetic is
+  601.2f's and not the printed cost's: a reduction can absorb part of X, so
   at X = 0 a `{1}` reduction on `{X}{R}` is wasted, and at X = 1 it is not.
   A larger X never costs less, so this part is always an interval.
 - **Other rules cut it.** A loyalty ability's −X can be no more than the
@@ -680,7 +683,7 @@ cost if every cost the check read carried it.
 | The chosen color | 32 | the recorded bit; `backlog.md` §2.2's record, its mana half | 0 beyond a read | MA-4 |
 | "Could produce" | 14 | the union, a fixpoint, memoized | one pass over the named set a memo miss | MA-4 |
 | Restricted mana | 153 | §3.6, an edge refused | 2,100 a cost where present; bound 5.6K | the seam in MA-1, the cards in item 33's build (`roadmap-v2.md` B9) |
-| X | 527 | the smallest legal X at the gate; the legal set at 601.2b, the bound by bisection, cut by the other rules (§3.7) | 159 a cost; bound 0.4K | MA-2; each cut with its surface |
+| X | 527 | the smallest legal X at the gate; the legal set at 601.2b, the bound in closed form (§6.1, decision 2), cut by the other rules (§3.7) | 159 a cost; bound 0.4K | MA-2; each cut with its surface |
 | Hybrid, `{C/W}` | 582, 1 | a two-type pip | 0 beyond the plain check | CP-1, against §3.2 |
 | Mono-hybrid, Phyrexian | 20, 36 | counts enumerated | 1,300 a cost where present; bound 3.6K | CP-1, against §3.2 |
 | Convoke | 104 | §3.9 | 2,600 a cost where present; bound 6.9K | MA-5 |
@@ -732,7 +735,7 @@ card-by-card hunt runs in each PR's brief.
 |---|---|---|---|---|
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
 | **MA-7, the check widened** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is MA-3's rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
-| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound by bisection, the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable. **The plan is §6.1** | ~350 engine, ~450 tests, a card: 800–950 as sized here; §6.1's plan, with item 214 and what the rules pass added, ~460–500 code and ~630 tests: 1,100–1,150 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
+| **MA-2, the legal values of X** | §3.7: the smallest legal X at the gate; the legal set at 601.2b (the bound in closed form, §6.1's decision 2; the printed minimum) and `ChooseXValue`'s set form, with a fixture whose set has a gap; the random agent's self-limit out; the why of `ChooseXValue` and `GenericManaAllocation`. Registers and pools an X spell (Blaze is the plain one). Makes TR-5b's Protean Hydra, registered and pooled, castable. **The plan is §6.1** | ~350 engine, ~450 tests, a card: 800–950 as sized here; §6.1's plan, with item 214 and what the rules pass added, ~460–500 code and ~630 tests: 1,100–1,150 | Blaze, Protean Hydra | `cast-census.md` §8's X row |
 | **MA-3, any color, riders, the nested window** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` B13) | `backlog.md` §2.19 |
 | **MA-4, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **MA-5, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
@@ -784,10 +787,10 @@ payment does not change: every X the prompt offers is one it can pay.
 | # | What | CR | Where |
 |---|---|---|---|
 | 1 | X expanded by one function | 107.3a, 601.2f | `ManaCost::with_x_as(x)` in `types/mana.rs`. `determine_total_cost`'s step 1 calls it on whichever base 601.2b chose, so an alternative cost's X (miracle's `{X}{R}`) is expanded too |
-| 2 | A whole total previewed at a given X | 601.2f; `cost-architecture.md` §3.6 | `preview_total_cost` beside `preview_mana_cost` (`total.rs:135`): step 1's assembly and steps 3–6's arithmetic, shared with `determine_total_cost` (`modify`, `:77`, takes the reduction order as an argument), the reductions in gather order (`cost-architecture.md` §3.4's theorem), no prompt |
+| 2 | The total as a function of X | 601.2f; `cost-architecture.md` §3.6 | beside `preview_mana_cost` (`total.rs:135`): step 1's assembly and steps 3–6's arithmetic run once on the 601.2b choices with the generic part kept as a count, giving the pips and the a, r, k and F of the most's closed form (below). `determine_total_cost` reads the same run at the announced X (`modify`, `:77`, takes the reduction order as an argument), the reductions in gather order for the preview (`cost-architecture.md` §3.4's theorem), no prompt |
 | 3 | "X can't be 0" | the card's text | `CardData::x_cannot_be_zero`, read as printed: the gate reads the card in hand and the cast its snapshot from before the CR 601.2a move, as both read the mana cost |
 | 4 | The gate tests the smallest legal X | 107.3a | `can_cast_with` previews the printed cost at X = 0, or 1 under "X can't be 0". A cost with no X skips the expansion and allocates nothing |
-| 5 | The legal values at 601.2b | 107.3a, 107.3b, 601.2b | a new function in `oracle`, `legal_x_values`, over the base, the announced additional costs and one inventory read (below) |
+| 5 | The legal values at 601.2b | 107.3a, 107.3b, 601.2b | a new function in `oracle`, `legal_x_values`, over the base, the announced additional costs and one inventory read (below); the inventory's most generic beside a cost's pips is a mode of `ManaSupply`'s existing walk (`oracle/mana_supply.rs:331`), never a second matcher |
 | 6 | `ChooseXValue` carries them | 601.2b | the kind (`ui/choice_types.rs:50`) gains the legal values and their reasons. Asked by `pick_number(min, max)` when they are an interval, by `pick_n` over `ChoiceOption::Number` when they are not, and not asked when there is one |
 | 7 | The random agent's cap goes | — | `ui/random.rs:335`. It caps X at the pool plus the untapped lands, counting the land that pays `{R}` toward X as well: with four Mountains it picks X = 4 one time in five, and that cast is reversed. It also misses Sol Ring's second mana. The engine's bound replaces it |
 | 8 | The why of `ChooseXValue` and `GenericManaAllocation` | 601.2b, 601.2h | `ui/why.rs:362`, `:372`: the X lines below, and the generic split's clamp from one function the ask (`ui/ask.rs:829`) and the why share (§3.13) |
@@ -803,18 +806,44 @@ payment does not change: every X the prompt offers is one it can pay.
   the announced X: Blaze cast for an X-less alternative cost would deal any
   X. No registered card has both, so it is not reachable.
 - **The least.** 0, or 1 under "X can't be 0".
-- **The most.** The largest X whose previewed total (piece 2) the inventory
-  covers, with the announced additional costs and what they reserve: a
-  mandatory sacrifice takes its permanent out of what makes mana (§3.3). The
-  inventory is read once. Each step is one `covers`, about 100 instructions
-  (§3.2), plus a preview. The bracket comes from doubling, the least plus 1,
-  then plus 2, then plus 4, until a total is refused, then bisection between
-  the last two.
-  §3.7 said "over [0, the inventory's mana]", but the inventory has no one
-  total once a pool multiplier is on the board (Doubling Cube's), and a
-  hand-written upper estimate that missed one would under-offer. Doubling
-  needs only `covers` and that a larger X never costs less (§3.7's
-  argument), so it agrees with the gate by construction.
+- **The most, in closed form (decision 2).** Two facts make it one
+  division instead of a search. X adds only generic mana. And no cost change
+  depends on X: `representable` (`total.rs`) already refuses an X in an
+  increase or a reduction, and a `ReduceGeneric` amount is read off the
+  board. So at every X the total is the same pips P (after reductions)
+  beside `max(F, a − r + kX)` generic, where:
+  - a is the generic mana at X = 0 before reductions, increases included;
+  - r is what the reductions take off generic, a colored reduction that
+    finds no pip of its type included (CR 118.7b–d);
+  - k is the number of X symbols;
+  - F is what a Trinisphere-like floor adds (CR 601.2f's direct effects).
+
+  All four come from one run of 601.2f's own arithmetic, kept as numbers
+  instead of symbols (piece 2), so the preview and the cast still share one
+  arithmetic (`cost-architecture.md` §3.6). The inventory answers once how
+  much generic mana it can pay beside P, with the announced costs'
+  reservations: call it G. That is the existence check's own walk with a
+  maximum at its leaves instead of a yes, since generic mana enters Hall's
+  condition only through the total (§3.2), and the choice search's pruning
+  reads only the pips:
+  - on the plain split, all the supply less P, when P can be paid;
+  - where one tap makes several mana of one chosen type, the best leaf;
+  - past a pool multiplier, its transform run forward: what is made before
+    it, less its input, times its factor, plus what is made after (§3.3).
+
+  The bound is `floor((G + r − a) / k)`, when F ≤ G. The cost is one
+  inventory read, one pass of the arithmetic and a division, the same at
+  X = 3 as at X = 10^34. In debug builds an audit asks `covers` at the bound
+  and one above it, so a closed form that drifts from the check fails a
+  test or a fuzz run, not a game. Past the choice search's cap (§3.3) the
+  maximum leans high, as the check leans yes.
+- **With `GameNumber`** (`backlog.md` §2.28; `roadmap.md` D26's planned
+  `Finite`, `Shortcut`, `Relative`, each affine in a loop's count), G is a
+  number a loop made: CR 731.2a's "a loop that repeats a specified number of
+  times". The bound stays the inequality `kX + a − r ≤ G`. For k = 1, the
+  most is `G + r − a`, still affine and in the planned shape. For k ≥ 2,
+  floor division of a symbolic count is not in that shape, so the prompt
+  carries the inequality and checks an announced X with one comparison.
 - **Empty.** If the least is not payable, the cast is reversed at 601.2b,
   with the reason 601.2h would give, before a window opens for a payment
   that cannot happen. Only an announcement can take what the gate counted: a
@@ -829,14 +858,14 @@ PR body lists them.
 pub struct LegalXValues { pub offered: XOffer, pub least: LeastX, pub most: MostX }
 pub enum XOffer { Range { min: u64, max: u64 }, Values(Vec<u64>) }
 pub enum LeastX { Zero, CannotBeZero, NotInTheCostPaid } // 107.3a; the text; 601.2b and 107.3b
-pub enum MostX { Payable { refused: ManaCost }, TheLeast } // 601.2h: the total at most + 1
+pub enum MostX { Payable { generic: u64, per_x: u64, beside: ManaCost }, TheLeast } // 601.2h: G, k and P
 ```
 The kind carries them, because the announcement's other choices are not on
 the stack entry yet when X is asked, so the why cannot work them out again.
 Its lines, about the spell, at the question:
 - "X can be 0 to 4."
-- "X above 4 leaves the cost unpayable: {5}{R} is more than Player 0 can
-  pay." (CR 601.2h)
+- "X above 4 leaves the cost unpayable: each X adds {1}, and beside {R}
+  Player 0 can pay at most 4 generic mana." (CR 601.2h)
 - "X can't be 0: the card says so."
 - "X is 0: the cost being paid has no X." (CR 601.2b, 107.3b)
 - the generic split's: "At most 1 red toward the generic part: the pool's 2
@@ -924,18 +953,20 @@ which moves the stream.
 | X's arithmetic, the alternative cost's X (1, 2) | 50 | 60 |
 | The printed minimum, the gate (3, 4) | 30 | 60 |
 | The legal values, the announcement, the prompt, the agent (5–7) | 170 | 220 |
+| The closed form: the total in X, the most generic, the audit (decision 2) | 100 | 60 |
 | The why, both kinds (8) | 80 | 80 |
 | The scenario word (9) | 60 | 50 |
 | Blaze and the Hydra's cast path (11) | 30 | 80 |
 | The fixtures that move | | ~40 changed |
-| **Total** | **~460–500** | **~630** |
+| **Total** | **~560–600** | **~690** |
 
-1,100–1,150, against the row's 800–950 plus item 214's 40–80. The
-difference is three things the row did not price: the generic split's why
+1,250–1,300, against the row's 800–950 plus item 214's 40–80. The
+difference is four things the row did not price: the generic split's why
 (§3.13 gave it to MA-2), the scenario word (setup-architecture's promise),
-and the alternative cost's X (the rules pass). MA-1 ran about 1.5 times its
-code sizing; at that rate this is about 1,350, under the band's ceiling
-either way.
+the alternative cost's X (the rules pass), and the closed form, whose tests
+include one that compares it with `covers` at every X on random small
+boards. MA-1 ran about 1.5 times its code sizing; at that rate this is about
+1,550, inside the band.
 
 **What the close-out owes the docs.** `cast-census.py`'s `{X}` row built,
 its activated-ability X row's owner corrected (§9), §8's prose and §10's
@@ -947,16 +978,38 @@ Migrations line. Blaze's line in the rulings ledger (no rulings), the
 §10's ✅ heading with a stub of 40 lines or fewer, this section to the
 archive; `state-of-play.md` regenerated.
 
-**Decisions.** One is open.
+**Decisions.** One taken, one open.
 
-1. **The set form with no cut.** The problem: MA-2 builds the set form
-   (§3.7), and nothing MA-2 builds produces one.
+1. **The set form with no cut. Taken: A** (the owner, 2026-10-17, at
+   #259's review). The problem: MA-2 builds the set form (§3.7), and nothing
+   MA-2 builds produces one.
 
    | | **A. Built, tested directly** (recommended) | **B. An early cut** | **C. Wait for the first cut** |
    |---|---|---|---|
    | In code | the ask's `Values` branch, the scripted provider's `Number` answer to a `pick_n`, the setup word's refusal: ~35 lines and ~60 of tests | a cut written now on a fixture, the loyalty −X on a fixture planeswalker | nothing here; CP-2 writes the branch with the loyalty −X |
    | Performance | none: no game builds a set | none | none |
    | Upkeep | one shape with no producer, in Deferred Migrations. The clients move once, in the PR that already changes the prompt (its range goes from `(0, u64::MAX)` to the engine's bound), and every cut after only produces | a second copy of CP-2's counter-amount work, which CP-2 replaces | the prompt changes shape again in CP-2: the CLI, the dev GUI, the scripted provider, replay and the setup driver move a second time, and the dev GUI job reruns. Reopens §3.7's "MA-2 builds the set shape" (decision 6) |
+
+2. **Whether the engine bounds X by what the board can pay, and how.** The
+   problem (the owner, at #259's review): a search for the bound cannot
+   survive a loop's mana. CR 731.2a's shortcut repeats a loop "a specified
+   number of times", so a pool can hold more mana than a `u64` once
+   `GameNumber` lands (`backlog.md` §2.28), and Stroke of Genius or Awaken
+   the Woods is then cast for that much. The plan's first draft searched by
+   doubling, about 113 steps to bracket 10^34 and as many to bisect (a step
+   count that is fine), but every step expanded X into one generic symbol
+   per mana, which is not. Arena does not compute the bound, beyond rule cuts such as
+   Tamiyo's (the owner's account). Both options keep the gate (the smallest
+   X) and every rule cut.
+
+   | | **A. The bound in closed form** (recommended) | **B. No bound: the payment decides, as Arena does** |
+   |---|---|---|
+   | In code | the total as `a − r + kX` beside fixed pips, from 601.2f's arithmetic; the inventory's most generic beside the pips, a maximum at the existence walk's leaves; a debug audit at the bound and one above; ~100 lines, ~60 of tests | `ChooseXValue` offers the least and up, cut only by rules; ~60 lines fewer than A |
+   | Performance | once per X cast, never at a priority question: one inventory read, about 18,000 instructions (§2.2's 26.3K a decision over 17,906 reads), plus one pass of the arithmetic; the same at any X | nothing at 601.2b |
+   | Agents | pick from what they can pay: the random agent draws in [least, most], and a learning agent sees each payable X (§3.7) | need their own cap. Today's reverses one cast in five with four Mountains; an exact one is A's computation, done in the agent, a second matcher |
+   | `GameNumber` | the bound is an inequality, `kX + a − r ≤ G`, one comparison per answer; affine in the planned shape when k = 1 | the prompt is "the least or more"; 601.2h's payment makes the same comparison |
+   | 601.2f's expansion, one symbol per mana (§9) | reached only up to what the board makes, so no X a person types can exhaust memory today; with `GameNumber`, generic must become a count under either option | a person can type any X into the CLI or the dev GUI, and X = 10^12 asks 601.2f for 10^12 symbols today |
+   | Upkeep | a second reader of the existence walk, held to it by the audit. It holds while no cost change depends on X, which `representable` enforces. Exact wherever the gate is, since it asks the gate's question for a number instead of a yes: a board too complex for it is one the gate already misjudges, and MA-7's dynamic program fixes both | `cost-architecture.md` §3.6's "enumeration agrees with enforcement" gains an exception for X; the why says the payment decides; "Actions reversed" counts each X the agent overbids |
 
 **Taken as settled** (named so the review can strike one):
 - **Item 214 first**, measured as its own arm: `codebase-state.md` item 214
@@ -997,7 +1050,8 @@ seven were taken as recommended at #224's review** (the owner,
    its mana half built in MA-4 in §2.2's shape; "could produce" with a fixpoint (§3.10).
 6. **X.** As recommended, with three refinements (§3.7). The gate tests
    the smallest legal X, which is 1 on 17 cards. The bound bisects over the
-   previewed total, because a reduction can absorb part of X. And the legal
+   previewed total, because a reduction can absorb part of X (the search
+   is reopened at #259's review, §6.1's decision 2). And the legal
    X is a set that other rules cut, so `ChooseXValue` gains a set form for
    Tamiyo's −X and Detonate.
 7. **The route.** MA-1 before SU-8; the rest in B before C, MA-3 before
@@ -1066,6 +1120,13 @@ Found by MA-2's plan (2026-10-17, §6.1):
   and Light Up the Night's applies only when it is flashed back (§3.7's
   owners). §3.7's 17 is the census's corpus filter; Scryfall without it
   gives 21, most of them suspend's, a kicker's or an activated ability's X.
+- **`ManaCost` holds generic mana as one symbol per mana** (found at #259's
+  review). 601.2f's step 1 expands X with `repeat_n(Generic, x_value *
+  x_count)` (`total.rs`), and `apply_reduction` rebuilds the generic part
+  the same way, so a cast's cost allocates as many symbols as its mana. On
+  today's boards that is tens. `GameNumber` (`backlog.md` §2.28) needs the
+  generic part held as a count, beside the colored symbols, whichever way
+  decision 2 goes; a line for §2.28 at MA-2's close.
 
 ---
 
