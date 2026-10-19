@@ -173,6 +173,27 @@ fn a_creature_attacking_without_a_declaration_is_unblocked() {
     assert!(mtgsim::ui::display::format_event_log(&game).contains(&line), "no {line:?}");
 }
 
+/// And the converse: attacking without a declaration is not being unblocked.
+/// A creature put onto the battlefield attacking before blockers are declared
+/// can be blocked like any other, and then it is a blocked creature (CR
+/// 509.1h), while the declared attacker no one blocked is the unblocked one.
+#[test]
+fn a_creature_attacking_without_a_declaration_can_be_blocked() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, life_on("Fixture Unblocked Watcher", attacks_and_isnt_blocked(TriggerSubject::Any)), 0);
+    put_on_battlefield(&mut game, life_on("Fixture Blocked Watcher", becomes_blocked(TriggerSubject::Any)), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let entered = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let blocker = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    declare_attacks(&mut game, &[(bears, 1)]);
+    set_attacking(&mut game, entered, 1);
+    declare_blocks(&mut game, &[vec![(blocker, entered)]]);
+    assert_eq!(declarations(&game), vec![(vec![(blocker, entered)], vec![bears])]);
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 0), 21, "one unblocked creature, the declared one");
+    assert_eq!(life(&game, 1), 21, "one blocked creature, the one that entered attacking");
+}
+
 // ---------------------------------------------------------------------------
 // 2. "This turn" and "this combat"
 // ---------------------------------------------------------------------------
@@ -781,10 +802,11 @@ fn that_spell_or_ability_is_the_one_that_targeted_it() {
     let _ = at_bears;
 }
 
-/// The player leg: "whenever you become the target of a spell or ability an
-/// opponent controls".
+/// The arm's player leg: "whenever you become the target of a spell or
+/// ability an opponent controls" triggers on an opponent's Bolt at you, and
+/// not on your own.
 #[test]
-fn a_player_becomes_the_target() {
+fn you_becoming_the_target_of_an_opponents_spell_triggers_it() {
     let mut game = stocked(2);
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller);
     let amulet = CardDataBuilder::new("Fixture Amulet")
@@ -899,10 +921,13 @@ fn a_first_time_for_any_controller_counts_every_targeting() {
     assert_eq!(power(&game, spinner), Some(5), "the second resolved");
 }
 
-/// "For the first time each turn" is refused where the record has no place
-/// in the turn, and on an Aura spell's filter, which the rows do not keep.
+/// The registry refuses "for the first time each turn" on an arm the engine
+/// cannot answer it for. A death has no place in the turn on its record; a
+/// targeting's first time is read off the turn's targeting rows, which keep
+/// no spell's characteristics, so "an Aura spell" is refused there while "a
+/// spell" is accepted.
 #[test]
-fn the_registry_refuses_a_first_time_no_record_answers() {
+fn first_time_each_turn_is_refused_where_nothing_can_tell_a_first() {
     let gain = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     let first = |arm: TriggerEvent| TriggerDef { limit: Some(TriggerLimit::FirstTimeEachTurn), ..whenever(arm, gain.clone()) };
     assert_eq!(first(dies(TriggerSubject::Any).into()).readings_its_arms_cannot_give().len(), 1);
@@ -961,6 +986,64 @@ fn an_opponents_activation_triggers_and_resolves_first() {
     thaumaturgist_at(&mut game, 0, mine, theirs);
     resolve_all(&mut game);
     assert_eq!(life(&game, 1), 18, "its controller's own activation");
+}
+
+/// **Fixture.** Deathrite Shaman's first ability, with a player for its
+/// target: "{T}: Target player gains 1 life. Add {C}."
+fn shaman_fixture() -> Arc<CardData> {
+    let gain = Effect::Atom(
+        Primitive::GainLife(AmountExpr::Fixed(1)),
+        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+    );
+    let add = Effect::Atom(
+        Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
+        EffectRecipient::Controller,
+    );
+    CardDataBuilder::new("Fixture Shaman")
+        .card_type(CardType::Creature)
+        .power_toughness(1, 2)
+        .ability(AbilityDef {
+            rules_text: "{T}: Target player gains 1 life. Add {C}.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Activated,
+            costs: vec![Cost::TapSelf],
+            effect: Effect::Sequence(vec![gain, add]),
+        })
+        .build()
+}
+
+/// An activated ability that adds mana but has a target is no mana ability
+/// (CR 605.1a; Deathrite Shaman's first ruling: "it uses the stack and can be
+/// responded to"). Its record says so, so Harsh Mentor's "if it isn't a mana
+/// ability" triggers on it, and the mana comes as it resolves.
+#[test]
+fn an_ability_that_adds_mana_with_a_target_is_no_mana_ability() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, mentor_fixture(), 0);
+    let shaman = put_on_battlefield(&mut game, shaman_fixture(), 1);
+    set_active_player(&mut game, 1);
+    let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, shaman);
+    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let aim = ScriptedDecisionProvider::new();
+    aim.expect_choice(
+        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![ChoiceOption::Player(1)],
+    );
+    game.activate_ability(1, shaman, index, &ManaWindowStop::new(aim)).expect("activated");
+    let recorded = game.recorded_events();
+    let kind = recorded.events().find_map(|event| match event {
+        GameEvent::AbilityActivated { mana_ability, .. } => Some(*mana_ability),
+        _ => None,
+    });
+    assert_eq!(kind, Some(false), "its record: not a mana ability");
+    place_triggers(&mut game, &ScriptedDecisionProvider::new());
+    assert_eq!(game.stack.len(), 2, "the ability, and the trigger above it");
+    resolve_all(&mut game);
+    assert_eq!(life(&game, 1), 19, "2 dealt by the trigger, then 1 gained");
+    assert_eq!(game.players[1].mana_pool.amount(ManaType::Colorless), 1, "added as it resolved");
 }
 
 /// A mana ability's activation is an activation (CR 605.3a): "an ability of a
