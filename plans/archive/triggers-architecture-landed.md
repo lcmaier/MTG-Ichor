@@ -4331,14 +4331,23 @@ joined: an attacker that entered attacking can be blocked (CR 509.3g's
 converse), and an ability that adds mana with a target is no mana ability
 (CR 605.1a, Deathrite Shaman's shape).
 
+**Review, round four (2026-10-18).** The owner's question on `source_lki`'s
+two records found a third: a mana source its own cost moved (Crystal Vein,
+a Treasure) has gone when its mana is made, and the production read it in
+its owner's graveyard, so a stolen land's mana missed "a land you control"
+in a trigger and in Deep Water's replacement. The production carries the
+activation's LKI (`ManaProducer`, `GameAction::ProduceMana.source_lki`,
+`GameEvent::ManaAdded.source_lki`); both tests failed first, and no game
+moved. Item 279 took the per-turn history's shape for TR-5d.
+
 **What it leaves.** Items 278–281 and 283 (`codebase-state.md`, "Found by
 TR-5c"). Excess damage, the "this turn" damage facts and item 275 are
 TR-5d's, with pieces 11 and 12 above as written. CR 509.3a against 509.3b
 on one creature blocking two is item 6's, with the first card that lets a
 creature block an additional one.
 
-**Size.** +2,501/−317 in code and tests (code +1,308/−308, tests
-+1,193/−9), against 2,045–2,370, one line past the band. The review's
-rename commit is +188/−170 of it, lines renamed in place; without it,
-+2,313. Forty-three integration tests in `phase_tr5c_integration_test`
-and one unit test in `state::history`.
+**Size.** +2,630/−354 in code and tests (code +1,384/−345, tests
++1,246/−9), against 2,045–2,370, past the band by the review's rounds:
+round three's rename commit is +188/−170, lines renamed in place, and round
+four's mana fix +140/−48. Forty-five integration tests in
+`phase_tr5c_integration_test` and one unit test in `state::history`.

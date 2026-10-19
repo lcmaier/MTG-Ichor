@@ -9384,6 +9384,22 @@ Number 277 was withdrawn in #260 and is not reused.
      **Slotted:** TR-5d for the damage facts, beside excess damage, as TR-5c's
      review decided; each other fact with the first registered card that
      reads it.
+     **Shaped at TR-5c's review (the owner, 2026-10-18), for TR-5d's design:**
+     one history of what each object did this round, the combat's rows
+     generalized (an object, the turn, the combat and a fact), which these
+     facts join rather than a struct each. Its rows sit behind one `Arc`, so
+     a clone shares them and the clone floors do not move; the first write
+     after a fork copies them, about 25 rows of ~48 bytes at four seats over
+     the round they are kept, from the close-out's four-seat counters. The
+     cost to design is the layer memo's gate: one, `GatedWalkInput::Histories`,
+     serves every history today, so once a static's layer row reads one,
+     every history write re-walks (no registered static reads one yet). Gate
+     it by the rows a read touches, noted inside the lookup that scans them,
+     never by the fact a card names: "was blocked" reads the blockers' rows,
+     "this combat" the combat count, a filter over two facts both, so no
+     reader can leave a dependency out. A write that rewrites every row (the
+     turn's retain) trips every key, and the layer memo's audit, which re-walks
+     fresh against each hit in a debug build, catches a key the lookups miss.
 
 280. **No amount reads a player's turn summary.** `Condition::ThisTurn` asks
      a `HistoryCount`, but "equal to the amount of life you gained this turn"
