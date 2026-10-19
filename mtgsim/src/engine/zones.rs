@@ -314,9 +314,9 @@ impl GameState {
         if now == 0 {
             return DrawOrdinals::BEFORE_ANY_TURN;
         }
-        let drawn = self.history.log.count(TurnFact::CardsDrawn, TurnsCounted::Turn(now), &|p| p == player, &|_| {});
+        let drawn = self.history.count(player, TurnFact::CardsDrawn, TurnsCounted::Turn(now));
         DrawOrdinals {
-            in_turn: Some(drawn + 1),
+            in_turn: Some(drawn.saturating_add(1)),
             in_draw_step: self.in_own_draw_step(player).then(|| history.this_draw_step() + 1),
         }
     }

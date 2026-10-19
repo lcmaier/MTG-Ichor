@@ -5,7 +5,8 @@
 //! characteristics then. The rows sit in fixed chunks, chained newest first
 //! behind `Arc`s, so a clone copies one pointer however long the game, and the
 //! first write after a fork copies only the open chunk. Nothing truncates it:
-//! "this game" reads all of it, for any card, printed or custom.
+//! "this game" reads all of it, for any card, printed or custom. A count a
+//! scenario states is a row too, standing in for the events it does not name.
 
 use std::sync::Arc;
 
@@ -75,6 +76,11 @@ pub enum RowFact {
     RemovedFromCombat { attacking: Option<AttackTarget> },
     /// CR 115.1: by a spell rather than an ability, controlled by `controller`.
     BecameTarget { by_spell: bool, controller: PlayerId },
+    /// `count` of `fact`, the row's player's on the row's turn, as a scenario
+    /// states it without naming the events (`setup-architecture.md` §5.1). A
+    /// row of the kind it stands in for: a count reads it, and a reader asking
+    /// which object did something finds none on it.
+    Stated { fact: TurnFact, count: u64 },
 }
 
 impl RowFact {
@@ -93,6 +99,7 @@ impl RowFact {
             RowFact::Blocked(_) => RowKind::Blocked,
             RowFact::RemovedFromCombat { .. } => RowKind::RemovedFromCombat,
             RowFact::BecameTarget { .. } => RowKind::BecameTarget,
+            RowFact::Stated { fact, .. } => kind_counted(fact),
         }
     }
 }
@@ -138,6 +145,7 @@ pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
             (row.player?, 1)
         }
         (TurnFact::AttackersDeclared, RowFact::Attacked(_)) => (row.player?, 1),
+        (asked, RowFact::Stated { fact, count }) if asked == fact => (row.player?, count),
         _ => return None,
     };
     Some((player, n))
@@ -325,8 +333,9 @@ impl HistoryLog {
     }
 
     /// `fact` summed over the rows of `turns` whose count is a player
-    /// `counts_for` admits. Turn 0's rows are none of them: the opening hands
-    /// are drawn before any turn (CR 103). Notes what it read into `note`.
+    /// `counts_for` admits, staying at `u64::MAX` past it. Turn 0's rows are
+    /// none of them: the opening hands are drawn before any turn (CR 103).
+    /// Notes what it read into `note`.
     pub(crate) fn count(
         &self,
         fact: TurnFact,
@@ -337,7 +346,9 @@ impl HistoryLog {
         note(GatedWalkInput::TurnNumber);
         note(GatedWalkInput::Rows(kind_counted(fact)));
         let sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
-            rows.filter_map(|row| counted(fact, row)).filter(|(player, _)| counts_for(*player)).map(|(_, n)| n).sum()
+            rows.filter_map(|row| counted(fact, row))
+                .filter(|(player, _)| counts_for(*player))
+                .fold(0, |sum: u64, (_, n)| sum.saturating_add(n))
         };
         match turns {
             TurnsCounted::Turn(0) => 0,

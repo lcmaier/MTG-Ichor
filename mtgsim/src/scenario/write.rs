@@ -8,7 +8,7 @@
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
-use crate::state::history_log::RowKind;
+use crate::state::history_log::{RowFact, TurnsCounted};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
@@ -181,7 +181,7 @@ impl<'g> Writer<'g> {
         }
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || history.count(active, TurnFact::AttackersDeclared, TurnsCounted::Turn(turn)) > 0;
         if *combat_had_attackers != (attacked && in_combat_from(*phase, StepType::DeclareAttackers))
             || *blockers_declared != (attacked && in_combat_from(*phase, StepType::DeclareBlockers))
         {
@@ -192,11 +192,11 @@ impl<'g> Writer<'g> {
         }
         // A board is played through its turn rather than saved with each
         // creature's part in the turn's combats.
-        let this_turn = || history.log.rows_of_turn(turn).map(|row| row.fact.kind());
-        if this_turn().any(|kind| matches!(kind, RowKind::Attacked | RowKind::Blocked | RowKind::RemovedFromCombat)) {
+        let this_turn = || history.log.rows_of_turn(turn).map(|row| row.fact);
+        if this_turn().any(|fact| matches!(fact, RowFact::Attacked(_) | RowFact::Blocked(_) | RowFact::RemovedFromCombat { .. })) {
             self.report("what creatures did in combat this turn (CR 508.4, 508.5)");
         }
-        if this_turn().any(|kind| kind == RowKind::BecameTarget) {
+        if this_turn().any(|fact| matches!(fact, RowFact::BecameTarget { .. })) {
             self.report("what became the target of a spell or ability this turn (CR 115.1)");
         }
         let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);
@@ -256,8 +256,9 @@ impl<'g> Writer<'g> {
                 }
             }
             for fact in every_turn_fact() {
-                let (this, last, game) =
-                    (history.this_turn(turn).count(fact), history.last_turn(turn).count(fact), history.this_game().count(fact));
+                let count = |turns| state.history.count(p, fact, turns);
+                let last_turn = TurnsCounted::Turn(turn.saturating_sub(1));
+                let (this, last, game) = (count(TurnsCounted::Turn(turn)), count(last_turn), count(TurnsCounted::From(1)));
                 for (span, count) in [(HistorySpan::ThisTurn, this), (HistorySpan::LastTurn, last)] {
                     if count > 0 {
                         facts.push(PlayerWord::History { player: p, span, fact, count });
@@ -296,15 +297,17 @@ impl<'g> Writer<'g> {
             began => began,
         };
         let histories = &state.history;
-        histories.players.iter().enumerate().any(|(q, theirs)| {
+        let since = histories.since_your_last_turn(player, turn);
+        (0..histories.players.len()).any(|q| {
             every_turn_fact().any(|fact| {
-                let (this, last) = (theirs.this_turn(turn).count(fact), theirs.last_turn(turn).count(fact));
+                let count = |turns| histories.count(q, fact, turns);
+                let (this, last) = (count(TurnsCounted::Turn(turn)), count(TurnsCounted::Turn(turn.saturating_sub(1))));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
                     Some(2) if ended > 0 => this.saturating_add(last),
-                    _ => theirs.this_game().count(fact),
+                    _ => count(TurnsCounted::From(1)),
                 };
-                histories.since_your_last_turn(player, q).count(fact) != derived
+                count(since) != derived
             })
         })
     }

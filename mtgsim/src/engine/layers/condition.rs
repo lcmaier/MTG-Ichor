@@ -323,10 +323,7 @@ fn history_holds(
     let turns = match span {
         HistorySpan::ThisTurn => TurnsCounted::Turn(now),
         HistorySpan::LastTurn => TurnsCounted::Turn(now.saturating_sub(1)),
-        HistorySpan::SinceYourLastTurn => match game.history.players.get(you).and_then(|yours| yours.your_last_turn(now)) {
-            Some(last) => TurnsCounted::From(last + 1),
-            None => TurnsCounted::From(1),
-        },
+        HistorySpan::SinceYourLastTurn => game.history.since_your_last_turn(you, now),
         HistorySpan::ThisGame => TurnsCounted::From(1),
     };
     let counts_for = |player: PlayerId| count.players.contains(you, player);

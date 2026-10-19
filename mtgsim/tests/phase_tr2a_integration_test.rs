@@ -3,7 +3,7 @@
 //!
 //! **What a trigger remembers across a turn.** TR-1 matched one window at a
 //! time. TR-2a gives the dispatcher a memory: every player's turn,
-//! materialized record by record (`TurnSummary`), and the two once-per-turn
+//! counted off the history log record by record, and the two once-per-turn
 //! gates, each written by the instant its rule names. The tests read that
 //! memory where the rules read it: at the trigger, at resolution, and a turn
 //! later.
@@ -35,7 +35,7 @@ use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType, StepType};
-use mtgsim::state::history::TurnSummary;
+use mtgsim::state::history_log::TurnsCounted;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
     setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -126,9 +126,25 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 // §3.10 — the turn summaries: one row per player per turn, one writer
 // ---------------------------------------------------------------------------
 
-/// This turn's row for `player`, all zeros when nothing was counted on it.
-fn this_turns_row(game: &GameState, player: PlayerId) -> TurnSummary {
-    game.history.players[player].this_turn(game.turn_number)
+/// `player`'s count of `fact` this turn.
+fn counted_this_turn(game: &GameState, player: PlayerId, fact: TurnFact) -> u64 {
+    game.history.count(player, fact, TurnsCounted::Turn(game.turn_number))
+}
+
+/// Whether every fact counts zero for `player` this turn.
+fn nothing_counted_this_turn(game: &GameState, player: PlayerId) -> bool {
+    let facts = [
+        TurnFact::SpellsCast,
+        TurnFact::CardsDrawn,
+        TurnFact::LifeGained,
+        TurnFact::LifeGainEvents,
+        TurnFact::LifeLost,
+        TurnFact::LifeLossEvents,
+        TurnFact::DamageTaken,
+        TurnFact::ControlledCreaturesDied,
+        TurnFact::AttackersDeclared,
+    ];
+    facts.into_iter().chain(CardType::ALL.map(TurnFact::SpellsCastOfType)).all(|fact| counted_this_turn(game, player, fact) == 0)
 }
 
 fn this_turn(players: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
@@ -190,9 +206,9 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
         (TurnFact::AttackersDeclared, 0),
     ];
     for (fact, n) in counted {
-        assert_eq!(this_turns_row(&game, 0).count(fact), n, "{fact:?}");
+        assert_eq!(counted_this_turn(&game, 0, fact), n, "{fact:?}");
     }
-    assert_eq!(this_turns_row(&game, 1), TurnSummary::ZERO);
+    assert!(nothing_counted_this_turn(&game, 1));
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
@@ -213,8 +229,8 @@ fn a_stolen_creatures_death_is_counted_on_its_controllers_row() {
     let destroy = GameAction::Destroy { object: bear };
     game.execute_action(destroy, &effect_ctx(&game, bear)).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
-    assert_eq!(this_turns_row(&game, 0).count(TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
-    assert_eq!(this_turns_row(&game, 1).count(TurnFact::ControlledCreaturesDied), 0, "its owner did not");
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
+    assert_eq!(counted_this_turn(&game, 1, TurnFact::ControlledCreaturesDied), 0, "its owner did not");
 }
 
 /// Damage dealt to a permanent is not dealt to its controller (CR 120.3):
@@ -233,7 +249,7 @@ fn damage_to_a_permanent_is_not_damage_to_its_controller() {
         source_lki: None,
     };
     game.execute_action(damage, &test_ctx()).unwrap();
-    assert_eq!(this_turns_row(&game, 0), TurnSummary::ZERO);
+    assert!(nothing_counted_this_turn(&game, 0));
 }
 
 /// A {1} 1/1 artifact creature fixture.
@@ -257,11 +273,10 @@ fn a_spell_cast_from_hand_counts_once_and_under_each_of_its_types() {
     game.cast_spell(0, mite, &dp).expect("cast from an exact pool");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
 
-    let row = this_turns_row(&game, 0);
-    assert_eq!(row.count(TurnFact::SpellsCast), 1);
-    assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Artifact)), 1);
-    assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Creature)), 1);
-    assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Instant)), 0);
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCast), 1);
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Artifact)), 1);
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Creature)), 1);
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Instant)), 0);
 }
 
 /// CR 103.5's opening hands are drawn before the first turn begins, so no
@@ -272,7 +287,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     let mut game = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     game.setup(&test_dp()).unwrap();
     for player in 0..2 {
-        assert_eq!(game.state.history.players[player].this_game().count(TurnFact::CardsDrawn), 0);
+        assert_eq!(game.state.history.count(player, TurnFact::CardsDrawn, TurnsCounted::From(1)), 0);
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
@@ -280,7 +295,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     let turn = game.state.turn_number;
     assert_eq!(
-        game.state.history.players[1].this_turn(turn).count(TurnFact::CardsDrawn),
+        game.state.history.count(1, TurnFact::CardsDrawn, TurnsCounted::Turn(turn)),
         1,
         "the second turn's draw step"
     );
@@ -891,7 +906,7 @@ fn one_lifelink_source_dealing_damage_to_two_recipients_at_once_gains_life_once(
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life_total(&game, 0), 25);
-    assert_eq!(this_turns_row(&game, 0).count(TurnFact::LifeGainEvents), 1, "one event, not one per recipient");
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::LifeGainEvents), 1, "one event, not one per recipient");
     assert_eq!(pending_triggers(&game), 1);
     resolve_all(&mut game);
     assert_eq!(plus_one_counters(&game, keeper), 5, "that many is the whole gain");
@@ -910,7 +925,7 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life_total(&game, 0), 25);
-    assert_eq!(this_turns_row(&game, 0).count(TurnFact::LifeGainEvents), 2);
+    assert_eq!(counted_this_turn(&game, 0, TurnFact::LifeGainEvents), 2);
     assert_eq!(pending_triggers(&game), 2);
 }
 

@@ -9,6 +9,8 @@ use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered
 use super::error::{ScenarioError, ScenarioErrorKind};
 use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{draw_step_skipped, in_combat_from, position_word};
+use crate::state::history_log::{HistoryRow, RowFact, TurnsCounted};
+use crate::state::layer_memo::GatedWalkInput;
 use crate::cards::registry::CardRegistry;
 use crate::engine::resolve::ResolvedTarget;
 use crate::objects::card_data::{AbilityType, CardData};
@@ -433,10 +435,14 @@ impl<'s> Loader<'s> {
             let back = (turn - t) as usize % in_game.len();
             let player = in_game[(place + in_game.len() - back) % in_game.len()];
             self.state.begin_turn(t, player);
-            self.state.history.count_turn_began(t, player);
+            self.state.history.players[player].record_own_turn(t);
             for &(player, on_turn, fact, count) in &rows {
                 if on_turn == t && count > 0 {
-                    self.state.history.players[player].add(t, fact, count);
+                    let seq = self.state.events.next_seq();
+                    let fact = RowFact::Stated { fact, count };
+                    let row = HistoryRow { seq, turn: t, combat: 0, player: Some(player), object: None, frame: None, fact };
+                    self.state.history.log.push(row);
+                    self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
                 }
             }
         }
@@ -448,7 +454,7 @@ impl<'s> Loader<'s> {
         self.state.skip_first_draw = self.scenario.step.step == Some(StepType::Upkeep) && draw_step_skipped(&self.state, turn);
         // ORDER-FREE: whether any is attacking.
         let attacked = self.state.battlefield.values().any(|e| e.attacking.is_some())
-            || self.state.history.players[active].this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
+            || self.state.history.count(active, TurnFact::AttackersDeclared, TurnsCounted::Turn(turn)) > 0;
         self.state.combat_had_attackers = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
         let skipped_without_attackers = matches!(
@@ -481,10 +487,9 @@ impl<'s> Loader<'s> {
         for located in &self.scenario.player_words {
             let PlayerWord::DrawnThisDrawStep { player, count } = located.value else { continue };
             let player = self.checked_player(player, located.line)?;
-            let history = &self.state.history.players[player];
             let message = if !self.state.in_own_draw_step(player) {
                 "a player draws in a draw step only during their own (CR 504)"
-            } else if count > history.this_turn(turn).count(TurnFact::CardsDrawn) {
+            } else if count > self.state.history.count(player, TurnFact::CardsDrawn, TurnsCounted::Turn(turn)) {
                 "more cards drawn this draw step than this turn: state `this turn: cards drawn N`"
             } else {
                 self.state.history.players[player].draw_step_drawn(count);

@@ -293,7 +293,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
         game.execute_action(GameAction::LoseLife { player, amount, damage_source: None }, &test_ctx())
             .expect("the loss");
     };
-    let since = |game: &GameState, fact| game.history.since_your_last_turn(0, 0).count(fact);
+    let since = |game: &GameState, fact| game.history.count(0, fact, game.history.since_your_last_turn(0, game.turn_number));
 
     let mut game = setup_game(4);
     let regent = put_on_battlefield(&mut game, regent, 0);

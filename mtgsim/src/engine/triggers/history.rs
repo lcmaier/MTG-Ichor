@@ -14,9 +14,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history::PlayerHistory;
 use crate::state::history_log::{HistoryRow, RowFact, RowKind, TurnsCounted};
-use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
@@ -46,20 +44,15 @@ struct RowDraft {
     fact: RowFact,
 }
 
-/// What one record adds to whose row, read before anything is written so the
-/// read can take the layer walk.
+/// What one record changes beside its rows, or has a place among.
 enum HistoryUpdate {
     TurnBegan { player: PlayerId, turn: u32 },
     AbilityResolved { identity: AbilityIdentity },
-    SpellCast { caster: PlayerId, types: Vec<CardType> },
+    SpellCast { caster: PlayerId },
     CardDrawn { player: PlayerId },
     DrawStepBegan { player: PlayerId },
-    LifeGained { player: PlayerId, amount: u64 },
-    LifeLost { player: PlayerId, amount: u64 },
-    DamageTaken { player: PlayerId, amount: u64 },
-    CreatureDied { controller: PlayerId },
-    /// The count is the attacking player's; the attacks are the log's rows.
-    AttackersDeclared { player: PlayerId, count: u64 },
+    LifeGained { player: PlayerId },
+    LifeLost { player: PlayerId },
     CombatBegan,
 }
 
@@ -70,25 +63,23 @@ impl HistoryUpdate {
     /// kind no trigger reads by place.
     fn placed_among(&self) -> Option<(PlayerId, TurnFact)> {
         Some(match self {
-            HistoryUpdate::SpellCast { caster, .. } => (*caster, TurnFact::SpellsCast),
+            HistoryUpdate::SpellCast { caster } => (*caster, TurnFact::SpellsCast),
             HistoryUpdate::CardDrawn { player } => (*player, TurnFact::CardsDrawn),
-            HistoryUpdate::LifeGained { player, .. } => (*player, TurnFact::LifeGainEvents),
-            HistoryUpdate::LifeLost { player, .. } => (*player, TurnFact::LifeLossEvents),
+            HistoryUpdate::LifeGained { player } => (*player, TurnFact::LifeGainEvents),
+            HistoryUpdate::LifeLost { player } => (*player, TurnFact::LifeLossEvents),
             HistoryUpdate::TurnBegan { .. }
             | HistoryUpdate::AbilityResolved { .. }
             | HistoryUpdate::DrawStepBegan { .. }
-            | HistoryUpdate::DamageTaken { .. }
-            | HistoryUpdate::CreatureDied { .. }
-            | HistoryUpdate::AttackersDeclared { .. }
             | HistoryUpdate::CombatBegan => return None,
         })
     }
 }
 
 impl GameState {
-    /// Count `window`'s records the summaries have not counted yet, and write
-    /// on each where it falls in its turn and, for a draw, in its player's
-    /// draw step (`EventRecord::place_in_turn`, `place_in_draw_step`).
+    /// Write the log's rows for `window`'s records the history has not
+    /// counted yet, and on each record where it falls in its turn and, for a
+    /// draw, in its player's draw step (`EventRecord::place_in_turn`,
+    /// `place_in_draw_step`).
     pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
         let updates: Vec<(EventSeq, Option<HistoryUpdate>)> = window
             .iter()
@@ -101,7 +92,6 @@ impl GameState {
         // Records of this window already placed, whose rows are written after
         // the loop: a second gain in one event is the second (CR 119.9).
         let mut placed: Vec<(PlayerId, TurnFact)> = Vec::new();
-        let mut wrote = false;
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
             if let Some(update) = update {
@@ -109,18 +99,11 @@ impl GameState {
                 in_turn = self.place_in_turn(&update, &placed);
                 placed.extend(update.placed_among());
                 in_draw_step = self.place_in_draw_step(&update);
-                wrote = true;
             }
             moments.push((seq, self.turn_number, self.history.log.combats_this_turn()));
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
-        if wrote {
-            self.bump_layer_epoch_if_read(GatedWalkInput::TurnSummaries);
-        }
-        // The rows read their objects after every count, as the window left
-        // them (CR 603.10): a static that reads this turn's history already
-        // sees the record that changed it, and a frame taken before the bump
-        // above would be walked again by the next reader.
+        // The rows read their objects as the window left them (CR 603.10).
         let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
         for &(seq, ..) in &moments {
             self.draft_history_rows(seq, window, &mut drafts);
@@ -147,80 +130,39 @@ impl GameState {
         }
     }
 
-    /// Write one record's update: the game's history, a player's row, or
-    /// both.
+    /// Write what one record changes beside its rows: a player's turn, an
+    /// ability's resolutions, the draw step's count, the turn's combats.
     fn count(&mut self, update: &HistoryUpdate) {
-        let turn = self.turn_number;
         match update {
-            HistoryUpdate::TurnBegan { player, turn: began } => self.history.count_turn_began(*began, *player),
+            HistoryUpdate::TurnBegan { player, turn } => {
+                if let Some(history) = self.history.players.get_mut(*player) {
+                    history.record_own_turn(*turn);
+                }
+            }
             HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
                 *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
             }
-            HistoryUpdate::SpellCast { caster, types } => {
-                if let Some(row) = self.row_to_count_on(*caster) {
-                    for &card_type in types {
-                        row.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
-                    }
-                    row.add(turn, TurnFact::SpellsCast, 1);
-                }
-            }
-            HistoryUpdate::CardDrawn { player } => {
-                let in_draw_step = self.in_own_draw_step(*player);
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.add(turn, TurnFact::CardsDrawn, 1);
-                    if in_draw_step {
-                        row.drew_in_draw_step();
-                    }
+            HistoryUpdate::CardDrawn { player } if self.turn_number != 0 && self.in_own_draw_step(*player) => {
+                if let Some(history) = self.history.players.get_mut(*player) {
+                    history.drew_in_draw_step();
                 }
             }
             // CR 504: the draw step's count starts over.
             HistoryUpdate::DrawStepBegan { player } => {
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.draw_step_drawn(0);
-                }
-            }
-            HistoryUpdate::LifeGained { player, amount } => {
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.add(turn, TurnFact::LifeGained, *amount);
-                    row.add(turn, TurnFact::LifeGainEvents, 1);
-                }
-            }
-            HistoryUpdate::LifeLost { player, amount } => {
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.add(turn, TurnFact::LifeLost, *amount);
-                    row.add(turn, TurnFact::LifeLossEvents, 1);
-                }
-            }
-            HistoryUpdate::DamageTaken { player, amount } => {
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.add(turn, TurnFact::DamageTaken, *amount);
-                }
-            }
-            HistoryUpdate::CreatureDied { controller } => {
-                if let Some(row) = self.row_to_count_on(*controller) {
-                    row.add(turn, TurnFact::ControlledCreaturesDied, 1);
-                }
-            }
-            HistoryUpdate::AttackersDeclared { player, count } => {
-                if let Some(row) = self.row_to_count_on(*player) {
-                    row.add(turn, TurnFact::AttackersDeclared, *count);
+                if let Some(history) = self.history.players.get_mut(*player) {
+                    history.draw_step_drawn(0);
                 }
             }
             HistoryUpdate::CombatBegan => {
                 self.history.log.combat_began();
                 self.bump_layer_epoch_if_read(GatedWalkInput::CombatCount);
             }
+            HistoryUpdate::SpellCast { .. }
+            | HistoryUpdate::CardDrawn { .. }
+            | HistoryUpdate::LifeGained { .. }
+            | HistoryUpdate::LifeLost { .. } => {}
         }
-    }
-
-    /// `player`'s row of the turn in progress, or `None` before the first
-    /// turn: the opening hands are drawn before any turn, on no row (CR 103).
-    fn row_to_count_on(&mut self, player: PlayerId) -> Option<&mut PlayerHistory> {
-        if self.turn_number == 0 {
-            return None;
-        }
-        self.history.players.get_mut(player)
     }
 
     /// The counted record's place among its player's records of its kind this
@@ -231,9 +173,9 @@ impl GameState {
         if self.turn_number == 0 {
             return None;
         }
-        let logged = self.history.log.count(fact, TurnsCounted::Turn(self.turn_number), &|p| p == player, &|_| {});
+        let logged = self.history.count(player, fact, TurnsCounted::Turn(self.turn_number));
         let earlier = placed_this_window.iter().filter(|&&placed| placed == (player, fact)).count() as u64;
-        Some(logged + earlier + 1)
+        Some(logged.saturating_add(earlier).saturating_add(1))
     }
 
     /// A counted draw's place in its player's own draw step (CR 504).
@@ -376,42 +318,19 @@ impl GameState {
         }
     }
 
-    /// What `seq` adds, or `None` for a record no summary counts.
+    /// What `seq` changes beside its rows, or `None` for a record that
+    /// changes nothing else and has no place.
     fn history_update(&self, seq: EventSeq) -> Option<HistoryUpdate> {
         let record = self.events.record(seq)?;
         Some(match &record.event {
             GameEvent::TurnBegin { player, turn_number } => HistoryUpdate::TurnBegan { player: *player, turn: *turn_number },
             GameEvent::AbilityResolved { identity, .. } => HistoryUpdate::AbilityResolved { identity: *identity },
-            // CR 601.2i: the spell is cast, and on the stack, as this record
-            // is dispatched, so its types are the ones it was cast with.
-            GameEvent::SpellCast { spell_id, caster } => {
-                let types: Vec<CardType> = compute_characteristics(self, *spell_id)
-                    .map(|chars| chars.types.iter().copied().collect())
-                    .unwrap_or_default();
-                HistoryUpdate::SpellCast { caster: *caster, types }
-            }
+            GameEvent::SpellCast { caster, .. } => HistoryUpdate::SpellCast { caster: *caster },
             GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },
             // CR 504: the draw step's count starts over.
             GameEvent::StepBegin { step: StepType::Draw, player } => HistoryUpdate::DrawStepBegan { player: *player },
-            GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
-                HistoryUpdate::LifeGained { player: *player_id, amount: (new - old) as u64 }
-            }
-            GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
-                HistoryUpdate::LifeLost { player: *player_id, amount: (old - new) as u64 }
-            }
-            GameEvent::DamageDealt { target: DamageTarget::Player(pid), amount, .. } => {
-                HistoryUpdate::DamageTaken { player: *pid, amount: *amount }
-            }
-            // CR 700.4's "dies", under whoever controlled the creature as it did.
-            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(lki), .. }
-                if lki.chars().types.contains(&CardType::Creature) =>
-            {
-                HistoryUpdate::CreatureDied { controller: lki.chars().controller }
-            }
-            // CR 508.1: the active player's count; the attacks are the log's.
-            GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
-            }
+            GameEvent::LifeChanged { player_id, old, new, .. } if new > old => HistoryUpdate::LifeGained { player: *player_id },
+            GameEvent::LifeChanged { player_id, old, new, .. } if new < old => HistoryUpdate::LifeLost { player: *player_id },
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
             _ => return None,
         })

@@ -781,12 +781,10 @@ mod tests {
     }
 
     #[test]
-    fn every_turn_fact_has_a_word_and_a_slot() {
+    fn every_turn_fact_has_a_word() {
         let facts: Vec<TurnFact> = every_turn_fact().collect();
-        let mut slots: Vec<usize> = facts.iter().map(|f| f.slot()).collect();
-        slots.sort();
-        slots.dedup();
-        assert_eq!(slots.len(), TurnFact::COUNT);
+        assert!(facts.iter().enumerate().all(|(i, fact)| !facts[..i].contains(fact)), "each fact once");
+        assert_eq!(facts.len(), TurnFact::COUNT);
         let mut words: Vec<String> = facts.into_iter().map(turn_fact_word).collect();
         words.sort();
         words.dedup();

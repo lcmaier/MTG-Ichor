@@ -10,6 +10,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_state::{PhaseType, StepType};
 use mtgsim::types::effects::CounterType;
+use mtgsim::state::history_log::TurnsCounted;
 use mtgsim::types::history::TurnFact;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -167,17 +168,17 @@ fn history_rows_and_since_your_last_turn() {
          player 0 this turn: life gained 2\nplayer 0 last turn: life gained 3, cards drawn 1\n\
          player 0 this game: life gained 10\nplayer 1 this turn: creature spells cast 1, spells cast 1",
     );
-    let (state, now) = (&game.state, 4);
-    let history = |p: usize| &state.history.players[p];
-    assert_eq!(history(0).this_turn(now).count(TurnFact::LifeGained), 2);
-    assert_eq!(history(0).last_turn(now).count(TurnFact::LifeGained), 3);
-    assert_eq!(history(0).this_game().count(TurnFact::LifeGained), 10);
-    assert_eq!(history(0).this_game().count(TurnFact::CardsDrawn), 1, "this game defaults to the two rows' sum");
-    assert_eq!(history(1).this_turn(now).count(TurnFact::SpellsCastOfType(mtgsim::types::card_types::CardType::Creature)), 1);
+    let (history, now) = (&game.state.history, 4);
+    assert_eq!(history.count(0, TurnFact::LifeGained, TurnsCounted::Turn(now)), 2);
+    assert_eq!(history.count(0, TurnFact::LifeGained, TurnsCounted::Turn(now - 1)), 3);
+    assert_eq!(history.count(0, TurnFact::LifeGained, TurnsCounted::From(1)), 10);
+    assert_eq!(history.count(0, TurnFact::CardsDrawn, TurnsCounted::From(1)), 1, "this game defaults to the two rows' sum");
+    let creature_spells = TurnFact::SpellsCastOfType(mtgsim::types::card_types::CardType::Creature);
+    assert_eq!(history.count(1, creature_spells, TurnsCounted::Turn(now)), 1);
     // Player 0 took turn 3, which ended as turn 4 began; player 1's last
     // turn, turn 2, ended as turn 3 began.
-    assert_eq!(state.history.since_your_last_turn(0, 0).count(TurnFact::LifeGained), 2);
-    assert_eq!(state.history.since_your_last_turn(1, 0).count(TurnFact::LifeGained), 5);
+    assert_eq!(history.count(0, TurnFact::LifeGained, history.since_your_last_turn(0, now)), 2);
+    assert_eq!(history.count(0, TurnFact::LifeGained, history.since_your_last_turn(1, now)), 5);
     assert!(refused("player 0 last turn: cards drawn 1").message.contains("turn 1 has no last turn"));
     assert!(refused("turn 2\nplayer 0 this game: cards drawn 1").message.contains("no turn before last"));
 }
@@ -198,8 +199,10 @@ fn history_counts_past_what_a_row_holds_stay_at_the_most() {
         "turn 3\nplayer 0 this turn: spells cast {most}, spells cast 1\n\
          player 0 last turn: spells cast {most}, spells cast 1\nplayer 0 this game: spells cast {most}"
     ));
-    let history = &game.state.history.players[0];
-    assert_eq!((history.this_turn(3).count(TurnFact::SpellsCast), history.this_game().count(TurnFact::SpellsCast)), (most, most));
+    let history = &game.state.history;
+    let (this_turn, this_game) =
+        (history.count(0, TurnFact::SpellsCast, TurnsCounted::Turn(3)), history.count(0, TurnFact::SpellsCast, TurnsCounted::From(1)));
+    assert_eq!((this_turn, this_game), (most, most));
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains(&format!("player 0 this turn: spells cast {most}")), "{written}");
 }
@@ -218,11 +221,12 @@ fn a_turn_in_the_billions_reads_as_a_small_one() {
         ))
     };
     let reads = |game: &Game, turn: u32| {
-        let history = |p: usize| &game.state.history.players[p];
+        let history = &game.state.history;
         let mut counts = Vec::new();
         for (p, fact) in (0..4).flat_map(|p| [(p, TurnFact::CardsDrawn), (p, TurnFact::LifeLost)]) {
-            counts.push([history(p).this_turn(turn).count(fact), history(p).last_turn(turn).count(fact), history(p).this_game().count(fact)]);
-            counts.extend((0..4).map(|q| [game.state.history.since_your_last_turn(p, q).count(fact), 0, 0]));
+            let count = |turns| history.count(p, fact, turns);
+            counts.push([count(TurnsCounted::Turn(turn)), count(TurnsCounted::Turn(turn - 1)), count(TurnsCounted::From(1))]);
+            counts.extend((0..4).map(|q| [history.count(q, fact, history.since_your_last_turn(p, turn)), 0, 0]));
         }
         let sick: Vec<bool> = game.state.battlefield_ids_ordered().into_iter().map(|id| has_summoning_sickness(&game.state, id)).collect();
         (counts, sick)
