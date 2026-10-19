@@ -21,6 +21,7 @@
 //! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
+use crate::state::history_log::TurnsCounted;
 use crate::engine::layers::board::{Board, FrameRef};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
@@ -208,23 +209,15 @@ pub(super) fn holds(
         // A turn summary's count (§3.10), for "you" as every leaf here reads it:
         // the source's controller. The counts are off `GameState`.
         Condition::ThisTurn(count) => {
-            board.note_gated_read(GatedWalkInput::TurnSummaries);
-            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index, locked_you)
         }
         Condition::LastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::TurnSummaries);
-            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::SinceYourLastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::TurnSummaries);
-            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::ThisGame(count) => {
-            board.note_gated_read(GatedWalkInput::TurnSummaries);
-            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
         }
         // CR 122.7, 714.2b: some record of the trigger's left the count at
@@ -327,23 +320,17 @@ fn history_holds(
         return false;
     };
     let now = game.turn_number;
-    let yours = game.history.players.get(you);
-    let total: u64 = game
-        .history
-        .players
-        .iter()
-        .enumerate()
-        .filter(|(player, _)| count.players.contains(you, *player))
-        .map(|(player, theirs)| {
-            let counts = match (span, yours) {
-                (HistorySpan::ThisTurn, _) => theirs.this_turn(now),
-                (HistorySpan::LastTurn, _) => theirs.last_turn(now),
-                (HistorySpan::SinceYourLastTurn, Some(_)) => game.history.since_your_last_turn(you, player),
-                (HistorySpan::ThisGame, _) | (HistorySpan::SinceYourLastTurn, None) => theirs.this_game(),
-            };
-            counts.count(count.fact)
-        })
-        .sum();
+    let turns = match span {
+        HistorySpan::ThisTurn => TurnsCounted::Turn(now),
+        HistorySpan::LastTurn => TurnsCounted::Turn(now.saturating_sub(1)),
+        HistorySpan::SinceYourLastTurn => match game.history.players.get(you).and_then(|yours| yours.your_last_turn(now)) {
+            Some(last) => TurnsCounted::From(last + 1),
+            None => TurnsCounted::From(1),
+        },
+        HistorySpan::ThisGame => TurnsCounted::From(1),
+    };
+    let counts_for = |player: PlayerId| count.players.contains(you, player);
+    let total = game.history.log.count(count.fact, turns, &counts_for, &|input| board.note_gated_read(input));
     count.is.met_by(total)
 }
 

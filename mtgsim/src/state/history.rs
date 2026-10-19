@@ -65,6 +65,8 @@ pub struct PlayerHistory {
     this_game: TurnSummary,
     /// The turn this player most recently began.
     own_turn: Option<u32>,
+    /// The turn this player began before that one.
+    previous_own_turn: Option<u32>,
     /// What "since your last turn" subtracts: every player's `this_game`, by
     /// `PlayerId`, as it stood when this player's most recent turn ended,
     /// taken as the next turn began. The span crosses the other seats' turns,
@@ -92,6 +94,7 @@ impl PlayerHistory {
             last_turn: TurnSummary::ZERO,
             this_game: TurnSummary::ZERO,
             own_turn: None,
+            previous_own_turn: None,
             at_your_last_turn: Arc::from([]),
             this_draw_step: 0,
         }
@@ -150,7 +153,17 @@ impl PlayerHistory {
     }
 
     pub(crate) fn record_own_turn(&mut self, turn: u32) {
-        self.own_turn = Some(turn);
+        if self.own_turn != Some(turn) {
+            self.previous_own_turn = self.own_turn;
+            self.own_turn = Some(turn);
+        }
+    }
+
+    /// "Your last turn" on turn `now`: this player's most recent turn to
+    /// have ended, so on their own turn the one before. `None` before any
+    /// has.
+    pub fn your_last_turn(&self, now: u32) -> Option<u32> {
+        if self.own_turn == Some(now) { self.previous_own_turn } else { self.own_turn }
     }
 
     /// The cards drawn in this player's draw step in progress.

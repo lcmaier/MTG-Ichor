@@ -8,6 +8,7 @@
 //!
 //! This replaces v1's scattered `to_battlefield()`, `to_graveyard()`, etc. methods.
 
+use crate::state::history_log::TurnsCounted;
 use crate::engine::actions::{ActionContext, ZoneChangeAct};
 use crate::events::cause::SpecialAction;
 use crate::events::event::GameEvent;
@@ -313,8 +314,9 @@ impl GameState {
         if now == 0 {
             return DrawOrdinals::BEFORE_ANY_TURN;
         }
+        let drawn = self.history.log.count(TurnFact::CardsDrawn, TurnsCounted::Turn(now), &|p| p == player, &|_| {});
         DrawOrdinals {
-            in_turn: Some(history.this_turn(now).count(TurnFact::CardsDrawn) + 1),
+            in_turn: Some(drawn + 1),
             in_draw_step: self.in_own_draw_step(player).then(|| history.this_draw_step() + 1),
         }
     }

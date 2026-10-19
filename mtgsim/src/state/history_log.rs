@@ -14,6 +14,8 @@ use crate::engine::targeting::TargetRef;
 use crate::events::event::EventSeq;
 use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
+use crate::types::card_types::CardType;
+use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
@@ -113,6 +115,54 @@ pub enum RowKind {
 
 impl RowKind {
     pub const COUNT: usize = 11;
+}
+
+/// What `fact` counts in `row`, and whose count it is: the caster's, the
+/// drawer's, the player whose life moved, the player dealt the damage, who
+/// controlled the creature as it died, the player whose creatures attacked.
+/// `None` for a row the fact does not count.
+pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
+    let has_type = |card_type: CardType| row.frame.as_ref().is_some_and(|chars| chars.types.contains(&card_type));
+    let (player, n) = match (fact, row.fact) {
+        (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (row.player?, 1),
+        (TurnFact::SpellsCastOfType(card_type), RowFact::Cast { .. }) if has_type(card_type) => (row.player?, 1),
+        (TurnFact::LifeGained, RowFact::GainedLife(n)) | (TurnFact::LifeLost, RowFact::LostLife(n)) => (row.player?, n),
+        (TurnFact::LifeGainEvents, RowFact::GainedLife(_)) | (TurnFact::LifeLossEvents, RowFact::LostLife(_)) => {
+            (row.player?, 1)
+        }
+        (TurnFact::DamageTaken, RowFact::DealtDamage { to: ObjectOrPlayer::Player(player), amount, .. }) => (player, amount),
+        // CR 700.4's "dies", under whoever controlled the creature as it did.
+        (TurnFact::ControlledCreaturesDied, RowFact::LeftZone { from: Zone::Battlefield, to: Zone::Graveyard, .. })
+            if has_type(CardType::Creature) =>
+        {
+            (row.player?, 1)
+        }
+        (TurnFact::AttackersDeclared, RowFact::Attacked(_)) => (row.player?, 1),
+        _ => return None,
+    };
+    Some((player, n))
+}
+
+/// The kind of row `fact` counts, which a count notes it read.
+pub fn kind_counted(fact: TurnFact) -> RowKind {
+    match fact {
+        TurnFact::SpellsCast | TurnFact::SpellsCastOfType(_) => RowKind::Cast,
+        TurnFact::CardsDrawn => RowKind::Drew,
+        TurnFact::LifeGained | TurnFact::LifeGainEvents | TurnFact::LifeLost | TurnFact::LifeLossEvents => RowKind::Life,
+        TurnFact::DamageTaken => RowKind::DealtDamage,
+        TurnFact::ControlledCreaturesDied => RowKind::LeftZone,
+        TurnFact::AttackersDeclared => RowKind::Attacked,
+    }
+}
+
+/// Which turns a count of the log spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnsCounted {
+    /// One turn: "this turn", "last turn".
+    Turn(u32),
+    /// This turn and every turn since `from`: "since your last turn", and
+    /// "this game" from turn 1.
+    From(u32),
 }
 
 /// How much of the turn a question about its combats spans: the whole turn,
@@ -272,6 +322,28 @@ impl HistoryLog {
             }
             _ => None,
         })
+    }
+
+    /// `fact` summed over the rows of `turns` whose count is a player
+    /// `counts_for` admits. Turn 0's rows are none of them: the opening hands
+    /// are drawn before any turn (CR 103). Notes what it read into `note`.
+    pub(crate) fn count(
+        &self,
+        fact: TurnFact,
+        turns: TurnsCounted,
+        counts_for: &dyn Fn(PlayerId) -> bool,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> u64 {
+        note(GatedWalkInput::TurnNumber);
+        note(GatedWalkInput::Rows(kind_counted(fact)));
+        let sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
+            rows.filter_map(|row| counted(fact, row)).filter(|(player, _)| counts_for(*player)).map(|(_, n)| n).sum()
+        };
+        match turns {
+            TurnsCounted::Turn(0) => 0,
+            TurnsCounted::Turn(turn) => sum(&mut self.rows_of_turn(turn)),
+            TurnsCounted::From(from) => sum(&mut self.rows_newest_first().take_while(|row| row.turn >= from.max(1))),
+        }
     }
 
     pub fn len(&self) -> usize {

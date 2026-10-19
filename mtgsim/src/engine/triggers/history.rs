@@ -15,7 +15,7 @@ use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history::PlayerHistory;
-use crate::state::history_log::{HistoryRow, RowFact, RowKind};
+use crate::state::history_log::{HistoryRow, RowFact, RowKind, TurnsCounted};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
@@ -98,12 +98,16 @@ impl GameState {
         // Each counted record's turn and combat, taken after its own count so
         // a combat's first rows carry its number.
         let mut moments: Vec<(EventSeq, u32, u32)> = Vec::with_capacity(updates.len());
+        // Records of this window already placed, whose rows are written after
+        // the loop: a second gain in one event is the second (CR 119.9).
+        let mut placed: Vec<(PlayerId, TurnFact)> = Vec::new();
         let mut wrote = false;
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
             if let Some(update) = update {
                 self.count(&update);
-                in_turn = self.place_in_turn(&update);
+                in_turn = self.place_in_turn(&update, &placed);
+                placed.extend(update.placed_among());
                 in_draw_step = self.place_in_draw_step(&update);
                 wrote = true;
             }
@@ -220,13 +224,16 @@ impl GameState {
     }
 
     /// The counted record's place among its player's records of its kind this
-    /// turn, 1 for the first, for the kinds a trigger reads by place.
-    fn place_in_turn(&self, update: &HistoryUpdate) -> Option<u64> {
+    /// turn, 1 for the first, for the kinds a trigger reads by place: the
+    /// log's rows of the turn, this window's earlier records, then it.
+    fn place_in_turn(&self, update: &HistoryUpdate, placed_this_window: &[(PlayerId, TurnFact)]) -> Option<u64> {
         let (player, fact) = update.placed_among()?;
         if self.turn_number == 0 {
             return None;
         }
-        Some(self.history.players.get(player)?.this_turn(self.turn_number).count(fact))
+        let logged = self.history.log.count(fact, TurnsCounted::Turn(self.turn_number), &|p| p == player, &|_| {});
+        let earlier = placed_this_window.iter().filter(|&&placed| placed == (player, fact)).count() as u64;
+        Some(logged + earlier + 1)
     }
 
     /// A counted draw's place in its player's own draw step (CR 504).
