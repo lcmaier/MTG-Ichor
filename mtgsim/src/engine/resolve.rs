@@ -2448,6 +2448,7 @@ impl GameState {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
+            AmountExpr::History(span, count) => Ok(self.history_total(count, *span, _ctx.controller, _ctx.source)),
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }

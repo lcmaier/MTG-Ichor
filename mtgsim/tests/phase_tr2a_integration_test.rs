@@ -144,11 +144,17 @@ fn nothing_counted_this_turn(game: &GameState, player: PlayerId) -> bool {
         TurnFact::ControlledCreaturesDied,
         TurnFact::AttackersDeclared,
     ];
-    facts.into_iter().chain(CardType::ALL.map(TurnFact::SpellsCastOfType)).all(|fact| counted_this_turn(game, player, fact) == 0)
+    facts.into_iter().all(|fact| counted_this_turn(game, player, fact) == 0)
+}
+
+/// "If you've cast a [type] spell this turn".
+fn spells_of_type_this_turn(card_type: CardType) -> Condition {
+    let spells = HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: Some(Box::new(ObjectFilter::ByType(card_type))) };
+    Condition::ThisTurn(spells, CountIs::AtLeast(1))
 }
 
 fn this_turn(players: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
-    Condition::ThisTurn(HistoryCount { players, fact, is })
+    Condition::ThisTurn(HistoryCount { players, fact, of: None }, is)
 }
 
 /// `player` gains control of `victim` the way Act of Treason's resolution
@@ -274,9 +280,14 @@ fn a_spell_cast_from_hand_counts_once_and_under_each_of_its_types() {
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
 
     assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCast), 1);
-    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Artifact)), 1);
-    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Creature)), 1);
-    assert_eq!(counted_this_turn(&game, 0, TurnFact::SpellsCastOfType(CardType::Instant)), 0);
+    let cast_of = |card_type| {
+        let spells = HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: Some(Box::new(ObjectFilter::ByType(card_type))) };
+        Condition::ThisTurn(spells, CountIs::Exactly(1))
+    };
+    let holds = |condition: &Condition| settled_holds(condition, &game, mite, None, ConditionReferents::NONE);
+    assert!(holds(&cast_of(CardType::Artifact)));
+    assert!(holds(&cast_of(CardType::Creature)));
+    assert!(!holds(&cast_of(CardType::Instant)));
 }
 
 /// CR 103.5's opening hands are drawn before the first turn begins, so no
@@ -997,8 +1008,8 @@ fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
     cast_and_drain(&mut game, 0, free_spell("Clockwork Pup", CardType::Creature));
 
     let both_this_turn = Condition::All(vec![
-        this_turn(PlayerSet::You, TurnFact::SpellsCastOfType(CardType::Creature), CountIs::AtLeast(1)),
-        this_turn(PlayerSet::You, TurnFact::SpellsCastOfType(CardType::Artifact), CountIs::AtLeast(1)),
+        spells_of_type_this_turn(CardType::Creature),
+        spells_of_type_this_turn(CardType::Artifact),
     ]);
     let tinkers_accord = enchantment_with(
         "Tinker's Accord",
@@ -1091,11 +1102,8 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
 /// a loss on your own previous turn does not.
 #[test]
 fn since_your_last_turn_spans_the_turns_after_it() {
-    let quiet = Condition::SinceYourLastTurn(HistoryCount {
-        players: PlayerSet::You,
-        fact: TurnFact::LifeLost,
-        is: CountIs::AtMost(0),
-    });
+    let lost = HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeLost, of: None };
+    let quiet = Condition::SinceYourLastTurn(lost, CountIs::AtMost(0));
     let steady_vigil = || {
         enchantment_with(
             "Steady Vigil",
@@ -1138,11 +1146,10 @@ fn this_game_sums_every_turn_so_far() {
             .card_type(CardType::Sorcery)
             .mana_cost(ManaCost::build(&[], 0))
             .ability(spell_ability(Effect::Conditional(
-                Condition::ThisGame(HistoryCount {
-                    players: PlayerSet::You,
-                    fact: TurnFact::SpellsCast,
-                    is: CountIs::AtMost(1),
-                }),
+                Condition::ThisGame(
+                    HistoryCount { players: PlayerSet::You, fact: TurnFact::SpellsCast, of: None },
+                    CountIs::AtMost(1),
+                ),
                 Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller)),
             )))
             .build()

@@ -17,7 +17,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectRef, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
 
@@ -104,6 +104,28 @@ impl RowFact {
     }
 }
 
+impl HistoryRow {
+    /// Whether the row's object, as its frame keeps it, satisfies `matches`,
+    /// asked with its id and that frame; a card a scenario named is in no
+    /// store, and is `ObjectId::UNASSIGNED`. A row with no frame answers no,
+    /// and a scenario's unnamed count is loud in a debug build: a card that
+    /// narrows it asks what the file did not say (`setup-architecture.md`
+    /// §5.1).
+    pub(crate) fn frame_matches(&self, matches: impl FnOnce(ObjectId, &EffectiveCharacteristics) -> bool) -> bool {
+        match &self.frame {
+            Some(frame) => matches(self.object.map_or(ObjectId::UNASSIGNED, |object| object.id), frame),
+            None => {
+                debug_assert!(
+                    !matches!(self.fact, RowFact::Stated { .. }),
+                    "a card narrows a count a scenario stated without naming its objects: {:?}",
+                    self.fact
+                );
+                false
+            }
+        }
+    }
+}
+
 /// [`RowFact`]'s variants, without their fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
@@ -132,7 +154,6 @@ pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
     let has_type = |card_type: CardType| row.frame.as_ref().is_some_and(|chars| chars.types.contains(&card_type));
     let (player, n) = match (fact, row.fact) {
         (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (row.player?, 1),
-        (TurnFact::SpellsCastOfType(card_type), RowFact::Cast { .. }) if has_type(card_type) => (row.player?, 1),
         (TurnFact::LifeGained, RowFact::GainedLife(n)) | (TurnFact::LifeLost, RowFact::LostLife(n)) => (row.player?, n),
         (TurnFact::LifeGainEvents, RowFact::GainedLife(_)) | (TurnFact::LifeLossEvents, RowFact::LostLife(_)) => {
             (row.player?, 1)
@@ -154,7 +175,7 @@ pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
 /// The kind of row `fact` counts, which a count notes it read.
 pub fn kind_counted(fact: TurnFact) -> RowKind {
     match fact {
-        TurnFact::SpellsCast | TurnFact::SpellsCastOfType(_) => RowKind::Cast,
+        TurnFact::SpellsCast => RowKind::Cast,
         TurnFact::CardsDrawn => RowKind::Drew,
         TurnFact::LifeGained | TurnFact::LifeGainEvents | TurnFact::LifeLost | TurnFact::LifeLossEvents => RowKind::Life,
         TurnFact::DamageTaken => RowKind::DealtDamage,
@@ -319,6 +340,29 @@ impl HistoryLog {
         self.rows_during(turn, span, RowKind::Blocked, note).any(|row| row.fact == RowFact::Blocked(object))
     }
 
+    /// Was `object` dealt damage in `span` of turn `turn` (CR 120.3)?
+    pub(crate) fn was_dealt_damage(&self, object: ObjectRef, turn: u32, span: CombatSpan, note: &dyn Fn(GatedWalkInput)) -> bool {
+        self.rows_during(turn, span, RowKind::DealtDamage, note)
+            .any(|row| matches!(row.fact, RowFact::DealtDamage { to: ObjectOrPlayer::Object(to), .. } if to == object))
+    }
+
+    /// The players `object` dealt damage to in `span` of turn `turn`, each
+    /// with whether it was combat damage (CR 120.1, 510.2).
+    pub(crate) fn players_dealt_damage_by(
+        &self,
+        object: ObjectRef,
+        turn: u32,
+        span: CombatSpan,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> impl Iterator<Item = (PlayerId, bool)> {
+        self.rows_during(turn, span, RowKind::DealtDamage, note).filter(move |row| row.object == Some(object)).filter_map(|row| {
+            match row.fact {
+                RowFact::DealtDamage { to: ObjectOrPlayer::Player(player), combat, .. } => Some((player, combat)),
+                _ => None,
+            }
+        })
+    }
+
     /// What `object` was attacking as it was last removed from combat in the
     /// latest combat of turn `turn` (CR 508.5's second sentence): `None` when
     /// it was not removed in that combat, or was attacking nothing.
@@ -348,22 +392,30 @@ impl HistoryLog {
     }
 
     /// `fact` summed over the rows of `turns` whose count is a player
-    /// `counts_for` admits, staying at `u64::MAX` past it. Turn 0's rows are
-    /// none of them: the opening hands are drawn before any turn (CR 103).
-    /// Notes what it read into `note`.
+    /// `counts_for` admits and which `of` admits, staying at `u64::MAX` past
+    /// it. Turn 0's rows are none of them: the opening hands are drawn before
+    /// any turn (CR 103). Notes what it read into `note`.
     pub(crate) fn count(
         &self,
         fact: TurnFact,
         turns: TurnsCounted,
         counts_for: &dyn Fn(PlayerId) -> bool,
+        of: &mut dyn FnMut(&HistoryRow) -> bool,
         note: &dyn Fn(GatedWalkInput),
     ) -> u64 {
         note(GatedWalkInput::TurnNumber);
         note(GatedWalkInput::Rows(kind_counted(fact)));
-        let sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
-            rows.filter_map(|row| counted(fact, row))
-                .filter(|(player, _)| counts_for(*player))
-                .fold(0, |sum: u64, (_, n)| sum.saturating_add(n))
+        let mut sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
+            let mut total: u64 = 0;
+            for row in rows {
+                if let Some((player, n)) = counted(fact, row)
+                    && counts_for(player)
+                    && of(row)
+                {
+                    total = total.saturating_add(n);
+                }
+            }
+            total
         };
         match turns {
             TurnsCounted::Turn(0) => 0,

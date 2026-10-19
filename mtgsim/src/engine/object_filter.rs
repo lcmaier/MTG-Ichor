@@ -284,6 +284,24 @@ fn answer_or_refuse<'f>(
                     };
                     span == CombatSpan::ThisTurn && entered == Some(turn)
                 }
+                ObjectFact::WasDealtDamage => log.was_dealt_damage(existence()?, turn, span, &note),
+                ObjectFact::DealtDamageTo { player, combat } => {
+                    let dealt: Vec<PlayerId> = log
+                        .players_dealt_damage_by(existence()?, turn, span, &note)
+                        .filter(|&(_, in_combat)| in_combat || !*combat)
+                        .map(|(dealt_to, _)| dealt_to)
+                        .collect();
+                    match player {
+                        None => !dealt.is_empty(),
+                        Some(who) => {
+                            let mut named = false;
+                            for dealt_to in dealt {
+                                named |= player_ref_names(game, who, dealt_to, referents).ok_or(FilterRefusal::NoSource(id))?;
+                            }
+                            named
+                        }
+                    }
+                }
             })
         }
         // CR 108.3 / 400.3 — ownership, not control, which no layer touches.

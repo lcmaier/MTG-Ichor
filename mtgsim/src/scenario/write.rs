@@ -8,6 +8,7 @@
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
+use crate::engine::layers::compute::seed_frame;
 use crate::state::history_log::{RowFact, TurnsCounted};
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
@@ -255,10 +256,20 @@ impl<'g> Writer<'g> {
                     None => self.report(format!("player {p}'s commander damage from a commander no longer in the game")),
                 }
             }
+            let casts = self.named_casts(p);
+            let named = |span| casts.iter().filter(|word| matches!(word, PlayerWord::Cast { span: named, .. } if *named == span)).count() as u64;
+            let (named_this, named_last, named_earlier) =
+                (named(HistorySpan::ThisTurn), named(HistorySpan::LastTurn), named(HistorySpan::ThisGame));
             for fact in every_turn_fact() {
                 let count = |turns| state.history.count(p, fact, turns);
                 let last_turn = TurnsCounted::Turn(turn.saturating_sub(1));
-                let (this, last, game) = (count(TurnsCounted::Turn(turn)), count(last_turn), count(TurnsCounted::From(1)));
+                let (mut this, mut last, mut game) = (count(TurnsCounted::Turn(turn)), count(last_turn), count(TurnsCounted::From(1)));
+                // The named casts are said by name; the count says the rest.
+                if fact == TurnFact::SpellsCast {
+                    this -= named_this;
+                    last -= named_last;
+                    game -= named_this + named_last + named_earlier;
+                }
                 for (span, count) in [(HistorySpan::ThisTurn, this), (HistorySpan::LastTurn, last)] {
                     if count > 0 {
                         facts.push(PlayerWord::History { player: p, span, fact, count });
@@ -268,6 +279,7 @@ impl<'g> Writer<'g> {
                     facts.push(PlayerWord::History { player: p, span: HistorySpan::ThisGame, fact, count: game });
                 }
             }
+            facts.extend(casts);
             self.scenario.player_words.extend(facts.into_iter().map(unnumbered));
             if mana_pool.total() > 0 || !mana_pool.special_atoms().is_empty() {
                 self.report(format!("player {p}'s mana pool (the word waits for item 33's provenance)"));
@@ -282,6 +294,40 @@ impl<'g> Writer<'g> {
                 self.report(format!("player {p}'s counts since their last turn, which the loader derives from the rows"));
             }
         }
+    }
+
+    /// `player`'s casts the log keeps a frame for, oldest first, each in the
+    /// span a save states it in: this turn, last turn, or the rest as "this
+    /// game". A cast the name would not reload as it was is reported.
+    fn named_casts(&mut self, player: PlayerId) -> Vec<PlayerWord> {
+        let state = self.state;
+        let turn = state.turn_number;
+        let mut casts = Vec::new();
+        for row in state.history.log.rows_newest_first().take_while(|row| row.turn >= 1) {
+            let (RowFact::Cast { from }, Some(frame)) = (row.fact, &row.frame) else { continue };
+            if row.player != Some(player) {
+                continue;
+            }
+            let span = match turn - row.turn {
+                0 => HistorySpan::ThisTurn,
+                1 => HistorySpan::LastTurn,
+                _ => HistorySpan::ThisGame,
+            };
+            if from != Zone::Hand {
+                self.report(format!("player {player}'s spell cast from a {from:?} zone, which a named cast does not say"));
+            }
+            // AS PRINTED: a named cast reloads as its card's printed frame. A
+            // row with no object is a loaded named cast, which is that frame.
+            let reloads_as_cast = row.object.map(|object| {
+                state.objects.get(&object.id).is_some_and(|obj| **frame == seed_frame(&obj.card_data, frame.controller, frame.control_since_turn))
+            });
+            if reloads_as_cast == Some(false) {
+                self.report(format!("player {player}'s {} as it was cast, which its printed card does not say", frame.name));
+            }
+            casts.push(PlayerWord::Cast { player, span, card: frame.name.clone() });
+        }
+        casts.reverse();
+        casts
     }
 
     /// Does `player`'s "since your last turn" differ from what the loader

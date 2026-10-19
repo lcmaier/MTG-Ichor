@@ -12,7 +12,7 @@
 
 use crate::state::game_state::AbilityIdentity;
 use crate::state::history_log::{HistoryLog, TurnsCounted};
-use crate::types::history::TurnFact;
+use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
 /// One player's history beside the log.
@@ -107,7 +107,17 @@ impl GameHistory {
 
     /// `player`'s count of `fact` over `turns`.
     pub fn count(&self, player: PlayerId, fact: TurnFact, turns: TurnsCounted) -> u64 {
-        self.log.count(fact, turns, &|counted| counted == player, &|_| {})
+        self.log.count(fact, turns, &|counted| counted == player, &mut |_| true, &|_| {})
+    }
+
+    /// The turns `span` names for `you` on turn `now`.
+    pub fn turns_of(&self, span: HistorySpan, you: PlayerId, now: u32) -> TurnsCounted {
+        match span {
+            HistorySpan::ThisTurn => TurnsCounted::Turn(now),
+            HistorySpan::LastTurn => TurnsCounted::Turn(now.saturating_sub(1)),
+            HistorySpan::SinceYourLastTurn => self.since_your_last_turn(you, now),
+            HistorySpan::ThisGame => TurnsCounted::From(1),
+        }
     }
 
     /// The turns "since your last turn" spans for `you` on turn `now`: every

@@ -28,12 +28,13 @@ player 0: life 20, lands played 1             # also: energy N, poison N
                                               # and, the active player in the draw step: cards drawn this draw step N
 player 1: life 17, poison 1                   # also: left the game (owning nothing, in a game of three or more)
 player 1: commander damage 2 from Isamaru, Hound of Konda
-player 0 this turn: spells cast 1, creature spells cast 1, attackers declared 1
+player 0 this turn: attackers declared 1, cast Grizzly Bears   # cast <card> ends its line
 player 0 last turn: cards drawn 1             # each count defaults to 0
 player 0 this game: cards drawn 3             # default: this turn plus last turn
-# The counts: spells cast, <type> spells cast, cards drawn, life gained,
-# life gain events, life lost, life loss events, damage taken,
-# creatures died, attackers declared.
+# The counts: spells cast, cards drawn, life gained, life gain events,
+# life lost, life loss events, damage taken, creatures died, attackers
+# declared. A cast named by its card is what "a creature spell you cast"
+# reads; spells cast N counts the casts beyond the named ones.
 
 hand 0: Lightning Bolt                        # also: commander
 library 0: Mountain                           # top first

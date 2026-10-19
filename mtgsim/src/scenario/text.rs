@@ -8,7 +8,6 @@ use super::board::{
 use super::error::{ScenarioError, ScenarioErrorKind};
 use crate::state::game::starting_player_skips_first_draw;
 use crate::state::game_state::{initial_step, next_step, GameState, Phase, PhaseType, StepType, TurnPlan};
-use crate::types::card_types::CardType;
 use crate::types::effects::CounterType;
 use crate::types::history::{HistorySpan, TurnFact};
 use crate::ui::display::{phase_name, step_name};
@@ -354,9 +353,23 @@ fn parse_player_line(scenario: &mut Scenario, player: usize, rest: &str, line: u
     Ok(())
 }
 
-/// `player p this turn:` and its kin: `<fact> N`, comma-separated.
+/// `player p this turn:` and its kin: `<fact> N`, comma-separated, and `cast
+/// <card>`, which takes the rest of the line, since a card's name may hold a
+/// comma.
 fn parse_history_line(scenario: &mut Scenario, player: usize, span: HistorySpan, rest: &str, line: usize) -> Result<(), ScenarioError> {
-    for word in rest.split(',').map(str::trim).filter(|w| !w.is_empty()) {
+    let mut rest = rest.trim();
+    while !rest.is_empty() {
+        if let Some(card) = rest.strip_prefix("cast ") {
+            let card = card.trim().to_string();
+            scenario.player_words.push(LineNumbered { line, value: PlayerWord::Cast { player, span, card } });
+            return Ok(());
+        }
+        let (word, after) = rest.split_once(',').unwrap_or((rest, ""));
+        rest = after.trim();
+        let word = word.trim();
+        if word.is_empty() {
+            continue;
+        }
         let unknown = || {
             let facts: Vec<String> = every_turn_fact().map(turn_fact_word).collect();
             syntax_error(line, format!("`{word}` is not a count a history row has; they are {}", facts.join(", ")))
@@ -369,7 +382,7 @@ fn parse_history_line(scenario: &mut Scenario, player: usize, span: HistorySpan,
     Ok(())
 }
 
-/// Every `TurnFact`, a slot each.
+/// Every `TurnFact`, each with its word.
 pub(super) fn every_turn_fact() -> impl Iterator<Item = TurnFact> {
     [
         TurnFact::SpellsCast,
@@ -383,7 +396,6 @@ pub(super) fn every_turn_fact() -> impl Iterator<Item = TurnFact> {
         TurnFact::AttackersDeclared,
     ]
     .into_iter()
-    .chain(CardType::ALL.map(TurnFact::SpellsCastOfType))
 }
 
 /// A `TurnFact` as a history row spells it. Exhaustive, so a new fact fails
@@ -391,7 +403,6 @@ pub(super) fn every_turn_fact() -> impl Iterator<Item = TurnFact> {
 pub(super) fn turn_fact_word(fact: TurnFact) -> String {
     match fact {
         TurnFact::SpellsCast => "spells cast".to_string(),
-        TurnFact::SpellsCastOfType(card_type) => format!("{} spells cast", format!("{card_type:?}").to_lowercase()),
         TurnFact::CardsDrawn => "cards drawn".to_string(),
         TurnFact::LifeGained => "life gained".to_string(),
         TurnFact::LifeGainEvents => "life gain events".to_string(),
@@ -492,14 +503,19 @@ fn player_word_text(fact: &PlayerWord) -> (String, String, bool) {
             (format!("player {player}"), format!("commander damage {damage} from {from}"), true)
         }
         PlayerWord::History { player, span, fact, count } => {
-            let span = match span {
-                HistorySpan::ThisTurn => "this turn",
-                HistorySpan::LastTurn => "last turn",
-                HistorySpan::ThisGame => "this game",
-                HistorySpan::SinceYourLastTurn => "since your last turn",
-            };
-            (format!("player {player} {span}"), format!("{} {count}", turn_fact_word(*fact)), false)
+            (format!("player {player} {}", span_word(*span)), format!("{} {count}", turn_fact_word(*fact)), false)
         }
+        PlayerWord::Cast { player, span, card } => (format!("player {player} {}", span_word(*span)), format!("cast {card}"), true),
+    }
+}
+
+/// A history row's span as its head spells it.
+fn span_word(span: HistorySpan) -> &'static str {
+    match span {
+        HistorySpan::ThisTurn => "this turn",
+        HistorySpan::LastTurn => "last turn",
+        HistorySpan::ThisGame => "this game",
+        HistorySpan::SinceYourLastTurn => "since your last turn",
     }
 }
 
@@ -726,7 +742,8 @@ mod tests {
             PlayerWord::DrawnThisDrawStep { player: 0, count: 2 },
             PlayerWord::LeftTheGame { player: 1 },
             PlayerWord::CommanderDamage { player: 0, damage: 7, from: card.clone() },
-            PlayerWord::History { player: 2, span: HistorySpan::ThisTurn, fact: TurnFact::SpellsCastOfType(CardType::Instant), count: 1 },
+            PlayerWord::History { player: 2, span: HistorySpan::ThisTurn, fact: TurnFact::SpellsCast, count: 1 },
+            PlayerWord::Cast { player: 2, span: HistorySpan::ThisTurn, card: "Elrond, Lord of Rivendell".to_string() },
             PlayerWord::History { player: 2, span: HistorySpan::LastTurn, fact: TurnFact::CardsDrawn, count: 2 },
             PlayerWord::History { player: 2, span: HistorySpan::ThisGame, fact: TurnFact::LifeLost, count: 5 },
             PlayerWord::History { player: 2, span: HistorySpan::SinceYourLastTurn, fact: TurnFact::LifeGained, count: 1 },

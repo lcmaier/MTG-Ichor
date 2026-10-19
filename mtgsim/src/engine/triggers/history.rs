@@ -11,11 +11,11 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::TargetRef;
+use crate::engine::targeting::{HeldFrame, TargetRef};
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowKind, TurnsCounted};
-use crate::types::history::TurnFact;
+use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
@@ -202,6 +202,20 @@ impl GameState {
             }
             _ => None,
         }
+    }
+
+    /// `count` over `span` for `you`, read outside a layer walk, with `source`
+    /// the text's "this": a resolving amount's.
+    pub(crate) fn history_total(&self, count: &HistoryCount, span: HistorySpan, you: PlayerId, source: ObjectId) -> u64 {
+        let turns = self.history.turns_of(span, you, self.turn_number);
+        let counts_for = |player: PlayerId| count.players.contains(you, player);
+        let mut of = |row: &HistoryRow| match &count.of {
+            None => true,
+            Some(filter) => row.frame_matches(|id, frame| {
+                self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
+            }),
+        };
+        self.history.log.count(count.fact, turns, &counts_for, &mut of, &|_| {})
     }
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).

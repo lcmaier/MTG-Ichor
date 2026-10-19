@@ -60,7 +60,7 @@ pub(super) const LAYER_ORDER: [Layer; 10] = [
 
 /// Layer 0 — an object's printed characteristics, plus the two things that
 /// are not printed: its controller and CR 302.6's clock.
-pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_turn: u32) -> EffectiveCharacteristics {
+pub(crate) fn seed_frame(card: &CardData, controller: PlayerId, control_since_turn: u32) -> EffectiveCharacteristics {
     EffectiveCharacteristics {
         name: card.name.clone(),
         mana_cost: card.mana_cost.clone(),
@@ -897,6 +897,15 @@ pub(super) fn evaluate_amount(
         AmountExpr::Plus(inner, n) => {
             evaluate_amount(inner, game, chars, object_id, layer_index, board, origin)
                 .map(|v| v + *n as i32)
+        }
+
+        // "You" is a CDA's object's controller or the row's (CR 109.5), as
+        // `CountOf` reads it.
+        AmountExpr::History(span, count) => {
+            let source = origin.map_or(object_id, |row| row.source);
+            let you = origin.map_or(chars.controller, |row| row.controller);
+            super::condition::history_total(count, *span, game, board, source, layer_index, Some(you))
+                .map(|total| i32::try_from(total).unwrap_or(i32::MAX))
         }
 
         // A count over the battlefield at this layer (Keldon Warlord). **The real
