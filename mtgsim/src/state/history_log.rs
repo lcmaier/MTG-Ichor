@@ -235,6 +235,21 @@ impl HistoryLog {
         self.rows += 1;
     }
 
+    /// Give the newest `frames.len()` rows these frames, oldest first: the
+    /// window that wrote them took its objects again once its rows were in.
+    pub(crate) fn reframe_newest(&mut self, frames: Vec<Option<Arc<EffectiveCharacteristics>>>) {
+        let mut frames = frames.into_iter().rev();
+        let mut chunk = self.newest.as_mut();
+        while let Some(open) = chunk {
+            let open = Arc::make_mut(open);
+            for row in open.rows.iter_mut().rev() {
+                let Some(frame) = frames.next() else { return };
+                row.frame = frame;
+            }
+            chunk = open.older.as_mut();
+        }
+    }
+
     /// A combat phase of this turn has begun.
     pub(crate) fn combat_began(&mut self) {
         self.combats_this_turn += 1;
@@ -413,6 +428,28 @@ mod tests {
         let full = |log: &HistoryLog| log.newest.as_ref().and_then(|open| open.older.as_ref()).map(Arc::as_ptr);
         assert_eq!(full(&fork), full(&log));
         assert!(full(&log).is_some());
+    }
+
+    /// A window's rows can straddle a chunk: the reframe reaches back into
+    /// the full chunk, and a fork taken before it keeps its own frames.
+    #[test]
+    fn a_reframe_reaches_across_a_chunk_and_leaves_a_fork_alone() {
+        use crate::engine::layers::compute::compute_characteristics;
+        use crate::state::game_state::GameState;
+        use crate::test_support::{put_on_battlefield, vanilla_creature};
+
+        let mut game = GameState::new(2, 20);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let frame = compute_characteristics(&game, bears);
+        let mut log = HistoryLog::default();
+        for seq in 0..(CHUNK_ROWS + 2) {
+            log.push(drew(seq, 1));
+        }
+        let fork = log.clone();
+        log.reframe_newest(vec![frame.clone(), frame.clone(), frame.clone(), None]);
+        let framed: Vec<bool> = log.rows_newest_first().take(5).map(|row| row.frame.is_some()).collect();
+        assert_eq!(framed, [false, true, true, true, false], "oldest first: the newest row took the last frame");
+        assert!(fork.rows_newest_first().all(|row| row.frame.is_none()), "the fork's chunks were copied, not written");
     }
 
     #[test]

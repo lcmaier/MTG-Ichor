@@ -104,8 +104,9 @@ impl GameState {
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
         // The rows read their objects as the window left them (CR 603.10).
+        let counted: Vec<EventSeq> = moments.iter().map(|&(seq, ..)| seq).collect();
         let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
-        for &(seq, ..) in &moments {
+        for &seq in &counted {
             self.draft_history_rows(seq, window, &mut drafts);
         }
         let mut moments = moments.into_iter().peekable();
@@ -125,6 +126,22 @@ impl GameState {
             kinds_written[row.fact.kind() as usize] = true;
             self.history.log.push(row);
         }
+        let epoch = self.layer_epoch();
+        self.bump_rows_written(&kinds_written);
+        // A frame drafted above that read a kind of row this window wrote
+        // left out the window's own rows, which the window left behind too:
+        // take the frames again now that the log holds them.
+        if self.layer_epoch() != epoch {
+            let mut redrafts: Vec<(EventSeq, RowDraft)> = Vec::new();
+            for &seq in &counted {
+                self.draft_history_rows(seq, window, &mut redrafts);
+            }
+            self.history.log.reframe_newest(redrafts.into_iter().map(|(_, draft)| draft.frame).collect());
+            self.bump_rows_written(&kinds_written);
+        }
+    }
+
+    fn bump_rows_written(&mut self, kinds_written: &[bool; RowKind::COUNT]) {
         for kind in ROW_KINDS.into_iter().filter(|kind| kinds_written[*kind as usize]) {
             self.bump_layer_epoch_if_read(GatedWalkInput::Rows(kind));
         }
