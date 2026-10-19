@@ -7882,7 +7882,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      `AbilityDef.effect` and `TriggerDef.effect` `Arc`s, about 250 sites,
      for a copy paid once per push rather than once per fork. **B10 stays
      open:** the entry and its `GameObject` are still copied per fork.
-     **Slotted:** B10, a clone during a deep stack: stack objects shared
+     **Widened at TR-5d's design review (the owner, 2026-10-19):** the design
+     takes the battlefield's and the object store's per-object state with the
+     stack's, shared between forks and copied on write, since clone time read
+     8.9–9.5 µs against floor 2's 10 and a token-heavy board grows every
+     clone. It moves up if A6e's readiness pass reads less than 10% room.
+     **Slotted:** B10, the clone's structural sharing: per-object state shared
      between forks, copied on write, which also settles `FitOnClone`'s rule.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
