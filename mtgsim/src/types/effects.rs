@@ -926,13 +926,13 @@ pub enum EffectRecipient {
     /// before the attach.
     Host,
     /// "Destroy that creature and this creature" (Loyal Sentry), "destroy it
-    /// and all creatures it blocked this turn": each part found as it would
+    /// and all creatures it blocked this turn": each member found as it would
     /// be alone, and every object they find acted on in one instruction (CR
-    /// 608.2f), so a destroy is one batch. A part is a bound fact, this
+    /// 608.2f), so a destroy is one batch. A member is a bound fact, this
     /// object or a filtered sweep: an instance of "target" or "choose" would
     /// need its own place in the announcement and its own CR 608.2b fizzle,
     /// and waits for its first card (Hunting Kavu).
-    Together(Vec<EffectRecipient>),
+    Group(Vec<EffectRecipient>),
     /// Objects a player chooses as the effect applies (CR 608.2d), from a set
     /// defined relative to them: an edict's "a creature of their choice". Each
     /// player the chooser names picks in APNAP order (CR 101.4), and the verb

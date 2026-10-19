@@ -18,12 +18,14 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
-/// departure's CR 603.10a frame for an arm that looks back, and an object
+/// departure's CR 603.10a frame for an arm that looks back, and a source
 /// that had left before the event, as it last existed
-/// (`GameEvent::frame_gone_before_this_event`). A "from anywhere" arm's
-/// object is the object after the move (CR 603.6c), read where it went.
+/// (`GameEvent::source_lki`). A "from anywhere" arm's object is the object
+/// after the move (CR 603.6c), read where it went.
 pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
-    if let Some(lki) = record.event.frame_gone_before_this_event(id) {
+    if let Some(lki) = record.event.source_lki()
+        && lki.object().id == id
+    {
         return Some(lki);
     }
     let (lki, ..) = record.event.lki()?;
@@ -95,7 +97,7 @@ impl<'a> TriggeringEventView<'a> {
         match self {
             TriggeringEventView::None => None,
             TriggeringEventView::AtTrigger { arm, record, objects } => {
-                objects.get(arm.role_in_arm(role)).map(|object| read_at_trigger(arm, record, object.id))
+                objects.get(arm.role_as_recorded(role)).map(|object| read_at_trigger(arm, record, object.id))
             }
             TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, role),
         }

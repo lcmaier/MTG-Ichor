@@ -1010,7 +1010,7 @@ impl GameState {
         if self.capture_of(object).is_some() {
             return;
         }
-        if let Some(lki) = self.last_known_information_now(id) {
+        if let Some(lki) = self.lki_now(id) {
             self.lki_captures.push(LkiCapture { object, lki: Some(lki) });
         }
     }
@@ -1030,7 +1030,7 @@ impl GameState {
 
     /// `id`'s last known information with its frame off the layer memo, for
     /// every reader but a performing batch's fallback.
-    pub(crate) fn last_known_information_now(&self, id: ObjectId) -> Option<Lki> {
+    pub(crate) fn lki_now(&self, id: ObjectId) -> Option<Lki> {
         self.last_known_information(id, compute_characteristics(self, id)?)
     }
 
@@ -1124,7 +1124,7 @@ impl GameState {
 
     /// `id` as it is now, and where it is.
     pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
-        let lki = self.last_known_information_now(id)?;
+        let lki = self.lki_now(id)?;
         Some(ObjectSnapshot { zone: self.objects.get(&id)?.zone, lki })
     }
 
@@ -1679,8 +1679,7 @@ impl GameState {
                 };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read =
-                    record.event.frame_gone_before_this_event(*source_id).map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let source_read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 triggering_event_if(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
@@ -1792,8 +1791,7 @@ impl GameState {
                 TriggerEvent::ActivatesAbility { player, source, mana_ability },
                 GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, .. },
             ) => {
-                let read =
-                    record.event.frame_gone_before_this_event(identity.source.id).map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 let matched = *from == Zone::Battlefield
                     && mana_ability.is_none_or(|asked| asked == *was_mana)
                     && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
@@ -2286,7 +2284,7 @@ impl GameState {
         let GameEvent::DamageDealt { source_id, target, .. } = event else {
             return TriggeringEventObjects::NoObject;
         };
-        let source = event.frame_gone_before_this_event(*source_id).map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let source = event.source_lki().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
         let recipient = match target {
             DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
             DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),

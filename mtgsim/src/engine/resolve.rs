@@ -26,7 +26,7 @@ use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
-use crate::engine::triggers::bound_reads::BoundReads;
+use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
@@ -328,19 +328,19 @@ impl GameState {
                     self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
             }
-            // "That creature and this creature": each part found as it would be
-            // alone, and every object they find handed to the primitive at once,
-            // so it acts on them in one instruction (CR 608.2f).
-            Effect::Atom(primitive, recipient @ EffectRecipient::Together(parts)) => {
-                let mut together: Vec<ResolvedTarget> = Vec::new();
-                for part in parts {
-                    for found in self.found_by_part(part, ctx)? {
-                        if !together.contains(&found) {
-                            together.push(found);
+            // "That creature and this creature": each member found as it would
+            // be alone, and every object they find handed to the primitive at
+            // once, so it acts on them in one instruction (CR 608.2f).
+            Effect::Atom(primitive, recipient @ EffectRecipient::Group(members)) => {
+                let mut found: Vec<ResolvedTarget> = Vec::new();
+                for member in members {
+                    for target in self.resolve_group_member(member, ctx)? {
+                        if !found.contains(&target) {
+                            found.push(target);
                         }
                     }
                 }
-                self.resolve_primitive(primitive, recipient, &together, ctx, dp, walk)
+                self.resolve_primitive(primitive, recipient, &found, ctx, dp, walk)
             }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
@@ -861,7 +861,7 @@ impl GameState {
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
                 // remembered is a card missing its `Effect::Remember`.
-                let names_referred = template.def.bound_reads().contains(BoundReads::REFERRED)
+                let names_referred = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
                     || template.def.condition.events().iter().any(TriggerEvent::watches_referred);
                 if names_referred && walk.remembered.is_none() {
                     return Err(format!(
@@ -1269,7 +1269,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
-                    | EffectRecipient::Together(_)
+                    | EffectRecipient::Group(_)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
@@ -1577,7 +1577,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
-                    | EffectRecipient::Together(_)
+                    | EffectRecipient::Group(_)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
@@ -2316,7 +2316,7 @@ impl GameState {
         }
         let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
         let lki =
-            self.last_known_information_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+            self.lki_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
         self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
         let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
         self.emit_event(countered, actx.cause)
@@ -2336,21 +2336,24 @@ impl GameState {
         Ok(())
     }
 
-    /// What one part of a `Together` finds, as it would alone: this object by
-    /// identity, a trigger's bound fact, or every permanent a filter matches
-    /// now. Anything else is no part a join can have yet, loudly.
-    fn found_by_part(&self, part: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ResolvedTarget>, String> {
-        Ok(match part {
+    /// The objects or players one member of a `Group` recipient names, as that
+    /// recipient would on its own: this object, the object or player that
+    /// played a part in the triggering event, the object a delayed trigger
+    /// refers to, or each permanent a filter matches now. A member that
+    /// targets or chooses is refused loudly: its instance would need a place
+    /// in the announcement, which a group does not give it yet.
+    fn resolve_group_member(&self, member: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ResolvedTarget>, String> {
+        Ok(match member {
             EffectRecipient::ThisObject => self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect(),
             EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
-                self.bound_targets(part, ctx)?
+                self.bound_targets(member, ctx)?
             }
             EffectRecipient::FilteredPermanents(_) => {
-                self.affected_permanents(part, &[], ctx).into_iter().map(ResolvedTarget::Object).collect()
+                self.affected_permanents(member, &[], ctx).into_iter().map(ResolvedTarget::Object).collect()
             }
             other => {
                 return Err(format!(
-                    "{other:?} is no part `Together` resolves on {:?}: a part is this object, a trigger's bound fact or a filtered sweep",
+                    "{other:?} is no member a `Group` resolves on {:?}: a member is this object, a trigger's bound fact or a filtered sweep",
                     ctx.source
                 ));
             }
@@ -2735,7 +2738,7 @@ impl GameState {
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
             | EffectRecipient::SameInstanceAs(_)
-            | EffectRecipient::Together(_)
+            | EffectRecipient::Group(_)
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::FilteredPermanents(_)
             | EffectRecipient::FilteredObjectsIn(..)

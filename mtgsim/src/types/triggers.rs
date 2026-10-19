@@ -1131,13 +1131,14 @@ impl TriggerEvent {
             TriggerEvent::Attacks { occurrence: AttackOccurrence::Defender, .. } => EventRole::Attacker,
             _ => return false,
         };
-        self.role_in_arm(role) == several
+        self.role_as_recorded(role) == several
     }
 
-    /// `role` as this arm's events hold it: the other creature in a block
-    /// is its side's role (`other_combatant`), and every other event role is
-    /// itself.
-    pub fn role_in_arm(&self, role: EventRole) -> EventRole {
+    /// The event role an instruction's `role` is stored under in this arm's
+    /// triggering events. They are the same but for "that creature" of
+    /// "blocks or becomes blocked by", which no event stores: it is the
+    /// attacker on one arm and the blocker on the other (`other_combatant`).
+    pub fn role_as_recorded(&self, role: EventRole) -> EventRole {
         match role {
             EventRole::OtherCombatant => self.other_combatant().unwrap_or(role),
             _ => role,
@@ -1447,14 +1448,14 @@ impl TriggerBinding {
     /// one triggering event, as the existence the dispatch found. `None` for a
     /// "one or more" trigger, which has no single object.
     pub fn triggering_object(&self, role: EventRole) -> Option<ObjectRef> {
-        self.triggering_event()?.objects.get(self.event().role_in_arm(role))
+        self.triggering_event()?.objects.get(self.event().role_as_recorded(role))
     }
 
     /// "That creature", "them": each object that played `role` in each
     /// triggering event. One for a `PerOccurrence` trigger, but for a
     /// defender's attackers.
     pub fn triggering_objects(&self, role: EventRole) -> Vec<ObjectRef> {
-        let role = self.event().role_in_arm(role);
+        let role = self.event().role_as_recorded(role);
         self.triggering_events
             .iter()
             .flat_map(|event| event.objects.objects().filter(move |&(part, _)| part == role))

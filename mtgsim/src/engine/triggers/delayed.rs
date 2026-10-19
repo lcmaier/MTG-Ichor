@@ -525,7 +525,7 @@ impl GameState {
         source: ObjectId,
         ctx: Option<&ActionContext>,
     ) -> Option<PendingTrigger> {
-        let reads = entries.first()?.binding.def.bound_reads();
+        let reads = entries.first()?.binding.def.trigger_binding_reads();
         let mut distinct: Vec<PendingTrigger> = Vec::new();
         for entry in entries {
             if !distinct.iter().any(|kept| self.entries_agree_on(reads, kept, &entry)) {

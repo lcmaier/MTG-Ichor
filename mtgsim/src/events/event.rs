@@ -515,14 +515,14 @@ impl GameEvent {
         }
     }
 
-    /// `id` as it last existed, where it had left before the event this
-    /// record announces: a damage source gone before its damage (CR 608.2h),
-    /// or an ability's source a cost moved before it was activated (CR
-    /// 602.2b). `None` for an object the event found where it was.
-    pub fn frame_gone_before_this_event(&self, id: ObjectId) -> Option<&Lki> {
+    /// The last known information this record keeps of its source, which had
+    /// left before the event: a damage source gone before its damage (CR
+    /// 608.2h), or an ability's source a cost moved before it was activated
+    /// (CR 602.2b). `None` where the source was where the event found it.
+    /// Not [`Self::lki`], which is the object the event itself moved.
+    pub fn source_lki(&self) -> Option<&Lki> {
         match self {
-            GameEvent::DamageDealt { source_id, source_lki: Some(lki), .. } if *source_id == id => Some(lki),
-            GameEvent::AbilityActivated { identity, source_lki: Some(lki), .. } if identity.source.id == id => Some(lki),
+            GameEvent::DamageDealt { source_lki, .. } | GameEvent::AbilityActivated { source_lki, .. } => source_lki.as_ref(),
             _ => None,
         }
     }

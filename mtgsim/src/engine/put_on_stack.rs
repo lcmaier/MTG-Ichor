@@ -418,7 +418,7 @@ impl GameState {
     /// activations, a land's for mana among them, pay nothing that moves it.
     pub(crate) fn source_before_paying(&self, source: ObjectId, costs: &[Cost]) -> Result<SourceBeforePaying, String> {
         let zone = self.get_object(source)?.zone;
-        let lki = if costs.iter().any(Cost::can_move_its_source) { self.last_known_information_now(source) } else { None };
+        let lki = if costs.iter().any(Cost::can_move_its_source) { self.lki_now(source) } else { None };
         Ok(SourceBeforePaying { zone, lki })
     }
 

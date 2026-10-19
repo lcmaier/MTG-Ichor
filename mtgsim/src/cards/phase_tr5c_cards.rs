@@ -39,7 +39,7 @@ use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 ///   `loyal_sentry_destroys_the_attacker_after_it_has_left`.
 pub fn loyal_sentry() -> Arc<CardData> {
     let text = "When this creature blocks a creature, destroy that creature and this creature.";
-    let both = EffectRecipient::Together(vec![EffectRecipient::Triggering(EventRole::Attacker), EffectRecipient::ThisObject]);
+    let both = EffectRecipient::Group(vec![EffectRecipient::Triggering(EventRole::Attacker), EffectRecipient::ThisObject]);
     CardDataBuilder::new("Loyal Sentry")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)

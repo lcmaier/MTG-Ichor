@@ -16,7 +16,7 @@
 //! removes each entry as it places it so a clone taken at the ordering
 //! prompt resumes by running the drain again (item 40). The order is not
 //! asked when it cannot matter: one def, and agreement on every fact it
-//! reads ([`bound_reads`]).
+//! reads ([`binding_reads`]).
 //!
 //! [`audit`] answers every dispatch again the slow way in a game that turns
 //! it on, and panics when the two answers differ (§4.10).
@@ -35,7 +35,7 @@
 
 pub mod audit;
 pub mod binding;
-pub mod bound_reads;
+pub mod binding_reads;
 pub mod control;
 pub mod delayed;
 pub mod dispatch;

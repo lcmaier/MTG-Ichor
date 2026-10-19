@@ -14,7 +14,7 @@ use crate::engine::layers::condition::ConditionReferents;
 use super::binding::TriggeringEventView;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
-use crate::engine::triggers::bound_reads::BoundReads;
+use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, ObjectRef};
@@ -97,7 +97,7 @@ impl GameState {
             .filter_map(|seq| self.pending_triggers.iter().find(|t| t.seq == *seq))
             .collect();
         let Some(first) = entries.first() else { return true };
-        let reads = first.binding.def.bound_reads();
+        let reads = first.binding.def.trigger_binding_reads();
         entries.iter().all(|t| {
             t.tier() == TriggerTier::First
                 && t.instances.is_empty()
@@ -107,7 +107,7 @@ impl GameState {
     }
 
     /// Whether two entries of one def agree on every fact it reads (item 163).
-    pub(super) fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
+    pub(super) fn entries_agree_on(&self, reads: TriggerBindingReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
         let unread = |fact| !reads.contains(fact);
         // The event roles the def names, each triggering event's: one it
@@ -115,20 +115,20 @@ impl GameState {
         // Each as its own entry's arm holds it, since "that creature" of
         // "blocks or becomes blocked by" is a different side on each arm.
         let objects = |binding: &TriggerBinding| -> Vec<(EventRole, ObjectRef)> {
-            let named: Vec<EventRole> = reads.event_roles().map(|role| binding.event().role_in_arm(role)).collect();
+            let named: Vec<EventRole> = reads.event_roles().map(|role| binding.event().role_as_recorded(role)).collect();
             binding
                 .triggering_events
                 .iter()
                 .flat_map(|e| e.objects.objects().filter(|(p, _)| named.contains(p)).collect::<Vec<_>>())
                 .collect()
         };
-        (unread(BoundReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
-            && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
-            && (unread(BoundReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
-            && (unread(BoundReads::CHARACTERISTICS) || (objects(x) == objects(y) && x.first_record() == y.first_record()))
-            && (unread(BoundReads::SOURCE) || a.origin == b.origin)
-            && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
-            && (unread(BoundReads::REFERRED) || x.referred == y.referred)
+        (unread(TriggerBindingReads::TRIGGERING_OBJECTS) || objects(x) == objects(y))
+            && (unread(TriggerBindingReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
+            && (unread(TriggerBindingReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
+            && (unread(TriggerBindingReads::CHARACTERISTICS) || (objects(x) == objects(y) && x.first_record() == y.first_record()))
+            && (unread(TriggerBindingReads::SOURCE) || a.origin == b.origin)
+            && (unread(TriggerBindingReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
+            && (unread(TriggerBindingReads::REFERRED) || x.referred == y.referred)
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this

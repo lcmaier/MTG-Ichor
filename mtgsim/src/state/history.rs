@@ -327,8 +327,11 @@ impl CombatHistory {
         &self.rows
     }
 
-    /// The rows of turn `turn`, the turn in progress, that `span` covers.
-    fn rows_in(&self, turn: u32, span: CombatSpan) -> impl DoubleEndedIterator<Item = &CombatRow> {
+    /// The rows a question about turn `turn`, the turn in progress, reads:
+    /// every combat's for "this turn", the latest combat's for "this
+    /// combat", which CR 500.8's additional combats make two questions.
+    /// Each reader below asks one fact of these.
+    fn rows_during(&self, turn: u32, span: CombatSpan) -> impl DoubleEndedIterator<Item = &CombatRow> {
         let latest = self.combats_this_turn;
         self.rows.iter().filter(move |row| {
             row.turn == turn && match span {
@@ -341,19 +344,19 @@ impl CombatHistory {
     /// Was `object` declared as an attacker in `span` of turn `turn`? A
     /// creature put onto the battlefield attacking never was (CR 508.4).
     pub fn attacked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_in(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Attacked(_)))
+        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Attacked(_)))
     }
 
     /// Was `object` declared as a blocker in `span` of turn `turn` (CR
     /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
     pub fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_in(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Blocked(_)))
+        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Blocked(_)))
     }
 
     /// Did `object` become a blocked creature as blockers were declared in
     /// `span` of turn `turn` (CR 509.1h)?
     pub fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_in(turn, span).any(|row| row.fact == CombatFact::Blocked(object))
+        self.rows_during(turn, span).any(|row| row.fact == CombatFact::Blocked(object))
     }
 
     /// What `object` was attacking as it was last removed from combat in the
@@ -362,7 +365,7 @@ impl CombatHistory {
     /// attacking nothing.
     pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
         let removed = self
-            .rows_in(turn, CombatSpan::ThisCombat)
+            .rows_during(turn, CombatSpan::ThisCombat)
             .rev()
             .find(|row| row.object == object && matches!(row.fact, CombatFact::Removed { .. }))?;
         match removed.fact {

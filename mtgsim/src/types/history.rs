@@ -78,8 +78,9 @@ impl TurnFact {
 /// What an object did, which `ObjectFilter::ThisTurn` and `ThisCombat` ask:
 /// "creatures that attacked this turn", "each creature that blocked or was
 /// blocked this turn", "a creature that entered this turn". In the card's own
-/// past tense. A fact a later card asks is a variant with its writer
-/// (`triggers-architecture.md` §12, TR-5c's census).
+/// past tense. A fact a later card asks is a variant with its writer; the
+/// ones counted and not built are listed in `codebase-state.md`, "Found by
+/// TR-5c".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectFact {
     /// Declared as an attacker (CR 508.1); a creature put onto the
