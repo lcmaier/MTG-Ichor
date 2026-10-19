@@ -86,16 +86,14 @@ impl GameState {
     /// on each where it falls in its turn and, for a draw, in its player's
     /// draw step (`EventRecord::place_in_turn`, `place_in_draw_step`).
     pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
-        let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
         let updates: Vec<(EventSeq, Option<HistoryUpdate>)> = window
             .iter()
             .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
-            .map(|&seq| {
-                self.draft_history_rows(seq, window, &mut drafts);
-                (seq, self.history_update(seq))
-            })
+            .map(|&seq| (seq, self.history_update(seq)))
             .collect();
-        let mut drafts = drafts.into_iter().peekable();
+        // Each counted record's turn and combat, taken after its own count so
+        // a combat's first rows carry its number.
+        let mut moments: Vec<(EventSeq, u32, u32)> = Vec::with_capacity(updates.len());
         let mut wrote = false;
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
@@ -105,24 +103,34 @@ impl GameState {
                 in_draw_step = self.place_in_draw_step(&update);
                 wrote = true;
             }
-            // After the record's own count, so a combat's first rows carry
-            // its number.
-            while let Some((_, draft)) = drafts.next_if(|(drafted, _)| *drafted == seq) {
-                let row = HistoryRow {
-                    seq,
-                    turn: self.turn_number,
-                    combat: self.history.log.combats_this_turn(),
-                    player: draft.player,
-                    object: draft.object,
-                    frame: draft.frame,
-                    fact: draft.fact,
-                };
-                self.history.log.push(row);
-            }
+            moments.push((seq, self.turn_number, self.history.log.combats_this_turn()));
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
         if wrote {
             self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
+        }
+        // The rows read their objects after every count, as the window left
+        // them (CR 603.10): a static that reads this turn's history already
+        // sees the record that changed it, and a frame taken before the bump
+        // above would be walked again by the next reader.
+        let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
+        for &(seq, ..) in &moments {
+            self.draft_history_rows(seq, window, &mut drafts);
+        }
+        let mut moments = moments.into_iter().peekable();
+        for (seq, draft) in drafts {
+            while moments.next_if(|(counted, ..)| *counted != seq).is_some() {}
+            let Some(&(_, turn, combat)) = moments.peek() else { break };
+            let row = HistoryRow {
+                seq,
+                turn,
+                combat,
+                player: draft.player,
+                object: draft.object,
+                frame: draft.frame,
+                fact: draft.fact,
+            };
+            self.history.log.push(row);
         }
     }
 
@@ -270,11 +278,10 @@ impl GameState {
                     draft(Some(*caster), Some(object), frame, RowFact::Cast { from });
                 }
             }
-            // No frame: no card reads what an earlier drawn card was, and a
-            // filter over one is refused until one does. Nothing else asks
-            // about a card in hand, so each frame would be a layer walk.
             GameEvent::CardDrawn { player_id, card_id } => {
-                draft(Some(*player_id), self.object_ref(*card_id), None, RowFact::Drew);
+                if let Some((object, frame)) = now(*card_id) {
+                    draft(Some(*player_id), Some(object), frame, RowFact::Drew);
+                }
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
                 draft(Some(*player_id), None, None, RowFact::GainedLife((new - old) as u64));
