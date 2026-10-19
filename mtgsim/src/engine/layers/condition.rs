@@ -121,9 +121,8 @@ pub(super) fn holds(
         // CR 508.5: the fact about one player, the creature's defending player.
         // It attacks what the battlefield says, or what the history kept.
         Condition::DefendingPlayer { of, fact: player_fact } => {
-            board.note_gated_read(GatedWalkInput::Combat);
-            board.note_gated_read(GatedWalkInput::Histories);
-            match referents.object_for(*of, source).and_then(|it| it.defending_player(game)) {
+            let note = |input| board.note_gated_read(input);
+            match referents.object_for(*of, source).and_then(|it| it.defending_player(game, &note)) {
                 Some(defending) => {
                     let players = PlayerSet::Fixed(vec![defending]);
                     player_fact_holds(&players, player_fact, game, board, source, layer_index, locked_you, owner_if_gone)
@@ -209,19 +208,23 @@ pub(super) fn holds(
         // A turn summary's count (§3.10), for "you" as every leaf here reads it:
         // the source's controller. The counts are off `GameState`.
         Condition::ThisTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
+            board.note_gated_read(GatedWalkInput::TurnSummaries);
+            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index, locked_you)
         }
         Condition::LastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
+            board.note_gated_read(GatedWalkInput::TurnSummaries);
+            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::SinceYourLastTurn(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
+            board.note_gated_read(GatedWalkInput::TurnSummaries);
+            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index, locked_you)
         }
         Condition::ThisGame(count) => {
-            board.note_gated_read(GatedWalkInput::Histories);
+            board.note_gated_read(GatedWalkInput::TurnSummaries);
+            board.note_gated_read(GatedWalkInput::TurnNumber);
             history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, locked_you)
         }
         // CR 122.7, 714.2b: some record of the trigger's left the count at

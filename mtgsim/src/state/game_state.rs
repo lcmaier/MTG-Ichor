@@ -1061,13 +1061,11 @@ impl GameState {
     /// on its own leaves the clock stale and every summoning-sickness question
     /// answers against the wrong turn.
     pub fn begin_turn(&mut self, turn: u32, player: PlayerId) {
-        // Each player's "your last turn" is their latest turn before this one.
-        let keep_from = self.players_in_game().map(|p| self.last_turn_began[p]).min().unwrap_or(turn);
         self.turn_number = turn;
         self.active_player = player;
         self.last_turn_began[player] = turn;
-        self.history.turn_began(keep_from);
-        self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
+        self.history.turn_began();
+        self.bump_layer_epoch_if_read(GatedWalkInput::TurnNumber);
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then

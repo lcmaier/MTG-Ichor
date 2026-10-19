@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::state::layer_memo::GatedWalkInput;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::HeldFrame;
@@ -69,13 +70,15 @@ impl CurrentOrLastKnown<'_> {
     /// "Defending player" for this creature (CR 508.5, 802.2a): the player it
     /// is attacking, or the controller of the planeswalker it is attacking.
     /// Once it is no longer attacking, the one it was attacking before it was
-    /// removed from combat (the combat's history). `None` while it attacks
+    /// removed from combat (the history log). `None` while it attacks
     /// nothing, and for a battle, whose protector waits for `backlog.md`
-    /// §2.23's attack path.
-    pub fn defending_player(&self, game: &GameState) -> Option<PlayerId> {
+    /// §2.23's attack path. Notes what it read into `note`, the layer walk's
+    /// when a walk asks.
+    pub(crate) fn defending_player(&self, game: &GameState, note: &dyn Fn(GatedWalkInput)) -> Option<PlayerId> {
+        note(GatedWalkInput::Combat);
         let attack = match self.attacking(game) {
             Some(attack) => attack,
-            None => game.history.combat.attacking_when_removed(self.existence(game)?, game.turn_number)?,
+            None => game.history.log.attacking_when_removed(self.existence(game)?, game.turn_number, note)?,
         };
         defending_player_for(game, attack)
     }

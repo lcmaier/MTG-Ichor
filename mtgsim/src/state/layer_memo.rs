@@ -22,6 +22,7 @@ use std::sync::Arc;
 use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::mana_supply::ManaProductionWatchers;
+use crate::state::history_log::RowKind;
 use crate::types::ids::{IdMap, ObjectId};
 
 /// Per-object frames, each stamped with the epoch it was computed at.
@@ -82,21 +83,47 @@ pub(crate) enum GatedWalkInput {
     /// What each creature is attacking or blocking (CR 506): "defending
     /// player".
     Combat,
-    /// The turn number and what the histories count: "as long as you've
-    /// gained life this turn", "creatures that attacked this turn".
-    Histories,
+    /// The turn number: "entered this turn", and every "this turn" over the
+    /// history log.
+    TurnNumber,
+    /// The players' counts of a turn: "as long as you've gained life this
+    /// turn".
+    TurnSummaries,
+    /// Which combat of the turn is the latest: "this combat".
+    CombatCount,
+    /// The history log's rows of one kind (`state::history_log`), noted by
+    /// the lookup that scans them: "creatures that attacked this turn".
+    Rows(RowKind),
 }
+
+impl GatedWalkInput {
+    /// Its bit in a [`GatedInputs`].
+    const fn bit(self) -> u32 {
+        let place = match self {
+            GatedWalkInput::LifeTotals => 0,
+            GatedWalkInput::TappedStatus => 1,
+            GatedWalkInput::Combat => 2,
+            GatedWalkInput::TurnNumber => 3,
+            GatedWalkInput::TurnSummaries => 4,
+            GatedWalkInput::CombatCount => 5,
+            GatedWalkInput::Rows(kind) => 6 + kind as u32,
+        };
+        1 << place
+    }
+}
+
+const _: () = assert!(6 + RowKind::COUNT <= u32::BITS as usize);
 
 /// A set of [`GatedWalkInput`]s: what one walk read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct GatedInputs(u8);
+pub(crate) struct GatedInputs(u32);
 
 impl GatedInputs {
     pub(crate) const NONE: GatedInputs = GatedInputs(0);
 
     /// This set and `input`.
     pub(crate) fn with(self, input: GatedWalkInput) -> GatedInputs {
-        GatedInputs(self.0 | 1 << input as u8)
+        GatedInputs(self.0 | input.bit())
     }
 
     fn union(self, other: GatedInputs) -> GatedInputs {
@@ -104,7 +131,7 @@ impl GatedInputs {
     }
 
     fn contains(self, input: GatedWalkInput) -> bool {
-        self.0 & 1 << input as u8 != 0
+        self.0 & input.bit() != 0
     }
 }
 
@@ -386,6 +413,75 @@ mod tests {
         // an expiry pass that removes nothing is not a write.
         assert!(game.continuous_effects.remove_expired_at_cleanup(0, 2).is_empty());
         assert_eq!(power(&game, bears), (Some(2), true));
+    }
+
+    /// A static over "creatures that attacked this turn" read the log's
+    /// attack rows, so its frames stand through a damage row and walk again
+    /// once an attack row is written (`triggers-architecture.md` §12, TR-5h).
+    #[test]
+    fn a_history_read_is_invalidated_by_its_kind_of_row_only() {
+        use crate::events::cause::{EventCause, GameRule};
+        use crate::events::event::{DamageTarget, GameEvent};
+        use crate::state::battlefield::AttackTarget;
+        use crate::types::effects::{ObjectFilter, ObjectSet};
+        use crate::types::history::ObjectFact;
+        use crate::types::zones::ZoneSet;
+
+        let mut game = GameState::new(2, 20);
+        game.begin_turn(1, 0);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 1);
+        let mut attackers_pumped = pump(bears, 10);
+        attackers_pumped.affected_objects =
+            ObjectSet::Filter { filter: ObjectFilter::ThisTurn(ObjectFact::Attacked), zones: ZoneSet::of(Zone::Battlefield) };
+        game.continuous_effects.add(attackers_pumped);
+        assert_eq!(power(&game, bears), (Some(2), false));
+        assert_eq!(power(&game, bears), (Some(2), true));
+
+        let cause = EventCause::GameRule(GameRule::StepBegins);
+        let damage = GameEvent::DamageDealt {
+            source_id: bears,
+            target: DamageTarget::Object(wall),
+            amount: 1,
+            is_combat: false,
+            source_lki: None,
+        };
+        game.emit_event(damage, cause).unwrap();
+        assert!(game.history.log.rows_newest_first().any(|row| row.fact.kind() == crate::state::history_log::RowKind::DealtDamage));
+        assert_eq!(power(&game, bears), (Some(2), true), "a damage row is not what the static read");
+
+        game.emit_event(GameEvent::AttackersDeclared { attackers: vec![(bears, AttackTarget::Player(1))] }, cause).unwrap();
+        assert_eq!(power(&game, bears), (Some(5), false), "an attack row is, and the bears attacked");
+    }
+
+    /// A static's filter that asks a creature's defending player (CR 508.5)
+    /// reads what it is attacking, so its frames walk again once it attacks.
+    /// The read is noted inside the lookup, for a layer row's filter too, which
+    /// noted nothing before TR-5h.
+    #[test]
+    fn a_defending_player_read_is_invalidated_by_an_attack() {
+        use crate::state::battlefield::{AttackTarget, AttackingInfo};
+        use crate::state::layer_memo::GatedWalkInput;
+        use crate::types::effects::{Antecedent, ObjectFilter, ObjectSet, PlayerRef};
+        use crate::types::zones::ZoneSet;
+
+        let mut game = GameState::new(2, 20);
+        game.begin_turn(1, 0);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let wall = put_on_battlefield(&mut game, vanilla_creature(0, 4, &[]), 1);
+        // "Creatures defending player controls get +3/+0", from the bears.
+        let mut pumped = pump(bears, 10);
+        pumped.affected_objects = ObjectSet::Filter {
+            filter: ObjectFilter::ByController(PlayerRef::DefendingPlayer(Antecedent::ThisObject)),
+            zones: ZoneSet::of(Zone::Battlefield),
+        };
+        game.continuous_effects.add(pumped);
+        assert_eq!(power(&game, wall).0, Some(0), "the bears attack no one");
+
+        game.battlefield.get_mut(&bears).unwrap().attacking =
+            Some(AttackingInfo { target: AttackTarget::Player(1), is_blocked: false, blocked_by: Vec::new() });
+        game.bump_layer_epoch_if_read(GatedWalkInput::Combat);
+        assert_eq!(power(&game, wall).0, Some(3), "player 1 is the defending player now");
     }
 
     #[test]

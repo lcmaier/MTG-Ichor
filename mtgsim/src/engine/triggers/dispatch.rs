@@ -266,7 +266,7 @@ impl FilterReferents for TriggerReferents<'_> {
     /// The candidate, now: an arm's own words have no triggering event yet.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game),
+            Antecedent::ThisObject => CurrentOrLastKnown { id: self.this.id(), lki: None }.defending_player(game, &|_| {}),
             Antecedent::Triggering(_) => None,
         }
     }
@@ -1556,11 +1556,11 @@ impl GameState {
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
             Some(TriggerLimit::FirstTimeEachTurn) => match (arm, &record.event) {
                 (TriggerEvent::BecomesTarget { by, controller: whose, .. }, GameEvent::Targeted { target, .. }) => {
-                    !self.history.targetings.rows().iter().any(|row| {
-                        row.seq < record.seq
-                            && row.target == *target
-                            && by.admits(row.by_spell)
-                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, row.controller, referents))
+                    !self.history.log.targetings_of_turn(self.turn_number).any(|(targeted, by_spell, controller, seq)| {
+                        seq < record.seq
+                            && targeted == *target
+                            && by.admits(by_spell)
+                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, controller, referents))
                     })
                 }
                 _ => record.place_in_turn() == Some(1),

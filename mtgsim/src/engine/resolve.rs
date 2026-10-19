@@ -2752,7 +2752,7 @@ impl GameState {
     /// reads it.
     fn defending_player_of(&self, creature: Antecedent, ctx: &ResolutionContext) -> Option<PlayerId> {
         let objects = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        objects.object_for(creature, ctx.effect_source())?.defending_player(self)
+        objects.object_for(creature, ctx.effect_source())?.defending_player(self, &|_| {})
     }
 
     /// CR 113.7a, 608.2h — the ability's source's last known information,

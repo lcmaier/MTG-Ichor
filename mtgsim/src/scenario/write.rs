@@ -8,6 +8,7 @@
 
 use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
 use super::text::{draw_step_skipped, every_turn_fact, in_combat_from};
+use crate::state::history_log::RowKind;
 use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
@@ -191,10 +192,11 @@ impl<'g> Writer<'g> {
         }
         // A board is played through its turn rather than saved with each
         // creature's part in the turn's combats.
-        if history.combat.rows().iter().any(|row| row.turn == turn) {
+        let this_turn = || history.log.rows_of_turn(turn).map(|row| row.fact.kind());
+        if this_turn().any(|kind| matches!(kind, RowKind::Attacked | RowKind::Blocked | RowKind::RemovedFromCombat)) {
             self.report("what creatures did in combat this turn (CR 508.4, 508.5)");
         }
-        if !history.targetings.rows().is_empty() {
+        if this_turn().any(|kind| kind == RowKind::BecameTarget) {
             self.report("what became the target of a spell or ability this turn (CR 115.1)");
         }
         let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);

@@ -25,7 +25,7 @@ use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy};
 use mtgsim::events::event::{CombatExit, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::state::history::CombatSpan;
+use mtgsim::state::history_log::RowFact;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, static_ability, test_ctx, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
@@ -567,7 +567,10 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
     }
     assert_eq!(entering_defender_prompts(&dp), 0, "one player to attack, so nothing to choose");
     assert_eq!(life(&game, 1), 18, "Hellrider's two triggers, and none for the tokens");
-    let attacked = |id| game.history.combat.attacked(existence(&game, id), game.turn_number, CombatSpan::ThisTurn);
+    let attacked = |id| {
+        let object = Some(existence(&game, id));
+        game.history.log.rows_of_turn(game.turn_number).any(|row| row.object == object && matches!(row.fact, RowFact::Attacked(_)))
+    };
     assert!(attacked(hellrider) && attacked(garrison));
     assert!(humans.iter().all(|&human| !attacked(human)), "no declaration, no `Attacked` row");
 }
@@ -809,7 +812,8 @@ fn a_card_returned_tapped_and_attacking_is_tapped_and_attacking() {
     resolve_as(&mut game, 0, &returns, bears);
     assert_eq!(attack_of(&game, bears), Some(AttackTarget::Player(1)));
     assert!(game.battlefield[&bears].tapped);
-    assert!(!game.history.combat.attacked(existence(&game, bears), game.turn_number, CombatSpan::ThisTurn));
+    let bears_now = Some(existence(&game, bears));
+    assert!(!game.history.log.rows_of_turn(game.turn_number).any(|row| row.object == bears_now && matches!(row.fact, RowFact::Attacked(_))));
 }
 
 /// Hanweir Garrison's third ruling: another attack trigger goes on the stack
@@ -957,7 +961,8 @@ fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
     assert_eq!(game.pending_triggers.len(), 1, "Hellrider's, in the second combat");
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 17);
-    let attacks = game.history.combat.rows().iter().filter(|row| row.object == existence(&game, hellrider)).count();
+    let hellrider_now = Some(existence(&game, hellrider));
+    let attacks = game.history.log.rows_newest_first().filter(|row| row.object == hellrider_now && matches!(row.fact, RowFact::Attacked(_))).count();
     assert!(attacks >= 2, "an `Attacked` row in each combat");
 }
 

@@ -13,16 +13,30 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
-use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
-use crate::state::history::{CombatFact, PlayerHistory, TargetingRow};
-use crate::state::history_log::{HistoryRow, RowFact};
+use crate::state::history::PlayerHistory;
+use crate::state::history_log::{HistoryRow, RowFact, RowKind};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
+
+/// Every kind of row, in their order, for bumping the ones a window wrote.
+const ROW_KINDS: [RowKind; RowKind::COUNT] = [
+    RowKind::Cast,
+    RowKind::Drew,
+    RowKind::Life,
+    RowKind::Entered,
+    RowKind::LeftZone,
+    RowKind::LeftTheGame,
+    RowKind::DealtDamage,
+    RowKind::Attacked,
+    RowKind::Blocked,
+    RowKind::RemovedFromCombat,
+    RowKind::BecameTarget,
+];
 
 /// A log row before the write step gives it its turn and combat.
 struct RowDraft {
@@ -44,16 +58,9 @@ enum HistoryUpdate {
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
     CreatureDied { controller: PlayerId },
-    /// The count is the attacking player's; the attacks are the combat's
-    /// rows.
-    AttackersDeclared { player: PlayerId, count: u64, attacks: Vec<(ObjectRef, AttackTarget)> },
-    /// Each block, as (blocker, attacker): the combat's rows.
-    BlockersDeclared { blocks: Vec<(ObjectRef, ObjectRef)> },
-    /// Something became the target of a spell or ability: the turn's
-    /// targeting rows.
-    Targeted { row: TargetingRow },
+    /// The count is the attacking player's; the attacks are the log's rows.
+    AttackersDeclared { player: PlayerId, count: u64 },
     CombatBegan,
-    RemovedFromCombat { exits: Vec<(ObjectRef, Option<AttackTarget>)> },
 }
 
 impl HistoryUpdate {
@@ -73,10 +80,7 @@ impl HistoryUpdate {
             | HistoryUpdate::DamageTaken { .. }
             | HistoryUpdate::CreatureDied { .. }
             | HistoryUpdate::AttackersDeclared { .. }
-            | HistoryUpdate::BlockersDeclared { .. }
-            | HistoryUpdate::Targeted { .. }
-            | HistoryUpdate::CombatBegan
-            | HistoryUpdate::RemovedFromCombat { .. } => return None,
+            | HistoryUpdate::CombatBegan => return None,
         })
     }
 }
@@ -107,7 +111,7 @@ impl GameState {
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
         if wrote {
-            self.bump_layer_epoch_if_read(GatedWalkInput::Histories);
+            self.bump_layer_epoch_if_read(GatedWalkInput::TurnSummaries);
         }
         // The rows read their objects after every count, as the window left
         // them (CR 603.10): a static that reads this turn's history already
@@ -118,6 +122,7 @@ impl GameState {
             self.draft_history_rows(seq, window, &mut drafts);
         }
         let mut moments = moments.into_iter().peekable();
+        let mut kinds_written = [false; RowKind::COUNT];
         for (seq, draft) in drafts {
             while moments.next_if(|(counted, ..)| *counted != seq).is_some() {}
             let Some(&(_, turn, combat)) = moments.peek() else { break };
@@ -130,7 +135,11 @@ impl GameState {
                 frame: draft.frame,
                 fact: draft.fact,
             };
+            kinds_written[row.fact.kind() as usize] = true;
             self.history.log.push(row);
+        }
+        for kind in ROW_KINDS.into_iter().filter(|kind| kinds_written[*kind as usize]) {
+            self.bump_layer_epoch_if_read(GatedWalkInput::Rows(kind));
         }
     }
 
@@ -189,28 +198,14 @@ impl GameState {
                     row.add(turn, TurnFact::ControlledCreaturesDied, 1);
                 }
             }
-            HistoryUpdate::AttackersDeclared { player, count, attacks } => {
-                for &(attacker, target) in attacks {
-                    self.history.combat.record(attacker, turn, CombatFact::Attacked(target));
-                }
+            HistoryUpdate::AttackersDeclared { player, count } => {
                 if let Some(row) = self.row_to_count_on(*player) {
                     row.add(turn, TurnFact::AttackersDeclared, *count);
                 }
             }
-            HistoryUpdate::BlockersDeclared { blocks } => {
-                for &(blocker, attacker) in blocks {
-                    self.history.combat.record(blocker, turn, CombatFact::Blocked(attacker));
-                }
-            }
-            HistoryUpdate::Targeted { row } => self.history.targetings.record(*row),
             HistoryUpdate::CombatBegan => {
-                self.history.combat.combat_began();
                 self.history.log.combat_began();
-            }
-            HistoryUpdate::RemovedFromCombat { exits } => {
-                for &(object, attacking) in exits {
-                    self.history.combat.record(object, turn, CombatFact::Removed { attacking });
-                }
+                self.bump_layer_epoch_if_read(GatedWalkInput::CombatCount);
             }
         }
     }
@@ -406,31 +401,11 @@ impl GameState {
             {
                 HistoryUpdate::CreatureDied { controller: lki.chars().controller }
             }
-            // CR 508.1: the active player declares attackers, each as the
-            // existence it is now, since the record's dispatch is the
-            // declaration's own instant.
+            // CR 508.1: the active player's count; the attacks are the log's.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                let attacks =
-                    attackers.iter().filter_map(|&(attacker, target)| Some((self.object_ref(attacker)?, target))).collect();
-                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64, attacks }
+                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
             }
-            // CR 509.1: each block, its two creatures as the existences they
-            // are now, at the declaration's own instant.
-            GameEvent::BlockersDeclared { blocks, .. } if !blocks.is_empty() => {
-                let blocks = blocks
-                    .iter()
-                    .filter_map(|&(blocker, attacker)| Some((self.object_ref(blocker)?, self.object_ref(attacker)?)))
-                    .collect();
-                HistoryUpdate::BlockersDeclared { blocks }
-            }
-            GameEvent::Targeted { target, ability_source, controller, .. } => HistoryUpdate::Targeted {
-                row: TargetingRow { target: *target, controller: *controller, by_spell: ability_source.is_none(), seq },
-            },
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. } => HistoryUpdate::CombatBegan,
-            // CR 506.4, 511.3: what each was attacking as it left combat.
-            GameEvent::RemovedFromCombat { removed } => HistoryUpdate::RemovedFromCombat {
-                exits: removed.iter().map(|exit| (exit.object, exit.attacking)).collect(),
-            },
             _ => return None,
         })
     }

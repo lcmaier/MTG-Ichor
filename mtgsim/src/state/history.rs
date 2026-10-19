@@ -14,9 +14,6 @@
 
 use std::sync::Arc;
 
-use crate::engine::targeting::TargetRef;
-use crate::events::event::EventSeq;
-use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::AbilityIdentity;
 use crate::state::history_log::HistoryLog;
 use crate::types::history::TurnFact;
@@ -196,14 +193,10 @@ pub struct GameHistory {
     /// ruling), so a control change does not restart it. Advanced off
     /// `AbilityResolved` by the dispatcher.
     pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
-    /// What each creature did in this round's combats.
-    pub combat: CombatHistory,
-    /// What became the target of what this turn, which valiant's "for the
-    /// first time each turn" reads.
-    pub targetings: TargetingHistory,
     /// Every event a card can ask about later, for the whole game
-    /// (`state::history_log`). Written beside the stores above until their
-    /// readers move onto it.
+    /// (`state::history_log`): what each object did, the combats', the
+    /// targetings'. Written beside the players' counts until their readers
+    /// move onto it.
     pub log: HistoryLog,
 }
 
@@ -216,8 +209,6 @@ impl GameHistory {
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),
-            combat: CombatHistory::default(),
-            targetings: TargetingHistory::default(),
             log: HistoryLog::default(),
         }
     }
@@ -248,175 +239,12 @@ impl GameHistory {
     }
 
     /// A turn has begun. "Each turn" is the game's turn, not a controller's
-    /// (§3.5), so the abilities' facts start over; the combat's rows keep the
-    /// turns from `keep_from` on.
-    pub(crate) fn turn_began(&mut self, keep_from: u32) {
+    /// (§3.5), so the abilities' facts start over; the log keeps every turn.
+    pub(crate) fn turn_began(&mut self) {
         self.action_taken_this_turn.clear();
         self.triggered_this_turn.clear();
         self.resolutions_this_turn.clear();
-        self.combat.turn_began(keep_from);
-        self.targetings.turn_began();
         self.log.turn_began();
-    }
-}
-
-/// What each creature did in combat: a row for each attacker declared (CR
-/// 508.1) and for each creature removed from combat (CR 506.4, 511.3).
-///
-/// Kept for a round, from the earliest turn any player's "your last turn"
-/// can still name (Giant Turtle's "if it attacked during your last turn").
-/// The rows are shared, so a clone copies a pointer, and a write copies them
-/// only while a clone still shares them.
-#[derive(Debug, Clone, Default)]
-pub struct CombatHistory {
-    /// The combat phases begun this turn, which CR 500.8 can add to.
-    combats_this_turn: u32,
-    rows: Arc<Vec<CombatRow>>,
-}
-
-/// One thing a creature did in one combat.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CombatRow {
-    /// The existence that did it (CR 400.7).
-    pub object: ObjectRef,
-    pub turn: u32,
-    /// Which of the turn's combats, from 1.
-    pub combat: u32,
-    pub fact: CombatFact,
-}
-
-/// What a [`CombatRow`] says the creature did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CombatFact {
-    /// CR 508.1: declared as an attacker, attacking this. A creature put onto
-    /// the battlefield attacking never "attacked" (CR 508.4) and has none.
-    Attacked(AttackTarget),
-    /// CR 506.4, 511.3: removed from combat, attacking this as it was, or
-    /// nothing.
-    Removed { attacking: Option<AttackTarget> },
-    /// CR 509.1: declared as a blocker of this attacking creature, one row
-    /// for each creature it blocks. The attacker's own "was blocked" is the
-    /// row that names it.
-    Blocked(ObjectRef),
-}
-
-/// How much of the turn a question about its combats spans: the whole turn,
-/// or its latest combat, which CR 500.8's additional combats make two
-/// different questions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CombatSpan {
-    ThisTurn,
-    ThisCombat,
-}
-
-impl CombatHistory {
-    /// A combat phase of this turn has begun.
-    pub(crate) fn combat_began(&mut self) {
-        self.combats_this_turn += 1;
-    }
-
-    /// `object` did `fact` in turn `turn`'s latest combat.
-    pub(crate) fn record(&mut self, object: ObjectRef, turn: u32, fact: CombatFact) {
-        let row = CombatRow { object, turn, combat: self.combats_this_turn, fact };
-        Arc::make_mut(&mut self.rows).push(row);
-    }
-
-    /// A turn has begun, and nothing reads a row from before `keep_from`.
-    fn turn_began(&mut self, keep_from: u32) {
-        self.combats_this_turn = 0;
-        if self.rows.iter().any(|row| row.turn < keep_from) {
-            Arc::make_mut(&mut self.rows).retain(|row| row.turn >= keep_from);
-        }
-    }
-
-    /// Every row, oldest first.
-    pub fn rows(&self) -> &[CombatRow] {
-        &self.rows
-    }
-
-    /// The rows a question about turn `turn`, the turn in progress, reads:
-    /// every combat's for "this turn", the latest combat's for "this
-    /// combat", which CR 500.8's additional combats make two questions.
-    /// Each reader below asks one fact of these.
-    fn rows_during(&self, turn: u32, span: CombatSpan) -> impl DoubleEndedIterator<Item = &CombatRow> {
-        let latest = self.combats_this_turn;
-        self.rows.iter().filter(move |row| {
-            row.turn == turn && match span {
-                CombatSpan::ThisTurn => true,
-                CombatSpan::ThisCombat => row.combat == latest,
-            }
-        })
-    }
-
-    /// Was `object` declared as an attacker in `span` of turn `turn`? A
-    /// creature put onto the battlefield attacking never was (CR 508.4).
-    pub fn attacked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Attacked(_)))
-    }
-
-    /// Was `object` declared as a blocker in `span` of turn `turn` (CR
-    /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
-    pub fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Blocked(_)))
-    }
-
-    /// Did `object` become a blocked creature as blockers were declared in
-    /// `span` of turn `turn` (CR 509.1h)?
-    pub fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
-        self.rows_during(turn, span).any(|row| row.fact == CombatFact::Blocked(object))
-    }
-
-    /// What `object` was attacking as it was last removed from combat in the
-    /// latest combat of turn `turn`, the turn in progress (CR 508.5's second
-    /// sentence): `None` when it was not removed in that combat, or was
-    /// attacking nothing.
-    pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
-        let removed = self
-            .rows_during(turn, CombatSpan::ThisCombat)
-            .rev()
-            .find(|row| row.object == object && matches!(row.fact, CombatFact::Removed { .. }))?;
-        match removed.fact {
-            CombatFact::Removed { attacking } => attacking,
-            CombatFact::Attacked(_) | CombatFact::Blocked(_) => None,
-        }
-    }
-}
-
-/// Each time something became the target of a spell or ability this turn
-/// (CR 115.1), one row per `Targeted` record, in the order announced. Kept
-/// for the turn: valiant and Kira read "for the first time each turn", and
-/// nothing reads further back. Shared, as the combat's rows are.
-#[derive(Debug, Clone, Default)]
-pub struct TargetingHistory {
-    rows: Arc<Vec<TargetingRow>>,
-}
-
-/// One object or player becoming the target of one spell or ability.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetingRow {
-    pub target: TargetRef,
-    /// The spell's or ability's controller.
-    pub controller: PlayerId,
-    /// A spell rather than an ability.
-    pub by_spell: bool,
-    /// The record, which tells an earlier targeting from the one being read.
-    pub seq: EventSeq,
-}
-
-impl TargetingHistory {
-    pub(crate) fn record(&mut self, row: TargetingRow) {
-        Arc::make_mut(&mut self.rows).push(row);
-    }
-
-    fn turn_began(&mut self) {
-        if !self.rows.is_empty() {
-            self.rows = Arc::default();
-        }
-    }
-
-    /// Every row this turn, oldest first.
-    pub fn rows(&self) -> &[TargetingRow] {
-        &self.rows
     }
 }
 
@@ -470,80 +298,6 @@ mod tests {
         game.history.count_turn_began(2, 0);
         game.history.players[0].add(2, DRAWN, 1);
         assert_eq!(game.history.since_your_last_turn(0, 0).count(DRAWN), 1);
-    }
-
-    /// Object `id` as the existence its `zone_change_epoch` names (CR
-    /// 400.7): the same id with another epoch is another object.
-    fn object_ref(id: u64, zone_change_epoch: u64) -> ObjectRef {
-        ObjectRef { id: crate::types::ids::ObjectId::from_trace(id), zone_change_epoch }
-    }
-
-    /// Two combats in one turn: "defending player" reads the latest combat's
-    /// removal only, and "attacked this turn" each combat's declaration. The
-    /// same object after a zone change is a new one (CR 400.7) and did
-    /// neither.
-    #[test]
-    fn the_rows_tell_combats_and_existences_apart() {
-        let mut combat = CombatHistory::default();
-        let (bears, after_a_flicker) = (object_ref(7, 1), object_ref(7, 2));
-        let player_1 = AttackTarget::Player(1);
-        combat.combat_began();
-        combat.record(bears, 3, CombatFact::Attacked(player_1));
-        combat.record(bears, 3, CombatFact::Removed { attacking: Some(player_1) });
-        assert_eq!(combat.attacking_when_removed(bears, 3), Some(player_1));
-
-        combat.combat_began();
-        assert_eq!(combat.attacking_when_removed(bears, 3), None, "not removed in the second combat");
-        assert!(combat.attacked(bears, 3, CombatSpan::ThisTurn), "it attacked in the first");
-        assert!(!combat.attacked(bears, 3, CombatSpan::ThisCombat), "and not in the second");
-        assert!(!combat.attacked(after_a_flicker, 3, CombatSpan::ThisTurn));
-        assert!(!combat.attacked(bears, 4, CombatSpan::ThisTurn));
-    }
-
-    /// A block is the blocker's row, naming the attacker, which is how the
-    /// attacker was blocked; and "this combat" is the latest combat's.
-    #[test]
-    fn a_block_row_answers_both_sides_in_its_combat() {
-        let mut combat = CombatHistory::default();
-        let (wall, bears) = (object_ref(7, 1), object_ref(8, 1));
-        combat.combat_began();
-        combat.record(wall, 3, CombatFact::Blocked(bears));
-        assert!(combat.blocked(wall, 3, CombatSpan::ThisCombat));
-        assert!(combat.was_blocked(bears, 3, CombatSpan::ThisCombat));
-        assert!(!combat.blocked(bears, 3, CombatSpan::ThisTurn), "the attacker did not block");
-        assert!(!combat.was_blocked(wall, 3, CombatSpan::ThisTurn), "the blocker was not blocked");
-
-        combat.combat_began();
-        assert!(!combat.blocked(wall, 3, CombatSpan::ThisCombat), "not in the second combat");
-        assert!(combat.blocked(wall, 3, CombatSpan::ThisTurn));
-    }
-
-    /// The rows keep a round: from the earliest turn any player's "your last
-    /// turn" can name. On turn 3 player 0's last turn is turn 1, so its row
-    /// stays; on turn 4 both players' last turns are 2 and 3, so it goes.
-    #[test]
-    fn the_rows_keep_a_round() {
-        let mut game = GameState::new(2, 20);
-        game.history.combat.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
-        let turns = |game: &GameState| game.history.combat.rows().iter().map(|row| row.turn).collect::<Vec<_>>();
-        game.begin_turn(2, 1);
-        game.begin_turn(3, 0);
-        assert_eq!(turns(&game), [1], "player 0's last turn, on its own turn");
-        game.begin_turn(4, 1);
-        assert!(turns(&game).is_empty());
-    }
-
-    /// A clone shares the rows until one of the two writes, so a fork that
-    /// plays through a combat copies them once.
-    #[test]
-    fn a_clone_shares_the_rows_until_it_writes() {
-        let mut first = CombatHistory::default();
-        first.record(object_ref(7, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
-        let second = first.clone();
-        assert!(Arc::ptr_eq(&first.rows, &second.rows));
-        first.record(object_ref(8, 1), 1, CombatFact::Attacked(AttackTarget::Player(1)));
-        assert!(!Arc::ptr_eq(&first.rows, &second.rows));
-        assert_eq!((first.rows().len(), second.rows().len()), (2, 1));
     }
 
     /// The draw step's count is not a turn row: it starts over when a draw

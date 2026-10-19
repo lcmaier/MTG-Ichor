@@ -709,7 +709,9 @@ impl FilterReferents for FilterPlayers<'_, '_> {
     /// The source, now: a static ability has no triggering event.
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
-            Antecedent::ThisObject => CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game),
+            Antecedent::ThisObject => {
+                CurrentOrLastKnown { id: self.source, lki: None }.defending_player(game, &|input| self.board.note_gated_read(input))
+            }
             Antecedent::Triggering(_) => None,
         }
     }
@@ -788,7 +790,9 @@ fn resolve_set_controller(
         // triggering event, and "defending player" with no creature names no
         // one player.
         PlayerRef::DefendingPlayer(Antecedent::ThisObject) => {
-            CurrentOrLastKnown { id: effect.source, lki: None }.defending_player(game).filter(|&p| still_playing(p))
+            CurrentOrLastKnown { id: effect.source, lki: None }
+                .defending_player(game, &|input| board.note_gated_read(input))
+                .filter(|&p| still_playing(p))
         }
         PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
