@@ -3559,7 +3559,526 @@ written in one place and missed in another, both fixed, and eight copies.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5c".
 
-### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
+### TR-5d — prevention, excess damage and the damage facts
+
+*Designed 2026-10-18 against the tree at `336a0f7` (`main`, #261 merged).
+Re-counted first: the row's 1,995–2,300 counted neither item 279's history
+nor what the card hunt found, and the whole re-counts at 2,660–3,040. So it
+splits in two at the brief's seam. TR-5d is the damage half and lands first.
+TR-5g, below, is the multiplier, tokens and scry. Both are designed here for
+one review. Nothing built.*
+
+**Where it sits.** A trigger reads the performed stream. A record is
+announced, `EventKind::from_record` files it, the dispatch matches each
+source's arms, the binding keeps each object by its event role, and
+placement puts the trigger on the stack. The damage batch writes two
+records, and neither reaches an arm whole:
+- `DamagePrevented` has been announced while the batch decides since #260
+  (`engine/replacement/pipeline.rs:673`, item 16), and is filed as unread
+  (`types/triggers.rs:571`). Selfless Squire's second ability reads it.
+- `DamageDealt` says how much damage was dealt, and not how much of it was
+  excess (CR 120.10). And nothing keeps that an object was dealt damage, or
+  dealt it, this turn (item 279's damage half).
+
+This phase builds the prevention arm, CR 120.10's excess in the batch and
+on the damage arm, and the per-turn history item 279 shaped, with the damage
+facts as its first rows that are not combat's. Item 275 rides with it, since
+registering Selfless Squire moves the random agent's stream.
+
+**What the re-read found** (CR 615.13, 120.10, 120.4a, 702.2c and 603.10,
+the cards' rulings, and Scryfall's counts on 2026-10-18)
+
+*Prevention*
+- **One printed card triggers on CR 615.13's event.** Selfless Squire:
+  "Whenever damage that would be dealt to you is prevented, put that many
+  +1/+1 counters on this creature." Its first ability's prevention lasts
+  after the Squire leaves (#1), and any prevention effect triggers the
+  second, not only its own (#2). The other five with "is prevented" in a
+  trigger say "prevented this way" (Phyrexian Vindicator, New Way Forward,
+  Outfitted Jouster, Judgment of Alexander, Samite Ministration; `(o:"is
+  prevented" or o:"are prevented") (o:whenever or o:when)`). They ask which
+  effect prevented the damage, which is the record's `by`.
+- **One record is one application.** CR 615.13 triggers "each time a
+  prevention effect is applied to one or more simultaneous damage events".
+  The pipeline applies an effect once per subject group, CR 616.1's affected
+  object or player (`replacement-architecture.md`
+  §9's RD decision 3), and #260 writes one record each
+  time. So two attackers into a Fog at you are one record and one trigger,
+  whose "that many" is their total. A shield and a Fog that each prevent part
+  of one damage are two records. A Fog that prevents damage to you and to
+  your creature is applied twice, once to each, and only the first is "dealt
+  to you".
+
+*Excess damage* (TR-5c's piece 11, kept in the archive as written, re-checked)
+- **The readings** (CR 120.10, and Aegar, the Freezing Flame's rulings).
+  Damage already marked counts (#2). Any damage from a deathtouch source to
+  a creature is lethal, so the rest of it is excess (#4; CR 702.2c, 120.4a),
+  and deathtouch changes nothing for a planeswalker (#4). A creature
+  planeswalker takes the smaller lethal amount (#6). And excess is a fact of
+  the event, "those sources together": two sources into one creature make
+  one excess.
+- **Taken before the batch performs.** A planeswalker's loyalty falls in a
+  removal nested after its damage (`engine/actions.rs:1466`), and damage is
+  marked member by member. So the lethal amounts are taken once the batch has
+  decided its preventions and before it performs (`engine/actions.rs:1082`).
+  Prevented damage is never dealt (CR 615.6), so a Gideon that prevents the
+  damage dealt to it is dealt no excess. Damage that can't be prevented is
+  dealt: Aegar #6's 5/5 creature planeswalker with three loyalty counters,
+  dealt 4, is dealt 1 excess, indestructible or not.
+- **Who reads it** (12 cards, `o:"excess damage" (o:when or o:whenever)`):
+  the arm, "is dealt excess [noncombat] damage" (Aegar, Fall of Cair Andros);
+  "if excess damage was dealt this way", a resolution's own records (4); and
+  "was dealt excess damage this turn" (2). Megatron, Tyrant's "if excess
+  damage would be dealt" is CR 120.4a's modification of the event, not
+  120.10's.
+
+*The damage facts* (item 279's damage half)
+- **Two families, 45 cards.** "Was dealt damage this turn" (35, Fatal
+  Blow), and "that dealt damage to [you / a player] this turn" (10:
+  Spear of Heliod and Retaliate; Indulge // Excess and Witch-king of Angmar
+  say "combat damage"). Two of the ten say "dealt damage to it" (Brine Hag,
+  Giant Albatross), naming the ability's own source, and Aegar's "if a
+  Giant, Wizard, or spell you controlled dealt damage to it this turn" asks
+  what a source was then. Both need a past existence in a filter, which no
+  leaf reads yet. A player's "an opponent was dealt damage this turn" is the
+  turn summary's `DamageTaken` already.
+- **Item 279's shape** (the owner, at TR-5c's review): one history of what
+  each object did this round, the combat's rows generalized, which the damage
+  facts join rather than getting a struct of their own. And the layer memo's
+  gate keyed by the rows a read touches, noted inside the lookup that scans
+  them.
+- **The save reports a row of the turn in progress** (`scenario/write.rs:194`),
+  as TR-5c's build found, and a damage row is one. A save after any damage
+  this turn reports it rather than writing it. Writing rows is the save's own
+  later work.
+
+*Item 275* (TR-5c's piece 12, kept in the archive as written). The elision
+compares the origin under `SOURCE` (`engine/triggers/placement.rs:129`), and a
+delayed trigger's origin is its own registry number, so Protean Hydra hit for
+three asks the order of three identical triggers. Comparing the source
+uncovers X (CR 107.3n): two delayed triggers of one template can differ in
+their creator's X, which the elision reads as reading nothing
+(`engine/triggers/binding_reads.rs:265`).
+
+**The pieces**
+1. **The prevention arm** (item 16), §3.3's row with the damage arm's name
+   for its field:
+   ```rust
+   /// "Whenever damage that would be dealt to you is prevented" (CR 615.13):
+   /// once each time a prevention effect is applied to one recipient's
+   /// damage in a batch, however many sources it came from.
+   DamageIsPrevented { recipient: DamageRecipient, multiplicity: Multiplicity },
+   ```
+   - `EventKind::DamagePrevented` leaves `from_record`'s unread list. "That
+     many" is the record's `amount`, and an object recipient's event role is
+     `DamageRecipient`, as on the damage arm. About 16 exhaustive matches
+     take the arm.
+   - **Matched at the batch's close**, though announced while it decides.
+     The dispatch reads the window, so the trigger sees the board after the
+     damage, as CR 603.10 says. The record names no source, so the arm has
+     no `source` field.
+2. **Selfless Squire**, registered and pooled. {3}{W} 1/1 Human Soldier with
+   flash. "When this creature enters, prevent all damage that would be dealt
+   to you this turn" is RD-2's shield with one subject (the shape at
+   `cards/phase_rd_cards.rs:608`). Its second ability is `DamageIsPrevented {
+   recipient: Player(Some(You)), .. }`, putting `TriggeringAmount` +1/+1
+   counters on itself.
+3. **Excess damage** (CR 120.10):
+   - **Decided with the batch.** Between deciding and performing, each
+     permanent the decided damage is dealt to gets the damage still lethal
+     to it. For a creature that is its toughness less its damage marked, or 1
+     if a deathtouch source deals it any; that is `lethal_damage_owed`'s
+     reading (`engine/combat/keywords.rs:63`), shared rather than copied. For
+     a planeswalker it is its loyalty, and for a creature planeswalker the
+     smaller of the two. Battles join with `backlog.md` §2.23, which owns
+     their defense counters (CR 120.3h).
+   - **Each record takes its share.** The batch keeps the amounts on
+     `GameState` while it performs, saved and restored for a nested batch as
+     `prevention_allocations` is (`engine/actions.rs:1053`). Each `DealDamage`
+     performer takes what of its amount is past what is still lethal after
+     the batch's earlier members to the same permanent. So a permanent's
+     excess in one event is the sum of its records', which is CR 120.10's
+     "those sources together". `DamageDealt` gains `excess: u64` (18 literal
+     sites), and `GameAction::DealDamage` does not change. A player's record
+     says 0. The log line names the excess where there is some.
+   - **The arm.** `TriggerEvent::DamageDealt` gains `excess: bool`, "is
+     dealt excess damage", whose "that much" is the excess. It is read once
+     per permanent: the damage arm joins `supports_once_per_subject`, keyed
+     on the recipient, which "one or more creatures you control deal combat
+     damage to a player" will read too. `occurrence_subject` then names an
+     object or a player for both families rather than a `CounterSubject`. The
+     registry refuses `excess` read per record, or with a player recipient.
+   - ATOM-120.10-001 on a fixture ("whenever a creature is dealt excess
+     damage, you gain that much life").
+   - *Set aside* (at TR-5c): the permanent's total on each of its records,
+     which every reader would have to read once rather than sum; and a
+     record of its own per permanent, which is no performed event (§3.12a's
+     contract).
+4. **One history of what each object did** (item 279). `CombatHistory`
+   becomes `ObjectHistory`, `GameHistory.combat` becomes `objects`, and the
+   rows keep their shape: an object, the turn, which combat, and a fact.
+   ```rust
+   /// What a row says its object did. The filter's question is
+   /// `ObjectFact`, in the card's past tense; this is the record it reads.
+   pub enum RowFact {
+       Attacked(AttackTarget),
+       RemovedFromCombat { attacking: Option<AttackTarget> },
+       Blocked(ObjectRef),
+       /// CR 120.1: dealt damage to this, in combat or not. The recipient's
+       /// "was dealt damage" is a row that names it.
+       DealtDamage { to: ObjectOrPlayer, combat: bool },
+   }
+   ```
+   - **The writer is `advance_history`'s**, off each `DamageDealt`. The row
+     is the source's existence, off its frame where it dealt the damage after
+     leaving (CR 608.2h). The rows share one `Arc<Vec>`, so a clone shares
+     them, and the first write after a fork copies about 25 rows at four
+     seats over the round they are kept, by the item's count.
+   - **Two `ObjectFact`s**, each in the card's past tense, as TR-5c's review
+     decided:
+     ```rust
+     /// "Target creature that was dealt damage this turn" (Fatal Blow).
+     WasDealtDamage,
+     /// "Each creature that dealt damage to you this turn" (Retaliate), "that
+     /// dealt combat damage to a player this turn" (Indulge // Excess).
+     DealtDamageTo { player: Option<PlayerRef>, combat: Option<bool> },
+     ```
+     `ObjectFact` stops being `Copy`, since `PlayerRef` is not. "This combat"
+     reads the latest combat's rows, so a first strike damage step and the
+     regular one are one combat (CR 510.4).
+   - `Removed` becomes `RemovedFromCombat` now that some facts are not
+     combat's.
+5. **The gate, keyed by the rows a read touches** (item 279). One input,
+   `GatedWalkInput::Histories`, serves every history (`state/layer_memo.rs:75`),
+   so once a static's layer row reads one, every damage row would re-walk
+   it. It becomes seven, and `GatedInputs` widens from a `u8` to a `u16`:
+   ```rust
+   TurnNumber,     // "entered this turn"; the turn's start trips every key
+   TurnSummaries,  // the players' rows: "as long as you've gained life this turn"
+   CombatCount,    // which combat is the latest: "this combat"
+   AttackRows, RemovalRows, BlockRows, DamageRows,
+   ```
+   - **Noted inside the lookup that scans them.** Each of `ObjectHistory`'s
+     lookups takes the walk's note, notes its own kind of row, and notes
+     `CombatCount` when it asks for the latest combat. So a filter over two
+     facts notes both, and no caller can leave one out.
+     `Condition::DefendingPlayer` notes `RemovalRows` through
+     `attacking_when_removed`, never by name. The summaries are noted where
+     `history_holds` reads them, as today.
+   - **Bumped by kind.** `advance_history` bumps the keys of the rows it
+     wrote, and `begin_turn`, whose retain rewrites every row, bumps all of
+     them. The memo audit, which re-walks fresh against each hit in a debug
+     build, catches a key a lookup misses.
+6. **Item 275**, as piece 12 wrote it. `SOURCE` compares
+   `origin.source_ref()` and the source's last known information each entry
+   carries, and `AmountExpr::X` reads a new `TriggerBindingReads::X`, compared
+   on `x_value`. Protean Hydra hit for three asks nothing at the end step,
+   and a fixture's two delayed draws of X = 2 and X = 5 still ask.
+
+**Planned shapes corrected here, with no decision**
+- **§3.3's `DamageIsPrevented { target, multiplicity }`** names its field
+  `recipient`, the damage arm's word for the same `DamageRecipient`.
+- **§3.3's `DamageDealt` row** gains `excess`, and the damage arm reads
+  `OncePerSubject` by its recipient.
+- **TR-5c's "the combat rows become the object's rows when the first deed
+  that is not combat's lands"** happens here, with two more `ObjectFact`s.
+
+**Not in this phase** (each an item at the close-out, slotted with its first
+registered card)
+- "Prevented this way" (5 cards): the arm's `by`.
+- "Dealt damage to it", and a source as it was then (Brine Hag, Giant
+  Albatross, Aegar): a leaf that names a past existence.
+- "If excess damage was dealt this way" (4) and "was dealt excess damage
+  this turn" (2): an amount over a resolution's records, and `excess` on the
+  damage row.
+
+**Sized.** Code at 1.5–2× plus tests, counted against the tree on
+2026-10-18. Tests are counted as tests, at TR-5c's 27 lines each:
+
+| Piece | Code | Tests |
+|---|---|---|
+| 1–2. The prevention arm, ~16 matches, its event role and amount; Selfless Squire | ~95 | ~160: Squire #1 and #2; two effects on one damage, two triggers; one effect over two attackers, one; a creature's prevention, not "to you"; an object arm's event role |
+| 3. Excess: the lethal amounts, shared with trample's; the shares, saved for a nested batch; the record's field at 18 sites; the arm's `excess`, per recipient, and its refusals; the log | ~120 | ~240: ATOM-120.10-001 with damage marked, deathtouch, two sources, a planeswalker, a creature planeswalker (Aegar #6), a prevention; once per permanent; noncombat only; the refusals |
+| 4. `ObjectHistory` and its rename (~45 lines in place); the damage rows and their writer; the two facts; the save's report | ~115 | ~150: each fact; a source that left; a new object (CR 400.7); combat only; the next turn; the rows shared by a clone |
+| 5. The gate's seven keys, the lookups' notes, the writers' bumps | ~55 | ~90: a static over "attacked this turn" keeps its frames through a damage row and re-walks on an attack; the turn's start trips it |
+| 6. Item 275 with X | ~15 | ~90: Protean Hydra hit for three; X = 2 and X = 5; a source that left between |
+| **Whole: 1,330–1,530** | ~400 (600–800) | ~730 |
+
+Docs at the close-out, about 350 more: the stub and the archive,
+`fuzz-record.md`'s block, §3.3's two rows, the glossary's history entry, and
+the three items above.
+
+**Predictions for the close-out** (re-stated before `close_out.py`; the
+three-arm sitting item 275 carries)
+- *The engine arm, against `main`.* Every gameplay row identical, both pools,
+  two seats and four, but for the games where Protean Hydra's delayed
+  triggers would have asked their order: item 275 drops that prompt, the
+  random agent draws less, and those games diverge from there. The three-arm
+  sitting isolates it: `main`, the tree without item 275's commit, and the
+  tree. No registered card reads a new arm or fact. The event dumps move: a
+  `DamageDealt` line names its excess. Instructions per decision +0.1% to
+  +0.3%, from the lethal amounts per damage batch and a row per damage
+  record. The clone floors do not move, since the rows are shared.
+- *The shipped arm.* Every dealt game moves once Selfless Squire is pooled,
+  and its stress distortion is reported at two seats and four. It is a 1/1
+  for four that grows only when damage to its controller is prevented, so a
+  small one is expected.
+
+### TR-5g — the multiplier, tokens and scry
+
+*Split from TR-5d at its design (2026-10-18), above, and designed with it
+for one review. It reads nothing TR-5d builds, and is built after it.
+Nothing built.*
+
+**Where it sits.** Three readers, of two records and one static ability.
+`TokenCreated` has no arm, and does not say which definition made its token
+(§3.12a's `TokenCreated` row). `Scried` has no arm. And CR 603.2d's
+"triggers an additional time" changes how many triggers one match makes,
+after the dispatch has matched and before it queues
+(`engine/triggers/dispatch.rs:703`). §4.4 holds the multiplier's design, and
+this re-reads it against the rulings and the tree.
+
+**What the re-read found**
+
+*The multiplier* (CR 603.2d and 603.10; the rulings of Panharmonicon,
+Gandalf the White, Teysa Karlov, Yarok, the Desecrated and Elesh Norn,
+Mother of Machines; 38 cards, `o:"triggers an additional time"`)
+- **What one says.** An event that causes the trigger (Panharmonicon's "an
+  artifact or creature entering", Teysa's "a creature dying", Gandalf's "a
+  legendary permanent or an artifact entering or leaving the battlefield"),
+  whose triggered ability it doubles ("of a permanent you control", Roaming
+  Throne's "of another creature you control of the chosen type"), and how
+  many more times ("an additional time"). Some name no event: Roaming Throne,
+  Twinflame Travelers, Delney.
+- **The trigger event, not the arm's words.** "The trigger event doesn't
+  have to specifically refer to legendary permanents or to artifacts"
+  (Gandalf #9; Teysa #3): "whenever a creature dies" triggers twice when an
+  artifact creature dies. And the object is read as it was on the battlefield
+  (Gandalf #10, Teysa #6). So the multiplier asks its own event of each
+  triggering record, with the frames its own arm reads. A leaving is read off
+  the departure's frame, even where the doubled arm, "from anywhere", reads
+  the object after the move (item 251; §3.12a's note on Compost).
+- **An act is a different event.** "An ability that triggers 'whenever you
+  sacrifice a creature' triggers only once" (Teysa #5). The engine writes a
+  sacrifice and the death it causes as one `ZoneChange` record, whose act is
+  `Sacrifice`, so a record that matches the multiplier's event is not
+  enough: the doubled arm must not name an act the multiplier's arm does not.
+- **When the multiplier must exist.** A permanent entering with Panharmonicon,
+  Panharmonicon included, is doubled (#7; Yarok #3, Elesh Norn #7). A creature
+  dying with Teysa, Teysa included, is doubled (Teysa #8), and so is the
+  trigger of a permanent that leaves with it (#7). CR 603.10 says which board
+  is read: the continuous effects after the event for an ordinary trigger,
+  and the abilities as they existed immediately before for one that looks
+  back. So the multiplier is read off the board the doubled arm reads.
+- **The rest of §4.4 holds.** Only an object's own triggered abilities, never
+  a delayed or reflexive one (CR 603.2d's last sentence), a replacement
+  (#2) or an "as enters" (#3). Additive (#6). Each instance is its own
+  trigger, with its own choices, targets and "may" (#5). "This ability
+  triggers only once each turn" is read before the multiplier, and "do this
+  only once each turn" after. Linked abilities (#8, #9) are `backlog.md`
+  §2.2's.
+- **A triggered mana ability is multiplied too.** A multiplier that names no
+  event (Roaming Throne over a creature whose mana trigger CR 605.1b makes a
+  mana ability) reaches one, which resolves at once rather than queuing
+  (§4.7). So the count reaches that path as well as the queue.
+
+*Tokens* (CR 111.2, 111.13, 701.7 and 603.12; Ajani, Nacatl Avenger's rulings)
+- **Ajani's "when you do" asks for the definition.** Under Doubling Season the
+  reflexive trigger triggers once for each Cat Warrior; under Divine
+  Visitation, which creates Angels instead, not at all (#8). Both creations
+  announce `TokenCreated` records that look alike, so the record says which
+  definition made the token (§3.12a's `TokenCreated` row). The 47 "when you
+  do" creations (`o:"when you do" o:create o:token`) read the same way.
+- **Few triggers read creation itself**: "whenever you create one or more
+  tokens" (2 cards) and "whenever you create a [kind] token" (3). "Whenever one
+  or more tokens you control enter" (9) is the entry arm over `Token`, never
+  this (item 8). A copy of a permanent spell is no creation (CR 111.13) and
+  writes no record already.
+- **The definition does not reach the emitter.** `announce_token_created`
+  (`engine/actions.rs:2074`) has two callers, the entry's token arm and
+  `CreateTokenIn`, and neither has it: `create_tokens` lowered it to the
+  object's printed `CardData` and proposed the entries
+  (`engine/actions.rs:2174`).
+
+*Scry* (CR 701.22; Elrond, Master of Healing's rulings)
+- **X is what was looked at.** A scry 3 with two cards in the library makes
+  X 2 (#1), which `Scried.looked_at` holds. A scry 0 is no event (CR 701.22b)
+  and writes no record already. 21 cards say "whenever you scry"; Celeborn
+  the Wise, Elminster, Elrond and Elvish Mariner read the cards looked at.
+- **Elrond's X is a count of targets**: "each of up to X target creatures".
+  CR 601.2c lets a spell, and through CR 603.3d a triggered ability, have a
+  variable number of targets, "defined by the spell's text", and
+  `TargetCount` holds only fixed ones (`Exactly(u32)`, `UpTo(u32)`). 26 cards
+  say "up to X target ... where X" (`o:"up to X target" o:"where X"`), Elvish
+  Mariner among the scry four. A fixture that put X counters on one target
+  would test the arm and not the card.
+- Elrond #2 is about its second ability, TR-5c's targeting arm, and is
+  tested on the same fixture.
+
+**The pieces**
+1. **`Effect::TriggerMultiplier`**, the fourth static shape with no layer
+   rows, beside `Replacement`, `Restriction` and `CostModification`:
+   ```rust
+   /// CR 603.2d — "triggers an additional time". Read off the source's
+   /// effective ability list as the dispatch queues what a window triggered.
+   TriggerMultiplier(Box<TriggerMultiplierDef>),
+
+   pub struct TriggerMultiplierDef {
+       /// "If an artifact or creature entering causes": the event a
+       /// triggering event must be, or any of several ("entering or
+       /// leaving"). `None` for one that names no event (Roaming Throne).
+       pub caused_by: Option<TriggerCondition>,
+       /// "A triggered ability of a permanent you control": the permanent
+       /// whose ability it is, whose "you" is this ability's controller.
+       pub abilities_of: ObjectFilter,
+       /// "An additional time" is 1.
+       pub additional: u32,
+   }
+   ```
+   - **Three legs**, `cost_modifications_for`'s
+     (`engine/cost_determination/gather.rs:56`). Printed is a source set that
+     `register_static_effects` files on the battlefield and a permanent
+     leaving empties. Granted and copied are two summary flags
+     (`state/continuous_effects.rs:311`). About ten exhaustive matches over
+     `Effect` take the variant.
+   - The registry refuses a `State` condition and an `additional` of 0.
+2. **The count at the queue.** `queue_matches` asks, of each object's match,
+   how many more times it triggers, and queues one `PendingTrigger` more for
+   each, with its own `TriggerSeq` and `AbilityTriggered` record. A
+   multiplier adds its `additional` when all three hold:
+   - **It is on the board the matched arm reads**: the battlefield now; or,
+     for an arm that looks back, the battlefield as the window's frames had
+     it before the event, through the frames the dispatch reads a look-back
+     candidate through (each permanent that left in the window, off its
+     departure's frame, and none that entered in it).
+   - **The trigger's source is a permanent `abilities_of` admits**, read as
+     the candidate frame the dispatch read it through: on the battlefield, or
+     off its frame from the battlefield (Teysa #1 and #7). A card's ability
+     in another zone is no permanent's.
+   - **`caused_by` is `None`, or one of the match's triggering records
+     matches it**, through `triggering_events_in` with the multiplier's own
+     referents, and the matched arm names no act its arm does not (Teysa #5).
+   - **The gate.** A window with no match asks nothing, and a match asks only
+     while the source set is non-empty, a flag is set, or a departure frame
+     in the window carries the ability. So a board with none pays one set
+     check per window that triggered something.
+   - **The mana path.** A match that `is_mana_ability` makes a mana ability
+     resolves at once, as many times as it triggered (§4.7).
+   - **Delayed and reflexive triggers are queued by `queue_delayed`**, which
+     the count never reaches (CR 603.2d).
+   - **The audit leg** (§4.10). The audit re-derives each match's count with
+     every object that could carry the ability swept and no set or flag
+     consulted, and the two counts must agree.
+3. **Panharmonicon**, registered and pooled. {4} artifact: `caused_by:
+   Some(Event(EntersBattlefield { subject: Filter(Or(ByType(Artifact),
+   ByType(Creature))), .. }))`, `abilities_of: ByController(You)`,
+   `additional: 1`. **Gandalf the White, a fixture**: its third ability, its
+   `caused_by` the entering and the leaving (`ZoneChange { from: Battlefield,
+   to: None }`) of `Or(BySupertype(Legendary), ByType(Artifact))`. Its flash
+   and its permission to cast as though with flash are PM's.
+4. **The token arm**, §3.3's row:
+   ```rust
+   /// "Whenever you create one or more tokens" (CR 111.2, 701.7a). A
+   /// reflexive "when you do" after "create a [token]" names its definition,
+   /// so a creation a replacement changed to another is not "that action"
+   /// (Ajani, Nacatl Avenger's eighth ruling).
+   CreatesToken { owner: Option<PlayerRef>, definition: Option<Box<TokenDef>>, multiplicity: Multiplicity },
+   ```
+   - **The record carries its definition**: `TokenCreated { object_id, owner,
+     zone, definition: Arc<TokenDef> }`, 8 bytes inside the 72
+     `the_event_keeps_its_size` pins. `create_tokens` keeps each object's
+     definition on `GameState` while its entries perform, saved and restored
+     for a nested creation as `prevention_allocations` is, and
+     `announce_token_created` takes it from there. 17 sites, most of them a
+     match with `..`.
+   - *Set aside:* the token object keeping its definition, which every clone
+     would carry for every token, for a fact read once, at the creation; and
+     the definition on the entry proposal, which would grow `GameAction`.
+   - `zone` leaves §3.3's row, since no printed trigger asks where a token
+     was created. The event role is `Object`, the token, and "that many" is
+     one a record.
+   - **Ajani, Nacatl Avenger, a fixture**: its 0 ability as an activated
+     ability, since loyalty abilities are CP-2's (item 283). Create a 2/1
+     white Cat Warrior; then a reflexive `CreatesToken { owner: Some(You),
+     definition: Some(cat_warrior), .. }`, with the intervening "if you
+     control a red permanent other than" this, deals damage equal to the
+     number of creatures you control to any target.
+5. **The scry arm**:
+   ```rust
+   /// "Whenever you scry" (CR 701.22): one record per scry, and none for a
+   /// scry 0 (CR 701.22b). "The number of cards looked at while scrying this
+   /// way" is the record's `looked_at` (Elrond, Master of Healing's first
+   /// ruling).
+   Scries { player: Option<PlayerRef> },
+   ```
+   "That many" is `looked_at`. A scry names no object, so it has no event
+   role.
+6. **A count of targets the text defines** (CR 601.2c, 603.3d):
+   ```rust
+   /// "Up to X target creatures, where X is ...": read as the targets are
+   /// announced, off the trigger's binding or the spell's announced X.
+   UpToAmount(AmountExpr),
+   ```
+   `TargetCount` stops being `Copy`. Its two consumers
+   (`engine/put_on_stack.rs:368`, `engine/targeting.rs:465`) read the amount
+   as the announcement starts, and the validation reads the count announced.
+   **Elrond, Master of Healing, a fixture**: both abilities, each with its
+   ruling.
+   - *Set aside:* Elrond's fixture with X as a count of counters on one
+     target, about 100 lines less, which tests the arm and leaves the count
+     to its first registered card.
+
+**Planned shapes corrected here, with no decision**
+- **§4.4's `TriggerMultiplierDef { caused_by: TriggerEvent, source:
+  ObjectFilter, additional }`.** `caused_by` takes a `TriggerCondition`, for
+  Gandalf's two events, and is optional. `source` is named `abilities_of`,
+  since it filters the doubled ability's permanent and not the multiplier's.
+- **§3.3's `CreatesToken { owner, zone, kind: Option<TokenKind>,
+  multiplicity }`** drops `zone`, and names `kind` `definition`, which the G2
+  amendment says it is.
+
+**Not in this phase**
+- A token arm over the token's characteristics ("whenever you create an
+  artifact token", 3 cards), with its first card.
+- Strict Proctor's `AbilityTriggers.caused_by` asks only the record's kind
+  (`engine/triggers/dispatch.rs:1846`). The multiplier's reading would serve
+  it, and CP-1 builds the card.
+- Elesh Norn, Mother of Machines' "permanents entering don't cause abilities
+  of permanents your opponents control to trigger" is a "can't" on
+  triggering (CR 101.2), not a multiplier, with its first card.
+
+**Sized**
+
+| Piece | Code | Tests |
+|---|---|---|
+| 1. The variant, its def, ~10 matches, the three legs | ~55 | — |
+| 2. The count: the board each arm reads, the three tests, the sum, the instances, the mana path, the audit leg | ~110 | — |
+| 3. Panharmonicon; Gandalf's fixture; 1–3 tested | ~25 | ~460: ATOM-603.2d-001; Panharmonicon #1–#7; Gandalf #9 against a "from anywhere" arm, and #8 dying beside an artifact; a sacrifice (Teysa #5's shape); a capped trigger; "do this only once" doubled; a delayed trigger not; a triggered mana ability; the granted and copied legs; an opponent's Panharmonicon |
+| 4. The token arm, the record's definition, the creation's table; Ajani's fixture | ~75 | ~160: Ajani #7 and #8 (Doubling Season, Divine Visitation); the "if" failing; "one or more tokens" once |
+| 5. The scry arm; Elrond's fixture | ~40 | ~130: Elrond #1 and #2; a scry 0; an opponent's scry |
+| 6. The count of targets | ~50 | ~50: fewer than X chosen; an X of 0 |
+| **Whole: 1,330–1,510** | ~355 (530–710) | ~800 |
+
+Docs at the close-out, about 350: the stub and the archive,
+`fuzz-record.md`'s block, §3.3's two rows, and §4.4's paragraph.
+
+**Predictions for the close-out** (re-stated before `close_out.py`)
+- *The engine arm, against `main`.* Every gameplay row identical, both pools,
+  two seats and four: no registered card names a multiplier, a token's
+  definition or a scry until the registrations. Instructions per decision
+  within ±0.3%, from one set check per window that triggered.
+- *The shipped arm.* Every dealt game moves once Panharmonicon is pooled, and
+  its stress distortion is reported. It doubles every entering trigger its
+  controller's permanents have, so more triggers per game are expected.
+
+**The two together.** TR-5d, then TR-5g. Built whole they would be
+2,660–3,040, past the band. TR-5c landed 11% past its sizing's top, TR-5b
+14% and TR-5f 28%, so each half tracks the band at each commit and stops at
+2,500 to say so. Item 275 goes with TR-5d, the first to move the random
+agent's stream. The brief's cards split with it: Selfless Squire and
+ATOM-120.10-001 are TR-5d's, and Panharmonicon and ATOM-603.2d-001 TR-5g's.
+
+### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5g (8,690–10,010)
 
 **Re-counted and split in four on 2026-10-12 (A6p)**, as TR-4 was. TR-5c
 reads TR-5a's roles; the others are independent of one another. Damage an
@@ -3570,7 +4089,9 @@ two at its review (2026-10-16, decision 9)**: the declaration, then TR-5f,
 creatures put onto the battlefield attacking and removal from combat, whose
 rows TR-5c's block triggers read. The route is TR-5a, TR-5e, TR-5f, TR-5b,
 then MA-2 (`mana-architecture.md` §6, for TR-5b's Protean Hydra), then TR-5c,
-TR-5d.
+TR-5d, TR-5g. **TR-5d split in two at its design (2026-10-18), above**:
+prevention, excess damage and the damage facts, then TR-5g, the
+multiplier, tokens and scry.
 
 | Sub-phase | Pieces | Cards, fixtures and atoms | Code (×1.5–2) | Tests | Total |
 |---|---|---|---|---|---|
@@ -3580,7 +4101,9 @@ TR-5d.
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
 | **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,630 |
-| **TR-5d — prevention, excess damage, the multiplier, tokens and scry** (CR 615.13, 120.10, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
+| **TR-5d — prevention, excess damage and the damage facts** (CR 615.13, 120.10) — designed above | item 16's arm over `DamagePrevented`; excess damage per recipient, decided with the batch; item 279's per-turn history with the damage facts, and its gate keyed by rows; item 275 | Selfless Squire; ATOM-120.10-001 | ~400 (600–800) | ~730 | 1,330–1,530 |
+| **TR-5g — the multiplier, tokens and scry** (CR 603.2d, 701.7, 701.22) — designed above | `Effect::TriggerMultiplier` with its three legs and the triggered mana path; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; a count of targets the text defines (CR 601.2c) | Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's fixture against item 251's "from anywhere" arm (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~355 (530–710) | ~800 | 1,330–1,510 |
+| *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
 ### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)
 
@@ -3762,7 +4285,7 @@ their trigger half lands.
 | **TR-3c** | 603.12-001 | 1 |
 | **RH-3** (`replacement-architecture.md` §2b.5) | 400.7e-001, -002, moved from TR-4 on 2026-10-10, and from RH-2 to RH-3 on 2026-10-12: the record carries the object the move made | 2 |
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
-| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 603.2d-001 (2026-10-12, §12), and 120.10-001, moved from TR-5c at its review (2026-10-18) | 4 |
+| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 120.10-001, moved from TR-5c at its review (2026-10-18). TR-5g: 603.2d-001 (2026-10-12, §12), split from TR-5d at its design (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 
