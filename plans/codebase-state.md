@@ -9424,3 +9424,35 @@ Number 277 was withdrawn in #260 and is not reused.
      and ~30 of tests.
      **Slotted:** with the first registered card that reads a loyalty
      ability's activation.
+
+284. **Nothing flags an item slotted with its first registered card when the
+     card arrives.** 55 open items are slotted "with the first registered
+     card" that needs them, and registering that card does not lead back to
+     them. A gap the engine refuses loudly finds its author (no field, no
+     variant, an error at resolution); a silent one does not: item 278's
+     effects that make blocks would write no record and block triggers would
+     never see them. TR-5c's review (the owner, 2026-10-18). The check, one of
+     the family: each such item names at least one example card where it is
+     slotted (44 of the 55 do today), and the check fails when a
+     card it names is registered while the item is open, so registering Betor
+     fails on item 280 until it is closed or re-slotted.
+     **Reachability (2026-10-18):** reachable — not wrong: a process gap; no
+     game answers differently.
+     **Sized:** ~80 lines of Python over this file and the registry's names,
+     a CI step, and a named card for the 11 items that name none.
+     **Slotted:** A6e, item 6's close audit, in its hygiene and CI pass
+     (`engineering-practices.md` §9, pass 3), the review already scheduled at
+     the end of triggers (the owner's slot).
+
+285. **About 80 engine functions return tuples whose parts only their docs
+     name.** 69 pairs, 9 triples and 2 four-tuples outside the card
+     definitions and the test modules, counted at TR-5c's review. Some are
+     one thing (a map's entry, `(ManaType, u64)`); others are several answers,
+     `scenario::text::player_word_text -> (String, String, bool)`,
+     `placement::ability_state -> (bool, u32)`, `GameEvent::lki ->
+     Option<(&Lki, Zone, PlayerId)>`. `engineering-practices.md` §2b's rule
+     10, adopted at that review (the owner, 2026-10-18), says which is which.
+     **Reachability (2026-10-18):** reachable — not wrong: a reader's cost.
+     **Sized:** sort the 80 by the rule, then a struct or a split for each
+     that fails, mechanical; ~150–300 lines, counted before it runs.
+     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).

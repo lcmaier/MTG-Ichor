@@ -338,6 +338,14 @@ review has already had to make:
    (#158). An empty value that is a claim is a named constant:
    `ObjectSet::NO_OBJECTS`, `DecisionLogHandle::NONE` (#211),
    `RecordPlaces::NOT_COUNTED` (#248).
+10. **A return names its parts.** A tuple only for a pair that is one thing,
+    read together and named by its types: a map's entry, `(ManaType, u64)`, or
+    a block's `(blocker, attacker)`. Several answers whose meaning lives in the
+    doc comment are a struct with named fields, or two functions where callers
+    use them apart: `(String, String, bool)` says nothing at the call site
+    (TR-5c's review, the owner; `SourceBeforePaying` is the struct form). The
+    engine's existing tuple returns are swept at A6e (`codebase-state.md`
+    item 285).
 
 **One spelling per concept.** When a second type needs a name the first already
 has, it takes the same one: `TriggerSubject::ThisObject` and
