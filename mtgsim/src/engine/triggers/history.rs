@@ -104,16 +104,15 @@ impl GameState {
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
         // The rows read their objects as the window left them (CR 603.10).
-        let counted: Vec<EventSeq> = moments.iter().map(|&(seq, ..)| seq).collect();
         let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
-        for &seq in &counted {
+        for &(seq, ..) in &moments {
             self.draft_history_rows(seq, window, &mut drafts);
         }
-        let mut moments = moments.into_iter().peekable();
+        let mut moment = moments.iter().peekable();
         let mut kinds_written = [false; RowKind::COUNT];
         for (seq, draft) in drafts {
-            while moments.next_if(|(counted, ..)| *counted != seq).is_some() {}
-            let Some(&(_, turn, combat)) = moments.peek() else { break };
+            while moment.next_if(|(counted, ..)| *counted != seq).is_some() {}
+            let Some(&&(_, turn, combat)) = moment.peek() else { break };
             let row = HistoryRow {
                 seq,
                 turn,
@@ -133,7 +132,7 @@ impl GameState {
         // take the frames again now that the log holds them.
         if self.layer_epoch() != epoch {
             let mut redrafts: Vec<(EventSeq, RowDraft)> = Vec::new();
-            for &seq in &counted {
+            for &(seq, ..) in &moments {
                 self.draft_history_rows(seq, window, &mut redrafts);
             }
             self.history.log.reframe_newest(redrafts.into_iter().map(|(_, draft)| draft.frame).collect());
