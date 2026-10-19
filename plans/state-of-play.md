@@ -156,7 +156,8 @@ and no ✅ heading records, in the docs' order.
 | A person's seat: the solver and item 211 | `MA-6` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `PM-0` | `permission-architecture.md` |
 | The frame, the look-back classes and their records | `TR-4` | `triggers-architecture.md` |
-| Prevention, excess damage and the damage facts | `TR-5d` | `triggers-architecture.md` |
+| One history of what happened | `TR-5h` | `triggers-architecture.md` |
+| Prevention and excess damage | `TR-5d` | `triggers-architecture.md` |
 | The multiplier, tokens and scry | `TR-5g` | `triggers-architecture.md` |
 | The binding's roles, counters, combat and targeting, prevention and the multiplier | `TR-5` | `triggers-architecture.md` |
 | State triggers, the loop, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
@@ -210,8 +211,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 85 |
-| …slotted to the first registered card that needs it | 51 |
+| …slotted to a phase or roadmap row still to come | 86 |
+| …slotted to the first registered card that needs it | 50 |
 | …a record, nothing to build | 12 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

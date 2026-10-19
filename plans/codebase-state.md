@@ -9381,9 +9381,10 @@ Number 277 was withdrawn in #260 and is not reused.
      **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
      zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
      writer.
-     **Slotted:** TR-5d for the damage facts, beside excess damage, as TR-5c's
-     review decided; each other fact with the first registered card that
-     reads it.
+     **Slotted:** TR-5h, the log every reader of the history reads, whose
+     first new rows are the damage facts; moved from TR-5d at its review
+     (2026-10-19). Each other fact with the first registered card that
+     reads it, as a variant of the log's rows.
      **Shaped at TR-5c's review (the owner, 2026-10-18), for TR-5d's design:**
      one history of what each object did this round, the combat's rows
      generalized (an object, the turn, the combat and a fact), which these
@@ -9408,8 +9409,9 @@ Number 277 was withdrawn in #260 and is not reused.
      **Reachability (2026-10-18):** unreachable — no registered card reads one.
      **Sized:** an `AmountExpr` over a `HistoryCount`'s fact and players,
      ~15 lines of code and ~30 of tests.
-     **Slotted:** with the first registered card that reads an amount of
-     the turn's history (Betor, Ancestor's Voice).
+     **Slotted:** TR-5h, whose `HistoryCount` an `AmountExpr` reads; moved
+     there at TR-5d's review (2026-10-19), since the log's one way to read
+     answers a count as a number.
 
 281. **`EffectRecipient::Group` refuses an instance of "target".** "Exile
      this creature and target creature without flying that's attacking you"
