@@ -821,6 +821,10 @@ here. None is blocking RB.
     Wild Growth is the card and `wild_growth_adds_its_mana_at_once_without_the_stack`
     the test. CR 605.5a is the same derivation refusing: a target or another
     event queues it like any trigger.
+    **Updated 2026-10-18 (TR-5c's review):** the triggering record decides
+    CR 605.1b's second criterion, `is_mana_ability(def, record)`, so
+    "whenever you activate an ability" is a mana ability only on a mana
+    ability's activation; `could_be_a_mana_ability(def)` is the def's half.
 
     **Reachability (2026-09-19):** unreachable — the *activated* half: every
     registered activated ability's tag agrees with CR 605.1a (Sol Ring, the
@@ -4828,6 +4832,11 @@ first.
    **Slotted:** with the first registered card that lets a creature block an
    additional creature (Scryfall: `o:"block an additional creature"`), per CR
    510.1d.
+   **Widened by TR-5c (2026-10-18):** the same board is the first that tells
+   CR 509.3a's "whenever this creature blocks", once per blocking creature,
+   from 509.3b's "blocks a creature", once per creature it blocks. TR-5c's
+   tests stage no creature blocking two, since nothing lets one, so that
+   PR tests both readings on it (Brave the Sands, Hundred-Handed One).
 
 7. **~~Hexproof and shroud are unenforced in spell targeting.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
@@ -7476,7 +7485,7 @@ the file.
      that reopen it). The reversal half is untouched.
 
      **Built in part 2026-09-26 (TR-2b):** the elision compares only what a def
-     reads (`TriggerDef::bound_reads`, `triggers-architecture.md` §5.2), and
+     reads (`TriggerDef::trigger_binding_reads`, `triggers-architecture.md` §5.2), and
      the source where it reads its source, which TR-1's predicate never
      compared. The decorator's half and the reversal are untouched.
 
@@ -9386,30 +9395,23 @@ Number 277 was withdrawn in #260 and is not reused.
      **Slotted:** with the first registered card that reads an amount of
      the turn's history (Betor, Ancestor's Voice).
 
-281. **`EffectRecipient::Together` refuses an instance of "target".** "Exile
+281. **`EffectRecipient::Group` refuses an instance of "target".** "Exile
      this creature and target creature without flying that's attacking you"
-     (Hunting Kavu) joins a target to this object. A target part needs its
-     place in the announcement's order (`Effect::instances`) and its own CR
-     608.2b fizzle, so `found_by_part` refuses it loudly.
+     (Hunting Kavu) groups a target with this object. A target member needs
+     its place in the announcement's order (`Effect::instances`) and its own
+     CR 608.2b fizzle, so `resolve_group_member` refuses it loudly.
      **Reachability (2026-10-18):** unreachable — no registered card joins a
      target.
-     **Sized:** the instance walk into `Together`, and the part's fizzle,
+     **Sized:** the instance walk into `Group`, and the member's fizzle,
      ~30 lines of code and ~50 of tests.
      **Slotted:** with the first registered card whose join names a target
      (Hunting Kavu).
 
-282. **`AbilityActivated.from` is written as the battlefield by both
-     producers.** Every activation is from the battlefield until
-     `permission-architecture.md`'s builds let a hand or a graveyard activate
-     (cycling, channel, unearth). The activation arm reads only a source on
-     the battlefield (Harsh Mentor's second ruling), so an activation from
-     another zone must write its zone, or the arm would read it as a
-     permanent's.
-     **Reachability (2026-10-18):** unreachable — nothing activates off the
-     battlefield (`put_on_stack.rs`'s `NotOnBattlefield`).
-     **Sized:** the zone at each new producer, ~5 lines and a test.
-     **Slotted:** with the first registered card whose ability is activated
-     from a zone other than the battlefield.
+282. **~~`AbilityActivated.from` is written as the battlefield by both
+     producers.~~ — withdrawn at TR-5c's review (2026-10-18), before it
+     landed.** `source_before_paying` reads the source's zone before the
+     costs are paid, so the record says where the ability was activated from
+     and an activation off the battlefield writes its own zone.
 
 283. **The activation arm cannot ask about a loyalty ability.** "Whenever you
      activate a loyalty ability" is 8 cards (`o:"activate a loyalty ability"

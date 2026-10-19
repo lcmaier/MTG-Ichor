@@ -230,10 +230,13 @@ pub struct TriggerDef {
 (item 153's note: "CR 603.3d will want the same walk"), so a trigger's
 target instances are stored on the def the way a spell's are (A4n), and
 `announce_targets` at placement is the same call `activate_ability` makes.
-`is_mana_ability(def)` (item 11) reads a `Triggered` def too: no target, a
-condition that is `ManaAdded` or an activation or resolution of a mana
-ability, and a `ProduceMana` in the effect — CR 605.1b's three criteria,
-derived, never a tag.
+`is_mana_ability(def, record)` (item 11) reads a `Triggered` def too: no
+target, a `ProduceMana` in the effect, and a triggering record that is mana
+being added or a mana ability's activation — CR 605.1b's three criteria,
+derived, never a tag. Since TR-5c's review the record decides the second:
+"whenever you activate an ability" is a mana ability only when a mana
+ability's activation triggers it. `could_be_a_mana_ability(def)` is the
+def's half, which the mana supply asks.
 
 ### 3.2 `TriggerCondition` — event, state, and their compositions
 
@@ -2028,7 +2031,8 @@ record's own place (§3.5's amendment).
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
-A `PendingTrigger` whose def `is_mana_ability` is never queued: the
+A `PendingTrigger` that `is_mana_ability` makes a mana ability, by its def
+and the record that triggered it, is never queued: the
 dispatcher resolves it **at once**, through the resolution path a mana
 ability's effect already uses (`resolve_mana_effect`'s `ProduceMana`
 proposal), with no stack object, no priority and no target (605.1b's first
@@ -2262,7 +2266,7 @@ reason the prompt is asked otherwise:
   carry two ids (§3.6), and are still one ability twice.
 - **Agreement on every fact the def reads** (TR-2b's decision 6), since
   "that creature" or "that much" is otherwise a different object or number,
-  and "this creature" a different source. `TriggerDef::bound_reads()` walks
+  and "this creature" a different source. `TriggerDef::trigger_binding_reads()` walks
   the effect, the intervening "if" and CR 603.2h's gate, exhaustively, and
   names the columns: the subject, "that player", "that many", "its power"
   (the subject and the record its frame comes from), the source (the
@@ -3534,7 +3538,7 @@ per spell or ability, valiant's first time each turn off the turn's
 targeting rows, and `Primitive::Counter` counters what it is handed.
 `ActivatesAbility` reads `AbilityActivated`, which a mana ability's
 activation writes too (CR 605.3a), and CR 605.1b makes a trigger on one
-that adds mana a mana ability. `EffectRecipient::Together` gives one
+that adds mana a mana ability. `EffectRecipient::Group` gives one
 instruction several objects (CR 608.2f). `Attacks`' `per` is `occurrence`.
 Loyal Sentry and Cephalid Aristocrat are registered and pooled (206 → 208,
 116 → 118). Items 11 and 12 closed.
@@ -3575,7 +3579,7 @@ TR-5d.
 | **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,547 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
-| **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,234 |
+| **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,501 |
 | **TR-5d — prevention, excess damage, the multiplier, tokens and scry** (CR 615.13, 120.10, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
 ### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)

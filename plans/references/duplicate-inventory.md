@@ -449,7 +449,7 @@ reason or are item 247's.
   602.2b): the matcher read an activation source a cost had sacrificed off
   its record's frame, and `binding::record_frame` knew only a damage
   source's, so a read at the trigger or at resolution reported a missed
-  capture. One method, `GameEvent::frame_gone_before_this_event`, for the
+  capture. One method, `GameEvent::source_lki`, for the
   matcher's two arms, `record_frame` and `damage_objects`. Its log half
   stays item 247's: the activation line names its source by the card, the
   damage line by the frame, which part only for a copy sacrificed for its
@@ -459,11 +459,11 @@ reason or are item 247's.
   creature" did not watch the creature it refers to (CR 603.7c), and an
   unblocked arm's other creature mapped to a blocker its events never hold.
   `subject` names the side the text names, and `other_combatant` is the one
-  reading `role_in_arm` and `event_roles` share.
+  reading `role_as_recorded` and `event_roles` share.
 
 **Merged in #261, no game moved.** An object's last known information now
-(`last_known_information_now`, five sites); the combat in progress's rows
-(`rows_in`); a filtered sweep for a `Together` part (`affected_permanents`);
+(`lki_now`, five sites); the combat in progress's rows
+(`rows_during`); a filtered sweep for a `Group` member (`affected_permanents`);
 the activation's record (`announce_activation`, both producers, each with
 its provider); a spell or an ability as a targeting asks
 (`TargetedBy::admits`); the object that played a role
@@ -471,16 +471,19 @@ its provider); a spell or an ability as a targeting asks
 declaration's distinct sides (one walk in `block_events`); where countering
 puts a spell (`Counter`'s `moves_into`).
 
+TR-5c's review renamed four of them after this pass; the names above are
+the landed ones.
+
 **Kept, each with its reason.**
 - `entries_agree_on` compares each triggering event's own pairs, which a
   per-role list from `triggering_objects` cannot give where an event lacks a
   role; agreeing wrongly there would elide two different triggers.
-- `has_a_first_time` is the reader of `HistoryUpdate::placed_among`'s list;
+- `can_tell_a_first_time_each_turn` is the reader of `HistoryUpdate::placed_among`'s list;
   were they to part, a valid card would be refused loudly, never answered
   wrong.
 - `TargetSubject` and `CountersOn` share a shape and stay apart, as TR-5c's
   design decided, since each reads well only at its own arm.
-- `players_named_by` and `found_by_part` answer two questions: who chooses
+- `players_named_by` and `resolve_group_member` answer two questions: who chooses
   or who "that player" is, and what a join acts on.
 - The one-window idiom in `announce_targeted_records` and
   `control::announce`: the control sweep does its removal from combat and

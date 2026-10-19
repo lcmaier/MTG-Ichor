@@ -4274,7 +4274,8 @@ the usual sitting, since item 275's three arms go with it to TR-5d)
 
 **Built as designed**, with the decision as review's second round took it.
 Five code commits: the record and the "this turn" leaf; the block arm, the
-other creature and `Together`; the targeting arm, valiant and `Counter`;
+other creature and `Together` (`Group` since review); the targeting arm,
+valiant and `Counter`;
 the activation arm and a mana ability's record; the log. Each card was
 registered in the commit after the engine played it. Two more came from
 the close-out's model pass: two fixes, then eight copies merged.
@@ -4313,10 +4314,31 @@ the text names the attacker (T18). Eight copies merged with no game moved,
 50 audited games on both pools at two seats and four reading identical
 against the shipped arm; the rest are kept with a reason or are item 247's.
 
-**What it leaves.** Items 278–283 (`codebase-state.md`, "Found by TR-5c").
-Excess damage, the "this turn" damage facts and item 275 are TR-5d's, with
-pieces 11 and 12 above as written.
+**Review, round three (2026-10-18).** Re-reading CR 605.1b for the owner's
+question on Crumbling Vestige found the leg built against the arm: "it
+triggers from the activation or resolution of an activated mana ability"
+is the triggering event's to say, so "whenever you activate an ability,
+add {C}" went on the stack off a land's mana ability. `is_mana_ability`
+takes the record, and `could_be_a_mana_ability` is the def's half for the
+mana supply; the test failed first. The activation's record names its
+source as `source_before_paying` reads it, its zone included, which
+withdrew item 282, and which costs can move a source is
+`Cost::can_move_its_source`, an exhaustive match. Seven names moved for the
+call site (`lki_now`, `Group` and `resolve_group_member`,
+`GameEvent::source_lki`, `rows_during`, `role_as_recorded`,
+`TriggerBindingReads`, `can_tell_a_first_time_each_turn`), and two tests
+joined: an attacker that entered attacking can be blocked (CR 509.3g's
+converse), and an ability that adds mana with a target is no mana ability
+(CR 605.1a, Deathrite Shaman's shape).
 
-**Size.** +2,234/−212 in code and tests (code +1,156/−207, tests
-+1,078/−5), against 2,045–2,370. Forty integration tests in
-`phase_tr5c_integration_test` and one unit test in `state::history`.
+**What it leaves.** Items 278–281 and 283 (`codebase-state.md`, "Found by
+TR-5c"). Excess damage, the "this turn" damage facts and item 275 are
+TR-5d's, with pieces 11 and 12 above as written. CR 509.3a against 509.3b
+on one creature blocking two is item 6's, with the first card that lets a
+creature block an additional one.
+
+**Size.** +2,501/−317 in code and tests (code +1,308/−308, tests
++1,193/−9), against 2,045–2,370, one line past the band. The review's
+rename commit is +188/−170 of it, lines renamed in place; without it,
++2,313. Forty-three integration tests in `phase_tr5c_integration_test`
+and one unit test in `state::history`.
