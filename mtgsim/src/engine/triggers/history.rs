@@ -249,9 +249,16 @@ impl GameState {
             drafts.push((seq, RowDraft { player, object, frame, fact }));
         };
         // An object still the existence the record named, read now. One that
-        // has moved since is a new object (CR 400.7), whose frame is not this.
+        // has moved again in this window is a new object (CR 400.7); the move
+        // that ended it carries it as it was, where its record keeps a frame.
         let still = |object: ObjectRef| {
-            if self.object_ref(object.id) == Some(object) { compute_characteristics(self, object.id) } else { None }
+            if self.object_ref(object.id) == Some(object) {
+                compute_characteristics(self, object.id)
+            } else {
+                window.iter().filter_map(|&later| self.events.record(later)).find_map(|later| {
+                    later.event.lki().filter(|(lki, ..)| lki.object() == object).map(|(lki, ..)| Arc::clone(lki.frame()))
+                })
+            }
         };
         let now = |id: ObjectId| self.object_ref(id).map(|object| (object, compute_characteristics(self, id)));
         let controller = |frame: &Option<Arc<EffectiveCharacteristics>>| frame.as_ref().map(|chars| chars.controller);
@@ -263,10 +270,11 @@ impl GameState {
                     draft(Some(*caster), Some(object), frame, RowFact::Cast { from });
                 }
             }
+            // No frame: no card reads what an earlier drawn card was, and a
+            // filter over one is refused until one does. Nothing else asks
+            // about a card in hand, so each frame would be a layer walk.
             GameEvent::CardDrawn { player_id, card_id } => {
-                if let Some((object, frame)) = now(*card_id) {
-                    draft(Some(*player_id), Some(object), frame, RowFact::Drew);
-                }
+                draft(Some(*player_id), self.object_ref(*card_id), None, RowFact::Drew);
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
                 draft(Some(*player_id), None, None, RowFact::GainedLife((new - old) as u64));
