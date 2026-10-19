@@ -84,6 +84,13 @@ struct Loader<'s> {
     shuffled: Vec<Option<bool>>,
 }
 
+/// A spell a scenario names as cast (`PlayerWord::Cast`), on its turn.
+struct NamedCast {
+    player: PlayerId,
+    turn: u32,
+    card: Arc<CardData>,
+}
+
 /// The card `name` names, among the registered cards and then those in
 /// development.
 fn registered_card(registry: &CardRegistry, name: &str, line: usize) -> Result<Arc<CardData>, ScenarioError> {
@@ -444,7 +451,6 @@ impl<'s> Loader<'s> {
             let back = (turn - t) as usize % in_game.len();
             let player = in_game[(place + in_game.len() - back) % in_game.len()];
             self.state.begin_turn(t, player);
-            self.state.history.players[player].record_own_turn(t);
             for &(player, on_turn, fact, count) in &rows {
                 if on_turn == t && count > 0 {
                     let seq = self.state.events.next_seq();
@@ -456,11 +462,11 @@ impl<'s> Loader<'s> {
             }
             // A named cast is its printed card as cast from a hand, an object
             // in no store.
-            for (player, _, card) in casts.iter().filter(|(_, on_turn, _)| *on_turn == t) {
-                let frame = Some(Arc::new(seed_frame(card, *player, t)));
+            for cast in casts.iter().filter(|cast| cast.turn == t) {
+                let frame = Some(Arc::new(seed_frame(&cast.card, cast.player, t)));
                 let seq = self.state.events.next_seq();
                 let fact = RowFact::Cast { from: Zone::Hand };
-                self.state.history.log.push(HistoryRow { seq, turn: t, combat: 0, player: Some(*player), object: None, frame, fact });
+                self.state.history.log.push(HistoryRow { seq, turn: t, combat: 0, player: Some(cast.player), object: None, frame, fact });
                 self.state.bump_layer_epoch_if_read(GatedWalkInput::Rows(fact.kind()));
             }
         }
@@ -562,10 +568,10 @@ impl<'s> Loader<'s> {
         Ok(rows)
     }
 
-    /// Each named cast as (player, turn, card), on the turn its span lands
-    /// on as `history_counts_by_turn` lands a count: this turn on T, last turn
-    /// on T-1, this game on T-2.
-    fn named_casts_by_turn(&self, registry: &CardRegistry) -> Result<Vec<(PlayerId, u32, Arc<CardData>)>, ScenarioError> {
+    /// Each named cast, on the turn its span lands on as
+    /// `history_counts_by_turn` lands a count: this turn on T, last turn on
+    /// T-1, this game on T-2.
+    fn named_casts_by_turn(&self, registry: &CardRegistry) -> Result<Vec<NamedCast>, ScenarioError> {
         let turn = self.scenario.turn;
         let mut casts = Vec::new();
         for located in &self.scenario.player_words {
@@ -581,7 +587,7 @@ impl<'s> Loader<'s> {
                     return Err(refused("a cast is named on this turn, last turn or this game".to_string()));
                 }
             };
-            casts.push((*player, on_turn, registered_card(registry, card, located.line)?));
+            casts.push(NamedCast { player: *player, turn: on_turn, card: registered_card(registry, card, located.line)? });
         }
         Ok(casts)
     }

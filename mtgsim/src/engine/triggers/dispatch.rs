@@ -1556,11 +1556,11 @@ impl GameState {
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
             Some(TriggerLimit::FirstTimeEachTurn) => match (arm, &record.event) {
                 (TriggerEvent::BecomesTarget { by, controller: whose, .. }, GameEvent::Targeted { target, .. }) => {
-                    !self.history.log.targetings_of_turn(self.turn_number).any(|(targeted, by_spell, controller, seq)| {
-                        seq < record.seq
-                            && targeted == *target
-                            && by.admits(by_spell)
-                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, controller, referents))
+                    !self.history.log.targetings_of_turn(self.turn_number).any(|earlier| {
+                        earlier.seq < record.seq
+                            && earlier.target == *target
+                            && by.admits(earlier.by_spell)
+                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, earlier.controller, referents))
                     })
                 }
                 _ => record.place_in_turn() == Some(1),

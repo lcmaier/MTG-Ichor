@@ -11,11 +11,11 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::engine::targeting::{HeldFrame, TargetRef};
+use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history_log::{HistoryRow, RowFact, RowKind, TurnsCounted};
-use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
+use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::ObjectOrPlayer;
 use crate::types::zones::{Zone, ZoneChangeAct};
@@ -46,7 +46,6 @@ struct RowDraft {
 
 /// What one record changes beside its rows, or has a place among.
 enum HistoryUpdate {
-    TurnBegan { player: PlayerId, turn: u32 },
     AbilityResolved { identity: AbilityIdentity },
     SpellCast { caster: PlayerId },
     CardDrawn { player: PlayerId },
@@ -67,8 +66,7 @@ impl HistoryUpdate {
             HistoryUpdate::CardDrawn { player } => (*player, TurnFact::CardsDrawn),
             HistoryUpdate::LifeGained { player } => (*player, TurnFact::LifeGainEvents),
             HistoryUpdate::LifeLost { player } => (*player, TurnFact::LifeLossEvents),
-            HistoryUpdate::TurnBegan { .. }
-            | HistoryUpdate::AbilityResolved { .. }
+            HistoryUpdate::AbilityResolved { .. }
             | HistoryUpdate::DrawStepBegan { .. }
             | HistoryUpdate::CombatBegan => return None,
         })
@@ -146,15 +144,10 @@ impl GameState {
         }
     }
 
-    /// Write what one record changes beside its rows: a player's turn, an
-    /// ability's resolutions, the draw step's count, the turn's combats.
+    /// Write what one record changes beside its rows: an ability's
+    /// resolutions, the draw step's count, the turn's combats.
     fn count(&mut self, update: &HistoryUpdate) {
         match update {
-            HistoryUpdate::TurnBegan { player, turn } => {
-                if let Some(history) = self.history.players.get_mut(*player) {
-                    history.record_own_turn(*turn);
-                }
-            }
             HistoryUpdate::AbilityResolved { identity } => {
                 let key = (identity.source, identity.ability.definition());
                 *self.history.resolutions_this_turn.entry(key).or_insert(0) += 1;
@@ -202,20 +195,6 @@ impl GameState {
             }
             _ => None,
         }
-    }
-
-    /// `count` over `span` for `you`, read outside a layer walk, with `source`
-    /// the text's "this": a resolving amount's.
-    pub(crate) fn history_total(&self, count: &HistoryCount, span: HistorySpan, you: PlayerId, source: ObjectId) -> u64 {
-        let turns = self.history.turns_of(span, you, self.turn_number);
-        let counts_for = |player: PlayerId| count.players.contains(you, player);
-        let mut of = |row: &HistoryRow| match &count.of {
-            None => true,
-            Some(filter) => row.frame_matches(|id, frame| {
-                self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
-            }),
-        };
-        self.history.log.count(count.fact, turns, &counts_for, &mut of, &|_| {})
     }
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
@@ -353,7 +332,6 @@ impl GameState {
     fn history_update(&self, seq: EventSeq) -> Option<HistoryUpdate> {
         let record = self.events.record(seq)?;
         Some(match &record.event {
-            GameEvent::TurnBegin { player, turn_number } => HistoryUpdate::TurnBegan { player: *player, turn: *turn_number },
             GameEvent::AbilityResolved { identity, .. } => HistoryUpdate::AbilityResolved { identity: *identity },
             GameEvent::SpellCast { caster, .. } => HistoryUpdate::SpellCast { caster: *caster },
             GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },

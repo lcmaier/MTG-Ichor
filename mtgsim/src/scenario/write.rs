@@ -261,9 +261,8 @@ impl<'g> Writer<'g> {
             let (named_this, named_last, named_earlier) =
                 (named(HistorySpan::ThisTurn), named(HistorySpan::LastTurn), named(HistorySpan::ThisGame));
             for fact in every_turn_fact() {
-                let count = |turns| state.history.count(p, fact, turns);
-                let last_turn = TurnsCounted::Turn(turn.saturating_sub(1));
-                let (mut this, mut last, mut game) = (count(TurnsCounted::Turn(turn)), count(last_turn), count(TurnsCounted::From(1)));
+                let count = |span| state.history.count(p, fact, state.history.turns_of(span, p, turn));
+                let (mut this, mut last, mut game) = (count(HistorySpan::ThisTurn), count(HistorySpan::LastTurn), count(HistorySpan::ThisGame));
                 // The named casts are said by name; the count says the rest.
                 if fact == TurnFact::SpellsCast {
                     this -= named_this;
@@ -347,11 +346,12 @@ impl<'g> Writer<'g> {
         (0..histories.players.len()).any(|q| {
             every_turn_fact().any(|fact| {
                 let count = |turns| histories.count(q, fact, turns);
-                let (this, last) = (count(TurnsCounted::Turn(turn)), count(TurnsCounted::Turn(turn.saturating_sub(1))));
+                let spanned = |span| count(histories.turns_of(span, q, turn));
+                let (this, last) = (spanned(HistorySpan::ThisTurn), spanned(HistorySpan::LastTurn));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
                     Some(2) if ended > 0 => this.saturating_add(last),
-                    _ => count(TurnsCounted::From(1)),
+                    _ => spanned(HistorySpan::ThisGame),
                 };
                 count(since) != derived
             })

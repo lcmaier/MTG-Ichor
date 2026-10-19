@@ -644,6 +644,11 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         }
     }
 
+    /// Whether there is a "you" to read: a row's, or one resolved up front.
+    pub(super) fn has_you(&self) -> bool {
+        self.effect.is_some() || self.you.is_some()
+    }
+
     /// CR 109.5's "you".
     pub(super) fn you(&mut self) -> PlayerId {
         if let Some(you) = self.you {
@@ -902,10 +907,9 @@ pub(super) fn evaluate_amount(
         // "You" is a CDA's object's controller or the row's (CR 109.5), as
         // `CountOf` reads it.
         AmountExpr::History(span, count) => {
-            let source = origin.map_or(object_id, |row| row.source);
-            let you = origin.map_or(chars.controller, |row| row.controller);
-            super::condition::history_total(count, *span, game, board, source, layer_index, Some(you))
-                .map(|total| i32::try_from(total).unwrap_or(i32::MAX))
+            let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
+            let total = super::condition::history_total(count, *span, game, board, &mut players);
+            Some(i32::try_from(total).unwrap_or(i32::MAX))
         }
 
         // A count over the battlefield at this layer (Keldon Warlord). **The real
@@ -922,7 +926,7 @@ pub(super) fn evaluate_amount(
                 "CountOf(CardsInHand({:?})) has no static-context evaluator yet (on '{}')",
                 whose, chars.name
             );
-            let you = origin.map_or(chars.controller, |row| row.controller);
+            let you = amount_players(origin, object_id, chars, game, board, layer_index).you();
             game.players.get(you).map(|player| player.hand.len() as i32)
         }
 
@@ -942,22 +946,7 @@ pub(super) fn evaluate_amount(
                     return None;
                 }
             };
-            let (you, owner) = match origin {
-                Some(_) => (None, None),
-                None => (
-                    Some(chars.controller),
-                    Some(game.objects.get(&object_id).map(|obj| obj.owner).unwrap_or(chars.controller)),
-                ),
-            };
-            let mut players = FilterPlayers {
-                effect: origin,
-                source: origin.map(|e| e.source).unwrap_or(object_id),
-                game,
-                board,
-                layer_index,
-                you,
-                owner,
-            };
+            let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
             let mut count = 0;
             for other in board.battlefield_ids(game) {
                 let Some(other_chars) = board.frame_of(game, other, layer_index) else {
@@ -1006,6 +995,23 @@ pub(super) fn evaluate_amount(
             );
             None
         }
+    }
+}
+
+/// The players an amount's words read, as its row's filter reads them (CR
+/// 109.5: a static ability's "you" is its source's controller now), or, for a
+/// CDA, its own object's controller.
+fn amount_players<'a, 'l>(
+    origin: Option<&'a ContinuousEffect>,
+    object_id: ObjectId,
+    chars: &EffectiveCharacteristics,
+    game: &'a GameState,
+    board: &'a Board<'l>,
+    layer_index: usize,
+) -> FilterPlayers<'a, 'l> {
+    match origin {
+        Some(row) => FilterPlayers::for_row(row, game, board, layer_index),
+        None => FilterPlayers::for_source(object_id, game, board, layer_index, Some(chars.controller), None),
     }
 }
 

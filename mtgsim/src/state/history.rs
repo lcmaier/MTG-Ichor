@@ -10,10 +10,13 @@
 //! [`GameHistory`] holds it all: the log, each player's [`PlayerHistory`],
 //! and each ability's "this turn" facts.
 
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::AbilityIdentity;
-use crate::state::history_log::{HistoryLog, TurnsCounted};
-use crate::types::history::{HistorySpan, TurnFact};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
+use crate::state::history_log::{HistoryLog, HistoryRow, TurnsCounted};
+use crate::state::layer_memo::GatedWalkInput;
+use crate::types::effects::ObjectFilter;
+use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 
 /// One player's history beside the log.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +113,27 @@ impl GameHistory {
         self.log.count(fact, turns, &|counted| counted == player, &mut |_| true, &|_| {})
     }
 
+    /// `count` over `span` for `you` on turn `now`: the rows of the players it
+    /// names, narrowed by its filter over each row's frame, which
+    /// `filter_matches` asks in its reader's context, a layer walk's or a
+    /// resolution's. Notes what it read into `note`.
+    pub(crate) fn total(
+        &self,
+        count: &HistoryCount,
+        span: HistorySpan,
+        you: PlayerId,
+        now: u32,
+        filter_matches: &mut dyn FnMut(&ObjectFilter, ObjectId, &EffectiveCharacteristics) -> bool,
+        note: &dyn Fn(GatedWalkInput),
+    ) -> u64 {
+        let counts_for = |player: PlayerId| count.players.contains(you, player);
+        let mut of = |row: &HistoryRow| match &count.of {
+            None => true,
+            Some(filter) => row.frame_matches(|id, frame| filter_matches(filter, id, frame)),
+        };
+        self.log.count(count.fact, self.turns_of(span, you, now), &counts_for, &mut of, note)
+    }
+
     /// The turns `span` names for `you` on turn `now`.
     pub fn turns_of(&self, span: HistorySpan, you: PlayerId, now: u32) -> TurnsCounted {
         match span {
@@ -144,7 +168,7 @@ impl GameHistory {
 mod tests {
     use super::*;
     use crate::events::event::EventSeq;
-    use crate::state::history_log::{HistoryRow, RowFact};
+    use crate::state::history_log::RowFact;
 
     const DRAWN: TurnFact = TurnFact::CardsDrawn;
 

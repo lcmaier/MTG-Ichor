@@ -1065,6 +1065,9 @@ impl GameState {
         self.active_player = player;
         self.last_turn_began[player] = turn;
         self.history.turn_began();
+        if let Some(history) = self.history.players.get_mut(player) {
+            history.record_own_turn(turn);
+        }
         self.bump_layer_epoch_if_read(GatedWalkInput::TurnNumber);
     }
 

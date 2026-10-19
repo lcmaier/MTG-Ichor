@@ -146,13 +146,20 @@ impl RowKind {
     pub const COUNT: usize = 11;
 }
 
-/// What `fact` counts in `row`, and whose count it is: the caster's, the
-/// drawer's, the player whose life moved, the player dealt the damage, who
-/// controlled the creature as it died, the player whose creatures attacked.
-/// `None` for a row the fact does not count.
-pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
+/// What one row adds to a count, and to whose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowCount {
+    /// The caster, the drawer, the player whose life moved, the player dealt
+    /// the damage, who controlled the creature as it died, the player whose
+    /// creatures attacked.
+    pub player: PlayerId,
+    pub amount: u64,
+}
+
+/// What `fact` counts in `row`, or `None` for a row the fact does not count.
+pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<RowCount> {
     let has_type = |card_type: CardType| row.frame.as_ref().is_some_and(|chars| chars.types.contains(&card_type));
-    let (player, n) = match (fact, row.fact) {
+    let (player, amount) = match (fact, row.fact) {
         (TurnFact::SpellsCast, RowFact::Cast { .. }) | (TurnFact::CardsDrawn, RowFact::Drew) => (row.player?, 1),
         (TurnFact::LifeGained, RowFact::GainedLife(n)) | (TurnFact::LifeLost, RowFact::LostLife(n)) => (row.player?, n),
         (TurnFact::LifeGainEvents, RowFact::GainedLife(_)) | (TurnFact::LifeLossEvents, RowFact::LostLife(_)) => {
@@ -169,7 +176,7 @@ pub fn counted(fact: TurnFact, row: &HistoryRow) -> Option<(PlayerId, u64)> {
         (asked, RowFact::Stated { fact, count }) if asked == fact => (row.player?, count),
         _ => return None,
     };
-    Some((player, n))
+    Some(RowCount { player, amount })
 }
 
 /// The kind of row `fact` counts, which a count notes it read.
@@ -192,6 +199,19 @@ pub enum TurnsCounted {
     /// This turn and every turn since `from`: "since your last turn", and
     /// "this game" from turn 1.
     From(u32),
+}
+
+/// One thing becoming the target of a spell or ability (CR 115.1), as the
+/// log's row says it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Targeting {
+    pub target: TargetRef,
+    /// By a spell rather than an ability.
+    pub by_spell: bool,
+    /// Who controlled the spell or ability.
+    pub controller: PlayerId,
+    /// The record that said so.
+    pub seq: EventSeq,
 }
 
 /// How much of the turn a question about its combats spans: the whole turn,
@@ -346,18 +366,19 @@ impl HistoryLog {
             .any(|row| matches!(row.fact, RowFact::DealtDamage { to: ObjectOrPlayer::Object(to), .. } if to == object))
     }
 
-    /// The players `object` dealt damage to in `span` of turn `turn`, each
-    /// with whether it was combat damage (CR 120.1, 510.2).
+    /// The players `object` dealt damage to in `span` of turn `turn`, only
+    /// combat damage when `combat_only` (CR 120.1, 510.2).
     pub(crate) fn players_dealt_damage_by(
         &self,
         object: ObjectRef,
+        combat_only: bool,
         turn: u32,
         span: CombatSpan,
         note: &dyn Fn(GatedWalkInput),
-    ) -> impl Iterator<Item = (PlayerId, bool)> {
-        self.rows_during(turn, span, RowKind::DealtDamage, note).filter(move |row| row.object == Some(object)).filter_map(|row| {
+    ) -> impl Iterator<Item = PlayerId> {
+        self.rows_during(turn, span, RowKind::DealtDamage, note).filter(move |row| row.object == Some(object)).filter_map(move |row| {
             match row.fact {
-                RowFact::DealtDamage { to: ObjectOrPlayer::Player(player), combat, .. } => Some((player, combat)),
+                RowFact::DealtDamage { to: ObjectOrPlayer::Player(player), combat, .. } if combat || !combat_only => Some(player),
                 _ => None,
             }
         })
@@ -376,16 +397,15 @@ impl HistoryLog {
         }
     }
 
-    /// Turn `turn`'s targetings, newest first: what became the target, by a
-    /// spell or not, whose, and which record said so (CR 115.1).
-    pub fn targetings_of_turn(&self, turn: u32) -> impl Iterator<Item = (TargetRef, bool, PlayerId, EventSeq)> + '_ {
+    /// Turn `turn`'s targetings, newest first (CR 115.1).
+    pub fn targetings_of_turn(&self, turn: u32) -> impl Iterator<Item = Targeting> + '_ {
         self.rows_of_turn(turn).filter_map(|row| match row.fact {
             RowFact::BecameTarget { by_spell, controller } => {
                 let target = match row.object {
                     Some(object) => TargetRef::Object(object),
                     None => TargetRef::Player(row.player?),
                 };
-                Some((target, by_spell, controller, row.seq))
+                Some(Targeting { target, by_spell, controller, seq: row.seq })
             }
             _ => None,
         })
@@ -408,11 +428,11 @@ impl HistoryLog {
         let mut sum = |rows: &mut dyn Iterator<Item = &HistoryRow>| -> u64 {
             let mut total: u64 = 0;
             for row in rows {
-                if let Some((player, n)) = counted(fact, row)
+                if let Some(RowCount { player, amount }) = counted(fact, row)
                     && counts_for(player)
                     && of(row)
                 {
-                    total = total.saturating_add(n);
+                    total = total.saturating_add(amount);
                 }
             }
             total

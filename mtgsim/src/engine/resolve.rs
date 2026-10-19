@@ -4,11 +4,12 @@ use crate::engine::actions::{
     ActionContext, GameAction, ZoneChangeAct,
 };
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, PtValue, Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, EffectiveCharacteristics, Layer, PtValue,
+    Timestamp,
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{CounterSubject, DamageTarget, EventSeq, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, HeldFrame, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::battlefield::AttackTarget;
@@ -2448,7 +2449,14 @@ impl GameState {
                 Err("CardTypesAmong amount resolution not yet implemented".to_string())
             }
             AmountExpr::Plus(inner, n) => Ok(self.evaluate_amount(inner, _ctx)? + n),
-            AmountExpr::History(span, count) => Ok(self.history_total(count, *span, _ctx.controller, _ctx.source)),
+            // "You" is the controller, and the text's "this" its source.
+            AmountExpr::History(span, count) => {
+                let (you, source) = (_ctx.controller, _ctx.source);
+                let mut filter_matches = |filter: &ObjectFilter, id, frame: &EffectiveCharacteristics| {
+                    self.object_matches_filter_of_source(id, filter, you, source, Some(HeldFrame::Characteristics(frame)))
+                };
+                Ok(self.history.total(count, *span, you, self.turn_number, &mut filter_matches, &|_| {}))
+            }
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }

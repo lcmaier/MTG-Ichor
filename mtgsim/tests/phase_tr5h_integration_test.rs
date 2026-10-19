@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -16,6 +17,8 @@ use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::scenario::Scenario;
+use mtgsim::engine::layers::compute_characteristics;
+use mtgsim::state::battlefield::CostChoices;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::history_log::RowFact;
 use mtgsim::test_support::{
@@ -25,11 +28,12 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive, SelectionFilter,
-    TargetCount,
+    Selector, TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::triggers::Lki;
 use mtgsim::types::mana::ManaCost;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -296,4 +300,88 @@ fn dealt_combat_damage_to_an_opponent_reads_whom_and_how() {
     deal_damage(&mut game, theirs, DamageTarget::Player(0), true);
     let powers = [raider, pinger, theirs].map(|id| get_effective_power(&game, id));
     assert_eq!(powers, [Some(3), Some(2), Some(2)]);
+}
+
+/// `player` gains control of `victim` the way Act of Treason's resolution
+/// gives it (a Layer 2 row).
+fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
+    let treason = put_in_hand(game, act_of_treason(), player);
+    let ctx = ResolutionContext {
+        source: treason,
+        ability_source: None,
+        controller: player,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&act_of_treason().abilities[0].effect, &ctx, &test_dp()).expect("the steal");
+}
+
+/// "Creatures get +X/+0", an artifact's static, with X `amount`.
+fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
+    CardDataBuilder::new("Measuring Totem")
+        .card_type(CardType::Artifact)
+        .ability(static_ability(Effect::Atom(
+            Primitive::ModifyPowerToughness(amount, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
+        )))
+        .build()
+}
+
+/// A static ability's "you" is its source's controller now (CR 109.5), so
+/// once its source is stolen an amount it reads counts the thief's: the
+/// spells they cast this turn, the cards in their hand.
+#[test]
+fn a_static_amounts_you_follows_its_source_to_a_new_controller() {
+    let quick = || free_spell("Quick Ritual", CardType::Instant, Effect::Sequence(Vec::new()));
+    let spells = AmountExpr::History(HistorySpan::ThisTurn, Box::new(spells_you_cast(None)));
+    let hand = AmountExpr::CountOf(Selector::CardsInHand(PlayerRef::You));
+    for (amount, what) in [(spells, "spells cast"), (hand, "cards in hand")] {
+        let mut game = setup_two_player_game();
+        let totem = put_on_battlefield(&mut game, anthem_of(amount), 0);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        cast_and_resolve(&mut game, 1, quick());
+        cast_and_resolve(&mut game, 1, quick());
+        let before = get_effective_power(&game, bears);
+        steal(&mut game, totem, 1);
+        // Player 1 cast two spells, and holds the Act of Treason that stole it.
+        let theirs = if what == "spells cast" { 2 } else { game.players[1].hand.len() as i32 };
+        assert!(theirs > 0, "{what}: player 0 has none, so the two readings differ");
+        assert_eq!((before, get_effective_power(&game, bears)), (Some(2), Some(2 + theirs)), "{what}: player 1's");
+    }
+}
+
+/// A source the store has lost answers "its owner" off its last known
+/// information (CR 108.3), in a history count's filter as in every other.
+#[test]
+fn a_gone_sources_history_filter_reads_its_owner_off_its_last_known_information() {
+    let mut game = setup_two_player_game();
+    let relic = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    cast_and_resolve(&mut game, 0, quiet_ritual());
+    let lki = Lki::new(
+        game.object_ref(relic).unwrap(),
+        compute_characteristics(&game, relic).unwrap(),
+        0,
+        CostChoices::NONE,
+        game.battlefield.get(&relic),
+        None,
+    );
+    game.battlefield.remove(&relic);
+    game.objects.remove(&relic);
+    let owners_spells = spells_you_cast(Some(ObjectFilter::ByOwner(PlayerRef::Owner)));
+    let cast_one = Condition::ThisTurn(owners_spells, CountIs::AtLeast(1));
+    let referents = ConditionReferents { source_lki: Some(&lki), ..ConditionReferents::NONE };
+    assert!(settled_holds(&cast_one, &game, relic, Some(0), referents), "player 0 owned both");
+}
+
+/// "Your last turn" is written as the turn begins, by the turn's own writer.
+#[test]
+fn your_last_turn_is_written_as_the_turn_begins() {
+    let mut game = GameState::new(2, 20);
+    game.begin_turn(2, 1);
+    game.begin_turn(3, 0);
+    let history = &game.history.players;
+    assert_eq!((history[0].your_last_turn(3), history[1].your_last_turn(3)), (Some(1), Some(2)));
 }

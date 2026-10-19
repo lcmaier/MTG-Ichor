@@ -286,11 +286,7 @@ fn answer_or_refuse<'f>(
                 }
                 ObjectFact::WasDealtDamage => log.was_dealt_damage(existence()?, turn, span, &note),
                 ObjectFact::DealtDamageTo { player, combat } => {
-                    let dealt: Vec<PlayerId> = log
-                        .players_dealt_damage_by(existence()?, turn, span, &note)
-                        .filter(|&(_, in_combat)| in_combat || !*combat)
-                        .map(|(dealt_to, _)| dealt_to)
-                        .collect();
+                    let dealt: Vec<PlayerId> = log.players_dealt_damage_by(existence()?, *combat, turn, span, &note).collect();
                     match player {
                         None => !dealt.is_empty(),
                         Some(who) => {
