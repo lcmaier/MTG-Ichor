@@ -3599,7 +3599,9 @@ The second row is what the next rewrite would be for. No number of slots
 answers it, and every slot costs every clone.
 
 **The shape, written once.** Three stores, each bounded by what it holds.
-1. **The round's log.** Every event a reader of the past can ask about, one
+1. **The round's log.** It records events, never the board: a row is one
+   thing that happened, and its frame is the one object's characteristics
+   then, behind a pointer. Every event a reader of the past can ask about, one
    row each, kept from the earliest turn any player's "your last turn" names,
    which is the combat rows' rule today. A row is the event as it happened:
    its turn and combat, whose event it was, the object it was about as the
@@ -3720,7 +3722,7 @@ say, it reports, as it reports a combat row today (`scenario/write.rs:194`).
 | Allocations a clone makes for it | 1, the players' `Vec` | 1 |
 | A fork's first write | the summaries in place; a whole round of combat or targeting rows (48 bytes each) once one is written | the open chunk: at most 16 rows of about 80 bytes, 1 allocation |
 | A new fact | 96 bytes on every four-seat clone (a slot in three summaries, four players). A fact by characteristic needs a slot per value, or cannot have one | a variant: nothing on the clone, and a row only when it happens |
-| Rows held | — | 10–17 a turn at four seats (the games wrote 42.7 records a turn, p90 65, these kinds among them), about 50–85 over a round, 4–7 KB, shared |
+| Held once per game, shared by every clone of it | the combat and targeting rows, about 1–2 KB | 10–17 rows a turn at four seats (the games wrote 42.7 records a turn, p90 65, these kinds among them), about 50–85 over a round, 4–7 KB; and the frames those rows keep alive, about half a kilobyte each (272 bytes and a name and a few small sets) where no other row or the layer memo shares one, so at most about 40 KB. The clone floors do not count it, since no clone copies it |
 
 A read scans the turn's rows of one kind, about ten, where a count read one
 slot. The readers are a static's condition, which the layer memo holds, and a
