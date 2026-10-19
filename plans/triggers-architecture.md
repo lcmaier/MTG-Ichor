@@ -230,10 +230,13 @@ pub struct TriggerDef {
 (item 153's note: "CR 603.3d will want the same walk"), so a trigger's
 target instances are stored on the def the way a spell's are (A4n), and
 `announce_targets` at placement is the same call `activate_ability` makes.
-`is_mana_ability(def)` (item 11) reads a `Triggered` def too: no target, a
-condition that is `ManaAdded` or an activation or resolution of a mana
-ability, and a `ProduceMana` in the effect — CR 605.1b's three criteria,
-derived, never a tag.
+`is_mana_ability(def, record)` (item 11) reads a `Triggered` def too: no
+target, a `ProduceMana` in the effect, and a triggering record that is mana
+being added or a mana ability's activation — CR 605.1b's three criteria,
+derived, never a tag. Since TR-5c's review the record decides the second:
+"whenever you activate an ability" is a mana ability only when a mana
+ability's activation triggers it. `could_be_a_mana_ability(def)` is the
+def's half, which the mana supply asks.
 
 ### 3.2 `TriggerCondition` — event, state, and their compositions
 
@@ -302,10 +305,10 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
 | `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, was_cast: Option<bool>, multiplicity }` — `from` and `was_cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
 | `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3). `cause` waits for its one customer, CR 727's rad counters | no | TR-1, TR-2a |
-| `AttackersDeclared` | `Attacks { attacker, defender: Option<DefenderFilter>, per: AttackEventPer, alone, multiplicity }` — CR 508.3a–e's and 506.5's seven readings as three filters, what one triggering event is (an attacker, or what is attacked) and `alone`; reads item 11's defender, and only a declared attacker (CR 508.4). **Revised at TR-5a's design (2026-10-16, §12's TR-5e, decision 5)** from an enum of seven, `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`, which this row had called five | no; 508.2a's snapshot is the dispatch instant | TR-5e |
-| `BlockersDeclared` | `Blocks { shape: BlockShape, .. }` — 509.3a–d and 509.3g's five readings of one pair list: `Blocks`, `BlocksACreature`, `BecomesBlocked`, `BecomesBlockedBy`, `AttacksAndIsntBlocked` | no | TR-5 |
+| `AttackersDeclared` | `Attacks { attacker, defender: Option<DefenderFilter>, occurrence: AttackOccurrence, alone, multiplicity }` — CR 508.3a–e's and 506.5's seven readings as three filters, what one triggering event is (an attacker, or what is attacked) and `alone`; `occurrence` was `per: AttackEventPer` until TR-5c, which named the block arm's field with CR 603.2c's word; reads item 11's defender, and only a declared attacker (CR 508.4). **Revised at TR-5a's design (2026-10-16, §12's TR-5e, decision 5)** from an enum of seven, `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer` and `Alone`, which this row had called five | no; 508.2a's snapshot is the dispatch instant | TR-5e |
+| `BlockersDeclared` | `Blocks { blocker, attacker, occurrence: BlockOccurrence, count: Option<CountIs>, alone, multiplicity }` — CR 509.3a–g's readings as two filters, what one triggering event is (a blocker, a block, a blocked creature or an unblocked one), 509.3e's count and 506.5's `alone`; "that creature" of "blocks or becomes blocked by" is `EventRole::OtherCombatant`. One record per declaration step, written also when nobody blocks, with its unblocked attackers (item 11, CR 509.1h). **Revised at TR-5c's design (2026-10-18)** from `shape: BlockShape`, an enum of five readings with two spellings of one trigger and no place for the count | no; 509.3f's characteristics are the declaration's | TR-5c |
 | `SpellCast` | `CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> }` — the stack object is live at dispatch (types, colors, mana value through the layer walk). `from` waits for casting from a zone other than the hand (`backlog.md` §2.3) | no | TR-2a |
-| `AbilityActivated` | `ActivatesAbility { controller, source: Option<ObjectFilter>, loyalty: Option<bool> }`. "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, CV-4) | no | TR-5 |
+| `AbilityActivated` | `ActivatesAbility { player: Option<PlayerRef>, source: TriggerSubject, mana_ability: Option<bool> }` — both producers write the record, a mana ability's after its costs (CR 605.3a–b), with whether it is one, where its source was and the source's frame if a cost moved it; the arm reads only a source on the battlefield (Harsh Mentor's second ruling). A trigger on a mana ability's activation that could add mana is a mana ability (CR 605.1b). The zone waits for an activation off the battlefield (item 282), a loyalty field for CP-2's loyalty abilities (item 283). "Copy that ability" needs the stack object, which the record does not name (§3.12a, item 256, CV-4) | no | TR-5c |
 | `AbilityResolved` | `AbilityResolves { identity: IdentityRef }` — `ThisAbility` for CR 603.7h's delayed form, read with the resolution count (§6.5) | no | TR-3 |
 | `SpellCountered` / `AbilityCountered` | `IsCountered { spell: Option<ObjectFilter>, caster: Option<PlayerRef> }`, reading `SpellCountered` only — **never `SpellFizzled`** (question 2; Multani's Presence's ruling). The look-back reads the frame the record carries: the stack object's `Lki` with its `entry` (§3.12a, item 253), whose `StackEntry::caster()` is "a spell you've cast". No printed trigger reads an ability being countered (§12, TR-4d) | yes (603.10e) | TR-4d |
 | `SpellFizzled` / `AbilityFizzled` | **no arm.** CR 608.2b's "doesn't resolve" is not "countered" under the baseline CR, and no printed trigger reads it. An ability's is its own record since #231, named by its identity as `AbilityResolved` is | — | — |
@@ -321,7 +324,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13). **Amended 2026-09-23 (the rulings pass, G2):** a reflexive "when you do" on a creation asks whether each token is of the definition the instruction named — Ajani, Nacatl Avenger's ruling triggers once per Cat Warrior under Doubling Season and not at all for the Angels Divine Visitation makes instead — so `kind` matches the instructed definition, not a token type | no | TR-5 (fixture) |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
-| `Targeted` (item 12; the record since #231) | `BecomesTarget { subject: TargetRef (object or player), by: Option<TargetingFilter> (a spell, an ability, "an opponent controls", "an Aura spell"), first_time_each_turn }` — once per spell or ability, however many instances (question 11) | no | TR-5 |
+| `Targeted` (item 12; the record since #231) | `BecomesTarget { target: TargetSubject (an object or a player), by: TargetedBy (a spell, an ability, either; "an Aura spell"), controller: Option<PlayerRef>, multiplicity }` — once per spell or ability, however many instances (question 11), one window per spell or ability (CR 601.2c). "For the first time each turn" is `TriggerDef::limit`'s, read off the turn's targeting rows | no | TR-5c |
 | *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "you lose control of" is `from: You`; "an opponent gains control of a permanent from you" adds `to: Opponent` (Zidane, Tantalus Thief); "a permanent you own" is the subject's filter. Losing control includes leaving the battlefield (Khârn the Betrayer's first ruling), so an arm with `to: None` also reads a battlefield departure whose frame's controller is `from` | yes (603.10d), off the frame the sweep kept (§12, TR-4d) | TR-4d |
 | *new* `DamagePrevented` (item 16) | `DamageIsPrevented { target: DamageRecipient, multiplicity }` — one record per prevention applied per subject group (CR 615.13) | no | TR-5 |
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), source: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
@@ -1171,7 +1174,7 @@ from a known item, so the calibration also bought two findings.
 | `Tapped`, `Untapped` | holds; "them" item 250 → TR-5a | holds: a cost's tap is `Cost` (crew) | holds: no reader | holds: transition-only (CR 603.2e) | holds: nothing left |
 | `CardDrawn` | holds: the card in hand at the dispatch | holds: the draw's place in its turn and in its draw step, counted as the card's draw ends (`place_in_turn`, `place_in_draw_step`; item 254, closed by A6r) | holds: a replaced draw has no record (CR 603.2g) | holds: one batch per card (CR 121.6b) | holds |
 | `ManaAdded` | holds | holds: `tapped_for_mana` (CR 106.12) | holds: the record is the modified production (CR 106.12b) | holds: resolves at the dispatch (CR 605.4a) | open: a source sacrificed for its own mana (decision 6) |
-| `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5c | holds (`source_lki`, CR 608.2h) |
+| `DamageDealt` | **item 255**: two objects, one subject (CR 603.2, 608.2h) → TR-5a; "them" item 250 → TR-5a | holds: `is_combat` and the cause (CR 510.2) | holds (item 16 → TR-5d) | holds; excess damage (CR 120.10) → TR-5d | holds (`source_lki`, CR 608.2h) |
 | `DamagePrevented` | holds: the recipient; no source, since one subject's damage can come from several | holds: `by` is the effect, and the stamp's cause the prevention's own | holds: announced only for damage prevented, so none under CR 615.12 | holds: announced as the batch decides, ahead of what it performs, and dispatched at its close; the arm is TR-5d's | holds: nothing left |
 | `PhaseBegin`, `StepBegin`, `TurnBegin` | holds: whose (item 10) | holds | holds: a skip leaves no record (CR 614.10) | holds | holds |
 | `PermanentEnteredBattlefield` | holds; "them" item 250 → TR-5a | holds: `was_cast` off CR 400.7d's facts, `from` off the joined zone change (§4.4) | holds; entry counters item 17 → TR-5b | holds since RH-3 (CR 603.6a) | holds (the kept LKI, §6.1) |
@@ -1431,8 +1434,8 @@ it. Its phase builds the corrected one.
 | Item | Still holds? |
 |---|---|
 | 10 | Two of three fields hold. `LifeChanged.cause: LifeLossCause` is gone: RH-1 folded it into the stamp's cause and kept `source` |
-| 11 | Holds. Today `BlockersDeclared` is written per defender and not at all when nobody blocks, which CR 509.3g's "attacks and isn't blocked" needs: TR-5c |
-| 12 | Holds. TR-5c reads it |
+| 11 | Holds; closed by TR-5c: one `BlockersDeclared` per declaration step, also when nobody blocks, with its unblocked attackers (CR 509.3g) |
+| 12 | Holds; closed by TR-5c, which reads it |
 | 13 | Holds, with the frame, the cause and the moment above |
 | 14 | Holds, with item 252 beside it |
 | 15 | Holds; closed by TR-4c, with items 259 and 260 |
@@ -2028,7 +2031,8 @@ record's own place (§3.5's amendment).
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
-A `PendingTrigger` whose def `is_mana_ability` is never queued: the
+A `PendingTrigger` that `is_mana_ability` makes a mana ability, by its def
+and the record that triggered it, is never queued: the
 dispatcher resolves it **at once**, through the resolution path a mana
 ability's effect already uses (`resolve_mana_effect`'s `ProduceMana`
 proposal), with no stack object, no priority and no target (605.1b's first
@@ -2262,7 +2266,7 @@ reason the prompt is asked otherwise:
   carry two ids (§3.6), and are still one ability twice.
 - **Agreement on every fact the def reads** (TR-2b's decision 6), since
   "that creature" or "that much" is otherwise a different object or number,
-  and "this creature" a different source. `TriggerDef::bound_reads()` walks
+  and "this creature" a different source. `TriggerDef::trigger_binding_reads()` walks
   the effect, the intervening "if" and CR 603.2h's gate, exhaustively, and
   names the columns: the subject, "that player", "that many", "its power"
   (the subject and the record its frame comes from), the source (the
@@ -3515,6 +3519,46 @@ read IDENTICAL and cut the worst clone from 41 to 38 allocations.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-5b".
 
+### TR-5c — blocks, targeting and activation — ✅ landed 2026-10-18
+
+*Body evicted 2026-10-18 to `plans/archive/triggers-architecture-landed.md`,
+"TR-5c", with the plan as designed, its one decision, pieces 11 and 12 as
+TR-5d's design starts from them, and what the build corrected.*
+
+**What shipped.** The declaration of blockers is one `BlockersDeclared` per
+step, written also when nobody blocks, naming its unblocked attackers (CR
+509.1h, 509.3g), and each block is a row on the combat history. "This turn"
+and "this combat" are `ObjectFilter::ThisTurn` and `ThisCombat` over an
+`ObjectFact` (attacked, blocked, was blocked, entered), and
+`AttackedThisTurn` folded into them. The block arm reads CR 509.3a–g as
+fields, with 509.3e's count and 506.5's `alone`, and "that creature" of
+"blocks or becomes blocked by" is `EventRole::OtherCombatant`.
+`BecomesTarget` reads #231's `Targeted`, an object or a player, one window
+per spell or ability, valiant's first time each turn off the turn's
+targeting rows, and `Primitive::Counter` counters what it is handed.
+`ActivatesAbility` reads `AbilityActivated`, which a mana ability's
+activation writes too (CR 605.3a), and CR 605.1b makes a trigger on one
+that adds mana a mana ability. `EffectRecipient::Group` gives one
+instruction several objects (CR 608.2f). `Attacks`' `per` is `occurrence`.
+Loyal Sentry and Cephalid Aristocrat are registered and pooled (206 → 208,
+116 → 118). Items 11 and 12 closed.
+
+**What moved on the way in.** Review moved excess damage, the "this turn"
+damage facts and item 275 to TR-5d, built valiant, the mana ability's
+activation and the other creature in a block here, and kept "blocks alone",
+which CR 506.5 defines. The build gave the record whether its ability is a
+mana ability, left a mana ability's activation out of the log, and found
+that the save reports a combat or targeting row rather than writing it.
+
+**Measured** (`fuzz-record.md`, TR-5c's block). The engine arm plays
+`main`'s games on every table; +0.15% instructions per decision; stress
+distortion within the deal's noise. The model pass found two readings
+written in one place and missed in another, both fixed, and eight copies.
+
+**What it leaves.** Items 278–283 (`codebase-state.md`, "Found by TR-5c").
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-5c".
+
 ### TR-5 — the binding's roles, counters, combat and targeting, prevention and the multiplier — TR-5a to TR-5f (8,690–10,010)
 
 **Re-counted and split in four on 2026-10-12 (A6p)**, as TR-4 was. TR-5c
@@ -3535,8 +3579,8 @@ TR-5d.
 | **TR-5f — creatures put onto the battlefield attacking, and removal from combat** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5f" | | | | +2,547 |
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
-| **TR-5c — blocks, targeting, activation and excess damage** (CR 509, 115, 602, 120.10) | the "this turn" object filters as one `ObjectFilter` leaf read off the history, `AttackedThisTurn` folded in as "blocked this turn" joins it (the owner, at #257's review: 234 cards say "blocked this turn", 83 "attacked this turn", 50 "dealt damage this turn", 48 "entered this turn"); item 11's blockers, one record per declaration step, also when nobody blocks; `BlockShape` with CR 509.3e's count; item 12's `BecomesTarget`, with a player leg; the blocks' and the targeting's participants, which each instruction names as TR-5a set out; `ActivatesAbility`, narrow, since no loyalty ability exists; excess damage per recipient over the batch; a recipient that joins two objects ("destroy that creature and this creature") | Loyal Sentry, Cephalid Aristocrat; Frost Titan's and `ActivatesAbility`'s fixtures; ATOM-120.10-001 and CR 509.3a–g's readings | ~655 (980–1,310) | ~940 | 1,920–2,250 |
-| **TR-5d — prevention, the multiplier, tokens and scry** (CR 615.13, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~460 (690–920) | ~780 | 1,470–1,700 |
+| **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,630 |
+| **TR-5d — prevention, excess damage, the multiplier, tokens and scry** (CR 615.13, 120.10, 603.2d, 701.7, 701.22) | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
 
 ### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)
 
@@ -3718,7 +3762,7 @@ their trigger half lands.
 | **TR-3c** | 603.12-001 | 1 |
 | **RH-3** (`replacement-architecture.md` §2b.5) | 400.7e-001, -002, moved from TR-4 on 2026-10-10, and from RH-2 to RH-3 on 2026-10-12: the record carries the object the move made | 2 |
 | **TR-4** | TR-4a: 603.6e-002; 122.8-001; 122.9-001. TR-4b: 603.10c-001, -002, -003; 603.2e-002. TR-4c: 603.6e-001; 400.7f-001. TR-4d: 603.10d-001; 603.10e-001; 603.9-001 (2026-10-12, §12) | 12 |
-| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5c: 120.10-001. TR-5d: 603.2d-001 (2026-10-12, §12) | 4 |
+| **TR-5** | TR-5e: 508.2a-001, moved from TR-5a at its design (2026-10-16). TR-5b: 122.7-001. TR-5d: 603.2d-001 (2026-10-12, §12), and 120.10-001, moved from TR-5c at its review (2026-10-18) | 4 |
 | **TR-6** | 603.8-001, -002 | 2 |
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 40 |
 

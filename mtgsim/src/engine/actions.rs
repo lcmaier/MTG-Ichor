@@ -615,6 +615,10 @@ pub enum GameAction {
         mana: Vec<(ManaType, u64)>,
         special: Vec<ManaAtom>,
         tapped_for_mana: bool,
+        /// `source` as it last existed, where its own mana ability's cost
+        /// moved it before the mana was made (CR 608.2h); `None` while it is
+        /// where it was.
+        source_lki: Option<Lki>,
     },
 
 }
@@ -1886,7 +1890,7 @@ impl GameState {
             // nothing, guarded here since no rule makes it no event (unlike
             // `never_happens`'). The record folds restricted atoms into counts by type
             // (CR 106.6), so a doubled restricted Forest logs {G}{G}.
-            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki } => {
                 if mana.iter().all(|(_, n)| *n == 0) && special.is_empty() {
                     return Ok(());
                 }
@@ -1916,6 +1920,7 @@ impl GameState {
                     source_id: source,
                     mana: announced,
                     tapped_for_mana,
+                    source_lki,
                 }, ctx.cause)?;
                 Ok(())
             }

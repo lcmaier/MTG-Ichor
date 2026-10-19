@@ -75,11 +75,33 @@ impl TurnFact {
     }
 }
 
+/// What an object did, which `ObjectFilter::ThisTurn` and `ThisCombat` ask:
+/// "creatures that attacked this turn", "each creature that blocked or was
+/// blocked this turn", "a creature that entered this turn". In the card's own
+/// past tense. A fact a later card asks is a variant with its writer; the
+/// ones counted and not built are listed in `codebase-state.md`, "Found by
+/// TR-5c".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectFact {
+    /// Declared as an attacker (CR 508.1); a creature put onto the
+    /// battlefield attacking never attacked (CR 508.4).
+    Attacked,
+    /// Declared as a blocker (CR 509.1); one put onto the battlefield
+    /// blocking never blocked (CR 509.4).
+    Blocked,
+    /// Became a blocked creature as blockers were declared (CR 509.1h).
+    WasBlocked,
+    /// Entered the battlefield. A turn's, never a combat's.
+    Entered,
+}
+
 /// How a count must compare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountIs {
     AtLeast(u64),
     AtMost(u64),
+    /// CR 509.3e's "a particular number".
+    Exactly(u64),
 }
 
 impl CountIs {
@@ -87,6 +109,7 @@ impl CountIs {
         match self {
             CountIs::AtLeast(n) => count >= n,
             CountIs::AtMost(n) => count <= n,
+            CountIs::Exactly(n) => count == n,
         }
     }
 }

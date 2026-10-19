@@ -240,12 +240,17 @@ pub enum ObjectFilter {
     /// It is a leaf rather than a `Not`-only helper because `Not` already
     /// composes; adding `Nontoken` as well would give one quality two spellings.
     Token,
-    /// "Creatures that attacked this turn" (Relentless Assault): declared as
-    /// an attacker this turn (CR 508.1), read off the combat's history, so a
-    /// creature put onto the battlefield attacking never did (CR 508.4) and a
-    /// creature that left and came back is a new object that did not (CR
-    /// 400.7). Like `Token`, a fact about the object that no layer touches.
-    AttackedThisTurn,
+    /// "Creatures that attacked this turn" (Relentless Assault), "each
+    /// creature that blocked or was blocked this turn" (Heat Stroke): what the
+    /// object did this turn, read off the combat's history, or off the
+    /// permanent for its entry. A creature that left and came back is a new
+    /// object that did nothing (CR 400.7). Like `Token`, a fact about the
+    /// object that no layer touches.
+    ThisTurn(crate::types::history::ObjectFact),
+    /// "If this creature attacked or blocked this combat" (Clockwork Beast):
+    /// the same, in the turn's latest combat only, which CR 500.8's
+    /// additional combats make a different question. Never `Entered`.
+    ThisCombat(crate::types::history::ObjectFact),
     /// CR 108.3 — the player who started the game with the card in their deck.
     ///
     /// **Not `ByController` with extra steps.** A card put into a graveyard goes
@@ -920,6 +925,14 @@ pub enum EffectRecipient {
     /// layer walk rather than capturing it, because registration happens
     /// before the attach.
     Host,
+    /// "Destroy that creature and this creature" (Loyal Sentry), "destroy it
+    /// and all creatures it blocked this turn": each member found as it would
+    /// be alone, and every object they find acted on in one instruction (CR
+    /// 608.2f), so a destroy is one batch. A member is a bound fact, this
+    /// object or a filtered sweep: an instance of "target" or "choose" would
+    /// need its own place in the announcement and its own CR 608.2b fizzle,
+    /// and waits for its first card (Hunting Kavu).
+    Group(Vec<EffectRecipient>),
     /// Objects a player chooses as the effect applies (CR 608.2d), from a set
     /// defined relative to them: an edict's "a creature of their choice". Each
     /// player the chooser names picks in APNAP order (CR 101.4), and the verb
@@ -2108,6 +2121,10 @@ pub enum Primitive {
     /// Counter an activated or triggered ability on the stack (rule 701.6b).
     /// The countered ability ceases to exist — it is simply removed from the stack.
     CounterAbility,
+    /// "Counter that spell or ability" (Frost Titan, Kira, ward): whichever
+    /// the stack object it is handed is, a spell to its owner's graveyard and
+    /// an ability off the stack (CR 701.6a).
+    Counter,
 }
 
 impl Primitive {
@@ -2122,7 +2139,8 @@ impl Primitive {
             | Primitive::Sacrifice
             | Primitive::Mill(_)
             | Primitive::Discard(..)
-            | Primitive::CounterSpell => Some(Zone::Graveyard),
+            | Primitive::CounterSpell
+            | Primitive::Counter => Some(Zone::Graveyard),
             Primitive::Exile | Primitive::ExileUntil { .. } => Some(Zone::Exile),
             Primitive::ReturnToHand | Primitive::PutTopCardsIntoHand(_) => Some(Zone::Hand),
             Primitive::ReturnToBattlefield { .. } | Primitive::CreateToken(..) => Some(Zone::Battlefield),

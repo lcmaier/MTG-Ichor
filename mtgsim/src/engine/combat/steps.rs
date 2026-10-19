@@ -9,7 +9,7 @@ use crate::engine::combat::validation::{
     can_block, validate_attackers, validate_blockers,
     AttackConstraints, BlockConstraints,
 };
-use crate::events::cause::{EventCause, TurnBasedAction};
+use crate::events::cause::TurnBasedAction;
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::has_keyword;
 use crate::engine::priority::REJECTION_LIMIT;
@@ -100,6 +100,8 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let defending_players: Vec<PlayerId> = self.get_defending_players();
+        // Every defending player's, in the order they declared (CR 802.4).
+        let mut blocks: Vec<(ObjectId, ObjectId)> = Vec::new();
 
         for defender in defending_players {
             // The pairs `can_block` allows, so the provider never sees one it could
@@ -167,14 +169,22 @@ impl GameState {
             }
 
             self.bump_layer_epoch_if_read(GatedWalkInput::Combat);
-            let blocker_pairs: Vec<(ObjectId, ObjectId)> = proposed.clone();
-            self.emit_event(
-                GameEvent::BlockersDeclared { blockers: blocker_pairs },
-                EventCause::TurnBasedAction(TurnBasedAction::DeclareBlockers),
-            )?;
+            blocks.extend(proposed);
         }
 
         self.blockers_declared = true;
+
+        // CR 509.1h: an attacking creature no creature was declared blocking is
+        // unblocked, whether it was declared or entered attacking (CR 509.3g).
+        let unblocked: Vec<ObjectId> = self
+            .battlefield_ordered()
+            .into_iter()
+            .filter_map(|(id, e)| e.attacking.as_ref().filter(|info| !info.is_blocked).map(|_| id))
+            .collect();
+        // With the step's provider, as the attack declaration's: one record can
+        // hold two triggering events of one arm, which CR 603.7b asks between.
+        let actx = ActionContext::turn_based(decisions, TurnBasedAction::DeclareBlockers);
+        self.emit_event_with_provider(GameEvent::BlockersDeclared { blocks, unblocked }, &actx)?;
 
         Ok(())
     }

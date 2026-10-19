@@ -194,6 +194,9 @@ impl<'g> Writer<'g> {
         if history.combat.rows().iter().any(|row| row.turn == turn) {
             self.report("what creatures did in combat this turn (CR 508.4, 508.5)");
         }
+        if !history.targetings.rows().is_empty() {
+            self.report("what became the target of a spell or ability this turn (CR 115.1)");
+        }
         let first_draw = phase.step == Some(StepType::Upkeep) && draw_step_skipped(self.state, turn);
         if *skip_first_draw != first_draw {
             self.report("a first draw step skipped by override, not by CR 103.8");

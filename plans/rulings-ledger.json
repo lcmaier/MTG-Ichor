@@ -199,6 +199,10 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Cephalid Aristocrat": {
+      "first_seen": "2026-10-18",
+      "rulings": []
+    },
     "Cerulean Wisps": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -507,6 +511,15 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Frost Titan": {
+      "first_seen": "2026-10-18",
+      "rulings": [
+        {"n": 1, "published_at": "2010-08-15", "comment": "Frost Titan’s first ability affects each spell (including Aura spells), activated ability, and triggered ability that’s controlled by an opponent and that Frost Titan becomes a target of."},
+        {"n": 2, "published_at": "2010-08-15", "comment": "You may target any permanent with Frost Titan’s second ability. It’s okay if that permanent is already tapped."},
+        {"n": 3, "published_at": "2010-08-15", "comment": "If the permanent affected by Frost Titan’s second ability is untapped at the time that permanent’s controller’s next untap step begins, the last part of Frost Titan’s second ability has no effect."},
+        {"n": 4, "published_at": "2010-08-15", "comment": "If the permanent affected by Frost Titan’s second ability changes controllers before its old controller’s next untap step, Frost Titan’s second ability will prevent it from being untapped during its new controller’s next untap step."}
+      ]
+    },
     "Furnace of Rath": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -614,6 +627,23 @@
         {"n": 1, "published_at": "2023-09-01", "comment": "If a creature you control would enter the battlefield with a number of +1/+1 counters on it, it enters with that many plus one instead."},
         {"n": 2, "published_at": "2023-09-01", "comment": "If two or more effects attempt to modify how many counters would be put on a creature you control, you choose the order to apply those effects, no matter who controls the sources of those effects."},
         {"n": 3, "published_at": "2023-09-01", "comment": "Each additional Hardened Scales you control will increase the number of +1/+1 counters placed on a creature you control by one."}
+      ]
+    },
+    "Harsh Mentor": {
+      "first_seen": "2026-10-18",
+      "rulings": [
+        {"n": 1, "published_at": "2017-04-18", "comment": "Activated abilities contain a colon. They're generally written \"[Cost]: [Effect].\" Some keyword abilities (such as equip) are activated abilities and will have colons in their reminder text. An activated mana ability is one that produces mana as it resolves, not one that costs mana to activate. Notably, exerting a creature isn't an activated ability."},
+        {"n": 2, "published_at": "2017-04-18", "comment": "Harsh Mentor's ability doesn't trigger when an opponent activates an ability of a card in hand (such as cycling) or a card in a graveyard (such as embalm), even if that causes a card to be put onto the battlefield."},
+        {"n": 3, "published_at": "2017-04-18", "comment": "Harsh Mentor's ability resolves before the ability that caused it to trigger."}
+      ]
+    },
+    "Heartfire Hero": {
+      "first_seen": "2026-10-18",
+      "rulings": [
+        {"n": 1, "published_at": "2024-07-26", "comment": "Use Heartfire Hero's power as it last existed on the battlefield to determine how much damage it deals due to its last ability."},
+        {"n": 2, "published_at": "2024-07-26", "comment": "Valiant abilities will resolve before the spell or ability that caused them to trigger."},
+        {"n": 3, "published_at": "2024-07-26", "comment": "If a spell or ability you control has one or more of its targets changed to a creature you control with a valiant ability, that ability will trigger if that creature hasn't yet been the target of a spell or ability you control this turn."},
+        {"n": 4, "published_at": "2024-07-26", "comment": "If you create a copy of a spell on the stack and target a creature you control with a valiant ability, that ability will trigger as long as the creature hasn't yet been the target of a spell or ability you control this turn."}
       ]
     },
     "Hellrider": {
@@ -744,6 +774,12 @@
     "Loxodon Warhammer": {
       "first_seen": "2026-10-08",
       "rulings": []
+    },
+    "Loyal Sentry": {
+      "first_seen": "2026-10-18",
+      "rulings": [
+        {"n": 1, "published_at": "2018-03-16", "comment": "Loyal Sentry and the creature it blocks are destroyed before combat damage is dealt. The blocked creature is destroyed even if Loyal Sentry leaves the battlefield before its triggered ability resolves."}
+      ]
     },
     "Mana Reflection": {
       "first_seen": "2026-09-17",

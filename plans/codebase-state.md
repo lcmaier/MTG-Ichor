@@ -821,6 +821,10 @@ here. None is blocking RB.
     Wild Growth is the card and `wild_growth_adds_its_mana_at_once_without_the_stack`
     the test. CR 605.5a is the same derivation refusing: a target or another
     event queues it like any trigger.
+    **Updated 2026-10-18 (TR-5c's review):** the triggering record decides
+    CR 605.1b's second criterion, `is_mana_ability(def, record)`, so
+    "whenever you activate an ability" is a mana ability only on a mana
+    ability's activation; `could_be_a_mana_ability(def)` is the def's half.
 
     **Reachability (2026-09-19):** unreachable — the *activated* half: every
     registered activated ability's tag agrees with CR 605.1a (Sol Ring, the
@@ -4828,6 +4832,11 @@ first.
    **Slotted:** with the first registered card that lets a creature block an
    additional creature (Scryfall: `o:"block an additional creature"`), per CR
    510.1d.
+   **Widened by TR-5c (2026-10-18):** the same board is the first that tells
+   CR 509.3a's "whenever this creature blocks", once per blocking creature,
+   from 509.3b's "blocks a creature", once per creature it blocks. TR-5c's
+   tests stage no creature blocking two, since nothing lets one, so that
+   PR tests both readings on it (Brave the Sands, Hundred-Handed One).
 
 7. **~~Hexproof and shroud are unenforced in spell targeting.~~ — ✅ CLOSED
    2026-10-09 (PR #238).** — archived.
@@ -5136,53 +5145,19 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
    abilities (CR 603)" item 10.
 
-11. **`AttackersDeclared` carries no defender (the trigger survey,
-    2026-09-18).** CR 508.3a's "attacks [a player, planeswalker, or battle]",
-    508.3b's "is attacked" and 508.3e's "attacks another player" read whom
-    each creature was declared against; the record is the attacker list, and
-    the defender sits on `AttackingInfo.target` — live at dispatch, and absent
-    from the trace A4c built to answer "why did this fire". 1,695 cards carry
-    an attack trigger.
+11. **~~`AttackersDeclared` carries no defender.~~ — ✅ CLOSED 2026-10-18 (PR #261, TR-5c).** — archived.
+    The attackers half shipped in TR-5e; the blockers half is one
+    `BlockersDeclared` per declaration step, written when nobody blocks, with
+    the unblocked attackers (CR 509.1h, 509.3g).
+    **Reachability (2026-10-18):** closed — PR #261.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 11".
 
-    **Reachability (2026-09-18):** unreachable — no reader.
-
-    **Sized:** `Vec<(ObjectId, AttackTarget)>` at the one emit site in
-    `engine/combat/steps.rs` and its `format_event` arm, ~10 lines.
-
-    **Phase (2026-09-18):** TR-5 — the defender on the record, and `BlockersDeclared` becomes one record per declaration step; `triggers-architecture.md` §3.12.
-    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** its blockers half is TR-5c's, which
-    writes one record per declaration step, also when nobody blocks: today
-    none is written then, and CR 509.3g's "attacks and isn't blocked" reads it.
-    **Re-checked 2026-10-16 (TR-5e, PR #256):** the attackers half shipped:
-    `AttackersDeclared` names what each attacker attacks, and the attack
-    readings read it. What is left is the blockers half.
-    **Slotted:** TR-5c, which writes one record per declaration step, also
-    when nobody blocks (CR 509.3g).
-
-12. **No event announces a target being chosen (the trigger survey,
-    2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
-    that trigger on the cast trigger then, and nothing between them emits:
-    "becomes the target" is 117 cards and ward (CR 702.21a, "whenever this
-    permanent becomes the target of a spell or ability an opponent controls")
-    is 195 more — the largest printed population with no record at all. The
-    stack entry knows (`chosen_targets`, A4i); the stream does not.
-
-    **Reachability (2026-09-18):** unreachable — no reader.
-
-    **Sized:** a variant carrying the targeting object, its controller and
-    the target, emitted where `cast_spell` and `activate_ability` announce
-    themselves and where CR 603.3d puts a trigger on the stack, ~30 lines.
-    Whether one spell naming one permanent twice is one event or two
-    (CR 115.9a counts instances) is the survey's question 11, the doc's.
-
-    **Phase (2026-09-18):** TR-5 — `GameEvent::Targeted`, one record per (spell or ability, target) at three emit sites; question 11 decided as once per spell (Frost Titan's ruling); `triggers-architecture.md` §3.12, §14.
-
-    **The record built (2026-10-07, #231):** `GameEvent::Targeted` at the
-    three sites, for the dev GUI's log, with the ability's source beside
-    `by`. What is left is the reader, TR-5's `BecomesTarget`; until it
-    lands the item stays, unreachable.
-    **Slotted:** TR-5c, whose `BecomesTarget` arm is the reader of #231's
-    `GameEvent::Targeted` (re-slotted from TR-5a at A6p's split).
+12. **~~No event announces a target being chosen.~~ — ✅ CLOSED 2026-10-18 (PR #261, TR-5c).** — archived.
+    `TriggerEvent::BecomesTarget` reads #231's `Targeted`, one window per
+    spell or ability, with valiant's first time each turn off the turn's
+    targeting rows.
+    **Reachability (2026-10-18):** closed — PR #261.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 12".
 
 13. **~~No event announces a control change.~~ — ✅ CLOSED 2026-10-15 (PR #254, TR-4d).** — archived.
     A sweep announces each change (`announce_control_changes`), looking
@@ -7510,7 +7485,7 @@ the file.
      that reopen it). The reversal half is untouched.
 
      **Built in part 2026-09-26 (TR-2b):** the elision compares only what a def
-     reads (`TriggerDef::bound_reads`, `triggers-architecture.md` §5.2), and
+     reads (`TriggerDef::trigger_binding_reads`, `triggers-architecture.md` §5.2), and
      the source where it reads its source, which TR-1's predicate never
      compared. The decorator's half and the reversal are untouched.
 
@@ -8976,6 +8951,10 @@ ones on the last-known-information and zone-change surface are items 176 and
      `owner_of_source`), T14 (the objects a waiting entry names), T15 (which
      object a non-filter `ObjectSet` names) and T16 (the "as long as" peel).
      #251 fixed T10, T11 and T12's first site, each shown failing first.
+     **Widened by TR-5c's model pass (2026-10-18):** the inventory §3.7's
+     T17's log half, T19 (the mana part of a cost list), T20 (which role
+     holds several objects) and T21's three small ones; #261 fixed T17
+     and T18, each shown failing first, and merged eight others.
 
 ### Found by items 176 and 177's design (2026-10-10)
 
@@ -9358,10 +9337,138 @@ filed. Its other findings went to the route: `roadmap-v2.md` A6q and A6s.
      **Sized:** the `SOURCE` comparison and its LKI check in `entries_agree_on`,
      ~15 lines of code and ~40 of tests, plus the fixtures and a three-arm A/B
      for the dropped prompt.
-     **Slotted:** TR-5c, the next triggers PR, which moves the stream anyway.
+     **Slotted:** TR-5d, which moves the stream too (Selfless Squire,
+     Panharmonicon); moved from TR-5c at its review (2026-10-18), with excess
+     damage, to keep both phases in the band.
 
 276. **~~Three dev GUI notes from MA-2's manual testing.~~ — ✅ CLOSED 2026-10-18 (PR #260).** — archived.
      The why panel wraps instead of widening, the payment step greys a source
      waiting on mana, and a prevention is announced as `DamagePrevented`.
      **Reachability (2026-10-18):** closed — PR #260.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 276".
+
+### Found by TR-5c (2026-10-18)
+
+Number 277 was withdrawn in #260 and is not reused.
+
+278. **Effects that make blocks write no record.** Only the declaration writes
+     a block (`engine/combat/steps.rs`). CR 509.3a's "becomes a blocker as the
+     result of an effect", 509.3c's "becomes blocked by an effect" and 509.4's
+     creature put onto the battlefield blocking each trigger, or do not, by
+     rules the block arm reads off its record: "target unblocked attacking
+     creature becomes blocked" (Curtain of Light, Dazzling Beauty, Trap
+     Runner) and Aetherplasm's blocking entry, 4 cards, none built
+     (`triggers-architecture.md` §12, TR-5c's re-read). Each writes its own
+     record when it is built, which the arm's occurrences read, and the
+     combat's rows record it.
+     **Reachability (2026-10-18):** unreachable — no registered card makes a
+     block by an effect.
+     **Sized:** per effect, its performer's record and the arm's reading of
+     it, ~40 lines of code and ~60 of tests; ATOM-509.4-001 with the first.
+     **Slotted:** with the first registered card that makes a creature block
+     or become blocked by an effect (Curtain of Light, Aetherplasm).
+
+279. **The "this turn" object facts past the four.** `ObjectFilter::ThisTurn`
+     and `ThisCombat` ask `ObjectFact::{Attacked, Blocked, WasBlocked,
+     Entered}`, the facts whose writers exist. TR-5c's census found the rest,
+     each a fact and its writer: "was dealt damage" and "dealt damage to" (45
+     cards, rows off `DamageDealt`); "died", "discarded", "milled", "put into
+     a graveyard" (52, rows off the zone change, keyed by the object the move
+     made, CR 400.7); "was cast" (11, the permanent's `cast` facts); "crewed"
+     or "saddled" (13, keywords not built); "came under your control" and
+     "turned face up" (1 each).
+     **Reachability (2026-10-18):** unreachable — no registered card asks one.
+     **Sized:** the damage rows ~40 lines of code and ~60 of tests; the
+     zone-change rows ~45 and ~70; each other fact ~15 and ~30 with its
+     writer.
+     **Slotted:** TR-5d for the damage facts, beside excess damage, as TR-5c's
+     review decided; each other fact with the first registered card that
+     reads it.
+     **Shaped at TR-5c's review (the owner, 2026-10-18), for TR-5d's design:**
+     one history of what each object did this round, the combat's rows
+     generalized (an object, the turn, the combat and a fact), which these
+     facts join rather than a struct each. Its rows sit behind one `Arc`, so
+     a clone shares them and the clone floors do not move; the first write
+     after a fork copies them, about 25 rows of ~48 bytes at four seats over
+     the round they are kept, from the close-out's four-seat counters. The
+     cost to design is the layer memo's gate: one, `GatedWalkInput::Histories`,
+     serves every history today, so once a static's layer row reads one,
+     every history write re-walks (no registered static reads one yet). Gate
+     it by the rows a read touches, noted inside the lookup that scans them,
+     never by the fact a card names: "was blocked" reads the blockers' rows,
+     "this combat" the combat count, a filter over two facts both, so no
+     reader can leave a dependency out. A write that rewrites every row (the
+     turn's retain) trips every key, and the layer memo's audit, which re-walks
+     fresh against each hit in a debug build, catches a key the lookups miss.
+
+280. **No amount reads a player's turn summary.** `Condition::ThisTurn` asks
+     a `HistoryCount`, but "equal to the amount of life you gained this turn"
+     (31 cards, Betor, Ancestor's Voice) and "life you lost this turn" (6) are
+     numbers, and no `AmountExpr` reads a summary. Found at TR-5c's review.
+     **Reachability (2026-10-18):** unreachable — no registered card reads one.
+     **Sized:** an `AmountExpr` over a `HistoryCount`'s fact and players,
+     ~15 lines of code and ~30 of tests.
+     **Slotted:** with the first registered card that reads an amount of
+     the turn's history (Betor, Ancestor's Voice).
+
+281. **`EffectRecipient::Group` refuses an instance of "target".** "Exile
+     this creature and target creature without flying that's attacking you"
+     (Hunting Kavu) groups a target with this object. A target member needs
+     its place in the announcement's order (`Effect::instances`) and its own
+     CR 608.2b fizzle, so `resolve_group_member` refuses it loudly.
+     **Reachability (2026-10-18):** unreachable — no registered card joins a
+     target.
+     **Sized:** the instance walk into `Group`, and the member's fizzle,
+     ~30 lines of code and ~50 of tests.
+     **Slotted:** with the first registered card whose join names a target
+     (Hunting Kavu).
+
+282. **~~`AbilityActivated.from` is written as the battlefield by both
+     producers.~~ — withdrawn at TR-5c's review (2026-10-18), before it
+     landed.** `source_before_paying` reads the source's zone before the
+     costs are paid, so the record says where the ability was activated from
+     and an activation off the battlefield writes its own zone.
+
+283. **The activation arm cannot ask about a loyalty ability.** "Whenever you
+     activate a loyalty ability" is 8 cards (`o:"activate a loyalty ability"
+     (o:whenever or o:when)`), and no card has a loyalty ability until CP-2's
+     cost arms and `permission-architecture.md`'s timing build them.
+     `ActivatesAbility` has no field for it, so such a card cannot be
+     written, rather than written wrong.
+     **Reachability (2026-10-18):** unreachable — no loyalty ability exists.
+     **Sized:** a `loyalty: Option<bool>` on the arm and the record, ~15 lines
+     and ~30 of tests.
+     **Slotted:** with the first registered card that reads a loyalty
+     ability's activation.
+
+284. **Nothing flags an item slotted with its first registered card when the
+     card arrives.** 55 open items are slotted "with the first registered
+     card" that needs them, and registering that card does not lead back to
+     them. A gap the engine refuses loudly finds its author (no field, no
+     variant, an error at resolution); a silent one does not: item 278's
+     effects that make blocks would write no record and block triggers would
+     never see them. TR-5c's review (the owner, 2026-10-18). The check, one of
+     the family: each such item names at least one example card where it is
+     slotted (44 of the 55 do today), and the check fails when a
+     card it names is registered while the item is open, so registering Betor
+     fails on item 280 until it is closed or re-slotted.
+     **Reachability (2026-10-18):** reachable — not wrong: a process gap; no
+     game answers differently.
+     **Sized:** ~80 lines of Python over this file and the registry's names,
+     a CI step, and a named card for the 11 items that name none.
+     **Slotted:** A6e, item 6's close audit, in its hygiene and CI pass
+     (`engineering-practices.md` §9, pass 3), the review already scheduled at
+     the end of triggers (the owner's slot).
+
+285. **About 80 engine functions return tuples whose parts only their docs
+     name.** 69 pairs, 9 triples and 2 four-tuples outside the card
+     definitions and the test modules, counted at TR-5c's review. Some are
+     one thing (a map's entry, `(ManaType, u64)`); others are several answers,
+     `scenario::text::player_word_text -> (String, String, bool)`,
+     `placement::ability_state -> (bool, u32)`, `GameEvent::lki ->
+     Option<(&Lki, Zone, PlayerId)>`. `engineering-practices.md` §2b's rule
+     10, adopted at that review (the owner, 2026-10-18), says which is which.
+     **Reachability (2026-10-18):** reachable — not wrong: a reader's cost.
+     **Sized:** sort the 80 by the rule, then a struct or a split for each
+     that fails, mechanical; ~150–300 lines, counted before it runs.
+     **Slotted:** A6e, beside its naming sweep (`roadmap-v2.md`).

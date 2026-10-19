@@ -19,10 +19,11 @@ use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
-use crate::state::game_state::{GameState, PhaseType, StackEntry};
+use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{TargetInstance, TargetRef};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
+use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
@@ -56,6 +57,22 @@ impl std::fmt::Display for SorceryTiming {
             SorceryTiming::NotAMainPhase => "Sorcery speed is only available during a main phase",
             SorceryTiming::StackNotEmpty => "Sorcery speed requires an empty stack",
         })
+    }
+}
+
+/// An activation's source as its costs found it, which the activation's
+/// record names: the zone it was activated from, and its last known
+/// information where a cost could move it.
+pub(crate) struct SourceBeforePaying {
+    zone: Zone,
+    lki: Option<Lki>,
+}
+
+impl SourceBeforePaying {
+    /// Its last known information, where a cost has since moved `source`,
+    /// the existence that was activated; `None` while it is where it was.
+    pub(crate) fn lki_if_it_moved(&self, game: &GameState, source: ObjectRef) -> Option<Lki> {
+        self.lki.clone().filter(|_| game.object_ref(source.id) != Some(source))
     }
 }
 
@@ -293,7 +310,7 @@ impl GameState {
         }
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
-        self.announce_targeted_records(card_id, casting)?;
+        self.announce_targeted_records(card_id, casting, decisions)?;
         self.emit_event(GameEvent::SpellCast { spell_id: card_id, caster: player_id }, casting)?;
 
         Ok(())
@@ -367,8 +384,10 @@ impl GameState {
     /// object `by`'s targeting instances chose, in the order first chosen.
     /// The one emitter of the record; its callers own the moment, outside every
     /// batch, and name what caused it: a cast, an activation, or a triggered
-    /// ability put on the stack.
-    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause) -> Result<(), String> {
+    /// ability put on the stack. One window for them all, since CR 601.2c
+    /// announces every target at once: "one or more ... become the target"
+    /// is once for the spell, and the dispatch may ask with `dp`.
+    pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(TargetRef, u32)> = Vec::new();
         for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
@@ -379,10 +398,54 @@ impl GameState {
         }
         let ability_source = entry.ability_identity.map(|identity| identity.source.id);
         let controller = entry.controller;
-        for (target, instances) in targeted {
-            self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause)?;
+        if targeted.is_empty() {
+            return Ok(());
         }
-        Ok(())
+        let previous = self.events.open_batch();
+        let joined = previous.is_some();
+        let (mark, window) = (self.events.next_seq(), self.events.current_batch());
+        let mut emitted = Ok(());
+        for (target, instances) in targeted {
+            emitted = self.emit_event(GameEvent::Targeted { target, by, ability_source, controller, instances }, cause);
+            if emitted.is_err() {
+                break;
+            }
+        }
+        self.events.close_batch(previous);
+        emitted?;
+        if joined {
+            return Ok(());
+        }
+        self.dispatch_batch(mark, window, &ActionContext { dp, cause })
+    }
+
+    /// `source` as an activation's record names it, read before `costs` are
+    /// paid (CR 602.2b pays before it announces). Its last known information
+    /// is taken only where a cost can move it ("an ability of an artifact"
+    /// still reads a sacrificed one as it was): it costs a layer walk, and most
+    /// activations, a land's for mana among them, pay nothing that moves it.
+    pub(crate) fn source_before_paying(&self, source: ObjectId, costs: &[Cost]) -> Result<SourceBeforePaying, String> {
+        let zone = self.get_object(source)?.zone;
+        let lki = if costs.iter().any(Cost::can_move_its_source) { self.lki_now(source) } else { None };
+        Ok(SourceBeforePaying { zone, lki })
+    }
+
+    /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
+    /// `identity` activated by `controller` from the zone its source was in,
+    /// with the source as it was when a cost moved it. With the activator's
+    /// provider, since a triggered mana ability on it resolves at the dispatch
+    /// (CR 605.1b, 605.4a).
+    pub(crate) fn announce_activation(
+        &mut self,
+        identity: AbilityIdentity,
+        controller: PlayerId,
+        mana_ability: bool,
+        before_paying: &SourceBeforePaying,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        let source_lki = before_paying.lki_if_it_moved(self, identity.source);
+        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from: before_paying.zone, source_lki };
+        self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
@@ -487,6 +550,7 @@ impl GameState {
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
+        let before_paying = self.source_before_paying(source_id, &ability_costs)?;
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
@@ -508,8 +572,8 @@ impl GameState {
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
-        self.announce_targeted_records(ability_obj_id, activating)?;
-        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id }, activating)?;
+        self.announce_targeted_records(ability_obj_id, activating, decisions)?;
+        self.announce_activation(identity, player_id, false, &before_paying, decisions)?;
 
         Ok(())
     }

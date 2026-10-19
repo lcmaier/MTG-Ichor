@@ -7058,3 +7058,73 @@ All three notes, in the dev GUI PR the cadence put after MA-2.
      **Sized:** the panel's width ~20 lines; the greyed sources ~40 lines and
      a picture; the prevention record unsized until its design.
      **Slotted:** MA-2's dev GUI notes PR, the cadence's next, before TR-5c.
+
+### Item 11 — closed 2026-10-18 by PR #261 (TR-5c)
+
+Its attackers half shipped in TR-5e (#256). TR-5c's first commit wrote the
+blockers half: one `BlockersDeclared` for the declaration step, after every
+defending player has declared (CR 802.4), also when nobody blocks, naming
+each attacking creature no creature was declared blocking (CR 509.1h),
+one that entered attacking included (CR 509.3g). The block arm reads it,
+and the combat's rows record each block.
+
+*Original entry:*
+
+11. **`AttackersDeclared` carries no defender (the trigger survey,
+    2026-09-18).** CR 508.3a's "attacks [a player, planeswalker, or battle]",
+    508.3b's "is attacked" and 508.3e's "attacks another player" read whom
+    each creature was declared against; the record is the attacker list, and
+    the defender sits on `AttackingInfo.target` — live at dispatch, and absent
+    from the trace A4c built to answer "why did this fire". 1,695 cards carry
+    an attack trigger.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** `Vec<(ObjectId, AttackTarget)>` at the one emit site in
+    `engine/combat/steps.rs` and its `format_event` arm, ~10 lines.
+
+    **Phase (2026-09-18):** TR-5 — the defender on the record, and `BlockersDeclared` becomes one record per declaration step; `triggers-architecture.md` §3.12.
+    **Re-checked 2026-10-12 (A6p, `triggers-architecture.md` §3.12a):** its blockers half is TR-5c's, which
+    writes one record per declaration step, also when nobody blocks: today
+    none is written then, and CR 509.3g's "attacks and isn't blocked" reads it.
+    **Re-checked 2026-10-16 (TR-5e, PR #256):** the attackers half shipped:
+    `AttackersDeclared` names what each attacker attacks, and the attack
+    readings read it. What is left is the blockers half.
+    **Slotted:** TR-5c, which writes one record per declaration step, also
+    when nobody blocks (CR 509.3g).
+
+### Item 12 — closed 2026-10-18 by PR #261 (TR-5c)
+
+#231 built the record; TR-5c built its reader, `TriggerEvent::BecomesTarget`,
+with a player leg, "a spell", "an ability" and a controller, and the
+targeting spell or ability as an event role. One spell's records share one
+window (CR 601.2c), and valiant's first time each turn reads the turn's
+targeting rows. Question 11 holds: once per spell or ability, however many
+instances.
+
+*Original entry:*
+
+12. **No event announces a target being chosen (the trigger survey,
+    2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
+    that trigger on the cast trigger then, and nothing between them emits:
+    "becomes the target" is 117 cards and ward (CR 702.21a, "whenever this
+    permanent becomes the target of a spell or ability an opponent controls")
+    is 195 more — the largest printed population with no record at all. The
+    stack entry knows (`chosen_targets`, A4i); the stream does not.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** a variant carrying the targeting object, its controller and
+    the target, emitted where `cast_spell` and `activate_ability` announce
+    themselves and where CR 603.3d puts a trigger on the stack, ~30 lines.
+    Whether one spell naming one permanent twice is one event or two
+    (CR 115.9a counts instances) is the survey's question 11, the doc's.
+
+    **Phase (2026-09-18):** TR-5 — `GameEvent::Targeted`, one record per (spell or ability, target) at three emit sites; question 11 decided as once per spell (Frost Titan's ruling); `triggers-architecture.md` §3.12, §14.
+
+    **The record built (2026-10-07, #231):** `GameEvent::Targeted` at the
+    three sites, for the dev GUI's log, with the ability's source beside
+    `by`. What is left is the reader, TR-5's `BecomesTarget`; until it
+    lands the item stays, unreachable.
+    **Slotted:** TR-5c, whose `BecomesTarget` arm is the reader of #231's
+    `GameEvent::Targeted` (re-slotted from TR-5a at A6p's split).

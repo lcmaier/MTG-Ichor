@@ -24,7 +24,7 @@ use crate::types::replacement::{
     RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawFilter, Zone};
-use crate::types::history::CountIs;
+use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, CurrentOrLastKnown};
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
@@ -1662,10 +1662,14 @@ impl EntryWrites {
     /// be classified rather than defaulting to "safe".
     fn unmatches(&self, filter: &ObjectFilter, negated: bool) -> bool {
         match filter {
+            // An entry is the one write that makes an object have entered
+            // this turn, and none makes it attack or block.
+            ObjectFilter::ThisTurn(ObjectFact::Entered) => negated,
             // Identity, and control and ownership, which no 616.1e member writes.
             ObjectFilter::All
             | ObjectFilter::Token
-            | ObjectFilter::AttackedThisTurn
+            | ObjectFilter::ThisTurn(_)
+            | ObjectFilter::ThisCombat(_)
             | ObjectFilter::NotSource
             | ObjectFilter::OtherThanInstance(_)
             | ObjectFilter::ByController(_)
@@ -1684,13 +1688,14 @@ impl EntryWrites {
                 }
             }
             // An entry only adds counters, which can turn "at least" on and
-            // "at most" off.
+            // "at most" off, and "exactly" either way.
             ObjectFilter::WithCounters { kind, count } => {
                 let adds = self.every_counter_kind
                     || kind.map_or(!self.counter_kinds.is_empty(), |kind| self.counter_kinds.contains(&kind));
                 adds && match count {
                     CountIs::AtLeast(_) => negated,
                     CountIs::AtMost(_) => !negated,
+                    CountIs::Exactly(_) => true,
                 }
             }
             ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
@@ -2362,7 +2367,7 @@ fn apply_rewrite(
             // entries scaled, each restricted atom repeated in place with its
             // restrictions (`ATOM-106.6a-001`). No card adds or halves mana by
             // replacement, so other arms are pairing errors.
-            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki } => {
                 match amount_rewrite {
                     AmountRewrite::Multiplier(n) => {
                         let times = usize::try_from(*n).map_err(|_| {
@@ -2386,6 +2391,7 @@ fn apply_rewrite(
                                 mana: scaled,
                                 special: repeated,
                                 tapped_for_mana,
+                                source_lki,
                             }),
                             Applied { took_effect, prevented: 0 },
                         ))
@@ -2773,7 +2779,7 @@ fn substitute(
         // production is refused (the `Half-Bound Grove` fixture reaches it).
         (
             GameActionTemplate::ProduceMana { mana_type, amount },
-            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki },
         ) => {
             let plain: u64 = mana.iter().map(|(_, n)| n).sum();
             let (mana, special) = match amount {
@@ -2814,7 +2820,7 @@ fn substitute(
                     }
                 }
             };
-            Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana })
+            Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki })
         }
 
         // CR 614.1a from a draw to the game's end (Laboratory Maniac). The affected

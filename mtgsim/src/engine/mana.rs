@@ -17,6 +17,7 @@ use crate::oracle::characteristics::controller_or_owner;
 use crate::types::effects::{Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::triggers::Lki;
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -54,8 +55,16 @@ impl GameState {
         // is a sacrifice, and which artifact pays it is a choice — taken here,
         // before anything moves.
         let paying = ActionContext::paying_cost(dp, player_id, permanent_id);
+        let source = self.object_ref(permanent_id).ok_or_else(|| format!("Permanent {permanent_id} is in no zone"))?;
+        let before_paying = self.source_before_paying(permanent_id, &ability.costs)?;
         let plan = self.plan_payment(&ability.costs, player_id, permanent_id, &paying)?;
         self.pay_costs(&plan, player_id, permanent_id, &paying)?;
+
+        // CR 605.3a: activated, and announced as it is, before it resolves
+        // (605.3b).
+        let identity = crate::state::game_state::AbilityIdentity { source, ability: ability_id };
+        self.announce_activation(identity, player_id, true, &before_paying, dp)?;
+        let moved = before_paying.lki_if_it_moved(self, source);
 
         // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana
         // ability of that permanent that includes the {T} symbol in its
@@ -64,7 +73,8 @@ impl GameState {
         let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::TapSelf));
 
         // Resolve effect immediately (mana abilities don't use the stack)
-        self.resolve_mana_effect(&ability.effect, player_id, permanent_id, tapped_for_mana, dp)?;
+        let producer = ManaProducer { id: permanent_id, tapped_for_mana, lki: moved.as_ref() };
+        self.resolve_mana_effect(&ability.effect, player_id, producer, dp)?;
 
         Ok(())
     }
@@ -95,19 +105,18 @@ impl GameState {
         &mut self,
         effect: &Effect,
         player_id: PlayerId,
-        source: ObjectId,
-        tapped_for_mana: bool,
+        producer: ManaProducer<'_>,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let resolution = ResolutionContext::for_mana_ability(self, source, player_id, GeneratedBy::ActivatedAbility);
+                let resolution = ResolutionContext::for_mana_ability(self, producer.id, player_id, GeneratedBy::ActivatedAbility);
                 let actx = ActionContext::resolving(dp, &resolution);
-                self.produce_mana(output, player_id, source, tapped_for_mana, &resolution, &actx)
+                self.produce_mana(output, player_id, producer, &resolution, &actx)
             }
             Effect::Sequence(effects) => {
                 for sub_effect in effects {
-                    self.resolve_mana_effect(sub_effect, player_id, source, tapped_for_mana, dp)?;
+                    self.resolve_mana_effect(sub_effect, player_id, producer, dp)?;
                 }
                 Ok(())
             }
@@ -115,16 +124,15 @@ impl GameState {
         }
     }
 
-    /// CR 106.6a's event: `output`'s mana for `player`, made by `source`, each
-    /// amount read for `resolution`, proposed under `actx` — a mana ability's,
-    /// activated or triggered, and a spell's (Dark Ritual), whose
+    /// CR 106.6a's event: `output`'s mana for `player`, made by `producer`,
+    /// each amount read for `resolution`, proposed under `actx` — a mana
+    /// ability's, activated or triggered, and a spell's (Dark Ritual), whose
     /// `tapped_for_mana` is false by CR 106.12's definition.
     pub(crate) fn produce_mana(
         &mut self,
         output: &ManaOutput,
         player: PlayerId,
-        source: ObjectId,
-        tapped_for_mana: bool,
+        producer: ManaProducer<'_>,
         resolution: &ResolutionContext,
         actx: &ActionContext,
     ) -> Result<(), String> {
@@ -132,11 +140,22 @@ impl GameState {
         for (mana_type, amount) in &output.mana {
             mana.push((*mana_type, self.evaluate_amount(amount, resolution)?));
         }
-        self.execute_action(
-            GameAction::ProduceMana { player, source, mana, special: output.special.clone(), tapped_for_mana },
-            actx,
-        )
+        let ManaProducer { id: source, tapped_for_mana, lki } = producer;
+        let special = output.special.clone();
+        self.execute_action(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana, source_lki: lki.cloned() }, actx)
     }
+}
+
+/// What makes a mana production, as its readers ask it: the object, whether
+/// it was tapped for mana (CR 106.12), and the object as it last existed
+/// where its own mana ability's cost moved it before the mana was made
+/// (Crystal Vein, a Treasure), which "a land you control" still reads it as
+/// (CR 608.2h).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ManaProducer<'a> {
+    pub(crate) id: ObjectId,
+    pub(crate) tapped_for_mana: bool,
+    pub(crate) lki: Option<&'a Lki>,
 }
 
 /// Whose pool a triggered mana ability's mana goes to: "its controller adds"

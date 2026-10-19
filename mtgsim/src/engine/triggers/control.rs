@@ -142,8 +142,7 @@ impl GameState {
                 Some(frame) => frame.lki.clone(),
                 None => {
                     debug_assert!(false, "{}'s controller changed with no frame kept from before it", change.object);
-                    compute_characteristics(self, change.object)
-                        .and_then(|now| self.last_known_information(change.object, now))
+                    self.lki_now(change.object)
                         .ok_or_else(|| format!("{}'s controller changed and it is not in the store", change.object))?
                 }
             };

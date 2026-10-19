@@ -108,6 +108,9 @@ pub enum GameEvent {
         source_id: ObjectId,
         mana: Vec<(ManaType, u64)>,
         tapped_for_mana: bool,
+        /// The source as it last existed, where its own mana ability's cost
+        /// moved it first (CR 608.2h).
+        source_lki: Option<Lki>,
     },
 
     // --- Damage ---
@@ -165,7 +168,12 @@ pub enum GameEvent {
     /// (CR 508.1b). A creature put onto the battlefield attacking is in no
     /// record: it never "attacked" (CR 508.4).
     AttackersDeclared { attackers: Vec<(ObjectId, AttackTarget)> },
-    BlockersDeclared { blockers: Vec<(ObjectId, ObjectId)> },
+    /// CR 509.1: every defending player's blocks (CR 802.4), each as (blocker,
+    /// attacker), and each attacking creature no creature was declared
+    /// blocking, which became an unblocked creature (CR 509.1h). One record
+    /// for the step, written when nobody blocks too, since CR 509.3g's
+    /// "attacks and isn't blocked" reads the declaration whole.
+    BlockersDeclared { blocks: Vec<(ObjectId, ObjectId)>, unblocked: Vec<ObjectId> },
     /// CR 506.4, 511.3: permanents removed from combat at once, each with
     /// what it was attacking or blocking as it was removed, which CR 508.5
     /// reads once its creature has left combat. No replaceable event
@@ -192,8 +200,17 @@ pub enum GameEvent {
     AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
     /// An activated ability became activated: its costs are paid (CR 602.2b
     /// runs 601.2i), so an activation reversed for want of them (CR 732.1)
-    /// announces nothing.
-    AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
+    /// announces nothing. A mana ability is activated too (CR 605.3a), and
+    /// announces this before it resolves (CR 605.3b). `from` is the zone its
+    /// source was in as it was activated, and `source_lki` the source as it
+    /// was then when a cost moved it, which "an ability of an artifact" reads.
+    AbilityActivated {
+        identity: AbilityIdentity,
+        controller: PlayerId,
+        mana_ability: bool,
+        from: Zone,
+        source_lki: Option<Lki>,
+    },
     /// An object or player became the target of a spell or ability: one
     /// record per (spell or ability, distinct target), `instances` how many
     /// of its instances of "target" chose it (CR 115.9a counts each).
@@ -501,6 +518,21 @@ impl GameEvent {
         }
     }
 
+    /// The last known information this record keeps of its source, which had
+    /// left before the event: a damage source gone before its damage (CR
+    /// 608.2h), an ability's source a cost moved before it was activated (CR
+    /// 602.2b), or a mana source its own mana ability's cost moved before the
+    /// mana was made. `None` where the source was where the event found it.
+    /// Not [`Self::lki`], which is the object the event itself moved.
+    pub fn source_lki(&self) -> Option<&Lki> {
+        match self {
+            GameEvent::DamageDealt { source_lki, .. }
+            | GameEvent::AbilityActivated { source_lki, .. }
+            | GameEvent::ManaAdded { source_lki, .. } => source_lki.as_ref(),
+            _ => None,
+        }
+    }
+
     /// The last known information this record carries (CR 603.10), with the
     /// zone its object left and its owner: a zone change's or a leaving's
     /// (603.10a), a countered spell's (603.10e), and `None` for every other
@@ -588,9 +620,12 @@ impl GameEvent {
                     }
                 }
             }
-            BlockersDeclared { blockers } => {
-                for &(blocker, attacker) in blockers {
+            BlockersDeclared { blocks, unblocked } => {
+                for &(blocker, attacker) in blocks {
                     each(blocker);
+                    each(attacker);
+                }
+                for &attacker in unblocked {
                     each(attacker);
                 }
             }

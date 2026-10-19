@@ -44,7 +44,7 @@ use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::replacement::{applies_to_mana_production, functioning_replacement, replacement_exists, replacement_of};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
-use crate::engine::triggers::is_mana_ability;
+use crate::engine::triggers::could_be_a_mana_ability;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::board::permanents_controlled_by;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities, has_summoning_sickness};
@@ -852,7 +852,7 @@ fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
         for (index, ability) in chars.abilities.iter().enumerate() {
             let at = AbilityAt { permanent, index };
             if let Effect::Triggered(def) = &ability.effect {
-                if is_mana_ability(def) {
+                if could_be_a_mana_ability(def) {
                     found.triggers.push(at);
                 }
             } else if functioning_replacement(ability, &chars.types, Zone::Battlefield)

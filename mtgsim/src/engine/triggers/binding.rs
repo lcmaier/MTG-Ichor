@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
-use crate::events::event::{EventRecord, GameEvent};
+use crate::events::event::EventRecord;
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::state::game_state::{GameState, ResolvingObject, StackEntry};
 use crate::types::effects::EffectRecipient;
@@ -18,13 +18,13 @@ use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{EventRole, Lki, TriggerBinding, TriggerEvent, TriggeringEventObjects};
 
 /// The frame `record` carries for its object `id`, as `arm` reads it: a
-/// departure's CR 603.10a frame for an arm that looks back, and a damage
-/// source as it last existed when it had left before dealing the damage (CR
-/// 608.2h). A "from anywhere" arm's object is the object after the move (CR
-/// 603.6c), read where it went.
+/// departure's CR 603.10a frame for an arm that looks back, and a source
+/// that had left before the event, as it last existed
+/// (`GameEvent::source_lki`). A "from anywhere" arm's object is the object
+/// after the move (CR 603.6c), read where it went.
 pub(crate) fn record_frame<'r>(arm: &TriggerEvent, record: &'r EventRecord, id: ObjectId) -> Option<&'r Lki> {
-    if let GameEvent::DamageDealt { source_id, source_lki: Some(lki), .. } = &record.event
-        && *source_id == id
+    if let Some(lki) = record.event.source_lki()
+        && lki.object().id == id
     {
         return Some(lki);
     }
@@ -97,7 +97,7 @@ impl<'a> TriggeringEventView<'a> {
         match self {
             TriggeringEventView::None => None,
             TriggeringEventView::AtTrigger { arm, record, objects } => {
-                objects.get(role).map(|object| read_at_trigger(arm, record, object.id))
+                objects.get(arm.role_as_recorded(role)).map(|object| read_at_trigger(arm, record, object.id))
             }
             TriggeringEventView::Resolving { game, binding } => game.triggering_object(binding, role),
         }
@@ -187,9 +187,8 @@ impl GameState {
         binding: &'a TriggerBinding,
         role: EventRole,
     ) -> Option<CurrentOrLastKnown<'a>> {
-        let event = binding.triggering_event()?;
-        let object = event.objects.get(role)?;
-        let lki = match record_frame(binding.event(), &event.record, object.id) {
+        let object = binding.triggering_object(role)?;
+        let lki = match record_frame(binding.event(), &binding.triggering_event()?.record, object.id) {
             Some(lki) => Some(lki),
             None if self.find(object).is_some() => None,
             None => Some(self.lki_kept_by_resolving(object)?),

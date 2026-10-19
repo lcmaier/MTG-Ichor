@@ -33,6 +33,23 @@ pub enum Cost {
 }
 
 impl Cost {
+    /// Whether paying it can take the ability's source out of the zone it is
+    /// activated from, so the activation's record reads the source as it was
+    /// (CR 602.2b pays before it announces): a sacrifice, a discard (cycling's
+    /// own card) or an exile from a graveyard (scavenge's), each of which can
+    /// be the source itself.
+    pub fn can_move_its_source(&self) -> bool {
+        match self {
+            Cost::SacrificeSelf | Cost::Sacrifice(..) | Cost::Discard(..) | Cost::ExileFromGraveyard(..) => true,
+            Cost::TapSelf
+            | Cost::UntapSelf
+            | Cost::Mana(_)
+            | Cost::PayLife(_)
+            | Cost::RemoveCounters(..)
+            | Cost::AddCounters(..) => false,
+        }
+    }
+
     /// A cost list split into its mana component, every `Mana` cost's symbols
     /// in order, and its other costs in theirs. The mana is `None` where the
     /// list has no mana cost at all, as an alternative cost of "pay 2 life"

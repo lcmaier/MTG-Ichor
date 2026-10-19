@@ -36,7 +36,7 @@ use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::engine::triggers::{is_mana_ability, visible_to_all};
+use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
@@ -1428,15 +1428,15 @@ fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
         EffectRecipient::Controller,
     );
     let from_entry = whenever(enters(a_creature()), produce.clone());
-    assert!(!is_mana_ability(&from_entry), "triggers from a creature entering");
+    assert!(!could_be_a_mana_ability(&from_entry), "triggers from a creature entering");
     let Effect::Triggered(wild) = &wild_growth().abilities[0].effect else { panic!() };
-    assert!(is_mana_ability(wild));
+    assert!(could_be_a_mana_ability(wild));
     let mut targeted = (**wild).clone();
     targeted.effect = Effect::Sequence(vec![
         produce.clone(),
         Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
     ]);
-    assert!(!is_mana_ability(&targeted), "a target disqualifies it");
+    assert!(!could_be_a_mana_ability(&targeted), "a target disqualifies it");
 
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, enchantment_watcher("Verdant Echo", triggered_ability("", from_entry)), 0);

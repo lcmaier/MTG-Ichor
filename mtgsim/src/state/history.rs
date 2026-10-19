@@ -14,6 +14,8 @@
 
 use std::sync::Arc;
 
+use crate::engine::targeting::TargetRef;
+use crate::events::event::EventSeq;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::AbilityIdentity;
 use crate::types::history::TurnFact;
@@ -195,6 +197,9 @@ pub struct GameHistory {
     pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
     /// What each creature did in this round's combats.
     pub combat: CombatHistory,
+    /// What became the target of what this turn, which valiant's "for the
+    /// first time each turn" reads.
+    pub targetings: TargetingHistory,
 }
 
 impl GameHistory {
@@ -207,6 +212,7 @@ impl GameHistory {
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),
             combat: CombatHistory::default(),
+            targetings: TargetingHistory::default(),
         }
     }
 
@@ -243,6 +249,7 @@ impl GameHistory {
         self.triggered_this_turn.clear();
         self.resolutions_this_turn.clear();
         self.combat.turn_began(keep_from);
+        self.targetings.turn_began();
     }
 }
 
@@ -280,6 +287,19 @@ pub enum CombatFact {
     /// CR 506.4, 511.3: removed from combat, attacking this as it was, or
     /// nothing.
     Removed { attacking: Option<AttackTarget> },
+    /// CR 509.1: declared as a blocker of this attacking creature, one row
+    /// for each creature it blocks. The attacker's own "was blocked" is the
+    /// row that names it.
+    Blocked(ObjectRef),
+}
+
+/// How much of the turn a question about its combats spans: the whole turn,
+/// or its latest combat, which CR 500.8's additional combats make two
+/// different questions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CombatSpan {
+    ThisTurn,
+    ThisCombat,
 }
 
 impl CombatHistory {
@@ -307,11 +327,36 @@ impl CombatHistory {
         &self.rows
     }
 
-    /// Was `object` declared as an attacker in turn `turn`, the turn in
-    /// progress? A creature put onto the battlefield attacking never was (CR
-    /// 508.4).
-    pub fn attacked_this_turn(&self, object: ObjectRef, turn: u32) -> bool {
-        self.rows.iter().any(|row| row.object == object && row.turn == turn && matches!(row.fact, CombatFact::Attacked(_)))
+    /// The rows a question about turn `turn`, the turn in progress, reads:
+    /// every combat's for "this turn", the latest combat's for "this
+    /// combat", which CR 500.8's additional combats make two questions.
+    /// Each reader below asks one fact of these.
+    fn rows_during(&self, turn: u32, span: CombatSpan) -> impl DoubleEndedIterator<Item = &CombatRow> {
+        let latest = self.combats_this_turn;
+        self.rows.iter().filter(move |row| {
+            row.turn == turn && match span {
+                CombatSpan::ThisTurn => true,
+                CombatSpan::ThisCombat => row.combat == latest,
+            }
+        })
+    }
+
+    /// Was `object` declared as an attacker in `span` of turn `turn`? A
+    /// creature put onto the battlefield attacking never was (CR 508.4).
+    pub fn attacked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Attacked(_)))
+    }
+
+    /// Was `object` declared as a blocker in `span` of turn `turn` (CR
+    /// 509.1)? One put onto the battlefield blocking never was (CR 509.4).
+    pub fn blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_during(turn, span).any(|row| row.object == object && matches!(row.fact, CombatFact::Blocked(_)))
+    }
+
+    /// Did `object` become a blocked creature as blockers were declared in
+    /// `span` of turn `turn` (CR 509.1h)?
+    pub fn was_blocked(&self, object: ObjectRef, turn: u32, span: CombatSpan) -> bool {
+        self.rows_during(turn, span).any(|row| row.fact == CombatFact::Blocked(object))
     }
 
     /// What `object` was attacking as it was last removed from combat in the
@@ -319,16 +364,52 @@ impl CombatHistory {
     /// sentence): `None` when it was not removed in that combat, or was
     /// attacking nothing.
     pub fn attacking_when_removed(&self, object: ObjectRef, turn: u32) -> Option<AttackTarget> {
-        let removed = self.rows.iter().rev().find(|row| {
-            row.object == object
-                && row.turn == turn
-                && row.combat == self.combats_this_turn
-                && matches!(row.fact, CombatFact::Removed { .. })
-        })?;
+        let removed = self
+            .rows_during(turn, CombatSpan::ThisCombat)
+            .rev()
+            .find(|row| row.object == object && matches!(row.fact, CombatFact::Removed { .. }))?;
         match removed.fact {
             CombatFact::Removed { attacking } => attacking,
-            CombatFact::Attacked(_) => None,
+            CombatFact::Attacked(_) | CombatFact::Blocked(_) => None,
         }
+    }
+}
+
+/// Each time something became the target of a spell or ability this turn
+/// (CR 115.1), one row per `Targeted` record, in the order announced. Kept
+/// for the turn: valiant and Kira read "for the first time each turn", and
+/// nothing reads further back. Shared, as the combat's rows are.
+#[derive(Debug, Clone, Default)]
+pub struct TargetingHistory {
+    rows: Arc<Vec<TargetingRow>>,
+}
+
+/// One object or player becoming the target of one spell or ability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetingRow {
+    pub target: TargetRef,
+    /// The spell's or ability's controller.
+    pub controller: PlayerId,
+    /// A spell rather than an ability.
+    pub by_spell: bool,
+    /// The record, which tells an earlier targeting from the one being read.
+    pub seq: EventSeq,
+}
+
+impl TargetingHistory {
+    pub(crate) fn record(&mut self, row: TargetingRow) {
+        Arc::make_mut(&mut self.rows).push(row);
+    }
+
+    fn turn_began(&mut self) {
+        if !self.rows.is_empty() {
+            self.rows = Arc::default();
+        }
+    }
+
+    /// Every row this turn, oldest first.
+    pub fn rows(&self) -> &[TargetingRow] {
+        &self.rows
     }
 }
 
@@ -406,9 +487,28 @@ mod tests {
 
         combat.combat_began();
         assert_eq!(combat.attacking_when_removed(bears, 3), None, "not removed in the second combat");
-        assert!(combat.attacked_this_turn(bears, 3), "it attacked in the first");
-        assert!(!combat.attacked_this_turn(after_a_flicker, 3));
-        assert!(!combat.attacked_this_turn(bears, 4));
+        assert!(combat.attacked(bears, 3, CombatSpan::ThisTurn), "it attacked in the first");
+        assert!(!combat.attacked(bears, 3, CombatSpan::ThisCombat), "and not in the second");
+        assert!(!combat.attacked(after_a_flicker, 3, CombatSpan::ThisTurn));
+        assert!(!combat.attacked(bears, 4, CombatSpan::ThisTurn));
+    }
+
+    /// A block is the blocker's row, naming the attacker, which is how the
+    /// attacker was blocked; and "this combat" is the latest combat's.
+    #[test]
+    fn a_block_row_answers_both_sides_in_its_combat() {
+        let mut combat = CombatHistory::default();
+        let (wall, bears) = (object_ref(7, 1), object_ref(8, 1));
+        combat.combat_began();
+        combat.record(wall, 3, CombatFact::Blocked(bears));
+        assert!(combat.blocked(wall, 3, CombatSpan::ThisCombat));
+        assert!(combat.was_blocked(bears, 3, CombatSpan::ThisCombat));
+        assert!(!combat.blocked(bears, 3, CombatSpan::ThisTurn), "the attacker did not block");
+        assert!(!combat.was_blocked(wall, 3, CombatSpan::ThisTurn), "the blocker was not blocked");
+
+        combat.combat_began();
+        assert!(!combat.blocked(wall, 3, CombatSpan::ThisCombat), "not in the second combat");
+        assert!(combat.blocked(wall, 3, CombatSpan::ThisTurn));
     }
 
     /// The rows keep a round: from the earliest turn any player's "your last

@@ -37,6 +37,92 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-18 for TR-5c** (#261: blocks, targeting and
+activation; items 11 and 12). Loyal Sentry and Cephalid Aristocrat join the
+registry and the pool (206 → 208 registered, 116 → 118 pooled), so both §3
+columns are new baselines. One `close_out.py` sitting: **main** `2e9ac04`
+(#260's merge), **engine** `cddb76d`, every engine commit with both cards
+unregistered, a throwaway commit cut for the sitting and never pushed, and
+**shipped** `7f71f87`.
+
+**Predictions, before any arm ran** (`triggers-architecture.md` §12, now in
+the archive's "TR-5c"): engine against `main`, every gameplay row the same,
+both pools, both seat counts, since no registered card reads a new arm; the
+dispatch counters up, as the new kinds reach the gate; instructions per
+decision +0.1% to +0.5%, most of it the mana abilities' records. Shipped
+moving every dealt game, its stress distortion reported.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, dispatches agreed, `main` → engine, performance / stress | 161,704 → 176,223 / 157,476 → 173,665 | 318,253 → 346,291 / 316,874 → 348,753 |
+| audit, triggers agreed, both arms, performance / stress | 1,421 / 951 | 3,498 / 2,408 |
+| `Windows past gate`, `main` → engine, performance / stress | 74.9 → 75.4 / 79.3 → 79.5 | 201.2 → 201.4 / 197.7 → 198.5 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (the pool) / differ (the registry) | differ / differ |
+| audit, shipped, performance / stress, dispatches agreed | 171,563 / 160,706 | 340,483 / 346,229 |
+| `stress` avg turns, `main` → shipped, 50 games | 26.8 → 23.8 | 49.1 → 48.5 |
+| `stress` avg turns, `main` → shipped, 400 games, seeds 12345 / 777 | 24.7 → 24.5 / 26.3 → 26.6 | |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6813 M → 0.6824 M, **+0.15%** |
+
+**Every prediction held.** The dispatches that rose are the mana
+abilities' activations, each its own window outside every batch; every
+trigger the audit agreed on is the same.
+
+**Reachability**, shipped, 200 games forced: Loyal Sentry cast 172 times in
+126 games at two seats and 111 in 98 at four; Cephalid Aristocrat 133 in
+101 and 82 in 76.
+
+**The two cards' distortion is within the deal's noise.** The 50-game
+two-seat stress table read three turns shorter; 400 games at two seeds
+read a fifth of a turn either way, and four seats moved by under one.
+
+**The 1,000-game audited smoke** (seed 777, both pools, both seat counts),
+shipped: 0 errors and 0 panics everywhere, and every dispatch agreed
+(873,785 / 912,616 at two seats, 1,702,566 / 1,843,125 at four). One
+two-seat `stress` game hit the turn limit: seed 810, the Words of Worship
+standoff recorded twice before, which the new decks deal again.
+
+**The ratchet** re-bases on shipped, which moves the stream.
+
+**Copies** (`close_out.py`'s report against `main`, and the model pass,
+`plans/references/duplicate-inventory.md` §3.7): two fixes, each shown
+failing first, and eight merges, after the sitting. 50 audited games at
+seed 12345 on both pools, at two seats and four, read identical against
+shipped once the timing lines are set aside, so the tables below stand.
+
+**§3 fixture rows, shipped `7f71f87`, two seats, 50 games / seed 12345.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 29 (58.0%) / 20 (40.0%) | 24 (48.0%) / 26 (52.0%) |
+| Wins by effect | 1 | 0 |
+| Avg turns | 28.3 | 23.8 |
+| Spells cast | 21.3 | 19.1 |
+| Lands played | 16.8 | 15.2 |
+| Combat w/ atk | 10.8 | 7.4 |
+| Creatures died | 7.6 | 4.6 |
+| Damage events | 24.4 | 17.8 |
+| Total damage | 64.1 | 51.1 |
+| Life changes | 18.2 | 12.3 |
+| **Layer walks** | **335** | **339** |
+| **Board walks** | **212** | **204** |
+| **Memo hits** | **53,562** | **49,728** |
+| **Layer frames** | **3,902** | **3,864** |
+| **Frames/walk** | **11.64** | **11.40** |
+| **Dependency checks** | **8** | **16** |
+| **Replacement gathers** | **987** | **848** |
+| **Restriction queries** | **989** | **850** |
+| Mana productions | 66 | 72 |
+| Replacement prompts | 0.24 | 0.26 |
+| Max batch depth | 4 | 4 |
+| Decisions | 186 | 201 |
+| Priority decisions | 68 | 80 |
+| Actions reversed | 0.0 | 0.1 |
+| Triggers placed | 6.7 | 3.9 |
+| Windows past gate | 74.4 | 51.5 |
+| Candidate visits | 107.5 | 70.9 |
+| Trigger matches | 7.5 | 4.7 |
+
 **Re-recorded 2026-10-18 for MA-2's dev GUI notes** (#260: item 276).
 `GameEvent::DamagePrevented` is announced where a prevention applies (CR
 615.13), ahead of the trigger arm TR-5d builds, and no pool moves, so the §3

@@ -20,6 +20,7 @@
 
 use std::sync::Arc;
 
+use crate::engine::mana::ManaProducer;
 use crate::oracle::characteristics::CurrentOrLastKnown;
 use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction};
@@ -40,10 +41,12 @@ use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
 use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::types::effects::{Effect, EffectRecipient, ObjectSet, PlayerRef, Primitive};
+use crate::engine::targeting::TargetRef;
+use crate::types::history::CountIs;
 use crate::types::ids::{DelayedTriggerId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{
-    zone_change_looks_back, AttackEventPer, CountersOn, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
+    zone_change_looks_back, AttackOccurrence, BlockOccurrence, CountersOn, TargetSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity,
     ObjectOrPlayer, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent,
     TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject, TriggeringEvent, TriggeringEventObjects,
 };
@@ -147,15 +150,25 @@ enum KeptLkiSlot<'a> {
 }
 
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
-/// target, triggers from mana being added, and could add mana. CR 605.5a is
-/// the same sentence from the other side — a target or any other event
-/// makes it an ordinary triggered ability.
-pub fn is_mana_ability(def: &TriggerDef) -> bool {
-    let arms = def.condition.events();
-    !arms.is_empty()
-        && arms.iter().all(|arm| matches!(arm, TriggerEvent::ManaAdded { .. }))
-        && def.effect.instances().is_empty()
-        && could_add_mana(&def.effect)
+/// target, could add mana, and triggered from mana being added or a mana
+/// ability's activation, which is the triggering record's to say. "Whenever
+/// you activate an ability, add {C}" is a mana ability when a mana ability's
+/// activation triggers it, and an ordinary triggered ability when another
+/// activation does. CR 605.5a is the same sentence from the other side.
+pub fn is_mana_ability(def: &TriggerDef, triggered_by: &GameEvent) -> bool {
+    could_be_a_mana_ability(def)
+        && matches!(triggered_by, GameEvent::ManaAdded { .. } | GameEvent::AbilityActivated { mana_ability: true, .. })
+}
+
+/// Whether some event could make `def` a mana ability (`is_mana_ability`):
+/// no target, could add mana, and an arm that can trigger on mana being added
+/// or on a mana ability's activation. What a mana payment counts as mana its
+/// own activations may still produce.
+pub fn could_be_a_mana_ability(def: &TriggerDef) -> bool {
+    let from_mana = |arm: &TriggerEvent| {
+        matches!(arm, TriggerEvent::ManaAdded { .. } | TriggerEvent::ActivatesAbility { mana_ability: None | Some(true), .. })
+    };
+    def.condition.events().iter().any(from_mana) && def.effect.instances().is_empty() && could_add_mana(&def.effect)
 }
 
 fn could_add_mana(effect: &Effect) -> bool {
@@ -519,9 +532,9 @@ impl GameState {
     /// One record emitted outside any batch — a cast, an activation, an
     /// ability's resolution, a trigger triggering, attackers declared —
     /// dispatched inside `emit_event`. `ctx` is the emitter's provider, where
-    /// the dispatch may have to ask (`emit_event_with_provider`); a mana
-    /// trigger's event (`ManaAdded`) is performed inside a batch, so the one
-    /// path that resolves at dispatch never runs here.
+    /// the dispatch may have to ask (`emit_event_with_provider`). A
+    /// triggered mana ability resolves here only on a mana ability's
+    /// activation, which `announce_activation` emits with its provider.
     pub(crate) fn dispatch_unbatched(&mut self, seq: EventSeq, ctx: Option<&ActionContext>) -> Result<(), String> {
         let audit = self.dispatch_audit.is_some().then(Vec::new);
         let result = self.dispatch(&[seq], ctx, &[], audit.as_deref());
@@ -729,8 +742,9 @@ impl GameState {
                 match ctx {
                     Some(ctx) => self.resolve_triggered_mana(&pending, ctx)?,
                     // Unreachable: `ManaAdded` is always performed inside a
-                    // batch. Loud in debug; queued in release, so the mana is
-                    // late rather than lost.
+                    // batch, and every activation is announced with its
+                    // provider. Loud in debug; queued in release, so the mana
+                    // is late rather than lost.
                     None => {
                         debug_assert!(false, "a triggered mana ability reached an unbatched dispatch");
                         self.pending_triggers.push(pending);
@@ -997,8 +1011,7 @@ impl GameState {
         if self.capture_of(object).is_some() {
             return;
         }
-        let frame = compute_characteristics(self, id);
-        if let Some(lki) = frame.and_then(|frame| self.last_known_information(id, frame)) {
+        if let Some(lki) = self.lki_now(id) {
             self.lki_captures.push(LkiCapture { object, lki: Some(lki) });
         }
     }
@@ -1014,6 +1027,12 @@ impl GameState {
         let cost_choices = self.cost_choices_of(id).unwrap_or(CostChoices::NONE);
         let existence = ObjectRef { id, zone_change_epoch: object.zone_change_epoch };
         Some(Lki::new(existence, frame, object.owner, cost_choices, self.battlefield.get(&id), self.stack_entries.get(&id)))
+    }
+
+    /// `id`'s last known information with its frame off the layer memo, for
+    /// every reader but a performing batch's fallback.
+    pub(crate) fn lki_now(&self, id: ObjectId) -> Option<Lki> {
+        self.last_known_information(id, compute_characteristics(self, id)?)
     }
 
     /// The capture its batch took of `object`, if one did.
@@ -1106,7 +1125,7 @@ impl GameState {
 
     /// `id` as it is now, and where it is.
     pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
-        let lki = self.last_known_information(id, compute_characteristics(self, id)?)?;
+        let lki = self.lki_now(id)?;
         Some(ObjectSnapshot { zone: self.objects.get(&id)?.zone, lki })
     }
 
@@ -1331,7 +1350,7 @@ impl GameState {
                     Ok((event, triggering_events)) => (Some(event), triggering_events, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
                 };
-                let mana = matched.is_some() && is_mana_ability(def);
+                let mana = matched.is_some() && is_mana_ability(def, &record.event);
                 self.trace(|| {
                     trace_records::trigger(
                         self,
@@ -1354,7 +1373,7 @@ impl GameState {
             for ArmMatch { row, arm: matched, triggering_events } in hits {
                 let candidate = &candidates[row.candidate];
                 let (identity, def) = (row.identity, row.def);
-                let mana = is_mana_ability(def);
+                let mana = is_mana_ability(def, &record.event);
                 let arm = &def.condition.events()[matched.0];
                 // The ability's own def, shared: nothing writes it once the card
                 // is built, so a Humility landing before placement still cannot
@@ -1457,14 +1476,14 @@ impl GameState {
             }
         }
         let (event_index, triggering_events) = matched.ok_or(Refusal::TriggerCondition)?;
-        if !self.within_once_per_turn_limit(def, identity, candidate.controller, record.place_in_turn()) {
+        let arm = &def.condition.events()[event_index.0];
+        if !self.within_once_per_turn_limit(def, identity, candidate.controller, arm, record, &referents) {
             return Err(Refusal::Limit);
         }
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate,
         // and "this" is read as it left for one.
         let source = TriggerSource { object: candidate.object.id, controller: candidate.controller, lki: candidate.frame.lki() };
-        let arm = &def.condition.events()[event_index.0];
         let triggering_events = self.triggers_whose_intervening_if_holds(def, arm, record, triggering_events, source)?;
         Ok((event_index, triggering_events))
     }
@@ -1518,19 +1537,34 @@ impl GameState {
     /// The once-per-turn limits (§3.5), each read at the trigger. CR
     /// 603.2h's gate is its source's controller's; "only once each turn" is
     /// the ability's; "the first time" is the record's place in its turn
-    /// (`EventRecord::place_in_turn`).
+    /// (`EventRecord::place_in_turn`), or for a targeting, no earlier row of
+    /// the turn's that `arm` would also have matched: Heartfire Hero's "if
+    /// that creature hasn't yet been the target of a spell or ability you
+    /// control this turn".
     pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
         identity: AbilityIdentity,
         controller: PlayerId,
-        place_in_turn: Option<u64>,
+        arm: &TriggerEvent,
+        record: &EventRecord,
+        referents: &TriggerReferents<'_>,
     ) -> bool {
         match def.limit {
             None => true,
             Some(TriggerLimit::DoThisOnlyOnceEachTurn) => !self.history.action_taken_this_turn.contains(&(identity, controller)),
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.history.triggered_this_turn.contains(&identity),
-            Some(TriggerLimit::FirstTimeEachTurn) => place_in_turn == Some(1),
+            Some(TriggerLimit::FirstTimeEachTurn) => match (arm, &record.event) {
+                (TriggerEvent::BecomesTarget { by, controller: whose, .. }, GameEvent::Targeted { target, .. }) => {
+                    !self.history.targetings.rows().iter().any(|row| {
+                        row.seq < record.seq
+                            && row.target == *target
+                            && by.admits(row.by_spell)
+                            && whose.as_ref().is_none_or(|p| self.player_ref_is(p, row.controller, referents))
+                    })
+                }
+                _ => record.place_in_turn() == Some(1),
+            },
         }
     }
 
@@ -1620,11 +1654,12 @@ impl GameState {
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },
             ) => {
                 let added = |m: ManaType| added.iter().any(|(t, n)| *t == m && *n > 0);
-                triggering_event_if(self.mana_added_arm_matches(arm, *source_id, *tapped, added, referents, seq))
+                let producer = ManaProducer { id: *source_id, tapped_for_mana: *tapped, lki: event.source_lki() };
+                triggering_event_if(self.mana_added_arm_matches(arm, producer, added, referents, seq))
             }
             (
                 TriggerEvent::DamageDealt { source, recipient, combat, .. },
-                GameEvent::DamageDealt { source_id, source_lki, target, is_combat, .. },
+                GameEvent::DamageDealt { source_id, target, is_combat, .. },
             ) => {
                 let to = match (recipient, target) {
                     (DamageRecipient::Any, _) => true,
@@ -1646,7 +1681,7 @@ impl GameState {
                 };
                 // A source that left before dealing damage deals it as it last
                 // existed (CR 608.2h); one still there is read now.
-                let source_read = source_lki.as_ref().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let source_read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
                 triggering_event_if(
                     to && combat.is_none_or(|c| c == *is_combat)
                         && self.subject_matches(source, Some(*source_id), referents, seq, source_read),
@@ -1718,7 +1753,7 @@ impl GameState {
             // attacks, in the record's order: a triggering event each, or one
             // for each player, planeswalker or battle they attack.
             (
-                TriggerEvent::Attacks { attacker, defender, per, alone, .. },
+                TriggerEvent::Attacks { attacker, defender, occurrence, alone, .. },
                 GameEvent::AttackersDeclared { attackers },
             ) => {
                 // CR 506.5: the only creature declared as an attacker.
@@ -1732,11 +1767,11 @@ impl GameState {
                             && defender.as_ref().is_none_or(|asked| self.defender_matches(asked, target, referents, seq))
                     })
                     .filter_map(|&(id, target)| Some((self.subject_after(event, id)?, self.attacked(target)?)));
-                match per {
-                    AttackEventPer::Attacker => {
+                match occurrence {
+                    AttackOccurrence::Attacker => {
                         attacks.map(|(attacker, defender)| TriggeringEventObjects::Attack { attacker, defender }).collect()
                     }
-                    AttackEventPer::Defender => {
+                    AttackOccurrence::Defender => {
                         let mut defenses: Vec<(ObjectOrPlayer, Vec<ObjectRef>)> = Vec::new();
                         for (attacker, defender) in attacks {
                             match defenses.iter_mut().find(|(attacked, _)| *attacked == defender) {
@@ -1750,6 +1785,52 @@ impl GameState {
                             .collect()
                     }
                 }
+            }
+            (TriggerEvent::Blocks { .. }, GameEvent::BlockersDeclared { .. }) => self.block_events(arm, record, referents),
+            // The source as it was activated, on the battlefield: off its frame
+            // when a cost moved it (Harsh Mentor's second ruling).
+            (
+                TriggerEvent::ActivatesAbility { player, source, mana_ability },
+                GameEvent::AbilityActivated { identity, controller, mana_ability: was_mana, from, .. },
+            ) => {
+                let read = record.event.source_lki().map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+                let matched = *from == Zone::Battlefield
+                    && mana_ability.is_none_or(|asked| asked == *was_mana)
+                    && player.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents))
+                    && self.subject_matches(source, Some(identity.source.id), referents, seq, read);
+                if matched { vec![TriggeringEventObjects::Object(identity.source)] } else { Vec::new() }
+            }
+            // Read after the event: the target as it is now, and the spell or
+            // ability on the stack, a spell by its characteristics there.
+            (
+                TriggerEvent::BecomesTarget { target: watched, by: kind, controller: whose, .. },
+                GameEvent::Targeted { target, by, ability_source, controller, .. },
+            ) => {
+                let target_ok = match (watched, target) {
+                    (TargetSubject::Object(subject), TargetRef::Object(object)) => {
+                        self.subject_matches(subject, Some(object.id), referents, seq, SubjectRead::Now)
+                    }
+                    (TargetSubject::Player(who), TargetRef::Player(player)) => {
+                        who.as_ref().is_none_or(|p| self.player_ref_is(p, *player, referents))
+                    }
+                    (TargetSubject::Object(_), TargetRef::Player(_)) | (TargetSubject::Player(_), TargetRef::Object(_)) => false,
+                };
+                let kind_ok = kind.admits(ability_source.is_none())
+                    && match kind {
+                        TargetedBy::Spell(Some(filter)) => {
+                            self.subject_matches(&TriggerSubject::Filter(filter.clone()), Some(*by), referents, seq, SubjectRead::Now)
+                        }
+                        TargetedBy::Spell(None) | TargetedBy::SpellOrAbility | TargetedBy::Ability => true,
+                    };
+                let whose_ok = whose.as_ref().is_none_or(|p| self.player_ref_is(p, *controller, referents));
+                let objects = || {
+                    let target = match target {
+                        TargetRef::Object(object) => ObjectOrPlayer::Object(*object),
+                        TargetRef::Player(player) => ObjectOrPlayer::Player(*player),
+                    };
+                    Some(TriggeringEventObjects::Target { target, by: self.object_ref(*by)? })
+                };
+                if target_ok && kind_ok && whose_ok { objects().into_iter().collect() } else { Vec::new() }
             }
             (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
                 let source_ok = match source {
@@ -1864,6 +1945,9 @@ impl GameState {
                 | TriggerEvent::LosesLife { .. }
                 | TriggerEvent::EntersBattlefield { .. }
                 | TriggerEvent::Attacks { .. }
+                | TriggerEvent::Blocks { .. }
+                | TriggerEvent::BecomesTarget { .. }
+                | TriggerEvent::ActivatesAbility { .. }
                 | TriggerEvent::CastsSpell { .. }
                 | TriggerEvent::IsCountered { .. }
                 | TriggerEvent::PlayerLoses { .. }
@@ -1877,6 +1961,73 @@ impl GameState {
                 | TriggerEvent::AbilityResolves { .. },
                 _,
             ) => Vec::new(),
+        }
+    }
+
+    /// The declaration's occurrences of a block arm (CR 509.3a–g), in the
+    /// record's order, each side asked as it is now (CR 509.3f). Read once
+    /// for each blocking creature or each blocked one, the other side's
+    /// creatures that match are the ones it counts, and the occurrence needs
+    /// one of them, or `count`'s many (CR 509.3e).
+    fn block_events(&self, arm: &TriggerEvent, record: &EventRecord, referents: &TriggerReferents<'_>) -> Vec<TriggeringEventObjects> {
+        let (
+            TriggerEvent::Blocks { blocker, attacker, occurrence, count, alone, .. },
+            GameEvent::BlockersDeclared { blocks, unblocked },
+        ) = (arm, &record.event)
+        else {
+            return Vec::new();
+        };
+        let (event, seq) = (&record.event, record.seq);
+        // Each creature on one side of the declaration once, in its order.
+        let each_on = |side: fn(&(ObjectId, ObjectId)) -> ObjectId| {
+            let mut each: Vec<ObjectId> = Vec::new();
+            for pair in blocks {
+                if !each.contains(&side(pair)) {
+                    each.push(side(pair));
+                }
+            }
+            each
+        };
+        let blocker_of = |&(b, _): &(ObjectId, ObjectId)| b;
+        let attacker_of = |&(_, a): &(ObjectId, ObjectId)| a;
+        // CR 506.5: the only creature declared as a blocker.
+        if *alone && each_on(blocker_of).len() != 1 {
+            return Vec::new();
+        }
+        let is = |subject: &TriggerSubject, id: ObjectId| self.subject_matches(subject, Some(id), referents, seq, SubjectRead::Now);
+        let now = |id: ObjectId| self.subject_after(event, id);
+        let enough = |n: usize| count.unwrap_or(CountIs::AtLeast(1)).met_by(n as u64);
+        match *occurrence {
+            BlockOccurrence::Block => blocks
+                .iter()
+                .filter(|&&(b, a)| is(blocker, b) && is(attacker, a))
+                .filter_map(|&(b, a)| Some(TriggeringEventObjects::Block { blocker: now(b)?, attacker: now(a)? }))
+                .collect(),
+            BlockOccurrence::Blocker => each_on(blocker_of)
+                .into_iter()
+                    .filter(|&b| is(blocker, b))
+                    .filter_map(|b| {
+                        let attackers: Vec<ObjectRef> =
+                            blocks.iter().filter(|&&(of, a)| of == b && is(attacker, a)).filter_map(|&(_, a)| now(a)).collect();
+                        enough(attackers.len()).then_some(())?;
+                        Some(TriggeringEventObjects::Blocking { blocker: now(b)?, attackers })
+                    })
+                    .collect(),
+            BlockOccurrence::Blocked => each_on(attacker_of)
+                .into_iter()
+                    .filter(|&a| is(attacker, a))
+                    .filter_map(|a| {
+                        let blockers: Vec<ObjectRef> =
+                            blocks.iter().filter(|&&(b, of)| of == a && is(blocker, b)).filter_map(|&(b, _)| now(b)).collect();
+                        enough(blockers.len()).then_some(())?;
+                        Some(TriggeringEventObjects::BlockedBy { attacker: now(a)?, blockers })
+                    })
+                    .collect(),
+            BlockOccurrence::Unblocked => unblocked
+                .iter()
+                .filter(|&&a| is(attacker, a))
+                .filter_map(|&a| Some(TriggeringEventObjects::Unblocked { attacker: now(a)? }))
+                .collect(),
         }
     }
 
@@ -1924,16 +2075,17 @@ impl GameState {
     fn mana_added_arm_matches(
         &self,
         arm: &TriggerEvent,
-        producer: ObjectId,
-        tapped: bool,
+        producer: ManaProducer<'_>,
         added: impl Fn(ManaType) -> bool,
         referents: &TriggerReferents<'_>,
         seq: EventSeq,
     ) -> bool {
         let TriggerEvent::ManaAdded { source, tapped_for_mana, mana } = arm else { return false };
-        tapped_for_mana.is_none_or(|t| t == tapped)
+        // A producer its own cost moved is read as it last existed (CR 608.2h).
+        let read = producer.lki.map_or(SubjectRead::Now, SubjectRead::GoneBeforeThisEvent);
+        tapped_for_mana.is_none_or(|t| t == producer.tapped_for_mana)
             && mana.is_none_or(added)
-            && self.subject_matches(source, Some(producer), referents, seq, SubjectRead::Now)
+            && self.subject_matches(source, Some(producer.id), referents, seq, read)
     }
 
     /// [`Self::mana_added_arm_matches`], asked before the mana is made.
@@ -1965,7 +2117,8 @@ impl GameState {
             this_ability: None,
             referred: &[],
         };
-        self.mana_added_arm_matches(arm, producer, tapped, added, &referents, self.events.next_seq())
+        let producer = ManaProducer { id: producer, tapped_for_mana: tapped, lki: None };
+        self.mana_added_arm_matches(arm, producer, added, &referents, self.events.next_seq())
     }
 
     /// "Which object" (§3.3): `This` is the source itself, `Host` what it is
@@ -2094,6 +2247,9 @@ impl GameState {
                 self.attachment_objects(&record.event)
             }
             TriggerEvent::Attacks { .. }
+            | TriggerEvent::Blocks { .. }
+            | TriggerEvent::BecomesTarget { .. }
+            | TriggerEvent::ActivatesAbility { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
@@ -2118,6 +2274,8 @@ impl GameState {
             | GameEvent::Untapped { object_id }
             | GameEvent::PermanentEnteredBattlefield { object_id, .. }
             | GameEvent::ControlChanged { object_id, .. } => *object_id,
+            // The existence that made the mana, where its own cost moved it.
+            GameEvent::ManaAdded { source_lki: Some(lki), .. } => return TriggeringEventObjects::Object(lki.object()),
             GameEvent::ManaAdded { source_id, .. } => *source_id,
             GameEvent::CardDrawn { card_id, .. } => *card_id,
             GameEvent::SpellCast { spell_id, .. } | GameEvent::SpellCountered { spell_id, .. } => *spell_id,
@@ -2129,10 +2287,10 @@ impl GameState {
     /// A damage event's source and recipient. A source that left before
     /// dealing the damage is the existence that dealt it (CR 608.2h).
     fn damage_objects(&self, event: &GameEvent) -> TriggeringEventObjects {
-        let GameEvent::DamageDealt { source_id, source_lki, target, .. } = event else {
+        let GameEvent::DamageDealt { source_id, target, .. } = event else {
             return TriggeringEventObjects::NoObject;
         };
-        let source = source_lki.as_ref().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
+        let source = event.source_lki().map(Lki::object).or_else(|| self.subject_after(event, *source_id));
         let recipient = match target {
             DamageTarget::Object(id) => self.subject_after(event, *id).map(ObjectOrPlayer::Object),
             DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
@@ -2227,7 +2385,8 @@ impl GameState {
                 let player = triggered_mana_recipient(self, recipient, source, pending.controller);
                 let mut resolution = ResolutionContext::for_mana_ability(self, source, player, GeneratedBy::TriggeredAbility);
                 resolution.trigger = Some(pending.binding.clone());
-                self.produce_mana(output, player, source, false, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
+                let producer = ManaProducer { id: source, tapped_for_mana: false, lki: None };
+                self.produce_mana(output, player, producer, &resolution, &ActionContext::resolving(ctx.dp, &resolution))
             }
             Effect::Sequence(effects) => {
                 for sub in effects {

@@ -26,7 +26,7 @@ use crate::types::ids::{ExtraTurnId, ObjectId, ObjectRef, PlayerId};
 use crate::types::effects::{EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
 use crate::engine::returns::ReturningObject;
-use crate::engine::triggers::bound_reads::BoundReads;
+use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
@@ -327,6 +327,20 @@ impl GameState {
                 let players: Vec<ResolvedTarget> =
                     self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
+            }
+            // "That creature and this creature": each member found as it would
+            // be alone, and every object they find handed to the primitive at
+            // once, so it acts on them in one instruction (CR 608.2f).
+            Effect::Atom(primitive, recipient @ EffectRecipient::Group(members)) => {
+                let mut found: Vec<ResolvedTarget> = Vec::new();
+                for member in members {
+                    for target in self.resolve_group_member(member, ctx)? {
+                        if !found.contains(&target) {
+                            found.push(target);
+                        }
+                    }
+                }
+                self.resolve_primitive(primitive, recipient, &found, ctx, dp, walk)
             }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
@@ -847,7 +861,7 @@ impl GameState {
                 // CR 603.7c — its "that card" is what this resolution
                 // remembered; a template that names one with nothing
                 // remembered is a card missing its `Effect::Remember`.
-                let names_referred = template.def.bound_reads().contains(BoundReads::REFERRED)
+                let names_referred = template.def.trigger_binding_reads().contains(TriggerBindingReads::REFERRED)
                     || template.def.condition.events().iter().any(TriggerEvent::watches_referred);
                 if names_referred && walk.remembered.is_none() {
                     return Err(format!(
@@ -886,55 +900,37 @@ impl GameState {
             // never be a mana ability"), which is why Mana Reflection leaves
             // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                self.produce_mana(output, ctx.controller, ctx.effect_source(), false, ctx, &actx)
+                let producer = crate::engine::mana::ManaProducer { id: ctx.effect_source(), tapped_for_mana: false, lki: None };
+                self.produce_mana(output, ctx.controller, producer, ctx, &actx)
             }
 
             Primitive::CounterSpell => {
-                // CR 701.6a — the countered spell goes to its owner's graveyard, through
-                // `execute_action(ZoneChange)` so the CR 614 pipeline sees it;
-                // `remove_from_zone_collection(Stack)` tears down the `StackEntry`.
                 for target in targets {
                     if let ResolvedTarget::Object(id) = target {
-                        let id = *id;
-                        // Its controller and its frame read while it is a spell, as
-                        // the record keeps them (CR 108.4a: a card in a graveyard
-                        // has none; CR 603.10e looks back at the spell).
-                        if self.stack.contains(&id)
-                            && let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id)
-                        {
-                            let lki = crate::engine::layers::compute_characteristics(self, id)
-                                .and_then(|frame| self.last_known_information(id, frame))
-                                .ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
-                            self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, &actx)?;
-                            let countered = crate::events::event::GameEvent::SpellCountered {
-                                spell_id: id,
-                                controller,
-                                countered_by: ctx.source,
-                                lki,
-                            };
-                            self.emit_event(countered, actx.cause)?;
-                        }
+                        self.counter_spell(*id, ctx, &actx)?;
                     }
                 }
                 Ok(())
             }
 
             Primitive::CounterAbility => {
-                // Counter target activated or triggered ability on the stack
-                // (rule 701.6b). The ability ceases to exist — it is simply
-                // removed from the stack. It does NOT go to any zone.
                 for target in targets {
-                    if let ResolvedTarget::Object(id) = target
-                        && self.stack.contains(id)
-                        && let Some(entry) = self.ability_leaves_the_stack(*id)
-                        && let Some(identity) = entry.ability_identity
-                    {
-                        let countered = crate::events::event::GameEvent::AbilityCountered {
-                            identity,
-                            controller: entry.controller,
-                            countered_by: ctx.source,
-                        };
-                        self.emit_event(countered, actx.cause)?;
+                    if let ResolvedTarget::Object(id) = target {
+                        self.counter_ability(*id, ctx, &actx)?;
+                    }
+                }
+                Ok(())
+            }
+
+            // CR 701.6a — "counter that spell or ability", by what it is.
+            Primitive::Counter => {
+                for target in targets {
+                    if let ResolvedTarget::Object(id) = target {
+                        if self.is_spell_on_stack(*id) {
+                            self.counter_spell(*id, ctx, &actx)?;
+                        } else {
+                            self.counter_ability(*id, ctx, &actx)?;
+                        }
                     }
                 }
                 Ok(())
@@ -1274,6 +1270,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::Group(_)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
@@ -1581,6 +1578,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::Group(_)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
@@ -2306,6 +2304,63 @@ impl GameState {
         self.object_matches_filter(id, filter, &mut TextReferents { game: self, you: ctx.controller, identity }, None)
     }
 
+    /// CR 701.6a — a spell countered goes to its owner's graveyard, through
+    /// `change_zone` so the CR 614 pipeline sees it, and the `StackEntry`
+    /// goes with it. An object that is no spell on the stack is not one to
+    /// counter this way.
+    fn counter_spell(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
+        // Its controller and its frame read while it is a spell, as the record
+        // keeps them (CR 108.4a: a card in a graveyard has none; CR 603.10e
+        // looks back at the spell).
+        if !self.stack.contains(&id) || !self.is_spell_on_stack(id) {
+            return Ok(());
+        }
+        let Some(controller) = crate::oracle::characteristics::get_effective_controller(self, id) else { return Ok(()) };
+        let lki =
+            self.lki_now(id).ok_or_else(|| format!("countering {id}, which has no characteristics to frame"))?;
+        self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Countered, actx)?;
+        let countered = crate::events::event::GameEvent::SpellCountered { spell_id: id, controller, countered_by: ctx.source, lki };
+        self.emit_event(countered, actx.cause)
+    }
+
+    /// CR 701.6b's ability: it ceases to exist, removed from the stack and
+    /// put into no zone.
+    fn counter_ability(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
+        if self.stack.contains(&id)
+            && let Some(entry) = self.ability_leaves_the_stack(id)
+            && let Some(identity) = entry.ability_identity
+        {
+            let countered =
+                crate::events::event::GameEvent::AbilityCountered { identity, controller: entry.controller, countered_by: ctx.source };
+            self.emit_event(countered, actx.cause)?;
+        }
+        Ok(())
+    }
+
+    /// The objects or players one member of a `Group` recipient names, as that
+    /// recipient would on its own: this object, the object or player that
+    /// played a part in the triggering event, the object a delayed trigger
+    /// refers to, or each permanent a filter matches now. A member that
+    /// targets or chooses is refused loudly: its instance would need a place
+    /// in the announcement, which a group does not give it yet.
+    fn resolve_group_member(&self, member: &EffectRecipient, ctx: &ResolutionContext) -> Result<Vec<ResolvedTarget>, String> {
+        Ok(match member {
+            EffectRecipient::ThisObject => self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect(),
+            EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
+                self.bound_targets(member, ctx)?
+            }
+            EffectRecipient::FilteredPermanents(_) => {
+                self.affected_permanents(member, &[], ctx).into_iter().map(ResolvedTarget::Object).collect()
+            }
+            other => {
+                return Err(format!(
+                    "{other:?} is no member a `Group` resolves on {:?}: a member is this object, a trigger's bound fact or a filtered sweep",
+                    ctx.source
+                ));
+            }
+        })
+    }
+
     /// The permanents a one-shot continuous effect applies to: its resolved
     /// targets, or for "each [permanent] you control" every permanent the
     /// filter matches now. CR 611.2c fixes that set as the effect begins, so
@@ -2684,6 +2739,7 @@ impl GameState {
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
             | EffectRecipient::SameInstanceAs(_)
+            | EffectRecipient::Group(_)
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::FilteredPermanents(_)
             | EffectRecipient::FilteredObjectsIn(..)

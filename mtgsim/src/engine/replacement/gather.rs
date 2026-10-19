@@ -611,7 +611,8 @@ pub(crate) fn applies_to_mana_production(
     generated_by: GeneratedBy,
     tapped_for_mana: bool,
 ) -> bool {
-    let action = GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana };
+    let action =
+        GameAction::ProduceMana { player, source: producer, mana: Vec::new(), special: Vec::new(), tapped_for_mana, source_lki: None };
     let cause = EventCause::Effect { resolution: ResolutionStamp { source: producer, controller: player }, generated_by };
     let proposal = EventProposal { action: &action, subject: EventSubject::Player(player), cause, frame: None };
     def_applies(game, def, source, controller, &proposal)
@@ -922,16 +923,15 @@ pub(crate) fn pattern_watches(
         // `Option`s let an effect decline to ask, and `None` is satisfied by every
         // production (Mana Reflection asks `Some(true)` of tapping and nothing of the
         // permanent; Deep Water asks both). `matched` reads a refusal as no, as
-        // `DealDamage`'s arm does (`codebase-state.md` item 103).
+        // `DealDamage`'s arm does (`codebase-state.md` item 103). A producer its
+        // own cost moved is read as it last existed (CR 608.2h).
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
-            GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
+            GameAction::ProduceMana { tapped_for_mana: actual, source: producer, source_lki, .. },
         ) => {
+            let held = source_lki.as_ref().map(HeldFrame::LastKnown);
             tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
-                && filter
-                    .as_ref()
-                    .map(|f| game.object_matches_filter_of_source(*producer, f, you, source, None))
-                    .unwrap_or(true)
+                && filter.as_ref().map(|f| game.object_matches_filter_of_source(*producer, f, you, source, held)).unwrap_or(true)
         }
 
         _ => false,
