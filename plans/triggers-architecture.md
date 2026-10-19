@@ -3598,13 +3598,14 @@ re-runs the second row's count):
 The second row is what the next rewrite would be for. No number of slots
 answers it, and every slot costs every clone.
 
-**The shape, written once.** Three stores, each bounded by what it holds.
-1. **The round's log.** It records events, never the board: a row is one
+**The shape, written once: the game's log** (decided at review, the owner,
+2026-10-19). One store answers every span a card can name, and the
+abilities' gates stay as they are.
+1. **The game's log.** It records events, never the board: a row is one
    thing that happened, and its frame is the one object's characteristics
-   then, behind a pointer. Every event a reader of the past can ask about, one
-   row each, kept from the earliest turn any player's "your last turn" names,
-   which is the combat rows' rule today. A row is the event as it happened:
-   its turn and combat, whose event it was, the object it was about as the
+   then, behind a pointer. Every event a reader of the past can ask about is
+   one row, kept for the whole game. A row is the event as it happened: its
+   turn and combat, whose event it was, the object it was about as the
    existence it was (CR 400.7), that object's frame then, and what happened.
    ```rust
    /// One event a reader of the past can ask about, as it was then.
@@ -3643,31 +3644,52 @@ answers it, and every slot costs every clone.
        BecameTarget { by_spell: bool, controller: PlayerId },
    }
    ```
+   - **Why the whole game, not a round.** A round is the longest span a
+     printed card names short of "this game": the 11 that say "your last
+     turn", "their last turn" or "since your last turn" (Giant Turtle, Halls
+     of Mist, Premature Burial) reach back up to a full rotation. "This game"
+     has no shorter store that is always right. Counts per fact miss a
+     filter ("the first creature spell you've cast this game"), and counts
+     compiled at setup from the cards in the game miss a chosen creature
+     type, a text change (CR 612) and a card that joins from outside the
+     decks, silently. Only the whole log is right for every card, printed or
+     custom.
    - **The rows today's readers need**, and the damage rows TR-5d's facts
      read: casts, draws, life, entries, zone changes, damage, combat and
-     targeting. Counters, taps, activations, token creations and the rest
-     each join with their first card, as a variant.
-   - **Stored as fixed chunks behind `Arc`s**, appended within a turn. A
-     clone copies a pointer. The first write after a fork copies only the
-     open chunk, at most sixteen rows, and every full chunk stays shared. A
-     turn's start drops the chunks of turns nothing can read.
+     targeting. Counters, taps, activations, token creations, cycling and the
+     rest each join with their first card, as a variant.
+   - **Stored as a chain of fixed chunks, each behind an `Arc`**, appended
+     within the newest. A clone copies one pointer, the chain's head, however
+     long the game. The first write after a fork copies only the open chunk,
+     at most sixteen rows, and every full chunk stays shared by every clone in
+     a search. A read walks back from the newest chunk and stops where its
+     span starts. "This game" walks the whole log, about 600 rows at our fuzz
+     games' average, and only a "this game" reader does.
    - **The frame is one the engine already has.** A departure's record
      carries it, and an object still where the event left it has the layer
      memo's (an `Arc` clone, with no walk while it is current).
-2. **The game's totals.** A count per player for each fact a "this game"
-   reader asks, and only those: Flourishing Forces' life gained and First
-   Contact's spells cast today. A commander's casts from the command zone
-   come with B2. The names a card in the game watches come with
-   `backlog.md` §2.47's map. An object's own lifetime facts (Ursaguana's
-   attacks, The Fallen's recipients) live on its permanent, with their first
-   cards. Each is bounded by the table or the board, never by the turns.
-3. **The abilities' gates**, unchanged: what has triggered, been done once,
+   - **Never truncated.** If what a game holds ever needs to shrink, two
+     storage changes keep every answer and touch no reader: rows older than a
+     round swap their frame for a compact copy of what filters read (332
+     bytes to about 64), and identical frames are shared (a thousand
+     identical Treasure tokens, one frame). Each waits for a measurement that
+     asks for it.
+2. **The abilities' gates**, unchanged: what has triggered, been done once,
    or resolved this turn, by ability. They are rule gates keyed by an
    ability, and no reader filters them.
 
-`TurnSummary`'s this-turn and last-turn views and the seats × seats snapshot
-go: this turn, last turn, your last turn and since your last turn are spans
-of the log. `GameHistory.combat` and `.targetings` fold into it.
+`TurnSummary` and its three views, and the seats × seats snapshot, go:
+this turn, last turn, your last turn, since your last turn and this game are
+all spans of the log. `PlayerHistory` keeps the turn each player last began
+and the draws in a draw step in progress (CR 504). `GameHistory.combat` and
+`.targetings` fold into the log.
+
+**Item 179's bound changes** (the owner, 2026-10-19). It made the history
+"the table's size, never the turn count's". That still holds for what a clone
+copies, which is one pointer. It no longer holds for what a game holds: the
+log grows with the game's events, by about 3.5 KB a turn at four seats (the
+cost table below), held once and shared by every clone. Each close-out
+reads it, on the longest fuzz game and on TR-7's persist loop.
 
 **One way to read it.** Every reader asks the log the same question, with
 the span it names:
@@ -3681,8 +3703,7 @@ pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Op
   `SpellsCast` of `Not(ByType(Creature))`. `SpellsCastOfType(t)` becomes
   `SpellsCast` of `ByType(t)`, so its fifteen slots go.
 - **`Condition::ThisTurn`, `LastTurn`, `SinceYourLastTurn` and `ThisGame`
-  keep their names and their cards.** The first three read the log, the
-  last the totals.
+  keep their names and their cards**, and all four read the log.
 - **`ObjectFilter::ThisTurn` and `ThisCombat`** read the rows that name the
   object, as TR-5c built them, with TR-5d's damage facts.
 - **An `AmountExpr` reads a `HistoryCount` as a number**: "the amount of
@@ -3691,20 +3712,23 @@ pub struct HistoryCount { pub players: PlayerSet, pub fact: TurnFact, pub of: Op
   further readings of the same rows, each with its first card.
 - **A record's place in its turn** is counted off the log as the row is
   written, so "the first spell you cast each turn" reads what it reads today.
+- **`backlog.md` §2.47's "this game" counts are readings too**, each with its
+  first card: a commander's casts from the command zone (B2's designation),
+  a count by name (Approach of the Second Sun, Yidaro, Gollum), an object's
+  lifetime facts (Rampaging Ursaguana, The Fallen). None needs a store.
 
 **The layer memo's gate**, keyed by the rows a read touches (item 279): a key
-for each kind of row, the combat count, the turn number and the game's
-totals, in place of today's one `GatedWalkInput::Histories`
-(`state/layer_memo.rs:75`), with `GatedInputs` widened from a `u8` to a `u16`.
+for each kind of row, the combat count and the turn number, in place of
+today's one `GatedWalkInput::Histories` (`state/layer_memo.rs:75`), with
+`GatedInputs` widened from a `u8` to a `u16`.
 - **Noted inside the log's lookups.** Each lookup takes the walk's note,
   notes its own kind of row, and notes the combat count when it asks for the
   latest combat. So a filter over two facts notes both, and no caller can
   leave one out. `Condition::DefendingPlayer` notes the removal rows through
   `attacking_when_removed`, never by name.
 - **Bumped by kind.** The writer bumps the keys of the rows it wrote, and a
-  turn's start, which drops chunks, bumps all of them. The memo audit, which
-  re-walks fresh against each hit in a debug build, catches a key a lookup
-  misses.
+  turn's start bumps the turn number. The memo audit, which re-walks fresh
+  against each hit in a debug build, catches a key a lookup misses.
 
 **The scenario** (`setup-architecture.md` §5.1). Today it writes each
 player's three summaries as count words (`scenario/text.rs`). A count word
@@ -3713,67 +3737,76 @@ object. A fact a filter can narrow names its objects ("cast this turn" and
 the cards), and reads them back with their printed frames. What it cannot
 say, it reports, as it reports a combat row today (`scenario/write.rs:194`).
 
-**What it costs, against today** (a size probe and twenty four-seat
-`performance` games at seed 12345, 2026-10-19):
+**What it costs, against today** (a size probe, a frame measured over 9,291
+samples, and 60 four-seat games in both pools, 2026-10-19):
 
 | | Today | The log |
 |---|---|---|
-| Bytes a four-seat clone copies for the history | 2,464: four players × 616, each with three 192-byte summaries of 24 counts | about 400: four players' totals; the log is two pointers |
+| Bytes a four-seat clone copies for the history | 2,464: four players × 616, each with three 192-byte summaries of 24 counts | about 100: four players' turn and draw-step counts; the log is one pointer |
 | Allocations a clone makes for it | 1, the players' `Vec` | 1 |
 | A fork's first write | the summaries in place; a whole round of combat or targeting rows (48 bytes each) once one is written | the open chunk: at most 16 rows of about 80 bytes, 1 allocation |
 | A new fact | 96 bytes on every four-seat clone (a slot in three summaries, four players). A fact by characteristic needs a slot per value, or cannot have one | a variant: nothing on the clone, and a row only when it happens |
-| Held once per game, shared by every clone of it | the combat and targeting rows, about 1–2 KB | 10–17 rows a turn at four seats (the games wrote 42.7 records a turn, p90 65, these kinds among them), about 50–85 over a round, 4–7 KB; and the frames those rows keep alive, about half a kilobyte each (272 bytes and a name and a few small sets) where no other row or the layer memo shares one, so at most about 40 KB. The clone floors do not count it, since no clone copies it |
+| Held once per game, shared by every clone of it | the combat and targeting rows, about 1–2 KB | about 8–10 rows a turn of these kinds (the games wrote 42.7 records a turn, p90 65), each about 80 bytes, and the frame each keeps alive, 332 bytes on average where nothing else shares it: at most about 3.5 KB a turn. Over a whole game, 220–250 KB on average and about 400 KB at most (the longest game 118 turns, the busiest turn 116 rows). The clone floors do not count it, since no clone copies it |
 
-A read scans the turn's rows of one kind, about ten, where a count read one
-slot. The readers are a static's condition, which the layer memo holds, and a
-trigger's "if", so floor 1 is not expected to move. Taking a live object's
-frame for its row is the new per-record work, priced at the build's first
-commit.
+A read of "this turn" scans its turn's rows of one kind, about ten, where a
+count read one slot. The readers are a static's condition, which the layer
+memo holds, and a trigger's "if", so floor 1 is not expected to move. Taking
+a live object's frame for its row is the new per-record work.
+
+**The first commit is a measurement gate.** It builds the log's storage and
+its writer for today's kinds, and moves no reader. Its sitting reads:
+- bytes and allocations per clone on `clone_bound_test`'s board;
+- instructions per decision on the fuzz tables, against `main`;
+- what a game holds at 74, 118 and 200 turns.
+
+The build stops and reports if a clone costs more than it does today, if
+instructions per decision rise past +1.5%, or if a game holds more than
+about 5 KB a turn. Only then do the readers move.
 
 **What it closes.** Item 279's damage half, since TR-5d's facts are rows
 here, and its shape for every other fact: each later one is a variant and a
-writer arm. Item 280. And `backlog.md` §2.47's game-only row becomes the
-totals' rule, with its name map their second part when Approach of the
-Second Sun comes.
+writer arm. Item 280. And `backlog.md` §2.47, whose counts become readings of
+the log with their first cards.
 
 **Planned shapes corrected here, with no decision**
-- **§3.10's `TurnSummary` and its three views**: this game's totals stay; the
-  spans are the log's.
+- **§3.10's `TurnSummary` and its three views** go; every span is the log's.
 - **TR-5c's "the combat rows become the object's rows when the first deed
   that is not combat's lands"** happens here, for every reader at once.
 
 **Not in this phase**, each with its first card: the aggregates ("greatest",
-"total", "among"); counters, taps, activations and token creations as rows;
-the name map; objects' lifetime facts. "Dealt damage to it" and a source as
+"total", "among"); counters, taps, activations, token creations and cycling
+as rows; the "this game" readings above. "Dealt damage to it" and a source as
 it was then (Brine Hag, Giant Albatross, Aegar, the Freezing Flame) are a
 filter over a damage row's frame and its recipient, which the shape holds;
-their leaf comes with the first card.
+their leaf comes with the first card. The two storage changes wait for a
+measurement that asks for them.
 
 **Sized.** Code at 1.5–2× plus tests, counted against the tree on
-2026-10-19. The lines it deletes (`TurnSummary`'s views, the snapshot, the
-type slots, `CombatHistory`, `TargetingHistory`) are not counted against it.
+2026-10-19. The lines it deletes (`TurnSummary`, the snapshot, the type
+slots, `CombatHistory`, `TargetingHistory`) are not counted against it.
 
 | Piece | Code | Tests |
 |---|---|---|
-| The row, its facts, the chunked log, its spans and retention | ~150 | ~760 across the phase: today's history tests moved onto the log (~150 lines changed); a filtered count read off a frame after the object changed; since your last turn at four seats; last turn; a clone shares the log and a fork's write copies one chunk; the gate, twice; the scenario's round trip by card name, twice; a place in a turn; Betor's amount; the damage facts (~150, from TR-5d) |
-| The writer: today's facts as rows, frames, places, the totals | ~110 | |
+| The row, its facts, the chunk chain and its spans | ~140 | ~780 across the phase: today's history tests moved onto the log (~150 lines changed); a filtered count read off a frame after the object changed; since your last turn at four seats; last turn; this game; a clone shares the log and a fork's write copies one chunk; the gate, twice; the scenario's round trip by card name, twice; a place in a turn; Betor's amount; the held-memory reading at the gate; the damage facts (~150, from TR-5d) |
+| The writer: today's facts as rows, frames, places | ~100 | |
 | The readers: `HistoryCount`'s `of`, the span conditions, the filter's facts, the targeting limit, the defending player, the amount | ~110 | |
-| The gate by kind of row | ~60 | |
+| The gate by kind of row | ~55 | |
 | The scenario's words | ~100 | |
 | TR-5d's damage rows and its two facts, `WasDealtDamage` and `DealtDamageTo { player, combat }` | ~40 | |
-| **Whole: 1,615–1,900** | ~570 (855–1,140) | ~760 |
+| The held-memory reading, beside `clone_bound_test` | ~25 | |
+| **Whole: 1,630–1,920** | ~570 (855–1,140) | ~780 |
 
 Docs at the close-out, about 400: the stub and the archive, `fuzz-record.md`'s
-block, §3.10 rewritten to the log, `setup-architecture.md` §5.1's words, and
-the glossary's history entry.
+block, §3.10 rewritten to the log, item 179's bound restated,
+`setup-architecture.md` §5.1's words, and the glossary's history entry.
 
 **Predictions for the close-out** (re-stated before `close_out.py`; it moves
 what a clone holds, so its sitting carries a cost arm)
 - *The engine arm, against `main`.* Every gameplay row identical, both pools,
   two seats and four: every reader answers as before, and a record's place
   in its turn is the same number. Instructions per decision +0.3% to +1%,
-  from a row and a frame per logged record. Floor 3 about 2 KB lower at four
-  seats, and floor 2 unchanged.
+  from a row and a frame per logged record. Floor 3 about 2.3 KB lower at
+  four seats, and floor 2 unchanged. A game holds about 3.5 KB a turn.
 - *No shipped arm*: no card is registered.
 
 ### TR-5d — prevention and excess damage
@@ -4214,7 +4247,7 @@ Docs at the close-out, about 350: the stub and the archive,
   its stress distortion is reported. It doubles every entering trigger its
   controller's permanents have, so more triggers per game are expected.
 
-**The three together.** TR-5h, TR-5d, then TR-5g, at 1,615–1,900, 880–1,000
+**The three together.** TR-5h, TR-5d, then TR-5g, at 1,630–1,920, 880–1,000
 and 1,330–1,510. TR-5d and TR-5g built as one would be 2,210–2,510, at the
 band's edge, and TR-5c landed 11% past its sizing's top, TR-5b 14% and TR-5f
 28%. So they stay apart, and each tracks the band at each commit and stops
@@ -4247,7 +4280,7 @@ ahead of both, TR-5h.
 | *TR-5a as sized on 2026-10-12, kept for the record* | items 250 and 255 as one facility: an occurrence keeps both of its record's objects as `ObjectRef`s at the dispatch, a recipient for the counterpart, the damage arm's subject its source; item 11's attackers with their defenders, and `AttackShape`'s seven readings over them; item 128, with CR 508.4's defender choice; `ObjectFilter::WithCounters` | Hellrider; Sphere Grid; ATOM-508.2a-001 and CR 508.3a–e's readings | ~700 (1,050–1,400) | ~990 | 2,040–2,390 |
 | **TR-5b — counters, and one history struct** — ✅ landed 2026-10-17, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5b" | | | | +2,103 |
 | **TR-5c — blocks, targeting and activation** — ✅ landed 2026-10-18, above | → `plans/archive/triggers-architecture-landed.md`, "TR-5c" | | | | +2,630 |
-| **TR-5h — one history of what happened** — designed above | the round's log of events, each with its object's frame then, which every history reader reads; the game's totals; the layer memo's gate by kind of row; the scenario's words; the damage rows and facts (item 279's damage half); item 280 | none registered: every registered reader of the history moves onto it | ~570 (855–1,140) | ~760 | 1,615–1,900 |
+| **TR-5h — one history of what happened** — designed above | the game's log of events, kept whole, each row with its object's frame then, which every history reader reads; the layer memo's gate by kind of row; the scenario's words; the damage rows and facts (item 279's damage half); item 280; a measurement gate first | none registered: every registered reader of the history moves onto it | ~570 (855–1,140) | ~780 | 1,630–1,920 |
 | **TR-5d — prevention and excess damage** (CR 615.13, 120.10) — designed above | item 16's arm over `DamagePrevented`; excess damage per recipient, decided with the batch, and on TR-5h's damage row; item 275 | Selfless Squire; ATOM-120.10-001 | ~240 (360–480) | ~520 | 880–1,000 |
 | **TR-5g — the multiplier, tokens and scry** (CR 603.2d, 701.7, 701.22) — designed above | `Effect::TriggerMultiplier` with its three legs and the triggered mana path; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; a count of targets the text defines (CR 601.2c) | Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's fixture against item 251's "from anywhere" arm (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001 | ~355 (530–710) | ~800 | 1,330–1,510 |
 | *TR-5d as sized at TR-5c's review (2026-10-18), kept for the record* | item 16's arm over `DamagePrevented { target, amount, by }`, whose record came with #260; excess damage per recipient over the batch, and the "this turn" damage facts ("was dealt damage", "dealt damage to"), moved from TR-5c at its review (TR-5c's piece 11 and part (a)); item 275, moved with them; `CreatesToken` with the definition `TokenCreated` carries; `Scries`; `Effect::TriggerMultiplier` with its three legs and the triggered mana path | Selfless Squire, Panharmonicon (seven of its nine rulings; two are about linked abilities); Gandalf the White's multiplier against item 251's "from anywhere" arm on one board (its ninth ruling); Ajani, Nacatl Avenger's and Elrond's fixtures; ATOM-603.2d-001, ATOM-120.10-001 | ~610 (915–1,220) | ~1,080 | 1,995–2,300 |
