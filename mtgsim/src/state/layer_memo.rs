@@ -337,13 +337,14 @@ mod tests {
     fn a_repeated_query_is_a_hit_and_shares_the_frame() {
         let mut game = GameState::new(2, 20);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        // The entry's history row read the frame already; count from here.
+        let walks = game.diagnostics.layer_walks();
 
-        let (first, hit) = query(&game, bears);
-        assert!(!hit, "the first query walks");
+        let (first, _) = query(&game, bears);
         let (second, hit) = query(&game, bears);
         assert!(hit, "the second is served from the memo");
         assert!(Arc::ptr_eq(first.as_ref().unwrap(), second.as_ref().unwrap()));
-        assert_eq!(game.diagnostics.layer_walks(), 1, "one walk for two queries");
+        assert!(game.diagnostics.layer_walks() - walks <= 1, "at most one walk for two queries");
     }
 
     #[test]
@@ -397,7 +398,10 @@ mod tests {
 
         game.move_object(card, Zone::Battlefield).unwrap();
         place_on_battlefield(&mut game, card, 1, &EnterMods::NONE);
-        assert_eq!(controller(&game, card), (Some(1), false), "the entity is the seed now");
+        // A frame kept from the hand would still say its owner. The entry's
+        // history row may have walked it fresh already, so the hit flag is not
+        // the witness.
+        assert_eq!(controller(&game, card).0, Some(1), "the entity is the seed now");
     }
 
     #[test]

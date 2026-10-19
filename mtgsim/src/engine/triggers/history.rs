@@ -7,16 +7,30 @@
 //! ends: at its window's dispatch, or, for one card of a draw instruction, as
 //! that card's draw ends, since the next card is decided after it (CR 121.2).
 
+use std::sync::Arc;
+
 use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::targeting::TargetRef;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::state::history::{CombatFact, PlayerHistory, TargetingRow};
+use crate::state::history_log::{HistoryRow, RowFact};
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectRef, PlayerId};
-use crate::types::zones::Zone;
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::triggers::ObjectOrPlayer;
+use crate::types::zones::{Zone, ZoneChangeAct};
 use crate::state::layer_memo::GatedWalkInput;
+
+/// A log row before the write step gives it its turn and combat.
+struct RowDraft {
+    player: Option<PlayerId>,
+    object: Option<ObjectRef>,
+    frame: Option<Arc<EffectiveCharacteristics>>,
+    fact: RowFact,
+}
 
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
@@ -72,11 +86,16 @@ impl GameState {
     /// on each where it falls in its turn and, for a draw, in its player's
     /// draw step (`EventRecord::place_in_turn`, `place_in_draw_step`).
     pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
+        let mut drafts: Vec<(EventSeq, RowDraft)> = Vec::new();
         let updates: Vec<(EventSeq, Option<HistoryUpdate>)> = window
             .iter()
             .filter(|&&seq| self.events.record(seq).is_some_and(|r| !r.counted()))
-            .map(|&seq| (seq, self.history_update(seq)))
+            .map(|&seq| {
+                self.draft_history_rows(seq, window, &mut drafts);
+                (seq, self.history_update(seq))
+            })
             .collect();
+        let mut drafts = drafts.into_iter().peekable();
         let mut wrote = false;
         for (seq, update) in updates {
             let (mut in_turn, mut in_draw_step) = (None, None);
@@ -85,6 +104,20 @@ impl GameState {
                 in_turn = self.place_in_turn(&update);
                 in_draw_step = self.place_in_draw_step(&update);
                 wrote = true;
+            }
+            // After the record's own count, so a combat's first rows carry
+            // its number.
+            while let Some((_, draft)) = drafts.next_if(|(drafted, _)| *drafted == seq) {
+                let row = HistoryRow {
+                    seq,
+                    turn: self.turn_number,
+                    combat: self.history.log.combats_this_turn(),
+                    player: draft.player,
+                    object: draft.object,
+                    frame: draft.frame,
+                    fact: draft.fact,
+                };
+                self.history.log.push(row);
             }
             self.events.note_counted(seq, in_turn, in_draw_step);
         }
@@ -162,7 +195,10 @@ impl GameState {
                 }
             }
             HistoryUpdate::Targeted { row } => self.history.targetings.record(*row),
-            HistoryUpdate::CombatBegan => self.history.combat.combat_began(),
+            HistoryUpdate::CombatBegan => {
+                self.history.combat.combat_began();
+                self.history.log.combat_began();
+            }
             HistoryUpdate::RemovedFromCombat { exits } => {
                 for &(object, attacking) in exits {
                     self.history.combat.record(object, turn, CombatFact::Removed { attacking });
@@ -203,6 +239,124 @@ impl GameState {
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
         self.history.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
+    }
+
+    /// The log's rows for record `seq` of `window`, each its object as the
+    /// event left it, read before anything is written.
+    fn draft_history_rows(&self, seq: EventSeq, window: &[EventSeq], drafts: &mut Vec<(EventSeq, RowDraft)>) {
+        let Some(record) = self.events.record(seq) else { return };
+        let mut draft = |player: Option<PlayerId>, object: Option<ObjectRef>, frame, fact| {
+            drafts.push((seq, RowDraft { player, object, frame, fact }));
+        };
+        // An object still the existence the record named, read now. One that
+        // has moved since is a new object (CR 400.7), whose frame is not this.
+        let still = |object: ObjectRef| {
+            if self.object_ref(object.id) == Some(object) { compute_characteristics(self, object.id) } else { None }
+        };
+        let now = |id: ObjectId| self.object_ref(id).map(|object| (object, compute_characteristics(self, id)));
+        let controller = |frame: &Option<Arc<EffectiveCharacteristics>>| frame.as_ref().map(|chars| chars.controller);
+        match &record.event {
+            GameEvent::SpellCast { spell_id, caster } => {
+                if let (Some((object, frame)), Some(from)) =
+                    (now(*spell_id), self.stack_entries.get(spell_id).and_then(|entry| entry.cast_from))
+                {
+                    draft(Some(*caster), Some(object), frame, RowFact::Cast { from });
+                }
+            }
+            GameEvent::CardDrawn { player_id, card_id } => {
+                if let Some((object, frame)) = now(*card_id) {
+                    draft(Some(*player_id), Some(object), frame, RowFact::Drew);
+                }
+            }
+            GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
+                draft(Some(*player_id), None, None, RowFact::GainedLife((new - old) as u64));
+            }
+            GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
+                draft(Some(*player_id), None, None, RowFact::LostLife((old - new) as u64));
+            }
+            // Where it came from is its zone change's, in the same window; a
+            // token comes from none (CR 111.2).
+            GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
+                let from = window.iter().filter_map(|&other| self.events.record(other)).find_map(|other| match &other.event {
+                    GameEvent::ZoneChange { object_id: moved, from, to: Zone::Battlefield, .. } if moved == object_id => Some(*from),
+                    _ => None,
+                });
+                if let Some((object, frame)) = now(*object_id) {
+                    draft(Some(*controller), Some(object), frame, RowFact::Entered { from });
+                }
+            }
+            // A draw, a cast and an entry are their own rows.
+            GameEvent::ZoneChange { to: Zone::Battlefield, .. }
+            | GameEvent::ZoneChange { act: ZoneChangeAct::Cast | ZoneChangeAct::Drawn, .. } => {}
+            GameEvent::ZoneChange { object_id, owner, from, to, act, lki, new_epoch, .. } => {
+                let became = ObjectRef { id: *object_id, zone_change_epoch: *new_epoch };
+                let fact = RowFact::LeftZone { from: *from, to: *to, act: *act, became };
+                match lki {
+                    Some(lki) => draft(Some(lki.chars().controller), Some(lki.object()), Some(Arc::clone(lki.frame())), fact),
+                    None => draft(Some(*owner), Some(became), still(became), fact),
+                }
+            }
+            GameEvent::SameZoneMove { owner, zone, act, lki, .. } => {
+                let fact = RowFact::LeftZone { from: *zone, to: *zone, act: *act, became: lki.object() };
+                draft(Some(*owner), Some(lki.object()), Some(Arc::clone(lki.frame())), fact);
+            }
+            GameEvent::LeftTheGame { owner, from, lki: Some(lki), .. } => {
+                draft(Some(*owner), Some(lki.object()), Some(Arc::clone(lki.frame())), RowFact::LeftTheGame { from: *from });
+            }
+            GameEvent::LeftTheGame { object_id, owner, from, lki: None } => {
+                draft(Some(*owner), self.object_ref(*object_id), None, RowFact::LeftTheGame { from: *from });
+            }
+            // A source that left before dealing it deals it as it last existed
+            // (CR 608.2h).
+            GameEvent::DamageDealt { source_id, target, amount, is_combat, source_lki } => {
+                let (object, frame) = match source_lki {
+                    Some(lki) => (Some(lki.object()), Some(Arc::clone(lki.frame()))),
+                    None => match now(*source_id) {
+                        Some((object, frame)) => (Some(object), frame),
+                        None => (None, None),
+                    },
+                };
+                let to = match target {
+                    DamageTarget::Object(id) => self.object_ref(*id).map(ObjectOrPlayer::Object),
+                    DamageTarget::Player(player) => Some(ObjectOrPlayer::Player(*player)),
+                };
+                if let Some(to) = to {
+                    let fact = RowFact::DealtDamage { to, amount: *amount, combat: *is_combat };
+                    draft(controller(&frame), object, frame, fact);
+                }
+            }
+            GameEvent::AttackersDeclared { attackers } => {
+                for &(attacker, target) in attackers {
+                    if let Some((object, frame)) = now(attacker) {
+                        draft(Some(self.active_player), Some(object), frame, RowFact::Attacked(target));
+                    }
+                }
+            }
+            GameEvent::BlockersDeclared { blocks, .. } => {
+                for &(blocker, attacker) in blocks {
+                    if let (Some((object, frame)), Some(attacker)) = (now(blocker), self.object_ref(attacker)) {
+                        draft(controller(&frame), Some(object), frame, RowFact::Blocked(attacker));
+                    }
+                }
+            }
+            GameEvent::RemovedFromCombat { removed } => {
+                for exit in removed {
+                    let frame = still(exit.object);
+                    draft(controller(&frame), Some(exit.object), frame, RowFact::RemovedFromCombat { attacking: exit.attacking });
+                }
+            }
+            GameEvent::Targeted { target, ability_source, controller: targeting, .. } => {
+                let fact = RowFact::BecameTarget { by_spell: ability_source.is_none(), controller: *targeting };
+                match target {
+                    TargetRef::Object(object) => {
+                        let frame = still(*object);
+                        draft(controller(&frame), Some(*object), frame, fact);
+                    }
+                    TargetRef::Player(player) => draft(Some(*player), None, None, fact),
+                }
+            }
+            _ => {}
+        }
     }
 
     /// What `seq` adds, or `None` for a record no summary counts.

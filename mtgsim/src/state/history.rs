@@ -18,6 +18,7 @@ use crate::engine::targeting::TargetRef;
 use crate::events::event::EventSeq;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::AbilityIdentity;
+use crate::state::history_log::HistoryLog;
 use crate::types::history::TurnFact;
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectRef, PlayerId};
 
@@ -200,6 +201,10 @@ pub struct GameHistory {
     /// What became the target of what this turn, which valiant's "for the
     /// first time each turn" reads.
     pub targetings: TargetingHistory,
+    /// Every event a card can ask about later, for the whole game
+    /// (`state::history_log`). Written beside the stores above until their
+    /// readers move onto it.
+    pub log: HistoryLog,
 }
 
 impl GameHistory {
@@ -213,6 +218,7 @@ impl GameHistory {
             resolutions_this_turn: IdMap::default(),
             combat: CombatHistory::default(),
             targetings: TargetingHistory::default(),
+            log: HistoryLog::default(),
         }
     }
 
@@ -250,6 +256,7 @@ impl GameHistory {
         self.resolutions_this_turn.clear();
         self.combat.turn_began(keep_from);
         self.targetings.turn_began();
+        self.log.turn_began();
     }
 }
 
