@@ -55,7 +55,7 @@ impl GameState {
         // before anything moves.
         let paying = ActionContext::paying_cost(dp, player_id, permanent_id);
         let source = self.object_ref(permanent_id).ok_or_else(|| format!("Permanent {permanent_id} is in no zone"))?;
-        let before_paying = self.frame_a_cost_can_take(permanent_id, &ability.costs);
+        let before_paying = self.source_before_paying(permanent_id, &ability.costs)?;
         let plan = self.plan_payment(&ability.costs, player_id, permanent_id, &paying)?;
         self.pay_costs(&plan, player_id, permanent_id, &paying)?;
 

@@ -1054,6 +1054,34 @@ fn a_trigger_on_a_mana_abilitys_activation_that_adds_mana_resolves_at_once() {
     assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
 }
 
+/// CR 605.1b asks what the trigger triggered from, not what its text names:
+/// "whenever you activate an ability, add {C}" is a mana ability when a
+/// mana ability's activation triggers it, and uses the stack when another
+/// activation does.
+#[test]
+fn a_trigger_is_a_mana_ability_by_the_activation_that_triggered_it() {
+    let mut game = stocked(2);
+    let add_one = Effect::Atom(
+        Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
+        EffectRecipient::Controller,
+    );
+    let echo = CardDataBuilder::new("Fixture Any Echo")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability("", whenever(activates_an_ability_of(Whose::Yours, TriggerSubject::Any, None), add_one)))
+        .build();
+    put_on_battlefield(&mut game, echo, 0);
+    let forest = put_on_battlefield(&mut game, forest(), 0);
+    tap_for_mana(&mut game, 0, forest);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 1, "a mana ability's activation: added at once");
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
+
+    let mine = put_on_battlefield(&mut game, merfolk_thaumaturgist(), 0);
+    let theirs = put_on_battlefield(&mut game, merfolk_thaumaturgist(), 1);
+    thaumaturgist_at(&mut game, 0, mine, theirs);
+    place_triggers(&mut game, &ScriptedDecisionProvider::new());
+    assert_eq!(game.stack.len(), 2, "another activation: the trigger on the stack above it");
+}
+
 /// The log leaves a mana ability's activation implicit, since its tap and
 /// its mana say it, and the full event log keeps it.
 #[test]

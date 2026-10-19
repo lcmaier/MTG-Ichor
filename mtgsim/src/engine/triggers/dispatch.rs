@@ -149,17 +149,25 @@ enum KeptLkiSlot<'a> {
 }
 
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
-/// target, triggers from mana being added or a mana ability's activation,
-/// and could add mana. CR 605.5a is the same sentence from the other side —
-/// a target or any other event makes it an ordinary triggered ability.
-pub fn is_mana_ability(def: &TriggerDef) -> bool {
-    let arms = def.condition.events();
-    !arms.is_empty()
-        && arms.iter().all(|arm| {
-            matches!(arm, TriggerEvent::ManaAdded { .. } | TriggerEvent::ActivatesAbility { mana_ability: Some(true), .. })
-        })
-        && def.effect.instances().is_empty()
-        && could_add_mana(&def.effect)
+/// target, could add mana, and triggered from mana being added or a mana
+/// ability's activation, which is the triggering record's to say. "Whenever
+/// you activate an ability, add {C}" is a mana ability when a mana ability's
+/// activation triggers it, and an ordinary triggered ability when another
+/// activation does. CR 605.5a is the same sentence from the other side.
+pub fn is_mana_ability(def: &TriggerDef, triggered_by: &GameEvent) -> bool {
+    could_be_a_mana_ability(def)
+        && matches!(triggered_by, GameEvent::ManaAdded { .. } | GameEvent::AbilityActivated { mana_ability: true, .. })
+}
+
+/// Whether some event could make `def` a mana ability (`is_mana_ability`):
+/// no target, could add mana, and an arm that can trigger on mana being added
+/// or on a mana ability's activation. What a mana payment counts as mana its
+/// own activations may still produce.
+pub fn could_be_a_mana_ability(def: &TriggerDef) -> bool {
+    let from_mana = |arm: &TriggerEvent| {
+        matches!(arm, TriggerEvent::ManaAdded { .. } | TriggerEvent::ActivatesAbility { mana_ability: None | Some(true), .. })
+    };
+    def.condition.events().iter().any(from_mana) && def.effect.instances().is_empty() && could_add_mana(&def.effect)
 }
 
 fn could_add_mana(effect: &Effect) -> bool {
@@ -1341,7 +1349,7 @@ impl GameState {
                     Ok((event, triggering_events)) => (Some(event), triggering_events, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
                 };
-                let mana = matched.is_some() && is_mana_ability(def);
+                let mana = matched.is_some() && is_mana_ability(def, &record.event);
                 self.trace(|| {
                     trace_records::trigger(
                         self,
@@ -1364,7 +1372,7 @@ impl GameState {
             for ArmMatch { row, arm: matched, triggering_events } in hits {
                 let candidate = &candidates[row.candidate];
                 let (identity, def) = (row.identity, row.def);
-                let mana = is_mana_ability(def);
+                let mana = is_mana_ability(def, &record.event);
                 let arm = &def.condition.events()[matched.0];
                 // The ability's own def, shared: nothing writes it once the card
                 // is built, so a Humility landing before placement still cannot

@@ -60,6 +60,14 @@ impl std::fmt::Display for SorceryTiming {
     }
 }
 
+/// An activation's source as its costs found it, which the activation's
+/// record names: the zone it was activated from, and its last known
+/// information where a cost could move it.
+pub(crate) struct SourceBeforePaying {
+    zone: Zone,
+    lki: Option<Lki>,
+}
+
 impl GameState {
     /// Cast a spell from hand onto the stack (rule 601.2).
     ///
@@ -403,21 +411,20 @@ impl GameState {
         self.dispatch_batch(mark, window, &ActionContext { dp, cause })
     }
 
-    /// `source` as it is now, when one of `costs` can move it before the
-    /// activation's record is written: a sacrifice, which "an ability of an
-    /// artifact" must still read it as (CR 602.2b runs 601.2h before 601.2i).
-    /// `None` for every other cost, which leaves the source where it is.
-    pub(crate) fn frame_a_cost_can_take(&self, source: ObjectId, costs: &[Cost]) -> Option<Lki> {
-        let can_take = costs.iter().any(|cost| matches!(cost, Cost::SacrificeSelf | Cost::Sacrifice(..)));
-        if !can_take {
-            return None;
-        }
-        self.last_known_information_now(source)
+    /// `source` as an activation's record names it, read before `costs` are
+    /// paid (CR 602.2b pays before it announces). Its last known information
+    /// is taken only where a cost can move it ("an ability of an artifact"
+    /// still reads a sacrificed one as it was): it costs a layer walk, and most
+    /// activations, a land's for mana among them, pay nothing that moves it.
+    pub(crate) fn source_before_paying(&self, source: ObjectId, costs: &[Cost]) -> Result<SourceBeforePaying, String> {
+        let zone = self.get_object(source)?.zone;
+        let lki = if costs.iter().any(Cost::can_move_its_source) { self.last_known_information_now(source) } else { None };
+        Ok(SourceBeforePaying { zone, lki })
     }
 
     /// CR 602.2b's and 605.3a's announcement, once the costs are paid:
-    /// `identity` activated by `controller`, its source as it was before
-    /// paying (`before_paying`) when a cost moved it. With the activator's
+    /// `identity` activated by `controller` from the zone its source was in,
+    /// with the source as it was when a cost moved it. With the activator's
     /// provider, since a triggered mana ability on it resolves at the dispatch
     /// (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
@@ -425,11 +432,12 @@ impl GameState {
         identity: AbilityIdentity,
         controller: PlayerId,
         mana_ability: bool,
-        before_paying: Option<Lki>,
+        before_paying: SourceBeforePaying,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        let source_lki = before_paying.filter(|_| self.object_ref(identity.source.id) != Some(identity.source));
-        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from: Zone::Battlefield, source_lki };
+        let SourceBeforePaying { zone: from, lki } = before_paying;
+        let source_lki = lki.filter(|_| self.object_ref(identity.source.id) != Some(identity.source));
+        let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
         self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
@@ -535,7 +543,7 @@ impl GameState {
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
-        let before_paying = self.frame_a_cost_can_take(source_id, &ability_costs);
+        let before_paying = self.source_before_paying(source_id, &ability_costs)?;
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
